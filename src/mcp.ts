@@ -721,6 +721,170 @@ function listSetupResources(): ResourceDefinition[] {
   ];
 }
 
+function listDocsResources(): ResourceDefinition[] {
+  // Self-aware MCP: surface the canonical unbrowse docs as MCP Resources so
+  // any agent connecting via stdio JSON-RPC can READ the architecture,
+  // payment ladder, mcp workflow guide, earnings model, etc. without
+  // leaving the protocol. Closes the "agents don't see Pay ladder via MCP"
+  // gap surfaced by the validate-the-unbrowse-mcp-agent-experience-end-t
+  // harness wave 1.
+  //
+  // Reads are LIVE from disk on each request — docs stay in sync with the
+  // installed package. CHANGELOG is too large to surface whole; tail-200
+  // gives the recent releases the agent usually wants.
+  return [
+    {
+      uri: "unbrowse://docs/index",
+      name: "Unbrowse Docs Index",
+      description:
+        "Canonical list of unbrowse documentation Resources available via MCP. Use this to discover which docs exist (architecture, payments, mcp workflow, earnings, etc.) before reading any specific one. JSON list with uri + title + size_bytes per doc.",
+      mimeType: "application/json",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const docs = [
+          { uri: "unbrowse://docs/readme",       title: "README",                   rel: "README.md" },
+          { uri: "unbrowse://docs/changelog",    title: "CHANGELOG (recent tail)",  rel: "CHANGELOG.md" },
+          { uri: "unbrowse://docs/payments",     title: "How Unbrowse Pays",        rel: "docs/HOW_UNBROWSE_PAYS.md" },
+          { uri: "unbrowse://docs/mcp-workflow", title: "MCP Workflow Guide",       rel: "docs/mcp-workflow-guide.md" },
+          { uri: "unbrowse://docs/earnings",     title: "Earn As Indexer",          rel: "docs/EARN_AS_INDEXER.md" },
+          { uri: "unbrowse://docs/docs-index",   title: "Docs Tree Index",          rel: "docs/README.md" },
+        ];
+        const entries: Array<Record<string, unknown>> = [];
+        for (const d of docs) {
+          const p = path.join(pkgRoot ?? process.cwd(), d.rel);
+          let size_bytes = 0;
+          try {
+            if (fs.existsSync(p)) {
+              size_bytes = fs.statSync(p).size;
+            }
+          } catch {
+            // best-effort
+          }
+          entries.push({ uri: d.uri, title: d.title, source_path: d.rel, size_bytes, exists: size_bytes > 0 });
+        }
+        return {
+          docs: entries,
+          generated_at: new Date().toISOString(),
+          note: "Read any individual doc by calling resources/read with the listed uri. CHANGELOG returns the most recent ~200 lines (the full file is 4000+ lines and exceeds a reasonable single-Resource payload).",
+        };
+      },
+    },
+    {
+      uri: "unbrowse://docs/readme",
+      name: "Unbrowse README",
+      description:
+        "The canonical top-level unbrowse README. Read this when the agent needs to explain what unbrowse IS, what it does, and how a new user starts. Live-read from disk; matches the installed package.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "README.md");
+        try {
+          return fs.readFileSync(p, "utf8");
+        } catch {
+          return "# README\n\n(README.md not found on disk; package may be incomplete)";
+        }
+      },
+    },
+    {
+      uri: "unbrowse://docs/changelog",
+      name: "Unbrowse CHANGELOG (recent tail)",
+      description:
+        "Most recent ~200 lines of CHANGELOG.md (the full file is too large for a single Resource). Read this when the agent needs to know what shipped in the most recent versions or to debug a regression by recent change.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "CHANGELOG.md");
+        try {
+          const raw = fs.readFileSync(p, "utf8");
+          const lines = raw.split("\n");
+          const tail = lines.slice(0, 200).join("\n");
+          return `${tail}\n\n... (CHANGELOG truncated to first 200 lines; full file is ${lines.length} lines on disk)`;
+        } catch {
+          return "# CHANGELOG\n\n(CHANGELOG.md not found on disk)";
+        }
+      },
+    },
+    {
+      uri: "unbrowse://docs/payments",
+      name: "How Unbrowse Pays (payment ladder)",
+      description:
+        "The canonical doc on the unbrowse payment surface: free quota, sponsor subsidy (x402 middleware, $1/day/agent + $50/day/platform via Lewis wallet), agent x402 wallet fallback, and Pay (pay.sh) TouchID-gated paid API calls for tasks outside unbrowse. READ THIS when the agent hits a paywall, sees a 402 response, or needs to explain billing to a user. Closes the 'agents don't see the Pay ladder via MCP' gap.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "docs/HOW_UNBROWSE_PAYS.md");
+        try {
+          return fs.readFileSync(p, "utf8");
+        } catch {
+          return "# How Unbrowse Pays\n\n(docs/HOW_UNBROWSE_PAYS.md not found on disk)";
+        }
+      },
+    },
+    {
+      uri: "unbrowse://docs/mcp-workflow",
+      name: "MCP Workflow Guide (self-aware reference)",
+      description:
+        "The step-by-step tool-call sequence guide for callers using unbrowse via MCP. Three intent classes (cached / cold-browse-publish / URL-contents). Every tool referenced with src/mcp.ts:LINE cites. Read this to know which MCP tool to call next for any user intent.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "docs/mcp-workflow-guide.md");
+        try {
+          return fs.readFileSync(p, "utf8");
+        } catch {
+          return "# MCP Workflow Guide\n\n(docs/mcp-workflow-guide.md not found on disk)";
+        }
+      },
+    },
+    {
+      uri: "unbrowse://docs/earnings",
+      name: "Earn As Indexer",
+      description:
+        "How users earn from routes they index. Read this when explaining the marketplace flywheel or when the agent needs to nudge wallet setup (lobster-cli) after a successful resolve that indexed routes.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "docs/EARN_AS_INDEXER.md");
+        try {
+          return fs.readFileSync(p, "utf8");
+        } catch {
+          return "# Earn As Indexer\n\n(docs/EARN_AS_INDEXER.md not found on disk)";
+        }
+      },
+    },
+    {
+      uri: "unbrowse://docs/docs-index",
+      name: "Docs Tree Index",
+      description:
+        "Index of the full docs/ tree: concepts, for-agents, for-developers, for-investors, guides, reference. Read this to discover docs not directly surfaced as Resources.",
+      mimeType: "text/markdown",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const pkgRoot = getPackageRoot();
+        const p = path.join(pkgRoot ?? process.cwd(), "docs/README.md");
+        try {
+          return fs.readFileSync(p, "utf8");
+        } catch {
+          return "# Docs Index\n\n(docs/README.md not found on disk)";
+        }
+      },
+    },
+  ];
+}
+
 function listResource(resource: ResourceDefinition): ListedResource {
   return {
     uri: resource.uri,
@@ -3121,7 +3285,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
 
   if (method === "resources/list") {
     jsonRpcResult(id, {
-      resources: [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources()].map(listResource),
+      resources: [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources(), ...listDocsResources()].map(listResource),
     });
     return;
   }
@@ -3132,7 +3296,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       jsonRpcError(id, -32602, "Resource uri is required");
       return;
     }
-    const resource = [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources()].find((entry) => entry.uri === uri);
+    const resource = [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources(), ...listDocsResources()].find((entry) => entry.uri === uri);
     if (!resource) {
       jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
       return;
