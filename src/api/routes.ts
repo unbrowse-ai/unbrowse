@@ -2126,6 +2126,33 @@ export async function registerRoutes(app: FastifyInstance) {
             recovered = true;
           }
         }
+        // Try 4: semantic sibling-by-intent rank. When the agent's endpoint_id
+        // is unknown AND no URL match exists AND the skill has 2+ endpoints,
+        // use selectBestEndpoint to pick by intent. Catches the Amazon-shaped
+        // regression where resolve emits an endpoint_id the executor cannot
+        // find but the skill has multiple ranked endpoints that could satisfy
+        // the intent. The agent expressed an intent; surfacing the next-best
+        // sibling is the substrate-faithful recovery (vs forcing the agent to
+        // re-resolve from scratch). Substrate-faithful: this is evidence-
+        // derived ranking, not a per-domain registry.
+        if (!recovered && (skill.endpoints?.length ?? 0) >= 2 && intent) {
+          try {
+            const { selectBestEndpoint } = await import("../execution/index.js");
+            const sibling = selectBestEndpoint(
+              skill.endpoints,
+              intent,
+              skill.domain,
+              context_url,
+            );
+            if (sibling?.endpoint_id && sibling.endpoint_id !== execParams.endpoint_id) {
+              console.log(`[exec] D8 semantic sibling: rewriting endpoint_id ${execParams.endpoint_id} → ${sibling.endpoint_id} (${sibling.description?.slice(0, 60)})`);
+              execParams.endpoint_id = sibling.endpoint_id;
+              recovered = true;
+            }
+          } catch (err) {
+            console.log(`[exec] D8 semantic sibling selection failed: ${(err as Error).message}`);
+          }
+        }
         if (recovered) {
           execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
         }
