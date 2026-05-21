@@ -354,8 +354,33 @@ export async function cacheBrowseRequests(params: {
       try { sessionCookies = await getCookies(); } catch { /* best-effort */ }
     }
     let usedServerFetch = false;
-    if (!html || !html.trimStart().startsWith("<")) {
-      log("browse-index", `getPageHtml malformed (size=${livePageHtmlSize}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
+    // Detect shell-only HTML: kuri's getPageHtml can fire BEFORE the body
+    // parses, returning `<html><head></head><body></body></html>` (~39
+    // bytes) on perfectly normal SSR pages. The pre-fix predicate only
+    // caught structurally non-HTML responses (`[object Object]` or empty
+    // string); a valid-but-empty shell slipped through, extraction
+    // returned no data, and the secondary tryHttpFetch fallback at L396
+    // ALSO failed to update the diagnostic on miss. Cycle-4 evidence:
+    // probes 016/017 stackoverflow (cookies_injected=15-16, host_match
+    // true, snap_current_url correct) returned `<html><head></head><body>
+    // </body></html>` from getPageHtml; dom_decision_reason landed as
+    // `no_dom_data`. Catching the shell case here pushes both stackoverflow
+    // probes into the server-fetch fallback (which on the SSR target
+    // returns the real 200KB+ question body).
+    const looksLikeShellOnly = (h: string | undefined): boolean => {
+      if (!h) return false;
+      if (h.length > 600) return false;
+      // Strip the wrapper tags and whitespace; if nothing is left, kuri
+      // captured an empty shell. Tolerant of attributes on html/body.
+      const inner = h
+        .replace(/<\/?html\b[^>]*>/gi, "")
+        .replace(/<\/?head\b[^>]*>/gi, "")
+        .replace(/<\/?body\b[^>]*>/gi, "")
+        .trim();
+      return inner.length === 0;
+    };
+    if (!html || !html.trimStart().startsWith("<") || looksLikeShellOnly(html)) {
+      log("browse-index", `getPageHtml malformed or shell-only (size=${livePageHtmlSize}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
       const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       html = fetched?.html;
       usedServerFetch = true;
