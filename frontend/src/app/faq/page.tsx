@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     q: "How do I install Unbrowse?",
-    a: "Run npx unbrowse setup for a one-command installation that wires up the local runtime and configures your agent host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse. One install covers Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and any other MCP-aware framework.",
+    a: "Run npx unbrowse setup --mcp for a one-command installation that wires Unbrowse up as an MCP server in Claude Code, Cursor, Windsurf, Claude Desktop, Codex, OpenClaw, or any MCP-aware host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup --mcp. For Claude Code specifically you can also use claude mcp add unbrowse -- npx -y unbrowse mcp. Restart the host once and unbrowse:// resources show up automatically.",
   },
   {
     q: "What is the skill registry?",
