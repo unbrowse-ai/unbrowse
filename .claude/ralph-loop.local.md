@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 1
+iteration: 4
 max_iterations: 50
 completion_promise: "ALL_SCAFFOLDS_CONVERGED"
 started_at: 2026-05-21T00:32:41Z

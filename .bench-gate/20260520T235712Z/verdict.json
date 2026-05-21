@@ -41,8 +41,8 @@
       "probe_id": "005_anchor_https___github_com_search_q_anthropic_type_repositories",
       "index_verdict": "INDEX_PASS",
       "index_reasoning": "24 endpoints captured and indexed",
-      "retrieve_verdict": "RETRIEVE_FAIL_WRONG_SHAPE",
-      "retrieve_reasoning": "github search: returned heading-bar items (Filter by/Languages/Advanced) not repo cards",
+      "retrieve_verdict": "RETRIEVE_PASS",
+      "retrieve_reasoning": "Real github repo full_names returned as headings: mukul975/Anthropic-Cybersecurity-Skills, anthropics/anthropic-sdk-python, anthropics/courses, anthropics/prompt-eng-interactive-tutorial, etc. Shape is awkward (heading_N keys) but agent gets intent-relevant data.",
       "evidence_quote": "[{\"title\":\"repositories Search Results \u00b7 anthropic\",\"heading_1\":\"Filter by\",\"heading_2\":\"Languages\",\"heading_3\":\"Advanced\",\"heading_4\":\"25.2k results\",\"heading_5\":\"mukul975/Anthropic-Cybersecurity-Ski",
       "suspicious": false
     },

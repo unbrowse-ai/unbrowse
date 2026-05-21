@@ -1410,8 +1410,8 @@ function isApiLike(req: RawRequest): boolean {
     if (SKIP_TELEMETRY_HOSTS.test(hostname)) return false;  // BUG-GC-004
     if (SKIP_TELEMETRY_PATHS.test(pathname)) return false;  // BUG-GC-004
     if (AD_HOSTS.test(hostname)) return false;
-    // play.google.com/log is telemetry, not calendar data
-    if (hostname === "play.google.com" && pathname.startsWith("/log")) return false;
+    // (V4 audit cleanup: `if (hostname === "play.google.com" && pathname.startsWith("/log"))` removed —
+    // SKIP_TELEMETRY_PATHS at L1411 already matches /log via the `(log|logging|telemetry|...)(\/|$)` arm)
     // Skip image CDN paths (coin images, avatars, etc.)
     if (/\/(coin-image|avatar|profile-image)\//.test(pathname)) return false;
     // Hard-skip on-domain noise that's never useful data

@@ -7,15 +7,15 @@
     "index_pass": 35,
     "index_total_indexable": 46,
     "index_coverage": 0.7608695652173914,
-    "retrieve_pass": 16,
+    "retrieve_pass": 17,
     "retrieve_total_retrievable": 47,
-    "retrieve_coverage": 0.3404255319148936,
+    "retrieve_coverage": 0.3617021276595745,
     "suspicious_count": 0,
     "by_lane": {
       "anchor": {
         "index_pass": 10,
         "indexable": 11,
-        "retrieve_pass": 7,
+        "retrieve_pass": 8,
         "retrievable": 11
       },
       "semantic-rank": {
@@ -65,12 +65,12 @@
     {
       "name": "retrieve_coverage >= floor",
       "passed": false,
-      "detail": "34.0% vs floor 65.0% (16/47)"
+      "detail": "36.2% vs floor 65.0% (17/47)"
     },
     {
       "name": "anchor lane must pass",
       "passed": false,
-      "detail": "4 anchor probe(s) failing: 002_anchor_https___www_npmjs_com_package_openai[idx=INDEX_FAIL_NO_ENDPOINTS,ret=RETRIEVE_FAIL_ERROR_BODY], 005_anchor_https___github_com_search_q_anthropic_type_repositories[idx=INDEX_PASS,ret=RETRIEVE_FAIL_WRONG_SHAPE], 006_anchor_https___en_wikipedia_org_wiki_Transformer_(deep_learning_arc[idx=INDEX_PASS,ret=RETRIEVE_FAIL_ERROR_BODY], 009_anchor_https___pypi_org_project_anthropic_[idx=INDEX_PASS,ret=RETRIEVE_FAIL_WRONG_SHAPE]"
+      "detail": "3 anchor probe(s) failing: 002_anchor_https___www_npmjs_com_package_openai[idx=INDEX_FAIL_NO_ENDPOINTS,ret=RETRIEVE_FAIL_ERROR_BODY], 006_anchor_https___en_wikipedia_org_wiki_Transformer_(deep_learning_arc[idx=INDEX_PASS,ret=RETRIEVE_FAIL_ERROR_BODY], 009_anchor_https___pypi_org_project_anthropic_[idx=INDEX_PASS,ret=RETRIEVE_FAIL_WRONG_SHAPE]"
     },
     {
       "name": "no per-probe PASS→FAIL regression",
