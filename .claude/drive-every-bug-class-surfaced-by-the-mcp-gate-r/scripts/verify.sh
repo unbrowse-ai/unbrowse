@@ -1,68 +1,104 @@
 #!/usr/bin/env bash
-# Evidence collector + early-stop emitter. NO PASS/FAIL on the gate, but
-# DOES write a `.suck-ass` marker that the autonomous loop can read to
-# decide whether to keep paying for bench gate runs.
+# verify.sh - autonomous benchmax wave verifier.
 #
-# Early-stop criterion (the user's "sucks ass" gate): if the latest
-# bench-gate run's retrieve_coverage is <= prior AND index_coverage is
-# <= prior, write `.suck-ass=true` to the scaffold root. The loop
-# driver reads this and halts new waves until the agent ships a fix.
+# Chain (each phase is OPTIONAL; agent sets env to skip phases):
+#   1. measure  - fire fresh bench if latest run is stale (or reuse)
+#   2. classify - structural verdict.json from per-probe artifacts
+#   3. compare  - gate.json verdict via bench-gate-compare.ts
+#   4. delta    - per-probe verdict flips vs prior run
+#   5. summary  - human-readable wave row in ledger
+#
+# Exit code:
+#   0 if gate.passed=true (loop is converged; agent can stop)
+#   0 if gate.passed=false (loop is unconverged; agent reads ship.sh + next-blocker.sh for the next fix)
+# Never non-zero on legitimate failing-gate - the substrate principle
+# says "harness collects, agent judges". Non-zero exits are reserved for
+# infrastructure errors (collector crashed, manifest missing).
+#
+# Env:
+#   UNBROWSE_BENCH_SKIP_MEASURE    (1)  skip phase 1, reuse latest
+#   UNBROWSE_BENCH_SKIP_CLASSIFY   (1)  skip phase 2, keep existing verdict.json
+#   (forwards UNBROWSE_BENCH_MAX_AGE_MIN / _CONCURRENCY / _PROBE_TIMEOUT_MS to measure.sh)
+
 set -uo pipefail
-cd "$(dirname "$0")/../../.."
 SCAFFOLD="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT="$(cd "$SCAFFOLD/../.." && pwd)"
+cd "$PROJECT"
 LEDGER="$SCAFFOLD/ledgers/lanes.jsonl"
-SUCK_MARKER="$SCAFFOLD/.suck-ass"
+LOG_DIR="$SCAFFOLD/logs"
+mkdir -p "$LOG_DIR"
 TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-mkdir -p "$SCAFFOLD/logs"
-echo "=== latest gate runs ==="
-ls -dt .bench-gate/20260*/ 2>/dev/null | head -3
-LATEST=$(ls -dt .bench-gate/20260*/ 2>/dev/null | head -1)
-PRIOR=$(ls -dt .bench-gate/20260*/ 2>/dev/null | sed -n '2p')
-echo "latest=$LATEST  prior=$PRIOR"
-LATEST_IDX=0; LATEST_RET=0; PRIOR_IDX=0; PRIOR_RET=0; PASSED=false
-if [ -f "${LATEST%/}/gate.json" ]; then
-  read PASSED LATEST_IDX LATEST_RET < <(python3 -c "import json;g=json.load(open('${LATEST%/}/gate.json'));print(g.get('passed'),g.get('coverage',{}).get('index_coverage',0),g.get('coverage',{}).get('retrieve_coverage',0))" 2>/dev/null)
-  echo "latest gate passed=$PASSED index=$LATEST_IDX retrieve=$LATEST_RET"
-  printf '{"ts":"%s","plan":"%s","phase":"verify","latest_run":"%s","gate":{"passed":"%s","index":%s,"retrieve":%s}}\n' "$TS" "drive-gate-bugs" "${LATEST%/}" "$PASSED" "$LATEST_IDX" "$LATEST_RET" >> "$LEDGER"
-fi
-if [ -f "${PRIOR%/}/gate.json" ]; then
-  read _PP PRIOR_IDX PRIOR_RET < <(python3 -c "import json;g=json.load(open('${PRIOR%/}/gate.json'));print(g.get('passed'),g.get('coverage',{}).get('index_coverage',0),g.get('coverage',{}).get('retrieve_coverage',0))" 2>/dev/null)
-  echo "prior gate index=$PRIOR_IDX retrieve=$PRIOR_RET"
-fi
-# Early-stop logic: if latest is no better than prior on BOTH axes, mark suck-ass
-if [ -f "${LATEST%/}/gate.json" ] && [ -f "${PRIOR%/}/gate.json" ]; then
-  SUCKS=$(python3 -c "
-import sys
-li, lr = float('$LATEST_IDX'), float('$LATEST_RET')
-pi, pr = float('$PRIOR_IDX'), float('$PRIOR_RET')
-# Sucks if BOTH axes failed to improve. Equal counts as 'no movement' too.
-print('true' if (lr <= pr and li <= pi) else 'false')
-")
-  if [ "$SUCKS" = "true" ]; then
-    printf '{"ts":"%s","phase":"early_stop","reason":"sucks_ass","latest":{"index":%s,"retrieve":%s},"prior":{"index":%s,"retrieve":%s}}\n' "$TS" "$LATEST_IDX" "$LATEST_RET" "$PRIOR_IDX" "$PRIOR_RET" >> "$LEDGER"
-    echo "[EARLY-STOP] gate regressed or did not move on either axis. Writing .suck-ass marker."
-    echo "$TS retrieve=$LATEST_RET (prior $PRIOR_RET) index=$LATEST_IDX (prior $PRIOR_IDX)" > "$SUCK_MARKER"
-  else
-    # Clear stale marker on improvement
-    rm -f "$SUCK_MARKER"
-    echo "[OK] gate moved on at least one axis. Cleared .suck-ass."
+
+# Phase 1: measure
+RUN_DIR=""
+if [ "${UNBROWSE_BENCH_SKIP_MEASURE:-0}" = "1" ]; then
+  RUN_DIR=$(ls -dt .bench-gate/20260*/ 2>/dev/null | head -1)
+  RUN_DIR="${RUN_DIR%/}"
+  echo "[verify] skip-measure: reusing $RUN_DIR" >&2
+else
+  RUN_DIR=$(bash "$SCAFFOLD/scripts/measure.sh" 2>>"$LOG_DIR/wave-measure.log")
+  if [ -z "$RUN_DIR" ] || [ ! -d "$RUN_DIR" ]; then
+    echo "[verify] measure.sh produced no run-dir; see $LOG_DIR/wave-measure.log" >&2
+    exit 1
   fi
 fi
-if [ -f "${LATEST%/}/verdict.json" ] && [ -f "${PRIOR%/}/verdict.json" ]; then
-  python3 - "${PRIOR%/}/verdict.json" "${LATEST%/}/verdict.json" <<'PY' > "$SCAFFOLD/logs/wave-delta.txt"
-import json,sys
-a=json.load(open(sys.argv[1]))["verdicts"]; b=json.load(open(sys.argv[2]))["verdicts"]
-A={v["probe_id"]:(v["index_verdict"],v["retrieve_verdict"]) for v in a}
-B={v["probe_id"]:(v["index_verdict"],v["retrieve_verdict"]) for v in b}
-flips=[]
-for k in sorted(set(A)|set(B)):
-    if A.get(k)!=B.get(k): flips.append((k,A.get(k),B.get(k)))
-print(f"per-probe verdict flips: {len(flips)}")
-for k,old,new in flips: print(f"  {k}: {old} -> {new}")
-PY
-  cat "$SCAFFOLD/logs/wave-delta.txt"
+echo "[verify] run_dir=$RUN_DIR"
+
+# Phase 2: classify
+if [ "${UNBROWSE_BENCH_SKIP_CLASSIFY:-0}" = "1" ] && [ -f "$RUN_DIR/verdict.json" ]; then
+  echo "[verify] skip-classify: reusing existing verdict.json" >&2
 else
-  echo "(only one gate run on disk; nothing to diff yet)"
+  bash "$SCAFFOLD/scripts/auto-classify.sh" "$RUN_DIR" 2>>"$LOG_DIR/wave-classify.log"
 fi
-echo "verify done. Agent judges in-thread: did this wave move probes from FAIL -> PASS? .suck-ass marker is the loop's early-stop signal."
+if [ ! -f "$RUN_DIR/verdict.json" ]; then
+  echo "[verify] verdict.json still missing after classify" >&2
+  exit 1
+fi
+
+# Phase 3: compare → gate.json
+BASELINE="harness/probes/bench-gate-baseline.json"
+if [ ! -f "$BASELINE" ]; then
+  echo "[verify] baseline $BASELINE missing; bench-gate-compare needs it" >&2
+fi
+bun scripts/bench-gate-compare.ts --artifacts "$RUN_DIR" --baseline "$BASELINE" --soft 2>>"$LOG_DIR/wave-compare.log" >>"$LOG_DIR/wave-compare.log" || true
+if [ ! -f "$RUN_DIR/gate.json" ]; then
+  echo "[verify] gate.json missing after compare; see $LOG_DIR/wave-compare.log" >&2
+  exit 1
+fi
+
+# Read gate verdict for logging
+GATE_PASSED=$(python3 -c "import json;print(json.load(open('$RUN_DIR/gate.json')).get('passed'))")
+INDEX_COV=$(python3 -c "import json;g=json.load(open('$RUN_DIR/gate.json'));print(g.get('coverage',{}).get('index_coverage',0))")
+RETRIEVE_COV=$(python3 -c "import json;g=json.load(open('$RUN_DIR/gate.json'));print(g.get('coverage',{}).get('retrieve_coverage',0))")
+echo "[verify] gate.passed=$GATE_PASSED  index=$INDEX_COV  retrieve=$RETRIEVE_COV"
+
+# Phase 4: per-probe delta vs prior run
+PRIOR=$(ls -dt .bench-gate/20260*/ 2>/dev/null | sed -n '2p')
+PRIOR="${PRIOR%/}"
+if [ -n "$PRIOR" ] && [ -f "$PRIOR/verdict.json" ]; then
+  python3 - "$PRIOR/verdict.json" "$RUN_DIR/verdict.json" >"$LOG_DIR/wave-delta.txt" 2>&1 <<'PYEOF'
+import json, sys
+a = json.load(open(sys.argv[1]))["verdicts"]
+b = json.load(open(sys.argv[2]))["verdicts"]
+A = {v["probe_id"]: (v["index_verdict"], v["retrieve_verdict"]) for v in a}
+B = {v["probe_id"]: (v["index_verdict"], v["retrieve_verdict"]) for v in b}
+flips = []
+for k in sorted(set(A) | set(B)):
+    if A.get(k) != B.get(k): flips.append((k, A.get(k), B.get(k)))
+print(f"per-probe verdict flips ({len(flips)} of {len(B)}):")
+for k, old, new in flips:
+    print(f"  {k}: {old} -> {new}")
+PYEOF
+  head -20 "$LOG_DIR/wave-delta.txt"
+fi
+
+# Phase 5: ledger row
+printf '{"ts":"%s","phase":"verify","run_dir":"%s","gate":{"passed":"%s","index":%s,"retrieve":%s}}\n' "$TS" "$RUN_DIR" "$GATE_PASSED" "$INDEX_COV" "$RETRIEVE_COV" >> "$LEDGER"
+echo "[verify] wave logged: $LEDGER"
+
+if [ "$GATE_PASSED" = "True" ]; then
+  echo "[verify] CONVERGED. Gate is green. No further fix needed."
+else
+  echo "[verify] UNCONVERGED. Read ship.sh output or run scripts/next-blocker.sh for the next /meta-harness target."
+fi
 exit 0
