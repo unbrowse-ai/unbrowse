@@ -218,6 +218,54 @@ export async function updateAgentWallet(
   });
 }
 
+/**
+ * Update only the wallet_provider field on an agent profile. Used by the
+ * payment-provider choice prompt (`unbrowse setup` Wave 1) to sync the
+ * CLI-chosen rail up to the backend without requiring a wallet_address.
+ *
+ * Different shape from updateAgentWallet because the user may be picking
+ * a provider (e.g. pay.sh) BEFORE they have a wallet to bind. For pay.sh
+ * + lobster.cash the wallet lives inside the provider's own CLI, not in
+ * the agent record. For external_solana + privy_embedded the wallet
+ * binding flows through updateAgentWallet on a separate path (Wave 3
+ * of wire-privy-authentication-end-to-end-for-unbrows wired that for
+ * Privy via POST /v1/auth/privy/start).
+ *
+ * Accepts any string for forward-compat — the CLI validates the choice
+ * before calling. Storing "skip" is meaningful (the user explicitly
+ * picked free tier; we should not nag them about wallet setup).
+ */
+export async function updateAgentPaymentProvider(
+  env: Env,
+  agentId: string,
+  provider: string,
+): Promise<{ profile: AgentProfile }> {
+  const cleaned = (provider ?? "").trim();
+  if (!cleaned) throw new Error("provider is required");
+  if (agentId === "__admin__") {
+    return {
+      profile: {
+        agent_id: "__admin__",
+        name: "admin",
+        created_at: "",
+        wallet_provider: cleaned,
+        skills_discovered: [],
+        total_executions: 0,
+        total_feedback_given: 0,
+        tos_accepted_version: CURRENT_TOS_VERSION,
+        tos_accepted_at: new Date().toISOString(),
+        activity_dates: [],
+      },
+    };
+  }
+  return await queueAgentWrite(agentId, async () => {
+    const profile = await ensureAgentProfile(env, agentId);
+    profile.wallet_provider = cleaned;
+    await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
+    return { profile };
+  });
+}
+
 export async function acceptTos(env: Env, agentId: string, tosVersion: string): Promise<void> {
   const profile = await getAgent(env, agentId);
   if (!profile) throw new Error("Agent not found");

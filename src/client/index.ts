@@ -1867,6 +1867,25 @@ export async function pushAccountPreferences(
   return { share_pointers: !!data?.share_pointers };
 }
 
+/**
+ * Push the chosen payment-provider up to the backend so
+ * `agent.wallet_provider` reflects the rail the user picked in
+ * `unbrowse setup` / `unbrowse payment-provider`. Mirrors the
+ * pushAccountPreferences shape; returns the persisted row.
+ *
+ * Wave 2 of .claude/add-a-payment-provider-choice-prompt-to-unbrowse.
+ */
+export async function pushPaymentProvider(
+  provider: string,
+): Promise<{ agent_id: string; wallet_provider: string | null; wallet_address: string | null }> {
+  const data = await api<{ agent_id: string; wallet_provider: string | null; wallet_address: string | null }>(
+    "POST",
+    "/v1/account/payment-provider",
+    { provider },
+  );
+  return data;
+}
+
 
 export async function syncAgentWallet(wallet = getLocalWalletContext()): Promise<void> {
   if (!wallet.wallet_address) return;

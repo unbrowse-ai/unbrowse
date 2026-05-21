@@ -117,5 +117,24 @@ export async function promptPaymentProvider(
   setPaymentProviderConfig({ payment: { provider, set_via } });
   log(NEXT_STEP_BY_CHOICE[choice]);
 
+  // Wave 2: best-effort sync to backend so `agent.wallet_provider`
+  // reflects the rail the user just picked. Anonymous keys (no account
+  // bound yet) silently skip; offline / 5xx surface a single info()
+  // line but never fail the prompt. Same envelope as
+  // syncContributionPreferenceToServer in cli.ts.
+  try {
+    const { pushPaymentProvider } = await import("./client/index.js");
+    await pushPaymentProvider(provider);
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    if (msg.includes("account_required") || msg.includes("HTTP 403") || msg.includes("HTTP 404")) {
+      // Anonymous keys + unmounted route: silent. The local config is
+      // still authoritative; backend syncs the next time the user is
+      // account-bound (magic-link or Privy sign-in).
+    } else {
+      log(`Local choice saved, but server sync failed: ${msg}`);
+    }
+  }
+
   return { choice, provider };
 }
