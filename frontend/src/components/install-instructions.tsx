@@ -183,6 +183,35 @@ export function InstallInstructions() {
           background: `radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(100,60,20,${isMobile ? 0.1 : 0.18}) 100%)`,
         }}
       />
+      {/* ── Earnings pre-frame ── */}
+      {/* Set the mental model BEFORE the install command: resolves cache       */}
+      {/* routes to the public marketplace, reuse settles in USDC on Solana via */}
+      {/* Faremeter Flex, first $1/day per agent is sponsored.                  */}
+      <div
+        data-testid="install-earnings-preframe"
+        style={{
+          borderBottom: "1px solid rgba(255,122,32,0.22)",
+          padding: "8px 14px",
+          fontFamily: "monospace",
+          fontSize: 11,
+          lineHeight: 1.55,
+          letterSpacing: "0.02em",
+          color: O_DIM,
+          background: "rgba(180,145,90,0.18)",
+          position: "relative",
+          zIndex: 30,
+        }}
+      >
+        <span style={{ color: O_HI, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          heads up
+        </span>
+        <span style={{ margin: "0 8px", opacity: 0.5 }}>·</span>
+        <span>
+          every resolve also caches a route to the public marketplace. when another
+          agent reuses one of yours, the call settles in <span style={{ color: O_HI, fontWeight: 600 }}>USDC on Solana via Faremeter Flex</span>, straight to your
+          wallet. your first <span style={{ color: O_HI, fontWeight: 600 }}>$1 / day per agent</span> is sponsored, so exploration is free.
+        </span>
+      </div>
 
       {/* ── Toolbar ── */}
       <div
