@@ -2605,6 +2605,74 @@ function scoreEmptyContainerDemotion(structure: ExtractedStructure): number {
 }
 
 // ---------------------------------------------------------------------------
+// looksLikeSiteMetaJsonLd — site-metadata JSON-LD vs LIST_INTENT gate
+// ---------------------------------------------------------------------------
+// Live regression from .bench-gate/20260521T010031Z probe 031 priceline:
+//   intent: "search hotels in Tokyo" (LIST_INTENT)
+//   extracted: spa-initial-state whose data was a schema.org JSON-LD block
+//     {"@context":"https://schema.org","@type":["Organization","TravelAgency"],
+//      "name":"Priceline","telephone":"...","foundingDate":"...",
+//      "hasOfferCatalog":{...corporate-metadata...}}
+//
+// The page-level Organization / TravelAgency JSON-LD describes the SITE
+// ITSELF (corporate identity card), not the hotel listings the user asked
+// for. Returning this site-meta envelope to the agent for a collection-
+// shape intent is a category error — same shape, wrong semantic level.
+//
+// Sits beside the existing demotion family:
+//   scoreConfigShapeDemotion       -> i18n/RSC bootstrap (-200)
+//   scoreDegenerateRowDemotion     -> all-collapsed-values inside one row (-300)
+//   scoreDuplicateRowDemotion      -> same row repeated across array (-250)
+//   scoreEmptyContainerDemotion    -> all leaves empty containers (-200)
+//   scoreSiteMetaJsonLdDemotion    -> Organization-as-list-result (-200, NEW)
+//
+// Generic structural rule (no per-host registry):
+//   - The data has `@type` keyed to ONLY site-meta types (Organization,
+//     Corporation, TravelAgency, OnlineStore, WebSite, WebPage), either
+//     as a string or as an array containing only such types.
+//   - AND the intent is LIST_INTENT (search/find/list/trending/...).
+//
+// Falsifier carve-outs (must NOT demote):
+//   - @type: Hotel / LodgingBusiness / Product / Article / etc. on a
+//     DETAIL_INTENT — single-entity types match single-entity intents.
+//   - @type: ItemList with itemListElement — that IS the listing.
+//   - @type: Organization on a DETAIL_INTENT (e.g. "get priceline
+//     contact info") — corporate metadata IS what was asked for.
+//
+// LIST_INTENT regex shared with TINY_RESULT_LIST_INTENT (line ~2651);
+// declared later but referenced at call-time (after module init).
+const SITE_META_LD_TYPES = new Set([
+  "Organization",
+  "Corporation",
+  "TravelAgency",
+  "OnlineStore",
+  "WebSite",
+  "WebPage",
+]);
+
+export function looksLikeSiteMetaJsonLd(data: unknown): boolean {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) return false;
+  const obj = data as Record<string, unknown>;
+  const ldType = obj["@type"];
+  if (ldType == null) return false;
+  const types: string[] = Array.isArray(ldType)
+    ? ldType.filter((t): t is string => typeof t === "string")
+    : (typeof ldType === "string" ? [ldType] : []);
+  if (types.length === 0) return false;
+  return types.every((t) => SITE_META_LD_TYPES.has(t));
+}
+
+function scoreSiteMetaJsonLdDemotion(structure: ExtractedStructure, intent: string): number {
+  if (!looksLikeSiteMetaJsonLd(structure.data)) return 0;
+  const lower = intent.toLowerCase();
+  // Only demote when the intent asks for a COLLECTION. Single-entity
+  // intents (DETAIL_INTENT) may legitimately want the Organization card.
+  if (!TINY_RESULT_LIST_INTENT.test(lower)) return 0;
+  return -200;
+}
+
+
+// ---------------------------------------------------------------------------
 // looksLikeTinyContentReadResult
 // ---------------------------------------------------------------------------
 // Structural primitive for the EXECUTE-return gate (companion to the
@@ -2877,10 +2945,12 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   //       on any config-shape that escapes this filter (mixed-shape with
   //       sibling data keys); pre-filtering only removes the structures
   //       that would otherwise be the LONE candidate and win by default.
+  const isListIntent = TINY_RESULT_LIST_INTENT.test(intent.toLowerCase());
   const structures = allStructures.filter((s) =>
     !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)) &&
     !looksLikeConfigShape(s.data) &&
-    !looksLikeEmptyContainer(s.data));
+    !looksLikeEmptyContainer(s.data) &&
+    !(isListIntent && looksLikeSiteMetaJsonLd(s.data)));
 
   if (structures.length === 0) {
     const fallback = extractHtmlMetadataFallback(html);
@@ -2894,7 +2964,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s) + scoreSiteMetaJsonLdDemotion(s, intent),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
