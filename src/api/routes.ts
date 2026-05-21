@@ -2813,7 +2813,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   async function flushBrowseCapture(
     session: BrowseSession,
-    options: { queueIndex?: boolean; queuePublish?: boolean } = {},
+    options: { queueIndex?: boolean; queuePublish?: boolean; skipContentReadyWait?: boolean } = {},
   ): Promise<{
     indexed: boolean;
     mode: "http" | "dom" | "none";
@@ -2857,6 +2857,14 @@ export async function registerRoutes(app: FastifyInstance) {
       captureUrl: session.url,
       harEntries,
       intent: `browse ${session.domain || profileName(session.url)}`,
+      // Caller decides whether to wait for late XHRs. Trace evidence
+      // (~/.unbrowse/logs/unbrowse-2026-05-21.log sid=gate-060/061/062)
+      // shows close enrich-capture eats 15-17s of waitForContentReady
+      // budget on pages whose intercepted+HAR are empty, producing zero
+      // new endpoints. The close path passes true (tab is about to die);
+      // the sync path keeps the default (mid-session checkpoint may want
+      // a freshly-fired XHR).
+      skipContentReadyWait: options.skipContentReadyWait,
     }));
 
     // Collect JS bundle bodies for token source scanning
@@ -3714,7 +3722,7 @@ export async function registerRoutes(app: FastifyInstance) {
           if (dom) {
             await traceAsync("close", session.sessionId, "save-auth", () => saveAuthProfileBestEffort(session.tabId, dom, "browse_close"));
           }
-          const syncResult = await traceAsync("close", session.sessionId, "flush-capture", () => flushBrowseCapture(session, { queueIndex: true, queuePublish: true }));
+          const syncResult = await traceAsync("close", session.sessionId, "flush-capture", () => flushBrowseCapture(session, { queueIndex: true, queuePublish: true, skipContentReadyWait: true }));
           stopStreamingWatcher(session.sessionId);
           await traceAsync("close", session.sessionId, "close-tab", async () => {
             try { await broker.closeTab(session.tabId); }
