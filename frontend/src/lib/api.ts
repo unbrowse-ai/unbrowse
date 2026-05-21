@@ -78,6 +78,14 @@ export interface SkillManifest {
   reviewed_at?: string;
   /** Owner-controlled marketplace visibility. Tri-file sync with backend/src/types.ts + src/types/skill.ts (CLAUDE.md). */
   visibility?: "public" | "private";
+  /**
+   * Per-skill platform markup in basis points (1 bp = 0.01%).
+   * Optional override for the global PLATFORM_BPS constant in
+   * backend/src/services/flex.ts. Clamped to [500, 8000] (5-80%)
+   * at compute time. When unset, falls back to PLATFORM_BPS=5000.
+   * Tri-file synced with backend/src/types.ts + src/types/skill.ts.
+   */
+  markup_bps?: number;
 }
 
 export interface PopularSkillSummary {

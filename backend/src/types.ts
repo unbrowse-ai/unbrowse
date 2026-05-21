@@ -518,6 +518,26 @@ export interface SkillManifest {
    */
   owner_wallet_verified_at?: string;
   /**
+   * Per-skill platform markup in basis points (1 bp = 0.01%).
+   *
+   * Optional override for the global PLATFORM_BPS constant in
+   * services/flex.ts. When set, computeFlexSplits uses this value as
+   * the platform cut for THIS skill's x402 settlements; otherwise
+   * falls back to PLATFORM_BPS (5000 = 50%).
+   *
+   * Clamped to [500, 8000] at compute time (5% floor, 80% ceiling)
+   * matching the Pontus / ABK Labs 2026-05-21 brief on Flex's
+   * configurable markup range. Out-of-range values are coerced rather
+   * than rejected so a misconfigured skill still settles cleanly at
+   * the nearest bound.
+   *
+   * Site-owner share (OWNER_BPS) and the indexer pool are computed
+   * from the REMAINDER (10000 - effective platform_bps), so this
+   * single knob shifts margin between the platform and the
+   * indexer+owner pool without touching the owner / indexer math.
+   */
+  markup_bps?: number;
+  /**
    * Optional base price override in USD per execution.
    * If unset, the platform default base price applies.
    */

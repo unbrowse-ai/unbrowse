@@ -38,7 +38,16 @@ export interface FlexAuthorizationDraft {
 // cut without a recompile.
 export const PLATFORM_BPS = 5000;
 export const FLEX_MAX_SPLITS = 5;
-// OWNER_BPS is the share that goes to a DNS-claimed site owner (the
+// Per-skill markup_bps clamp range (Pontus / ABK Labs 2026-05-21 brief:
+// "5-80% markup potential on Flex"). When SkillManifest.markup_bps is
+// set, computeFlexSplits coerces it into this range before using it as
+// the effective platform cut. Out-of-range values are clamped (not
+// rejected) so a misconfigured skill still settles cleanly at the
+// nearest bound. PLATFORM_BPS (5000) is the default when markup_bps is
+// unset; it sits inside [MARKUP_BPS_MIN, MARKUP_BPS_MAX] by design.
+export const MARKUP_BPS_MIN = 500;
+export const MARKUP_BPS_MAX = 8000;
+
 // operator of the domain the skill talks to). Mirrors the
 // SITE_OWNER_SHARE_PCT = 0.15 constant in backend/src/services/pricing.ts
 // and matches the 50/35/15 split documented in docs/HOW_UNBROWSE_PAYS.md.
@@ -65,9 +74,22 @@ export function computeFlexSplits(
     | "contributors"
     | "owner_compensation_opt_in"
     | "owner_wallet_usdc_ata"
+    | "markup_bps"
   >,
   platformRecipient: string,
 ): FlexSplit[] {
+  // Per-skill markup override (Pontus / ABK Labs 2026-05-21 brief).
+  // Clamp before using so a misconfigured skill still produces a
+  // valid split rather than throwing or settling at 0% to platform.
+  // Negative / non-finite / non-integer values fall back to the
+  // default PLATFORM_BPS; integer values get clamped to the
+  // [MARKUP_BPS_MIN, MARKUP_BPS_MAX] range.
+  const requestedMarkup = skill.markup_bps;
+  const effectivePlatformBps =
+    typeof requestedMarkup === "number" && Number.isFinite(requestedMarkup) && requestedMarkup > 0
+      ? Math.min(MARKUP_BPS_MAX, Math.max(MARKUP_BPS_MIN, Math.round(requestedMarkup)))
+      : PLATFORM_BPS;
+
   const payable = (skill.contributors ?? []).filter((c) => c.wallet_address?.trim());
 
   // Site-owner lane: when the domain has been DNS-claimed AND the skill
@@ -99,7 +121,7 @@ export function computeFlexSplits(
   const eligible = sorted.slice(0, Math.max(contributorCap, 0));
 
   const totalDelta = eligible.reduce((s, c) => s + Math.max(c.cumulative_delta, 0.01), 0);
-  const contributorPool = 10000 - PLATFORM_BPS - (ownerActive ? OWNER_BPS : 0);
+  const contributorPool = 10000 - effectivePlatformBps - (ownerActive ? OWNER_BPS : 0);
 
   const contributorSplits: FlexSplit[] = eligible.length > 0
     ? eligible.map((c) => {
@@ -127,7 +149,7 @@ export function computeFlexSplits(
 
   // Merge order: platform -> owner -> contributors (stable for the
   // Flex facilitator's duplicate-recipient remediation).
-  const splits: FlexSplit[] = [{ recipient: platformRecipient, bps: PLATFORM_BPS }];
+  const splits: FlexSplit[] = [{ recipient: platformRecipient, bps: effectivePlatformBps }];
   if (ownerSplit) splits.push(ownerSplit);
   splits.push(...contributorSplits);
 
