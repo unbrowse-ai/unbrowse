@@ -1261,12 +1261,114 @@ function X402Panel({
               </>
             )}
           </div>
+          <PaymentProviderCard wallet_provider={me?.wallet_provider ?? null} />
           <DomainClaimsCard />
         </div>
       )}
     </SectionCard>
   );
 }
+
+/**
+ * Wave 4 of .claude/add-a-payment-provider-choice-prompt-to-unbrowse.
+ * Mirrors the CLI's `unbrowse payment-provider` choice on the web side.
+ * Reads the current rail from /v1/account/me (we already pass
+ * wallet_provider into the parent), lets the user pick a different
+ * rail from the same five options, and posts to
+ * /v1/account/payment-provider (added in Wave 2) to update the agent
+ * record. The Privy wallet pulse, lobster CLI link, and pay.sh link
+ * are surfaced contextually so the user sees the next step for their
+ * chosen rail without leaving /account.
+ */
+function PaymentProviderCard({ wallet_provider }: { wallet_provider: string | null }) {
+  const initial = (wallet_provider ?? "skip") as PaymentRail;
+  const [selected, setSelected] = useState<PaymentRail>(initial);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  // Re-sync when the parent's wallet_provider refreshes (e.g. after Privy
+  // sign-in writes privy_embedded_solana via /v1/auth/privy/start).
+  useEffect(() => {
+    setSelected((wallet_provider ?? "skip") as PaymentRail);
+  }, [wallet_provider]);
+
+  async function save() {
+    setStatus("saving");
+    setError(null);
+    try {
+      const { getConfiguredApiOrigin } = await import("@/lib/api-base");
+      const base = getConfiguredApiOrigin();
+      const res = await fetch(`${base}/v1/account/payment-provider`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: selected }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);
+      }
+      setStatus("saved");
+    } catch (err) {
+      setStatus("error");
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="space-y-3 p-4 rounded-2xl border border-border-subtle bg-surface-elevated">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs uppercase tracking-wider text-text-muted">Payment rail</div>
+        <div className="text-[10px] text-text-muted font-mono">{initial}</div>
+      </div>
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value as PaymentRail)}
+        className="w-full rounded-lg bg-surface-base border border-border-subtle px-3 py-2 text-sm text-text-primary"
+      >
+        <option value="pay_sh">pay.sh — TouchID + USDC (x402 MPP)</option>
+        <option value="lobster_cash">lobster.cash — credit card + virtual card + wallet</option>
+        <option value="external_solana">External — bring your own Solana signer</option>
+        <option value="privy_embedded">Privy — embedded wallet (Solana, created here)</option>
+        <option value="privy_embedded_solana">Privy embedded Solana (already bound)</option>
+        <option value="skip">Skip — free tier (sponsor middleware $1/day/agent)</option>
+      </select>
+      <div className="text-[11px] text-text-muted leading-relaxed">
+        {PROVIDER_NUDGES[selected] ?? "Run `unbrowse payment-provider` from the CLI to pick a rail."}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={status === "saving" || selected === initial}
+          className="px-3 py-1.5 rounded-lg bg-text-primary text-surface-base text-xs font-medium disabled:opacity-40"
+        >
+          {status === "saving" ? "Saving..." : status === "saved" ? "Saved" : "Update rail"}
+        </button>
+        {status === "error" && error ? (
+          <div className="text-[10px] text-red-500 font-mono break-all">{error}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+type PaymentRail = "pay_sh" | "lobster_cash" | "external_solana" | "privy_embedded" | "privy_embedded_solana" | "skip";
+
+const PROVIDER_NUDGES: Record<PaymentRail, string> = {
+  pay_sh:
+    "Install pay.sh: npx @pay-sh/cli setup. Pay.sh prompts TouchID on each paid call; fund the local account with USDC.",
+  lobster_cash:
+    "Install lobster.cash: npm install -g @crossmint/lobster-cli, then lobstercash setup. Subscription billing tops up a Solana wallet; virtual cards purchase across the web.",
+  external_solana:
+    "Add your own Solana wallet via `unbrowse wallet` (CLI). Top up off-platform; x402 sponsor middleware settles from this address.",
+  privy_embedded:
+    "Sign in above with Privy and an embedded Solana wallet is created for you on first login. Fund it from any Solana wallet; backend signs x402 settlements via Privy's server API.",
+  privy_embedded_solana:
+    "Embedded Solana wallet is already bound to your agent. Fund the wallet_address shown above to settle paid x402 calls.",
+  skip:
+    "No setup needed. Sponsor middleware covers your first $1/day/agent + $50/day platform-wide. Switch rails any time.",
+};
 
 /**
  * Owner-earnings lookup card. Surfaces verified claim + opt-out status

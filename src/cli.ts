@@ -2171,6 +2171,8 @@ async function cmdAccount(flags: Record<string, string | boolean>): Promise<void
   await refreshContributionPreferenceFromServer(false);
   const cfg = loadConfig();
   const contribution = getContributionConfig();
+  const { getPaymentProviderConfig } = await import("./config/payment-provider.js");
+  const paymentCfg = getPaymentProviderConfig();
   const payload = {
     signed_in: !!cfg?.api_key,
     agent_id: cfg?.agent_id ?? null,
@@ -2179,6 +2181,8 @@ async function cmdAccount(flags: Record<string, string | boolean>): Promise<void
     user_id: cfg?.user_id ?? null,
     wallet_address: cfg?.wallet_address ?? null,
     wallet_provider: cfg?.wallet_provider ?? null,
+    payment_provider: paymentCfg.payment.provider,
+    payment_provider_set_via: paymentCfg.payment.set_via ?? "default",
     dashboard_url: `${FRONTEND_URL}/dashboard`,
     local_server: BASE_URL,
     auto_publish: contribution.contribution.share_pointers,
@@ -2188,11 +2192,24 @@ async function cmdAccount(flags: Record<string, string | boolean>): Promise<void
     output(payload, !!flags.pretty);
     return;
   }
+  // Wave 3: provider-aware top-up nudge surfaces here so the user sees
+  // a concrete next step every time they check `unbrowse account`. The
+  // copy mirrors NEXT_STEP_BY_CHOICE in cli-payment-setup.ts so the
+  // CLI and `unbrowse account` agree on the same instructions.
+  const PAYMENT_NUDGE: Record<string, string> = {
+    pay_sh:           "`pay-cli get_balance` to check funds, `pay-cli topup` to add USDC",
+    lobster_cash:     "`lobstercash balance` to check funds, `lobstercash topup` for credit-card recharge",
+    external_solana:  "Top up your Solana address manually; `unbrowse wallet` to inspect what unbrowse has on file",
+    privy_embedded:   "Send SOL/USDC to the embedded wallet on https://unbrowse.ai/account (private key custody stays in Privy)",
+    skip:             "Free tier active. Sponsor middleware covers your first $1/day/agent. `unbrowse payment-provider` to opt in to a paid rail.",
+  };
   info("Unbrowse account");
   info(`  signed_in: ${payload.signed_in ? "yes" : "no"}`);
   info(`  email: ${payload.email ?? "(none)"}`);
   info(`  agent_id: ${payload.agent_id ?? "(none)"}`);
   info(`  wallet: ${payload.wallet_address ?? "(none)"}`);
+  info(`  payment_provider: ${payload.payment_provider}`);
+  info(`    top-up: ${PAYMENT_NUDGE[payload.payment_provider] ?? "Run `unbrowse payment-provider` to pick a rail."}`);
   info(`  auto_publish: ${payload.auto_publish ? "on" : "off"}`);
   info(`  dashboard: ${payload.dashboard_url}`);
   output(payload, false);
