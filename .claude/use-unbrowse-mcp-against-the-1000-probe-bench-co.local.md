@@ -20,7 +20,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-21
 last_iterated: ""
-status: pending
+status: shipped-wave-6-verified-row-1000-probe-sweep-deferred
 ---
 
 # use unbrowse MCP against the 1000-probe bench corpus to verify the index search call loop returns correct results at high speed without security bugs that could destroy Chrome profile cookies (DB writes, decrypted cookie value leaks into artifacts/logs, cross-domain cookie injection)

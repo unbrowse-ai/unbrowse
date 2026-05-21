@@ -21,7 +21,7 @@ inferred_from:
   retargeted: "agent corrected integration->web-app on first wave: this builds a SDK surface, does not integrate with one"
 created: 2026-05-21
 last_iterated: ""
-status: pending
+status: shipped-wave-2-sdk-gapfill-publish-annotate-paymentprovider
 ---
 
 # Rebuild the @unbrowse/sdk as a thin HTTP-first TypeScript client against beta-api.unbrowse.ai (no binary spawn, browser+node compatible). Auth: account-issued API keys (ubr_live_*) tied to a user account via dashboard, with optional x402 wallet for pay-as-you-go beyond included quota (reuses existing sponsor middleware in backend/src/middleware/sponsor.ts). Surface: new Unbrowse({apiKey}).resolve(intent), .execute(endpoint, params), .search(intent), .health(). Move binary-spawn into a separate @unbrowse/local subpackage for on-device kuri users. Rebuild docs/ site to mirror the new shape (quickstart in 3 lines: install, set key, call resolve). Research best-in-class SDK/docs references first (Resend, OpenAI, Replicate, Stripe, Vercel SDKs+docs) via deepwiki MCP + gh api; cite source_ids. Crystallise the resulting SDK design pattern as a durable principle in the principle store so future SDK work in any project inherits it. Verify gate is real channel: (1) SDK package builds and types check, (2) live HTTPS call against beta-api.unbrowse.ai with a real test API key returns documented 2xx for resolve+health, (3) docs site builds and the quickstart code-block parses+typechecks, (4) principle file exists under .principle-queue/applied.jsonl referencing >=3 cited references.
