@@ -1,0 +1,15 @@
+# meta-harness rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty iter=1 phase=verify
+# ts=2026-05-21T03:27:04Z  cwd=/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse  script=/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.claude/rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty/scripts/verify.sh
+# ---- begin verify output ----
+[verify:rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty] gate: live authenticated connectivity probe returns the recipe-declared 2xx (never a proxy); fail-closed on no target / unfilled recipe / key-not-in-.env / non-2xx
+[verify:rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty] command:
+  INTEGRATION_TARGET= bash /Users/lekt9/.claude/harnesses/integrate-anything/scripts/probe.sh 
+[probe] FAIL-CLOSED: declare a target. Set INTEGRATION_TARGET=<name>
+[probe] available recipes:
+  - granola
+  - nebius
+[verify:rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty] lanes declared - collecting raw evidence per lane
+<stdin>:29: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  [lane-1] exit=0
+  [lane-2] exit=0
+# ---- end verify output (rc=3) ----

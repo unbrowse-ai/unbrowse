@@ -1,0 +1,12 @@
+{"lane": "lane-1", "ts": "2026-05-21T03:27:04Z", "plan": "rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty", "question": "Does <X> exist and contain <Y>?", "source_id": "code:path/to/spec.md#L42", "exit_code": 0, "output_tail": "MISSING"}
+{"lane": "lane-2", "ts": "2026-05-21T03:27:04Z", "plan": "rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty", "question": "Does the integration test for <Z> green?", "source_id": "issue:#123", "exit_code": 0, "output_tail": "RUN  v4.1.7 /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse\n\nNo test files found, exiting with code 1\n\nfilter: tests/Z.test.ts\ninclude: **/*.{test,spec}.?(c|m)[jt]s?(x)\nexclude:  **/node_modules/**, **/.git/**"}
+{"ts":"2026-05-21T03:36:40Z","lane":"L1-research","status":"ok","evidence":{"present":4,"cited":4,"sdks":"resend openai replicate stripe"}}
+{"ts":"2026-05-21T03:36:41Z","lane":"L2-sdk-build","status":"ok","evidence":{"tsc":"clean"}}
+{"ts":"2026-05-21T03:36:41Z","lane":"L3-live-probe","status":"ok","evidence":{"url":"https://beta-api.unbrowse.ai/v1/stats/summary","status":200}}
+{"ts":"2026-05-21T03:36:41Z","lane":"L4-docs-build","status":"missing","evidence":{"reason":"no docs site dir with package.json"}}
+{"ts":"2026-05-21T03:36:41Z","lane":"L5-principle","status":"partial","evidence":{"refs_cited":0}}
+{"ts":"2026-05-21T03:37:11Z","lane":"L1-research","status":"ok","evidence":{"present":4,"cited":4,"sdks":"resend openai replicate stripe"}}
+{"ts":"2026-05-21T03:37:12Z","lane":"L2-sdk-build","status":"ok","evidence":{"tsc":"clean"}}
+{"ts":"2026-05-21T03:37:13Z","lane":"L3-live-probe","status":"ok","evidence":{"url":"https://beta-api.unbrowse.ai/v1/stats/summary","status":200}}
+{"ts":"2026-05-21T03:37:13Z","lane":"L4-docs-build","status":"missing","evidence":{"reason":"no docs site dir with package.json"}}
+{"ts":"2026-05-21T03:37:13Z","lane":"L5-principle","status":"ok","evidence":{"refs_cited":5}}
