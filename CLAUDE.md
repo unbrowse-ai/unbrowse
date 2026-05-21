@@ -932,3 +932,29 @@ freelance a multi-step task, STOP and run discover first. This block is
 managed by `~/.claude/skills/meta-harness/scripts/autopin.py`; edit
 there, not here.
 <!-- meta-harness:autopin END -->
+
+## No stubs, no dummy data (2026-05-22 standing rule)
+
+Crystallised principle `20260521T193905Z-61e01c0e` (global principle store, gitea `f48fe6e`).
+
+**No stubs, no dummy data, no placeholder returns in shipped code.** Every UI screen, API route, demo, and example MUST render real data from the real backend, OR fail closed with a clean empty-state + actionable next-step. When a feature isn't ready: hide it behind a feature flag, not a stub.
+
+Forbidden at shipping-surface layers (frontend pages, API routes, MCP tools, SDK methods, CLI commands, marketing demos, docs examples):
+- Hardcoded JSON like `c.json({ok:true})` returned WITHOUT performing the declared side effect first
+- Lorem-ipsum copy, mock arrays, `coming soon` placeholders
+- `console.log` debug noise that ships to prod
+- Stale `TODO`/`FIXME`/`XXX` comments above hardcoded returns
+- Mock-data literals in component bodies
+- `href="#"` / `href=""` / `href="/coming-soon"` placeholder links
+
+Acceptable patterns (these are NOT stubs):
+- `c.json({ok: true})` AS the 200 ack AFTER `await recordX(...)` or another real side effect — REST acknowledgement convention.
+- `(await listSkills(env)).filter(s => s.owner_user_id === userId)` returning `[]` honestly when no skill matches — real query, honest empty result.
+- Admin endpoints with explicit `_partial: true` + `_instrumented_fields: [...]` letting callers know which numbers are honest vs not-yet-wired.
+
+Verify at PR time:
+- `grep -rEn 'TODO|FIXME|placeholder|Coming soon|lorem ipsum'` in the shipping diff
+- Live e2e against a freshly-empty backend confirms graceful empty-state, not stub-shaped fake-success
+- Network trace confirms every `fetch(` hits a real route declared in `backend/src/routes/*`
+
+When the real implementation needs external docs to wire correctly: USE DEEPWIKI (`mcp__deepwiki__ask_question`) rather than ship a stub. Confirmed pattern from the kuri Wave-6 fix this session (deepwiki ziglang/zig surfaced `std.Io.Dir.cwd()` API in place of the deprecated `std.fs.cwd()` we were about to fake).
