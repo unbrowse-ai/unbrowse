@@ -52,12 +52,20 @@ probe_meta = {p["probe_id"]: p for p in manifest}
 def impact_score(v):
     """Higher = more important to fix. Anchor lane is most load-bearing,
     INDEX failures are upstream of RETRIEVE failures, hostile/auth lanes
-    are excluded from gate so they score 0."""
+    are excluded from gate so they score 0. PASSING probes always score 0
+    so ship.sh does not drown the real blockers in green rows."""
     lane = v.get("lane", "")
     if lane in ("hostile", "auth-gated", "auth-cookies"):
         return 0
     idx = v.get("index_verdict", "")
     ret = v.get("retrieve_verdict", "")
+    # Short-circuit: pre-fix the lane weight was added unconditionally so a
+    # passing anchor probe scored 100 and false-surfaced as a "candidate
+    # blocker", drowning out the real failing probes.
+    is_idx_fail = idx.startswith("INDEX_FAIL")
+    is_ret_fail = ret.startswith("RETRIEVE_FAIL")
+    if not is_idx_fail and not is_ret_fail:
+        return 0
     score = 0
     if lane == "anchor":
         score += 100
@@ -67,11 +75,11 @@ def impact_score(v):
         score += 40
     elif lane == "ssr-list":
         score += 50
-    if idx.startswith("INDEX_FAIL"):
+    if is_idx_fail:
         score += 50
-    elif idx.startswith("INDEX_PASS") and not ret.startswith("RETRIEVE_PASS"):
+    elif idx.startswith("INDEX_PASS") and is_ret_fail:
         score += 20
-    if ret.startswith("RETRIEVE_FAIL"):
+    if is_ret_fail:
         score += 30
     return score
 
