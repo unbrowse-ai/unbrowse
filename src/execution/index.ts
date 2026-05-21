@@ -44,7 +44,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
 }
 import { getRegistrableDomain } from "../domain.js";
-import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson } from "../extraction/index.js";
+import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -4307,6 +4307,44 @@ export async function executeEndpoint(
         };
       }
       trace.result = data;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tiny-extraction fallthrough gate (substrate-faithful structural primitive).
+  // ---------------------------------------------------------------------------
+  // For content-read intents (LIST_INTENT / DETAIL_INTENT), an extraction that
+  // yielded a tiny meta-only envelope (just `title` / `url` / `site_name`, or
+  // two ribbon chips) is structurally NOT a useful retrieval. The page-meta
+  // fallback (`extractHtmlMetadataFallback`) is the always-something safety
+  // net; for content intents the substrate must surface this as failure with
+  // an actionable next_step instead of claiming success.
+  //
+  // Lives next to the assessIntentResult gate (above) because assessIntentResult
+  // returns `skip` for unclassified shapes like `{title:"Instagram"}` — the
+  // verdict-skip path was the silent success-shaped junk leak (see live
+  // regressions from .bench-gate/20260521T010031Z probes 018/019/025/029,
+  // cited in looksLikeTinyContentReadResult docstring).
+  if (trace.success && effectiveIntent && data != null) {
+    const tinyCheck = looksLikeTinyContentReadResult(data, effectiveIntent);
+    if (tinyCheck.tiny) {
+      trace.success = false;
+      trace.error = "extraction_too_thin";
+      const contextUrl = options?.contextUrl ?? `https://${skill.domain}`;
+      data = {
+        error: "extraction_too_thin",
+        message: `Extraction returned a meta-only envelope (${tinyCheck.bytes} bytes, ${tinyCheck.stringLeafChars} string-leaf chars) for content-read intent "${effectiveIntent}". This is the page-metadata fallback shape (title/url/site_name only), not the requested content. The page either rendered via JS post-load (SPA), was blocked by an anti-bot challenge, or the captured selectors no longer match the live DOM.`,
+        partial_data: data,
+        next_step: `Open a live browser session: \`unbrowse go "${contextUrl}"\` then \`unbrowse snap\` to inspect what actually rendered. \`unbrowse close\` will index the real network calls and rebuild the route.`,
+        commands: [
+          `unbrowse go "${contextUrl}"`,
+          `unbrowse snap`,
+          `unbrowse close`,
+        ],
+        diagnostic: tinyCheck.reason,
+      };
+      trace.result = data;
+      trace.steps?.push({ step: "extraction_too_thin_gate", reason: tinyCheck.reason });
     }
   }
 
