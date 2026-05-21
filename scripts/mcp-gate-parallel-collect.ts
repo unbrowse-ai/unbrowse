@@ -251,14 +251,41 @@ async function runProbe(p: { probe_id: string; intent: string; url: string; lane
       decision_trace: ex.body?.trace?.decision_trace ?? [],
     }, null, 2));
   } else {
-    const note = isHandoff ? "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)" : "no_match: execute not run";
-    w(dir, "execute.input.json", JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note }, null, 2));
-    // Record the FULL handoff envelope as the execute response so the
-    // in-thread judge can read suggested_next_action / commands / message.
-    const handoff = JSON.stringify(
-      post2.body?.result ?? post2.body?.next_step ?? post2.body?.next_action ?? post2.body ?? {});
-    w(dir, "execute.response.raw", handoff);
-    w(dir, "execute.meta.json", JSON.stringify({ status_code: null, response_bytes: Buffer.byteLength(handoff, "utf8"), decision_trace: [], resolve_status: resolveStatus }, null, 2));
+    // Direct-document success: when the orchestrator's plain-HTML
+    // fast-path returns a rich document via /resolve (lobsters,
+    // wikipedia, etc.), `result.rejected === false` AND
+    // `result.extraction.source === "direct-document"` mark a SUCCESS
+    // shape — `result.title`, `result.html_bytes`, `result.text_excerpt`
+    // ARE the data the intent asked for, returned without a separate
+    // execute call. The PRIOR collector wrote `status_code: null,
+    // resolve_status: null` here, which auto-classify.sh then mapped
+    // to RETRIEVE_FAIL_ERROR_BODY (probes 004 lobsters / 006 wikipedia
+    // in run 20260521T054339Z were both false-failed this way). Fix:
+    // record the direct-document body as the execute response with
+    // status_code=200 so the structural classifier flips them to
+    // RETRIEVE_PASS. INDEX side is handled in auto-classify via the
+    // `skill_id == "direct-document"` signature on capture.meta.
+    const resultBody = post2.body?.result;
+    const isDirectDocumentSuccess = !!resultBody
+      && resultBody.rejected === false
+      && (resultBody?.extraction?.source === "direct-document"
+          || (typeof resultBody.html_bytes === "number" && resultBody.html_bytes > 0
+              && typeof resultBody.text_excerpt === "string"));
+    if (isDirectDocumentSuccess) {
+      const raw = typeof resultBody === "string" ? resultBody : JSON.stringify(resultBody);
+      w(dir, "execute.input.json", JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note: "direct-document: orchestrator fast-path returned rich document via /resolve" }, null, 2));
+      w(dir, "execute.response.raw", raw);
+      w(dir, "execute.meta.json", JSON.stringify({ status_code: 200, response_bytes: Buffer.byteLength(raw, "utf8"), decision_trace: [{ step: "direct_document_resolve_fastpath" }], resolve_status: "direct_document" }, null, 2));
+    } else {
+      const note = isHandoff ? "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)" : "no_match: execute not run";
+      w(dir, "execute.input.json", JSON.stringify({ skill: null, endpoint: null, intent: p.intent, context_url: p.url, params: {}, note }, null, 2));
+      // Record the FULL handoff envelope as the execute response so the
+      // in-thread judge can read suggested_next_action / commands / message.
+      const handoff = JSON.stringify(
+        post2.body?.result ?? post2.body?.next_step ?? post2.body?.next_action ?? post2.body ?? {});
+      w(dir, "execute.response.raw", handoff);
+      w(dir, "execute.meta.json", JSON.stringify({ status_code: null, response_bytes: Buffer.byteLength(handoff, "utf8"), decision_trace: [], resolve_status: resolveStatus }, null, 2));
+    }
   }
   const flag = isoSelfCheck.host_match === false ? " *** ISO-MISMATCH (raw evidence; judge in-thread) ***" : "";
   return `${p.probe_id} done eps=${eps.length} indexed=${cb.indexed ?? false} iso=${isoSelfCheck.host_match}${flag}`;
