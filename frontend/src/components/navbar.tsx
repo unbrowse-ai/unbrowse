@@ -12,7 +12,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 bg-black/15 backdrop-blur-md" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+    <nav className="fixed top-0 inset-x-0 z-50 bg-[#060402]/80" style={{ borderBottom: '1px solid rgba(255,176,96,0.15)' }}>
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -133,7 +133,7 @@ export function Navbar() {
 
       {/* Mobile dropdown */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/8 bg-black/40 backdrop-blur-md">
+        <div className="md:hidden border-t border-[rgba(255,176,96,0.15)] bg-[#060402]/95">
           <div className="px-6 py-4 space-y-0.5">
             <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
             <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>

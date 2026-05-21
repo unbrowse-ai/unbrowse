@@ -465,9 +465,9 @@ function CoverageGlobe({
         </svg>
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="rounded-full border border-white/10 bg-black/20 px-6 py-4 text-center backdrop-blur-sm">
+          <div className="rounded-full border border-[rgba(255,176,96,0.15)] bg-[#060402]/80 px-6 py-4 text-center">
             <p className="text-[10px] font-mono uppercase tracking-[0.26em] text-cyan-200/80">Tracked demand coverage</p>
-            <p className="mt-2 text-4xl font-semibold text-white">{trackedCoveragePct}%</p>
+            <p className="mt-2 text-4xl font-semibold text-[rgba(255,250,242,0.95)]">{trackedCoveragePct}%</p>
             <p className="mt-1 text-[11px] text-text-muted">{topDomains} reference domains in watchlist</p>
           </div>
         </div>
