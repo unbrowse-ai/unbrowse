@@ -99,6 +99,11 @@ export function FirstTaskPath() {
         High-signal outcome:
         <span className="ml-2">copy install, run one resolve, then use Unbrowse on your own target site before touching optional skill or dashboard setup.</span>
       </div>
+
+      <p className="rounded-2xl border border-orange-500/15 bg-orange-50/40 px-5 py-3 text-xs leading-6 text-text-muted">
+        <span className="font-mono uppercase tracking-[0.18em] text-orange-700">Heads up.</span>
+        <span className="ml-2">Every resolve also caches a route to the public marketplace. When another agent reuses one of yours, the call settles in USDC on Solana via Faremeter Flex, straight to your wallet. Your first $1/day per agent is sponsored, so exploration is free.</span>
+      </p>
     </div>
   );
 }
