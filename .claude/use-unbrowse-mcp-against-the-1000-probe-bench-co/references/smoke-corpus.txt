@@ -1,0 +1,16 @@
+# Smoke corpus for the bench-mcp-safety harness (first wave: 3 probes).
+# Format: lane | auth | difficulty | strategy | intent | contextUrl
+#
+# First wave keeps it small (3 probes ~90s each) so it fits between peer-
+# bench iterations on shared dev machines. Expand to 10 probes (anchor,
+# semantic-rank, ssr-list, graphql, auth-cookies, hostile) once we have
+# a quiet machine.
+#
+# Lane mix:
+#   - 1 anchor (HN) — easy public; exercises direct-document path
+#   - 1 ssr-list (amazon) — gzip + extraction; exercises ranker
+#   - 1 auth-cookies (linear) — exercises cookie-injection path (or SKIP)
+
+anchor | none | easy | dom-artifact | get top hacker news stories | https://news.ycombinator.com/
+ssr-list | none | hard | ssr-list | search amazon for usb-c cables | https://www.amazon.com/s?k=usb-c+cable
+auth-cookies | dia | hard | cookie-injected | get linear my issues | https://linear.app/
