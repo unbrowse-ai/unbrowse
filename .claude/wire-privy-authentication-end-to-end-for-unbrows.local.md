@@ -20,7 +20,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: ""
-status: pending
+status: shipped-waves-1-3-wave-4-blocked-on-prod-privy-secret-rotation
 ---
 
 # wire Privy authentication end to end for unbrowse: (1) switch embedded wallet config from ethereum to solana in frontend/src/lib/privy-provider.tsx since x402 sponsor middleware is solana-baked, (2) add @privy-io/server-auth to backend with a verifyPrivyAuthToken middleware that converts the Privy JWT to a privy_user_id claim using the existing PRIVY_APP_SECRET worker secret, (3) wire login flow to bind the Privy embedded wallet address to the unbrowse agent record (either attach to existing agent or auto-register L1 anon reusing /v1/agents/register-anon shape from PR #682), (4) end-to-end verify: fresh user signs in via Privy, embedded Solana wallet auto-created, bound to agent, first metered execute settles via x402 sponsor middleware. Verified by http-curl matrix capturing the full chain.

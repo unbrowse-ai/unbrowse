@@ -20,7 +20,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: ""
-status: pending
+status: converged
 ---
 
 # add a payment-provider choice prompt to unbrowse setup and mirror it on the /account web page. Five options: [1] pay.sh (TouchID + USDC stablecoin settlement via x402 MPP / search_catalog), [2] lobster.cash (Crossmint @crossmint/lobster-cli — credit card → virtual card → Solana wallet, subscription billing tops up), [3] External wallet (bring your own Solana signer / external keypair), [4] Privy embedded (the Solana wallet auto-created by Wave 1 of wire-privy-authentication-end-to-end-for-unbrows during web sign-in), [skip] free tier (sponsor middleware /day/agent — no setup needed). The choice persists to ~/.unbrowse/config.json AND syncs to agent.wallet_provider via the backend so src/payments/index.ts routes settlement to the right path. Provider-aware top-up nudges per choice (pay.sh has TouchID + USDC topup; lobster.cash has subscription billing trigger; external requires manual top-up; Privy shows the wallet address for the user to fund). The frontend /account page mirrors the same choice post-Privy-signin so web users have the same control surface as CLI users.
