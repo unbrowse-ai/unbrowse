@@ -2112,6 +2112,11 @@ async function cmdMode(_flags: Record<string, string | boolean>): Promise<void> 
   await syncContributionPreferenceToServer();
 }
 
+async function cmdPaymentProvider(_flags: Record<string, string | boolean>): Promise<void> {
+  const { promptPaymentProvider } = await import("./cli-payment-setup.js");
+  await promptPaymentProvider({ force: true });
+}
+
 /**
  * Best-effort sync of the local share_pointers preference up to the backend
  * for account-bound API keys. Anonymous keys silently skip; offline / 5xx
@@ -2210,18 +2215,27 @@ async function cmdDashboard(flags: Record<string, string | boolean>): Promise<vo
   info("Opening dashboard and pairing this CLI install.");
   output({
     status: "pairing_started",
-    url,
+url,
     local_server: BASE_URL,
     expires_at: pair.expires_at,
   }, !!flags.pretty);
 }
 
-
-// Hook the contribution prompt onto the tail of cmdSetup. Called from main()
-// right after cmdSetup runs.
+// Hook the contribution prompt + payment-provider prompt onto the tail of
+// cmdSetup. Called from main() right after cmdSetup runs. Order: contribution
+// first (supply side: do we share captured routes back to the marketplace?)
+// then payment-provider (demand side: which rail settles paid calls?). They
+// are orthogonal but contribution runs first because it's the established
+// prompt new users have seen; payment-provider lands as an additive surface.
 async function runPostSetupContributionPrompt(): Promise<void> {
   try {
     await promptContributionMode({ force: false });
+  } catch {
+    // Never fail setup because of the prompt.
+  }
+  try {
+    const { promptPaymentProvider } = await import("./cli-payment-setup.js");
+    await promptPaymentProvider({ force: false });
   } catch {
     // Never fail setup because of the prompt.
   }
@@ -2549,6 +2563,7 @@ export const CLI_REFERENCE = {
     // ── Identity & policy ─────────────────────────────────────────────────
     { name: "account", usage: "[--register] [--email user@example.com] [--reset-key] [--json]", desc: "Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command)." },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace)." },
+    { name: "payment-provider", usage: "", desc: "Re-prompt for payment provider: pay.sh / lobster.cash / external Solana / Privy embedded / skip. Controls which rail settles paid x402 calls." },
     { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
     { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy (per-domain allow/block lists)." },
 
@@ -4074,6 +4089,10 @@ async function main(): Promise<void> {
     await cmdMode(flags);
     return;
   }
+  if (command === "payment-provider") {
+    await cmdPaymentProvider(flags);
+    return;
+  }
   if (command === "config") return cmdConfig(args, flags);
   if (command === "account") return cmdAccount(flags);
   if (command === "dashboard") return cmdDashboard(flags);
@@ -4127,7 +4146,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "run", "execute", "exec",
-    "feedback", "fb", "annotate", "review", "index", "publish", "publish-bundle", "settings", "config", "auth", "auth-capture", "login", "skills", "skill", "cleanup-stale", "search", "sessions",
+    "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "payment-provider", "account", "dashboard", "capture",
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "wallet", "eval", "back", "forward", "sync", "close",
@@ -4230,6 +4249,7 @@ async function main(): Promise<void> {
       info("[deprecated] `register` is now `account --register`");
       return cmdRegister(flags);
     case "mode": return cmdMode(flags);
+    case "payment-provider": return cmdPaymentProvider(flags);
     case "dashboard": return cmdDashboard(flags);
     case "note": return cmdNote(flags, args);
     case "sandbox-replay": return cmdSandboxReplay(args, flags);
