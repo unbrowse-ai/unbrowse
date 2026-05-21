@@ -23,7 +23,7 @@ export function Navbar() {
             height={28}
             unoptimized
           />
-          <span className="font-semibold text-base tracking-tight text-white/90">
+          <span className="font-semibold text-base tracking-tight text-[rgba(255,250,242,0.9)]">
             unbrowse
           </span>
         </Link>
@@ -38,7 +38,7 @@ export function Navbar() {
             href="https://docs.unbrowse.ai"
             target="_blank"
             rel="noopener"
-            className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[rgba(255,250,242,0.6)] hover:text-[rgba(255,250,242,0.95)] transition-colors"
           >
             Docs
           </a>
@@ -46,7 +46,7 @@ export function Navbar() {
             href="https://discord.gg/VWugEeFNsG"
             target="_blank"
             rel="noopener"
-            className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[rgba(255,250,242,0.6)] hover:text-[rgba(255,250,242,0.95)] transition-colors"
           >
             Discord
           </a>
@@ -59,7 +59,7 @@ export function Navbar() {
             href="https://github.com/unbrowse-ai/unbrowse"
             target="_blank"
             rel="noopener"
-            className="w-8 h-8 flex items-center justify-center text-white/55 hover:text-white/90 transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-[rgba(255,250,242,0.55)] hover:text-[rgba(255,250,242,0.9)] transition-colors"
             aria-label="GitHub Repository"
           >
             <svg className="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24">
@@ -70,7 +70,7 @@ export function Navbar() {
           {/* Theme toggle */}
           <button
             onClick={toggle}
-            className="w-8 h-8 flex items-center justify-center text-white/55 hover:text-white/90 transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-[rgba(255,250,242,0.55)] hover:text-[rgba(255,250,242,0.9)] transition-colors"
             aria-label="Toggle theme"
           >
             {theme === "light" ? (
@@ -169,7 +169,7 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   return (
     <Link
       href={href}
-      className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors"
+      className="px-3 py-1.5 text-sm font-medium text-[rgba(255,250,242,0.6)] hover:text-[rgba(255,250,242,0.95)] transition-colors"
     >
       {children}
     </Link>

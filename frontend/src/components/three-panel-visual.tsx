@@ -188,7 +188,7 @@ export function ThreePanelVisual() {
               {/* Shared Timer for Panels 1 & 2 */}
               <div className="lg:col-span-2 relative rounded-sm p-4 sm:p-6 bg-[#060402] border border-[rgba(255,122,32,0.28)] mt-5">
                 {/* Timer badge — full width on mobile, centered pill on desktop */}
-                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-[#060402] text-white text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 border border-[rgba(255,122,32,0.4)] flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-black/20" style={{ boxShadow: '0 0 20px rgba(255,82,0,0.1)' }}>
+                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-[#060402] text-[rgba(255,250,242,0.95)] text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 border border-[rgba(255,122,32,0.4)] flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-[rgba(0,0,0,0.2)]" style={{ boxShadow: '0 0 20px rgba(255,82,0,0.1)' }}>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
                     <span className="text-zinc-400 hidden xs:inline">Time:</span>
