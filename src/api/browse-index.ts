@@ -380,7 +380,30 @@ export async function cacheBrowseRequests(params: {
       return inner.length === 0;
     };
     if (!html || !html.trimStart().startsWith("<") || looksLikeShellOnly(html)) {
-      log("browse-index", `getPageHtml malformed or shell-only (size=${livePageHtmlSize}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
+      // Give the live tab one chance to finish rendering before falling
+      // through to server-fetch. Cycle-4 stackoverflow probes returned
+      // 39-byte shells from getPageHtml because the eval fired before
+      // the body finished parsing; the page itself is fully SSR and is
+      // there a moment later. Pre-fix the path went straight to
+      // tryHttpFetch which on anti-bot-heavy hosts (stackoverflow) gets
+      // its own challenge response. The retry is cheap and preserves
+      // the live tab's authenticated state where the server-fetch path
+      // does not (e.g. CF clearance cookies tied to TLS fingerprint).
+      if (getPageHtml && looksLikeShellOnly(html) && html) {
+        await new Promise((r) => setTimeout(r, 1500));
+        try {
+          const retried = await getPageHtml();
+          if (retried && retried.trimStart().startsWith("<") && !looksLikeShellOnly(retried)) {
+            log("browse-index", `getPageHtml shell-only on first eval; retry after 1500ms returned ${retried.length} bytes`);
+            html = retried;
+            diagnostic.dom_html_size = retried.length;
+          }
+        } catch { /* swallow; fall through to tryHttpFetch */ }
+      }
+    }
+    // Still shell-only or malformed after the retry? Try server-fetch.
+    if (!html || !html.trimStart().startsWith("<") || looksLikeShellOnly(html)) {
+      log("browse-index", `getPageHtml still empty after retry (size=${(html ?? "").length}); falling back to tryHttpFetch with ${sessionCookies.length} session cookies`);
       const fetched = await tryHttpFetch(sessionUrl, {}, sessionCookies);
       html = fetched?.html;
       usedServerFetch = true;
