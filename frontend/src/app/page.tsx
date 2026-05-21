@@ -39,6 +39,7 @@ import { IconArrow, IconChevron } from "@/components/archival-icons";
 
 export const revalidate = 60;
 
+const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 // FAQ JSON-LD aligned with the locked H1: "Direct access to anything on
 // the web. Without setting up another MCP." First question carries the
 // pain frame; numbers verified against the paper + codebase. Do NOT

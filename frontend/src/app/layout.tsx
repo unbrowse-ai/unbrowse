@@ -151,8 +151,9 @@ export default function RootLayout({
               },
               featureList: [
                 "Auto-discovers undocumented website APIs",
-                "100x faster than headless browsers (50-200ms vs 5-30s)",
-                "40x fewer tokens (200 vs 8000 per page)",
+                "3.6x mean (5.4x median) speedup over Playwright across 94 live domains (arXiv:2604.00694)",
+                "Up to 100x faster on cached marketplace routes (50-200ms vs 5-30s)",
+                "~200 tokens per action vs ~8000 for full HTML scrape",
                 "Shared marketplace of captured endpoints across 600+ domains",
                 "Plugs into OpenClaw, Claude Desktop, Cursor, Codex, and any MCP-aware framework",
                 "Self-hosted Postgres backend with pgvector (provider-agnostic)",
