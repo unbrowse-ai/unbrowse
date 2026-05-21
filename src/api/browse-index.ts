@@ -368,7 +368,7 @@ export async function cacheBrowseRequests(params: {
     }
 
     const evaluate = (h: string) => {
-      const ex = extractFromDOM(h, intent);
+      const ex = extractFromDOM(h, intent, sessionUrl);
       const forms = detectSearchForms(h);
       const vf = forms.find((form: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(form));
       const dd = shouldIndexDomBrowseFallback({
