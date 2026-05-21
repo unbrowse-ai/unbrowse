@@ -66,6 +66,47 @@ export default function DocsApiPage() {
       <pre><code>{`await unbrowse.health();
 // → { status: "ok" | "degraded", version?, uptime_s? }`}</code></pre>
 
+
+      <h2>Skill management</h2>
+      <pre><code>{`// Publish a captured skill to the marketplace.
+// Wraps POST /v1/skills.
+await unbrowse.publish({
+  name: "github.com search",
+  intent_signature: "search github code",
+  domain: "github.com",
+  description: "search github via the public API",
+  endpoints: [/* EndpointDescriptor[] */],
+  markup_bps: 2500,  // optional, [500, 8000] = 5-80% platform cut on x402 settle
+});
+// → { skill_id, version, publish_status }
+
+// Annotate an endpoint with a tip, constraint, or gotcha.
+// Wraps POST /v1/skills/:id/endpoints/:eid/annotate.
+await unbrowse.annotate({
+  skillId: "abc123",
+  endpointId: "ep1",
+  text: "rate limit is 60/hr per token",
+  constraint: "per_page:format:1-100",  // optional structured constraint
+});
+// → { ok: true, annotation_id }`}</code></pre>
+
+      <h2>Payment provider</h2>
+      <pre><code>{`// Sync the agent's chosen x402 settlement rail.
+// Wraps POST /v1/account/payment-provider. Allowed values:
+//   "pay_sh"           pay-cli + TouchID + USDC (x402 MPP)
+//   "lobster_cash"     @crossmint/lobster-cli + virtual card + Solana
+//   "external_solana"  bring-your-own signer (via \`unbrowse wallet\`)
+//   "privy_embedded"   Privy auto-created wallet (web sign-in)
+//   "privy_embedded_solana"  bound automatically via /v1/auth/privy/start
+//   "skip"             free tier (sponsor middleware covers $1/day/agent)
+await unbrowse.paymentProvider("privy_embedded");
+// → { agent_id, wallet_provider, wallet_address }`}</code></pre>
+
+      <h2>Per-skill markup_bps (Flex x402)</h2>
+      <p className="text-sm text-muted-foreground">
+        SkillManifest accepts an optional <code>markup_bps</code> field that overrides the global PLATFORM_BPS constant when computing x402 splits. Clamped to <code>[500, 8000]</code> (5-80%) at compute time. The owner-share (1500 bps when DNS-claimed) and the indexer pool auto-rebalance from the remainder. Set per skill at publish time to charge different rates per route.
+      </p>
+
       <h2>Account resource</h2>
       <pre><code>{`await unbrowse.account.me();             // current user
 await unbrowse.account.credits();        // balance, used, granted (USD)
