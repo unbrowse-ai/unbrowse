@@ -19,7 +19,7 @@ curl -fsSL https://unbrowse.ai/install.sh | sh
 
 The CLI installer detects platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse setup`.
 
-Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The repo-level agent contract lives in [SKILL.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/SKILL.md).
+Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The MCP-and-SDK agent contract is the public API surface; there is no longer a checked-in `SKILL.md` (retired in v6.15.0 with the skill-repo sync).
 
 ## Fast path
 
@@ -59,17 +59,13 @@ unbrowse dashboard
 
 `unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into CLI contribution mode on later CLI runs.
 
-If your host uses skills:
-
-```bash
-npx skills add unbrowse-ai/unbrowse
-```
-
-This is skill-only. It does not install the `unbrowse` runtime binary. Also install/setup the runtime:
+For MCP host integration, the recommended path is `unbrowse setup --host mcp` (the global binary registers itself with Claude Desktop / Cursor / Aiko / Claude Code automatically):
 
 ```bash
 npm install -g unbrowse@preview && unbrowse setup --host mcp
 ```
+
+The legacy `npx skills add unbrowse-ai/unbrowse` path is retired (v6.15.0). The MCP server lives in the same npm package as the CLI.
 
 ## First-run behavior
 
@@ -199,7 +195,7 @@ Important runtime paths:
 
 ## What to read next
 
-- [API reference](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/api.md)
-- [TypeScript SDK](../../packages/sdk/README.md)
-- [Deployment guide](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/deployment.md)
-- [Codex eval harness](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/codex-eval-harness.md)
+- [MCP workflow guide](../mcp-workflow-guide.md) -- every tool the MCP server exposes
+- [SDK README](../../packages/sdk/README.md) -- TypeScript client, payments, sessions
+- [HOW_UNBROWSE_PAYS.md](../HOW_UNBROWSE_PAYS.md) -- the 50/35/15 split, per-skill markup, payment-provider choice
+- [Wallets, escrows, session keys](../wallets.md)
