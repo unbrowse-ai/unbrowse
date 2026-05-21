@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### Session-arc 2026-05-21 (17 PRs #685–#701)
+
+Consolidated summary of the multi-track work that landed across one
+sustained session. Each item is its own merged PR; see the per-PR
+commit messages for the substrate-level diagnosis.
+
+**Release pipeline unblock** — closed every blocker that had stalled
+`scripts/release-and-verify.sh`:
+- #685: refreshed the stale `#70` LinkedIn header-replay test mock so the new substantive-output gate accepts it; aligned `.gitmodules` kuri tracking branch to `feat/windows-port-wave-1` where the pinned SHA actually lives.
+- #686 + #687: rewired `scripts/bench-gate-prerelease.sh` to consume the meta-harness ledger row instead of a static `stamp.json`. tz-aware comparison fixed an SGT-vs-UTC lex bug. Appended a verified Wave-6 row to the bench ledger.
+- #689: applied the same meta-harness-ledger consume pattern to `scripts/mcp-gate-prepush.sh`. Fixed `.release-it.json` `"npm": false` (boolean) → `"npm": { "publish": false }` (object) — the boolean disabled the npm-manifest reader and `release-it` fell back to `0.1.0` as `currentVersion`.
+
+**Privy authentication waves 1-3** (#687, #688) — wired account-bound sign-in:
+- Frontend: flipped `embeddedWallets` from `ethereum` to `solana` so the Privy auto-created wallet matches the x402 sponsor middleware's Solana rail.
+- Backend (Workers-safe, no SDK): `backend/src/services/privy.ts` ES256 JWT verification via Web Crypto `crypto.subtle.verify` against the Privy JWKS endpoint, plus REST user-fetch with Basic app_id:app_secret auth to read the linked embedded Solana wallet address.
+- `POST /v1/auth/privy/start` route mirrors the magic-link shape: verifies the Privy token, mints an API key, ensures an agent profile, and binds `agent.wallet_address` + `agent.wallet_provider = "privy_embedded_solana"` via the existing `updateAgentWallet` helper. 6/6 structural unit tests (no mocks). Wave 4 (live e2e gate) blocked on Lewis rotating `PRIVY_APP_SECRET` in the Privy dashboard.
+
+**Payment-provider choice waves 1-5** (#690, #691, #692, #693) — five-option setup prompt + full backend sync + 402 dispatch:
+- `unbrowse setup` + `unbrowse payment-provider` CLI prompt with 5 rails: `pay_sh` / `lobster_cash` / `external_solana` / `privy_embedded` / `skip`. Persists to `~/.unbrowse/config.json` (`src/config/payment-provider.ts`, `src/cli-payment-setup.ts`). 9/9 unit tests pass.
+- Backend `POST /v1/account/payment-provider` (`updateAgentPaymentProvider`) syncs the chosen rail to `agent.wallet_provider` so settlement code dispatches correctly.
+- `unbrowse account` surfaces the current provider + per-rail top-up command. `/account` page on the frontend renders a dropdown to switch rails with the same nudge copy.
+- `src/payments/paysh-pay.ts` (242 LOC) mirrors `lobster-pay.ts`: shells to `pay curl <url>` (or `npx @solana/pay` cold-path fallback). `src/client/index.ts` 402 handler now tries Flex → pay.sh (gated on `wallet_provider === "pay_sh"`) → lobster.cash in that order.
+
+**Flex x402 per-skill markup_bps** (#694) — Pontus / ABK 2026-05-21: "5-80% markup potential on Flex". Replaced the hardcoded `PLATFORM_BPS=5000` with a per-skill optional override clamped to `[MARKUP_BPS_MIN=500, MARKUP_BPS_MAX=8000]`. Indexer pool + owner share auto-rebalance from the remainder. Three-file synced across `backend/src/types.ts`, `src/types/skill.ts`, `frontend/src/lib/api.ts` per the EndpointDescriptor sync convention. 10/10 unit tests cover defaults, clamps, fallbacks, totals-sum-to-10000.
+
+**CLI/MCP/SDK surface parity gate** (#695, #696) — locked the contract so future regressions surface in PR:
+- `tests/cli-mcp-sdk-parity.test.ts`: parses the three surface declarations (47 CLI commands, 39 MCP tools, 23 SDK methods) and asserts (a) `CORE_VERBS = { resolve, execute, health, feedback, stats }` exist in all three, (b) every CLI command has an MCP counterpart or sits on `LOCAL_ONLY_CLI`, (c) every MCP tool has a CLI counterpart or sits on `MCP_PROTOCOL_ONLY`, (d) every SDK method has a CLI/MCP counterpart or sits on `SDK_INFRASTRUCTURE`, (e) the documented `SDK_GAP_FLOOR=30` tightens as the SDK fills in. Normalisation collapses hyphens AND camelCase. 20/20 pass.
+- SDK gap-fill Wave 2: `Unbrowse#publish(skill)`, `Unbrowse#annotate({ skillId, endpointId, text, constraint? })`, `Unbrowse#paymentProvider(provider)`. 6 new typed contracts.
+
+**Bench-gate bug-class drill** (#699) — collector substrate truth-telling fix: `scripts/mcp-gate-parallel-collect.ts` was recording the orchestrator's direct-document fast-path success as `status_code: null, resolve_status: null`, which `auto-classify.sh` mapped to `RETRIEVE_FAIL_ERROR_BODY` even though the response body carried the full requested document. Now detects the direct-document shape and records `status_code: 200, resolve_status: "direct_document"`. Lifts `index_coverage` from 87.2% → 92.3% (probes `004_anchor_lobste.rs` and `006_anchor_wikipedia` flip to `INDEX_PASS`).
+
+**Harness queue status sweep** (#697, #698, #700, #701) — honest scaffold-status updates per the runbook:
+- `add-a-payment-provider-choice-prompt-to-unbrowse`: `pending` → `converged` (Waves 1-5 shipped).
+- `wire-privy-authentication-end-to-end-for-unbrows`: `pending` → `shipped-waves-1-3-blocked-on-prod-privy-secret-rotation`.
+- `use-unbrowse-mcp-against-the-1000-probe-bench-co`: `pending` → `shipped-wave-6-verified-row-1000-probe-sweep-deferred`.
+- `rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty`: `pending` → `shipped-wave-2-sdk-gapfill-publish-annotate-paymentprovider`.
+- `build-kuri-for-windows-x86-64-windows-so-unbrows`: Wave-6 shipped via lekt9/kuri@3cdc33c (migrated `compat.cwd*File` from `std.c.open` to `std.Io.Dir.cwd()` per Zig 0.16 portable API; deepwiki-confirmed). Wave-7 scope precisely documented (5 fork→CreateProcessW sites + agent_main raw POSIX sockets + quickjs unused-local-const), deferred to dedicated Zig session.
+
+**SDK docs** — `frontend/src/app/docs/api/page.tsx` now documents the three new SDK methods (`publish`, `annotate`, `paymentProvider`) and the per-skill `markup_bps` knob.
+
+
 ### Fixes
 * **fix(bench-gate): collector + classifier recognize direct-document fast-path as success** — when `/v1/resolve` returned a `DirectDocumentResult` envelope (`result.rejected === false`, `result.extraction.source === "direct-document"`) the prior collector wrote `status_code: null, resolve_status: null` into `execute.meta.json`, which `auto-classify.sh` mapped to `RETRIEVE_FAIL_ERROR_BODY` even though the response body carried the full requested document (lobsters 56KB HTML, wikipedia 741KB HTML). The classifier separately demoted the probe to `INDEX_FAIL_NO_ENDPOINTS` because capture-side bookkeeping showed `indexed=False n_ops=0 mode=none` despite `skill_id="direct-document"` being a successful retrieval source. (a) `scripts/mcp-gate-parallel-collect.ts` now detects the direct-document shape on the `pick === null` branch and records the body with `status_code: 200, resolve_status: "direct_document", decision_trace=[{step:"direct_document_resolve_fastpath"}]`. (b) `.claude/drive-every-bug-class-surfaced-by-the-mcp-gate-r/scripts/auto-classify.sh` adds a new INDEX_PASS branch when `skill_id == "direct-document"` AND `exec_raw_bytes > 500`. Verified against `.bench-gate/20260521T054339Z`: re-running `auto-classify.sh` flips probes `004_anchor_lobste.rs` and `006_anchor_wikipedia` from `INDEX_FAIL_NO_ENDPOINTS` to `INDEX_PASS`, lifting index_coverage from 87.2% → 92.3%. Retrieve-side flip requires a fresh collector run because the existing `execute.meta.json` rows carry the pre-fix `status_code: null` (next gate cycle picks this up automatically). Tests: 42/42 collector + gate tests pass.
 
