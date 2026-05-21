@@ -240,26 +240,38 @@ export async function runSetup(options?: {
       // re-prompts honor the choice for this run.
       process.env.UNBROWSE_SKIP_WALLET_SETUP = "1";
     } else if (!lobsterInstalled) {
-      console.log("[unbrowse] Setting up Crossmint wallet (required for earning + payments)...");
+      console.log("[unbrowse] Setting up Crossmint wallet (optional, for earning + payments)...");
+      // Capture lobster-cli output instead of inheriting: its "Error: No active
+      // agent" message + Node punycode DeprecationWarning alarm first-time users
+      // even when we gracefully fall through to the sponsor pool. Surface the
+      // raw stderr only when UNBROWSE_DEBUG_SETUP=1 is set for debugging.
+      const debugSetup = process.env.UNBROWSE_DEBUG_SETUP === "1";
       try {
         execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
-          stdio: "inherit",
+          stdio: debugSetup ? "inherit" : ["ignore", "pipe", "pipe"],
           timeout: 120_000,
         });
         lobsterInstalled = true;
-      } catch {
-        console.warn("[unbrowse] Crossmint wallet setup failed — you can retry with: npx @crossmint/lobster-cli setup");
-        console.warn("[unbrowse] Continuing with the platform sponsor pool ($1/day per agent, $50/day across the platform). Pair a wallet via `lobstercash` to keep going past the daily cap and earn USDC when your routes are reused.");
+      } catch (err) {
+        if (debugSetup) {
+          console.warn(`[unbrowse] lobster-cli setup raw error: ${(err as Error).message}`);
+        }
+        console.warn("[unbrowse] No wallet yet — using sponsor pool ($1/day per agent, $50/day platform).");
+        console.warn("[unbrowse] Pair a wallet later with: npx @crossmint/lobster-cli setup (or set UNBROWSE_DEBUG_SETUP=1 to debug).");
       }
     } else {
       console.log("[unbrowse] Crossmint lobster.cash detected but wallet not configured — running wallet setup...");
+      const debugSetup = process.env.UNBROWSE_DEBUG_SETUP === "1";
       try {
         execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
-          stdio: "inherit",
+          stdio: debugSetup ? "inherit" : ["ignore", "pipe", "pipe"],
           timeout: 60_000,
         });
-      } catch {
-        console.warn("[unbrowse] Crossmint wallet setup failed or was skipped — continuing without wallet");
+      } catch (err) {
+        if (debugSetup) {
+          console.warn(`[unbrowse] lobster-cli pair raw error: ${(err as Error).message}`);
+        }
+        console.warn("[unbrowse] Wallet setup skipped — continuing. Re-run later: npx @crossmint/lobster-cli setup");
       }
     }
     // Re-check after setup
