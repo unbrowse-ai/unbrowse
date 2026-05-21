@@ -1,6 +1,6 @@
 import { Hono, type Context, type Next } from "hono";
 import type { Env } from "../types.js";
-import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
+import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoints, type EndpointSearchHit } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
@@ -199,6 +199,8 @@ searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" 
 searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/resolve", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/rank", rateLimit({ limit: 60, window: 60, prefix: "search" }));
+searchRoutes.use("/search/endpoints", rateLimit({ limit: 30, window: 60, prefix: "search" }));
+
 
 searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
@@ -289,6 +291,45 @@ searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) 
     return c.json({ domain_results: [], global_results: [], skipped_global: false });
   }
 });
+
+// POST /v1/search/endpoints -- semantic search across ALL indexed endpoints,
+// flat shape (one row per endpoint). The existing /v1/search returns
+// {results: [{id, score, metadata}]} where metadata.content is a JSON-
+// stringified blob; this route unwraps the canonical schema server-side so
+// the SDK / MCP / CLI consumer gets a structured EndpointSearchHit row
+// directly. Anonymous-allowed (same gating as /v1/search) so public
+// discovery works without an API key; authenticated agents pay the
+// search fee per the existing x402 economics.
+searchRoutes.post("/search/endpoints", optionalAuth, signedClientIfAuthed, async (c) => {
+  const { intent, k, domain } = await c.req.json<{ intent: string; k?: number; domain?: string }>();
+  if (!intent) return c.json({ error: "intent required" }, 400);
+  try {
+    const isAnonymous = !c.get("agent_id");
+    if (!isAnonymous) {
+      const gate = await requireSearchPayment(c, "search-endpoints");
+      if (gate) return gate;
+    }
+    const agentId = c.get("agent_id") ?? "anonymous";
+    const cacheTtlSeconds = 30;
+    const limit = Math.min(50, Math.max(1, k ?? 10));
+    const cacheKey = `search:endpoints:${(domain ?? "global").toLowerCase()}:${normalizeSearchText(intent)}:${limit}`;
+    const endpoints: EndpointSearchHit[] = shouldCacheSearch(c)
+      ? (await getCachedSearchPayload(c, cacheKey, cacheTtlSeconds, async () => ({
+          endpoints: await searchEndpoints(c.env, intent, limit, domain),
+        }))).endpoints
+      : await searchEndpoints(c.env, intent, limit, domain);
+    if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
+    if (!isAnonymous && shouldRequireSearchPayment(c.env)) {
+      chargeSearchFee(c.env, agentId);
+      c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    }
+    return c.json({ endpoints });
+  } catch (err) {
+    console.error("[search] endpoint search failed:", (err as Error).message);
+    return c.json({ endpoints: [] });
+  }
+});
+
 
 // POST /v1/search/rank — server-side evidence-derived endpoint ranker.
 //

@@ -16,6 +16,8 @@ import type {
   SearchDomainInput,
   SearchInput,
   SearchResponse,
+  SearchEndpointsInput,
+  SearchEndpointsResponse,
   SkillManifest,
   StatsResponse,
   StealAuthInput,
@@ -330,6 +332,38 @@ export class Unbrowse {
       k: input.k,
     }, options);
   }
+
+  /**
+   * Semantic search across ALL indexed endpoints (flat shape).
+   *
+   * Returns one row per endpoint, ranked by semantic match against the
+   * intent string. Use this when you want to pick endpoints across many
+   * skills (vs `search()` which groups by skill).
+   *
+   * Optional `domain` scopes the search to one host's endpoints; omit for
+   * cross-marketplace search. Authenticated agents are charged the
+   * standard search fee per the existing x402 economics; anonymous
+   * callers get free rate-limited public discovery.
+   *
+   * @example
+   * ```ts
+   * const { endpoints } = await u.searchEndpoints({ intent: "trending repositories", k: 5 });
+   * for (const ep of endpoints) {
+   *   console.log(ep.score, ep.skill_id, ep.endpoint_id, ep.description);
+   * }
+   * ```
+   */
+  async searchEndpoints(
+    input: SearchEndpointsInput,
+    options?: RequestOptions,
+  ): Promise<SearchEndpointsResponse> {
+    return this.request<SearchEndpointsResponse>("POST", "/v1/search/endpoints", {
+      intent: input.intent,
+      k: input.k,
+      domain: input.domain,
+    }, options);
+  }
+
 
   async feedback(input: FeedbackInput, options?: RequestOptions): Promise<FeedbackResponse> {
     return this.request<FeedbackResponse>("POST", "/v1/feedback", {

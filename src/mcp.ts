@@ -2135,6 +2135,28 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: "unbrowse_search_endpoints",
+    description: "Semantic search across ALL marketplace endpoints. Returns a flat list of endpoints (one row per endpoint, not grouped by skill) ranked by semantic match to your intent. Use this when you want to discover endpoints across many skills/domains (vs unbrowse_resolve which binds an intent to a specific URL, or the skill-grouped search). Anonymous-allowed: public discovery works without an API key; authenticated agents pay the standard search fee. Each hit carries endpoint_id + skill_id so you can chain into unbrowse_execute or unbrowse_skill.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "string", description: "Natural-language intent (e.g., 'search trending repositories', 'list calendar events for next week')." },
+        k: { type: "number", description: "Max results to return (1-50, default 10).", minimum: 1, maximum: 50 },
+        domain: { type: "string", description: "Optional: restrict the search to one host (e.g., 'github.com'). Omit for cross-marketplace search." },
+      },
+      required: ["intent"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      await ensureServerReady();
+      const body: Record<string, unknown> = { intent: args.intent };
+      if (typeof args.k === "number") body.k = args.k;
+      if (typeof args.domain === "string") body.domain = args.domain;
+      return successResult(await api("POST", "/v1/search/endpoints", body), "Endpoint search results.");
+    },
+  },
+  {
     name: "unbrowse_feedback",
     description: "MANDATORY after every unbrowse_execute where results were shown to the user. Submit quality feedback so the marketplace learns which endpoints work.",
     inputSchema: {
