@@ -2603,6 +2603,11 @@ export async function resolveAndExecute(
     return {
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${endpointScopedSkill.skill_id}/execute with params.endpoint_id.`,
+        // Bug 4: empty-resolve must NOT be silent. When the deferred shortlist
+        // is empty (capture produced a skill but no endpoint survived ranking),
+        // emit an explicit error_code so the agent can distinguish
+        // "succeeded with zero ops" from "captured fine, ranker ate everything".
+        ...(epRanked.length === 0 ? { error_code: "no_endpoint_extracted" } : {}),
         skill_id: endpointScopedSkill.skill_id,
         available_operations: workflowDag.operations,
         workflow_dag: workflowDag,
@@ -4860,7 +4865,8 @@ export async function resolveAndExecute(
     void queuePassiveSkillPublish(skill, { parity });
   }
 
-  // Auth-gated or no data: pass through error
+  // Auth-gated or no data: escalate host-blocked 4xx to browse-session handoff,
+  // otherwise pass through the trace error so the agent can see what failed.
   if (!learned_skill && !trace.success) {
     recordRoutingStep("live-capture", captureSkill, trace, result, {
       candidateCount: 0,
@@ -4868,6 +4874,32 @@ export async function resolveAndExecute(
       userOverride: false,
       requiredRecovery: true,
     });
+    // Bug 3: when the host responded with 402/403/429 from live-capture and the
+    // failure is NOT a substrate-tagged auth_required (which has its own
+    // user-facing flow), the cookies-injected browser session may still
+    // succeed where libcurl was rate-limited / fee-gated / geo-blocked.
+    // Escalate to browse_session_open instead of returning the raw error so
+    // the calling agent gets an actionable next_step it can drive.
+    const blockingStatus = typeof trace.status_code === "number" ? trace.status_code : undefined;
+    const resultRecord = (result && typeof result === "object") ? (result as Record<string, unknown>) : null;
+    const isAuthRequired =
+      resultRecord?.error === "auth_required" || resultRecord?.auth_required === true;
+    if (
+      !isAuthRequired &&
+      context?.url &&
+      (blockingStatus === 402 || blockingStatus === 403 || blockingStatus === 429)
+    ) {
+      console.warn(
+        `[capture] host_blocked_with_${blockingStatus} on ${captureDomain}: escalating to browse_session handoff`,
+      );
+      const handoff = await openBrowseSessionHandoff(context.url);
+      if (handoff) {
+        const handoffResult = handoff.result as Record<string, unknown>;
+        handoffResult.reason = `host_blocked_with_${blockingStatus}`;
+        handoffResult.status_code_observed = blockingStatus;
+        return handoff;
+      }
+    }
     return {
       result,
       trace,
@@ -5023,12 +5055,31 @@ export async function resolveAndExecute(
       userOverride: false,
       requiredRecovery: !trace.success,
     });
+    // Bug 4: when live-capture returned with no learned_skill (capture had no
+    // extractable endpoints, DOM fallback didn't fire or returned too little),
+    // the raw `result` may be an empty object with no error tag. Stamp an
+    // error_code so the agent can distinguish silent-empty from "success".
+    const liveCaptureResult: unknown = (() => {
+      if (trace.success && (result === null || result === undefined)) {
+        return { error_code: "capture_returned_empty", message: "live-capture completed but produced no endpoints or page content" };
+      }
+      if (trace.success && typeof result === "object" && result !== null) {
+        const rec = result as Record<string, unknown>;
+        const hasOps = Array.isArray(rec.available_operations) && (rec.available_operations as unknown[]).length > 0;
+        const hasErr = typeof rec.error === "string" || typeof rec.error_code === "string";
+        const hasContent = typeof rec.content === "string" && (rec.content as string).length > 0;
+        if (!hasOps && !hasErr && !hasContent) {
+          return { ...rec, error_code: "capture_returned_empty" };
+        }
+      }
+      return result;
+    })();
     return {
-      result,
+      result: liveCaptureResult,
       trace,
       source: "live-capture",
       skill: captureSkill!,
-      timing: finalize("live-capture", result, undefined, undefined, trace),
+      timing: finalize("live-capture", liveCaptureResult, undefined, undefined, trace),
     };
   }
 
