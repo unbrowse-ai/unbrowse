@@ -32,7 +32,20 @@
  */
 
 import { useMemo, type ReactNode } from "react";
-import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import dynamic from "next/dynamic";
+import type { PrivyClientConfig } from "@privy-io/react-auth";
+
+// Dynamic import keeps the @privy-io/react-auth runtime chunk (~1.5 MB
+// WalletConnect tree) OFF every page when the env flag is unset, and
+// off non-account pages even when the flag is set, since the dynamic
+// factory only runs once this component renders the inner provider.
+const PrivyProviderDynamic = dynamic(
+  () =>
+    import("@privy-io/react-auth").then((m) => ({
+      default: m.PrivyProvider,
+    })),
+  { ssr: false },
+);
 
 const DEFAULT_CONFIG: PrivyClientConfig = {
   // Match the dark theme the rest of the site uses (CLAUDE.md design
@@ -73,13 +86,15 @@ export function PrivyOptionalProvider({
     [config],
   );
   if (!resolvedAppId || resolvedAppId.trim().length === 0) {
-    // Feature flag OFF: render children unchanged.
+    // Feature flag OFF: render children unchanged. The dynamic factory
+    // for @privy-io/react-auth is never invoked, so the SDK chunk is
+    // never fetched by the browser.
     return <>{children}</>;
   }
   return (
-    <PrivyProvider appId={resolvedAppId} config={resolvedConfig}>
+    <PrivyProviderDynamic appId={resolvedAppId} config={resolvedConfig}>
       {children}
-    </PrivyProvider>
+    </PrivyProviderDynamic>
   );
 }
 
