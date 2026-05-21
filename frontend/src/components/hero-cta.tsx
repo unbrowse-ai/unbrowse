@@ -32,7 +32,7 @@ export function HeroCTA({ experimentId, variantId, primaryLabel }: Props) {
   };
 
   return (
-    <div className="w-full max-w-3xl rounded-2xl border border-border bg-surface/90 p-3 shadow-sm backdrop-blur">
+    <div className="w-full max-w-3xl rounded-2xl border border-border bg-surface/90 p-3 shadow-sm">
       <div className="grid gap-3">
         <button
           onClick={() => handleCopy(INSTALL_CMD_OPENCLAW, "install_runtime")}

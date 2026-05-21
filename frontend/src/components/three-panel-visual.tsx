@@ -229,7 +229,7 @@ export function ThreePanelVisual() {
                       className="absolute inset-0 z-[60] bg-white pointer-events-none flex items-center justify-center"
                       style={{ opacity: currentFlash * 0.9 }}
                     >
-                      <div className="bg-zinc-900/90 text-white px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono backdrop-blur-sm shadow-xl">
+                      <div className="bg-[#0a0705]/95 text-[rgba(255,250,242,0.95)] px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono shadow-xl">
                         <IconAperture size={14} />
                         <span>Screenshot captured</span>
                       </div>

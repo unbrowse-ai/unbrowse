@@ -470,7 +470,7 @@ export default function Home() {
         <AntiIcpBlock />
 
         <footer
-          className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/90 backdrop-blur-sm"
+          className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/95"
           style={{ borderTop: "1px solid rgba(255,122,32,0.2)" }}
         >
           <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between gap-4">
