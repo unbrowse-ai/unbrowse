@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 60,
+  "n_operations": 5,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 3,
+  "indexed": true,
+  "mode": "http",
+  "skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+  "iso_self_check": {
+    "snap_current_url": "https://x.com/search?q=AI+agents&src=typed_query",
+    "intended_host": "x.com",
+    "snap_host": "x.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 3,
+    "raw_endpoints_count": 1,
+    "http_path_grew_skill": true,
+    "dom_fallback_attempted": false,
+    "dom_html_size": 0,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": null,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": 20
+}

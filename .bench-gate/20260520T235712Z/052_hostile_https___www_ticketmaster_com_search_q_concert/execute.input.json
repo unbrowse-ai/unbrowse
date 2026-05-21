@@ -1,0 +1,11 @@
+{
+  "skill": "y-geUM8YMGtfDOiMk7r1r",
+  "endpoint": "DYnn1jo2uA-CD8XNJt9yO",
+  "intent": "search ticketmaster events",
+  "context_url": "https://www.ticketmaster.com/search?q=concert",
+  "params": {
+    "endpoint_id": "DYnn1jo2uA-CD8XNJt9yO",
+    "url": "https://www.ticketmaster.com/search?q=concert",
+    "q": "concert"
+  }
+}

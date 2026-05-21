@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 12,
+  "n_operations": 5,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 1,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "yaoDcf1K0BuexK7RIDzH9",
+  "iso_self_check": {
+    "snap_current_url": "https://www.notion.so/GetVideos-User-Adoption-Insights-September-2025-26a596e9009b8199992ac7a3db817e4f",
+    "intended_host": "www.notion.so",
+    "snap_host": "www.notion.so",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 1,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 387236,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.4,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": 2
+}

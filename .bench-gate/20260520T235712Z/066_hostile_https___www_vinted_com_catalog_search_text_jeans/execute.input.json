@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "search vinted listings",
+  "context_url": "https://www.vinted.com/catalog?search_text=jeans",
+  "params": {},
+  "note": "crashed_during_collect"
+}

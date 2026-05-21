@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "get package info",
+  "context_url": "https://www.npmjs.com/package/openai",
+  "params": {},
+  "note": "no_match: execute not run"
+}

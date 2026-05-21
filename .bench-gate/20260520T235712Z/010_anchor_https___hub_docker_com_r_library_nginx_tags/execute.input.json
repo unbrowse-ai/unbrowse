@@ -1,0 +1,10 @@
+{
+  "skill": "6Od4QfMyWRrO74oCaDp55",
+  "endpoint": "gfDXz2mkCyDPL6NxWh-4N",
+  "intent": "get dockerhub image tags",
+  "context_url": "https://hub.docker.com/r/library/nginx/tags",
+  "params": {
+    "endpoint_id": "gfDXz2mkCyDPL6NxWh-4N",
+    "url": "https://hub.docker.com/r/library/nginx/tags"
+  }
+}

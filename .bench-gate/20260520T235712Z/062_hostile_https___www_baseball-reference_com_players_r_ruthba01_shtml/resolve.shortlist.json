@@ -1,0 +1,89 @@
+{
+  "result": {
+    "status": "no_match",
+    "tried": [
+      "marketplace",
+      "probe"
+    ],
+    "ms": 244,
+    "next_step": {
+      "recommended": "capture",
+      "reason": "no probe evidence; capture is the safe default",
+      "commands": {
+        "capture": "unbrowse capture --url \"https://www.baseball-reference.com/players/r/ruthba01.shtml\" --intent \"get baseball-reference player stats\""
+      },
+      "est_ms": 8000,
+      "creates_skill": true
+    },
+    "decision_trace": {
+      "intent": "get baseball-reference player stats",
+      "params": {
+        "url": "https://www.baseball-reference.com/players/r/ruthba01.shtml"
+      },
+      "context": {
+        "url": "https://www.baseball-reference.com/players/r/ruthba01.shtml"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "baseball-reference player stats",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 244,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "lost",
+            "ms": 244,
+            "reason": "not_found"
+          },
+          {
+            "name": "probe",
+            "status": "lost",
+            "ms": 29,
+            "reason": "invalid_result"
+          }
+        ],
+        "winner": null
+      }
+    }
+  },
+  "trace": {
+    "trace_id": "jGI1XmAsvUHIYubs1jIP-",
+    "skill_id": "",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:06:28.894Z",
+    "completed_at": "2026-05-21T00:06:29.138Z",
+    "success": false,
+    "tokens_used": 221,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "live-capture",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 244,
+    "source": "live-capture",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 882,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 244,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "actual_cost_uc": 663
+  },
+  "impact": {
+    "source": "live-capture",
+    "cache_hit": false,
+    "browser_avoided": false,
+    "actual_total_ms": 244,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 663
+  }
+}

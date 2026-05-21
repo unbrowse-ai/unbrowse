@@ -1,0 +1,12 @@
+{
+  "skill": "VcgCjZpSiWnEEiAKeh8pt",
+  "endpoint": "s5NLWpM32tVwTORITtiOA",
+  "intent": "search github repos",
+  "context_url": "https://github.com/search?q=anthropic&type=repositories",
+  "params": {
+    "endpoint_id": "s5NLWpM32tVwTORITtiOA",
+    "url": "https://github.com/search?q=anthropic&type=repositories",
+    "q": "anthropic",
+    "type": "repositories"
+  }
+}

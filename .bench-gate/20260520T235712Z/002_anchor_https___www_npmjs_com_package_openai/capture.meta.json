@@ -1,0 +1,31 @@
+{
+  "total_endpoints_captured": 0,
+  "n_operations": 0,
+  "captured_title": "",
+  "browser_block_signals": [
+    "empty_snapshot"
+  ],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": false,
+  "mode": "none",
+  "skill_id": null,
+  "iso_self_check": {
+    "snap_current_url": "https://www.npmjs.com/package/openai",
+    "intended_host": "www.npmjs.com",
+    "snap_host": "www.npmjs.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 0,
+    "dom_used_server_fetch": true,
+    "dom_extraction_confidence": null,
+    "dom_decision_reason": "no_html"
+  },
+  "cookies_injected": 2
+}

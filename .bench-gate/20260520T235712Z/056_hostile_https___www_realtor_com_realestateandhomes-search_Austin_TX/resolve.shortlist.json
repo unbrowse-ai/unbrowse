@@ -1,0 +1,89 @@
+{
+  "result": {
+    "status": "no_match",
+    "tried": [
+      "marketplace",
+      "probe"
+    ],
+    "ms": 1633,
+    "next_step": {
+      "recommended": "capture",
+      "reason": "no probe evidence; capture is the safe default",
+      "commands": {
+        "capture": "unbrowse capture --url \"https://www.realtor.com/realestateandhomes-search/Austin_TX\" --intent \"search realtor listings\""
+      },
+      "est_ms": 8000,
+      "creates_skill": true
+    },
+    "decision_trace": {
+      "intent": "search realtor listings",
+      "params": {
+        "url": "https://www.realtor.com/realestateandhomes-search/Austin_TX"
+      },
+      "context": {
+        "url": "https://www.realtor.com/realestateandhomes-search/Austin_TX"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "realtor listings",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 1633,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "lost",
+            "ms": 1633,
+            "reason": "not_found"
+          },
+          {
+            "name": "probe",
+            "status": "lost",
+            "ms": 276,
+            "reason": "invalid_result"
+          }
+        ],
+        "winner": null
+      }
+    }
+  },
+  "trace": {
+    "trace_id": "juLvJenPleubOuIlSRRn-",
+    "skill_id": "",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:06:03.586Z",
+    "completed_at": "2026-05-21T00:06:05.219Z",
+    "success": false,
+    "tokens_used": 212,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "live-capture",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 1633,
+    "source": "live-capture",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 847,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 1633,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "actual_cost_uc": 636
+  },
+  "impact": {
+    "source": "live-capture",
+    "cache_hit": false,
+    "browser_avoided": false,
+    "actual_total_ms": 1633,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 636
+  }
+}

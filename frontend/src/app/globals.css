@@ -420,3 +420,71 @@ h1, h2, .font-display {
   border-top: 1px solid var(--border);
   margin: 2rem 0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Accessibility primitives (WCAG 2.2 AA baseline)
+   Crystallised from skills.sh: addyosmani/web-quality-skills@accessibility (23K installs)
+   ═══════════════════════════════════════════════════════════ */
+
+/* WCAG 2.4.1 — Skip link: keyboard users bypass nav. Hidden until focused. */
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  padding: 0.75rem 1rem;
+  background: var(--surface, #0a0908);
+  color: var(--orange-300, #ff9944);
+  font-family: var(--font-jetbrains-mono);
+  font-size: 0.875rem;
+  text-decoration: none;
+  border: 2px solid var(--orange-400, #FF6A00);
+  transform: translateY(-200%);
+  transition: transform 150ms ease-out;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--orange-300, #ff9944);
+  outline-offset: 2px;
+}
+
+/* WCAG 2.4.7 — Focus visible for keyboard navigation. Never remove without replacement. */
+*:focus {
+  outline: none;
+}
+*:focus-visible {
+  outline: 2px solid var(--orange-400, #FF6A00);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* WCAG 2.4.11 (new in 2.2) — Focus not obscured by sticky/fixed bars (page.tsx fixed footer is ~40px tall) */
+*:focus-visible {
+  scroll-margin-top: 80px;
+  scroll-margin-bottom: 60px;
+}
+
+/* Visually hidden helper (for screen-reader-only content) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* WCAG 2.3.3 — Honor reduced-motion preference. Kills FlowingDotField, parallax, fade-up. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

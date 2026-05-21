@@ -2643,14 +2643,32 @@ export function extractFromDOMWithHint(
   if (hint?.selector) {
     const extracted = extractUsingSelector(html, hint.selector);
     if (extracted) {
-      const assessment = assessIntentResult(extracted.data, intent);
-      if (assessment.verdict === "pass") {
-        return {
-          data: extracted.data,
-          extraction_method: extracted.type,
-          confidence: 0.95,
-          selector: hint.selector,
-        };
+      // Apply the same junk-shape gates as the main extractFromDOM
+      // pre-score filter. Without this, a captured selector that scored
+      // well at CAPTURE time but now matches degenerate-row / empty-
+      // container / config-shape content at EXECUTE time returns junk
+      // early instead of falling through to the full extractor pass.
+      // Live regression from .bench-gate/20260520T235712Z/009 pypi:
+      // captured `sample_values` showed real {title, heading_1..} key-
+      // value structure, but execute-time selector replay matched the
+      // 182-row release-date table where every row is {date,info,
+      // description} all-equal — classic looksLikeDegenerateRowArray
+      // pattern that the main pre-score filter would drop.
+      const isJunkShape =
+        (extracted.type === "repeated-elements" && looksLikeDegenerateRowArray(extracted.data)) ||
+        looksLikeConfigShape(extracted.data) ||
+        looksLikeEmptyContainer(extracted.data) ||
+        (extracted.type === "repeated-elements" && looksLikeDuplicateRowArray(extracted.data));
+      if (!isJunkShape) {
+        const assessment = assessIntentResult(extracted.data, intent);
+        if (assessment.verdict === "pass") {
+          return {
+            data: sanitizeExtractionToJson(extracted.data),
+            extraction_method: extracted.type,
+            confidence: 0.95,
+            selector: hint.selector,
+          };
+        }
       }
     }
   }

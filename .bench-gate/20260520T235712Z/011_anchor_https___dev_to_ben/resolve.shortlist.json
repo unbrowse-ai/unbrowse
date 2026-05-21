@@ -1,0 +1,1167 @@
+{
+  "result": {
+    "message": "Found 2 endpoint(s). Pick one and call POST /v1/skills/EHYMI8ZhrBLkrsXUSunWo/execute with params.endpoint_id.",
+    "skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+    "available_operations": [
+      {
+        "operation_id": "z9mcJp8_WN1i8Q1JnfzjH",
+        "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "article",
+        "title": "detail article",
+        "url_template": "https://dev.to/api/articles?username={username}",
+        "description_out": "Returns article details with titles, url, and descriptions",
+        "requires": [
+          "username"
+        ],
+        "yields": [
+          "post_title",
+          "post_url",
+          "article_name",
+          "article_url"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "_UbW2E9oKTmE_YjZTlPvg",
+        "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://dev.to/ben",
+        "description_out": "Returns resource details with relevance score, @context, and @type",
+        "requires": [],
+        "yields": [
+          "resource_url",
+          "resource_name"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+      "intent": "devto post",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "z9mcJp8_WN1i8Q1JnfzjH",
+      "operations": [
+        {
+          "operation_id": "z9mcJp8_WN1i8Q1JnfzjH",
+          "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "article",
+          "title": "detail article",
+          "url_template": "https://dev.to/api/articles?username={username}",
+          "description_out": "Returns article details with titles, url, and descriptions",
+          "requires": [
+            "username"
+          ],
+          "yields": [
+            "post_title",
+            "post_url",
+            "article_name",
+            "article_url"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "_UbW2E9oKTmE_YjZTlPvg",
+          "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://dev.to/ben",
+          "description_out": "Returns resource details with relevance score, @context, and @type",
+          "requires": [],
+          "yields": [
+            "resource_url",
+            "resource_name"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+        "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+        "method": "GET",
+        "description": "Returns DEV articles for ben",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://dev.to/api/articles?username={username}",
+        "score": 221.4,
+        "schema_summary": {
+          "[]": {
+            "title": "string",
+            "url": "string",
+            "description": "string",
+            "published_at": "string",
+            "tag_list": "array"
+          }
+        },
+        "input_params": [
+          {
+            "key": "username",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires username",
+        "example_fields": [
+          "[].title",
+          "[].url",
+          "[].description",
+          "[].published_at",
+          "[].tag_list"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://dev.to/ben",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+        "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+        "method": "GET",
+        "description": "Returns resource details with relevance score, @context, and @type",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://dev.to/ben",
+        "score": -286.9,
+        "schema_summary": {
+          "[]": {
+            "type": "string",
+            "data": {
+              "@context": "string",
+              "@type": "string",
+              "mainEntityOfPage": "object",
+              "url": "string",
+              "sameAs": "array",
+              "image": "string",
+              "name": "string",
+              "email": "string",
+              "description": "string",
+              "title": "string",
+              "heading_1": "string",
+              "heading_2": "string",
+              "heading_3": "string",
+              "heading_4": "string",
+              "heading_5": "string",
+              "heading_6": "string",
+              "heading_7": "string",
+              "heading_8": "string",
+              "heading_9": "string",
+              "heading_10": "string",
+              "heading_11": "string",
+              "heading_12": "string",
+              "heading_13": "string",
+              "heading_14": "string",
+              "heading_15": "string",
+              "heading_16": "string",
+              "heading_17": "string",
+              "heading_18": "string",
+              "heading_19": "string",
+              "heading_20": "string",
+              "heading_21": "string",
+              "heading_22": "string",
+              "heading_23": "string",
+              "heading_24": "string",
+              "heading_25": "string",
+              "heading_26": "string",
+              "heading_27": "string",
+              "heading_28": "string",
+              "heading_29": "string",
+              "heading_30": "string",
+              "heading_31": "string",
+              "heading_32": "string",
+              "heading_33": "string",
+              "heading_34": "string",
+              "heading_35": "string",
+              "heading_36": "string",
+              "heading_37": "string",
+              "heading_38": "string",
+              "heading_39": "string",
+              "heading_40": "string",
+              "heading_41": "string",
+              "heading_42": "string",
+              "heading_43": "string",
+              "heading_44": "string",
+              "heading_45": "string",
+              "heading_46": "string",
+              "heading_47": "string",
+              "heading_48": "string",
+              "heading_49": "string",
+              "heading_50": "string",
+              "heading_51": "string",
+              "heading_52": "string",
+              "link": "string",
+              "info": "string",
+              "message": "string"
+            },
+            "relevance_score": "number"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].type",
+          "[].data",
+          "[].relevance_score",
+          "[].data.@context",
+          "[].data.@type",
+          "[].data.mainEntityOfPage.@type",
+          "[].data.mainEntityOfPage.@id",
+          "[].data.url",
+          "[].data.sameAs[]",
+          "[].data.image",
+          "[].data.name",
+          "[].data.email"
+        ],
+        "sample_values": {
+          "[].type": "spa-initial-state",
+          "[].data.@context": "http://schema.org",
+          "[].data.@type": "Person",
+          "[].data.mainEntityOfPage.@type": "WebPage",
+          "[].data.mainEntityOfPage.@id": "https://dev.to/ben",
+          "[].data.url": "https://dev.to/ben",
+          "[].data.image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=au...",
+          "[].data.name": "Ben Halpern",
+          "[].data.email": "ben@forem.com",
+          "[].relevance_score": 8.2
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://dev.to/ben",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "get devto post",
+      "params": {
+        "url": "https://dev.to/ben"
+      },
+      "context": {
+        "url": "https://dev.to/ben"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "devto post",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Public DEV articles API for ben (score: 221.40288717135314)",
+      "known_issues": [],
+      "endpoint_count": 2,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "S1CZuJ4YH9TL2w5fRtPA8",
+    "skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:59:16.349Z",
+    "completed_at": "2026-05-20T23:59:16.349Z",
+    "success": true,
+    "session_id": "T5THFQvNF3qqRiHmonrhR",
+    "step_index": 1,
+    "state_hash": "e3dd122ff6e1ff331b746ae1",
+    "candidate_count": 2,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-20T09:28:13.111Z",
+    "updated_at": "2026-05-20T23:59:16.343Z",
+    "name": "dev.to",
+    "intent_signature": "browse dev.to",
+    "domain": "dev.to",
+    "description": "DOM skill for dev.to",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+        "method": "GET",
+        "url_template": "https://dev.to/api/articles?username={username}",
+        "query": {
+          "username": "ben"
+        },
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.85,
+        "description": "Public DEV articles API for ben",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "published_at": {
+                "type": "string"
+              },
+              "tag_list": {
+                "type": "array"
+              }
+            }
+          }
+        },
+        "trigger_url": "https://dev.to/ben",
+        "semantic": {
+          "action_kind": "list",
+          "resource_kind": "post",
+          "auth_required": true,
+          "description_in": "Requires username",
+          "description_out": "Returns DEV articles for ben",
+          "example_request": {
+            "username": "ben"
+          },
+          "example_fields": [
+            "[].title",
+            "[].url",
+            "[].description",
+            "[].published_at",
+            "[].tag_list"
+          ],
+          "requires": [
+            {
+              "key": "username",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "post_title",
+              "semantic_type": "post_title",
+              "source": "response"
+            },
+            {
+              "key": "post_url",
+              "semantic_type": "post_url",
+              "source": "response"
+            }
+          ]
+        }
+      },
+      {
+        "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+        "method": "GET",
+        "url_template": "https://dev.to/ben",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from dev.to",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 4
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "@context": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "@type": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "mainEntityOfPage": {
+                    "type": "object",
+                    "properties": {
+                      "@type": {
+                        "type": "string",
+                        "inferred_from_samples": 2
+                      },
+                      "@id": {
+                        "type": "string",
+                        "inferred_from_samples": 2
+                      }
+                    },
+                    "required": [
+                      "@type",
+                      "@id"
+                    ],
+                    "inferred_from_samples": 2
+                  },
+                  "url": {
+                    "type": "string",
+                    "inferred_from_samples": 4
+                  },
+                  "sameAs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "inferred_from_samples": 2
+                    },
+                    "inferred_from_samples": 2
+                  },
+                  "image": {
+                    "type": "string",
+                    "inferred_from_samples": 4
+                  },
+                  "name": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "email": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "description": {
+                    "type": "string",
+                    "inferred_from_samples": 4
+                  },
+                  "title": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_1": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_2": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_3": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_4": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_5": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_6": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_7": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_8": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_9": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_10": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_11": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_12": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_13": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_14": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_15": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_16": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_17": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_18": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_19": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_20": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_21": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_22": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_23": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_24": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_25": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_26": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_27": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_28": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_29": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_30": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_31": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_32": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_33": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_34": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_35": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_36": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_37": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_38": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_39": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_40": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_41": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_42": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_43": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_44": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_45": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "heading_46": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_47": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_48": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_49": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_50": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_51": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "heading_52": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  },
+                  "link": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "info": {
+                    "type": "string",
+                    "inferred_from_samples": 2
+                  },
+                  "message": {
+                    "type": "string",
+                    "inferred_from_samples": 1
+                  }
+                },
+                "required": [
+                  "url",
+                  "image",
+                  "description"
+                ],
+                "inferred_from_samples": 4
+              },
+              "relevance_score": {
+                "type": "number",
+                "inferred_from_samples": 4
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "relevance_score"
+            ],
+            "inferred_from_samples": 4
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "multiple",
+          "confidence": 0.56
+        },
+        "trigger_url": "https://dev.to/ben",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with relevance score, @context, and @type",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data.@context, [].data.@type, [].data.mainEntityOfPage.@type, [].data.mainEntityOfPage.@id, [].data.url",
+          "example_response_compact": [
+            {
+              "type": "spa-initial-state",
+              "data": {
+                "@context": "http://schema.org",
+                "@type": "Person",
+                "mainEntityOfPage": {
+                  "@type": "WebPage",
+                  "@id": "https://dev.to/ben"
+                },
+                "url": "https://dev.to/ben",
+                "sameAs": [
+                  "https://twitter.com/bendhalpern",
+                  "https://github.com/benhalpern",
+                  "http://benhalpern.com"
+                ],
+                "image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1%2Fbabb96d0-9cd2-49bc-a412-2dc4caf94c2a.png",
+                "name": "Ben Halpern",
+                "email": "ben@forem.com"
+              },
+              "relevance_score": 8.2
+            },
+            {
+              "type": "json-ld",
+              "data": {
+                "@context": "http://schema.org",
+                "@type": "Person",
+                "mainEntityOfPage": {
+                  "@type": "WebPage",
+                  "@id": "https://dev.to/ben"
+                },
+                "url": "https://dev.to/ben",
+                "sameAs": [
+                  "https://twitter.com/bendhalpern",
+                  "https://github.com/benhalpern",
+                  "http://benhalpern.com"
+                ],
+                "image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1%2Fbabb96d0-9cd2-49bc-a412-2dc4caf94c2a.png",
+                "name": "Ben Halpern",
+                "email": "ben@forem.com"
+              },
+              "relevance_score": 7.1
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data.@context",
+            "[].data.@type",
+            "[].data.mainEntityOfPage.@type",
+            "[].data.mainEntityOfPage.@id",
+            "[].data.url",
+            "[].data.sameAs[]",
+            "[].data.image",
+            "[].data.name",
+            "[].data.email"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:59:14.447Z",
+          "sample_request_url": "https://dev.to/ben",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-20T23:59:16.344Z",
+      "entry_operation_ids": [
+        "z9mcJp8_WN1i8Q1JnfzjH",
+        "_UbW2E9oKTmE_YjZTlPvg"
+      ],
+      "operations": [
+        {
+          "operation_id": "z9mcJp8_WN1i8Q1JnfzjH",
+          "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+          "method": "GET",
+          "url_template": "https://dev.to/api/articles?username={username}",
+          "trigger_url": "https://dev.to/ben",
+          "action_kind": "detail",
+          "resource_kind": "article",
+          "description_in": "Requires username",
+          "description_out": "Returns article details with titles, url, and descriptions",
+          "response_summary": "[].title, [].url, [].description, [].published_at, [].tag_list",
+          "requires": [
+            {
+              "key": "username",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "post_title",
+              "semantic_type": "post_title",
+              "source": "response"
+            },
+            {
+              "key": "post_url",
+              "semantic_type": "post_url",
+              "source": "response"
+            },
+            {
+              "key": "article_name",
+              "semantic_type": "article_name",
+              "source": "response"
+            },
+            {
+              "key": "article_url",
+              "semantic_type": "article_url",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "username": "ben"
+          },
+          "example_fields": [
+            "[].title",
+            "[].url",
+            "[].description",
+            "[].published_at",
+            "[].tag_list"
+          ],
+          "confidence": 0.8,
+          "auth_required": true
+        },
+        {
+          "operation_id": "_UbW2E9oKTmE_YjZTlPvg",
+          "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+          "method": "GET",
+          "url_template": "https://dev.to/ben",
+          "trigger_url": "https://dev.to/ben",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with relevance score, @context, and @type",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data.@context, [].data.@type, [].data.mainEntityOfPage.@type, [].data.mainEntityOfPage.@id, [].data.url",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "type": "spa-initial-state",
+              "data": {
+                "@context": "http://schema.org",
+                "@type": "Person",
+                "mainEntityOfPage": {
+                  "@type": "WebPage",
+                  "@id": "https://dev.to/ben"
+                },
+                "url": "https://dev.to/ben",
+                "sameAs": [
+                  "https://twitter.com/bendhalpern",
+                  "https://github.com/benhalpern",
+                  "http://benhalpern.com"
+                ],
+                "image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1%2Fbabb96d0-9cd2-49bc-a412-2dc4caf94c2a.png",
+                "name": "Ben Halpern",
+                "email": "ben@forem.com"
+              },
+              "relevance_score": 8.2
+            },
+            {
+              "type": "json-ld",
+              "data": {
+                "@context": "http://schema.org",
+                "@type": "Person",
+                "mainEntityOfPage": {
+                  "@type": "WebPage",
+                  "@id": "https://dev.to/ben"
+                },
+                "url": "https://dev.to/ben",
+                "sameAs": [
+                  "https://twitter.com/bendhalpern",
+                  "https://github.com/benhalpern",
+                  "http://benhalpern.com"
+                ],
+                "image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1%2Fbabb96d0-9cd2-49bc-a412-2dc4caf94c2a.png",
+                "name": "Ben Halpern",
+                "email": "ben@forem.com"
+              },
+              "relevance_score": 7.1
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data.@context",
+            "[].data.@type",
+            "[].data.mainEntityOfPage.@type",
+            "[].data.mainEntityOfPage.@id",
+            "[].data.url",
+            "[].data.sameAs[]",
+            "[].data.image",
+            "[].data.name",
+            "[].data.email"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:59:14.447Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "get devto post",
+      "browse dev.to"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 3,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 3,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21997,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 3,
+    "time_saved_ms": 21997,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "z9mcJp8_WN1i8Q1JnfzjH",
+      "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+      "method": "GET",
+      "description": "Returns DEV articles for ben",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://dev.to/api/articles?username={username}",
+      "score": 221.4,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "url": "string",
+          "description": "string",
+          "published_at": "string",
+          "tag_list": "array"
+        }
+      },
+      "input_params": [
+        {
+          "key": "username",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires username",
+      "example_fields": [
+        "[].title",
+        "[].url",
+        "[].description",
+        "[].published_at",
+        "[].tag_list"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://dev.to/ben",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "_UbW2E9oKTmE_YjZTlPvg",
+      "source_skill_id": "EHYMI8ZhrBLkrsXUSunWo",
+      "method": "GET",
+      "description": "Returns resource details with relevance score, @context, and @type",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://dev.to/ben",
+      "score": -286.9,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": {
+            "@context": "string",
+            "@type": "string",
+            "mainEntityOfPage": "object",
+            "url": "string",
+            "sameAs": "array",
+            "image": "string",
+            "name": "string",
+            "email": "string",
+            "description": "string",
+            "title": "string",
+            "heading_1": "string",
+            "heading_2": "string",
+            "heading_3": "string",
+            "heading_4": "string",
+            "heading_5": "string",
+            "heading_6": "string",
+            "heading_7": "string",
+            "heading_8": "string",
+            "heading_9": "string",
+            "heading_10": "string",
+            "heading_11": "string",
+            "heading_12": "string",
+            "heading_13": "string",
+            "heading_14": "string",
+            "heading_15": "string",
+            "heading_16": "string",
+            "heading_17": "string",
+            "heading_18": "string",
+            "heading_19": "string",
+            "heading_20": "string",
+            "heading_21": "string",
+            "heading_22": "string",
+            "heading_23": "string",
+            "heading_24": "string",
+            "heading_25": "string",
+            "heading_26": "string",
+            "heading_27": "string",
+            "heading_28": "string",
+            "heading_29": "string",
+            "heading_30": "string",
+            "heading_31": "string",
+            "heading_32": "string",
+            "heading_33": "string",
+            "heading_34": "string",
+            "heading_35": "string",
+            "heading_36": "string",
+            "heading_37": "string",
+            "heading_38": "string",
+            "heading_39": "string",
+            "heading_40": "string",
+            "heading_41": "string",
+            "heading_42": "string",
+            "heading_43": "string",
+            "heading_44": "string",
+            "heading_45": "string",
+            "heading_46": "string",
+            "heading_47": "string",
+            "heading_48": "string",
+            "heading_49": "string",
+            "heading_50": "string",
+            "heading_51": "string",
+            "heading_52": "string",
+            "link": "string",
+            "info": "string",
+            "message": "string"
+          },
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data.@context",
+        "[].data.@type",
+        "[].data.mainEntityOfPage.@type",
+        "[].data.mainEntityOfPage.@id",
+        "[].data.url",
+        "[].data.sameAs[]",
+        "[].data.image",
+        "[].data.name",
+        "[].data.email"
+      ],
+      "sample_values": {
+        "[].type": "spa-initial-state",
+        "[].data.@context": "http://schema.org",
+        "[].data.@type": "Person",
+        "[].data.mainEntityOfPage.@type": "WebPage",
+        "[].data.mainEntityOfPage.@id": "https://dev.to/ben",
+        "[].data.url": "https://dev.to/ben",
+        "[].data.image": "https://media2.dev.to/dynamic/image/width=320,height=320,fit=cover,gravity=au...",
+        "[].data.name": "Ben Halpern",
+        "[].data.email": "ben@forem.com",
+        "[].relevance_score": 8.2
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://dev.to/ben",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

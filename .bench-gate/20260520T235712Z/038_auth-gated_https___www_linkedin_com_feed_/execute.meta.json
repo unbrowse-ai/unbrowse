@@ -1,0 +1,25 @@
+{
+  "status_code": 429,
+  "response_bytes": 627,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "HEAD",
+      "status": 200,
+      "content_type": "text/html",
+      "ms": 753
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe 200 + html + dom_extraction recipe — server fetch + extract"
+    },
+    {
+      "step": "server_fetch",
+      "status": 429
+    },
+    {
+      "step": "429_proxy_fallback_consent_missing"
+    }
+  ]
+}
