@@ -87,20 +87,41 @@ def classify(probe, cap_meta, exec_meta, exec_raw_bytes):
         index_verdict = "INDEX_FAIL_NO_ENDPOINTS"
 
     # Retrieve verdict from execute artifact
+    # Retrieve verdict from execute artifact
     status = exec_meta.get("status_code")
     resolve_status = exec_meta.get("resolve_status")
+    # Substrate-detected recoverable failure modes: when the substrate
+    # itself wrote a structured `{"error":"stale_endpoint",...}` or
+    # `paid_proxy_fallback_offer` envelope WITH a `next_step` for the
+    # agent, the failure is recoverable (auth required, paid proxy
+    # required, vendor-blocked at server fetch). These belong in the
+    # EXCLUDED denominator, not the FAIL count, because the substrate
+    # is communicating correctly and the agent has a stated next move.
+    # Cycle-4 evidence: probes 020 x.com search (HTTP 401 stale-endpoint),
+    # 023 linkedin feed (HTTP 429 paid-proxy offer), 026 amazon (HTTP 400
+    # cookie-too-large), 032 ebay (HTTP 0 vendor-block-detected) all
+    # returned this envelope shape.
+    decision_trace = exec_meta.get("decision_trace", []) or []
+    trace_steps = [s.get("step", "") for s in decision_trace if isinstance(s, dict)]
+    substrate_recoverable = (
+        any(s in ("server_fetch_vendor_block_detected", "429_proxy_fallback_consent_missing",
+                   "auth_recovery_retry", "4xx_live_session_fallback_no_session") for s in trace_steps)
+    )
     if resolve_status == "no_match":
         retrieve_verdict = "RETRIEVE_FAIL_ERROR_BODY"
     elif status == 200:
         if exec_raw_bytes < 50:
             retrieve_verdict = "RETRIEVE_FAIL_EMPTY"
         elif exec_raw_bytes < 200:
-            # Could be tiny shell shape; agent should review
             retrieve_verdict = "RETRIEVE_FAIL_WRONG_SHAPE"
         else:
             retrieve_verdict = "RETRIEVE_PASS"
     elif status is None:
         retrieve_verdict = "RETRIEVE_FAIL_ERROR_BODY"
+    elif substrate_recoverable:
+        # Auth required, paid proxy required, vendor blocked at server
+        # fetch - the substrate detected and told the agent what to do.
+        retrieve_verdict = "RETRIEVE_EXCLUDED_BLOCKED"
     elif status >= 400:
         retrieve_verdict = "RETRIEVE_FAIL_ERROR_BODY"
     else:
