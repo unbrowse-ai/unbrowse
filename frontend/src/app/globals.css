@@ -99,8 +99,8 @@
   --color-glow: var(--glow);
   --color-glow-azure: var(--glow-azure);
     --font-sans: var(--font-google-sans);
-    --font-mono: var(--font-jetbrains-mono);
-    --font-display: 'Google Sans Display', 'Google Sans', system-ui, sans-serif;
+    --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    --font-display: 'Fonetika', 'Google Sans Display', 'Google Sans', system-ui, sans-serif;
 }
 
 /* ═══ Base ═══ */
