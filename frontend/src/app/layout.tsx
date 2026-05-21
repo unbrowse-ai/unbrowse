@@ -8,6 +8,11 @@ import { SiteFooter } from "@/components/site-footer";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
 import { AuthInvalidGlobalBanner } from "@/components/auth-invalid-global-banner";
+import {
+  INSTALL_CMD_MCP,
+  VERIFY_CMD,
+  FIRST_TASK_CMD,
+} from "@/lib/install-command";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -204,6 +209,61 @@ export default function RootLayout({
                 url: "https://www.unbrowse.ai",
                 name: "Unbrowse",
               },
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "HowTo",
+              name: "Install Unbrowse and wire it into an MCP-aware agent",
+              description:
+                "Clone the Unbrowse repo, run setup for your agent host, verify the install, and execute the first resolve. End-to-end in under two minutes on macOS or Linux.",
+              totalTime: "PT2M",
+              supply: [
+                {
+                  "@type": "HowToSupply",
+                  name: "Node.js 18+ and git on the local machine",
+                },
+                {
+                  "@type": "HowToSupply",
+                  name: "An MCP-aware agent host (Claude Desktop, Cursor, Codex, OpenClaw, or another MCP client)",
+                },
+              ],
+              tool: [
+                {
+                  "@type": "HowToTool",
+                  name: "Unbrowse CLI",
+                  url: "https://www.npmjs.com/package/unbrowse",
+                },
+              ],
+              step: [
+                {
+                  "@type": "HowToStep",
+                  position: 1,
+                  name: "Clone and run setup for an MCP host",
+                  text: INSTALL_CMD_MCP,
+                  url: "https://www.unbrowse.ai/#install",
+                },
+                {
+                  "@type": "HowToStep",
+                  position: 2,
+                  name: "Verify the install",
+                  text: VERIFY_CMD,
+                  url: "https://www.unbrowse.ai/#install",
+                },
+                {
+                  "@type": "HowToStep",
+                  position: 3,
+                  name: "Run the first resolve",
+                  text: FIRST_TASK_CMD,
+                  url: "https://www.unbrowse.ai/#install",
+                },
+              ],
+              inLanguage: "en-US",
+              isAccessibleForFree: true,
             }),
           }}
         />
