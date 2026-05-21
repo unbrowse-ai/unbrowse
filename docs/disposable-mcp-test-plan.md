@@ -38,11 +38,16 @@ Validates the OS-level process behavior: spawn the daemon, watch it self-exit, c
 ### Setup
 
 ```bash
-pkill -9 -f 'unbrowse|kuri' 2>/dev/null; sleep 1
+pkill -9 -f 'unbrowse (serve|mcp)( |$)' 2>/dev/null
+pkill -9 -f 'bun .*src/(mcp|server)\.ts' 2>/dev/null
+pkill -9 -f 'node .*unbrowse/dist/server' 2>/dev/null
+pkill -9 -f '/\.unbrowse/bin/kuri( |$)' 2>/dev/null
+pkill -9 -f '/\.kuri/bin/kuri( |$)' 2>/dev/null
+sleep 2
 rm -f ~/.unbrowse/serve.pid ~/.unbrowse/sessions.jsonl
 mkdir -p /tmp/unbrowse-layer2
 rm -f /tmp/unbrowse-layer2/*
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+cd "$(git rev-parse --show-toplevel)"
 ```
 
 ### Run
@@ -114,10 +119,15 @@ The reaper has to work through the bundled binary, not just `bun src/server.ts`.
 ### Setup
 
 ```bash
-pkill -9 -f 'unbrowse|kuri' 2>/dev/null; sleep 1
+pkill -9 -f 'unbrowse (serve|mcp)( |$)' 2>/dev/null
+pkill -9 -f 'bun .*src/(mcp|server)\.ts' 2>/dev/null
+pkill -9 -f 'node .*unbrowse/dist/server' 2>/dev/null
+pkill -9 -f '/\.unbrowse/bin/kuri( |$)' 2>/dev/null
+pkill -9 -f '/\.kuri/bin/kuri( |$)' 2>/dev/null
+sleep 2
 mkdir -p /tmp/unbrowse-layer3
 rm -f /tmp/unbrowse-layer3/*
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/packages/skill
+cd "$(git rev-parse --show-toplevel)/packages/skill"
 npm pack > /tmp/unbrowse-layer3/pack.log 2>&1
 # Locate the resulting tarball.
 TARBALL=$(ls -t unbrowse-*.tgz | head -1)
@@ -190,11 +200,16 @@ The hardest test. Validates that an open browse session persists when the daemon
 ### Setup
 
 ```bash
-pkill -9 -f 'unbrowse|kuri' 2>/dev/null; sleep 1
+pkill -9 -f 'unbrowse (serve|mcp)( |$)' 2>/dev/null
+pkill -9 -f 'bun .*src/(mcp|server)\.ts' 2>/dev/null
+pkill -9 -f 'node .*unbrowse/dist/server' 2>/dev/null
+pkill -9 -f '/\.unbrowse/bin/kuri( |$)' 2>/dev/null
+pkill -9 -f '/\.kuri/bin/kuri( |$)' 2>/dev/null
+sleep 2
 rm -f ~/.unbrowse/sessions.jsonl
 mkdir -p /tmp/unbrowse-layer4
 rm -f /tmp/unbrowse-layer4/*
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+cd "$(git rev-parse --show-toplevel)"
 ```
 
 ### Run
@@ -272,10 +287,15 @@ This is what triggered the work. Lewis ran the unbrowse command across 5+ Claude
 ### Setup
 
 ```bash
-pkill -9 -f 'unbrowse|kuri' 2>/dev/null; sleep 1
+pkill -9 -f 'unbrowse (serve|mcp)( |$)' 2>/dev/null
+pkill -9 -f 'bun .*src/(mcp|server)\.ts' 2>/dev/null
+pkill -9 -f 'node .*unbrowse/dist/server' 2>/dev/null
+pkill -9 -f '/\.unbrowse/bin/kuri( |$)' 2>/dev/null
+pkill -9 -f '/\.kuri/bin/kuri( |$)' 2>/dev/null
+sleep 2
 mkdir -p /tmp/unbrowse-layer5
 rm -f /tmp/unbrowse-layer5/*
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+cd "$(git rev-parse --show-toplevel)"
 ```
 
 ### Run
@@ -331,7 +351,7 @@ Run the existing test suites that exercise the orchestrator + capture pipeline. 
 ```bash
 mkdir -p /tmp/unbrowse-layer6
 rm -f /tmp/unbrowse-layer6/*
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+cd "$(git rev-parse --show-toplevel)"
 
 # Capture the baseline error count for context (CLAUDE.md notes ~191 pre-existing tsc errors).
 bun --bun tsc --noEmit 2>&1 > /tmp/unbrowse-layer6/tsc.head.out || true
@@ -340,7 +360,7 @@ bun --bun tsc --noEmit 2>&1 > /tmp/unbrowse-layer6/tsc.head.out || true
 ### Run
 
 ```bash
-cd /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
+cd "$(git rev-parse --show-toplevel)"
 
 # Backend security/auth surface (fast).
 bun test ./backend/tests/{skills-trust-promotion,skills-publish-proofs,proof-verifier,x402-skill-route,auth-routes-magic-flow,auth-failure-modes,protected-routes-auth}.test.ts \
