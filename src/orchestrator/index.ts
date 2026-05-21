@@ -63,8 +63,7 @@ import {
   sanitizeRoutingEventBatch,
 } from "../routing-telemetry.js";
 import { runResolveRace } from "./resolve-race.js";
-import { buildNoMatchNextStep } from "./no-match-next-step.js";
-import { buildBloombergDirectDocumentResult, fetchBloombergDirectDocument } from "./direct-document.js";
+import { buildBloombergDirectDocumentResult } from "./direct-document.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -3790,103 +3789,19 @@ export async function resolveAndExecute(
           timing: finalize("exa", null, "exa-web-search", undefined, exaTrace),
         };
       }
-      // Exa had nothing either — surface probe evidence + next_step capture.
-      const directDocument = await fetchBloombergDirectDocument(raceContextUrl);
-      if (directDocument) {
-        const directTrace: ExecutionTrace = {
-          trace_id: nanoid(),
-          skill_id: "direct-document",
-          endpoint_id: "direct-document",
-          started_at: new Date(t0).toISOString(),
-          completed_at: new Date().toISOString(),
-          success: true,
-          status_code: 200,
-        };
-        return {
-          result: directDocument,
-          trace: directTrace,
-          source: "direct-document",
-          skill: undefined as any,
-          timing: finalize("direct-document", directDocument, "direct-document", undefined as any, directTrace),
-        };
-      }
-      const probeTrace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: "",
-        endpoint_id: "",
-        started_at: new Date(t0).toISOString(),
-        completed_at: new Date().toISOString(),
-        success: false,
-      };
-      const probeEvidence = { status: w.status, content_type: w.content_type, byte_length: w.byte_length, ...(w.method_used ? { method_used: w.method_used } : {}) };
-      const probeNextStep = buildNoMatchNextStep({
-        contextUrl: raceContextUrl,
-        intent,
-        probeEvidence,
-      });
-      const probeResult = {
-        status: "no_match" as const,
-        tried: raceOutcome.tried.map((t) => t.name),
-        ms: raceOutcome.ms,
-        probe_evidence: probeEvidence,
-        next_step: probeNextStep,
-        decision_trace: decisionTrace,
-      };
-      return {
-        result: probeResult,
-        trace: probeTrace,
-        source: "live-capture" as any,
-        skill: undefined as any,
-        timing: finalize("live-capture", probeResult, undefined, undefined, probeTrace),
-      };
+      // Exa had nothing either. Previously fell to direct-document here, but
+      // that bypassed the XHR-shaped layers below (route-result-cache,
+      // route-cache, domain-cache, marketplace searchIntentResolve,
+      // captured-domain-cache, live-capture). Per Lewis's "prioritise XHR
+      // over direct-document" instruction, fall through to the post-race
+      // serial path. direct-document still fires there at the L4530 site,
+      // but only AFTER the XHR layers have had their turn.
+      // Falls through to L3891+ below.
     }
-
-    // No winner within budget → no_match with capture next_step. Never opens Kuri.
-    const noMatchTrace: ExecutionTrace = {
-      trace_id: nanoid(),
-      skill_id: "",
-      endpoint_id: "",
-      started_at: new Date(t0).toISOString(),
-      completed_at: new Date().toISOString(),
-      success: false,
-    };
-    const directDocument = await fetchBloombergDirectDocument(raceContextUrl);
-    if (directDocument) {
-      const directTrace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: "direct-document",
-        endpoint_id: "direct-document",
-        started_at: new Date(t0).toISOString(),
-        completed_at: new Date().toISOString(),
-        success: true,
-        status_code: 200,
-      };
-      return {
-        result: directDocument,
-        trace: directTrace,
-        source: "direct-document",
-        skill: undefined as any,
-        timing: finalize("direct-document", directDocument, "direct-document", undefined as any, directTrace),
-      };
-    }
-    const noMatchResult = {
-      status: "no_match" as const,
-      tried: raceOutcome.tried.map((t) => t.name),
-      ms: raceOutcome.ms,
-      next_step: buildNoMatchNextStep({
-        contextUrl: raceContextUrl,
-        intent,
-        probeEvidence: undefined,
-      }),
-      decision_trace: decisionTrace,
-    };
-    return {
-      result: noMatchResult,
-      trace: noMatchTrace,
-      source: "live-capture" as any,
-      skill: undefined as any,
-      timing: finalize("live-capture", noMatchResult, undefined, undefined, noMatchTrace),
-    };
+    // Race produced no XHR winner (probe-only or deadline-no-winner). Fall
+    // through to the serial post-race path so the full XHR cache /
+    // marketplace / live-capture ladder runs before direct-document is
+    // considered as the page-content fallback.
   }
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
   const requestedDomainCacheKey = getDomainReuseKey(context?.url ?? requestedDomain);
