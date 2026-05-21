@@ -44,6 +44,20 @@ export interface ExecuteInput {
   extract?: string;
   limit?: number;
   idempotency_key?: string;
+  // Where the outbound HTTP fetch happens.
+  // - "worker-proxy" (default): worker server-side fetches the captured URL.
+  //   Hides the user IP, lets the worker apply auth/quota/anti-bot, and is the
+  //   only path that supports proxy:"residential". Requires the URL or
+  //   endpoint_id to be resolvable into a captured target.
+  // - "direct": SDK fetches the URL directly from the client. No worker hop.
+  //   Lower latency, but exposes the user IP and bypasses sponsor metering.
+  transport?: "worker-proxy" | "direct";
+  // Routing for the outbound fetch when transport is "worker-proxy".
+  // - "direct" (default): worker fetches from its own egress IP.
+  // - "residential": worker tunnels through IProyal residential proxy.
+  //   Requires IPROYAL_USER/IPROYAL_PASS to be set on the worker; returns
+  //   502 with `error: "upstream_fetch_failed"` if not configured.
+  proxy?: "direct" | "residential";
 }
 
 export interface ExecuteResponse {

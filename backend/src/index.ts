@@ -28,6 +28,7 @@ import { cookieRoutes } from "./routes/cookies.js";
 import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
+import { proxyRoutes } from "./routes/proxy.js";
 import {
   mountFaremeterTestRoute,
   stubFaremeterHandlers,
@@ -89,6 +90,7 @@ app.route("/v1", authRoutes);
 app.route("/v1", claimRoutes);
 app.route("/v1", accountRoutes);
 app.route("/v1", cookieRoutes);
+app.route("/", proxyRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);

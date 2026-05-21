@@ -19,7 +19,11 @@ import type {
   SearchResponse,
   UnbrowseClientOptions,
 } from "./types.js";
-
+import type {
+  WorkerProxyCapabilities,
+  WorkerProxyRequest,
+  WorkerProxyResponse,
+} from "./proxy-types.js";
 const DEFAULT_BASE_URL = "https://beta-api.unbrowse.ai";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 2;
@@ -38,6 +42,7 @@ export class Unbrowse {
 
   readonly account: AccountResource;
   readonly keys: KeysResource;
+  readonly proxy: ProxyResource;
 
   constructor(opts: UnbrowseClientOptions = {}) {
     const env = readEnv();
@@ -55,6 +60,7 @@ export class Unbrowse {
 
     this.account = new AccountResource(this);
     this.keys = new KeysResource(this);
+    this.proxy = new ProxyResource(this);
   }
 
   resolve(input: ResolveInput, opts: RequestOptions = {}): Promise<ResolveResponse> {
@@ -137,7 +143,6 @@ export class Unbrowse {
         throw err;
       } catch (e) {
         clearTimeout(t);
-        // Re-throw API errors that already passed shouldRetry checks above.
         if (e instanceof UnbrowseError) throw e;
         const isAbort = (e as { name?: string })?.name === "AbortError";
         const wrapped = isAbort
@@ -153,7 +158,6 @@ export class Unbrowse {
         throw wrapped;
       }
     }
-    // Unreachable, but TypeScript needs it.
     throw lastErr ?? new UnbrowseError("Retries exhausted");
   }
 
@@ -185,6 +189,25 @@ class KeysResource {
   }
   revoke(id: string, opts: RequestOptions = {}): Promise<{ ok: true }> {
     return this.client.request<{ ok: true }>("DELETE", `/v1/keys/${encodeURIComponent(id)}`, undefined, opts);
+  }
+}
+
+class ProxyResource {
+  constructor(private readonly client: Unbrowse) {}
+
+  // POST /v1/proxy — worker fetches the target URL on behalf of the agent.
+  // Use this when the SDK runs in a browser/edge where direct outbound fetches
+  // would expose the user IP, get geo-fenced, or hit anti-bot. Pass
+  // proxy:"residential" to tunnel the worker's outbound fetch through IProyal.
+  fetch(req: WorkerProxyRequest, opts: RequestOptions = {}): Promise<WorkerProxyResponse> {
+    return this.client.request<WorkerProxyResponse>("POST", "/v1/proxy", req, opts);
+  }
+
+  // GET /v1/proxy — capability check. Use to decide whether to request
+  // proxy:"residential" before committing to the call. Reports whether
+  // IPROYAL_USER/IPROYAL_PASS are configured on the worker.
+  capabilities(opts: RequestOptions = {}): Promise<WorkerProxyCapabilities> {
+    return this.client.request<WorkerProxyCapabilities>("GET", "/v1/proxy", undefined, opts);
   }
 }
 
