@@ -100,6 +100,50 @@ Brand-new agents get a daily allowance of platform-sponsored execute calls befor
 When the daily allowance is exhausted you get `SponsorExhaustedError` — pair a wallet and switch to `payAndRetryFlex`. Opt out per-request by passing `{ headers: { "X-No-Sponsor": "1" } }` if you'd rather pay yourself from the first call.
 
 Full payment docs and worked examples: [`docs/payments/`](./docs/payments/). Wallet + escrow + session-key setup: [`../../docs/wallets.md`](../../docs/wallets.md). Upgrading from v6.15's `exact`-scheme integration: [`../../docs/x402-flex-migration.md`](../../docs/x402-flex-migration.md).
+### Choosing a payment provider
+
+The SDK persists your wallet provider so subsequent settles route through it without per-call configuration. Four providers ship as of v6.16:
+
+```ts
+import type { PaymentProvider } from "@unbrowse/sdk";
+
+// One-time per account; persists via POST /v1/account/payment-provider
+await u.paymentProvider("pay_sh");      // TouchID + USDC via x402 MPP
+await u.paymentProvider("lobster_cash"); // Crossmint credit card -> Solana
+await u.paymentProvider("privy");        // Embedded wallet bound to Privy session
+await u.paymentProvider("external");     // Bring your own Solana signer
+```
+
+The on-chain split math is identical across providers; the choice only gates the dispatch path. See [`docs/HOW_UNBROWSE_PAYS.md`](../../docs/HOW_UNBROWSE_PAYS.md#payment-provider-choice-paysh--lobstercash--privy--external).
+
+## Publishing skills, setting markup, reading earnings
+
+Captured routes monetize when re-used by other agents. The SDK exposes the full publish-then-earn surface:
+
+```ts
+// Publish a captured skill so other agents can resolve + execute it.
+// markup_bps is clamped server-side to [500, 8000] (5 to 80 percent platform cut).
+const pub = await u.publish({
+  skill: capturedSkill,
+  markup_bps: 1500, // optional; defaults to PLATFORM_BPS = 5000 (50%)
+});
+
+// Annotate an endpoint with extra semantic metadata. Improves the
+// ranker's shortlist quality for downstream callers.
+await u.annotate({ endpoint_id: "ep_123", description: "Search trending repos by language" });
+
+// Earnings transparency.
+const earnings = await u.dashboard();
+const tx = await u.creatorTransactions(agentId);
+const attribution = await u.indexerAttribution(indexerId);
+```
+
+The SDK + CLI + MCP surfaces are kept in sync by `tests/cli-mcp-sdk-parity.test.ts`, so any verb available on the CLI is also a method on `Unbrowse` and a tool in the MCP server. See [`docs/HOW_UNBROWSE_PAYS.md#per-skill-markup-5-to-80-percent`](../../docs/HOW_UNBROWSE_PAYS.md) for the markup_bps split math.
+
+## Verify the deployed manifest
+
+The backend serves `GET /v1/version` with a HMAC-signed manifest (`signed_manifest_hash = hex(hmac-sha256(version|build_sha|deployed_at, RELEASE_MANIFEST_SIGNING_SECRET))`). Use `scripts/verify-release-manifest.sh <base-url>` from the unbrowse repo, or recompute via node:crypto / openssl, to confirm the SDK is hitting the artifact CI built and not a tampered intermediary.
+
 
 ## Auth
 

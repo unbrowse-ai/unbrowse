@@ -13,6 +13,23 @@ Every paid `unbrowse execute` settles on-chain through a Faremeter Flex authoriz
 
 The split is capped at `FLEX_MAX_SPLITS = 5` (`backend/src/services/flex.ts:40`). The top four contributors by `cumulative_delta` take the contributor pool when unclaimed; the top three when a site-owner lane is active.
 
+## Per-skill markup (5 to 80 percent)
+
+Every `SkillManifest` carries an optional `markup_bps` field (Pontus / ABK Labs brief 2026-05-21: "5-80% markup potential on Flex"). When set, it overrides the default `PLATFORM_BPS = 5000` for that specific skill's settlements. The clamp is enforced server-side at `backend/src/services/flex.ts:48-49` (`MARKUP_BPS_MIN = 500`, `MARKUP_BPS_MAX = 8000`); values outside the range snap to the nearest bound.
+
+What the agent sees: `markup_bps` shifts the platform's bps share, NOT the owner or indexer math. The owner lane stays at `OWNER_BPS = 1500` when DNS-claimed; the contributor pool absorbs the residual.
+
+Concrete examples (owner claimed, default OWNER_BPS=1500):
+
+- `markup_bps = 500` (the floor, 5% platform) -> 5% platform, 15% owner, 80% indexers.
+- `markup_bps = 5000` (the unset default, 50% platform) -> 50% platform, 15% owner, 35% indexers. This is the canonical case above.
+- `markup_bps = 8000` (the ceiling, 80% platform) -> 80% platform, 15% owner, 5% indexers.
+
+When no owner is claimed, the residual flows entirely into the contributor pool, so a `markup_bps = 500` skill gives indexers 95% of every paid call. A premium-content skill that wants to fund the platform aggressively can dial up to 8000.
+
+The field is set at publish time (`PublishSkillInput.markup_bps` on the SDK and CLI) and is per-skill, not per-call. Skills with no value continue to settle at the documented 50/35/15.
+
+
 ## Indexer earnings
 
 When you use unbrowse to call a website nobody has indexed yet, the act of resolving and executing CAPTURES the underlying API. You become the indexer of that skill, recorded as `indexer_id` on the `SkillManifest` (`backend/src/types.ts:409`).
@@ -30,6 +47,17 @@ The claim is a DNS-TXT record. The verifier resolves `_unbrowse-claim.<apex>` th
 The skill must also carry `owner_compensation_opt_in === true` (`backend/src/types.ts:437`). The publish handler sets this when the indexer or owner explicitly opts in. The OWNER_BPS lane fires only when both conditions hold: the opt-in flag is true AND `owner_wallet_usdc_ata` resolves from the `domain-wallet:<domain>` KV binding.
 
 See `docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
+
+## Payment provider choice (pay.sh / lobster.cash / Privy / external)
+
+The substrate never holds private keys; you bind a signer at `unbrowse setup`. As of 2026-05-21 there are four supported providers selectable from the CLI prompt and the `/account` web page (`POST /v1/account/payment-provider` persists the choice; `backend/src/services/flex.ts` honours it on dispatch).
+
+- **pay.sh** -- TouchID-backed signer, USDC settlement via x402 MPP / search_catalog. The thinnest path for laptop agents; the wallet lives in the macOS keychain. The CLI bridge is `src/payments/paysh-pay.ts` (shells to `pay curl <url>` on each settle).
+- **lobster.cash** -- Crossmint-backed credit-card -> virtual-card -> Solana funnel. The recommended path for non-technical users; subscription billing tops up the wallet automatically. `npx @crossmint/lobster-cli setup` provisions the account.
+- **Privy embedded** -- Solana wallet provisioned in-browser via Privy. Bound to the user's `agent.wallet_address` after `verifyPrivyAuthToken` succeeds (`backend/src/services/privy.ts`). The right answer when the agent runs as a web app and the user signs in with email or OAuth instead of installing a CLI.
+- **External wallet** -- bring your own Solana signer. The substrate emits an x402 envelope; any wallet that can sign a Faremeter Flex authorization works.
+
+The choice is reversible: `unbrowse setup` re-runs the prompt, or POST a new provider to `/v1/account/payment-provider`. The selected provider gates the runtime dispatch path; the on-chain split math (above) is identical across providers.
 
 ## Wallets stay with lobster.cash
 
