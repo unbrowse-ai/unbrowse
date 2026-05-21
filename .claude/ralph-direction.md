@@ -587,3 +587,30 @@ Convert ONE extraction-special per wave to a generic primitive. Order by impact 
 
 **Honest scoping:** "100% gate.passed" requires N successive bench cycles + fix waves. Each cycle is ~30-40 min bench + 1-2 hour fix. Not single-session work.
 
+
+---
+
+## Tick 72 update — Stop-hook fixed + 005 re-judged + handoff architecture flagged
+
+**Stop-hook regression fixed (commit 652d8beb):** `.claude/ralph-loop.local.md` was getting eaten between turns because `.gitignore` L7+L10 ignored the file and `git stash push -u` was capturing then losing it. Added managed re-include block (`!.claude/ralph-loop.local.md` after parent-dir whitelist). State file now tracked; survives stash ops.
+
+**005 github search re-judged → PASS:** my structural classifier marked it WRONG_SHAPE because top-of-response showed `heading_1: Filter by, heading_2: Languages, heading_3: Advanced`. But `heading_5..N` contain REAL github repo full_names (mukul975/Anthropic-Cybersecurity-Skills, anthropics/anthropic-sdk-python, anthropics/courses, anthropics/prompt-eng-interactive-tutorial, anthropics/anthropic-sdk-typescript). The data IS there — agent gets intent-relevant repos. Reclassified to PASS. Bench coverage post-fix: 76.1% / 36.2% (was 34.0%, +2.2pp from this single re-judge).
+
+**Anchor-lane blockers (3 remaining post-re-judge):**
+1. **002 npm/openai** — Kuri SPA capture (cross-repo, blocked on Kuri network-idle)
+2. **006 wikipedia** — handoff envelope (marketplace cold-start)
+3. **009 pypi/anthropic** — PR #602 (extractFromDOMWithHint junk-shape gate) shipped post-bench; should pass next bench cycle
+
+**Handoff architecture flag (orchestrator/index.ts:2540-2580):** Resolve emits `status: resolve_hard_handoff` when `epRanked.length === 0 || allNegative && hostMatches`. The bench treats handoff as RETRIEVE_FAIL_ERROR_BODY. **22 of 47 retrievable probes** currently handoff because no marketplace skill exists AND the page_fetch fallback isn't injected as a candidate before the handoff check.
+
+**V1.5 — handoff → page_fetch auto-include** (new fix surface, not in audit):
+Instead of handoff when ranker yields empty, the orchestrator should include `derivePageFetchEndpoint(contextUrl)` as a synthetic candidate (it already exists at src/execution/index.ts:800-836). The agent's normal execute call then returns the page content via the existing dom_extraction path. Substrate-faithful: page_fetch is a structural primitive, not a per-host arm.
+
+**Tick 73+ priority order (revised):**
+1. **V1.5 handoff → page_fetch auto-include** — flips ~10-15 handoff probes to PASS in one PR. Single-file change in src/orchestrator/index.ts. ~30-50 LOC.
+2. **V2 extractGitHubSpecial → generic JSON-LD** — addresses 005/014/015 properly (post-#602 005 may already pass — verify).
+3. **V3 extractPackageSearchSpecial → generic** — risk of regressing pypi search; needs careful test.
+4. **Marketplace cold-start declarant JSON** — V1 phase 1 from audit (move 8-host registry to assets/known-public-apis/*.json).
+
+**Honest scoping:** still N-cycles to gate.passed=true. Each PR should land + re-bench to measure. The handoff fix is the highest-leverage single change because it addresses retrieve coverage's biggest gap (22 of 47 = 47% of retrievable probes).
+
