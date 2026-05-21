@@ -704,7 +704,7 @@ export function buildPageArtifactCapture(
   quality_note?: string;
   search_form?: SearchFormSpec;
 } {
-  const extracted = extractFromDOM(html, intent);
+  const extracted = extractFromDOM(html, intent, url);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
   const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
   if (!quality.valid) {
@@ -3199,7 +3199,7 @@ export async function executeEndpoint(
         // and return the structured records the recipe was captured against.
         try {
           const { extractFromDOM } = await import("../extraction/index.js");
-          const extracted = extractFromDOM(text, skill.intent_signature ?? "");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3215,7 +3215,7 @@ export async function executeEndpoint(
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)} — trying DOM extraction fallback`);
         try {
           const { extractFromDOM } = await import("../extraction/index.js");
-          const extracted = extractFromDOM(text, skill.intent_signature ?? "");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3893,7 +3893,7 @@ export async function executeEndpoint(
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
-          const extracted = extractFromDOM(ssr.html, fallbackIntent);
+          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -3941,7 +3941,7 @@ export async function executeEndpoint(
         const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
-          const extracted = extractFromDOM(ssr.html, fallbackIntent);
+          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -4257,7 +4257,7 @@ export async function executeEndpoint(
       };
       trace.result = data;
     } else {
-      const extracted = extractFromDOM(data, intent);
+      const extracted = extractFromDOM(data, intent, replayUrl);
       if (extracted.data) {
         const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
         const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };

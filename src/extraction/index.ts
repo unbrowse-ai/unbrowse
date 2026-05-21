@@ -2604,6 +2604,122 @@ function scoreEmptyContainerDemotion(structure: ExtractedStructure): number {
   return looksLikeEmptyContainer(structure.data) ? -200 : 0;
 }
 
+// Stopwords stripped before computing intent/URL-path overlap with a
+// table candidate's headers + cell values. Generic English question
+// stems + URL chrome — NOT a per-domain registry.
+const INTENT_OVERLAP_STOPWORDS = new Set([
+  "search", "find", "list", "get", "fetch", "show", "lookup", "look",
+  "view", "browse", "open", "read", "load",
+  "for", "the", "a", "an", "in", "of", "to", "on", "at", "by", "with",
+  "from", "into", "as", "is", "are", "and", "or", "but",
+  "this", "that", "these", "those", "any", "all", "some",
+  "www", "com", "org", "net", "io", "co", "ai", "app", "html", "htm",
+  "https", "http",
+]);
+
+function tokenizeForOverlap(text: string): string[] {
+  if (!text) return [];
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((tok) => tok.length >= 3 && !INTENT_OVERLAP_STOPWORDS.has(tok));
+}
+
+function intentAndUrlTokens(intent: string, contextUrl?: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const tok of tokenizeForOverlap(intent)) tokens.add(tok);
+  if (contextUrl) {
+    try {
+      const u = new URL(contextUrl);
+      // Path segments + query values carry the user's specific entity (e.g.
+      // /nba/ask/lebron-points-per-game-this-season -> lebron, points, game, season).
+      for (const tok of tokenizeForOverlap(u.pathname.replace(/[/_-]/g, " "))) tokens.add(tok);
+      for (const [, v] of u.searchParams.entries()) {
+        for (const tok of tokenizeForOverlap(v)) tokens.add(tok);
+      }
+    } catch {
+      // contextUrl not a parseable URL — treat it as raw text
+      for (const tok of tokenizeForOverlap(contextUrl)) tokens.add(tok);
+    }
+  }
+  return tokens;
+}
+
+function tokenizeTableCandidate(structure: ExtractedStructure, maxCells = 50): Set<string> {
+  const tokens = new Set<string>();
+  if (structure.type !== "table" || !Array.isArray(structure.data)) return tokens;
+  const rows = structure.data as Array<Record<string, unknown>>;
+  if (rows.length === 0) return tokens;
+  // Column headers (every row's keys, deduped at the Set layer).
+  for (const row of rows) {
+    if (row && typeof row === "object") {
+      for (const k of Object.keys(row)) {
+        for (const tok of tokenizeForOverlap(k)) tokens.add(tok);
+      }
+    }
+  }
+  // Cell values, capped at maxCells total to bound CPU on huge tables.
+  let cellBudget = maxCells;
+  for (const row of rows) {
+    if (cellBudget <= 0) break;
+    if (!row || typeof row !== "object") continue;
+    for (const v of Object.values(row)) {
+      if (cellBudget <= 0) break;
+      if (typeof v === "string") {
+        for (const tok of tokenizeForOverlap(v)) tokens.add(tok);
+      }
+      cellBudget--;
+    }
+  }
+  return tokens;
+}
+
+function tableIntentOverlapRatio(
+  structure: ExtractedStructure,
+  intentTokens: Set<string>
+): number {
+  if (intentTokens.size === 0) return 1;
+  const tableTokens = tokenizeTableCandidate(structure);
+  if (tableTokens.size === 0) return 0;
+  let hits = 0;
+  for (const tok of intentTokens) if (tableTokens.has(tok)) hits++;
+  return hits / intentTokens.size;
+}
+
+// Demote a type:"table" candidate when its headers + cell values share
+// ZERO tokens with the intent/URL-path AND at least one OTHER table
+// candidate on the same page has any overlap. The page has multiple
+// tables and one is unrelated chrome (e.g. NBA standings on a per-player
+// stats page); the zero-overlap table must lose to the relevant one.
+//
+// Degenerate single-candidate case: if it's the ONLY table, return 0 so
+// the fallback chain (json-ld, metadata, repeating-elements) still has
+// a chance and the agent isn't left with nothing.
+//
+// Equal-overlap case: tied at the same nonzero ratio yields 0 for both
+// (no preference between equal candidates).
+//
+// Generic structural primitive: tokens vs tokens. No per-host, no
+// per-intent-string registry.
+function scoreTableIntentOverlapDemotion(
+  structure: ExtractedStructure,
+  intent: string,
+  contextUrl: string | undefined,
+  allStructures: ExtractedStructure[]
+): number {
+  if (structure.type !== "table") return 0;
+  const intentTokens = intentAndUrlTokens(intent, contextUrl);
+  if (intentTokens.size === 0) return 0;
+  const tableCandidates = allStructures.filter((s) => s.type === "table");
+  if (tableCandidates.length < 2) return 0;
+  const selfRatio = tableIntentOverlapRatio(structure, intentTokens);
+  if (selfRatio > 0) return 0;
+  const anyOtherHasOverlap = tableCandidates.some(
+    (other) => other !== structure && tableIntentOverlapRatio(other, intentTokens) > 0
+  );
+  return anyOtherHasOverlap ? -150 : 0;
+}
+
 // ---------------------------------------------------------------------------
 // looksLikeSiteMetaJsonLd — site-metadata JSON-LD vs LIST_INTENT gate
 // ---------------------------------------------------------------------------
@@ -2846,6 +2962,7 @@ export function extractFromDOMWithHint(
   html: string,
   intent: string,
   hint?: { selector?: string },
+  contextUrl?: string,
 ): ExtractionResult {
   if (hint?.selector) {
     const extracted = extractUsingSelector(html, hint.selector);
@@ -2879,14 +2996,14 @@ export function extractFromDOMWithHint(
       }
     }
   }
-  return extractFromDOM(html, intent);
+  return extractFromDOM(html, intent, contextUrl);
 }
 
 /**
  * Main entry point: clean HTML, extract structured data, and return
  * the best match for the given intent.
  */
-export function extractFromDOM(html: string, intent: string): ExtractionResult {
+export function extractFromDOM(html: string, intent: string, contextUrl?: string): ExtractionResult {
   const _finalize = (r: ExtractionResult): ExtractionResult => ({ ...r, data: sanitizeExtractionToJson(r.data) });
   // Extract SPA-embedded data from the FULL untruncated HTML. Next.js SSR
   // pages often place <script id="__NEXT_DATA__"> near the end of the
@@ -2964,7 +3081,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s) + scoreSiteMetaJsonLdDemotion(s, intent),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s) + scoreSiteMetaJsonLdDemotion(s, intent) + scoreTableIntentOverlapDemotion(s, intent, contextUrl, structures),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");

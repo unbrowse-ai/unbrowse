@@ -67,7 +67,7 @@ export async function tryRecoverFromSchemaDrift(
       timeoutMs: 12000,
     });
     if (ssr && typeof ssr.html === "string" && ssr.html.length > 0) {
-      const extracted = extractFromDOM(ssr.html, intent ?? "");
+      const extracted = extractFromDOM(ssr.html, intent ?? "", url);
       if (extracted.data != null && extracted.confidence >= minConfidence) {
         return {
           data: extracted.data,
@@ -87,7 +87,7 @@ export async function tryRecoverFromSchemaDrift(
   try {
     const fetched = await tryHttpFetch(url, authHeaders ?? {}, cookies ?? []);
     if (!fetched) return null;
-    const extracted = extractFromDOM(fetched.html, intent ?? "");
+    const extracted = extractFromDOM(fetched.html, intent ?? "", url);
     if (extracted.data == null) return null;
     if (extracted.confidence < minConfidence) return null;
     return {
