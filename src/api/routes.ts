@@ -2031,8 +2031,8 @@ export async function registerRoutes(app: FastifyInstance) {
         }
         // Try 2: resolve may have generated a canonical replay endpoint from context_url
         if (!recovered && context_url) {
-          const { buildCanonicalDocumentEndpoint } = await import("../execution/index.js");
-          const canonical = buildCanonicalDocumentEndpoint(context_url, intent ?? "", false);
+          const { buildPageFetchEndpoint } = await import("../execution/index.js");
+          const canonical = buildPageFetchEndpoint(context_url, intent ?? "", false);
           if (canonical && canonical.endpoint_id === execParams.endpoint_id) {
             console.log(`[exec] endpoint ${execParams.endpoint_id} is a canonical replay — injecting into skill`);
             skill = { ...skill, endpoints: [canonical, ...skill.endpoints] };
