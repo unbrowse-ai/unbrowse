@@ -92,12 +92,11 @@ export default function RootLayout({
         />
         <link
           key="google-fonts"
-          href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap`}
+          href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&display=swap`}
           rel="stylesheet"
         />
         <style>{`
           :root {
-            --font-jetbrains-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
             --font-google-sans: 'Google Sans', 'Google Sans Display', system-ui, sans-serif;
             --font-fonetika: 'Fonetika', 'Google Sans', system-ui, sans-serif;
           }
