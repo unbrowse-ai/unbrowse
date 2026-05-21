@@ -38,27 +38,6 @@ export interface Env {
   UNBROWSE_VERSION?: string;
   UNBROWSE_BUILD_SHA?: string;
   UNBROWSE_DEPLOYED_AT?: string;
-  /**
-   * Deploy-time identity vars (principle 20260521T194246Z-7ad798e3:
-   * staging-then-prod with signed release notes). Set by CI on every
-   * deploy via wrangler [env.*.vars] OR `wrangler deploy --var ...`.
-   * Served by GET /v1/version so any user can confirm which artifact
-   * they hit and verify the signed manifest hash via the SDK / CLI.
-   *
-   * UNBROWSE_VERSION       semver string from packages/skill/package.json
-   *                        (e.g. "6.17.0-preview.7")
-   * UNBROWSE_BUILD_SHA     GITHUB_SHA / `git rev-parse HEAD` at build
-   * UNBROWSE_DEPLOYED_AT   ISO 8601 stamp wrangler deploy.yml writes
-   *                        on the flip (e.g. "2026-05-22T03:45:00Z")
-   *
-   * All three optional — when unset (local dev, fresh staging before CI
-   * wires them), /v1/version returns null for the field rather than a
-   * stub. Caller knows the build wasn't through CI (no-stubs principle
-   * 20260521T193905Z-61e01c0e).
-   */
-  UNBROWSE_VERSION?: string;
-  UNBROWSE_BUILD_SHA?: string;
-  UNBROWSE_DEPLOYED_AT?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
