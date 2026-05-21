@@ -114,6 +114,50 @@ publicAgentRoutes.post("/agents/register", async (c) => {
   }
 });
 
+// POST /v1/agents/register-anon — L1 anonymous agent registration.
+// Wallet-first identity principle (P-61a63170): the minimum identity to
+// participate is an agent_id. Email is L3 upgrade, wallet+Flex onboarding
+// is L2 upgrade for earnings. This route skips the Flex gate so a brand-
+// new agent can mint a key in one call, then upgrade later via
+// POST /v1/agents/wallet or the magic-link flow.
+// Rate-limited to 10/IP/5min via the same /agents/register prefix.
+publicAgentRoutes.use("/agents/register-anon", rateLimit({ limit: 10, window: 300, prefix: "register-anon" }));
+publicAgentRoutes.post("/agents/register-anon", async (c) => {
+  const body = await c.req.json<{
+    name?: string;
+    tos_version?: string;
+    landing_token?: string;
+  }>().catch(() => ({} as { name?: string; tos_version?: string; landing_token?: string }));
+
+  // Auto-generate a name when not supplied so the L1 flow is one POST with
+  // an empty body. The name is human-readable but throwaway — the agent_id
+  // is the only stable identifier. Format mirrors the existing test pattern
+  // `anon-{random}` (per tests/cli-register-anon-backcompat.test.ts).
+  const name = body.name?.trim() || `anon-${Math.random().toString(36).slice(2, 10)}`;
+  const tosVersion = body.tos_version?.trim() || CURRENT_TOS_VERSION;
+
+  try {
+    const result = await registerAgent(
+      c.env,
+      name,
+      tosVersion,
+      {},
+      body.landing_token ? { landing_token: body.landing_token } : undefined,
+    );
+    return c.json({
+      ...result,
+      tier: "l1_anon",
+      upgrade_hints: {
+        attach_wallet: "POST /v1/agents/wallet with Bearer ${api_key} once you have a Solana wallet to start earning from indexed routes.",
+        attach_email: "POST /v1/auth/email/start to bind an email for recovery and human-readable identity.",
+        website: "https://unbrowse.ai/dashboard — manage the upgrade path visually.",
+      },
+    }, 201);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
 // POST /v1/agents/wallet — claim payout wallet for existing authenticated agent
 publicAgentRoutes.post("/agents/wallet", bearerAuthNoTos, async (c) => {
   const agentId = c.get("agent_id");
