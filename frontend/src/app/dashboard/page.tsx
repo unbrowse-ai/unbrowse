@@ -90,6 +90,20 @@ export default function DashboardPage() {
         <p className="mt-3 text-sm text-text-secondary leading-relaxed">
           Sign in to see your private account, or open a public wallet ledger.
         </p>
+        <div className="mt-6 border border-[rgba(255,122,32,0.22)] bg-[rgba(255,122,32,0.04)] p-5 rounded-sm">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.7)]">
+            ##  You are already earning
+          </p>
+          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+            If you ran <span className="font-mono text-[rgba(255,176,96,0.95)]">npx unbrowse setup --mcp</span> and your agent has resolved any URL, every shadow-API route it captured is live in the marketplace. When another agent reuses one, x402 pays USDC to the wallet on this account. Sign in to see captures, reuse counts, and earnings per route.
+          </p>
+          <Link
+            href="/miners"
+            className="mt-4 inline-flex items-center gap-1 text-xs font-mono text-[rgba(255,176,96,0.95)] hover:text-orange-400 transition-colors"
+          >
+            <span>[ See the contributor graph → ]</span>
+          </Link>
+        </div>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/login"
