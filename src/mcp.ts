@@ -577,6 +577,150 @@ function listUserContextResources(): ResourceDefinition[] {
   ];
 }
 
+function listSetupResources(): ResourceDefinition[] {
+  // Surfaces unbrowse setup state as MCP Resources so an agent that
+  // connects FIRST (before the user has run `unbrowse setup` or before
+  // the agent has any context) can read the resource and route accordingly.
+  //
+  // Two resources:
+  //   unbrowse://setup/status  - read-only snapshot: registered? key? MCP wired? Kuri present?
+  //   unbrowse://setup/guide   - the agent-readable instructions for what to do next
+  //
+  // Both are READ-ONLY. They never mutate config, never run setup, never
+  // touch the network. Setup as a TOOL still exists; the resources are the
+  // companion read surface so an agent can detect setup state before the
+  // user runs anything.
+  return [
+    {
+      uri: "unbrowse://setup/status",
+      name: "Unbrowse Setup Status",
+      description:
+        "Read-only snapshot of the local unbrowse setup state: agent_id presence, API key configuration (boolean only, never the key), Kuri browser engine binary presence, MCP host registrations. Use this resource BEFORE invoking the setup tool to detect whether setup is needed. Returns JSON; no secrets ever surface.",
+      mimeType: "application/json",
+      read: async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const os = await import("node:os");
+
+        let agent_id: string | null = null;
+        let api_key_configured = false;
+        const configPath = path.join(os.homedir(), ".unbrowse", "config.json");
+        try {
+          if (fs.existsSync(configPath)) {
+            const raw = fs.readFileSync(configPath, "utf8");
+            const cfg = JSON.parse(raw) as { agent_id?: string; api_key?: string };
+            if (typeof cfg.agent_id === "string" && cfg.agent_id.length > 0) {
+              agent_id = cfg.agent_id;
+            }
+            if (typeof cfg.api_key === "string" && cfg.api_key.length > 0) {
+              api_key_configured = true;
+            }
+          }
+        } catch {
+          // best-effort; resource never throws
+        }
+
+        let kuri_binary_present = false;
+        const kuriPaths = [
+          path.join(os.homedir(), ".unbrowse", "bin", "kuri"),
+          path.join(os.homedir(), ".kuri", "bin", "kuri"),
+        ];
+        for (const p of kuriPaths) {
+          try {
+            if (fs.existsSync(p)) {
+              kuri_binary_present = true;
+              break;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        let claude_mcp_registered = false;
+        const claudePath = path.join(os.homedir(), ".claude.json");
+        try {
+          if (fs.existsSync(claudePath)) {
+            const raw = fs.readFileSync(claudePath, "utf8");
+            claude_mcp_registered = raw.includes('"unbrowse"');
+          }
+        } catch {
+          // best-effort
+        }
+
+        const setup_required = !agent_id || !kuri_binary_present;
+        return {
+          setup_required,
+          agent_id_present: Boolean(agent_id),
+          api_key_configured,
+          kuri_binary_present,
+          claude_mcp_registered,
+          config_path: configPath,
+          next_action: setup_required
+            ? "Run `unbrowse setup` to register the agent and install the Kuri browser engine."
+            : "Setup complete. Try `unbrowse resolve --intent <X> --url <Y>` or call the resolve tool.",
+          read_at: new Date().toISOString(),
+        };
+      },
+    },
+    {
+      uri: "unbrowse://setup/guide",
+      name: "Unbrowse Setup Guide",
+      description:
+        "Agent-readable guide for the unbrowse setup flow. Returns markdown describing the recommended setup sequence: install via npm, run unbrowse setup, then call resolve/execute or use the MCP tools. Read this resource when the agent needs to explain setup to a user or decide which tool to call next.",
+      mimeType: "text/markdown",
+      read: async () => {
+        return [
+          "# Unbrowse setup guide",
+          "",
+          "Unbrowse is the agent browser. Setup is one command; everything after",
+          "is calling tools through this MCP server (or the `unbrowse` CLI).",
+          "",
+          "## 1. Install",
+          "",
+          "```bash",
+          "npm i -g unbrowse",
+          "```",
+          "",
+          "The CLI includes a vendored Kuri browser engine (Zig binary, ~464KB).",
+          "No Chrome install required.",
+          "",
+          "## 2. Setup",
+          "",
+          "```bash",
+          "unbrowse setup",
+          "```",
+          "",
+          "This (idempotent) registers an agent_id, installs/updates Kuri,",
+          "registers unbrowse as an MCP server in Claude Code + Codex if those",
+          "hosts are detected, and writes the `/unbrowse` Open Code command if",
+          "Open Code is installed. Re-running is safe.",
+          "",
+          "## 3. Verify",
+          "",
+          "Read `unbrowse://setup/status` (this resource's sibling). When",
+          "`setup_required: false`, the next action is one of:",
+          "",
+          "- `resolve` tool: discover routes for a user intent",
+          "- `execute` tool: call a previously-discovered route",
+          "- `go` + `snap` tools: drive a browser session for live capture",
+          "",
+          "## 4. (Optional) Earnings",
+          "",
+          "If users want to earn from routes they index, run",
+          "`npx @crossmint/lobster-cli setup` to configure a payout wallet.",
+          "Without it, routes still publish to the marketplace but the user",
+          "doesn't earn.",
+          "",
+          "## Reference",
+          "",
+          "Docs: https://unbrowse.ai",
+          "Marketplace stats: read `unbrowse://stats/summary` or call /v1/stats/summary.",
+        ].join("\n");
+      },
+    },
+  ];
+}
+
 function listResource(resource: ResourceDefinition): ListedResource {
   return {
     uri: resource.uri,
@@ -2977,7 +3121,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
 
   if (method === "resources/list") {
     jsonRpcResult(id, {
-      resources: [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources()].map(listResource),
+      resources: [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources()].map(listResource),
     });
     return;
   }
@@ -2988,7 +3132,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
       jsonRpcError(id, -32602, "Resource uri is required");
       return;
     }
-    const resource = [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources()].find((entry) => entry.uri === uri);
+    const resource = [...listWorkflowResources(), ...listStatsResources(), ...listUserContextResources(), ...listSetupResources()].find((entry) => entry.uri === uri);
     if (!resource) {
       jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
       return;

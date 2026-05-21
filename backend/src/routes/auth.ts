@@ -134,6 +134,22 @@ authRoutes.post("/auth/email/start", async (c) => {
     return c.json({ error: "email_send_failed", message }, 502);
   }
 
+  // Funnel telemetry: registration touchpoint (Layer 5 of funnel-tracking
+  // plan). Fire-and-forget POST to /v1/telemetry/events so the funnel sees
+  // every email-start that successfully dispatched a magic link. Best-effort
+  // only: a failed telemetry insert never blocks the auth response.
+  try {
+    const { recordFunnelEvent } = await import("../services/funnel.js");
+    await recordFunnelEvent(c.env, {
+      install_id: `auth-email-start-${token.slice(0, 12)}`,
+      name: "registration",
+      source: "auth",
+      properties: { email_domain: normalizedEmail.split("@")[1] ?? null },
+    });
+  } catch (err) {
+    console.warn("[auth/email/start] funnel-event emit failed:", err instanceof Error ? err.message : String(err));
+  }
+
   return c.json({ token, expires_in: 600 });
 });
 
