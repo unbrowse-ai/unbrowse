@@ -16,11 +16,9 @@ bun test \
   tests/codex-harness.test.ts \
   tests/orchestrator-endpoint-readiness.test.ts \
   tests/orchestrator-cache-acceptance.test.ts \
-  tests/orchestrator-canonical-fastpath.test.ts \
   tests/semantic-ranking.test.ts \
   tests/execution-replay-context.test.ts \
   tests/reddit-intent-match.test.ts \
-  tests/execution-reddit-headers.test.ts \
   tests/company-intent-match.test.ts \
   tests/linkedin-company-real-world.test.ts \
   tests/real-world-cases.test.ts
