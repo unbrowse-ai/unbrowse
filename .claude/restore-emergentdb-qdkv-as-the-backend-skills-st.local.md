@@ -20,20 +20,25 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-21
 last_iterated: ""
-status: blocked
+status: blocked-on-prod-migration-or-rollback
 blocked_reason: |
-    Wave 1 SHIPPED (commit 720fbacc on main): EdbKV primary, PgKV behind USE_PGKV=1
-    rollback flag, neon->edb migration script written, http-curl verify gate wired.
-    Wave 2 + 3 require Lewis-only operations:
-      (a) DATABASE_URL secret access (lives in wrangler, not in local .env) to run
-          backend/scripts/migrate-neon-to-edb.mjs against prod Neon.
-      (b) Production data migration approval (writes ~thousands of rows into
-          EmergentDB qdkv; eventually-consistent so a botched run takes time to
-          settle).
-      (c) wrangler secret put USE_PGKV --env staging to unset, then redeploy +
-          verify against staging, then prod.
-      (d) Wave 3 (delete PgKV branch + pg-kv.ts) only after wave 2 stable for ~week.
-    Substrate-faithful: cannot author further in-loop without these external deps.
+    PROD REGRESSION SURFACED 2026-05-22: wave-1 commit 720fbacc shipped (EdbKV
+    primary, PgKV behind USE_PGKV=1) but wave-2 migrate-neon-to-edb.mjs NEVER RAN.
+    Live evidence (https://beta-api.unbrowse.ai/health): storage_backend=emergentdb.
+    Live evidence (/v1/stats/summary): skills=0, endpoints=0, agents=0. EmergentDB
+    is empty; prod marketplace shows nothing because reads come from EmergentDB.
+    Two remediation paths (both Lewis-only — no in-loop authoring possible):
+      (A) EMERGENCY ROLLBACK (fast, restores prod stats today):
+            wrangler secret put USE_PGKV --env production   # value: 1
+            wrangler deploy --env production
+          Reads flip back to Neon Postgres which still has 26 skills / 242
+          endpoints / 1072 agents (per wave-2 verify evidence).
+      (B) GOAL-STATE MIGRATION (fills EmergentDB):
+            export EMERGENTDB_API_KEY=<...>
+            export DATABASE_URL=<wrangler secret>
+            node backend/scripts/migrate-neon-to-edb.mjs           # try DRY_RUN=1 first
+          After completes, no env change needed; EmergentDB has the data.
+    Recommendation: do (A) FIRST to unblock prod, then (B) in a calm window.
 ---
 
 # restore EmergentDB qdkv as the backend skills/stats KV store, reversing the Feb 24 2026 migration (commit 2e3f4ca3 that moved to Cloudflare SKILLS_KV/STATS_KV). Bring back the EdbKV class in backend/src/services/kv.ts (was 225 lines, replaced with thin CF KV wrappers). Re-route marketplace.ts, scoring.ts, agents.ts, perf.ts, stats.ts, discovery.ts in-memory search cache back to EdbKV. Remove SKILLS_KV + STATS_KV bindings from wrangler.toml and Env type. Keep the EmergentDB Graph API (graph.ts, /graph/search, /graph/batch_insert) as-is since it's already wired and working. ACCEPT the eventual-consistency trade-off the Feb 24 commit fixed (frequent 404s on read-after-write); add retry-on-404 helper to mitigate. Verify end-to-end: write a skill, read it back, run /v1/search and /v1/search/resolve, confirm both graph and qdkv paths return real data. Deploy to staging first, run agent-experience harness, then prod. Lewis 2026-05-21 decision: reverse the migration.

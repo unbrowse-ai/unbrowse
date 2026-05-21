@@ -71,15 +71,30 @@ SEARCH=$(curl -s --max-time 15 -X POST "$BASE_URL/v1/search" \
   -d '{"intent":"top stories","k":5}' || echo '{"error":"curl_failed"}')
 emit L5-search "{\"check\":\"backend global search anonymous\",\"response_excerpt\":$(echo "$SEARCH" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()[:400]))')}"
 
-# L6: kv-backend probe
-echo "[verify:$PLAN] L6 GET $BASE_URL/v1/ops/kv-backend"
-ADMIN=$(zigrep -E '^UNBROWSE_ADMIN_KEY' .env 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
-if [[ -n "$ADMIN" ]]; then
-  KV=$(curl -s --max-time 10 -H "Authorization: Bearer $ADMIN" "$BASE_URL/v1/ops/kv-backend" || echo '{"error":"curl_failed"}')
+# L6: kv-backend probe.
+# Use the un-authed /health endpoint (which already exposes storage_backend
+# via kvBackend(env)) instead of /v1/ops/kv-backend (admin-gated; was
+# returning 404 in wave-2 verify because no admin token was set). Same
+# kvBackend() call, just exposed through a public diagnostic surface.
+echo "[verify:$PLAN] L6 GET $BASE_URL/health (storage_backend)"
+HEALTH=$(curl -s --max-time 10 "$BASE_URL/health" || echo '{"error":"curl_failed"}')
+emit L6-kv-backend "{\"check\":\"kvBackend() reported backend\",\"response_excerpt\":$(echo "$HEALTH" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()[:400]))')}"
+
+# L7: marketplace-data-presence cross-check.
+# Wave-1 commit 720fbacc flipped the read path to EmergentDB without running
+# the migration script. Symptom in prod 2026-05-21: /health says
+# storage_backend=emergentdb but /v1/stats/summary returns all zeros because
+# EmergentDB is empty. This lane catches that exact failure mode: if the
+# storage backend is emergentdb AND stats reports 0 skills, the migration
+# has not been run. Agent reads + judges in-thread.
+echo "[verify:$PLAN] L7 cross-check stats zero-emergent regression"
+ZERO_SKILLS=$(echo "$STATS" | python3 -c "import json,sys; d=json.loads(sys.stdin.read() or '{}'); print(1 if d.get('skills',1)==0 else 0)" 2>/dev/null || echo 0)
+ON_EDB=$(echo "$HEALTH" | python3 -c "import json,sys; d=json.loads(sys.stdin.read() or '{}'); print(1 if d.get('storage_backend')=='emergentdb' else 0)" 2>/dev/null || echo 0)
+if [[ "$ZERO_SKILLS" == "1" && "$ON_EDB" == "1" ]]; then
+  emit L7-data-presence '{"check":"emergentdb-empty-regression","verdict":"FAIL: backend reads from EmergentDB but skills count is 0; the migrate-neon-to-edb.mjs script needs to run, OR USE_PGKV=1 must be set to roll back to Neon"}'
 else
-  KV='{"check":"skipped","reason":"no UNBROWSE_ADMIN_KEY"}'
+  emit L7-data-presence "{\"check\":\"data-present-or-not-edb\",\"on_emergentdb\":$ON_EDB,\"zero_skills\":$ZERO_SKILLS}"
 fi
-emit L6-kv-backend "{\"check\":\"kvBackend() reported backend\",\"response_excerpt\":$(echo "$KV" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()[:400]))')}"
 
 echo ""
 echo "[verify:$PLAN] evidence -> $EVIDENCE"
