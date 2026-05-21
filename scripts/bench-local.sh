@@ -415,15 +415,71 @@ sleep 0.3
 
 i=0
 > "$OUT_DIR/results.jsonl"
-while IFS='|' read -r goal url; do
-  goal="${goal## }"; goal="${goal%% }"
-  url="${url## }"; url="${url%% }"
-  case "$goal" in ''|\#*) continue ;; esac
+# Read each corpus line; support BOTH formats:
+#   2-field: goal | url                                  (auth defaults to "none")
+#   6-field: lane | auth | difficulty | strategy | intent | contextUrl  (gate corpus)
+# Detected per-line by pipe-count >= 5.
+while IFS= read -r line; do
+  case "$line" in ''|\#*) continue ;; esac
+  pipe_count=$(awk -F'|' '{print NF-1}' <<<"$line")
+  if [ "$pipe_count" -ge 5 ]; then
+    lane=$(printf '%s' "$line"      | awk -F'|' '{print $1}' | sed 's/^ *//;s/ *$//')
+    auth=$(printf '%s' "$line"      | awk -F'|' '{print $2}' | sed 's/^ *//;s/ *$//')
+    difficulty=$(printf '%s' "$line"| awk -F'|' '{print $3}' | sed 's/^ *//;s/ *$//')
+    strategy=$(printf '%s' "$line"  | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//')
+    goal=$(printf '%s' "$line"      | awk -F'|' '{print $5}' | sed 's/^ *//;s/ *$//')
+    url=$(printf '%s' "$line"       | awk -F'|' '{print $6}' | sed 's/^ *//;s/ *$//')
+  else
+    lane=""
+    auth="none"
+    difficulty=""
+    strategy=""
+    goal=$(printf '%s' "$line" | awk -F'|' '{print $1}' | sed 's/^ *//;s/ *$//')
+    url=$(printf '%s' "$line"  | awk -F'|' '{print $2}' | sed 's/^ *//;s/ *$//')
+  fi
+  [ -z "$goal" ] && continue
   [ -z "$url" ] && continue
   i=$((i+1))
   slug=$(printf '%s' "$url" | tr '/:?&=.' '_')
   out_file="$OUT_DIR/${i}_${slug:0:60}.out"
-  echo "[bench-local] ($i/$N) $url" >&2
+  echo "[bench-local] ($i/$N) [$auth] $url" >&2
+
+  # Precondition gate: auth-required and auth-cookies probes only run when
+  # the local machine has fresh browser cookies for the target domain.
+  # Honest measurement (CLAUDE.md): without a cookie the bench cannot
+  # measure whether Unbrowse's XHR + cookie-injection ladder works.
+  # Locked DB (Chrome running) -> source=locked -> still attempt the probe
+  # (locked != "no cookie"). Only source in (chrome, firefox, none) with
+  # fresh=false triggers a skip.
+  if [ "$auth" = "required" ] || [ "$auth" = "dia" ]; then
+    domain=$(printf '%s' "$url" | awk -F'/' '{print $3}' | awk -F':' '{print $1}')
+    cookie_check_json=$(python3 "$(dirname "$0")/check_cookie_freshness.py" "$domain" 2>/dev/null || echo '{}')
+    cookie_fresh=$(printf '%s' "$cookie_check_json" | python3 -c "import sys,json; d=json.loads(sys.stdin.read() or '{}'); print('1' if d.get('fresh') else '0')" 2>/dev/null || echo 0)
+    cookie_source=$(printf '%s' "$cookie_check_json" | python3 -c "import sys,json; d=json.loads(sys.stdin.read() or '{}'); print(d.get('source',''))" 2>/dev/null || echo "")
+    cookie_reason=$(printf '%s' "$cookie_check_json" | python3 -c "import sys,json; d=json.loads(sys.stdin.read() or '{}'); print(d.get('reason',''))" 2>/dev/null || echo "")
+    if [ "$cookie_fresh" = "0" ] && [ "$cookie_source" != "locked" ]; then
+      echo "  [bench-local] SKIPPED_NO_FRESH_COOKIES domain=$domain auth=$auth :: $cookie_reason" >&2
+      python3 -c "
+import json,sys
+row = {
+  'goal': sys.argv[1],
+  'url': sys.argv[2],
+  'auth': sys.argv[3],
+  'lane': sys.argv[4],
+  'difficulty': sys.argv[5],
+  'strategy': sys.argv[6],
+  'domain': sys.argv[7],
+  'verdict': 'SKIPPED_NO_FRESH_COOKIES',
+  'cookie_check': sys.argv[8],
+  'cookie_source': sys.argv[9],
+}
+print(json.dumps(row))
+" "$goal" "$url" "$auth" "$lane" "$difficulty" "$strategy" "$domain" "$cookie_reason" "$cookie_source" >> "$OUT_DIR/results.jsonl"
+      continue
+    else
+      echo "  [bench-local] cookie precondition met (source=$cookie_source) :: running probe" >&2
+    fi
+  fi
   force_flag=""
   [ "$FORCE_CAPTURE" -eq 1 ] && force_flag="--force-capture"
   timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" $force_flag </dev/null > "$out_file" 2>&1
@@ -495,9 +551,15 @@ rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 if not rows:
     print("[bench-local] no rows collected", file=sys.stderr)
     sys.exit(0)
-fieldnames = list(rows[0].keys())
+fieldnames = []
+seen_fields = set()
+for r in rows:
+    for k in r.keys():
+        if k not in seen_fields:
+            seen_fields.add(k)
+            fieldnames.append(k)
 with open('.bench-local/evidence.csv', 'w', newline='') as f:
-    w = csv.DictWriter(f, fieldnames=fieldnames)
+    w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
     w.writeheader()
     for r in rows:
         w.writerow(r)

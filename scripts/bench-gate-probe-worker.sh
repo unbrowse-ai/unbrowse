@@ -28,6 +28,50 @@ fi
 
 err "[$pid] $lane | $intent | $url"
 
+# Precondition gate: auth-required and auth-cookies probes only run when the
+# local machine has fresh browser cookies for the target domain. Honest
+# measurement (CLAUDE.md): without a cookie the bench cannot measure whether
+# Unbrowse's XHR + cookie-injection ladder works. Skipping is honest;
+# running and 401-ing is noise. Locked DB -> source=locked -> still attempt.
+if [ "$auth" = "required" ] || [ "$auth" = "dia" ]; then
+  freshness_helper="$(dirname "$0")/check_cookie_freshness.py"
+  domain="$(printf '%s' "$url" | awk -F'/' '{print $3}' | awk -F':' '{print $1}')"
+  cookie_check_json="$(python3 "$freshness_helper" "$domain" 2>/dev/null || echo '{}')"
+  printf '%s\n' "$cookie_check_json" > "$pdir/cookie.freshness.json"
+  cookie_fresh="$(printf '%s' "$cookie_check_json" | jq -r '.fresh // false' 2>/dev/null || echo false)"
+  cookie_source="$(printf '%s' "$cookie_check_json" | jq -r '.source // empty' 2>/dev/null || echo '')"
+  cookie_reason="$(printf '%s' "$cookie_check_json" | jq -r '.reason // empty' 2>/dev/null || echo '')"
+  if [ "$cookie_fresh" != "true" ] && [ "$cookie_source" != "locked" ]; then
+    err "[$pid] SKIPPED_NO_FRESH_COOKIES domain=$domain auth=$auth :: $cookie_reason"
+    # Emit skip-shaped artifacts so the gate-aggregator/judge sees an
+    # explicit verdict row, not a missing-file shaped probe.
+    jq -nc \
+      --arg pid "$pid" --arg lane "$lane" --arg auth "$auth" \
+      --arg difficulty "$difficulty" --arg strategy "$strategy" \
+      --arg intent "$intent" --arg url "$url" --arg domain "$domain" \
+      --arg reason "$cookie_reason" --arg source "$cookie_source" \
+      '{pid:$pid, lane:$lane, auth:$auth, difficulty:$difficulty, strategy:$strategy,
+        intent:$intent, context_url:$url, domain:$domain,
+        verdict:"SKIPPED_NO_FRESH_COOKIES", cookie_check:$reason, cookie_source:$source,
+        skipped:"no_fresh_cookies"}' \
+      > "$pdir/skip.json"
+    # Empty stand-in artifacts so the aggregator does not blow up.
+    echo '{"skipped":"no_fresh_cookies"}' > "$pdir/capture.meta.json"
+    echo '{"skipped":"no_fresh_cookies"}' > "$pdir/index.store.json"
+    echo '{"skipped":"no_fresh_cookies"}' > "$pdir/resolve.pick.json"
+    echo '{"skipped":"no_fresh_cookies"}' > "$pdir/execute.meta.json"
+    : > "$pdir/capture.out"
+    : > "$pdir/capture.html.excerpt"
+    : > "$pdir/resolve.shortlist.json"
+    : > "$pdir/execute.input.json"
+    : > "$pdir/execute.out"
+    : > "$pdir/execute.response.raw"
+    printf '{"capture_ms":0,"resolve_ms":0,"execute_ms":0,"skipped":"no_fresh_cookies"}\n' > "$pdir/timings.json"
+    exit 0
+  fi
+  err "[$pid] cookie precondition met (source=$cookie_source) :: running probe"
+fi
+
 # ── Phase 1: capture ─────────────────────────────────────────────────────
 t0=$(now_ms)
 timeout "$TIMEOUT" "${CLI_ARGS[@]}" capture --url "$url" --intent "$intent" \
