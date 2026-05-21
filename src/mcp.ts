@@ -713,6 +713,13 @@ function listSetupResources(): ResourceDefinition[] {
           key_probe,
           config_path: configPath,
           next_action,
+          // Website nudges: CLI/MCP is for agent-shaped automation; the
+          // human-shaped flow (sign in, mint key, copy-paste install,
+          // manage credits) is better on the web. Agent reads this surface
+          // when deciding whether to send the user to the browser.
+          website_install: "https://unbrowse.ai/install",
+          website_dashboard: "https://unbrowse.ai/dashboard",
+          website_how_pays: "https://unbrowse.ai/how-unbrowse-pays",
           read_at: new Date().toISOString(),
         };
       },
