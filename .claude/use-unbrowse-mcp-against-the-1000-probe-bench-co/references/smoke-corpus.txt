@@ -1,16 +1,23 @@
-# Smoke corpus for the bench-mcp-safety harness (first wave: 3 probes).
+# Smoke corpus for the bench-mcp-safety harness (wave 3: 10 probes, lane mix).
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
 #
-# First wave keeps it small (3 probes ~90s each) so it fits between peer-
-# bench iterations on shared dev machines. Expand to 10 probes (anchor,
-# semantic-rank, ssr-list, graphql, auth-cookies, hostile) once we have
-# a quiet machine.
+# 10-probe lane mix sourced from harness/probes/corpus-gate.txt:
+#   2 anchor — must-pass; regression here blocks release
+#   2 semantic-rank — A1/A8 entity substitution (reddit r/X bug class)
+#   1 graphql — POST + operationName extraction
+#   2 ssr-list — gzip + SSR extraction; exercises ranker on real data
+#   1 hostile — anti-bot honey-trap; PASS here is yellow-flag
+#   2 auth-cookies — cookie-injection ladder (SKIPPED_NO_FRESH_COOKIES is honest)
 #
-# Lane mix:
-#   - 1 anchor (HN) — easy public; exercises direct-document path
-#   - 1 ssr-list (amazon) — gzip + extraction; exercises ranker
-#   - 1 auth-cookies (linear) — exercises cookie-injection path (or SKIP)
+# Budget: ~90s/probe × 10 = ~15 min worst case; most return in 30-60s.
 
 anchor | none | easy | dom-artifact | get top hacker news stories | https://news.ycombinator.com/
+anchor | none | easy | dom-artifact | get lobsters top stories | https://lobste.rs/
+semantic-rank | none | medium | semantic-rank | get singularity subreddit posts | https://www.reddit.com/r/singularity/
+semantic-rank | none | medium | semantic-rank | get repo info for vercel/next.js | https://github.com/vercel/next.js
+graphql | none | medium | direct-api | get pypi package info | https://pypi.org/project/anthropic/
 ssr-list | none | hard | ssr-list | search amazon for usb-c cables | https://www.amazon.com/s?k=usb-c+cable
+ssr-list | none | medium | dom-artifact | get devto post | https://dev.to/ben
+hostile | none | hard | dom-artifact | get etsy listings for usb-c | https://www.etsy.com/search?q=usb-c
 auth-cookies | dia | hard | cookie-injected | get linear my issues | https://linear.app/
+auth-cookies | dia | hard | cookie-injected | get notion home | https://www.notion.so/

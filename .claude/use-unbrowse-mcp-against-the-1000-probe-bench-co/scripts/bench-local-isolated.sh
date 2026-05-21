@@ -504,6 +504,7 @@ print(json.dumps(row))
 
   force_flag=""
   [ "$FORCE_CAPTURE" -eq 1 ] && force_flag="--force-capture"
+  probe_t0_ms=$(python3 -c "import time; print(int(time.time()*1000))")
   timeout "$TIMEOUT" $CLI_CMD resolve --intent "$goal" --url "$url" $force_flag </dev/null > "$out_file" 2>&1
   cli_exit=$?
   if [ "$cli_exit" -ne 0 ]; then
@@ -544,6 +545,12 @@ print(json.dumps(row))
     fi
     record=$(python3 "$OUT_DIR/extract.py" "$out_file" "$goal" "$url" "$cli_exit")
   fi
+  probe_t1_ms=$(python3 -c "import time; print(int(time.time()*1000))")
+  probe_ms=$((probe_t1_ms - probe_t0_ms))
+  # Inject actual_total_ms (wall-clock across the resolve + any retries) so
+  # Phase 6 latency summary has real timing evidence. Substrate-faithful:
+  # raw ms only, no verdict.
+  record=$(printf '%s' "$record" | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); r['actual_total_ms']=int(sys.argv[1]); print(json.dumps(r))" "$probe_ms")
   echo "$record" >> "$OUT_DIR/results.jsonl"
   # Show a compact one-line evidence summary for the agent watching the run.
   # No pass/fail/block verdict — the agent reads results.jsonl / .csv at the end.

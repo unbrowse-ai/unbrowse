@@ -1,0 +1,32 @@
+# Auth-degradation corpus — Phase 7 of bench-mcp-safety harness.
+# Format: intent | url | expected_shape
+#
+# Tests "what happens when credentials are missing/lost?" Each probe drives
+# `unbrowse resolve` without cookies against a URL that REQUIRES auth. The
+# harness collects the response shape; the agent judges in-thread whether
+# the behavior is acceptable.
+#
+# expected_shape values (declarant guidance, not a verdict gate):
+#   CLEAN_AUTH_SIGNAL — expect error_code=auth_required OR auth_recommended=true
+#   SILENT_PROCEEDED  — known surface that proceeds without auth (rare; honest)
+#
+# Substrate-faithful: the agent reads the row + text_excerpt and judges
+# whether the observed_shape matches the expected_shape or is acceptable.
+
+# Linear: SPA dashboard that 302s to /login without a session cookie.
+get linear my issues | https://linear.app/inbox | CLEAN_AUTH_SIGNAL
+
+# Notion: auth-gated workspace home; without a session cookie returns the
+# marketing page or a redirect. CLEAN_AUTH_SIGNAL means the harness saw a
+# clean auth flag, not that auth happened.
+get notion home workspace | https://www.notion.so/ | CLEAN_AUTH_SIGNAL
+
+# GitHub /notifications: authenticated-only feed. With no cookie, GitHub
+# returns the login page. We want unbrowse to flag auth_required, not
+# silently return the login HTML as "the data".
+get github notifications | https://github.com/notifications | CLEAN_AUTH_SIGNAL
+
+# X.com home timeline: requires auth. Without a cookie, returns the login
+# wall. We want unbrowse to either mark auth_required OR have the agent
+# observe the response is the login page (silent_proceeded would be a bug).
+get x home timeline | https://x.com/home | CLEAN_AUTH_SIGNAL

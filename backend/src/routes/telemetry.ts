@@ -397,3 +397,110 @@ telemetryRoutes.get("/telemetry/recent-failures", bearerAuth, async (c) => {
     return c.json({ error: "query_failed" }, 500);
   }
 });
+
+// ============================================================================
+// Power-user retention endpoint (Layer 11 of funnel-tracking plan).
+// Surfaces DAU / WAU / MAU + d7 / d30 retention + repeat-MCP-tool-call
+// frequency from telemetry_sessions. Admin-bearer-gated (mirrors
+// /telemetry/recent-failures). Substrate-faithful: emits raw aggregates
+// only, never a "healthy/unhealthy" verdict. Agent + dashboard judge.
+// ============================================================================
+telemetryRoutes.get("/telemetry/retention", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ error: "storage_not_configured" }, 503);
+  }
+
+  try {
+    const sql = await getNeonClient(c.env.DATABASE_URL);
+    const [aggregates] = await sql`
+      SELECT
+        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '24 hours') AS dau,
+        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '7 days')   AS wau,
+        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '30 days')  AS mau,
+        COUNT(*)                       FILTER (WHERE received_at >= NOW() - INTERVAL '24 hours') AS sessions_24h,
+        COUNT(*)                       FILTER (WHERE received_at >= NOW() - INTERVAL '7 days')   AS sessions_7d,
+        COALESCE(SUM(tool_calls_total) FILTER (WHERE received_at >= NOW() - INTERVAL '7 days'),  0) AS tool_calls_7d,
+        COUNT(DISTINCT client_seed_fp) FILTER (
+          WHERE received_at >= NOW() - INTERVAL '7 days'
+          AND tool_calls_total IS NOT NULL AND tool_calls_total >= 10
+        ) AS power_users_7d
+      FROM telemetry_sessions
+    ` as Array<{
+      dau: string | number; wau: string | number; mau: string | number;
+      sessions_24h: string | number; sessions_7d: string | number;
+      tool_calls_7d: string | number; power_users_7d: string | number;
+    }>;
+
+    // d7 retention: of distinct fingerprints first-seen 7-14 days ago,
+    // how many returned in the last 7 days.
+    const [retention_d7] = await sql`
+      WITH first_seen AS (
+        SELECT client_seed_fp, MIN(received_at) AS first_at
+        FROM telemetry_sessions
+        WHERE client_seed_fp IS NOT NULL
+        GROUP BY client_seed_fp
+      ),
+      cohort_d7 AS (
+        SELECT client_seed_fp FROM first_seen
+        WHERE first_at >= NOW() - INTERVAL '14 days'
+          AND first_at <  NOW() - INTERVAL '7 days'
+      )
+      SELECT
+        (SELECT COUNT(*) FROM cohort_d7)::int AS cohort_size,
+        (SELECT COUNT(DISTINCT t.client_seed_fp)
+         FROM telemetry_sessions t
+         INNER JOIN cohort_d7 c ON t.client_seed_fp = c.client_seed_fp
+         WHERE t.received_at >= NOW() - INTERVAL '7 days')::int AS retained
+    ` as Array<{ cohort_size: number; retained: number }>;
+
+    // d30 retention: of distinct fingerprints first-seen 30-37 days ago,
+    // how many returned in the last 7 days.
+    const [retention_d30] = await sql`
+      WITH first_seen AS (
+        SELECT client_seed_fp, MIN(received_at) AS first_at
+        FROM telemetry_sessions
+        WHERE client_seed_fp IS NOT NULL
+        GROUP BY client_seed_fp
+      ),
+      cohort_d30 AS (
+        SELECT client_seed_fp FROM first_seen
+        WHERE first_at >= NOW() - INTERVAL '37 days'
+          AND first_at <  NOW() - INTERVAL '30 days'
+      )
+      SELECT
+        (SELECT COUNT(*) FROM cohort_d30)::int AS cohort_size,
+        (SELECT COUNT(DISTINCT t.client_seed_fp)
+         FROM telemetry_sessions t
+         INNER JOIN cohort_d30 c ON t.client_seed_fp = c.client_seed_fp
+         WHERE t.received_at >= NOW() - INTERVAL '7 days')::int AS retained
+    ` as Array<{ cohort_size: number; retained: number }>;
+
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      active_users: {
+        dau: Number(aggregates?.dau ?? 0),
+        wau: Number(aggregates?.wau ?? 0),
+        mau: Number(aggregates?.mau ?? 0),
+      },
+      activity: {
+        sessions_24h: Number(aggregates?.sessions_24h ?? 0),
+        sessions_7d:  Number(aggregates?.sessions_7d ?? 0),
+        tool_calls_7d: Number(aggregates?.tool_calls_7d ?? 0),
+      },
+      retention: {
+        d7:  { cohort_size: retention_d7?.cohort_size ?? 0,  retained: retention_d7?.retained ?? 0 },
+        d30: { cohort_size: retention_d30?.cohort_size ?? 0, retained: retention_d30?.retained ?? 0 },
+      },
+      power_users_7d: Number(aggregates?.power_users_7d ?? 0),
+    });
+  } catch (err) {
+    console.error("[telemetry/retention] query failed:", err instanceof Error ? err.message : String(err));
+    return c.json({ error: "query_failed" }, 500);
+  }
+});
