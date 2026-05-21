@@ -19,7 +19,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-20
 last_iterated: "2026-05-20T14:10:00Z"
-status: blocked-on-kuri-windows-port
+status: shipped-wave-6-blocked-on-wave-7-process-spawn-port
 last_verdict: "WAVE-1/1.1/2/3 SHIPPED — 4 commits on lekt9/kuri@feat/windows-port-wave-1 closed 13 of 16 windows-x64 errors. compat.zig migrated to impl-struct pattern (proven template). 3 remain: Zig 0.16 std/c.zig clock_gettime extern decl poisons the whole std.c namespace on Windows, surfaced via 7 kuri files (chrome/launcher, storage/local, storage/auth_profiles, crawler/validator, cdp/websocket, server/router, agent_main partial) that still use std.c.* directly. Mechanical port to compat.* abstractions (1-2 day Zig work) should be its OWN sub-harness."
 ---
 
