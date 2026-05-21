@@ -1,8 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (11) semantic-rank (8) graphql (6) ssr-list (10) auth-gated (8) auth-cookies (8) hostile (15)
-# Total: 66
-# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14) + Dia-cookie auth lane (8 added 2026-05-19)
+# Lanes: anchor (11) semantic-rank (11) graphql (6) ssr-list (13) auth-gated (8) auth-cookies (8) hostile (16)
+# Total: 73
+# Sources: original curated set (50) + v1 refresh from r/webscraping + HN (8 added 2026-05-14) + Dia-cookie auth lane (8 added 2026-05-19) + v2 refresh from r/webscraping 2026-05-21 (7 added via /meta-harness reddit-mine flow)
 # Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -28,6 +28,10 @@ semantic-rank | none | medium | semantic-rank | get stackoverflow question | htt
 semantic-rank | none | medium | semantic-rank | get stackoverflow question | https://stackoverflow.com/questions/231767
 semantic-rank | none | medium | semantic-rank | get openlibrary work | https://openlibrary.org/works/OL45804W
 semantic-rank | none | medium | semantic-rank | get openlibrary work | https://openlibrary.org/works/OL27448W
+# v2 refresh from r/webscraping 2026-05-21 (added by /meta-harness reddit-mine flow)
+semantic-rank | none | hard | semantic-rank | search used cars on car.gr Greek classifieds | https://www.car.gr/classifieds/cars/?lang=en
+semantic-rank | none | hard | semantic-rank | search Indonesian wealth declarations on elhkpn | https://elhkpn.kpk.go.id/
+semantic-rank | none | hard | semantic-rank | get luma event discover feed | https://lu.ma/discover
 
 # ─── graphql (6) — POST + operationName extraction; X timeline regression ─────
 graphql | optional | hard | graphql | search tweets about AI agents | https://x.com/search?q=AI+agents&src=typed_query
@@ -48,6 +52,10 @@ ssr-list | none | medium | ssr-list | search ebay listings | https://www.ebay.co
 ssr-list | none | medium | ssr-list | search openlibrary books | https://openlibrary.org/search?q=dune
 ssr-list | none | medium | ssr-list | get google finance quote for AAPL | https://www.google.com/finance/quote/AAPL:NASDAQ
 ssr-list | none | hard | ssr-list | search statsmuse for player stats | https://www.statmuse.com/nba/ask/lebron-points-per-game-this-season
+# v2 refresh from r/webscraping 2026-05-21 (added by /meta-harness reddit-mine flow)
+ssr-list | none | hard | ssr-list | search walmart for laptops | https://www.walmart.com/search?q=laptop
+ssr-list | none | hard | ssr-list | get latest AP news headlines | https://apnews.com/
+ssr-list | none | hard | ssr-list | search sweetwater for electric guitars | https://www.sweetwater.com/c700--Electric_Guitars
 
 # ─── auth-gated (8) — must hand off, not crash; excluded from denominator ─────
 auth-gated | required | hard | auth-handoff | get gmail inbox messages | https://mail.google.com/mail/u/0/#inbox
@@ -90,3 +98,5 @@ hostile | blocked | hostile | browser-block | get espn nba scoreboard | https://
 hostile | blocked | hostile | browser-block | search google maps for coffee shops in sf | https://www.google.com/maps/search/coffee+shops+san+francisco
 hostile | blocked | hostile | browser-block | search glassdoor for engineering salaries | https://www.glassdoor.com/Salaries/software-engineer-salary-SRCH_KO0,17.htm
 hostile | blocked | hostile | browser-block | search vinted listings | https://www.vinted.com/catalog?search_text=jeans
+# v2 refresh from r/webscraping 2026-05-21 (added by /meta-harness reddit-mine flow)
+hostile | blocked | hostile | browser-block | search eporner adult videos | https://www.eporner.com/search/funny/
