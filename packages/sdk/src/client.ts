@@ -21,6 +21,12 @@ import type {
   StealAuthInput,
   StealAuthResponse,
   UnbrowseClientOptions,
+  PublishSkillInput,
+  PublishResponse,
+  AnnotateInput,
+  AnnotateResponse,
+  PaymentProvider,
+  PaymentProviderResponse,
 } from "./contracts.js";
 import { PaymentRequiredError, UnbrowseApiError } from "./errors.js";
 import {
@@ -463,6 +469,52 @@ export class Unbrowse {
       "GET",
       `/v1/attribution/indexer/${encodeURIComponent(indexerId)}`,
       undefined,
+      options,
+    );
+  }
+  /**
+   * Publish a captured skill to the marketplace.
+   * Backend: `POST /v1/skills`.
+   *
+   * SDK gap-fill (Wave 2 of rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty
+   * + the parity gate from tests/cli-mcp-sdk-parity.test.ts). Mirrors the
+   * CLI `unbrowse publish` and the MCP `unbrowse_publish` tool.
+   */
+  async publish(skill: PublishSkillInput, options?: RequestOptions): Promise<PublishResponse> {
+    return this.request<PublishResponse>("POST", "/v1/skills", skill, options);
+  }
+
+  /**
+   * Annotate an endpoint with a tip, constraint, or gotcha.
+   * Backend: `POST /v1/skills/:id/endpoints/:eid/annotate`.
+   *
+   * SDK gap-fill. Mirrors CLI `unbrowse annotate` + MCP `unbrowse_annotate`.
+   */
+  async annotate(input: AnnotateInput, options?: RequestOptions): Promise<AnnotateResponse> {
+    const { skillId, endpointId, ...body } = input;
+    return this.request<AnnotateResponse>(
+      "POST",
+      `/v1/skills/${encodeURIComponent(skillId)}/endpoints/${encodeURIComponent(endpointId)}/annotate`,
+      body,
+      options,
+    );
+  }
+
+  /**
+   * Persist the agent's chosen x402 payment rail on the backend.
+   * Backend: `POST /v1/account/payment-provider` (shipped in #691).
+   *
+   * SDK gap-fill: surface the Wave 2 backend route as a typed SDK
+   * method so SDK callers can sync provider choice without rolling
+   * a raw fetch. Allowed values are the same six the route whitelists:
+   * pay_sh / lobster_cash / external_solana / privy_embedded /
+   * privy_embedded_solana / skip.
+   */
+  async paymentProvider(provider: PaymentProvider, options?: RequestOptions): Promise<PaymentProviderResponse> {
+    return this.request<PaymentProviderResponse>(
+      "POST",
+      "/v1/account/payment-provider",
+      { provider },
       options,
     );
   }

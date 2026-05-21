@@ -100,7 +100,7 @@ function readSdkMethods(): Set<string> {
 
 // Hyphen ↔ underscore normalisation for cross-surface name comparison.
 function normalize(name: string): string {
-  return name.replace(/-/g, "_").toLowerCase();
+  return name.replace(/-/g, "_").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
 }
 
 describe("CLI / MCP / SDK surface parity", () => {
@@ -159,11 +159,16 @@ describe("CLI / MCP / SDK surface parity", () => {
   });
 
   it("every SDK method either has a CLI/MCP counterpart or is on the SDK_INFRASTRUCTURE allowlist", () => {
+    // Build normalized index sets so camelCase SDK names match
+    // hyphen/underscore CLI/MCP names symmetrically (paymentProvider <->
+    // payment-provider <-> payment_provider).
+    const cliNormalized = new Set([...cli].map(normalize));
+    const mcpNormalized = new Set([...mcp].map(normalize));
     const orphans: string[] = [];
     for (const method of sdk) {
       if (SDK_INFRASTRUCTURE.has(method)) continue;
       const normalized = normalize(method);
-      if (!cli.has(method) && !mcp.has(normalized)) orphans.push(method);
+      if (!cliNormalized.has(normalized) && !mcpNormalized.has(normalized)) orphans.push(method);
     }
     if (orphans.length > 0) {
       throw new Error(

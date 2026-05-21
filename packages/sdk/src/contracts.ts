@@ -398,3 +398,58 @@ export interface UnbrowseClientOptions {
   timeoutMs?: number;
   clientId?: string;
 }
+
+
+
+// ---------------------------------------------------------------------------
+// SDK gap-fill (Wave 2 of rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty).
+// Types for publish / annotate / paymentProvider methods added to Unbrowse.
+// Mirror the on-the-wire shape of the backend routes the SDK now wraps.
+// ---------------------------------------------------------------------------
+
+export interface PublishSkillInput {
+  skill_id?: string;
+  name: string;
+  intent_signature: string;
+  domain: string;
+  description: string;
+  endpoints: unknown[];
+  /** Optional per-skill platform markup in bps. [500, 8000] clamped. */
+  markup_bps?: number;
+  [extra: string]: unknown;
+}
+
+export interface PublishResponse {
+  skill_id: string;
+  version: string;
+  publish_status: "published" | "failed" | "rejected" | string;
+  [extra: string]: unknown;
+}
+
+export interface AnnotateInput {
+  skillId: string;
+  endpointId: string;
+  text: string;
+  /** Optional structured constraint: `param:rule:message`. */
+  constraint?: string;
+}
+
+export interface AnnotateResponse {
+  ok: boolean;
+  annotation_id?: string;
+  [extra: string]: unknown;
+}
+
+export type PaymentProvider =
+  | "pay_sh"
+  | "lobster_cash"
+  | "external_solana"
+  | "privy_embedded"
+  | "privy_embedded_solana"
+  | "skip";
+
+export interface PaymentProviderResponse {
+  agent_id: string;
+  wallet_provider: string | null;
+  wallet_address: string | null;
+}
