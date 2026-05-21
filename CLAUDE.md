@@ -96,13 +96,16 @@ Apply in order (first match wins):
 | `ANTIBOT_BLOCK` | `browser_block_signals` contains `vendor:*`, `challenge_title`, or `no_html_many_apis` | ✗ Fail (PRODUCT capability gap) |
 | `ANTIBOT_BLOCK` | `capture_diagnostic` in (`no_endpoints_extracted`, `all_endpoints_filtered_by_noise_rules`) | ✗ Fail (PRODUCT capability gap) |
 | `AUTH_GATED` | `error_code == "auth_required"` or `auth_recommended == true` | Excluded from coverage (USER credential gap, not product) |
+| `SKIPPED_NO_FRESH_COOKIES` | `auth in (required, dia)` AND no fresh local cookie for domain (Chrome `Default/Cookies` and Firefox `cookies.sqlite` both checked; SQLite lock treated as "unknown" and probe still runs) | Excluded from coverage (USER credential gap; bench cannot measure capability without cookies) |
 | `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "direct-fetch"` | ✓ Pass (raw body returned) |
 | `SPARSE_REVIEW` | `browser_block_signals` contains only `sparse_capture_mostly_noise` (no vendor) | Agent judges in-thread |
 | `PRODUCT_FAIL` | anything else | ✗ Fail |
 
-Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW + ANTIBOT_BLOCK)`**. AUTH_GATED is still excluded because the agent cannot proceed without user credentials (cookie injection, magic link, OAuth grant) and that's a SETUP gap, not a runtime product gap. Everything else counts toward the denominator. The stop hook's "100% coverage" claim now means: 100% of probes the agent could possibly resolve given valid credentials, with no antibot-as-excuse exclusion.
+Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW + ANTIBOT_BLOCK)`**. AUTH_GATED and SKIPPED_NO_FRESH_COOKIES are excluded because the agent cannot proceed without user credentials (cookie injection, magic link, OAuth grant) and that's a SETUP gap, not a runtime product gap. Everything else counts toward the denominator. The stop hook's "100% coverage" claim now means: 100% of probes the agent could possibly resolve given valid credentials, with no antibot-as-excuse exclusion.
+
+Auth-gated and auth-cookies probes only run when the local machine has a fresh cookie for the target domain. Without a cookie, the bench cannot honestly measure whether Unbrowse's XHR + cookie-injection ladder would have worked. Skipping is honest; running and 401-ing is noise. The check inspects metadata (existence + non-expired `expires_utc`) only; cookie values are never decrypted. SQLite lock on the cookie DB (Chrome running with exclusive lock) is treated as `source=locked` and the probe still runs; only `source in (chrome, firefox, none)` with `fresh=false` triggers a skip. The check lives at `scripts/check_cookie_freshness.py` and is invoked from `scripts/bench-local.sh` and `scripts/bench-gate-probe-worker.sh`.
 
 Antibot bypass is a PRODUCT capability gap, not "not our bug." Saying we have 100% coverage "except for the blocked sites" is dishonest: the blocked sites are exactly where Unbrowse needs to differentiate (libcurl-impersonate, residential proxy fallback per `UNBROWSE_PROXY_URL`, JA4 spoof, cookie injection from real Chrome/Firefox profiles, headful fallback). Counting them as PRODUCT_FAIL (renamed ANTIBOT_BLOCK so the failure mode is visible in the tally) makes the bench tell the truth and pushes the team toward the right wedge.
 
