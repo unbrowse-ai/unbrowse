@@ -155,3 +155,16 @@ packages/skill/dist-sm/
 # Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).
 .bench-converge/
 .mcp-proxy-env.json
+
+# Ralph loop state — re-include so it survives 'git stash -u' between turns
+!.claude/ralph-loop.local.md
+
+# Ralph loop state: re-include the parent dir + re-ignore everything,
+# then re-include only the ralph-loop state file. Per gitignore docs:
+# "It is not possible to re-include a file if a parent directory of
+# that file is excluded." So we whitelist the dir then re-ignore.
+!.claude/
+.claude/*
+!.claude/ralph-loop.local.md
+!.claude/*.local.md
+!.claude/mcps/
