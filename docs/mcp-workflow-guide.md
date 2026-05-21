@@ -12,7 +12,7 @@ This guide tells your driving LLM the **exact tool sequence** for the common thi
 
 ### §1 What Unbrowse is, in one paragraph
 
-Unbrowse is an **API-native agent browser**: it takes a natural-language intent ("search Reddit for X"), looks up a cached marketplace skill, and either calls a learned API endpoint directly OR opens a real Chrome tab via Kuri, watches the traffic, and turns it into a reusable skill so the next call is the API path. The MCP server exposes 39 tools that drive this loop. Your job as a caller is to pick the right starting tool, dispatch what each result says comes next, and never short-circuit the publish step on a cold path.
+Unbrowse is an **API-native agent browser**: it takes a natural-language intent ("search Reddit for X"), looks up a cached marketplace skill, and either calls a learned API endpoint directly OR opens a real Chrome tab via Kuri, watches the traffic, and turns it into a reusable skill so the next call is the API path. The MCP server exposes 40 tools that drive this loop. Your job as a caller is to pick the right starting tool, dispatch what each result says comes next, and never short-circuit the publish step on a cold path.
 
 ### §2 The three intent classes
 
@@ -207,7 +207,7 @@ Use sparingly; these are escape hatches for the agent or for Lewis when somethin
 
 ## Part II — Tool reference
 
-Every tool registered by `src/mcp.ts` (39 total as of v6.16). The list below is canonical for tool *names* and intended use; line cites have drifted significantly since the v6.13 baseline and SHOULD be re-derived at read time with `grep -n 'name: "unbrowse_' src/mcp.ts`. Tools added since v6.13: `unbrowse_reflect`, `unbrowse_publish_suggestions`, `unbrowse_earnings`, `unbrowse_run`, `unbrowse_fetch`, `unbrowse_test_crash`.
+Every tool registered by `src/mcp.ts` (40 total as of v6.16). The list below is canonical for tool *names* and intended use; line cites have drifted significantly since the v6.13 baseline and SHOULD be re-derived at read time with `grep -n 'name: "unbrowse_' src/mcp.ts`. Tools added since v6.13: `unbrowse_reflect`, `unbrowse_publish_suggestions`, `unbrowse_earnings`, `unbrowse_run`, `unbrowse_fetch`, `unbrowse_test_crash`, `unbrowse_search_endpoints` (semantic search across ALL marketplace endpoints, flat shape, anonymous-allowed, hits POST /v1/search/endpoints).
 
 ### Resolve / execute / feedback (5)
 

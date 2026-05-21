@@ -291,6 +291,43 @@ export interface SearchResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Flat endpoint-shaped search hit. Returned by Unbrowse.searchEndpoints().
+ *
+ * Each row is ONE endpoint from the global marketplace graph, ranked by
+ * semantic match against the intent string. Use this when you want to
+ * pick endpoints across many skills (vs SearchHit which groups by skill).
+ *
+ * No JSON-parsing required by the caller -- the backend unwraps the
+ * canonical content schema server-side.
+ */
+export interface EndpointSearchHit {
+  endpoint_id: string;
+  skill_id: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  score: number;
+  tags: string[];
+  name?: string;
+  avg_reliability?: number;
+  verified_ratio?: number;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface SearchEndpointsInput {
+  intent: string;
+  k?: number;
+  domain?: string;
+}
+
+export interface SearchEndpointsResponse {
+  endpoints: EndpointSearchHit[];
+  [key: string]: unknown;
+}
+
+
 export interface LoginResponse {
   success?: boolean;
   cookies_stored?: number;

@@ -157,15 +157,40 @@ await u.importAuth({ url: "https://x.com/home", browser: "auto" });
 
 ## Search
 
+Three search shapes ship as of v6.16, each tuned for a different agent need:
+
 ```ts
+// 1. Skill-grouped global search — returns SearchHit[] (one row per skill).
+//    Use when you want the marketplace skill that covers the intent.
 const global = await u.search({ intent: "get stock prices", k: 5 });
 
+// 2. Domain-scoped skill search — same shape, scoped to one host.
 const domain = await u.searchDomain({
   intent: "find trending repositories",
   domain: "github.com",
   k: 3,
 });
+
+// 3. Flat endpoint search — returns EndpointSearchHit[] (one row per endpoint
+//    across the WHOLE marketplace). Use when you want to pick endpoints
+//    across many skills without an explicit URL. Each hit carries
+//    endpoint_id + skill_id so you can chain into execute() directly.
+const { endpoints } = await u.searchEndpoints({
+  intent: "search trending repositories",
+  k: 10,
+  // domain: "github.com",  // optional: scope to one host
+});
+for (const ep of endpoints) {
+  console.log(ep.score, ep.skill_id, ep.endpoint_id, ep.description);
+}
 ```
+
+`searchEndpoints()` hits `/v1/search/endpoints` and unwraps the canonical
+graph-index `metadata.content` server-side so the SDK consumer never has to
+`JSON.parse` to reach `skill_id` / `endpoint_id`. Anonymous callers get free
+rate-limited public discovery; authenticated agents pay the standard search
+fee per the x402 economics in [`HOW_UNBROWSE_PAYS.md`](../../docs/HOW_UNBROWSE_PAYS.md).
+
 
 ## Error handling
 

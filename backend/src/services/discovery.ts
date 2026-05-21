@@ -492,6 +492,82 @@ export async function searchIntent(
   return results;
 }
 
+
+/**
+ * Flat endpoint-shaped search.
+ *
+ * Returns one row per matching endpoint with the structured fields the
+ * graph index ALREADY carries (skill_id + endpoint_id are baked into
+ * every indexed row's metadata.content). The existing /v1/search returns
+ * SearchResult = {id, score, metadata} where metadata.content is a
+ * JSON-stringified blob; callers had to JSON.parse to get skill_id /
+ * endpoint_id / domain. This helper does the unwrap server-side so the
+ * SDK / MCP consumer gets a structured EndpointSearchHit row directly.
+ *
+ * Substrate-faithful: no new index, no new embedding, no new heuristic.
+ * It re-uses graphSearch + the canonical content schema from
+ * indexEndpoints (above).
+ */
+export interface EndpointSearchHit {
+  endpoint_id: string;
+  skill_id: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  score: number;
+  tags: string[];
+  // Optional fields surfaced when the graph index carries them; older
+  // rows may omit. Callers MUST handle absence.
+  name?: string;
+  avg_reliability?: number;
+  verified_ratio?: number;
+  updated_at?: string;
+}
+
+export async function searchEndpoints(
+  env: Env,
+  intent: string,
+  k = 10,
+  domain?: string,
+): Promise<EndpointSearchHit[]> {
+  const rawResults: SearchResult = domain
+    ? await graphSearch(env, domain, intent, k).catch(() => [])
+    : await graphSearch(env, "global", intent, k).catch(() => []);
+
+  const hits: EndpointSearchHit[] = [];
+  for (const row of rawResults) {
+    const meta = row.metadata ?? {};
+    const tagsRaw = meta.tags;
+    const tags = Array.isArray(tagsRaw)
+      ? tagsRaw.filter((t): t is string => typeof t === "string")
+      : [];
+
+    let parsed: Record<string, unknown> = {};
+    if (typeof meta.content === "string") {
+      try { parsed = JSON.parse(meta.content) as Record<string, unknown>; } catch { /* skip */ }
+    }
+
+    const endpointId = typeof parsed.endpoint_id === "string" ? parsed.endpoint_id : undefined;
+    const skillId = typeof parsed.skill_id === "string" ? parsed.skill_id : undefined;
+    if (!endpointId || !skillId) continue;
+
+    hits.push({
+      endpoint_id: endpointId,
+      skill_id: skillId,
+      domain: typeof parsed.domain === "string" ? parsed.domain : "",
+      subdomain: typeof parsed.subdomain === "string" ? parsed.subdomain : undefined,
+      description: typeof meta.title === "string" ? meta.title : "",
+      score: typeof row.score === "number" ? row.score : 0,
+      tags,
+      name: typeof parsed.name === "string" ? parsed.name : undefined,
+      avg_reliability: typeof parsed.avg_reliability === "number" ? parsed.avg_reliability : undefined,
+      verified_ratio: typeof parsed.verified_ratio === "number" ? parsed.verified_ratio : undefined,
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : undefined,
+    });
+  }
+  return hits;
+}
+
 /** Re-index a single skill — indexes per-endpoint via Graph API. */
 export async function reindexSkill(
   env: Env,

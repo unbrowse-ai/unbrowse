@@ -60,6 +60,12 @@ const MCP_PROTOCOL_ONLY = new Set([
   "publish_suggestions", "earnings",
   "auth_capture",  // MCP normalises hyphens — CLI side is `auth-capture` or
                    // `auth --capture`; allowlisted as matched-cousin.
+  "search_endpoints",  // discovery surface for agents that want a flat
+                       // ranked endpoint list across the whole marketplace.
+                       // CLI users get the same data via `unbrowse search`
+                       // (which calls /v1/search/domain or /v1/search/resolve)
+                       // shaped for human triage; the flat-endpoints route
+                       // is an MCP/SDK ergonomic.
 ]);
 
 // SDK methods that are infrastructure (not user-facing verbs).
