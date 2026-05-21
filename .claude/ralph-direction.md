@@ -552,3 +552,38 @@ Convert ONE extraction-special per wave to a generic primitive. Order by impact 
 3. 005 github stale_endpoint marketplace
 4. Kuri-blocked: 031 priceline / 059 target / 066 vinted (cross-repo)
 
+
+---
+
+## Tick 70 update — bench measured, audit shipped, fix backlog declared
+
+**Lewis 2026-05-21 directive:** "okay lets go ahead and fix it all up and benchmax til we hit 100%".
+
+**Bench run 20260520T235712Z** measured post-6-PRs (#595-#600):
+
+  index:    76.1% (35/46 indexable)   — floor 80%, gap -3.9pp
+  retrieve: 34.0% (16/47 retrievable) — floor 65%, gap -31pp
+  gate.passed = FALSE
+
+**Note on retrieve regression vs prior 42.9%:** the prior 42.9% was measured with the prior gate run + LLM-judged verdicts. This run was structurally classified + in-thread spot-judged for known cases. Many handoff envelopes (`resolve_hard_handoff`) on non-auth lanes count as ERROR_BODY per rubric. This is the marketplace cold-start problem orthogonal to extractor fixes — substrate explicitly hands off when no skill exists for the domain.
+
+**Anchor-lane release-blockers (4 failures, gate-blocking):**
+1. **002 npm/openai** INDEX_FAIL_NO_ENDPOINTS — Kuri SPA capture timing (cross-repo, blocked)
+2. **005 github search** WRONG_SHAPE — `extractGitHubSpecial` returns filter-bar headings instead of repo cards; CSS selectors stale for current GitHub markup
+3. **006 wikipedia** ERROR_BODY — handoff (no marketplace skill for wikipedia.org articles)
+4. **009 pypi/anthropic** WRONG_SHAPE — `scoreDegenerateRowDemotion` SHOULD fire on the dates-only rows but doesn't ship to the response; needs deeper trace
+
+**Audit shipped (cb10cfd4):** `.audit/substrate-violations-20260521.md` enumerates 3 CRITICAL violations + 1 MODERATE with prioritised refactor backlog:
+- V1: `derivePublicApiEndpointsFromUrl` 8-host registry (src/execution/index.ts:838-1200)
+- V2: `extractGitHubSpecial` 120-line GitHub-specific (src/extraction/index.ts:761-880) — gates 005/014/015
+- V3: `extractPackageSearchSpecial` PyPI-specific (src/extraction/index.ts:1014-1039)
+- V4: `play.google.com` filter (src/reverse-engineer/index.ts:1414)
+
+**Tick 71+ priority order:**
+1. **V2 extractGitHubSpecial → generic JSON-LD primitive** — addresses 005/014/015 directly + cleans the largest remaining per-host special (~150 LOC PR). Generic primitives: schema.org/SoftwareSourceCode + og:type + repeating-card.
+2. **Trace 009 pypi**: why doesn't `scoreDegenerateRowDemotion` fire on `{date,info,description}` rows where all three values are the same date string? It SHOULD per the looksLikeDegenerateRowArray predicate. Either the structure isn't reaching the scorer, or the filter happens too early.
+3. **Marketplace cold-start** for 006 wikipedia, 029 beatsaver, 030 pubmed, 036/037 etc — many non-auth probes handoff because no skill exists. Either pre-seed common public-domain skills OR implement live derivePublicApiEndpointsFromUrl for the long tail (V1 phase 2 work).
+4. **Re-bench** after each fix to measure incremental delta.
+
+**Honest scoping:** "100% gate.passed" requires N successive bench cycles + fix waves. Each cycle is ~30-40 min bench + 1-2 hour fix. Not single-session work.
+
