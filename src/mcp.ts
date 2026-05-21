@@ -2318,7 +2318,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_click",
-    description: "Click an element in the active browse session by ref.",
+    description: "Click a page element in the active browse session. Prerequisite: call unbrowse_snap first to get @eN refs for clickable elements. Pass the ref (e.g. 'e5') as input.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2339,7 +2339,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_fill",
-    description: "Fill an input in the active browse session by ref.",
+    description: "Fill an input element with a value in the active browse session. Prerequisite: call unbrowse_snap to get the input's @eN ref. After filling all inputs, call unbrowse_submit (preferred) or unbrowse_click on a submit button.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2362,7 +2362,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_type",
-    description: "Type text with key events in the active browse session.",
+    description: "Type text into the currently focused element (sends real key events; triggers React/Vue onChange). Click an input via unbrowse_click first to focus it. Use unbrowse_fill instead when you just want to set a value programmatically.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2383,7 +2383,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_press",
-    description: "Press a key in the active browse session.",
+    description: "Press a single keyboard key in the active browse session. Common keys: Enter, Tab, Escape, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Backspace, Delete, PageUp, PageDown, Home, End, F1..F12. Use this for navigation and form submission via Enter.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2404,7 +2404,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_select",
-    description: "Select an option in the active browse session by ref.",
+    description: "Select an option from a <select> dropdown in the active browse session. Prerequisite: call unbrowse_snap to get the select's @eN ref. The value matches either the option text or value attribute (e.g. 'Premium' or 'premium').",
     inputSchema: {
       type: "object",
       properties: {

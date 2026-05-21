@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 2,
+  "n_operations": 2,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "9gtbgELB8cg-QVUJgoMda",
+  "iso_self_check": {
+    "snap_current_url": "https://www.priceline.com/relax/at/tokyo",
+    "intended_host": "www.priceline.com",
+    "snap_host": "www.priceline.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 10093,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.4,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": null
+}

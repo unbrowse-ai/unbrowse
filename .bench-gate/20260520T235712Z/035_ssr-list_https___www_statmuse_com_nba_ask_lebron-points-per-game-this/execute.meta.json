@@ -1,0 +1,23 @@
+{
+  "status_code": 200,
+  "response_bytes": 3805,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "HEAD",
+      "status": 200,
+      "content_type": "text/html",
+      "byte_length": 0,
+      "ms": 13
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe 200 + html + dom_extraction recipe — server fetch + extract"
+    },
+    {
+      "step": "server_fetch",
+      "status": 200
+    }
+  ]
+}

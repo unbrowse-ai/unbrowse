@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "search bing for ai agents",
+  "context_url": "https://www.bing.com/search?q=AI+agents",
+  "params": {},
+  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
+}

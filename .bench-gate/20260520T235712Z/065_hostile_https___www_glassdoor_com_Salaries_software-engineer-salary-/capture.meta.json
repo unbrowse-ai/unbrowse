@@ -1,0 +1,27 @@
+{
+  "total_endpoints_captured": 0,
+  "n_operations": 0,
+  "captured_title": "",
+  "browser_block_signals": [
+    "crashed_during_collect"
+  ],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": false,
+  "mode": "none",
+  "skill_id": null,
+  "iso_self_check": {
+    "snap_current_url": null,
+    "intended_host": "www.glassdoor.com",
+    "snap_host": "",
+    "host_match": null
+  },
+  "capture_diagnostic": {
+    "reason": "crashed_during_collect",
+    "timeout_ms": 120000,
+    "probe_id": "065_hostile_https___www_glassdoor_com_Salaries_software-engineer-salary-"
+  },
+  "cookies_injected": null,
+  "crashed_during_collect": true
+}

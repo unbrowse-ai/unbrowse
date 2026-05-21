@@ -1,0 +1,86 @@
+{
+  "endpoint_id": "R8_UQeNWiQD_uTBp8_0JU",
+  "source_skill_id": "etFgFeHSCvMctTAwx6OYs",
+  "method": "GET",
+  "description": "Returns resource details with link, url, and titles",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://lobste.rs/",
+  "score": 131,
+  "schema_summary": {
+    "[]": {
+      "link": "string",
+      "url": "string",
+      "title": "string",
+      "score": "string",
+      "info": "string",
+      "author": "string"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].link",
+    "[].url",
+    "[].title",
+    "[].score",
+    "[].info",
+    "[].author"
+  ],
+  "sample_values": {
+    "[].link": "https://caio.ca/blog/why-ruby-still-feels-like-home",
+    "[].url": "https://caio.ca/blog/why-ruby-still-feels-like-home",
+    "[].title": "Why Ruby Still Feels Like Home After All These Years",
+    "[].score": "46",
+    "[].info": "19 hours ago"
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://lobste.rs/",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "R8_UQeNWiQD_uTBp8_0JU",
+      "source_skill_id": "etFgFeHSCvMctTAwx6OYs",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://lobste.rs/",
+      "score": 131,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string",
+          "score": "string",
+          "info": "string",
+          "author": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title",
+        "[].score",
+        "[].info",
+        "[].author"
+      ],
+      "sample_values": {
+        "[].link": "https://caio.ca/blog/why-ruby-still-feels-like-home",
+        "[].url": "https://caio.ca/blog/why-ruby-still-feels-like-home",
+        "[].title": "Why Ruby Still Feels Like Home After All These Years",
+        "[].score": "46",
+        "[].info": "19 hours ago"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://lobste.rs/",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

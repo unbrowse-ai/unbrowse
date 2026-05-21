@@ -1,0 +1,31 @@
+{
+  "total_endpoints_captured": 13,
+  "n_operations": 10,
+  "captured_title": "",
+  "browser_block_signals": [
+    "empty_snapshot"
+  ],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 3,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "Y6pd4T9kehJ2z6yR1ISGs",
+  "iso_self_check": {
+    "snap_current_url": "https://www.reddit.com/r/singularity/",
+    "intended_host": "www.reddit.com",
+    "snap_host": "www.reddit.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 3,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 1763016,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.8500000000000002,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": 5
+}

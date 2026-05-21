@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 8,
+  "n_operations": 1,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "cESl6V84_QK9zXRnGRm-D",
+  "iso_self_check": {
+    "snap_current_url": "https://app.slack.com/client/T03AMKEM4PP/D0AP076TVLN",
+    "intended_host": "app.slack.com",
+    "snap_host": "app.slack.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 361386,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.45,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": 22
+}

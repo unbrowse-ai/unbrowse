@@ -1,0 +1,11 @@
+{
+  "skill": "V-ugzSxDfgDKHR0TD_ufE",
+  "endpoint": "8PHsp5fAXZX1P4Z8nuT9_",
+  "intent": "search rust crates",
+  "context_url": "https://crates.io/search?q=tokio",
+  "params": {
+    "endpoint_id": "8PHsp5fAXZX1P4Z8nuT9_",
+    "url": "https://crates.io/search?q=tokio",
+    "q": "tokio"
+  }
+}

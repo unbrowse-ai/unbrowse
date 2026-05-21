@@ -1,0 +1,10 @@
+{
+  "skill": "o79QxibmeOa9fKdUEdSAJ",
+  "endpoint": "c3M4fqN8-f-WTCXu59CJa",
+  "intent": "get linkedin feed posts",
+  "context_url": "https://www.linkedin.com/feed/",
+  "params": {
+    "endpoint_id": "c3M4fqN8-f-WTCXu59CJa",
+    "url": "https://www.linkedin.com/feed/"
+  }
+}

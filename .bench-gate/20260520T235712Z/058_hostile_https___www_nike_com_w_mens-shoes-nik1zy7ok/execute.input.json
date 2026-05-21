@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "search nike shoes",
+  "context_url": "https://www.nike.com/w/mens-shoes-nik1zy7ok",
+  "params": {},
+  "note": "no_match: execute not run"
+}

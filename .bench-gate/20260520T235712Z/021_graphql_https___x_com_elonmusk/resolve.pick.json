@@ -1,0 +1,549 @@
+{
+  "endpoint_id": "JQczTdyuB3dmnDNNGBPsJ",
+  "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+  "method": "GET",
+  "description": "Returns resource details with relevance score, link, and url",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://x.com/elonmusk",
+  "score": 292,
+  "schema_summary": {
+    "[]": {
+      "type": "string",
+      "data": "array",
+      "relevance_score": "number"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].type",
+    "[].data",
+    "[].relevance_score",
+    "[].data[].link",
+    "[].data[].url",
+    "[].data[].title",
+    "[].data[].image",
+    "[].data[].info"
+  ],
+  "sample_values": {
+    "[].type": "repeated-elements",
+    "[].data[].link": "/elonmusk",
+    "[].data[].url": "/elonmusk",
+    "[].data[].title": "Elon Musk",
+    "[].data[].image": "https://pbs.twimg.com/profile_images/1955359038532653056/OSHY3ewP_bigger.jpg",
+    "[].data[].info": "May 19",
+    "[].relevance_score": 31.5
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://x.com/elonmusk",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "JQczTdyuB3dmnDNNGBPsJ",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns resource details with relevance score, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://x.com/elonmusk",
+      "score": 292,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": "array",
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].link",
+        "[].data[].url",
+        "[].data[].title",
+        "[].data[].image",
+        "[].data[].info"
+      ],
+      "sample_values": {
+        "[].type": "repeated-elements",
+        "[].data[].link": "/elonmusk",
+        "[].data[].url": "/elonmusk",
+        "[].data[].title": "Elon Musk",
+        "[].data[].image": "https://pbs.twimg.com/profile_images/1955359038532653056/OSHY3ewP_bigger.jpg",
+        "[].data[].info": "May 19",
+        "[].relevance_score": 31.5
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://x.com/elonmusk",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "bjuGxuwqFfzX7IUqGuXcZ",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns post details with relevance score, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://x.com/home",
+      "score": 5,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": "array",
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].link",
+        "[].data[].url",
+        "[].data[].title",
+        "[].data[].image"
+      ],
+      "sample_values": {
+        "[].type": "repeated-elements",
+        "[].data[].link": "/yongquanYQ",
+        "[].data[].url": "/yongquanYQ",
+        "[].data[].title": "Yong Quan @ AIE SG",
+        "[].data[].image": "https://abs.twimg.com/emoji/v2/svg/1f1f8-1f1ec.svg",
+        "[].relevance_score": 33.7
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://x.com/home",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "JYLneuh2Su5mur2biecCm",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://api.x.com/1.1/hashflags.json",
+      "score": -221.5,
+      "schema_summary": {
+        "[]": {
+          "hashtag": "string",
+          "starting_timestamp_ms": "integer",
+          "ending_timestamp_ms": "integer",
+          "asset_url": "string",
+          "is_hashfetti_enabled": "boolean"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/i/flow/login?redirect_after_login=%2Fsearch%3Fq%3DAI%2Bagents%26src%3Dtyped_query",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "AZCMLOsU10xoHOLCsQVHY",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns form details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/graphql/36rb3Xj3iJ64Q-9wKDjCcQ/UserTweets?variables={variables}&features={features}&fieldToggles={fi...",
+      "score": -248.8,
+      "schema_summary": {
+        "data": {
+          "user": {
+            "result": "object"
+          }
+        }
+      },
+      "input_params": [
+        {
+          "key": "userId",
+          "type": "string",
+          "required": false,
+          "example": "44196397",
+          "graphql_variables_path": "userId"
+        },
+        {
+          "key": "count",
+          "type": "number",
+          "required": false,
+          "example": 20,
+          "graphql_variables_path": "count"
+        },
+        {
+          "key": "includePromotedContent",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "includePromotedContent"
+        },
+        {
+          "key": "withQuickPromoteEligibilityTweetFields",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "withQuickPromoteEligibilityTweetFields"
+        },
+        {
+          "key": "withVoice",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "withVoice"
+        }
+      ],
+      "description_in": "Requires variables, features, fieldToggles",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/elonmusk",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "b4dqsehcigeW6F5O8PDbq",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/1.1/hashflags.json",
+      "score": -261.5,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/home",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "dkvaJdQMKD12odId3AHT5",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns posts timeline",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/graphql/7zlnp2TxC044W4C1ZUJMHw/HomeTimeline?variables={variables}&features={features}",
+      "score": -284.5,
+      "schema_summary": {
+        "data": {
+          "home": {
+            "home_timeline_urt": "object"
+          }
+        }
+      },
+      "input_params": [
+        {
+          "key": "count",
+          "type": "number",
+          "required": false,
+          "example": 20,
+          "graphql_variables_path": "count"
+        },
+        {
+          "key": "includePromotedContent",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "includePromotedContent"
+        },
+        {
+          "key": "requestContext",
+          "type": "string",
+          "required": false,
+          "example": "launch",
+          "graphql_variables_path": "requestContext"
+        },
+        {
+          "key": "withCommunity",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "withCommunity"
+        }
+      ],
+      "description_in": "Requires variables, features",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/home",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "cCYqmmCK4hG3NmvQRZzNk",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns posts timeline",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/graphql/Yw6L66Pw54NHKuq4Dp7b4Q/SearchTimeline?variables={variables}&features={features}",
+      "score": -291.5,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "rawQuery",
+          "type": "string",
+          "required": false,
+          "example": "AI agents",
+          "graphql_variables_path": "rawQuery"
+        },
+        {
+          "key": "count",
+          "type": "number",
+          "required": false,
+          "example": 20,
+          "graphql_variables_path": "count"
+        },
+        {
+          "key": "querySource",
+          "type": "string",
+          "required": false,
+          "example": "typed_query",
+          "graphql_variables_path": "querySource"
+        },
+        {
+          "key": "product",
+          "type": "string",
+          "required": false,
+          "example": "Top",
+          "graphql_variables_path": "product"
+        },
+        {
+          "key": "withGrokTranslatedBio",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "graphql_variables_path": "withGrokTranslatedBio"
+        },
+        {
+          "key": "withQuickPromoteEligibilityTweetFields",
+          "type": "boolean",
+          "required": false,
+          "example": false,
+          "graphql_variables_path": "withQuickPromoteEligibilityTweetFields"
+        }
+      ],
+      "description_in": "Requires variables, features",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/search?q=AI+agents&src=typed_query",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "9TDZ1YUlKyBSKJu4ahJdm",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns posts timeline with home, cursortype, and entrytype",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/graphql/7zlnp2TxC044W4C1ZUJMHw/HomeTimeline",
+      "score": -334.5,
+      "schema_summary": {
+        "data": {
+          "home": {
+            "home_timeline_urt": "object"
+          }
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data",
+        "data.home",
+        "data.home.home_timeline_urt.instructions[].entries[].content.__typename",
+        "data.home.home_timeline_urt.instructions[].entries[].content.cursorType",
+        "data.home.home_timeline_urt.instructions[].entries[].content.entryType",
+        "data.home.home_timeline_urt.instructions[].entries[].content.value",
+        "data.home.home_timeline_urt.instructions[].entries[].entryId",
+        "data.home.home_timeline_urt.instructions[].entries[].sortIndex",
+        "data.home.home_timeline_urt.instructions[].type",
+        "data.home.home_timeline_urt.metadata.scribeConfig.page",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].key",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.clientEventInfo.action"
+      ],
+      "sample_values": {
+        "data.home.home_timeline_urt.instructions[].entries[].content.value": "DAABCgABHIk1iHsAJuwKAAIAAAAAAAAAAAgAAwAAAAEAAA",
+        "data.home.home_timeline_urt.instructions[].entries[].entryId": "cursor-top-2056233565166763996",
+        "data.home.home_timeline_urt.instructions[].type": "TimelineAddEntries",
+        "data.home.home_timeline_urt.metadata.scribeConfig.page": "for_you",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].key": "13872075502270166857",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.confirmation": "Thanks. You’ll see fewer posts like this.",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.feedbackType": "NotRelevant",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.feedbackUrl": "/2/timeline/feedback.json?feedback_type=NotRelevant&action_metadata=SRwWtofRy...",
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.hasUndoAction": true,
+        "data.home.home_timeline_urt.responseObjects.feedbackActions[].value.prompt": "This post isn’t relevant"
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/home",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "Pm1B3gMoZNmHCUmH5PSOV",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns resource details with broadcasts, 1 ogwbljobpekb, and ids",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/1.1/broadcasts/show.json?ids={ids}&include_events={include_events}",
+      "score": -424.5,
+      "schema_summary": {
+        "broadcasts": {
+          "1OGwbljoBPEKB": {
+            "id": "string",
+            "broadcast_id": "string",
+            "media_key": "string",
+            "media_id": "string",
+            "created_at_ms": "string",
+            "updated_at_ms": "string",
+            "language": "string",
+            "image_url": "string",
+            "image_url_small": "string",
+            "image_url_medium": "string",
+            "status": "string",
+            "available_for_replay": "boolean",
+            "user_id": "string",
+            "twitter_user_id": "string",
+            "user_display_name": "string",
+            "username": "string",
+            "twitter_username": "string",
+            "profile_image_url": "string",
+            "state": "string",
+            "is_locked": "boolean",
+            "friend_chat": "boolean",
+            "has_moderation": "boolean",
+            "height": "integer",
+            "width": "integer",
+            "camera_rotation": "integer",
+            "has_location": "boolean",
+            "lat": "integer",
+            "lng": "integer",
+            "tweet_id": "string",
+            "tweet_external": "boolean",
+            "total_watching": "string",
+            "total_watched": "string",
+            "start_ms": "string",
+            "end_ms": "string",
+            "ping_ms": "string",
+            "unavailable_in_periscope": "boolean",
+            "private_chat": "boolean",
+            "chat_option": "integer",
+            "no_hearts": "boolean",
+            "view_count_graph": "array",
+            "version": "integer"
+          }
+        }
+      },
+      "input_params": [
+        {
+          "key": "ids",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "include_events",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires ids, include_events",
+      "example_fields": [
+        "broadcasts",
+        "broadcasts.1OGwbljoBPEKB",
+        "broadcasts.1OGwbljoBPEKB.id",
+        "broadcasts.1OGwbljoBPEKB.broadcast_id",
+        "broadcasts.1OGwbljoBPEKB.media_key",
+        "broadcasts.1OGwbljoBPEKB.media_id",
+        "broadcasts.1OGwbljoBPEKB.created_at_ms",
+        "broadcasts.1OGwbljoBPEKB.updated_at_ms",
+        "broadcasts.1OGwbljoBPEKB.language",
+        "broadcasts.1OGwbljoBPEKB.image_url"
+      ],
+      "sample_values": {
+        "broadcasts.1OGwbljoBPEKB.id": "1OGwbljoBPEKB",
+        "broadcasts.1OGwbljoBPEKB.broadcast_id": "1OGwbljoBPEKB",
+        "broadcasts.1OGwbljoBPEKB.media_key": "28_2056242614165512192",
+        "broadcasts.1OGwbljoBPEKB.media_id": "2056242614165512192",
+        "broadcasts.1OGwbljoBPEKB.created_at_ms": "1779081417000",
+        "broadcasts.1OGwbljoBPEKB.updated_at_ms": "1779083104351",
+        "broadcasts.1OGwbljoBPEKB.language": "en",
+        "broadcasts.1OGwbljoBPEKB.image_url": "https://prod-fastly-us-east-1.video.pscp.tv/Transcoding/v1/replay_thumbnail/u..."
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/elonmusk",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "oBh_y2hEEslZhgdGtXe7e",
+      "source_skill_id": "jERQ-T3VPZ6YlAzWtedOx",
+      "method": "GET",
+      "description": "Returns resource details with authenticate periscope",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://x.com/i/api/graphql/r7VUmxbfqNkx7uwjgONSNw/AuthenticatePeriscope?variables={variables}",
+      "score": -424.5,
+      "schema_summary": {
+        "data": {
+          "authenticate_periscope": "string"
+        }
+      },
+      "input_params": [
+        {
+          "key": "variables",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires variables",
+      "example_fields": [
+        "data",
+        "data.authenticate_periscope"
+      ],
+      "sample_values": {
+        "data.authenticate_periscope": "eyJraWQiOiIxNjcxOTc2ODU4IiwiYWxnIjoiUlMyNTYifQ.eyJleHAiOjE3NzkxMTk0NDQsInVzZX..."
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://x.com/elonmusk",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

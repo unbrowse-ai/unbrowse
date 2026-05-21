@@ -1,0 +1,10 @@
+{
+  "skill": "K5_NrSRPqNmKrtJFpugdO",
+  "endpoint": "kss9G1JnMCSbr7xGXuH-t",
+  "intent": "get top hacker news stories",
+  "context_url": "https://news.ycombinator.com/",
+  "params": {
+    "endpoint_id": "kss9G1JnMCSbr7xGXuH-t",
+    "url": "https://news.ycombinator.com/"
+  }
+}

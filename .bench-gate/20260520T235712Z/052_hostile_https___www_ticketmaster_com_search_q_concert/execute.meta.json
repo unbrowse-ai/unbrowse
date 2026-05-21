@@ -1,0 +1,23 @@
+{
+  "status_code": 200,
+  "response_bytes": 391434,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "HEAD",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_length": 585738,
+      "ms": 418
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe 200 + html 585738B >= 5000B; renderedness unverified from range probe, server-fetch first (drift or empty falls through to re-capture)"
+    },
+    {
+      "step": "server_fetch",
+      "status": 200
+    }
+  ]
+}

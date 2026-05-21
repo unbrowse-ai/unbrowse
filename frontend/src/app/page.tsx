@@ -252,7 +252,7 @@ export default function Home() {
         {/* ═══ Hero (h1: "Direct access to anything on the web. Without setting up another MCP.") ═══ */}
         <section
           className="relative flex flex-col justify-start overflow-hidden"
-          style={{ minHeight: "90vh" }}
+          style={{ minHeight: "90dvh" }}
         >
           <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center">
             <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">

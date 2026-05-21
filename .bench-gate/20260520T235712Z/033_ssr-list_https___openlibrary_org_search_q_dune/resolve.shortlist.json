@@ -1,0 +1,2185 @@
+{
+  "result": {
+    "message": "Found 7 endpoint(s). Pick one and call POST /v1/skills/W7HhJ6X0AhyrjEqifYyFu/execute with params.endpoint_id.",
+    "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+    "available_operations": [
+      {
+        "operation_id": "mUHEgCCDvgyvGK0DF5M8S",
+        "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+        "description_out": "Returns resource details with partials",
+        "requires": [
+          "data"
+        ],
+        "yields": [
+          "__typename"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "r1a40ETm3uK89an3l5baU",
+        "endpoint_id": "r1a40ETm3uK89an3l5baU",
+        "method": "GET",
+        "action_kind": "search",
+        "resource_kind": "resource",
+        "title": "search resource",
+        "url_template": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_only={has_fulltext_only}&layout={layout}&fallback={fallback}&title={title}",
+        "description_out": "Searches resources",
+        "requires": [
+          "query",
+          "sort",
+          "limit",
+          "search",
+          "has_fulltext_only",
+          "layout",
+          "fallback",
+          "title"
+        ],
+        "yields": [
+          "__typename"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "uDet_DSafo0h5UreIeL3n",
+        "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "description_out": "Returns resource details with link, url, and titles",
+        "requires": [],
+        "yields": [
+          "resource_url",
+          "resource_name"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "intent": "openlibrary books",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "mUHEgCCDvgyvGK0DF5M8S",
+      "operations": [
+        {
+          "operation_id": "mUHEgCCDvgyvGK0DF5M8S",
+          "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+          "description_out": "Returns resource details with partials",
+          "requires": [
+            "data"
+          ],
+          "yields": [
+            "__typename"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "r1a40ETm3uK89an3l5baU",
+          "endpoint_id": "r1a40ETm3uK89an3l5baU",
+          "method": "GET",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "title": "search resource",
+          "url_template": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_only={has_fulltext_only}&layout={layout}&fallback={fallback}&title={title}",
+          "description_out": "Searches resources",
+          "requires": [
+            "query",
+            "sort",
+            "limit",
+            "search",
+            "has_fulltext_only",
+            "layout",
+            "fallback",
+            "title"
+          ],
+          "yields": [
+            "__typename"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "uDet_DSafo0h5UreIeL3n",
+          "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "description_out": "Returns resource details with link, url, and titles",
+          "requires": [],
+          "yields": [
+            "resource_url",
+            "resource_name"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "zOHpxxemM-rUhZAXKMIJZ",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Searches resources with relevance score, link, and url",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://openlibrary.org/search?q={q}",
+        "score": 131.2,
+        "schema_summary": {
+          "[]": {
+            "type": "string",
+            "data": "array",
+            "relevance_score": "integer"
+          }
+        },
+        "input_params": [
+          {
+            "key": "q",
+            "type": "input",
+            "required": true
+          }
+        ],
+        "description_in": "Requires q",
+        "example_fields": [
+          "[].type",
+          "[].data",
+          "[].relevance_score",
+          "[].data[].link",
+          "[].data[].url",
+          "[].data[].title",
+          "[].data[].image"
+        ],
+        "sample_values": {
+          "[].type": "repeated-elements",
+          "[].data[].link": "/search?q=dune&sort=editions",
+          "[].data[].url": "/search?q=dune&sort=editions",
+          "[].data[].title": "Most Editions",
+          "[].data[].image": "/static/images/icons/icon_sort.png",
+          "[].relevance_score": 28
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://openlibrary.org/search?q=dune",
+        "needs_params": true,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Returns resource details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+        "score": -388.4,
+        "schema_summary": {
+          "partials": "string"
+        },
+        "input_params": [
+          {
+            "key": "data",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires data",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "9x3YT6foAUrwmxPkgIf4C",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Page content from openlibrary.org",
+        "description_source": "agent",
+        "description_needs_review": false,
+        "url": "https://openlibrary.org/works/OL45804W",
+        "score": -391,
+        "schema_summary": {
+          "[]": {
+            "link": "string",
+            "url": "string",
+            "title": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].link",
+          "[].url",
+          "[].title"
+        ],
+        "sample_values": {
+          "[].link": "/publishers/Alfaguara",
+          "[].url": "/publishers/Alfaguara",
+          "[].title": "Alfaguara"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://openlibrary.org/works/OL45804W",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "uOqUjy_sRDVm0B3B0RIu5",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Page content from openlibrary.org",
+        "description_source": "agent",
+        "description_needs_review": false,
+        "url": "https://openlibrary.org/works/OL27448W",
+        "score": -391,
+        "schema_summary": {
+          "[]": {
+            "link": "string",
+            "url": "string",
+            "title": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].link",
+          "[].url",
+          "[].title"
+        ],
+        "sample_values": {
+          "[].link": "/publishers/Metis_Yayıncılık",
+          "[].url": "/publishers/Metis_Yayıncılık",
+          "[].title": "Metis Yayıncılık"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://openlibrary.org/works/OL27448W",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "r1a40ETm3uK89an3l5baU",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Searches resources",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_...",
+        "score": -395.6,
+        "schema_summary": null,
+        "input_params": [
+          {
+            "key": "query",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "sort",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "limit",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "search",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "has_fulltext_only",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "layout",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "fallback",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "title",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires query, sort, limit, search, has_fulltext_only, layout, fallback, title",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Returns resource details with link, url, and titles",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "score": -3942.1,
+        "schema_summary": {
+          "[]": {
+            "link": "string",
+            "url": "string",
+            "title": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].link",
+          "[].url",
+          "[].title"
+        ],
+        "sample_values": {
+          "[].link": "/publishers/Alfaguara",
+          "[].url": "/publishers/Alfaguara",
+          "[].title": "Alfaguara"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "3MKEJWTqTfPRIbbje1Saj",
+        "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+        "method": "GET",
+        "description": "Returns resource details with link, url, and titles",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+        "score": -3946.1,
+        "schema_summary": {
+          "[]": {
+            "link": "string",
+            "url": "string",
+            "title": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].link",
+          "[].url",
+          "[].title"
+        ],
+        "sample_values": {
+          "[].link": "/publishers/Metis_Yayıncılık",
+          "[].url": "/publishers/Metis_Yayıncılık",
+          "[].title": "Metis Yayıncılık"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "search openlibrary books",
+      "params": {
+        "url": "https://openlibrary.org/search?q=dune"
+      },
+      "context": {
+        "url": "https://openlibrary.org/search?q=dune"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "openlibrary books",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Page content from openlibrary.org (score: 131.2230920575925)",
+      "known_issues": [],
+      "endpoint_count": 7,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "U9GUBC5QIf1nl_o11DRCB",
+    "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:02:53.934Z",
+    "completed_at": "2026-05-21T00:02:53.934Z",
+    "success": true,
+    "session_id": "56QH0eEJqPPtRFIzPlaNX",
+    "step_index": 1,
+    "state_hash": "9fc064e1428c2553a04f8dff",
+    "candidate_count": 7,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-17T09:10:14.186Z",
+    "updated_at": "2026-05-21T00:01:07.481Z",
+    "name": "openlibrary.org",
+    "intent_signature": "browse openlibrary.org",
+    "domain": "openlibrary.org",
+    "description": "DOM skill for openlibrary.org",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+        "description": "Returns resource details",
+        "headers_template": {},
+        "query": {
+          "data": "{\"args\":[\"El Superzorro\",{\"isbn\":\"9788420431024\",\"asin\":\"8420431028\",\"prices\":true}]}"
+        },
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "partials": {
+              "type": "string",
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "partials"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "proven_recipe": {
+          "method": "GET",
+          "url_template": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+          "headers": {},
+          "response_signal": {
+            "status": 200,
+            "byte_length_min": 826,
+            "byte_length_max": 3304
+          },
+          "captured_at": "2026-05-18T14:45:44.053Z"
+        },
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires data",
+          "description_out": "Returns resource details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {
+            "data": "{\"args\":[\"El Superzorro\",{\"isbn\":\"9788420431024\",\"asin\":\"8420431028\",\"prices\":true}]}"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "AffiliateLinks"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [
+            {
+              "key": "data",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "1779161212499",
+          "sample_request_url": "https://openlibrary.org/partials/AffiliateLinks.json?data=%7B%22args%22%3A%5B%22El+Superzorro%22%2C%7B%22isbn%22%3A%229788420431024%22%2C%22asin%22%3A%228420431028%22%2C%22prices%22%3Atrue%7D%5D%7D",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "r1a40ETm3uK89an3l5baU",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_only={has_fulltext_only}&layout={layout}&fallback={fallback}&title={title}",
+        "description": "Searches resources",
+        "headers_template": {},
+        "query": {
+          "query": "ebook_access:[borrowable TO *] -key:\"/works/OL45804W\" author_key:(OL34184A) language:eng -subject:\"content_warning:cover\"",
+          "sort": "trending,trending_score_hourly_sum",
+          "limit": "12",
+          "search": "false",
+          "has_fulltext_only": "true",
+          "layout": "carousel",
+          "fallback": "false",
+          "title": "More by this author"
+        },
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "semantic": {
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires query, sort, limit, search, has_fulltext_only, layout, fallback, title",
+          "description_out": "Searches resources",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {
+            "query": "ebook_access:[borrowable TO *] -key:\"/works/OL45804W\" author_key:(OL34184A) language:eng -subject:\"content_warning:cover\"",
+            "sort": "trending,trending_score_hourly_sum",
+            "limit": "12",
+            "search": "false",
+            "has_fulltext_only": "true",
+            "layout": "carousel",
+            "fallback": "false",
+            "title": "More by this author"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "LazyCarousel"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [
+            {
+              "key": "query",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "sort",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "limit",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "search",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "has_fulltext_only",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "layout",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "fallback",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "title",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "1779161218037",
+          "sample_request_url": "https://openlibrary.org/partials/LazyCarousel.json?query=ebook_access%3A%5Bborrowable+TO+*%5D+-key%3A%22%2Fworks%2FOL45804W%22+author_key%3A%28OL34184A%29+language%3Aeng+-subject%3A%22content_warning%3Acover%22&sort=trending%2Ctrending_score_hourly_sum&key=related-authors-carousel&limit=12&search=false&has_fulltext_only=true&layout=carousel&fallback=false&title=More+by+this+author",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.9000000000000001,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 2
+              }
+            },
+            "required": [
+              "link",
+              "url",
+              "title"
+            ],
+            "inferred_from_samples": 2
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "repeated-elements",
+          "confidence": 0.7000000000000001,
+          "selector": "div.edition-omniline-item"
+        },
+        "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].link, [].url, [].title",
+          "example_response_compact": [
+            {
+              "link": "/publishers/Alfaguara",
+              "url": "/publishers/Alfaguara",
+              "title": "Alfaguara"
+            },
+            {
+              "link": "/languages/spa",
+              "url": "/languages/spa",
+              "title": "Spanish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-21T00:01:07.203Z",
+          "sample_request_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "zOHpxxemM-rUhZAXKMIJZ",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/search?q={q}",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.63,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 11
+              },
+              "data": {
+                "type": "array",
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "inferred_from_samples": 11
+                  },
+                  {
+                    "type": "object",
+                    "inferred_from_samples": 11
+                  }
+                ],
+                "inferred_from_samples": 11
+              },
+              "relevance_score": {
+                "type": "integer",
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "inferred_from_samples": 11
+                  },
+                  {
+                    "type": "number",
+                    "inferred_from_samples": 11
+                  }
+                ],
+                "inferred_from_samples": 11
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "relevance_score"
+            ],
+            "inferred_from_samples": 11
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "multiple",
+          "confidence": 0.63,
+          "selector": "div.search-results-stats"
+        },
+        "trigger_url": "https://openlibrary.org/search?q=dune",
+        "semantic": {
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires q",
+          "description_out": "Searches resources with relevance score, link, and url",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[].link, [].data[].url, [].data[].title, [].data[].image",
+          "example_response_compact": [
+            {
+              "type": "repeated-elements",
+              "data": [
+                {
+                  "link": "/search?q=dune&sort=editions",
+                  "url": "/search?q=dune&sort=editions",
+                  "title": "Most Editions",
+                  "image": "/static/images/icons/icon_sort.png"
+                },
+                {
+                  "title": "Preview Book",
+                  "heading_1": "Dune",
+                  "heading_2": "My Reading Lists:",
+                  "heading_3": "Create a new list",
+                  "heading_4": "Dune Messiah: Dune Chronicles, Book 2",
+                  "heading_5": "My Reading Lists:",
+                  "heading_6": "Children of Dune (Dune Chronicles, Book 3)",
+                  "heading_7": "My Reading Lists:",
+                  "heading_8": "Heretics of Dune (Dune Chronicles, Book 5)",
+                  "heading_9": "My Reading Lists:",
+                  "heading_10": "God Emperor of Dune (Dune Chronicles, Book 4)",
+                  "heading_11": "My Reading Lists:",
+                  "heading_12": "Chapterhouse, Dune",
+                  "heading_13": "My Reading Lists:",
+                  "heading_14": "Great Dune Trilogy: Dune, Dune Messiah, Children of Dune",
+                  "heading_15": "My Reading Lists:",
+                  "heading_16": "L'herbe Bleue: Journal d'une jeune fille de 15 ans",
+                  "heading_17": "My Reading Lists:",
+                  "heading_18": "House Harkonnen (Dune: House Trilogy, Book 2)",
+                  "heading_19": "My Reading Lists:",
+                  "heading_20": "Sandworms of dune",
+                  "heading_21": "My Reading Lists:",
+                  "heading_22": "The Butlerian Jihad (Legends of Dune, Book 1)",
+                  "heading_23": "My Reading Lists:",
+                  "heading_24": "Navigators of Dune",
+                  "heading_25": "My Reading Lists:",
+                  "heading_26": "Hunters of Dune",
+                  "heading_27": "My Reading Lists:",
+                  "heading_28": "Mémoires d'une jeune fille rangée",
+                  "heading_29": "My Reading Lists:",
+                  "heading_30": "Das Haus an der Düne",
+                  "heading_31": "My Reading Lists:",
+                  "heading_32": "L'ombre d'une reine",
+                  "heading_33": "My Reading Lists:",
+                  "heading_34": "House Corrino: Dune",
+                  "heading_35": "My Reading Lists:",
+                  "heading_36": "Passion d'une nuit d'ete",
+                  "heading_37": "My Reading Lists:",
+                  "heading_38": "Dune: House Atreides",
+                  "heading_39": "My Reading Lists:",
+                  "heading_40": "The Woman in the Dunes",
+                  "heading_41": "My Reading Lists:",
+                  "heading_42": "Zoom In",
+                  "heading_43": "eBook?",
+                  "heading_44": "Language",
+                  "heading_45": "Author",
+                  "heading_46": "Subjects",
+                  "heading_47": "First published",
+                  "heading_48": "Publisher",
+                  "heading_49": "People",
+                  "heading_50": "Places",
+                  "heading_51": "Times",
+                  "link": "/works/OL893415W/Dune?edition=key%3A/books/OL26242482M",
+                  "url": "/works/OL893415W/Dune?edition=key%3A/books/OL26242482M",
+                  "image": "//covers.openlibrary.org/b/id/15092781-M.jpg",
+                  "description": "My Reading Lists:",
+                  "rating": "4.3",
+                  "author": "by Frank Herbert"
+                }
+              ],
+              "relevance_score": 28
+            },
+            {
+              "type": "repeated-elements",
+              "data": [
+                {
+                  "link": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "url": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "image": "//archive.org/services/img/illustrateddune00fran"
+                },
+                {
+                  "link": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "url": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "image": "//archive.org/services/img/illustrateddune00fran"
+                }
+              ],
+              "relevance_score": 19
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[].link",
+            "[].data[].url",
+            "[].data[].title",
+            "[].data[].image"
+          ],
+          "requires": [
+            {
+              "key": "q",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T02:28:36.518Z",
+          "sample_request_url": "https://openlibrary.org/search?q=dune",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "3MKEJWTqTfPRIbbje1Saj",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.8,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 2
+              }
+            },
+            "required": [
+              "link",
+              "url",
+              "title"
+            ],
+            "inferred_from_samples": 2
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "repeated-elements",
+          "confidence": 0.8,
+          "selector": "div.edition-omniline-item"
+        },
+        "trigger_url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].link, [].url, [].title",
+          "example_response_compact": [
+            {
+              "link": "/publishers/Metis_Yayıncılık",
+              "url": "/publishers/Metis_Yayıncılık",
+              "title": "Metis Yayıncılık"
+            },
+            {
+              "link": "/languages/tur",
+              "url": "/languages/tur",
+              "title": "Turkish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:16:27.807Z",
+          "sample_request_url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "9x3YT6foAUrwmxPkgIf4C",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/works/OL45804W",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.8,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 2
+              }
+            },
+            "required": [
+              "link",
+              "url",
+              "title"
+            ],
+            "inferred_from_samples": 2
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "repeated-elements",
+          "confidence": 0.8,
+          "selector": "div.edition-omniline-item"
+        },
+        "trigger_url": "https://openlibrary.org/works/OL45804W",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Page content from openlibrary.org",
+          "description_source": "agent",
+          "description_needs_review": false,
+          "response_summary": "[].link, [].url, [].title",
+          "example_response_compact": [
+            {
+              "link": "/publishers/Alfaguara",
+              "url": "/publishers/Alfaguara",
+              "title": "Alfaguara"
+            },
+            {
+              "link": "/languages/spa",
+              "url": "/languages/spa",
+              "title": "Spanish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T10:58:06.556Z",
+          "sample_request_url": "https://openlibrary.org/works/OL45804W",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "uOqUjy_sRDVm0B3B0RIu5",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/works/OL27448W",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.8,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "url": {
+                "type": "string",
+                "inferred_from_samples": 2
+              },
+              "title": {
+                "type": "string",
+                "inferred_from_samples": 2
+              }
+            },
+            "required": [
+              "link",
+              "url",
+              "title"
+            ],
+            "inferred_from_samples": 2
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "repeated-elements",
+          "confidence": 0.8,
+          "selector": "div.edition-omniline-item"
+        },
+        "trigger_url": "https://openlibrary.org/works/OL27448W",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Page content from openlibrary.org",
+          "description_source": "agent",
+          "description_needs_review": false,
+          "response_summary": "[].link, [].url, [].title",
+          "example_response_compact": [
+            {
+              "link": "/publishers/Metis_Yayıncılık",
+              "url": "/publishers/Metis_Yayıncılık",
+              "title": "Metis Yayıncılık"
+            },
+            {
+              "link": "/languages/tur",
+              "url": "/languages/tur",
+              "title": "Turkish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T10:58:06.596Z",
+          "sample_request_url": "https://openlibrary.org/works/OL27448W",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "gHdccW4PI1aDb1PDR0vOn",
+        "method": "GET",
+        "url_template": "https://openlibrary.org/verify_human?next={next}",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from openlibrary.org",
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "description": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "url": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "headings": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "inferred_from_samples": 6
+              },
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "title",
+            "description",
+            "url",
+            "headings"
+          ],
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "html_metadata_fallback",
+          "confidence": 0.4
+        },
+        "trigger_url": "https://openlibrary.org/verify_human?next=/works/OL45804W/Fantastic_Mr_Fox",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires next",
+          "description_out": "Returns resource details with titles, descriptions, and url",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "title, description, url, headings, headings[]",
+          "example_response_compact": {
+            "title": "Human Verification | Open Library",
+            "description": "Open Library is an open, editable library catalog, building towards a web page for every book ever published. Read, borrow, and discover more than 3M books f...",
+            "url": "https://openlibrary.org/verify_human?next=%2Fworks%2FOL45804W%2FFantastic_Mr_Fox",
+            "headings": [
+              "Human Verification",
+              "Open Library"
+            ]
+          },
+          "example_fields": [
+            "title",
+            "description",
+            "url",
+            "headings",
+            "headings[]"
+          ],
+          "requires": [
+            {
+              "key": "next",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:15:44.098Z",
+          "sample_request_url": "https://openlibrary.org/verify_human?next=/works/OL45804W/Fantastic_Mr_Fox",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-21T00:01:12.366Z",
+      "entry_operation_ids": [
+        "mUHEgCCDvgyvGK0DF5M8S",
+        "r1a40ETm3uK89an3l5baU",
+        "uDet_DSafo0h5UreIeL3n",
+        "3MKEJWTqTfPRIbbje1Saj",
+        "9x3YT6foAUrwmxPkgIf4C",
+        "uOqUjy_sRDVm0B3B0RIu5"
+      ],
+      "operations": [
+        {
+          "operation_id": "mUHEgCCDvgyvGK0DF5M8S",
+          "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+          "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires data",
+          "description_out": "Returns resource details with partials",
+          "response_summary": "partials, data.__typename",
+          "requires": [
+            {
+              "key": "data",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "data": "{\"args\":[\"El Superzorro\",{\"isbn\":\"9788420431024\",\"asin\":\"8420431028\",\"prices\":true}]}"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "AffiliateLinks"
+            }
+          },
+          "example_fields": [
+            "partials",
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779161212499",
+          "auth_required": false
+        },
+        {
+          "operation_id": "r1a40ETm3uK89an3l5baU",
+          "endpoint_id": "r1a40ETm3uK89an3l5baU",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_only={has_fulltext_only}&layout={layout}&fallback={fallback}&title={title}",
+          "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires query, sort, limit, search, has_fulltext_only, layout, fallback, title",
+          "description_out": "Searches resources",
+          "response_summary": "data.__typename",
+          "requires": [
+            {
+              "key": "query",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "sort",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "limit",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "search",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "has_fulltext_only",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "layout",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "fallback",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            },
+            {
+              "key": "title",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T05:30:49.189Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "query": "ebook_access:[borrowable TO *] -key:\"/works/OL45804W\" author_key:(OL34184A) language:eng -subject:\"content_warning:cover\"",
+            "sort": "trending,trending_score_hourly_sum",
+            "limit": "12",
+            "search": "false",
+            "has_fulltext_only": "true",
+            "layout": "carousel",
+            "fallback": "false",
+            "title": "More by this author"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "LazyCarousel"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779161218037",
+          "auth_required": false
+        },
+        {
+          "operation_id": "uDet_DSafo0h5UreIeL3n",
+          "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "response_summary": "[].link, [].url, [].title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "link": "/publishers/Alfaguara",
+              "url": "/publishers/Alfaguara",
+              "title": "Alfaguara"
+            },
+            {
+              "link": "/languages/spa",
+              "url": "/languages/spa",
+              "title": "Spanish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-21T00:01:07.203Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "zOHpxxemM-rUhZAXKMIJZ",
+          "endpoint_id": "zOHpxxemM-rUhZAXKMIJZ",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/search?q={q}",
+          "trigger_url": "https://openlibrary.org/search?q=dune",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires q",
+          "description_out": "Searches resources with relevance score, link, and url",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[].link, [].data[].url, [].data[].title, [].data[].image",
+          "requires": [
+            {
+              "key": "q",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "type": "repeated-elements",
+              "data": [
+                {
+                  "link": "/search?q=dune&sort=editions",
+                  "url": "/search?q=dune&sort=editions",
+                  "title": "Most Editions",
+                  "image": "/static/images/icons/icon_sort.png"
+                },
+                {
+                  "title": "Preview Book",
+                  "heading_1": "Dune",
+                  "heading_2": "My Reading Lists:",
+                  "heading_3": "Create a new list",
+                  "heading_4": "Dune Messiah: Dune Chronicles, Book 2",
+                  "heading_5": "My Reading Lists:",
+                  "heading_6": "Children of Dune (Dune Chronicles, Book 3)",
+                  "heading_7": "My Reading Lists:",
+                  "heading_8": "Heretics of Dune (Dune Chronicles, Book 5)",
+                  "heading_9": "My Reading Lists:",
+                  "heading_10": "God Emperor of Dune (Dune Chronicles, Book 4)",
+                  "heading_11": "My Reading Lists:",
+                  "heading_12": "Chapterhouse, Dune",
+                  "heading_13": "My Reading Lists:",
+                  "heading_14": "Great Dune Trilogy: Dune, Dune Messiah, Children of Dune",
+                  "heading_15": "My Reading Lists:",
+                  "heading_16": "L'herbe Bleue: Journal d'une jeune fille de 15 ans",
+                  "heading_17": "My Reading Lists:",
+                  "heading_18": "House Harkonnen (Dune: House Trilogy, Book 2)",
+                  "heading_19": "My Reading Lists:",
+                  "heading_20": "Sandworms of dune",
+                  "heading_21": "My Reading Lists:",
+                  "heading_22": "The Butlerian Jihad (Legends of Dune, Book 1)",
+                  "heading_23": "My Reading Lists:",
+                  "heading_24": "Navigators of Dune",
+                  "heading_25": "My Reading Lists:",
+                  "heading_26": "Hunters of Dune",
+                  "heading_27": "My Reading Lists:",
+                  "heading_28": "Mémoires d'une jeune fille rangée",
+                  "heading_29": "My Reading Lists:",
+                  "heading_30": "Das Haus an der Düne",
+                  "heading_31": "My Reading Lists:",
+                  "heading_32": "L'ombre d'une reine",
+                  "heading_33": "My Reading Lists:",
+                  "heading_34": "House Corrino: Dune",
+                  "heading_35": "My Reading Lists:",
+                  "heading_36": "Passion d'une nuit d'ete",
+                  "heading_37": "My Reading Lists:",
+                  "heading_38": "Dune: House Atreides",
+                  "heading_39": "My Reading Lists:",
+                  "heading_40": "The Woman in the Dunes",
+                  "heading_41": "My Reading Lists:",
+                  "heading_42": "Zoom In",
+                  "heading_43": "eBook?",
+                  "heading_44": "Language",
+                  "heading_45": "Author",
+                  "heading_46": "Subjects",
+                  "heading_47": "First published",
+                  "heading_48": "Publisher",
+                  "heading_49": "People",
+                  "heading_50": "Places",
+                  "heading_51": "Times",
+                  "link": "/works/OL893415W/Dune?edition=key%3A/books/OL26242482M",
+                  "url": "/works/OL893415W/Dune?edition=key%3A/books/OL26242482M",
+                  "image": "//covers.openlibrary.org/b/id/15092781-M.jpg",
+                  "description": "My Reading Lists:",
+                  "rating": "4.3",
+                  "author": "by Frank Herbert"
+                }
+              ],
+              "relevance_score": 28
+            },
+            {
+              "type": "repeated-elements",
+              "data": [
+                {
+                  "link": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "url": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "image": "//archive.org/services/img/illustrateddune00fran"
+                },
+                {
+                  "link": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "url": "/works/OL893415W/Dune?edition=ia:illustrateddune00fran",
+                  "image": "//archive.org/services/img/illustrateddune00fran"
+                }
+              ],
+              "relevance_score": 19
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[].link",
+            "[].data[].url",
+            "[].data[].title",
+            "[].data[].image"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T02:28:36.518Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "3MKEJWTqTfPRIbbje1Saj",
+          "endpoint_id": "3MKEJWTqTfPRIbbje1Saj",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+          "trigger_url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with link, url, and titles",
+          "response_summary": "[].link, [].url, [].title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "link": "/publishers/Metis_Yayıncılık",
+              "url": "/publishers/Metis_Yayıncılık",
+              "title": "Metis Yayıncılık"
+            },
+            {
+              "link": "/languages/tur",
+              "url": "/languages/tur",
+              "title": "Turkish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:16:27.807Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "9x3YT6foAUrwmxPkgIf4C",
+          "endpoint_id": "9x3YT6foAUrwmxPkgIf4C",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/works/OL45804W",
+          "trigger_url": "https://openlibrary.org/works/OL45804W",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Page content from openlibrary.org",
+          "response_summary": "[].link, [].url, [].title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "link": "/publishers/Alfaguara",
+              "url": "/publishers/Alfaguara",
+              "title": "Alfaguara"
+            },
+            {
+              "link": "/languages/spa",
+              "url": "/languages/spa",
+              "title": "Spanish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T10:58:06.556Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "uOqUjy_sRDVm0B3B0RIu5",
+          "endpoint_id": "uOqUjy_sRDVm0B3B0RIu5",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/works/OL27448W",
+          "trigger_url": "https://openlibrary.org/works/OL27448W",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Page content from openlibrary.org",
+          "response_summary": "[].link, [].url, [].title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "link": "/publishers/Metis_Yayıncılık",
+              "url": "/publishers/Metis_Yayıncılık",
+              "title": "Metis Yayıncılık"
+            },
+            {
+              "link": "/languages/tur",
+              "url": "/languages/tur",
+              "title": "Turkish"
+            }
+          ],
+          "example_fields": [
+            "[].link",
+            "[].url",
+            "[].title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T10:58:06.596Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "gHdccW4PI1aDb1PDR0vOn",
+          "endpoint_id": "gHdccW4PI1aDb1PDR0vOn",
+          "method": "GET",
+          "url_template": "https://openlibrary.org/verify_human?next={next}",
+          "trigger_url": "https://openlibrary.org/verify_human?next=/works/OL45804W/Fantastic_Mr_Fox",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires next",
+          "description_out": "Returns resource details with titles, descriptions, and url",
+          "response_summary": "title, description, url, headings, headings[]",
+          "requires": [
+            {
+              "key": "next",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": {
+            "title": "Human Verification | Open Library",
+            "description": "Open Library is an open, editable library catalog, building towards a web page for every book ever published. Read, borrow, and discover more than 3M books f...",
+            "url": "https://openlibrary.org/verify_human?next=%2Fworks%2FOL45804W%2FFantastic_Mr_Fox",
+            "headings": [
+              "Human Verification",
+              "Open Library"
+            ]
+          },
+          "example_fields": [
+            "title",
+            "description",
+            "url",
+            "headings",
+            "headings[]"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:15:44.098Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "browse openlibrary.org"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 4,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 4,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21996,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 4,
+    "time_saved_ms": 21996,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "zOHpxxemM-rUhZAXKMIJZ",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Searches resources with relevance score, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://openlibrary.org/search?q={q}",
+      "score": 131.2,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": "array",
+          "relevance_score": "integer"
+        }
+      },
+      "input_params": [
+        {
+          "key": "q",
+          "type": "input",
+          "required": true
+        }
+      ],
+      "description_in": "Requires q",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].link",
+        "[].data[].url",
+        "[].data[].title",
+        "[].data[].image"
+      ],
+      "sample_values": {
+        "[].type": "repeated-elements",
+        "[].data[].link": "/search?q=dune&sort=editions",
+        "[].data[].url": "/search?q=dune&sort=editions",
+        "[].data[].title": "Most Editions",
+        "[].data[].image": "/static/images/icons/icon_sort.png",
+        "[].relevance_score": 28
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://openlibrary.org/search?q=dune",
+      "needs_params": true,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "mUHEgCCDvgyvGK0DF5M8S",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://openlibrary.org/partials/AffiliateLinks.json?data={data}",
+      "score": -388.4,
+      "schema_summary": {
+        "partials": "string"
+      },
+      "input_params": [
+        {
+          "key": "data",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires data",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "9x3YT6foAUrwmxPkgIf4C",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Page content from openlibrary.org",
+      "description_source": "agent",
+      "description_needs_review": false,
+      "url": "https://openlibrary.org/works/OL45804W",
+      "score": -391,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title"
+      ],
+      "sample_values": {
+        "[].link": "/publishers/Alfaguara",
+        "[].url": "/publishers/Alfaguara",
+        "[].title": "Alfaguara"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://openlibrary.org/works/OL45804W",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "uOqUjy_sRDVm0B3B0RIu5",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Page content from openlibrary.org",
+      "description_source": "agent",
+      "description_needs_review": false,
+      "url": "https://openlibrary.org/works/OL27448W",
+      "score": -391,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title"
+      ],
+      "sample_values": {
+        "[].link": "/publishers/Metis_Yayıncılık",
+        "[].url": "/publishers/Metis_Yayıncılık",
+        "[].title": "Metis Yayıncılık"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://openlibrary.org/works/OL27448W",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "r1a40ETm3uK89an3l5baU",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Searches resources",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://openlibrary.org/partials/LazyCarousel.json?query={query}&sort={sort}&limit={limit}&search={search}&has_fulltext_...",
+      "score": -395.6,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "query",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "sort",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "limit",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "search",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "has_fulltext_only",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "layout",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "fallback",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "title",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires query, sort, limit, search, has_fulltext_only, layout, fallback, title",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "uDet_DSafo0h5UreIeL3n",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+      "score": -3942.1,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title"
+      ],
+      "sample_values": {
+        "[].link": "/publishers/Alfaguara",
+        "[].url": "/publishers/Alfaguara",
+        "[].title": "Alfaguara"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "3MKEJWTqTfPRIbbje1Saj",
+      "source_skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+      "method": "GET",
+      "description": "Returns resource details with link, url, and titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+      "score": -3946.1,
+      "schema_summary": {
+        "[]": {
+          "link": "string",
+          "url": "string",
+          "title": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].link",
+        "[].url",
+        "[].title"
+      ],
+      "sample_values": {
+        "[].link": "/publishers/Metis_Yayıncılık",
+        "[].url": "/publishers/Metis_Yayıncılık",
+        "[].title": "Metis Yayıncılık"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://openlibrary.org/works/OL27448W/The_Lord_of_the_Rings",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}
