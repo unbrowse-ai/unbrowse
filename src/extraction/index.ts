@@ -2604,6 +2604,132 @@ function scoreEmptyContainerDemotion(structure: ExtractedStructure): number {
   return looksLikeEmptyContainer(structure.data) ? -200 : 0;
 }
 
+// ---------------------------------------------------------------------------
+// looksLikeTinyContentReadResult
+// ---------------------------------------------------------------------------
+// Structural primitive for the EXECUTE-return gate (companion to the
+// scoreEmptyContainerDemotion RANK-time gate). When an extraction yielded
+// a tiny meta-only envelope (just `title`, `url`, `site_name`, etc.)
+// for a content-read intent (LIST_INTENT / DETAIL_INTENT), the substrate
+// must NOT claim success — the agent asked for content, the page-meta
+// envelope is a fallback shape, not the data.
+//
+// Live regressions from .bench-gate/20260521T010031Z:
+//   - 018/019 openlibrary.org/works/OLxxxxxW (DETAIL): returned
+//     151/181-byte `[{title:"Alfaguara"},{title:"Spanish"}]` — two
+//     publisher/language chips, no book content.
+//   - 025 instagram.com/reels/ (LIST): returned 21-byte `{title:"Instagram"}`
+//   - 029 beatsaver.com/?q=camellia (LIST): returned 55-byte
+//     `{title:"BeatSaver.com",url:"..."}`
+//
+// Detection rule (all-of):
+//   1. JSON-serialized payload < 300 bytes
+//   2. AND total string-leaf character count < 120 (so a single
+//      genuinely-content card like {title, description, body, url}
+//      with a real description survives)
+//   3. AND no content-bearing field (description / body / summary /
+//      content / abstract with >=40 chars) — sparse-but-rich cards
+//      that explicitly carry text survive even when compact
+//   4. AND intent matches LIST_INTENT or DETAIL_INTENT (the gate is
+//      content-read scoped; a status-check intent legitimately gets
+//      `{result:"ok"}`)
+//
+// Notably: arrays of 2+ records are NOT spared by count alone, because
+// the openlibrary chip-ribbon ([{title:"Alfaguara"},{title:"Spanish"}])
+// is structurally a 2-element array that nonetheless carries no real
+// content — every "row" is a single short string.
+//
+// Derived from existing demotion family, no new magic numbers invented
+// without grounding. The 300-byte / 120-char floors are calibrated
+// against the four live failure artifacts above (largest was 181B with
+// ~50 string-leaf chars; smallest legitimate single-card content card
+// observed in pass artifacts is ~250B with ~150 string-leaf chars).
+//
+// LIST_INTENT/DETAIL_INTENT regex must stay aligned with src/execution
+// counterparts (see comment there). Duplicated rather than imported to
+// keep extraction/ free of execution/ deps.
+const TINY_RESULT_LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse|tags|versions|releases|packages|images|repositories|results|items|posts|articles|threads|reviews|products|listings|stories|videos|tweets|episodes|reels|feed|maps|works|books)\b/i;
+const TINY_RESULT_DETAIL_INTENT = /\b(get|fetch|view|read|show|details?|info|metadata|abstract|article|profile|work|book|page|post)\b/i;
+
+export function looksLikeTinyContentReadResult(
+  data: unknown,
+  intent: string | undefined,
+): { tiny: boolean; reason?: string; bytes: number; stringLeafChars: number } {
+  if (data == null) return { tiny: false, bytes: 0, stringLeafChars: 0 };
+  const lower = (intent ?? "").toLowerCase();
+  const isContentRead =
+    TINY_RESULT_LIST_INTENT.test(lower) || TINY_RESULT_DETAIL_INTENT.test(lower);
+  if (!isContentRead) return { tiny: false, bytes: 0, stringLeafChars: 0 };
+
+  let serialized = "";
+  try {
+    serialized = JSON.stringify(data);
+  } catch {
+    return { tiny: false, bytes: 0, stringLeafChars: 0 };
+  }
+  const bytes = serialized.length;
+  if (bytes >= 300) return { tiny: false, bytes, stringLeafChars: 0 };
+
+  // Count string-leaf characters (the actual content density).
+  let stringLeafChars = 0;
+  const walk = (node: unknown): void => {
+    if (node == null) return;
+    if (typeof node === "string") {
+      stringLeafChars += node.length;
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const e of node) walk(e);
+      return;
+    }
+    if (typeof node === "object") {
+      for (const v of Object.values(node as Record<string, unknown>)) walk(v);
+    }
+  };
+  walk(data);
+
+  if (stringLeafChars >= 120) {
+    return { tiny: false, bytes, stringLeafChars };
+  }
+
+  // Final check: if records carry content-bearing fields (description /
+  // body / summary / text / content / abstract), spare them — a sparse
+  // real card with rich text is legitimate even when compact.
+  const hasContentField = (() => {
+    const CONTENT_KEYS = /^(description|body|summary|text|content|abstract|excerpt|snippet|caption)$/i;
+    let found = false;
+    const checkObj = (obj: Record<string, unknown>): void => {
+      for (const [k, v] of Object.entries(obj)) {
+        if (CONTENT_KEYS.test(k) && typeof v === "string" && v.length >= 40) {
+          found = true;
+          return;
+        }
+      }
+    };
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          checkObj(item as Record<string, unknown>);
+          if (found) return true;
+        }
+      }
+    } else if (typeof data === "object") {
+      checkObj(data as Record<string, unknown>);
+    }
+    return found;
+  })();
+  if (hasContentField) {
+    return { tiny: false, bytes, stringLeafChars };
+  }
+
+  return {
+    tiny: true,
+    reason: `tiny_extraction bytes=${bytes} string_leaf_chars=${stringLeafChars}`,
+    bytes,
+    stringLeafChars,
+  };
+}
+
 
 // ---------------------------------------------------------------------------
 // extractFromDOM
