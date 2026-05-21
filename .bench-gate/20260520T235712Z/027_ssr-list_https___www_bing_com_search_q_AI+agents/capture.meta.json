@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 8,
+  "n_operations": 5,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 1,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+  "iso_self_check": {
+    "snap_current_url": "https://www.bing.com/search?q=AI+agents",
+    "intended_host": "www.bing.com",
+    "snap_host": "www.bing.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 1,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 855594,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.35,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": null
+}

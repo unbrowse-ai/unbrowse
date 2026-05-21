@@ -1,0 +1,10 @@
+{
+  "skill": "jERQ-T3VPZ6YlAzWtedOx",
+  "endpoint": "dkvaJdQMKD12odId3AHT5",
+  "intent": "get x home timeline with cookies",
+  "context_url": "https://x.com/home",
+  "params": {
+    "endpoint_id": "dkvaJdQMKD12odId3AHT5",
+    "url": "https://x.com/home"
+  }
+}

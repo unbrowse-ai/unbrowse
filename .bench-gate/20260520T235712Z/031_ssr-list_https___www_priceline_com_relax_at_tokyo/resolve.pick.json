@@ -1,0 +1,82 @@
+{
+  "endpoint_id": "_BYmBemor4bYNcdMB4o2N",
+  "source_skill_id": "9gtbgELB8cg-QVUJgoMda",
+  "method": "GET",
+  "description": "Returns resource details with titles and descriptions",
+  "description_source": "auto",
+  "description_needs_review": false,
+  "url": "https://www.priceline.com/relax/at/tokyo",
+  "score": 319,
+  "schema_summary": {
+    "title": "string",
+    "description": "string"
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "title",
+    "description"
+  ],
+  "sample_values": {
+    "title": "Access to this page has been denied",
+    "description": "px-captcha"
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://www.priceline.com/relax/at/tokyo",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 0,
+  "picked_from": [
+    {
+      "endpoint_id": "_BYmBemor4bYNcdMB4o2N",
+      "source_skill_id": "9gtbgELB8cg-QVUJgoMda",
+      "method": "GET",
+      "description": "Returns resource details with titles and descriptions",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.priceline.com/relax/at/tokyo",
+      "score": 319,
+      "schema_summary": {
+        "title": "string",
+        "description": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title",
+        "description"
+      ],
+      "sample_values": {
+        "title": "Access to this page has been denied",
+        "description": "px-captcha"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.priceline.com/relax/at/tokyo",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "Lg0-SPgHmIWKDUo5uz8rC",
+      "source_skill_id": "9gtbgELB8cg-QVUJgoMda",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://www.priceline.com/9aTjSd0n/xhr/assets/js/bundle",
+      "score": -6957,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://www.priceline.com/relax/at/tokyo",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "result": {
+    "status": "resolve_hard_handoff",
+    "message": "No cached API available for this intent on www.bing.com. For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing), try `unbrowse fetch https://www.bing.com/search?q=AI+agents` to get the page HTML and extract client-side. Otherwise drive a browser session interactively (snap/click/fill).",
+    "domain": "www.bing.com",
+    "suggested_next_action": "unbrowse fetch https://www.bing.com/search?q=AI+agents",
+    "commands": [
+      "unbrowse fetch https://www.bing.com/search?q=AI+agents",
+      "unbrowse snap --filter interactive",
+      "unbrowse click <ref>",
+      "unbrowse fill <ref> <value>",
+      "unbrowse press Enter",
+      "unbrowse text",
+      "unbrowse close"
+    ],
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "No endpoints on www.bing.com matched intent \"bing for ai agents\"",
+      "known_issues": [
+        "All 8 cached endpoints failed intent relevance check"
+      ],
+      "endpoint_count": 0,
+      "cache_source": "marketplace"
+    },
+    "available_endpoints": [
+      {
+        "endpoint_id": "BUXScL3u1_YmBqkn8aEWC",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/v1/carousel?format={format}&ecount={ecount}&efirst={efirst}",
+        "description": "Returns message status with titles, statuscode, and statusmessage",
+        "score": -147.02002049814078,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "QCvVQBx_ZU6_r_wYyZp9-",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/fd/ls/l?IG={IG}&CID={CID}&Type={Type}&DATA={DATA}&P={P}&DA={DA}&dl={dl}",
+        "description": "Returns resource details",
+        "score": -155.45396500224211,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "zg3GIJy8wW420UJsV9bpR",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/model",
+        "description": "Returns setting details with clientsettings, pn, and sc",
+        "score": -196.12848946738254,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "MkXacR8fRZgRl4dbjmvNr",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/ipv6test/test?FORM={FORM}",
+        "description": "Returns form details",
+        "score": -560.3024307721726,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "x-JRqOhwpyblEAm2Hazij",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/images/sbi?mmasync={mmasync}&ptn={ptn}&IID={IID}&IG={IG}",
+        "description": "Returns resource details",
+        "score": -560.3817375642589,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "available_operations": [
+      {
+        "endpoint_id": "BUXScL3u1_YmBqkn8aEWC",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/v1/carousel?format={format}&ecount={ecount}&efirst={efirst}",
+        "description": "Returns message status with titles, statuscode, and statusmessage",
+        "score": -147.02002049814078,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "QCvVQBx_ZU6_r_wYyZp9-",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/fd/ls/l?IG={IG}&CID={CID}&Type={Type}&DATA={DATA}&P={P}&DA={DA}&dl={dl}",
+        "description": "Returns resource details",
+        "score": -155.45396500224211,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "zg3GIJy8wW420UJsV9bpR",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/model",
+        "description": "Returns setting details with clientsettings, pn, and sc",
+        "score": -196.12848946738254,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "MkXacR8fRZgRl4dbjmvNr",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/ipv6test/test?FORM={FORM}",
+        "description": "Returns form details",
+        "score": -560.3024307721726,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "x-JRqOhwpyblEAm2Hazij",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/images/sbi?mmasync={mmasync}&ptn={ptn}&IID={IID}&IG={IG}",
+        "description": "Returns resource details",
+        "score": -560.3817375642589,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "shortlist_for_judgment": [
+      {
+        "endpoint_id": "BUXScL3u1_YmBqkn8aEWC",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/v1/carousel?format={format}&ecount={ecount}&efirst={efirst}",
+        "description": "Returns message status with titles, statuscode, and statusmessage",
+        "score": -147.02002049814078,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "QCvVQBx_ZU6_r_wYyZp9-",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/fd/ls/l?IG={IG}&CID={CID}&Type={Type}&DATA={DATA}&P={P}&DA={DA}&dl={dl}",
+        "description": "Returns resource details",
+        "score": -155.45396500224211,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "zg3GIJy8wW420UJsV9bpR",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/model",
+        "description": "Returns setting details with clientsettings, pn, and sc",
+        "score": -196.12848946738254,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "MkXacR8fRZgRl4dbjmvNr",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/ipv6test/test?FORM={FORM}",
+        "description": "Returns form details",
+        "score": -560.3024307721726,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "x-JRqOhwpyblEAm2Hazij",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/images/sbi?mmasync={mmasync}&ptn={ptn}&IID={IID}&IG={IG}",
+        "description": "Returns resource details",
+        "score": -560.3817375642589,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "agent_facing_shortlist": [
+      {
+        "endpoint_id": "BUXScL3u1_YmBqkn8aEWC",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/v1/carousel?format={format}&ecount={ecount}&efirst={efirst}",
+        "description": "Returns message status with titles, statuscode, and statusmessage",
+        "score": -147.02002049814078,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "QCvVQBx_ZU6_r_wYyZp9-",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/fd/ls/l?IG={IG}&CID={CID}&Type={Type}&DATA={DATA}&P={P}&DA={DA}&dl={dl}",
+        "description": "Returns resource details",
+        "score": -155.45396500224211,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "zg3GIJy8wW420UJsV9bpR",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/hp/api/model",
+        "description": "Returns setting details with clientsettings, pn, and sc",
+        "score": -196.12848946738254,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "MkXacR8fRZgRl4dbjmvNr",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/ipv6test/test?FORM={FORM}",
+        "description": "Returns form details",
+        "score": -560.3024307721726,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      },
+      {
+        "endpoint_id": "x-JRqOhwpyblEAm2Hazij",
+        "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+        "method": "GET",
+        "url_template": "https://www.bing.com/images/sbi?mmasync={mmasync}&ptn={ptn}&IID={IID}&IG={IG}",
+        "description": "Returns resource details",
+        "score": -560.3817375642589,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "judgment_question": "Ranker handed off all 8 endpoints as low-confidence for intent \"bing for ai agents\". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action."
+  },
+  "trace": {
+    "trace_id": "_dUwGkqin3oxsObkQxJyM",
+    "skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:04:09.102Z",
+    "completed_at": "2026-05-21T00:04:09.102Z",
+    "success": true,
+    "session_id": "FsPVl4HB2g5H_FK87Ihhx",
+    "step_index": 1,
+    "state_hash": "3139a18b99a0cb7116c62065",
+    "candidate_count": 7,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "deferral",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 4,
+    "source": "deferral",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 2,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 4,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "deferral",
+    "actual_cost_uc": 3
+  },
+  "impact": {
+    "source": "deferral",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "actual_total_ms": 4,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 3
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "BUXScL3u1_YmBqkn8aEWC",
+      "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+      "method": "GET",
+      "url_template": "https://www.bing.com/hp/api/v1/carousel?format={format}&ecount={ecount}&efirst={efirst}",
+      "description": "Returns message status with titles, statuscode, and statusmessage",
+      "score": -147.02002049814078,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "QCvVQBx_ZU6_r_wYyZp9-",
+      "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+      "method": "GET",
+      "url_template": "https://www.bing.com/fd/ls/l?IG={IG}&CID={CID}&Type={Type}&DATA={DATA}&P={P}&DA={DA}&dl={dl}",
+      "description": "Returns resource details",
+      "score": -155.45396500224211,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "zg3GIJy8wW420UJsV9bpR",
+      "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+      "method": "GET",
+      "url_template": "https://www.bing.com/hp/api/model",
+      "description": "Returns setting details with clientsettings, pn, and sc",
+      "score": -196.12848946738254,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "MkXacR8fRZgRl4dbjmvNr",
+      "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+      "method": "GET",
+      "url_template": "https://www.bing.com/ipv6test/test?FORM={FORM}",
+      "description": "Returns form details",
+      "score": -560.3024307721726,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    },
+    {
+      "endpoint_id": "x-JRqOhwpyblEAm2Hazij",
+      "source_skill_id": "SEYiGiuaAALNPYhL2Gc-I",
+      "method": "GET",
+      "url_template": "https://www.bing.com/images/sbi?mmasync={mmasync}&ptn={ptn}&IID={IID}&IG={IG}",
+      "description": "Returns resource details",
+      "score": -560.3817375642589,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    }
+  ]
+}

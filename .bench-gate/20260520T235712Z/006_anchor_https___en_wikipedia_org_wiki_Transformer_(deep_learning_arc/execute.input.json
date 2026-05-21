@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "get wikipedia article",
+  "context_url": "https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)",
+  "params": {},
+  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
+}

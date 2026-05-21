@@ -1,0 +1,520 @@
+{
+  "result": {
+    "message": "Found 2 endpoint(s). Pick one and call POST /v1/skills/8yxQqx_OhI4flrXBPgKRf/execute with params.endpoint_id.",
+    "skill_id": "8yxQqx_OhI4flrXBPgKRf",
+    "available_operations": [
+      {
+        "operation_id": "eMXwQCw8FdzOI_rdozlHV",
+        "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+        "method": "GET",
+        "action_kind": "search",
+        "resource_kind": "resource",
+        "title": "search resource",
+        "url_template": "https://www.g2.com/search?query={query}",
+        "description_out": "Searches resources with titles",
+        "requires": [
+          "query"
+        ],
+        "yields": [
+          "resource_name"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "5rIndV-Ix9Xa9AGB7qPgG",
+        "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://www.g2.com/categories/crm",
+        "description_out": "Returns resource details with titles",
+        "requires": [],
+        "yields": [
+          "resource_name"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "8yxQqx_OhI4flrXBPgKRf",
+      "intent": "g2 reviews",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "eMXwQCw8FdzOI_rdozlHV",
+      "operations": [
+        {
+          "operation_id": "eMXwQCw8FdzOI_rdozlHV",
+          "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+          "method": "GET",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "title": "search resource",
+          "url_template": "https://www.g2.com/search?query={query}",
+          "description_out": "Searches resources with titles",
+          "requires": [
+            "query"
+          ],
+          "yields": [
+            "resource_name"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "5rIndV-Ix9Xa9AGB7qPgG",
+          "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://www.g2.com/categories/crm",
+          "description_out": "Returns resource details with titles",
+          "requires": [],
+          "yields": [
+            "resource_name"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+        "source_skill_id": "8yxQqx_OhI4flrXBPgKRf",
+        "method": "GET",
+        "description": "Searches resources with titles",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://www.g2.com/search?query={query}",
+        "score": 134,
+        "schema_summary": {
+          "title": "string"
+        },
+        "input_params": [
+          {
+            "key": "query",
+            "type": "input",
+            "required": true
+          }
+        ],
+        "description_in": "Requires query",
+        "example_fields": [
+          "title"
+        ],
+        "sample_values": {
+          "title": "g2.com"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://www.g2.com/search?query=crm",
+        "needs_params": true,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+        "source_skill_id": "8yxQqx_OhI4flrXBPgKRf",
+        "method": "GET",
+        "description": "Returns resource details with titles",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://www.g2.com/categories/crm",
+        "score": -820,
+        "schema_summary": {
+          "title": "string"
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "title"
+        ],
+        "sample_values": {
+          "title": "g2.com"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://www.g2.com/categories/crm",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "search g2 reviews",
+      "params": {
+        "url": "https://www.g2.com/search?query=crm"
+      },
+      "context": {
+        "url": "https://www.g2.com/search?query=crm"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "g2 reviews",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 1,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 1,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 1,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Page content from www.g2.com (score: 134)",
+      "known_issues": [],
+      "endpoint_count": 2,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "yW2X1lNnR8fFbc9O6b6g5",
+    "skill_id": "8yxQqx_OhI4flrXBPgKRf",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:07:31.087Z",
+    "completed_at": "2026-05-21T00:07:31.087Z",
+    "success": true,
+    "session_id": "r86hLm3I10oiU_d1LnteS",
+    "step_index": 1,
+    "state_hash": "116d40e7c3c24c6b8674e5c2",
+    "candidate_count": 2,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "8yxQqx_OhI4flrXBPgKRf",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-18T14:49:09.465Z",
+    "updated_at": "2026-05-21T00:07:31.083Z",
+    "name": "www.g2.com",
+    "intent_signature": "browse g2.com",
+    "domain": "www.g2.com",
+    "description": "DOM skill for www.g2.com",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+        "method": "GET",
+        "url_template": "https://www.g2.com/search?query={query}",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from www.g2.com",
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "html_metadata_fallback",
+          "confidence": 0.4
+        },
+        "trigger_url": "https://www.g2.com/search?query=crm",
+        "semantic": {
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires query",
+          "description_out": "Searches resources with titles",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "title",
+          "example_response_compact": {
+            "title": "g2.com"
+          },
+          "example_fields": [
+            "title"
+          ],
+          "requires": [
+            {
+              "key": "query",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:23:40.241Z",
+          "sample_request_url": "https://www.g2.com/search?query=crm",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+        "method": "GET",
+        "url_template": "https://www.g2.com/categories/crm",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5,
+        "description": "Page content from www.g2.com",
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "html_metadata_fallback",
+          "confidence": 0.4
+        },
+        "trigger_url": "https://www.g2.com/categories/crm",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with titles",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "title",
+          "example_response_compact": {
+            "title": "g2.com"
+          },
+          "example_fields": [
+            "title"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-21T00:07:30.238Z",
+          "sample_request_url": "https://www.g2.com/categories/crm",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-21T00:07:31.083Z",
+      "entry_operation_ids": [
+        "5rIndV-Ix9Xa9AGB7qPgG"
+      ],
+      "operations": [
+        {
+          "operation_id": "eMXwQCw8FdzOI_rdozlHV",
+          "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+          "method": "GET",
+          "url_template": "https://www.g2.com/search?query={query}",
+          "trigger_url": "https://www.g2.com/search?query=crm",
+          "action_kind": "search",
+          "resource_kind": "resource",
+          "description_in": "Requires query",
+          "description_out": "Searches resources with titles",
+          "response_summary": "title",
+          "requires": [
+            {
+              "key": "query",
+              "required": true,
+              "source": "url_template",
+              "semantic_type": "input"
+            }
+          ],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": {
+            "title": "g2.com"
+          },
+          "example_fields": [
+            "title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T11:23:40.241Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "5rIndV-Ix9Xa9AGB7qPgG",
+          "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+          "method": "GET",
+          "url_template": "https://www.g2.com/categories/crm",
+          "trigger_url": "https://www.g2.com/categories/crm",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with titles",
+          "response_summary": "title",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": {
+            "title": "g2.com"
+          },
+          "example_fields": [
+            "title"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-21T00:07:30.238Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "browse g2.com"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 2,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 2,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "8yxQqx_OhI4flrXBPgKRf",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21998,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 2,
+    "time_saved_ms": 21998,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "eMXwQCw8FdzOI_rdozlHV",
+      "source_skill_id": "8yxQqx_OhI4flrXBPgKRf",
+      "method": "GET",
+      "description": "Searches resources with titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.g2.com/search?query={query}",
+      "score": 134,
+      "schema_summary": {
+        "title": "string"
+      },
+      "input_params": [
+        {
+          "key": "query",
+          "type": "input",
+          "required": true
+        }
+      ],
+      "description_in": "Requires query",
+      "example_fields": [
+        "title"
+      ],
+      "sample_values": {
+        "title": "g2.com"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.g2.com/search?query=crm",
+      "needs_params": true,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "5rIndV-Ix9Xa9AGB7qPgG",
+      "source_skill_id": "8yxQqx_OhI4flrXBPgKRf",
+      "method": "GET",
+      "description": "Returns resource details with titles",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://www.g2.com/categories/crm",
+      "score": -820,
+      "schema_summary": {
+        "title": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title"
+      ],
+      "sample_values": {
+        "title": "g2.com"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://www.g2.com/categories/crm",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 0,
+  "n_operations": 0,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": false,
+  "mode": "none",
+  "skill_id": null,
+  "iso_self_check": {
+    "snap_current_url": "https://www.instacart.com/store/s?k=milk&search_id=bf49ca64-6a1b-4469-a03c-4b8f218cad4f",
+    "intended_host": "www.instacart.com",
+    "snap_host": "www.instacart.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 39,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0,
+    "dom_decision_reason": "no_dom_data"
+  },
+  "cookies_injected": null
+}

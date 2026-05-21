@@ -1,0 +1,127 @@
+{
+  "result": {
+    "status": "resolve_hard_handoff",
+    "message": "No cached API available for this intent on accounts.google.com. For SSR-rendered pages (search results in HTML, e.g. Amazon, Bing), try `unbrowse fetch https://mail.google.com/mail/u/0/#inbox` to get the page HTML and extract client-side. Otherwise drive a browser session interactively (snap/click/fill).",
+    "domain": "accounts.google.com",
+    "suggested_next_action": "unbrowse fetch https://mail.google.com/mail/u/0/#inbox",
+    "commands": [
+      "unbrowse fetch https://mail.google.com/mail/u/0/#inbox",
+      "unbrowse snap --filter interactive",
+      "unbrowse click <ref>",
+      "unbrowse fill <ref> <value>",
+      "unbrowse press Enter",
+      "unbrowse text",
+      "unbrowse close"
+    ],
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "No endpoints on accounts.google.com matched intent \"gmail inbox messages\"",
+      "known_issues": [
+        "All 3 cached endpoints failed intent relevance check"
+      ],
+      "endpoint_count": 0,
+      "cache_source": "marketplace"
+    },
+    "available_endpoints": [
+      {
+        "endpoint_id": "VwhZDnTlGIZ6zojsw9ich",
+        "source_skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+        "method": "GET",
+        "url_template": "https://accounts.google.com/CookieMismatch#inbox",
+        "description": "Page content from accounts.google.com",
+        "score": -1656,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "available_operations": [
+      {
+        "endpoint_id": "VwhZDnTlGIZ6zojsw9ich",
+        "source_skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+        "method": "GET",
+        "url_template": "https://accounts.google.com/CookieMismatch#inbox",
+        "description": "Page content from accounts.google.com",
+        "score": -1656,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "shortlist_for_judgment": [
+      {
+        "endpoint_id": "VwhZDnTlGIZ6zojsw9ich",
+        "source_skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+        "method": "GET",
+        "url_template": "https://accounts.google.com/CookieMismatch#inbox",
+        "description": "Page content from accounts.google.com",
+        "score": -1656,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "agent_facing_shortlist": [
+      {
+        "endpoint_id": "VwhZDnTlGIZ6zojsw9ich",
+        "source_skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+        "method": "GET",
+        "url_template": "https://accounts.google.com/CookieMismatch#inbox",
+        "description": "Page content from accounts.google.com",
+        "score": -1656,
+        "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+      }
+    ],
+    "judgment_question": "Ranker handed off all 3 endpoints as low-confidence for intent \"gmail inbox messages\". Inspect shortlist — if any candidate's url_template/description suggests it MIGHT satisfy the intent despite the negative score, call execute against its endpoint_id and judge the response. Otherwise follow suggested_next_action."
+  },
+  "trace": {
+    "trace_id": "5nP-wTXSii2JUqHmZiPT3",
+    "skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+    "endpoint_id": "",
+    "started_at": "2026-05-21T00:04:07.772Z",
+    "completed_at": "2026-05-21T00:04:07.772Z",
+    "success": true,
+    "session_id": "FvAbng6ITgAqtcvwQu-ry",
+    "step_index": 1,
+    "state_hash": "83e79f3b15f60b67550ac950",
+    "candidate_count": 1,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  "source": "deferral",
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 3,
+    "source": "deferral",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 0,
+    "response_bytes": 2,
+    "time_saved_pct": 0,
+    "tokens_saved_pct": 0,
+    "actual_total_ms": 3,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "deferral",
+    "actual_cost_uc": 3
+  },
+  "impact": {
+    "source": "deferral",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "actual_total_ms": 3,
+    "time_saved_pct": 0,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0,
+    "actual_cost_uc": 3
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "VwhZDnTlGIZ6zojsw9ich",
+      "source_skill_id": "SeWl0oU-0HtfEAY9WrVR5",
+      "method": "GET",
+      "url_template": "https://accounts.google.com/CookieMismatch#inbox",
+      "description": "Page content from accounts.google.com",
+      "score": -1656,
+      "agent_warning": "ranker scored ≤0; agent must judge whether this satisfies the intent"
+    }
+  ]
+}

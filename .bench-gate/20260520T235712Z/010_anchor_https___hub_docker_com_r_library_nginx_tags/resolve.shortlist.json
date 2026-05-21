@@ -1,0 +1,2509 @@
+{
+  "result": {
+    "message": "Found 9 endpoint(s). Pick one and call POST /v1/skills/6Od4QfMyWRrO74oCaDp55/execute with params.endpoint_id.",
+    "skill_id": "6Od4QfMyWRrO74oCaDp55",
+    "available_operations": [
+      {
+        "operation_id": "oVSGred0qpW8VlMV159wP",
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "method": "POST",
+        "action_kind": "create",
+        "resource_kind": "post",
+        "title": "create post",
+        "url_template": "https://api.scout.docker.com/v1/graphql",
+        "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+        "requires": [],
+        "yields": [
+          "__typename",
+          "correlation_id"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      },
+      {
+        "operation_id": "BVRZcyG0RSW3m_cAVvvWV",
+        "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://hub.docker.com/_/nginx/tags",
+        "description_out": "Returns resource details with relevance score, digest, and os/arch",
+        "requires": [],
+        "yields": [],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "intent": "dockerhub image tags",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "oVSGred0qpW8VlMV159wP",
+      "operations": [
+        {
+          "operation_id": "oVSGred0qpW8VlMV159wP",
+          "endpoint_id": "oVSGred0qpW8VlMV159wP",
+          "method": "POST",
+          "action_kind": "create",
+          "resource_kind": "post",
+          "title": "create post",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "requires": [],
+          "yields": [
+            "__typename",
+            "correlation_id"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        },
+        {
+          "operation_id": "BVRZcyG0RSW3m_cAVvvWV",
+          "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://hub.docker.com/_/nginx/tags",
+          "description_out": "Returns resource details with relevance score, digest, and os/arch",
+          "requires": [],
+          "yields": [],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "gfDXz2mkCyDPL6NxWh-4N",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns user details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://hub.docker.com/v2/user/",
+        "score": 19.7,
+        "schema_summary": null,
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "2dDqJBfd8VsJ4nB8BPB0J",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns resource details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://api.scout.docker.com/v1/graphql",
+        "score": -1.4,
+        "schema_summary": {
+          "data": {
+            "imageSummariesByDigest": [
+              "object"
+            ]
+          },
+          "extensions": {
+            "correlation_id": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "CGnG5_dmMlYal4TliWKEw",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns resource details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://hub.docker.com/api/scan/v1/accounts/library/{library}",
+        "score": -170.4,
+        "schema_summary": null,
+        "input_params": [
+          {
+            "key": "library",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires library",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "POST",
+        "description": "Creates post with imagesummariesbydigest, extensions, and ids",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://api.scout.docker.com/v1/graphql",
+        "score": -297.2,
+        "schema_summary": {
+          "data": {
+            "imageSummariesByDigest": [
+              "object"
+            ]
+          },
+          "extensions": {
+            "correlation_id": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data",
+          "data.imageSummariesByDigest",
+          "extensions",
+          "extensions.correlation_id",
+          "data.imageSummariesByDigest[].digest",
+          "data.imageSummariesByDigest[].sbomState",
+          "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+          "data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+          "data.imageSummariesByDigest[].vulnerabilityReport.low",
+          "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+          "data.imageSummariesByDigest[].vulnerabilityReport.total"
+        ],
+        "sample_values": {
+          "data.imageSummariesByDigest[].digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+          "data.imageSummariesByDigest[].sbomState": "INDEXED",
+          "data.imageSummariesByDigest[].vulnerabilityReport.high": 3,
+          "data.imageSummariesByDigest[].vulnerabilityReport.medium": 15,
+          "data.imageSummariesByDigest[].vulnerabilityReport.total": 18,
+          "extensions.correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+        },
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "AK61ZdWpEOqafc3VK4U8G",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns resource details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://hub.docker.com/v2/feature-flags/proxy?appName={appName}&environment={environment}&properties%5Bversion%5D={prope...",
+        "score": -435.5,
+        "schema_summary": null,
+        "input_params": [
+          {
+            "key": "appName",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "environment",
+            "type": "input",
+            "required": false
+          },
+          {
+            "key": "properties_version",
+            "type": "input",
+            "required": false
+          }
+        ],
+        "description_in": "Requires appName, environment, properties_version",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "POST",
+        "description": "Creates post with imagesummariesbydigest, extensions, and ids",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://api.scout.docker.com/v1/graphql",
+        "score": -547.1,
+        "schema_summary": {
+          "data": {
+            "imageSummariesByDigest": [
+              "object"
+            ]
+          },
+          "extensions": {
+            "correlation_id": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data",
+          "data.imageSummariesByDigest",
+          "extensions",
+          "extensions.correlation_id",
+          "data.imageSummariesByDigest[].digest",
+          "data.imageSummariesByDigest[].sbomState",
+          "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+          "data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+          "data.imageSummariesByDigest[].vulnerabilityReport.low",
+          "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+          "data.imageSummariesByDigest[].vulnerabilityReport.total"
+        ],
+        "sample_values": {
+          "data.imageSummariesByDigest[].digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+          "data.imageSummariesByDigest[].sbomState": "INDEXED",
+          "data.imageSummariesByDigest[].vulnerabilityReport.high": 3,
+          "data.imageSummariesByDigest[].vulnerabilityReport.medium": 15,
+          "data.imageSummariesByDigest[].vulnerabilityReport.total": 18,
+          "extensions.correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+        },
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "POST",
+        "description": "Creates post",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://api.scout.docker.com/v1/graphql",
+        "score": -556.9,
+        "schema_summary": {
+          "data": {
+            "imageSummariesByDigest": [
+              "object"
+            ]
+          },
+          "extensions": {
+            "correlation_id": "string"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns resource details with relevance score, digest, and os/arch",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://hub.docker.com/_/nginx/tags",
+        "score": -1720,
+        "schema_summary": {
+          "[]": {
+            "type": "string",
+            "data": [
+              "object"
+            ],
+            "relevance_score": "number"
+          }
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "[].type",
+          "[].data",
+          "[].relevance_score",
+          "[].data[].Digest",
+          "[].data[].OS/ARCH",
+          "[].data[].Vulnerabilities",
+          "[].data[].Compressed size"
+        ],
+        "sample_values": {
+          "[].type": "table",
+          "[].data[].Digest": "2aa14a11504f",
+          "[].data[].OS/ARCH": "linux/386",
+          "[].data[].Vulnerabilities": "02900",
+          "[].data[].Compressed size": "24.13 MB",
+          "[].relevance_score": 2.4
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      },
+      {
+        "endpoint_id": "omV1GzscYQK11Z3bJpNvp",
+        "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+        "method": "GET",
+        "description": "Returns entitlement details",
+        "description_source": "auto",
+        "description_needs_review": true,
+        "url": "https://hub.docker.com/api/content/v1/entitlement/library/features",
+        "score": -3486.5,
+        "schema_summary": {
+          "message": "string",
+          "errinfo": {}
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "data.__typename"
+        ],
+        "sample_values": null,
+        "dom_extraction": false,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "get dockerhub image tags",
+      "params": {
+        "url": "https://hub.docker.com/r/library/nginx/tags"
+      },
+      "context": {
+        "url": "https://hub.docker.com/r/library/nginx/tags"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "dockerhub image tags",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Returns user details (score: 19.677738262511653)",
+      "known_issues": [],
+      "endpoint_count": 9,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "tHnZdQn5y8JMXYXc9aC4X",
+    "skill_id": "6Od4QfMyWRrO74oCaDp55",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:58:52.933Z",
+    "completed_at": "2026-05-20T23:58:52.933Z",
+    "success": true,
+    "session_id": "UHz3GyuICje1DpIMhXDxs",
+    "step_index": 1,
+    "state_hash": "731b2acdb7451174d7df10a5",
+    "candidate_count": 9,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "6Od4QfMyWRrO74oCaDp55",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-17T08:59:39.359Z",
+    "updated_at": "2026-05-20T23:58:52.926Z",
+    "name": "hub.docker.com",
+    "intent_signature": "browse hub.docker.com",
+    "domain": "hub.docker.com",
+    "description": "DOM skill for hub.docker.com",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "omV1GzscYQK11Z3bJpNvp",
+        "method": "GET",
+        "url_template": "https://hub.docker.com/api/content/v1/entitlement/library/features",
+        "description": "Returns entitlement details",
+        "headers_template": {
+          "accept": "application/json",
+          "content-type": "application/json",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8303"
+        },
+        "query": {},
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "errinfo": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "message",
+            "errinfo"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "entitlement",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns entitlement details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            }
+          ],
+          "negative_tags": [
+            "adjacent"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779178052602",
+          "sample_request_url": "https://hub.docker.com/api/content/v1/entitlement/library/features",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "method": "POST",
+        "url_template": "https://api.scout.docker.com/v1/graphql",
+        "description": "Creates post",
+        "headers_template": {
+          "accept": "application/json",
+          "content-type": "application/json",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8303"
+        },
+        "body_params": {
+          "query": "query  imageSummariesByDigest($context: Context!, $digests: [String!]!, $repository: ScRepositoryInput) {imageSummariesByDigest(context: $context,\ndigests: $digests,\nrepository: $repository)  {digest\nsbomState\nvulnerabilityReport  {critical\nhigh\nmedium\nlow\nunspecified\ntotal}}}",
+          "variables_repository_reponame": "nginx"
+        },
+        "body": {
+          "query": "{query}",
+          "variables": {
+            "context": {},
+            "digests": [
+              "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+            ],
+            "repository": {
+              "hostName": "hub.docker.com",
+              "repoName": "{variables_repository_reponame}"
+            }
+          }
+        },
+        "graphql_info": {
+          "operation_name": "imageSummariesByDigest"
+        },
+        "idempotency": "unsafe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "imageSummariesByDigest": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "digest": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "sbomState": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "vulnerabilityReport": {
+                        "type": "object",
+                        "properties": {
+                          "critical": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "high": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "medium": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "low": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "unspecified": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "total": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "critical",
+                          "high",
+                          "medium",
+                          "low",
+                          "unspecified",
+                          "total"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "digest",
+                      "sbomState",
+                      "vulnerabilityReport"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "imageSummariesByDigest"
+              ],
+              "inferred_from_samples": 1
+            },
+            "extensions": {
+              "type": "object",
+              "properties": {
+                "correlation_id": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "correlation_id"
+              ],
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "data",
+            "extensions"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "proven_recipe": {
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "headers": {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "x-docker-api-client": "hub-ui/fetchWithAuth-v8303",
+            "x-docker-session-id": "LGKQeFCuRwuTpjzjCIYK2w"
+          },
+          "body": {
+            "query": "query  imageSummariesByDigest($context: Context!, $digests: [String!]!, $repository: ScRepositoryInput) {imageSummariesByDigest(context: $context,\ndigests: $digests,\nrepository: $repository)  {digest\nsbomState\nvulnerabilityReport  {critical\nhigh\nmedium\nlow\nunspecified\ntotal}}}",
+            "variables": {
+              "context": {},
+              "digests": [
+                "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+              ],
+              "repository": {
+                "hostName": "hub.docker.com",
+                "repoName": "nginx"
+              }
+            }
+          },
+          "response_signal": {
+            "status": 200,
+            "content_type": "application/json; charset=utf-8",
+            "byte_length_min": 154,
+            "byte_length_max": 616,
+            "json_top_keys": [
+              "data",
+              "extensions"
+            ]
+          },
+          "captured_at": "2026-05-17T08:59:23.476Z"
+        },
+        "semantic": {
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "1779178052602",
+          "sample_request_url": "https://api.scout.docker.com/v1/graphql",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "method": "POST",
+        "url_template": "https://api.scout.docker.com/v1/graphql",
+        "description": "[GraphQL: imageSummariesByDigest] Creates post with imagesummariesbydigest, extensions, and ids",
+        "headers_template": {
+          "accept": "application/json",
+          "content-type": "application/json",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8303"
+        },
+        "body_params": {
+          "query": "query  imageSummariesByDigest($context: Context!, $digests: [String!]!, $repository: ScRepositoryInput) {imageSummariesByDigest(context: $context,\ndigests: $digests,\nrepository: $repository)  {digest\nsbomState\nvulnerabilityReport  {critical\nhigh\nmedium\nlow\nunspecified\ntotal}}}",
+          "variables_repository_reponame": "nginx"
+        },
+        "body": {
+          "query": "{query}",
+          "variables": {
+            "context": {},
+            "digests": [
+              "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+            ],
+            "repository": {
+              "hostName": "hub.docker.com",
+              "repoName": "{variables_repository_reponame}"
+            }
+          }
+        },
+        "graphql_info": {
+          "operation_name": "imageSummariesByDigest"
+        },
+        "idempotency": "unsafe",
+        "verification_status": "unverified",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "imageSummariesByDigest": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "digest": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "sbomState": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "vulnerabilityReport": {
+                        "type": "object",
+                        "properties": {
+                          "critical": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "high": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "medium": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "low": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "unspecified": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "total": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "critical",
+                          "high",
+                          "medium",
+                          "low",
+                          "unspecified",
+                          "total"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "digest",
+                      "sbomState",
+                      "vulnerabilityReport"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "imageSummariesByDigest"
+              ],
+              "inferred_from_samples": 1
+            },
+            "extensions": {
+              "type": "object",
+              "properties": {
+                "correlation_id": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "correlation_id"
+              ],
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "data",
+            "extensions"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "proven_recipe": {
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "headers": {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "x-docker-api-client": "hub-ui/fetchWithAuth-v8303",
+            "x-docker-session-id": "LGKQeFCuRwuTpjzjCIYK2w"
+          },
+          "body": {
+            "query": "query  imageSummariesByDigest($context: Context!, $digests: [String!]!, $repository: ScRepositoryInput) {imageSummariesByDigest(context: $context,\ndigests: $digests,\nrepository: $repository)  {digest\nsbomState\nvulnerabilityReport  {critical\nhigh\nmedium\nlow\nunspecified\ntotal}}}",
+            "variables": {
+              "context": {},
+              "digests": [
+                "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+              ],
+              "repository": {
+                "hostName": "hub.docker.com",
+                "repoName": "nginx"
+              }
+            }
+          },
+          "response_signal": {
+            "status": 200,
+            "content_type": "application/json; charset=utf-8",
+            "byte_length_min": 154,
+            "byte_length_max": 616,
+            "json_top_keys": [
+              "data",
+              "extensions"
+            ]
+          },
+          "captured_at": "2026-05-17T08:59:23.476Z"
+        },
+        "semantic": {
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.imageSummariesByDigest[].digest, data.imageSummariesByDigest[].sbomState, data.imageSummariesByDigest[].vulnerabilityReport.critical, data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "example_request": {
+            "query": "{query}",
+            "variables": {
+              "context": {},
+              "digests": [
+                "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+              ],
+              "repository": {
+                "hostName": "hub.docker.com",
+                "repoName": "{variables_repository_reponame}"
+              }
+            }
+          },
+          "example_response_compact": {
+            "data": {
+              "imageSummariesByDigest": [
+                {
+                  "digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+                  "sbomState": "INDEXED",
+                  "vulnerabilityReport": {
+                    "critical": 0,
+                    "high": 3,
+                    "medium": 15,
+                    "low": 0,
+                    "unspecified": 0,
+                    "total": 18
+                  }
+                }
+              ]
+            },
+            "extensions": {
+              "correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.imageSummariesByDigest[].digest",
+            "data.imageSummariesByDigest[].sbomState",
+            "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+            "data.imageSummariesByDigest[].vulnerabilityReport.high",
+            "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+            "data.imageSummariesByDigest[].vulnerabilityReport.low",
+            "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+            "data.imageSummariesByDigest[].vulnerabilityReport.total"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "correlation_id",
+              "semantic_type": "post_identifier",
+              "source": "response",
+              "observed_at": "2026-05-17T08:59:39.337Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T08:59:23.476Z",
+          "sample_request_url": "https://api.scout.docker.com/v1/graphql",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "oVSGred0qpW8VlMV159wP",
+        "method": "POST",
+        "url_template": "https://api.scout.docker.com/v1/graphql",
+        "description": "Creates post with imagesummariesbydigest, extensions, and ids",
+        "headers_template": {},
+        "idempotency": "unsafe",
+        "verification_status": "unverified",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "imageSummariesByDigest": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "digest": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "sbomState": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "vulnerabilityReport": {
+                        "type": "object",
+                        "properties": {
+                          "critical": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "high": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "medium": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "low": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "unspecified": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "total": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "critical",
+                          "high",
+                          "medium",
+                          "low",
+                          "unspecified",
+                          "total"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "digest",
+                      "sbomState",
+                      "vulnerabilityReport"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "imageSummariesByDigest"
+              ],
+              "inferred_from_samples": 1
+            },
+            "extensions": {
+              "type": "object",
+              "properties": {
+                "correlation_id": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "correlation_id"
+              ],
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "data",
+            "extensions"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "proven_recipe": {
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "headers": {},
+          "response_signal": {
+            "status": 200,
+            "byte_length_min": 154,
+            "byte_length_max": 616
+          },
+          "captured_at": "1779008375046"
+        },
+        "semantic": {
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.imageSummariesByDigest[].digest, data.imageSummariesByDigest[].sbomState, data.imageSummariesByDigest[].vulnerabilityReport.critical, data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "imageSummariesByDigest": [
+                {
+                  "digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+                  "sbomState": "INDEXED",
+                  "vulnerabilityReport": {
+                    "critical": 0,
+                    "high": 3,
+                    "medium": 15,
+                    "low": 0,
+                    "unspecified": 0,
+                    "total": 18
+                  }
+                }
+              ]
+            },
+            "extensions": {
+              "correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.imageSummariesByDigest[].digest",
+            "data.imageSummariesByDigest[].sbomState",
+            "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+            "data.imageSummariesByDigest[].vulnerabilityReport.high",
+            "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+            "data.imageSummariesByDigest[].vulnerabilityReport.low",
+            "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+            "data.imageSummariesByDigest[].vulnerabilityReport.total"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "correlation_id",
+              "semantic_type": "post_identifier",
+              "source": "response",
+              "observed_at": "2026-05-17T08:59:39.337Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "1779008375046",
+          "sample_request_url": "https://api.scout.docker.com/v1/graphql",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "2dDqJBfd8VsJ4nB8BPB0J",
+        "method": "GET",
+        "url_template": "https://api.scout.docker.com/v1/graphql",
+        "description": "Returns resource details",
+        "headers_template": {
+          "Referer": "https://hub.docker.com/",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8309",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+          "accept": "application/json",
+          "content-type": "application/json"
+        },
+        "query": {},
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "imageSummariesByDigest": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "digest": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "sbomState": {
+                        "type": "string",
+                        "inferred_from_samples": 1
+                      },
+                      "vulnerabilityReport": {
+                        "type": "object",
+                        "properties": {
+                          "critical": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "high": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "medium": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "low": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "unspecified": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          },
+                          "total": {
+                            "type": "integer",
+                            "inferred_from_samples": 1
+                          }
+                        },
+                        "required": [
+                          "critical",
+                          "high",
+                          "medium",
+                          "low",
+                          "unspecified",
+                          "total"
+                        ],
+                        "inferred_from_samples": 1
+                      }
+                    },
+                    "required": [
+                      "digest",
+                      "sbomState",
+                      "vulnerabilityReport"
+                    ],
+                    "inferred_from_samples": 1
+                  },
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "imageSummariesByDigest"
+              ],
+              "inferred_from_samples": 1
+            },
+            "extensions": {
+              "type": "object",
+              "properties": {
+                "correlation_id": {
+                  "type": "string",
+                  "inferred_from_samples": 1
+                }
+              },
+              "required": [
+                "correlation_id"
+              ],
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "data",
+            "extensions"
+          ],
+          "inferred_from_samples": 1
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "proven_recipe": {
+          "method": "GET",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "headers": {},
+          "response_signal": {
+            "status": 200,
+            "byte_length_min": 154,
+            "byte_length_max": 616
+          },
+          "captured_at": "2026-05-17T09:00:03.397Z"
+        },
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "sample_request_url": "https://api.scout.docker.com/v1/graphql",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "CGnG5_dmMlYal4TliWKEw",
+        "method": "GET",
+        "url_template": "https://hub.docker.com/api/scan/v1/accounts/library/{library}",
+        "description": "Returns resource details",
+        "headers_template": {
+          "Referer": "https://hub.docker.com/_/nginx/tags",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8309",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+          "accept": "application/json",
+          "content-type": "application/json"
+        },
+        "query": {},
+        "path_params": {
+          "library": "nginx"
+        },
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "_path_binding_candidates": [
+          {
+            "placeholder": "library",
+            "observed_value": "nginx",
+            "segment_index": 6,
+            "source": "page_hint",
+            "preceding_segment": "library",
+            "matched_page_hint": true
+          }
+        ],
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires library",
+          "description_out": "Returns resource details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {
+            "library": "nginx"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [
+            {
+              "key": "library",
+              "required": false,
+              "source": "path_params",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "sample_request_url": "https://hub.docker.com/api/scan/v1/accounts/library/nginx",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "AK61ZdWpEOqafc3VK4U8G",
+        "method": "GET",
+        "url_template": "https://hub.docker.com/v2/feature-flags/proxy?appName={appName}&environment={environment}&properties%5Bversion%5D={properties_version}",
+        "description": "Returns resource details",
+        "headers_template": {
+          "Referer": "https://hub.docker.com/_/nginx/tags",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        },
+        "query": {
+          "appName": "hub-ui",
+          "environment": "production",
+          "properties[version]": "v8309"
+        },
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires appName, environment, properties_version",
+          "description_out": "Returns resource details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {
+            "appName": "hub-ui",
+            "environment": "production",
+            "properties[version]": "v8309"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [
+            {
+              "key": "appName",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "environment",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "properties_version",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [
+            "experiment"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "sample_request_url": "https://hub.docker.com/v2/feature-flags/proxy?sessionId=281535668&appName=hub-ui&environment=production&properties%5Bversion%5D=v8309",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "gfDXz2mkCyDPL6NxWh-4N",
+        "method": "GET",
+        "url_template": "https://hub.docker.com/v2/user/",
+        "description": "Returns user details",
+        "headers_template": {
+          "Referer": "https://hub.docker.com/_/nginx/tags",
+          "x-docker-api-client": "hub-ui/fetchWithAuth-v8309",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+          "accept": "application/json",
+          "content-type": "application/json"
+        },
+        "query": {},
+        "idempotency": "safe",
+        "verification_status": "pending",
+        "reliability_score": 0.5,
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "user",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns user details",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "data.__typename",
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "public_identifier",
+              "semantic_type": "profile_identifier",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "profile_id",
+              "semantic_type": "profile_identifier",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "sample_request_url": "https://hub.docker.com/v2/user/",
+          "auth_required": false
+        }
+      },
+      {
+        "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+        "method": "GET",
+        "url_template": "https://hub.docker.com/_/nginx/tags",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.5599999999999999,
+        "description": "Page content from hub.docker.com",
+        "response_schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "inferred_from_samples": 25
+              },
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "Digest": {
+                      "type": "string",
+                      "inferred_from_samples": 25
+                    },
+                    "OS/ARCH": {
+                      "type": "string",
+                      "inferred_from_samples": 25
+                    },
+                    "Vulnerabilities": {
+                      "type": "string",
+                      "inferred_from_samples": 25
+                    },
+                    "Compressed size": {
+                      "type": "string",
+                      "inferred_from_samples": 25
+                    }
+                  },
+                  "required": [
+                    "Digest",
+                    "OS/ARCH",
+                    "Vulnerabilities",
+                    "Compressed size"
+                  ],
+                  "inferred_from_samples": 25
+                },
+                "inferred_from_samples": 25
+              },
+              "relevance_score": {
+                "type": "number",
+                "inferred_from_samples": 25
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "relevance_score"
+            ],
+            "inferred_from_samples": 25
+          },
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "multiple",
+          "confidence": 0.45499999999999996
+        },
+        "trigger_url": "https://hub.docker.com/_/nginx/tags",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with relevance score, digest, and os/arch",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[].Digest, [].data[].OS/ARCH, [].data[].Vulnerabilities, [].data[].Compressed size",
+          "example_response_compact": [
+            {
+              "type": "table",
+              "data": [
+                {
+                  "Digest": "2aa14a11504f",
+                  "OS/ARCH": "linux/386",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.13 MB"
+                },
+                {
+                  "Digest": "c97ddadf7d61",
+                  "OS/ARCH": "linux/amd64",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.81 MB"
+                }
+              ],
+              "relevance_score": 2.4
+            },
+            {
+              "type": "table",
+              "data": [
+                {
+                  "Digest": "2aa14a11504f",
+                  "OS/ARCH": "linux/386",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.13 MB"
+                },
+                {
+                  "Digest": "c97ddadf7d61",
+                  "OS/ARCH": "linux/amd64",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.81 MB"
+                }
+              ],
+              "relevance_score": 2.4
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[].Digest",
+            "[].data[].OS/ARCH",
+            "[].data[].Vulnerabilities",
+            "[].data[].Compressed size"
+          ],
+          "requires": [],
+          "provides": [],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:58:52.629Z",
+          "sample_request_url": "https://hub.docker.com/_/nginx/tags",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-20T23:58:52.927Z",
+      "entry_operation_ids": [
+        "omV1GzscYQK11Z3bJpNvp",
+        "oVSGred0qpW8VlMV159wP",
+        "oVSGred0qpW8VlMV159wP",
+        "oVSGred0qpW8VlMV159wP",
+        "2dDqJBfd8VsJ4nB8BPB0J",
+        "CGnG5_dmMlYal4TliWKEw",
+        "AK61ZdWpEOqafc3VK4U8G",
+        "gfDXz2mkCyDPL6NxWh-4N",
+        "BVRZcyG0RSW3m_cAVvvWV"
+      ],
+      "operations": [
+        {
+          "operation_id": "omV1GzscYQK11Z3bJpNvp",
+          "endpoint_id": "omV1GzscYQK11Z3bJpNvp",
+          "method": "GET",
+          "url_template": "https://hub.docker.com/api/content/v1/entitlement/library/features",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "entitlement",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns entitlement details with content and errinfo",
+          "response_summary": "message, errinfo, data.__typename",
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            }
+          ],
+          "negative_tags": [
+            "messaging",
+            "adjacent"
+          ],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "message",
+            "errinfo",
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779178052602",
+          "auth_required": false
+        },
+        {
+          "operation_id": "oVSGred0qpW8VlMV159wP",
+          "endpoint_id": "oVSGred0qpW8VlMV159wP",
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.__typename",
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            },
+            {
+              "key": "correlation_id",
+              "semantic_type": "post_identifier",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779178052602",
+          "auth_required": false
+        },
+        {
+          "operation_id": "oVSGred0qpW8VlMV159wP",
+          "endpoint_id": "oVSGred0qpW8VlMV159wP",
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.imageSummariesByDigest[].digest, data.imageSummariesByDigest[].sbomState, data.imageSummariesByDigest[].vulnerabilityReport.critical, data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "requires": [],
+          "provides": [
+            {
+              "key": "correlation_id",
+              "semantic_type": "post_identifier",
+              "source": "response",
+              "observed_at": "2026-05-17T08:59:39.337Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "query": "{query}",
+            "variables": {
+              "context": {},
+              "digests": [
+                "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5"
+              ],
+              "repository": {
+                "hostName": "hub.docker.com",
+                "repoName": "{variables_repository_reponame}"
+              }
+            }
+          },
+          "example_response_compact": {
+            "data": {
+              "imageSummariesByDigest": [
+                {
+                  "digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+                  "sbomState": "INDEXED",
+                  "vulnerabilityReport": {
+                    "critical": 0,
+                    "high": 3,
+                    "medium": 15,
+                    "low": 0,
+                    "unspecified": 0,
+                    "total": 18
+                  }
+                }
+              ]
+            },
+            "extensions": {
+              "correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.imageSummariesByDigest[].digest",
+            "data.imageSummariesByDigest[].sbomState",
+            "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+            "data.imageSummariesByDigest[].vulnerabilityReport.high",
+            "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+            "data.imageSummariesByDigest[].vulnerabilityReport.low",
+            "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+            "data.imageSummariesByDigest[].vulnerabilityReport.total"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-17T08:59:23.476Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "oVSGred0qpW8VlMV159wP",
+          "endpoint_id": "oVSGred0qpW8VlMV159wP",
+          "method": "POST",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "create",
+          "resource_kind": "post",
+          "description_in": "No additional inputs required",
+          "description_out": "Creates post with imagesummariesbydigest, extensions, and ids",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.imageSummariesByDigest[].digest, data.imageSummariesByDigest[].sbomState, data.imageSummariesByDigest[].vulnerabilityReport.critical, data.imageSummariesByDigest[].vulnerabilityReport.high",
+          "requires": [],
+          "provides": [
+            {
+              "key": "correlation_id",
+              "semantic_type": "post_identifier",
+              "source": "response",
+              "observed_at": "2026-05-17T08:59:39.337Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "imageSummariesByDigest": [
+                {
+                  "digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+                  "sbomState": "INDEXED",
+                  "vulnerabilityReport": {
+                    "critical": 0,
+                    "high": 3,
+                    "medium": 15,
+                    "low": 0,
+                    "unspecified": 0,
+                    "total": 18
+                  }
+                }
+              ]
+            },
+            "extensions": {
+              "correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.imageSummariesByDigest[].digest",
+            "data.imageSummariesByDigest[].sbomState",
+            "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+            "data.imageSummariesByDigest[].vulnerabilityReport.high",
+            "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+            "data.imageSummariesByDigest[].vulnerabilityReport.low",
+            "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+            "data.imageSummariesByDigest[].vulnerabilityReport.total"
+          ],
+          "confidence": 0.8,
+          "observed_at": "1779008375046",
+          "auth_required": false
+        },
+        {
+          "operation_id": "2dDqJBfd8VsJ4nB8BPB0J",
+          "endpoint_id": "2dDqJBfd8VsJ4nB8BPB0J",
+          "method": "GET",
+          "url_template": "https://api.scout.docker.com/v1/graphql",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with imagesummariesbydigest, extensions, and ids",
+          "response_summary": "data, data.imageSummariesByDigest, extensions, extensions.correlation_id, data.__typename",
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.977Z"
+            },
+            {
+              "key": "correlation_id",
+              "semantic_type": "resource_identifier",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data",
+            "data.imageSummariesByDigest",
+            "extensions",
+            "extensions.correlation_id",
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "CGnG5_dmMlYal4TliWKEw",
+          "endpoint_id": "CGnG5_dmMlYal4TliWKEw",
+          "method": "GET",
+          "url_template": "https://hub.docker.com/api/scan/v1/accounts/library/{library}",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires library",
+          "description_out": "Returns resource details",
+          "response_summary": "data.__typename",
+          "requires": [
+            {
+              "key": "library",
+              "required": false,
+              "source": "path_params",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {
+            "library": "nginx"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "AK61ZdWpEOqafc3VK4U8G",
+          "endpoint_id": "AK61ZdWpEOqafc3VK4U8G",
+          "method": "GET",
+          "url_template": "https://hub.docker.com/v2/feature-flags/proxy?appName={appName}&environment={environment}&properties%5Bversion%5D={properties_version}",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "Requires appName, environment, properties_version",
+          "description_out": "Returns resource details",
+          "response_summary": "data.__typename",
+          "requires": [
+            {
+              "key": "appName",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "environment",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "properties_version",
+              "required": false,
+              "source": "query",
+              "semantic_type": "input",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [
+            "experiment"
+          ],
+          "example_request": {
+            "appName": "hub-ui",
+            "environment": "production",
+            "properties[version]": "v8309"
+          },
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "gfDXz2mkCyDPL6NxWh-4N",
+          "endpoint_id": "gfDXz2mkCyDPL6NxWh-4N",
+          "method": "GET",
+          "url_template": "https://hub.docker.com/v2/user/",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "user",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns user details",
+          "response_summary": "data.__typename",
+          "requires": [],
+          "provides": [
+            {
+              "key": "__typename",
+              "semantic_type": "__typename",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "public_identifier",
+              "semantic_type": "profile_identifier",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            },
+            {
+              "key": "profile_id",
+              "semantic_type": "profile_identifier",
+              "source": "response",
+              "observed_at": "2026-05-19T08:21:29.978Z"
+            }
+          ],
+          "negative_tags": [],
+          "example_request": {},
+          "example_response_compact": {
+            "data": {
+              "__typename": "api_endpoint"
+            }
+          },
+          "example_fields": [
+            "data.__typename"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-19T08:07:40.631Z",
+          "auth_required": false
+        },
+        {
+          "operation_id": "BVRZcyG0RSW3m_cAVvvWV",
+          "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+          "method": "GET",
+          "url_template": "https://hub.docker.com/_/nginx/tags",
+          "trigger_url": "https://hub.docker.com/_/nginx/tags",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with relevance score, digest, and os/arch",
+          "response_summary": "[].type, [].data, [].relevance_score, [].data[].Digest, [].data[].OS/ARCH, [].data[].Vulnerabilities, [].data[].Compressed size",
+          "requires": [],
+          "provides": [],
+          "negative_tags": [],
+          "example_response_compact": [
+            {
+              "type": "table",
+              "data": [
+                {
+                  "Digest": "2aa14a11504f",
+                  "OS/ARCH": "linux/386",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.13 MB"
+                },
+                {
+                  "Digest": "c97ddadf7d61",
+                  "OS/ARCH": "linux/amd64",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.81 MB"
+                }
+              ],
+              "relevance_score": 2.4
+            },
+            {
+              "type": "table",
+              "data": [
+                {
+                  "Digest": "2aa14a11504f",
+                  "OS/ARCH": "linux/386",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.13 MB"
+                },
+                {
+                  "Digest": "c97ddadf7d61",
+                  "OS/ARCH": "linux/amd64",
+                  "Vulnerabilities": "02900",
+                  "Compressed size": "24.81 MB"
+                }
+              ],
+              "relevance_score": 2.4
+            }
+          ],
+          "example_fields": [
+            "[].type",
+            "[].data",
+            "[].relevance_score",
+            "[].data[].Digest",
+            "[].data[].OS/ARCH",
+            "[].data[].Vulnerabilities",
+            "[].data[].Compressed size"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:58:52.629Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "browse hub.docker.com"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 4,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 4,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "6Od4QfMyWRrO74oCaDp55",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21996,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 4,
+    "time_saved_ms": 21996,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "gfDXz2mkCyDPL6NxWh-4N",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns user details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://hub.docker.com/v2/user/",
+      "score": 19.7,
+      "schema_summary": null,
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "2dDqJBfd8VsJ4nB8BPB0J",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://api.scout.docker.com/v1/graphql",
+      "score": -1.4,
+      "schema_summary": {
+        "data": {
+          "imageSummariesByDigest": [
+            "object"
+          ]
+        },
+        "extensions": {
+          "correlation_id": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "CGnG5_dmMlYal4TliWKEw",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://hub.docker.com/api/scan/v1/accounts/library/{library}",
+      "score": -170.4,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "library",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires library",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "oVSGred0qpW8VlMV159wP",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "POST",
+      "description": "Creates post with imagesummariesbydigest, extensions, and ids",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://api.scout.docker.com/v1/graphql",
+      "score": -297.2,
+      "schema_summary": {
+        "data": {
+          "imageSummariesByDigest": [
+            "object"
+          ]
+        },
+        "extensions": {
+          "correlation_id": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data",
+        "data.imageSummariesByDigest",
+        "extensions",
+        "extensions.correlation_id",
+        "data.imageSummariesByDigest[].digest",
+        "data.imageSummariesByDigest[].sbomState",
+        "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+        "data.imageSummariesByDigest[].vulnerabilityReport.high",
+        "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+        "data.imageSummariesByDigest[].vulnerabilityReport.low",
+        "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+        "data.imageSummariesByDigest[].vulnerabilityReport.total"
+      ],
+      "sample_values": {
+        "data.imageSummariesByDigest[].digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+        "data.imageSummariesByDigest[].sbomState": "INDEXED",
+        "data.imageSummariesByDigest[].vulnerabilityReport.high": 3,
+        "data.imageSummariesByDigest[].vulnerabilityReport.medium": 15,
+        "data.imageSummariesByDigest[].vulnerabilityReport.total": 18,
+        "extensions.correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "AK61ZdWpEOqafc3VK4U8G",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://hub.docker.com/v2/feature-flags/proxy?appName={appName}&environment={environment}&properties%5Bversion%5D={prope...",
+      "score": -435.5,
+      "schema_summary": null,
+      "input_params": [
+        {
+          "key": "appName",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "environment",
+          "type": "input",
+          "required": false
+        },
+        {
+          "key": "properties_version",
+          "type": "input",
+          "required": false
+        }
+      ],
+      "description_in": "Requires appName, environment, properties_version",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "oVSGred0qpW8VlMV159wP",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "POST",
+      "description": "Creates post with imagesummariesbydigest, extensions, and ids",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://api.scout.docker.com/v1/graphql",
+      "score": -547.1,
+      "schema_summary": {
+        "data": {
+          "imageSummariesByDigest": [
+            "object"
+          ]
+        },
+        "extensions": {
+          "correlation_id": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data",
+        "data.imageSummariesByDigest",
+        "extensions",
+        "extensions.correlation_id",
+        "data.imageSummariesByDigest[].digest",
+        "data.imageSummariesByDigest[].sbomState",
+        "data.imageSummariesByDigest[].vulnerabilityReport.critical",
+        "data.imageSummariesByDigest[].vulnerabilityReport.high",
+        "data.imageSummariesByDigest[].vulnerabilityReport.medium",
+        "data.imageSummariesByDigest[].vulnerabilityReport.low",
+        "data.imageSummariesByDigest[].vulnerabilityReport.unspecified",
+        "data.imageSummariesByDigest[].vulnerabilityReport.total"
+      ],
+      "sample_values": {
+        "data.imageSummariesByDigest[].digest": "sha256:84c72717ffcf6fd46e4c4201c06a33c58854f73d1fc884ed5de1b5e1e7cc01b5",
+        "data.imageSummariesByDigest[].sbomState": "INDEXED",
+        "data.imageSummariesByDigest[].vulnerabilityReport.high": 3,
+        "data.imageSummariesByDigest[].vulnerabilityReport.medium": 15,
+        "data.imageSummariesByDigest[].vulnerabilityReport.total": 18,
+        "extensions.correlation_id": "6e17e482-633a-4dca-a5f7-4119d93374ea"
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "oVSGred0qpW8VlMV159wP",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "POST",
+      "description": "Creates post",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://api.scout.docker.com/v1/graphql",
+      "score": -556.9,
+      "schema_summary": {
+        "data": {
+          "imageSummariesByDigest": [
+            "object"
+          ]
+        },
+        "extensions": {
+          "correlation_id": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "BVRZcyG0RSW3m_cAVvvWV",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns resource details with relevance score, digest, and os/arch",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://hub.docker.com/_/nginx/tags",
+      "score": -1720,
+      "schema_summary": {
+        "[]": {
+          "type": "string",
+          "data": [
+            "object"
+          ],
+          "relevance_score": "number"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].type",
+        "[].data",
+        "[].relevance_score",
+        "[].data[].Digest",
+        "[].data[].OS/ARCH",
+        "[].data[].Vulnerabilities",
+        "[].data[].Compressed size"
+      ],
+      "sample_values": {
+        "[].type": "table",
+        "[].data[].Digest": "2aa14a11504f",
+        "[].data[].OS/ARCH": "linux/386",
+        "[].data[].Vulnerabilities": "02900",
+        "[].data[].Compressed size": "24.13 MB",
+        "[].relevance_score": 2.4
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "omV1GzscYQK11Z3bJpNvp",
+      "source_skill_id": "6Od4QfMyWRrO74oCaDp55",
+      "method": "GET",
+      "description": "Returns entitlement details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://hub.docker.com/api/content/v1/entitlement/library/features",
+      "score": -3486.5,
+      "schema_summary": {
+        "message": "string",
+        "errinfo": {}
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://hub.docker.com/_/nginx/tags",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

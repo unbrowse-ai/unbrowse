@@ -1,0 +1,10 @@
+{
+  "skill": "VcgCjZpSiWnEEiAKeh8pt",
+  "endpoint": "5r5o2hheCHHgwc5FD40b8",
+  "intent": "get repo info for vercel/next.js",
+  "context_url": "https://github.com/vercel/next.js",
+  "params": {
+    "endpoint_id": "5r5o2hheCHHgwc5FD40b8",
+    "url": "https://github.com/vercel/next.js"
+  }
+}

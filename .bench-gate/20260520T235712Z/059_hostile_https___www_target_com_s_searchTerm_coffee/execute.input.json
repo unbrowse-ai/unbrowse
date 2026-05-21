@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "search target products",
+  "context_url": "https://www.target.com/s?searchTerm=coffee",
+  "params": {},
+  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
+}

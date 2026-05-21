@@ -1,0 +1,448 @@
+{
+  "result": {
+    "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/TiLBb6xtTHEFAeB8ShK0u/execute with params.endpoint_id.",
+    "skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+    "available_operations": [
+      {
+        "operation_id": "8Vdginew6sh2-woZ69hCr",
+        "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+        "method": "GET",
+        "action_kind": "detail",
+        "resource_kind": "resource",
+        "title": "detail resource",
+        "url_template": "https://arxiv.org/abs/2604.00694",
+        "description_out": "Returns resource details with titles, abstract, and summarys",
+        "requires": [],
+        "yields": [
+          "resource_name",
+          "pdf_url",
+          "resource_url"
+        ],
+        "proof_status": "no_proof",
+        "runnable": true,
+        "prefetch_get_operations": []
+      }
+    ],
+    "workflow_dag": {
+      "skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+      "intent": "arxiv abstract",
+      "missing_bindings": [],
+      "suggested_next_operation_id": "8Vdginew6sh2-woZ69hCr",
+      "operations": [
+        {
+          "operation_id": "8Vdginew6sh2-woZ69hCr",
+          "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+          "method": "GET",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "title": "detail resource",
+          "url_template": "https://arxiv.org/abs/2604.00694",
+          "description_out": "Returns resource details with titles, abstract, and summarys",
+          "requires": [],
+          "yields": [
+            "resource_name",
+            "pdf_url",
+            "resource_url"
+          ],
+          "proof_status": "no_proof",
+          "runnable": true,
+          "prefetch_get_operations": []
+        }
+      ],
+      "edges": []
+    },
+    "missing_bindings": [],
+    "available_endpoints": [
+      {
+        "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+        "source_skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+        "method": "GET",
+        "description": "Returns resource details with titles, abstract, and summarys",
+        "description_source": "auto",
+        "description_needs_review": false,
+        "url": "https://arxiv.org/abs/2604.00694",
+        "score": 444.5,
+        "schema_summary": {
+          "title": "string",
+          "abstract": "string",
+          "summary": "string",
+          "authors": [
+            "string"
+          ],
+          "date": "string",
+          "pdf_url": "string",
+          "url": "string"
+        },
+        "input_params": [],
+        "description_in": "No additional inputs required",
+        "example_fields": [
+          "title",
+          "abstract",
+          "summary",
+          "authors",
+          "date",
+          "pdf_url",
+          "url",
+          "authors[]"
+        ],
+        "sample_values": {
+          "title": "Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case A...",
+          "abstract": "Autonomous agents increasingly interact with the web, yet most websites remai...",
+          "summary": "Autonomous agents increasingly interact with the web, yet most websites remai...",
+          "date": "2026/04/01",
+          "pdf_url": "https://arxiv.org/pdf/2604.00694",
+          "url": "https://arxiv.org/abs/2604.00694"
+        },
+        "dom_extraction": true,
+        "trigger_url": "https://arxiv.org/abs/2604.00694",
+        "needs_params": false,
+        "prefetch_get_operations": [],
+        "confidence": 0
+      }
+    ],
+    "decision_trace": {
+      "intent": "get arxiv abstract",
+      "params": {
+        "url": "https://arxiv.org/abs/2604.00694"
+      },
+      "context": {
+        "url": "https://arxiv.org/abs/2604.00694"
+      },
+      "search_candidates": [],
+      "autoexec_attempts": [],
+      "query_intent": "arxiv abstract",
+      "budget_race": {
+        "budget_ms": 8000,
+        "total_ms": 0,
+        "tried": [
+          {
+            "name": "marketplace",
+            "status": "won",
+            "ms": 0
+          },
+          {
+            "name": "marketplace",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          },
+          {
+            "name": "probe",
+            "status": "cancelled",
+            "ms": 0,
+            "reason": "another_racer_won"
+          }
+        ],
+        "winner": "marketplace"
+      }
+    },
+    "diagnostic": {
+      "confidence": 0,
+      "top_reasoning": "Best match: Page content from arxiv.org (score: 444.490573132019)",
+      "known_issues": [],
+      "endpoint_count": 1,
+      "cache_source": "marketplace"
+    }
+  },
+  "trace": {
+    "trace_id": "s0wRAy0rYbDwwoaNxyaY0",
+    "skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+    "endpoint_id": "",
+    "started_at": "2026-05-20T23:58:40.089Z",
+    "completed_at": "2026-05-20T23:58:40.089Z",
+    "success": true,
+    "session_id": "TqGO-qY6sCXIzwtlWYVRu",
+    "step_index": 1,
+    "state_hash": "8423a80827d0c5f0842da1c9",
+    "candidate_count": 1,
+    "api_call_count": 0,
+    "tokens_used": 1,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  "source": "marketplace",
+  "skill": {
+    "skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+    "version": "1.0.0",
+    "schema_version": "1",
+    "lifecycle": "active",
+    "execution_type": "http",
+    "created_at": "2026-05-17T07:55:34.755Z",
+    "updated_at": "2026-05-20T23:58:40.085Z",
+    "name": "arxiv.org",
+    "intent_signature": "browse arxiv.org",
+    "domain": "arxiv.org",
+    "description": "DOM skill for arxiv.org",
+    "owner_type": "agent",
+    "endpoints": [
+      {
+        "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+        "method": "GET",
+        "url_template": "https://arxiv.org/abs/2604.00694",
+        "idempotency": "safe",
+        "verification_status": "verified",
+        "reliability_score": 0.8,
+        "description": "Page content from arxiv.org",
+        "response_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "abstract": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "summary": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "inferred_from_samples": 3
+              },
+              "inferred_from_samples": 1
+            },
+            "date": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "pdf_url": {
+              "type": "string",
+              "inferred_from_samples": 1
+            },
+            "url": {
+              "type": "string",
+              "inferred_from_samples": 1
+            }
+          },
+          "required": [
+            "title",
+            "abstract",
+            "summary",
+            "authors",
+            "date",
+            "pdf_url",
+            "url"
+          ],
+          "inferred_from_samples": 1
+        },
+        "dom_extraction": {
+          "extraction_method": "key-value",
+          "confidence": 0.7000000000000001
+        },
+        "trigger_url": "https://arxiv.org/abs/2604.00694",
+        "semantic": {
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with titles, abstract, and summarys",
+          "description_source": "auto",
+          "description_needs_review": true,
+          "description_warning": "Auto-generated description. Review before trusting or publishing.",
+          "response_summary": "title, abstract, summary, authors, date, pdf_url, url, authors[]",
+          "example_response_compact": {
+            "title": "Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures",
+            "abstract": "Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers -- a fundamental mismatch that the emerging ``Agen...",
+            "summary": "Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers -- a fundamental mismatch that the emerging ``Agen...",
+            "authors": [
+              "Tham, Lewis",
+              "Garcia, Nicholas Mac Gregor"
+            ],
+            "date": "2026/04/01",
+            "pdf_url": "https://arxiv.org/pdf/2604.00694",
+            "url": "https://arxiv.org/abs/2604.00694"
+          },
+          "example_fields": [
+            "title",
+            "abstract",
+            "summary",
+            "authors",
+            "date",
+            "pdf_url",
+            "url",
+            "authors[]"
+          ],
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "pdf_url",
+              "semantic_type": "pdf_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:58:39.789Z",
+          "sample_request_url": "https://arxiv.org/abs/2604.00694",
+          "auth_required": false
+        }
+      }
+    ],
+    "operation_graph": {
+      "generated_at": "2026-05-20T23:58:40.086Z",
+      "entry_operation_ids": [
+        "8Vdginew6sh2-woZ69hCr"
+      ],
+      "operations": [
+        {
+          "operation_id": "8Vdginew6sh2-woZ69hCr",
+          "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+          "method": "GET",
+          "url_template": "https://arxiv.org/abs/2604.00694",
+          "trigger_url": "https://arxiv.org/abs/2604.00694",
+          "action_kind": "detail",
+          "resource_kind": "resource",
+          "description_in": "No additional inputs required",
+          "description_out": "Returns resource details with titles, abstract, and summarys",
+          "response_summary": "title, abstract, summary, authors, date, pdf_url, url, authors[]",
+          "requires": [],
+          "provides": [
+            {
+              "key": "resource_name",
+              "semantic_type": "resource_name",
+              "source": "response"
+            },
+            {
+              "key": "pdf_url",
+              "semantic_type": "pdf_url",
+              "source": "response"
+            },
+            {
+              "key": "resource_url",
+              "semantic_type": "resource_url",
+              "source": "response"
+            }
+          ],
+          "negative_tags": [],
+          "example_response_compact": {
+            "title": "Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures",
+            "abstract": "Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers -- a fundamental mismatch that the emerging ``Agen...",
+            "summary": "Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers -- a fundamental mismatch that the emerging ``Agen...",
+            "authors": [
+              "Tham, Lewis",
+              "Garcia, Nicholas Mac Gregor"
+            ],
+            "date": "2026/04/01",
+            "pdf_url": "https://arxiv.org/pdf/2604.00694",
+            "url": "https://arxiv.org/abs/2604.00694"
+          },
+          "example_fields": [
+            "title",
+            "abstract",
+            "summary",
+            "authors",
+            "date",
+            "pdf_url",
+            "url",
+            "authors[]"
+          ],
+          "confidence": 0.8,
+          "observed_at": "2026-05-20T23:58:39.789Z",
+          "auth_required": false
+        }
+      ],
+      "edges": []
+    },
+    "intents": [
+      "browse arxiv.org"
+    ]
+  },
+  "timing": {
+    "search_ms": 0,
+    "get_skill_ms": 0,
+    "execute_ms": 0,
+    "total_ms": 1,
+    "source": "marketplace",
+    "cache_hit": false,
+    "candidates_found": 0,
+    "candidates_tried": 0,
+    "tokens_saved": 29999,
+    "response_bytes": 2,
+    "time_saved_pct": 100,
+    "tokens_saved_pct": 100,
+    "actual_total_ms": 1,
+    "trace_version": "5d9ebf619c61@e584a068bb6e",
+    "skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+    "actual_cost_uc": 3,
+    "baseline_total_ms": 22000,
+    "time_saved_ms": 21999,
+    "baseline_cost_uc": 90000,
+    "cost_saved_uc": 89997
+  },
+  "impact": {
+    "source": "marketplace",
+    "cache_hit": false,
+    "browser_avoided": true,
+    "baseline_total_ms": 22000,
+    "actual_total_ms": 1,
+    "time_saved_ms": 21999,
+    "time_saved_pct": 100,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "baseline_cost_uc": 90000,
+    "actual_cost_uc": 3,
+    "cost_saved_uc": 89997
+  },
+  "available_endpoints": [
+    {
+      "endpoint_id": "8Vdginew6sh2-woZ69hCr",
+      "source_skill_id": "TiLBb6xtTHEFAeB8ShK0u",
+      "method": "GET",
+      "description": "Returns resource details with titles, abstract, and summarys",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://arxiv.org/abs/2604.00694",
+      "score": 444.5,
+      "schema_summary": {
+        "title": "string",
+        "abstract": "string",
+        "summary": "string",
+        "authors": [
+          "string"
+        ],
+        "date": "string",
+        "pdf_url": "string",
+        "url": "string"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "title",
+        "abstract",
+        "summary",
+        "authors",
+        "date",
+        "pdf_url",
+        "url",
+        "authors[]"
+      ],
+      "sample_values": {
+        "title": "Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case A...",
+        "abstract": "Autonomous agents increasingly interact with the web, yet most websites remai...",
+        "summary": "Autonomous agents increasingly interact with the web, yet most websites remai...",
+        "date": "2026/04/01",
+        "pdf_url": "https://arxiv.org/pdf/2604.00694",
+        "url": "https://arxiv.org/abs/2604.00694"
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://arxiv.org/abs/2604.00694",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}

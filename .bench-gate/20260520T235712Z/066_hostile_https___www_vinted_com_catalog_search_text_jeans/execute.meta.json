@@ -1,0 +1,10 @@
+{
+  "status_code": null,
+  "response_bytes": 0,
+  "decision_trace": [
+    {
+      "step": "crashed_during_collect",
+      "timeout_ms": 120000
+    }
+  ]
+}

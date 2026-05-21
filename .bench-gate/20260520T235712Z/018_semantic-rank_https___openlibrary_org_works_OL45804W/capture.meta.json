@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 8,
+  "n_operations": 5,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "W7HhJ6X0AhyrjEqifYyFu",
+  "iso_self_check": {
+    "snap_current_url": "https://openlibrary.org/works/OL45804W/Fantastic_Mr_Fox",
+    "intended_host": "openlibrary.org",
+    "snap_host": "openlibrary.org",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 196766,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.7000000000000001,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": null
+}

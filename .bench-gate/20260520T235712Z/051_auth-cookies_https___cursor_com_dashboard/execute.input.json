@@ -1,0 +1,8 @@
+{
+  "skill": null,
+  "endpoint": null,
+  "intent": "get cursor settings page",
+  "context_url": "https://cursor.com/dashboard",
+  "params": {},
+  "note": "no_match: execute not run"
+}

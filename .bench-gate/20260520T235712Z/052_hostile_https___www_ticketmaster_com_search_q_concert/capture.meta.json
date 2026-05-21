@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 1,
+  "n_operations": 1,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "y-geUM8YMGtfDOiMk7r1r",
+  "iso_self_check": {
+    "snap_current_url": "https://www.ticketmaster.com/search?q=concert",
+    "intended_host": "www.ticketmaster.com",
+    "snap_host": "www.ticketmaster.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 712514,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.8500000000000002,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": null
+}

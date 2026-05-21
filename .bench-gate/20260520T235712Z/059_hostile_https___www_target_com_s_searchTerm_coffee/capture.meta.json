@@ -1,0 +1,29 @@
+{
+  "total_endpoints_captured": 8,
+  "n_operations": 5,
+  "captured_title": "",
+  "browser_block_signals": [],
+  "filter_rejections": null,
+  "capture_path": null,
+  "request_count": 0,
+  "indexed": true,
+  "mode": "dom",
+  "skill_id": "0rSLohTMa1dEKuC4vFuMI",
+  "iso_self_check": {
+    "snap_current_url": "https://www.target.com/s?searchTerm=coffee",
+    "intended_host": "www.target.com",
+    "snap_host": "www.target.com",
+    "host_match": true
+  },
+  "capture_diagnostic": {
+    "requests_count": 0,
+    "raw_endpoints_count": 0,
+    "http_path_grew_skill": null,
+    "dom_fallback_attempted": true,
+    "dom_html_size": 1081141,
+    "dom_used_server_fetch": false,
+    "dom_extraction_confidence": 0.42,
+    "dom_decision_reason": null
+  },
+  "cookies_injected": null
+}

@@ -1,0 +1,10 @@
+{
+  "skill": "VcgCjZpSiWnEEiAKeh8pt",
+  "endpoint": "QvQYZWZp42C5v7VEMwczb",
+  "intent": "get repo info for anthropics/anthropic-sdk-python",
+  "context_url": "https://github.com/anthropics/anthropic-sdk-python",
+  "params": {
+    "endpoint_id": "QvQYZWZp42C5v7VEMwczb",
+    "url": "https://github.com/anthropics/anthropic-sdk-python"
+  }
+}

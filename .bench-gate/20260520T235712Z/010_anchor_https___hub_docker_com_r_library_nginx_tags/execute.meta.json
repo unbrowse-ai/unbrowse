@@ -1,0 +1,49 @@
+{
+  "status_code": 200,
+  "response_bytes": 261,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "GET-1byte",
+      "status": 401,
+      "content_type": "application/json",
+      "byte_length": 39,
+      "ms": 802
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe status 401 — fetch body for vendor-block classification"
+    },
+    {
+      "step": "server_fetch",
+      "status": 401
+    },
+    {
+      "step": "4xx_live_session_fallback_no_session",
+      "reason": "no_session_for_domain",
+      "target_domain": "hub.docker.com",
+      "active_domains": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "step": "4xx_ssr_fastpath_fallback",
+      "from": "gfDXz2mkCyDPL6NxWh-4N",
+      "original_status": 401,
+      "target": "https://hub.docker.com/_/nginx/tags"
+    },
+    {
+      "step": "4xx_ssr_fastpath_fallback_success",
+      "status": 200,
+      "bytes": 639468
+    }
+  ]
+}

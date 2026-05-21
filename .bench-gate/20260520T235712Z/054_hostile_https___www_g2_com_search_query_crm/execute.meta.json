@@ -1,0 +1,43 @@
+{
+  "status_code": 0,
+  "response_bytes": 576,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "HEAD",
+      "status": 403,
+      "content_type": "text/html;charset=utf-8",
+      "ms": 85
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe status 403 — fetch body for vendor-block classification"
+    },
+    {
+      "step": "server_fetch",
+      "status": 403
+    },
+    {
+      "step": "server_fetch_vendor_block_detected",
+      "vendor": "datadome",
+      "evidence": "body_or_header_marker",
+      "status": 403
+    },
+    {
+      "step": "browser_fallback",
+      "reason": "vendor_block_datadome",
+      "status": 0
+    },
+    {
+      "step": "5xx_ssr_fastpath_fallback",
+      "from": "eMXwQCw8FdzOI_rdozlHV",
+      "original_status": 0,
+      "target": "https://www.g2.com/search?query=crm"
+    },
+    {
+      "step": "5xx_ssr_fastpath_fallback_no_html",
+      "reason": "ssr_returned_null"
+    }
+  ]
+}

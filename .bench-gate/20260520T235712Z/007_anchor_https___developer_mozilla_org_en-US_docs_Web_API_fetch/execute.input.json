@@ -1,0 +1,10 @@
+{
+  "skill": "mnDbcCXYX03QVaOlP9ilq",
+  "endpoint": "mfsB4ekQNnDZdLpJ5Q_V7",
+  "intent": "get mdn page",
+  "context_url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch",
+  "params": {
+    "endpoint_id": "mfsB4ekQNnDZdLpJ5Q_V7",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch"
+  }
+}

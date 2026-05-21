@@ -1,0 +1,44 @@
+{
+  "status_code": 0,
+  "response_bytes": 582,
+  "decision_trace": [
+    {
+      "step": "probe",
+      "method": "HEAD",
+      "status": 403,
+      "content_type": "text/html",
+      "byte_length": 5824,
+      "ms": 159
+    },
+    {
+      "step": "decision",
+      "strategy": "server",
+      "reason": "probe status 403 — fetch body for vendor-block classification"
+    },
+    {
+      "step": "server_fetch",
+      "status": 200
+    },
+    {
+      "step": "server_fetch_vendor_block_detected",
+      "vendor": "perimeterx",
+      "evidence": "body_or_header_marker",
+      "status": 200
+    },
+    {
+      "step": "browser_fallback",
+      "reason": "vendor_block_perimeterx",
+      "status": 0
+    },
+    {
+      "step": "5xx_ssr_fastpath_fallback",
+      "from": "ww6Nvhn2Gp3Sd1z4Si9a-",
+      "original_status": 0,
+      "target": "https://www.zillow.com/homes/for_sale/"
+    },
+    {
+      "step": "5xx_ssr_fastpath_fallback_no_html",
+      "reason": "ssr_returned_null"
+    }
+  ]
+}

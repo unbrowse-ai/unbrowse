@@ -1,0 +1,406 @@
+{
+  "endpoint_id": "mfsB4ekQNnDZdLpJ5Q_V7",
+  "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+  "method": "GET",
+  "description": "Page content from developer.mozilla.org",
+  "description_source": "agent",
+  "description_needs_review": false,
+  "url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch",
+  "score": 1314.2,
+  "schema_summary": {
+    "[]": {
+      "title": "string",
+      "link": "string",
+      "url": "string",
+      "description": "string",
+      "definition": "string"
+    }
+  },
+  "input_params": [],
+  "description_in": "No additional inputs required",
+  "example_fields": [
+    "[].title",
+    "[].link",
+    "[].url",
+    "[].description",
+    "[].definition"
+  ],
+  "sample_values": {
+    "[].title": "Parameters",
+    "[].link": "/en-US/docs/Glossary/Stringifier",
+    "[].url": "/en-US/docs/Glossary/Stringifier",
+    "[].description": "This defines the resource that you wish to fetch. This can either be:",
+    "[].definition": "This defines the resource that you wish to fetch. This can either be:\n\nA stri..."
+  },
+  "dom_extraction": true,
+  "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch",
+  "needs_params": false,
+  "prefetch_get_operations": [],
+  "confidence": 1,
+  "picked_from": [
+    {
+      "endpoint_id": "mfsB4ekQNnDZdLpJ5Q_V7",
+      "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+      "method": "GET",
+      "description": "Page content from developer.mozilla.org",
+      "description_source": "agent",
+      "description_needs_review": false,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch",
+      "score": 1314.2,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "url": "string",
+          "description": "string",
+          "definition": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].url",
+        "[].description",
+        "[].definition"
+      ],
+      "sample_values": {
+        "[].title": "Parameters",
+        "[].link": "/en-US/docs/Glossary/Stringifier",
+        "[].url": "/en-US/docs/Glossary/Stringifier",
+        "[].description": "This defines the resource that you wish to fetch. This can either be:",
+        "[].definition": "This defines the resource that you wish to fetch. This can either be:\n\nA stri..."
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/fetch",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 1
+    },
+    {
+      "endpoint_id": "bSLnZWq8SNyvsGOSSqpIa",
+      "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+      "method": "GET",
+      "description": "Returns resource details with titles, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+      "score": 839,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "url": "string",
+          "description": "string",
+          "definition": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].url",
+        "[].description",
+        "[].definition"
+      ],
+      "sample_values": {
+        "[].title": "Parameters",
+        "[].link": "/en-US/docs/Glossary/Stringifier",
+        "[].url": "/en-US/docs/Glossary/Stringifier",
+        "[].description": "This defines the resource that you wish to fetch. This can either be:",
+        "[].definition": "This defines the resource that you wish to fetch. This can either be:\n\nA stri..."
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 1
+    },
+    {
+      "endpoint_id": "BbMHg-thMJDtBNObSL4Te",
+      "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+      "method": "GET",
+      "description": "Returns resource details with titles, link, and url",
+      "description_source": "auto",
+      "description_needs_review": false,
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP",
+      "score": 77.9,
+      "schema_summary": {
+        "[]": {
+          "title": "string",
+          "link": "string",
+          "url": "string",
+          "description": "string",
+          "definition": "string"
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "[].title",
+        "[].link",
+        "[].url",
+        "[].description",
+        "[].definition"
+      ],
+      "sample_values": {
+        "[].title": "Guides",
+        "[].link": "/en-US/docs/Web/HTTP/Guides",
+        "[].url": "/en-US/docs/Web/HTTP/Guides",
+        "[].description": "HTTP is an extensible protocol that relies on concepts like resources and Uni...",
+        "[].definition": "The basic features of HTTP, what it can do, its intended use in web architect..."
+      },
+      "dom_extraction": true,
+      "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/HTTP",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "eUqOWM6KDsNHcnEaVwQLo",
+      "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+      "method": "GET",
+      "description": "Returns setting details with geo, country, and country iso",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://developer.mozilla.org/api/v1/whoami",
+      "score": -0.5,
+      "schema_summary": {
+        "geo": {
+          "country": "string",
+          "country_iso": "string"
+        },
+        "username": "null",
+        "is_authenticated": "null",
+        "email": "null",
+        "avatar_url": "null",
+        "is_subscriber": "null",
+        "subscription_type": "null",
+        "settings": "null"
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "geo",
+        "geo.country",
+        "geo.country_iso",
+        "username",
+        "is_authenticated",
+        "email",
+        "avatar_url",
+        "is_subscriber",
+        "subscription_type",
+        "settings"
+      ],
+      "sample_values": {
+        "geo.country": "Singapore",
+        "geo.country_iso": "SG"
+      },
+      "dom_extraction": false,
+      "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    },
+    {
+      "endpoint_id": "UTG1-U_XYcWawhBcAyJiT",
+      "source_skill_id": "mnDbcCXYX03QVaOlP9ilq",
+      "method": "GET",
+      "description": "Returns resource details",
+      "description_source": "auto",
+      "description_needs_review": true,
+      "url": "https://bcd.developer.mozilla.org/bcd/api/v0/current/api.fetch.json",
+      "score": -3358.5,
+      "schema_summary": {
+        "__meta": {
+          "timestamp": "string",
+          "version": "string"
+        },
+        "query": "string",
+        "data": {
+          "__compat": {
+            "mdn_url": "string",
+            "source_file": "string",
+            "spec_url": "string",
+            "status": "object",
+            "support": "object",
+            "tags": "array"
+          },
+          "authorization_removed_cross_origin": {
+            "__compat": "object"
+          },
+          "blob_data_support": {
+            "__compat": "object"
+          },
+          "options_parameter": {
+            "__compat": "object",
+            "attributionReporting": "object",
+            "body": "object",
+            "browsingTopics": "object",
+            "duplex": "object",
+            "keepalive": "object",
+            "priority": "object",
+            "privateToken": "object",
+            "referrerPolicy": "object",
+            "signal": "object",
+            "targetAddressSpace": "object"
+          }
+        },
+        "browsers": {
+          "bun": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "chrome": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "preview_name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "chrome_android": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "deno": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "edge": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "firefox": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "preview_name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "firefox_android": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "ie": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "nodejs": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "oculus": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "opera": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "pref_url": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "opera_android": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "safari": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "preview_name": "string",
+            "releases": "object",
+            "type": "string"
+          },
+          "safari_ios": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "samsunginternet_android": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "webview_android": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          },
+          "webview_ios": {
+            "accepts_flags": "boolean",
+            "accepts_webextensions": "boolean",
+            "name": "string",
+            "releases": "object",
+            "type": "string",
+            "upstream": "string"
+          }
+        }
+      },
+      "input_params": [],
+      "description_in": "No additional inputs required",
+      "example_fields": [
+        "data.__typename"
+      ],
+      "sample_values": null,
+      "dom_extraction": false,
+      "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+      "needs_params": false,
+      "prefetch_get_operations": [],
+      "confidence": 0
+    }
+  ]
+}
