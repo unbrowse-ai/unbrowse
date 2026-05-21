@@ -1,8 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (32) semantic-rank (39) graphql (22) ssr-list (42) auth-gated (47) auth-cookies (40) hostile (50)
-# Total: 272
-# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21) + v4 OAuth-pain mining (6 added 2026-05-21) + wave-2 expansion (40 added 2026-05-21: 86 to 126, 110 domains) + wave-3 expansion (146 added 2026-05-21: 126 to 272, target 200+ unique domains)
+# Lanes: anchor (60) semantic-rank (70) graphql (40) ssr-list (80) auth-gated (85) auth-cookies (70) hostile (95)
+# Total: 500
+# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21) + v4 OAuth-pain mining (6 added 2026-05-21) + wave-2 expansion (40 added 2026-05-21: 86 to 126, 110 domains) + wave-3 expansion (146 added 2026-05-21: 126 to 272, 225 domains) + wave-4 expansion (228 added 2026-05-21: 272 to 500, 398 unique domains)
 # Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -346,3 +346,247 @@ hostile | blocked | hostile | browser-block | get fandango showtimes for sf | ht
 hostile | blocked | hostile | browser-block | search urbandictionary for slang | https://www.urbandictionary.com/define.php?term=goat
 hostile | blocked | hostile | browser-block | search rightmove uk flats london | https://www.rightmove.co.uk/property-to-rent/find.html?locationIdentifier=REGION%5E87490
 hostile | blocked | hostile | browser-block | get expedia car rentals | https://www.expedia.com/Cars
+
+# ─── wave-4 (+228) 2026-05-21 ─────────────────────────────────────────────────
+
+# anchor +28 (canonical stable URLs, must-pass)
+anchor | none | easy | dom-artifact | get wikipedia linux kernel | https://en.wikipedia.org/wiki/Linux_kernel
+anchor | none | easy | dom-artifact | get mdn javascript array | https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array
+anchor | none | medium | dom-artifact | get arxiv abstract dragon | https://arxiv.org/abs/2305.10973
+anchor | none | medium | direct-api | get dockerhub tags postgres | https://hub.docker.com/r/library/postgres/tags
+anchor | none | easy | dom-artifact | get rfc 9110 text | https://www.rfc-editor.org/rfc/rfc9110
+anchor | none | easy | dom-artifact | get acm paper abstract | https://dl.acm.org/doi/10.1145/3613904.3642111
+anchor | none | medium | dom-artifact | get ieee paper | https://ieeexplore.ieee.org/document/9707742
+anchor | none | medium | dom-artifact | get neurips proceedings paper | https://proceedings.neurips.cc/paper_files/paper/2023
+anchor | none | easy | dom-artifact | get golang stdlib doc net http | https://pkg.go.dev/net/http
+anchor | none | easy | dom-artifact | get cppreference vector | https://en.cppreference.com/w/cpp/container/vector
+anchor | none | easy | dom-artifact | get python docs asyncio | https://docs.python.org/3/library/asyncio.html
+anchor | none | easy | direct-api | get nuget package newtonsoft | https://www.nuget.org/packages/Newtonsoft.Json
+anchor | none | easy | structured-replay | get packagist composer symfony | https://packagist.org/packages/symfony/symfony
+anchor | none | easy | dom-artifact | get pub dev flutter provider | https://pub.dev/packages/provider
+anchor | none | easy | dom-artifact | get conda package numpy | https://anaconda.org/conda-forge/numpy
+anchor | none | easy | dom-artifact | get cran ggplot2 | https://cran.r-project.org/web/packages/ggplot2/
+anchor | none | easy | dom-artifact | get gutenberg book frankenstein | https://www.gutenberg.org/ebooks/84
+anchor | none | easy | dom-artifact | get whitehouse press briefing room | https://www.whitehouse.gov/briefing-room/
+anchor | none | easy | structured-replay | get archive org item dli | https://archive.org/details/in.ernet.dli.2015.149382
+anchor | none | easy | dom-artifact | get wikidata entity q42 | https://www.wikidata.org/wiki/Q42
+anchor | none | easy | dom-artifact | get openjdk specs page | https://openjdk.org/specs/
+anchor | none | easy | dom-artifact | get w3c trace context | https://www.w3.org/TR/trace-context/
+anchor | none | medium | dom-artifact | get iana tld list | https://www.iana.org/domains/root/db
+anchor | none | medium | dom-artifact | get cve list mitre | https://cve.mitre.org/data/refs/refmap/source-MISC.html
+anchor | none | easy | dom-artifact | get owasp top 10 | https://owasp.org/Top10/
+anchor | none | easy | dom-artifact | get nist cve search | https://nvd.nist.gov/vuln/detail/CVE-2024-3094
+anchor | none | medium | dom-artifact | get freecodecamp lesson | https://www.freecodecamp.org/learn/responsive-web-design/
+anchor | none | medium | dom-artifact | get nature article landing | https://www.nature.com/articles/d41586-024-00214-5
+
+# semantic-rank +31 (multiple similar endpoints, ranking matters)
+semantic-rank | none | medium | semantic-rank | search hn for gpt stories | https://hn.algolia.com/?q=gpt
+semantic-rank | none | medium | semantic-rank | search github code for fetch | https://github.com/search?q=fetch&type=code
+semantic-rank | none | medium | semantic-rank | search github issues for bug | https://github.com/search?q=is%3Aissue+bug&type=issues
+semantic-rank | none | medium | semantic-rank | search github discussions mcp | https://github.com/search?q=mcp&type=discussions
+semantic-rank | none | medium | semantic-rank | search archive for nasa | https://archive.org/search?query=nasa
+semantic-rank | none | medium | semantic-rank | search openlibrary author tolkien | https://openlibrary.org/search?author=tolkien
+semantic-rank | none | medium | semantic-rank | search wikipedia for neural network | https://en.wikipedia.org/w/index.php?search=neural+network
+semantic-rank | none | medium | semantic-rank | search medium for design systems | https://medium.com/search?q=design+systems
+semantic-rank | none | medium | semantic-rank | search substack for finance | https://substack.com/search/finance
+semantic-rank | none | medium | semantic-rank | search figma community icons | https://www.figma.com/community/search?resource_type=files&q=icons
+semantic-rank | none | medium | semantic-rank | search dribbble web design shots | https://dribbble.com/search/shots/popular/web-design
+semantic-rank | none | hard | semantic-rank | search behance for portfolios | https://www.behance.net/search/projects?search=portfolio
+semantic-rank | none | medium | semantic-rank | search papers with code transformer | https://paperswithcode.com/search?q_meta=&q=transformer
+semantic-rank | none | medium | semantic-rank | search openreview for alignment | https://openreview.net/search?query=alignment
+semantic-rank | none | medium | semantic-rank | search kaggle for titanic | https://www.kaggle.com/search?q=titanic
+semantic-rank | none | medium | semantic-rank | search civitai for sdxl | https://civitai.com/models?query=sdxl
+semantic-rank | none | medium | semantic-rank | search itch io puzzle games | https://itch.io/search?q=puzzle
+semantic-rank | none | medium | semantic-rank | search hashnode for react hooks | https://hashnode.com/search?q=react+hooks
+semantic-rank | none | medium | semantic-rank | search dpreview cameras | https://www.dpreview.com/search?query=mirrorless
+semantic-rank | none | medium | semantic-rank | search imdb for nolan films | https://www.imdb.com/find/?q=nolan
+semantic-rank | none | medium | semantic-rank | search letterboxd for movies | https://letterboxd.com/search/films/inception/
+semantic-rank | none | medium | semantic-rank | search rotten tomatoes movies | https://www.rottentomatoes.com/search?search=dune
+semantic-rank | none | medium | semantic-rank | search metacritic for games | https://www.metacritic.com/search/zelda/all/
+semantic-rank | none | medium | semantic-rank | search bandcamp for indie | https://bandcamp.com/search?q=indie
+semantic-rank | none | medium | semantic-rank | search last fm artists | https://www.last.fm/search?q=radiohead
+semantic-rank | none | medium | semantic-rank | search discogs vinyl | https://www.discogs.com/search/?q=jazz&type=release
+semantic-rank | none | medium | semantic-rank | search rateyourmusic charts | https://rateyourmusic.com/search?searchterm=portishead
+semantic-rank | none | medium | semantic-rank | search worldcat library | https://www.worldcat.org/search?q=hobbit
+semantic-rank | none | medium | semantic-rank | search sciencedirect papers | https://www.sciencedirect.com/search?qs=cancer
+semantic-rank | none | medium | semantic-rank | search jstor scholarly | https://www.jstor.org/action/doBasicSearch?Query=ethics
+semantic-rank | none | medium | semantic-rank | search europepmc papers | https://europepmc.org/search?query=covid
+
+# graphql +18 (real GraphQL endpoints)
+graphql | none | medium | graphql | shopify storefront products | https://shopify.dev/docs/api/storefront
+graphql | none | medium | graphql | linktree profile lookup | https://linktr.ee/explore
+graphql | none | medium | graphql | hashnode graphql user posts | https://hashnode.com/@codebucks
+graphql | none | medium | graphql | contentful graphql space query | https://www.contentful.com/developers/docs/references/content-delivery-api/
+graphql | none | medium | graphql | sanity graphql project | https://www.sanity.io/docs/graphql
+graphql | none | hard | graphql | atlassian graphql workspace | https://developer.atlassian.com/cloud/jira/platform/graphql/
+graphql | none | medium | graphql | shopify partners graphql | https://shopify.dev/docs/api/partner
+graphql | none | medium | graphql | hygraph graphql content api | https://hygraph.com/docs/api-reference
+graphql | none | medium | graphql | datocms graphql content query | https://www.datocms.com/docs/content-delivery-api
+graphql | none | hard | graphql | productboard graphql features | https://www.productboard.com/explore-public-roadmap/
+graphql | none | medium | graphql | strapi graphql plugin schema | https://strapi.io/integrations/graphql
+graphql | none | hard | graphql | aave graphql lending pools | https://aave.com/markets
+graphql | none | hard | graphql | uniswap graphql pool query | https://app.uniswap.org/explore/pools
+graphql | none | hard | graphql | the graph subgraph explorer | https://thegraph.com/explorer
+graphql | none | medium | graphql | apollo studio sandbox | https://studio.apollographql.com/sandbox
+graphql | none | medium | graphql | wundergraph cosmo | https://cosmo.wundergraph.com/
+graphql | none | hard | graphql | hasura cloud project graphql | https://hasura.io/docs/latest/graphql/core/queries/index/
+graphql | none | hard | graphql | gitea graphql api docs | https://docs.gitea.com/api/
+
+# ssr-list +38 (search-result list pages)
+ssr-list | none | medium | ssr-list | search duckduckgo for python | https://duckduckgo.com/?q=python+tutorial
+ssr-list | none | medium | ssr-list | search startpage for ethereum | https://www.startpage.com/do/search?query=ethereum
+ssr-list | none | medium | ssr-list | search ecosia for solar | https://www.ecosia.org/search?q=solar+panels
+ssr-list | none | medium | ssr-list | search yandex tech news | https://yandex.com/search/?text=tech+news
+ssr-list | none | medium | ssr-list | search baidu zh results | https://www.baidu.com/s?wd=AI
+ssr-list | none | medium | ssr-list | search naver kr news | https://search.naver.com/search.naver?query=AI
+ssr-list | none | medium | ssr-list | search seznam cz weather | https://search.seznam.cz/?q=pocasi
+ssr-list | none | medium | ssr-list | search swisscows for ai | https://swisscows.com/en/web?query=ai
+ssr-list | none | medium | ssr-list | search opentable manhattan | https://www.opentable.com/s?term=manhattan
+ssr-list | none | hard | ssr-list | search usajobs federal data | https://www.usajobs.gov/Search/Results?k=data
+ssr-list | none | medium | ssr-list | search aljazeera climate | https://www.aljazeera.com/search/climate
+ssr-list | none | medium | ssr-list | search nytimes business section | https://www.nytimes.com/section/business
+ssr-list | none | medium | ssr-list | search wsj markets news | https://www.wsj.com/news/markets
+ssr-list | none | medium | ssr-list | search ft global economy | https://www.ft.com/global-economy
+ssr-list | none | medium | ssr-list | search nhk world japan news | https://www3.nhk.or.jp/nhkworld/en/news/
+ssr-list | none | medium | ssr-list | search dw english europe | https://www.dw.com/en/europe/s-1429
+ssr-list | none | medium | ssr-list | search france24 latest | https://www.france24.com/en/tag/europe/
+ssr-list | none | medium | ssr-list | search npr morning edition | https://www.npr.org/programs/morning-edition/
+ssr-list | none | medium | ssr-list | search bloomberg markets | https://www.bloomberg.com/markets/stocks
+ssr-list | none | medium | ssr-list | search forbes tech | https://www.forbes.com/innovation/
+ssr-list | none | medium | ssr-list | search economist finance | https://www.economist.com/finance-and-economics
+ssr-list | none | medium | ssr-list | search atlantic ideas | https://www.theatlantic.com/ideas/
+ssr-list | none | medium | ssr-list | search newyorker culture | https://www.newyorker.com/culture
+ssr-list | none | medium | ssr-list | search slashdot stories | https://slashdot.org/recent
+ssr-list | none | medium | ssr-list | search arstechnica policy | https://arstechnica.com/category/policy/
+ssr-list | none | medium | ssr-list | search engadget gadgets | https://www.engadget.com/tag/gadgets/
+ssr-list | none | medium | ssr-list | search cnet reviews phones | https://www.cnet.com/topics/phones/reviews/
+ssr-list | none | medium | ssr-list | search smashing mag articles | https://www.smashingmagazine.com/articles/
+ssr-list | none | medium | ssr-list | search cssauthor portfolio | https://csswinner.com/
+ssr-list | none | medium | ssr-list | search siteinspire collection | https://www.siteinspire.com/websites
+ssr-list | none | medium | ssr-list | search saucenao reverse search | https://saucenao.com/
+ssr-list | none | medium | ssr-list | search yummly recipes | https://www.yummly.com/recipes
+ssr-list | none | medium | ssr-list | search bbc good food recipes | https://www.bbcgoodfood.com/search/recipes?query=pasta
+ssr-list | none | medium | ssr-list | search foodnetwork chicken | https://www.foodnetwork.com/search/chicken-
+ssr-list | none | medium | ssr-list | search tasty quick recipes | https://tasty.co/search?q=quick
+ssr-list | none | medium | ssr-list | search delish desserts | https://www.delish.com/search/?q=dessert
+ssr-list | none | medium | ssr-list | search epicurious recipes | https://www.epicurious.com/search/pasta
+ssr-list | none | medium | ssr-list | search openrice hk listings | https://www.openrice.com/en/hongkong/restaurants
+
+# auth-gated +38 (developer SaaS, dashboards, banking)
+auth-gated | required | hard | auth-handoff | get datadog monitors triggered | https://app.datadoghq.com/monitors/triggered
+auth-gated | required | hard | auth-handoff | get pagerduty schedules list | https://app.pagerduty.com/schedules
+auth-gated | required | hard | auth-handoff | get honeycomb datasets | https://ui.honeycomb.io/datasets
+auth-gated | required | hard | auth-handoff | get algolia analytics | https://dashboard.algolia.com/analytics
+auth-gated | required | hard | auth-handoff | get mixpanel events report | https://mixpanel.com/report/events
+auth-gated | required | hard | auth-handoff | get amplitude charts | https://analytics.amplitude.com/charts
+auth-gated | required | hard | auth-handoff | get posthog dashboards list | https://us.posthog.com/dashboard
+auth-gated | required | hard | auth-handoff | get sentry org issues | https://sentry.io/organizations/sentry/issues/
+auth-gated | required | hard | auth-handoff | get render service logs page | https://dashboard.render.com/web/srv-logs
+auth-gated | required | hard | auth-handoff | get railway billing usage | https://railway.app/account/billing
+auth-gated | required | hard | auth-handoff | get fly io org settings | https://fly.io/dashboard/personal/settings
+auth-gated | required | hard | auth-handoff | get heroku account settings | https://dashboard.heroku.com/account
+auth-gated | required | hard | auth-handoff | get vercel team settings | https://vercel.com/account/settings
+auth-gated | required | hard | auth-handoff | get netlify domains | https://app.netlify.com/account/domains
+auth-gated | required | hard | auth-handoff | get cloudflare audit log | https://dash.cloudflare.com/?to=/:account/audit-log
+auth-gated | required | hard | auth-handoff | get aws billing home | https://console.aws.amazon.com/billing/home
+auth-gated | required | hard | auth-handoff | get gcp project selector | https://console.cloud.google.com/projectselector2/home/dashboard
+auth-gated | required | hard | auth-handoff | get azure portal home | https://portal.azure.com/
+auth-gated | required | hard | auth-handoff | get supabase storage buckets | https://supabase.com/dashboard/account
+auth-gated | required | hard | auth-handoff | get convex dashboard | https://dashboard.convex.dev/
+auth-gated | required | hard | auth-handoff | get stripe customers list | https://dashboard.stripe.com/customers
+auth-gated | required | hard | auth-handoff | get plaid items overview | https://dashboard.plaid.com/overview
+auth-gated | required | hard | auth-handoff | get clickup workspace home | https://app.clickup.com/
+auth-gated | required | hard | auth-handoff | get monday auth login | https://auth.monday.com/users/sign_in
+auth-gated | required | hard | auth-handoff | get basecamp launchpad | https://launchpad.37signals.com/
+auth-gated | required | hard | auth-handoff | get notion calendar home | https://calendar.notion.so/
+auth-gated | required | hard | auth-handoff | get loom my videos | https://www.loom.com/my-videos
+auth-gated | required | hard | auth-handoff | get descript web home | https://web.descript.com/
+auth-gated | required | hard | auth-handoff | get pitch app home | https://app.pitch.com/
+auth-gated | required | hard | auth-handoff | get framer projects home | https://www.framer.com/projects/
+auth-gated | required | hard | auth-handoff | get retool login portal | https://login.retool.com/auth/signin
+auth-gated | required | hard | auth-handoff | get clerk dashboard | https://dashboard.clerk.com/
+auth-gated | required | hard | auth-handoff | get workos dashboard | https://dashboard.workos.com/
+auth-gated | required | hard | auth-handoff | get auth0 manage tenants | https://manage.auth0.com/dashboard
+auth-gated | required | hard | auth-handoff | get statsig dashboard | https://console.statsig.com/
+auth-gated | required | hard | auth-handoff | get launchdarkly home | https://app.launchdarkly.com/
+auth-gated | required | hard | auth-handoff | get split io home dashboard | https://app.split.io/
+auth-gated | required | hard | auth-handoff | get optimizely projects | https://app.optimizely.com/v2/projects
+
+# auth-cookies +30 (cookie-injection for logged-in browsing)
+auth-cookies | dia | hard | cookie-injected | get tiktok for you dia | https://www.tiktok.com/foryou
+auth-cookies | dia | hard | cookie-injected | get pinterest home feed dia | https://www.pinterest.com/
+auth-cookies | dia | hard | cookie-injected | get threads profile feed dia | https://www.threads.net/@zuck
+auth-cookies | dia | hard | cookie-injected | get bluesky profile feed dia | https://bsky.app/profile/bsky.app
+auth-cookies | dia | hard | cookie-injected | get mastodon notifications dia | https://mastodon.social/notifications
+auth-cookies | dia | hard | cookie-injected | get web telegram chats dia | https://web.telegram.org/k/
+auth-cookies | dia | hard | cookie-injected | get whatsapp web chats dia | https://web.whatsapp.com/
+auth-cookies | dia | hard | cookie-injected | get signal homepage dia | https://signal.org/
+auth-cookies | dia | hard | cookie-injected | get teams chat v2 dia | https://teams.microsoft.com/v2/
+auth-cookies | dia | hard | cookie-injected | get zoom meetings list dia | https://zoom.us/meeting
+auth-cookies | dia | hard | cookie-injected | get gcalendar week view dia | https://calendar.google.com/calendar/u/0/r/week
+auth-cookies | dia | hard | cookie-injected | get gdrive my files dia | https://drive.google.com/drive/u/0/my-drive
+auth-cookies | dia | hard | cookie-injected | get dropbox home cookies dia | https://www.dropbox.com/home
+auth-cookies | dia | hard | cookie-injected | get box folder root dia | https://app.box.com/folder/0
+auth-cookies | dia | hard | cookie-injected | get onedrive root files dia | https://onedrive.live.com/
+auth-cookies | dia | hard | cookie-injected | get apple icloud drive dia | https://www.icloud.com/iclouddrive
+auth-cookies | dia | hard | cookie-injected | get youtube library playlists dia | https://www.youtube.com/feed/library
+auth-cookies | dia | hard | cookie-injected | get twitch followed live dia | https://www.twitch.tv/directory/following/live
+auth-cookies | dia | hard | cookie-injected | get evernote home notes dia | https://www.evernote.com/Home.action
+auth-cookies | dia | hard | cookie-injected | get bear notes web dia | https://bear.app/
+auth-cookies | dia | hard | cookie-injected | get pocket home reading dia | https://getpocket.com/my-list
+auth-cookies | dia | hard | cookie-injected | get instapaper queue dia | https://www.instapaper.com/u
+auth-cookies | dia | hard | cookie-injected | get raindrop bookmarks dia | https://app.raindrop.io/my/0
+auth-cookies | dia | hard | cookie-injected | get readwise highlights dia | https://readwise.io/library
+auth-cookies | dia | hard | cookie-injected | get goodnotes web vault dia | https://web.goodnotes.com/
+auth-cookies | dia | hard | cookie-injected | get hey dot com inbox dia | https://app.hey.com/
+auth-cookies | dia | hard | cookie-injected | get proton mail inbox dia | https://mail.proton.me/u/0/inbox
+auth-cookies | dia | hard | cookie-injected | get coinbase trade history dia | https://www.coinbase.com/trade
+auth-cookies | dia | hard | cookie-injected | get robinhood watchlist dia | https://robinhood.com/watchlists
+auth-cookies | dia | hard | cookie-injected | get fidelity orders dia | https://digital.fidelity.com/ftgw/digital/portfolio/activity
+
+# hostile +45 (real anti-bot: tickets, sneakers, real estate, airlines, blockchain)
+hostile | blocked | hostile | browser-block | get stubhub concert tickets | https://www.stubhub.com/concert-tickets/category/2
+hostile | blocked | hostile | browser-block | get vividseats concerts | https://www.vividseats.com/concerts
+hostile | blocked | hostile | browser-block | get seatgeek events home | https://seatgeek.com/
+hostile | blocked | hostile | browser-block | search ticketnetwork concerts | https://www.ticketnetwork.com/concerts
+hostile | blocked | hostile | browser-block | search hyatt cdg city | https://www.hyatt.com/search/CDG/
+hostile | blocked | hostile | browser-block | search marriott find hotels | https://www.marriott.com/search/findHotels.mi
+hostile | blocked | hostile | browser-block | search hilton las vegas | https://www.hilton.com/en/locations/usa/nevada/las-vegas/
+hostile | blocked | hostile | browser-block | search ihg hotels us | https://www.ihg.com/hotels/us/en/find-hotels
+hostile | blocked | hostile | browser-block | search accor europe | https://all.accor.com/europe/index.en.shtml
+hostile | blocked | hostile | browser-block | search delta flight booking | https://www.delta.com/flight-search/book-a-flight
+hostile | blocked | hostile | browser-block | search united choose flights | https://www.united.com/en/us/fsr/choose-flights
+hostile | blocked | hostile | browser-block | search aa find flights | https://www.aa.com/booking/find-flights
+hostile | blocked | hostile | browser-block | search jetblue booking | https://www.jetblue.com/booking
+hostile | blocked | hostile | browser-block | search britishairways home | https://www.britishairways.com/travel/home/public/en_us
+hostile | blocked | hostile | browser-block | search lufthansa flight search | https://www.lufthansa.com/us/en/flight-search
+hostile | blocked | hostile | browser-block | search airfrance home us | https://wwws.airfrance.us/
+hostile | blocked | hostile | browser-block | search emirates english us | https://www.emirates.com/us/english/
+hostile | blocked | hostile | browser-block | search southwest air booking | https://www.southwest.com/air/booking/select.html
+hostile | blocked | hostile | browser-block | search snipes sneakers | https://www.snipes.com/c/sneakers/
+hostile | blocked | hostile | browser-block | search footlocker shoes | https://www.footlocker.com/category/shoes.html
+hostile | blocked | hostile | browser-block | search supreme drops shop | https://www.supremenewyork.com/shop/all
+hostile | blocked | hostile | browser-block | search loopnet commercial | https://www.loopnet.com/search/commercial-real-estate
+hostile | blocked | hostile | browser-block | search cars dot com results | https://www.cars.com/shopping/results/
+hostile | blocked | hostile | browser-block | search carmax used cars | https://www.carmax.com/cars
+hostile | blocked | hostile | browser-block | search cars co uk used | https://www.cars.co.uk/used-cars-for-sale/
+hostile | blocked | hostile | browser-block | get orbitz vacation packages | https://www.orbitz.com/Vacation-Packages
+hostile | blocked | hostile | browser-block | get sneakersnstuff sneakers | https://www.sneakersnstuff.com/en/category/1/sneakers
+hostile | blocked | hostile | browser-block | search grubhub restaurants | https://www.grubhub.com/restaurants
+hostile | blocked | hostile | browser-block | search seamless restaurants | https://www.seamless.com/restaurants
+hostile | blocked | hostile | browser-block | get blockchain com explorer | https://www.blockchain.com/explorer
+hostile | blocked | hostile | browser-block | get etherscan tx list | https://etherscan.io/txs
+hostile | blocked | hostile | browser-block | get bscscan tx list | https://bscscan.com/txs
+hostile | blocked | hostile | browser-block | get solscan tx list | https://solscan.io/txs
+hostile | blocked | hostile | browser-block | get tronscan tx list | https://tronscan.org/#/blockchain/transactions
+hostile | blocked | hostile | browser-block | get arbiscan tx list | https://arbiscan.io/txs
+hostile | blocked | hostile | browser-block | get polygonscan tx list | https://polygonscan.com/txs
+hostile | blocked | hostile | browser-block | get optimistic etherscan | https://optimistic.etherscan.io/txs
+hostile | blocked | hostile | browser-block | get basescan tx list | https://basescan.org/txs
+hostile | blocked | hostile | browser-block | search hotwire vacation | https://www.hotwire.com/
+hostile | blocked | hostile | browser-block | search travelocity hotels | https://www.travelocity.com/Hotels
+hostile | blocked | hostile | browser-block | search ryanair flights eu | https://www.ryanair.com/gb/en
+hostile | blocked | hostile | browser-block | search easyjet flights | https://www.easyjet.com/en
+hostile | blocked | hostile | browser-block | search frontier flights us | https://www.flyfrontier.com/
+hostile | blocked | hostile | browser-block | search spirit flights us | https://www.spirit.com/
+hostile | blocked | hostile | browser-block | get coinmarketcap rankings | https://coinmarketcap.com/
