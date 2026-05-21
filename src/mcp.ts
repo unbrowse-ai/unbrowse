@@ -647,17 +647,72 @@ function listSetupResources(): ResourceDefinition[] {
           // best-effort
         }
 
-        const setup_required = !agent_id || !kuri_binary_present;
+        // Live probe: if an api_key is configured, test it against the
+        // deployed sponsor-status endpoint. Surfaces post-2026-05-18 key
+        // rotation (every pre-rotation key returns 403 INVALID_KEY) so the
+        // agent reading this Resource knows to nudge `unbrowse setup` for a
+        // fresh key. Substrate-faithful: probe collects status_code +
+        // response_excerpt; agent judges. Best-effort: a network failure
+        // never throws here. 3s timeout to keep the read fast.
+        let key_probe: {
+          status_code: number | null;
+          rotation_required: boolean;
+          excerpt: string;
+        } = { status_code: null, rotation_required: false, excerpt: "" };
+        if (api_key_configured) {
+          try {
+            let api_key = "";
+            try {
+              const raw = fs.readFileSync(configPath, "utf8");
+              const cfg = JSON.parse(raw) as { api_key?: string };
+              api_key = cfg.api_key ?? "";
+            } catch {
+              // already handled above; keep api_key empty
+            }
+            if (api_key) {
+              const controller = new AbortController();
+              const t = setTimeout(() => controller.abort(), 3000);
+              const apiBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+              try {
+                const res = await fetch(`${apiBase}/v1/account/sponsor-status`, {
+                  headers: { Authorization: `Bearer ${api_key}` },
+                  signal: controller.signal,
+                });
+                clearTimeout(t);
+                const body = await res.text();
+                key_probe = {
+                  status_code: res.status,
+                  rotation_required: res.status === 403 && (body.includes("INVALID_KEY") || body.includes("all_keys_rotated")),
+                  excerpt: body.slice(0, 240),
+                };
+              } catch {
+                clearTimeout(t);
+                // network/abort error; leave defaults
+              }
+            }
+          } catch {
+            // best-effort
+          }
+        }
+
+        const setup_required = !agent_id || !kuri_binary_present || key_probe.rotation_required;
+        let next_action: string;
+        if (key_probe.rotation_required) {
+          next_action = "Local API key was rotated server-side (2026-05-18 security rotation). Run `unbrowse setup` to mint a fresh key. Old key is in " + configPath + " and returns " + key_probe.status_code + " from beta-api.";
+        } else if (setup_required) {
+          next_action = "Run `unbrowse setup` to register the agent and install the Kuri browser engine.";
+        } else {
+          next_action = "Setup complete. Try `unbrowse resolve --intent <X> --url <Y>` or call the resolve tool.";
+        }
         return {
           setup_required,
           agent_id_present: Boolean(agent_id),
           api_key_configured,
           kuri_binary_present,
           claude_mcp_registered,
+          key_probe,
           config_path: configPath,
-          next_action: setup_required
-            ? "Run `unbrowse setup` to register the agent and install the Kuri browser engine."
-            : "Setup complete. Try `unbrowse resolve --intent <X> --url <Y>` or call the resolve tool.",
+          next_action,
           read_at: new Date().toISOString(),
         };
       },
