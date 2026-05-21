@@ -58,9 +58,13 @@ const DEFAULT_CONFIG: PrivyClientConfig = {
   },
   // Wallet-creation policy: only create a Privy-embedded wallet for
   // users who don't already have one. Existing wallets (lobster, any
-  // other Solana signer) stay the source of truth.
+  // other Solana signer) stay the source of truth. Solana not ethereum:
+  // unbrowse's x402 sponsor middleware (backend/src/middleware/sponsor.ts)
+  // settles payments on Solana, and the agent.wallet_address column the
+  // bind step writes into is a Solana pubkey. An ethereum-only embedded
+  // wallet would be orphaned from the payment rail.
   embeddedWallets: {
-    ethereum: { createOnLogin: "users-without-wallets" },
+    solana: { createOnLogin: "users-without-wallets" },
   },
   // Login methods: email + google + external wallet. Wallet covers
   // anyone arriving from lobster.cash who already has a Solana
