@@ -257,7 +257,7 @@ export default async function SearchPage({
       {!q && (
         <div className="animate-fade-up stagger-4 max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-white/60 text-sm mb-6">
+            <p className="text-[rgba(255,250,242,0.6)] text-sm mb-6">
               Try searching for an intent to find matching APIs:
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
