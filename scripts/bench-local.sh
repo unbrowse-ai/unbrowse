@@ -194,6 +194,135 @@ row = {
     ) if isinstance(r, dict) else False,
 }
 
+# ---------------------------------------------------------------------------
+# Action-verification evidence (Lewis 2026-05-21):
+# "the benchmark judging ENSURES the ACTION properly performed with
+#  verification whether its to get data or perform something"
+#
+# Structural evidence only. No PASS/FAIL derived here — the agent reads the
+# fields and judges in-thread per the rubric in CLAUDE.md.
+# ---------------------------------------------------------------------------
+_STOPWORDS = {
+    "a","an","the","and","or","for","of","to","in","on","at","by","with",
+    "from","is","are","be","this","that","my","your","our","their","its",
+    "it","i","we","they","you","me","us","them","please","using","via",
+    "any","all","some","one","first","last","most",
+}
+_ACTION_VERBS_GET = {
+    "get","fetch","show","view","read","inspect","see","look","retrieve",
+    "open","load","check","display",
+}
+_ACTION_VERBS_LIST = {
+    "search","query","filter","browse","list","enumerate","find","scan",
+}
+_ACTION_VERBS_PERFORM = {
+    "post","submit","send","comment","create","add","update","edit",
+    "delete","trigger","click","react","like","follow","unfollow","share",
+    "publish","upload","reply","vote","upvote","downvote","save",
+    "subscribe","unsubscribe","cancel","buy","purchase","checkout","pay",
+}
+_ALL_ACTION_VERBS = _ACTION_VERBS_GET | _ACTION_VERBS_LIST | _ACTION_VERBS_PERFORM
+
+def _classify_action(goal_text):
+    """Return the intent_action_class for the goal string. First matching
+    verb wins by priority: perform > list_or_search > get_data."""
+    tokens = re.findall(r"[a-z0-9][a-z0-9_-]*", (goal_text or "").lower())
+    if not tokens:
+        return "ambiguous"
+    for t in tokens:
+        if t in _ACTION_VERBS_PERFORM:
+            return "perform"
+    for t in tokens:
+        if t in _ACTION_VERBS_LIST:
+            return "list_or_search"
+    for t in tokens:
+        if t in _ACTION_VERBS_GET:
+            return "get_data"
+    return "ambiguous"
+
+def _intent_tokens(goal_text):
+    """Meaningful tokens from intent: lowercased, stopwords + action verbs
+    removed, length >= 3, dedup-preserving order."""
+    raw = re.findall(r"[a-z0-9][a-z0-9_-]*", (goal_text or "").lower())
+    seen = []
+    seen_set = set()
+    for t in raw:
+        if len(t) < 3:
+            continue
+        if t in _STOPWORDS:
+            continue
+        if t in _ALL_ACTION_VERBS:
+            continue
+        if t in seen_set:
+            continue
+        seen_set.add(t)
+        seen.append(t)
+    return seen
+
+def _response_haystack(result_obj, top_obj):
+    """Build the response haystack used for token-hit checking. Searches
+    result.title, result.text_excerpt, result.markdown if present, plus
+    a few common sibling fields. NEVER searches the URL itself — that
+    would let URL-shaped query strings echo into hits."""
+    parts = []
+    candidates = []
+    if isinstance(result_obj, dict):
+        candidates.append(result_obj)
+    if isinstance(top_obj, dict):
+        candidates.append(top_obj)
+    for src in candidates:
+        for key in ("title", "text_excerpt", "markdown", "excerpt",
+                    "body_text", "summary", "description"):
+            v = src.get(key)
+            if isinstance(v, str) and v:
+                parts.append(v)
+        # captured_meta sometimes carries the title at one level deeper.
+        cm = src.get("captured_meta")
+        if isinstance(cm, dict):
+            for key in ("title", "text_excerpt"):
+                v = cm.get(key)
+                if isinstance(v, str) and v:
+                    parts.append(v)
+    return "\n".join(parts).lower()
+
+_action_class = _classify_action(goal)
+_itokens = _intent_tokens(goal)
+_haystack = _response_haystack(r, d)
+_hits = [t for t in _itokens if t.lower() in _haystack]
+_hit_rate = (len(_hits) / len(_itokens)) if _itokens else 0.0
+_side_effect_required = _action_class == "perform"
+_side_effect_check = (
+    "NOT_IMPLEMENTED: side-effect probes require a per-probe verifier "
+    "(re-fetch + state diff). No PERFORM probes in current corpus."
+    if _side_effect_required else ""
+)
+if _action_class == "perform":
+    _judgment_q = (
+        f"intent_action_class=perform; intent_tokens={_itokens}; "
+        f"side-effect verifier NOT_IMPLEMENTED — agent must confirm the "
+        f"requested mutation actually occurred (re-fetch state)."
+    )
+elif not _itokens:
+    _judgment_q = (
+        f"intent_action_class={_action_class} but intent_tokens is empty; "
+        f"agent reads text_excerpt to confirm response is on-topic."
+    )
+else:
+    _judgment_q = (
+        f"intent_tokens={_itokens} hit {len(_hits)}/{len(_itokens)}; "
+        f"does response excerpt show real DATA matching the intent, "
+        f"or just keyword echo / boilerplate?"
+    )
+
+row["intent_action_class"] = _action_class
+row["intent_tokens"] = _itokens
+row["response_token_hits"] = _hits
+row["response_token_hit_rate"] = round(_hit_rate, 3)
+row["action_side_effect_required"] = _side_effect_required
+row["action_side_effect_check"] = _side_effect_check
+row["agent_judgment_question"] = _judgment_q
+
+
 # Classify as a first-class row column — so downstream tools (and the
 # agent) don't have to re-derive the verdict. Must match the rule in
 # bench-local-triage.py's classify() exactly; keep them in sync or the
