@@ -25,7 +25,7 @@ const TABS = [
     lines: [
       { type: "header",  text: "▸  UNBROWSE MCP  ·  CLAUDE CODE" },
       { type: "divider", text: "──────────────────────────────────────────────" },
-      { type: "comment", text: "  ##  one command — registers the MCP server" },
+      { type: "comment", text: "  ##  one command, registers the MCP server" },
       { type: "cmd",     text: "  $  claude mcp add unbrowse -- npx -y unbrowse mcp" },
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  or use the bundled installer (auto-detects host)" },
@@ -48,7 +48,7 @@ const TABS = [
       { type: "comment", text: "  ##  or add to your mcp.json manually" },
       { type: "cmd",     text: '  {  "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] }  }' },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  restart the host — unbrowse is now an MCP server" },
+      { type: "comment", text: "  ##  restart the host. unbrowse is now an MCP server" },
     ] as TLine[],
   },
   {
@@ -278,7 +278,7 @@ export function InstallInstructions() {
           </>
         ) : (
           <>
-            <span style={{ opacity: 0.7 }}>○ anonymous install — the cli will prompt for an email on first run</span>
+            <span style={{ opacity: 0.7 }}>○ anonymous install. the cli will prompt for an email on first run</span>
             <a
               href="/login"
               style={{
