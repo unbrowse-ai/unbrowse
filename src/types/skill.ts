@@ -508,6 +508,14 @@ export interface SkillManifest {
   owner_wallet_usdc_ata?: string;
   /** ISO timestamp the DNS-TXT verify succeeded. SERVER-OWNED. */
   owner_wallet_verified_at?: string;
+  /**
+   * Per-skill platform markup in basis points (1 bp = 0.01%).
+   * Optional override for the global PLATFORM_BPS constant in
+   * backend/src/services/flex.ts. Clamped to [500, 8000] at compute
+   * time (5%-80% per the Pontus / ABK Labs 2026-05-21 brief).
+   * When unset, falls back to PLATFORM_BPS=5000 (50%).
+   */
+  markup_bps?: number;
   /** Server-owned submission provenance for staged promotion and abuse analysis. */
   provenance_events?: SkillSubmissionProvenance[];
   /** Server-owned graph trust state. */
