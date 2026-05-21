@@ -97,32 +97,69 @@ export interface HealthResponse {
   _request_id?: string;
 }
 
-export interface AccountUsage {
+export interface AccountMe {
+  user_id: string;
+  email: string;
+  email_verified: boolean;
+  created_at: string;
+  _request_id?: string;
+}
+
+export interface AccountCredits {
+  user_id: string;
+  balance_usd: number;
+  used_usd: number;
+  granted_usd: number;
+  _request_id?: string;
+}
+
+export interface SponsorStatus {
   agent_id: string;
-  daily_usd_spent: number;
-  daily_usd_cap: number;
-  daily_executions: number;
-  sponsor_remaining_usd: number;
+  date: string;
+  agent_remaining_usd: number;
+  agent_cap_usd: number;
+  global_remaining_usd: number;
+  global_cap_usd: number;
   _request_id?: string;
 }
 
 export interface ApiKey {
-  id: string;
+  keyId: string;
   name: string;
-  prefix: string;          // e.g. "ubr_live_AB12"
-  created_at: string;
-  last_used_at: string | null;
+  created_at: string | null;
   revoked_at: string | null;
+  funding: ApiKeyFunding | null;
+}
+
+export interface ApiKeyFunding {
+  wallet_address?: string;
+  credit_budget_usd?: number;
+  bound_at?: string;
 }
 
 export interface ApiKeyCreateInput {
-  name: string;
-  scopes?: string[];
+  name?: string;
 }
 
 export interface ApiKeyCreateResponse {
-  key: ApiKey;
-  plaintext: string;       // only returned on create
+  keyId: string;
+  key: string;          // plaintext, returned ONCE; store it now
+  name: string;
+  created_at: string;
+  message: string;
+  rotated_from?: string;
+  _request_id?: string;
+}
+
+export interface ApiKeyListResponse {
+  keys: ApiKey[];
+  _request_id?: string;
+}
+
+export interface ApiKeyRevokeResponse {
+  ok: true;
+  keyId: string;
+  revoked: true;
   _request_id?: string;
 }
 

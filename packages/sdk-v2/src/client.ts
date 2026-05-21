@@ -5,10 +5,13 @@ import {
   UnbrowseTimeoutError,
 } from "./errors.js";
 import type {
-  AccountUsage,
+  AccountMe,
+  AccountCredits,
   ApiKey,
   ApiKeyCreateInput,
   ApiKeyCreateResponse,
+  ApiKeyListResponse,
+  ApiKeyRevokeResponse,
   ExecuteInput,
   ExecuteResponse,
   HealthResponse,
@@ -17,6 +20,7 @@ import type {
   ResolveResponse,
   SearchInput,
   SearchResponse,
+  SponsorStatus,
   UnbrowseClientOptions,
 } from "./types.js";
 import type {
@@ -171,24 +175,30 @@ export class Unbrowse {
 
 class AccountResource {
   constructor(private readonly client: Unbrowse) {}
-  usage(opts: RequestOptions = {}): Promise<AccountUsage> {
-    return this.client.request<AccountUsage>("GET", "/v1/account/usage", undefined, opts);
+  me(opts: RequestOptions = {}): Promise<AccountMe> {
+    return this.client.request<AccountMe>("GET", "/v1/account/me", undefined, opts);
   }
-  sponsorStatus(opts: RequestOptions = {}): Promise<unknown> {
-    return this.client.request<unknown>("GET", "/v1/account/sponsor-status", undefined, opts);
+  credits(opts: RequestOptions = {}): Promise<AccountCredits> {
+    return this.client.request<AccountCredits>("GET", "/v1/account/credits", undefined, opts);
+  }
+  sponsorStatus(opts: RequestOptions = {}): Promise<SponsorStatus> {
+    return this.client.request<SponsorStatus>("GET", "/v1/account/sponsor-status", undefined, opts);
   }
 }
 
 class KeysResource {
   constructor(private readonly client: Unbrowse) {}
-  list(opts: RequestOptions = {}): Promise<{ keys: ApiKey[] }> {
-    return this.client.request<{ keys: ApiKey[] }>("GET", "/v1/keys", undefined, opts);
+  list(opts: RequestOptions = {}): Promise<ApiKeyListResponse> {
+    return this.client.request<ApiKeyListResponse>("GET", "/v1/account/keys", undefined, opts);
   }
-  create(input: ApiKeyCreateInput, opts: RequestOptions = {}): Promise<ApiKeyCreateResponse> {
-    return this.client.request<ApiKeyCreateResponse>("POST", "/v1/keys", input, opts);
+  create(input: ApiKeyCreateInput = {}, opts: RequestOptions = {}): Promise<ApiKeyCreateResponse> {
+    return this.client.request<ApiKeyCreateResponse>("POST", "/v1/account/keys", input, opts);
   }
-  revoke(id: string, opts: RequestOptions = {}): Promise<{ ok: true }> {
-    return this.client.request<{ ok: true }>("DELETE", `/v1/keys/${encodeURIComponent(id)}`, undefined, opts);
+  revoke(keyId: string, opts: RequestOptions = {}): Promise<ApiKeyRevokeResponse> {
+    return this.client.request<ApiKeyRevokeResponse>("DELETE", `/v1/account/keys/${encodeURIComponent(keyId)}`, undefined, opts);
+  }
+  rotate(keyId: string, opts: RequestOptions = {}): Promise<ApiKeyCreateResponse> {
+    return this.client.request<ApiKeyCreateResponse>("POST", `/v1/account/keys/${encodeURIComponent(keyId)}/rotate`, undefined, opts);
   }
 }
 
