@@ -1,8 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (11) semantic-rank (14) graphql (6) ssr-list (15) auth-gated (8) auth-cookies (8) hostile (18)
-# Total: 80
-# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21: upwork gitlab cal eventbrite sec ups spotify)
+# Lanes: anchor (11) semantic-rank (14) graphql (6) ssr-list (15) auth-gated (14) auth-cookies (8) hostile (18)
+# Total: 86
+# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21) + v4 OAuth-pain mining (6 added 2026-05-21: salesforce/gcal/airtable/teams/stripe/hubspot)
 # Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -73,6 +73,13 @@ auth-gated | required | hard | auth-handoff | list google drive files | https://
 auth-gated | required | hard | auth-handoff | get figma file canvas | https://www.figma.com/files/recent
 auth-gated | required | hard | auth-handoff | get slack channel messages | https://app.slack.com/client/T0/C0
 auth-gated | required | hard | auth-handoff | get x home timeline cold | https://x.com/home
+# v4 OAuth-pain mining 2026-05-21 (top reddit-cited OAuth automation pain points)
+auth-gated | required | hard | auth-handoff | get salesforce home dashboard | https://app.salesforce.com/lightning/page/home
+auth-gated | required | hard | auth-handoff | get google calendar events for today | https://calendar.google.com/calendar/u/0/r
+auth-gated | required | hard | auth-handoff | browse airtable workspace bases | https://airtable.com/
+auth-gated | required | hard | auth-handoff | open microsoft teams chat | https://teams.microsoft.com/
+auth-gated | required | hard | auth-handoff | browse stripe dashboard payments | https://dashboard.stripe.com/payments
+auth-gated | required | hard | auth-handoff | browse hubspot crm contacts | https://app.hubspot.com/contacts/
 
 # ─── auth-cookies (8) — exercise Dia/Chrome cookie auto-injection to reach
 #   authenticated routes; included in denominator ONLY when the user is
