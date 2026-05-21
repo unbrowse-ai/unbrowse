@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ContributorDashboard } from "@/components/contributor-dashboard";
+import { InstallInstructions } from "@/components/install-instructions";
 import {
   getAccountMe,
   getAccountPreferences,
@@ -220,6 +221,16 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Install your MCP — bakes the user's API key into the copy-able
+          command. Renders on the authed dashboard so a user who just signed
+          in gets the install in zero extra clicks. The same widget renders
+          on /install and on the landing page. */}
+      <div className="mx-auto mt-6 max-w-6xl px-6">
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          ##  Install the MCP
+        </p>
+        <InstallInstructions />
+      </div>
       {dashboard && (
         <ContributorDashboard
           dashboard={dashboard}
