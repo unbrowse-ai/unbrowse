@@ -1,8 +1,8 @@
 # Release-Gate Bench corpus (release-gate-bench-plan.md)
 # Format: lane | auth | difficulty | strategy | intent | contextUrl
-# Lanes: anchor (11) semantic-rank (14) graphql (6) ssr-list (15) auth-gated (14) auth-cookies (8) hostile (18)
-# Total: 86
-# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21) + v4 OAuth-pain mining (6 added 2026-05-21: salesforce/gcal/airtable/teams/stripe/hubspot)
+# Lanes: anchor (16) semantic-rank (19) graphql (10) ssr-list (20) auth-gated (22) auth-cookies (16) hostile (23)
+# Total: 126
+# Sources: original curated set (50) + v1 r/webscraping + HN (8 added 2026-05-14) + Dia cookie auth (8 added 2026-05-19) + v2 r/webscraping (7 added 2026-05-21) + v3 use-case mining (7 added 2026-05-21) + v4 OAuth-pain mining (6 added 2026-05-21) + wave-2 expansion (40 added 2026-05-21: 86 to 126, target 100+ probes, 100+ domains eventual goal)
 # Coverage denominator excludes auth-gated + hostile + auth-cookies-without-cookies that resolve as EXCLUDED_*.
 # Hostile-lane PASS is a yellow flag (anti-bot honey-trap), not celebrated.
 
@@ -117,3 +117,64 @@ hostile | blocked | hostile | browser-block | search eporner adult videos | http
 # v3 use-case mining 2026-05-21 (canonical missing automation targets)
 hostile | blocked | hostile | browser-block | track UPS shipment | https://www.ups.com/track?tracknum=1Z999AA10123456784
 hostile | blocked | hostile | browser-block | search spotify for album | https://open.spotify.com/search/abbey%20road
+
+# ─── wave-2 expansion 2026-05-21 (+40 rows: 86 -> 126; domains 70 -> 110) ──────
+# Spans 20 site categories (ecom, fintech, news, devtools, docs, music, video,
+# gov/healthcare, science, social, productivity, design, AI/ML, gaming, travel,
+# education, real estate, automotive, food/recipes, sports). Lane deltas:
+# anchor +5, semantic-rank +5, graphql +4, ssr-list +5, auth-gated +8,
+# auth-cookies +8, hostile +5.
+
+# anchor +5 (docs/reference, fintech, food, music, gov)
+anchor | none | easy | structured-replay | get rubygems package info | https://rubygems.org/gems/rails
+anchor | none | easy | direct-api | get coingecko coin price for bitcoin | https://www.coingecko.com/en/coins/bitcoin
+anchor | none | easy | dom-artifact | get allrecipes recipe | https://www.allrecipes.com/recipe/213742/cheesy-chicken-broccoli-and-rice-casserole/
+anchor | none | medium | dom-artifact | get musicbrainz artist info | https://musicbrainz.org/artist/83d91898-7763-47d7-b03b-b92132375c47
+anchor | none | medium | dom-artifact | get weather.gov forecast for san francisco | https://forecast.weather.gov/MapClick.php?lat=37.7749&lon=-122.4194
+
+# semantic-rank +5 (automotive, education, design, AI/ML, gaming)
+semantic-rank | none | medium | semantic-rank | get edmunds car listing for honda civic | https://www.edmunds.com/honda/civic/2024/
+semantic-rank | none | medium | semantic-rank | get coursera course landing for ml | https://www.coursera.org/learn/machine-learning
+semantic-rank | optional | hard | semantic-rank | get dribbble shot for landing-page tag | https://dribbble.com/tags/landing-page
+semantic-rank | optional | hard | semantic-rank | get huggingface model card for llama | https://huggingface.co/meta-llama/Llama-3.1-8B
+semantic-rank | none | hard | semantic-rank | search itch.io games tagged platformer | https://itch.io/games/tag-platformer
+
+# graphql +4 (social/video/productivity)
+graphql | optional | hard | graphql | get tiktok profile videos | https://www.tiktok.com/@nasa
+graphql | optional | hard | graphql | get pinterest board pins | https://www.pinterest.com/search/pins/?q=interior%20design
+graphql | required | hard | graphql | get quora question feed | https://www.quora.com/
+graphql | required | hard | graphql | get producthunt today launches | https://www.producthunt.com/
+
+# ssr-list +5 (travel, real estate, news, food, gov/healthcare)
+ssr-list | none | easy | ssr-list | get cdc topic page for influenza | https://www.cdc.gov/flu/index.html
+ssr-list | none | medium | ssr-list | search expedia hotels in paris | https://www.expedia.com/Hotel-Search?destination=Paris
+ssr-list | none | medium | ssr-list | search redfin homes in seattle | https://www.redfin.com/city/16163/WA/Seattle
+ssr-list | none | medium | ssr-list | get reuters world news headlines | https://www.reuters.com/world/
+ssr-list | none | hard | ssr-list | search nytimes cooking for pasta recipes | https://cooking.nytimes.com/search?q=pasta
+
+# auth-gated +8 (productivity, devtools, fintech, gov)
+auth-gated | required | medium | auth-handoff | open vercel projects dashboard | https://vercel.com/dashboard
+auth-gated | required | medium | auth-handoff | open cloudflare zones dashboard | https://dash.cloudflare.com/
+auth-gated | required | medium | auth-handoff | open supabase projects list | https://supabase.com/dashboard/projects
+auth-gated | required | medium | auth-handoff | open intercom inbox | https://app.intercom.com/a/inbox/
+auth-gated | required | hard | auth-handoff | list bitbucket repositories | https://bitbucket.org/dashboard/repositories
+auth-gated | required | hard | auth-handoff | get discord channel messages | https://discord.com/channels/@me
+auth-gated | required | hard | auth-handoff | get aws ec2 instances console | https://console.aws.amazon.com/ec2/home
+auth-gated | required | hard | auth-handoff | open paypal activity page | https://www.paypal.com/myaccount/activity/
+
+# auth-cookies +8 (productivity, devtools, design, social, fintech)
+auth-cookies | dia | medium | cookie-injected | get vercel deployments with cookies | https://vercel.com/dashboard/deployments
+auth-cookies | dia | medium | cookie-injected | get supabase org settings with cookies | https://supabase.com/dashboard/account/me
+auth-cookies | dia | medium | cookie-injected | get producthunt my upvotes with cookies | https://www.producthunt.com/my/upvoted
+auth-cookies | dia | medium | cookie-injected | get canva home with cookies | https://www.canva.com/
+auth-cookies | dia | hard | cookie-injected | get figma drafts with cookies | https://www.figma.com/files/drafts
+auth-cookies | dia | hard | cookie-injected | get spotify library with cookies | https://open.spotify.com/collection/playlists
+auth-cookies | dia | hard | cookie-injected | get discord friends list with cookies | https://discord.com/channels/@me/friends
+auth-cookies | dia | hard | cookie-injected | get coinbase portfolio with cookies | https://www.coinbase.com/portfolio
+
+# hostile +5 (ecom/reviews/travel anti-bot vendors)
+hostile | blocked | hostile | browser-block | search aliexpress for usb cable | https://www.aliexpress.com/wholesale?SearchText=usb+cable
+hostile | blocked | hostile | browser-block | search imdb for top movies 2024 | https://www.imdb.com/search/title/?title_type=feature&release_date=2024-01-01,2024-12-31
+hostile | blocked | hostile | browser-block | search yelp for ramen in nyc | https://www.yelp.com/search?find_desc=ramen&find_loc=New+York%2C+NY
+hostile | blocked | hostile | browser-block | get crunchbase company profile for openai | https://www.crunchbase.com/organization/openai
+hostile | blocked | hostile | browser-block | search macys for womens shoes | https://www.macys.com/shop/womens-clothing/womens-shoes
