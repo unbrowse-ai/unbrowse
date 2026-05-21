@@ -181,6 +181,32 @@ export default function RootLayout({
             }),
           }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebPage",
+              url: "https://www.unbrowse.ai",
+              name: "Unbrowse",
+              description:
+                "Direct access to anything on the web, without setting up another MCP. Unbrowse captures website shadow APIs once and lets agents call them directly thereafter.",
+              speakable: {
+                "@type": "SpeakableSpecification",
+                cssSelector: [
+                  "#agent-instructions",
+                  "h1",
+                  "#objections h2",
+                ],
+              },
+              isPartOf: {
+                "@type": "WebSite",
+                url: "https://www.unbrowse.ai",
+                name: "Unbrowse",
+              },
+            }),
+          }}
+        />
         <script defer src="https://cloud.umami.is/script.js" data-website-id="66d811d2-a320-4b38-87b9-b15a60022313"></script>
       </head>
       <body className="antialiased overflow-x-hidden">
