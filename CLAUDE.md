@@ -93,16 +93,28 @@ Apply in order (first match wins):
 
 | Bucket | Condition | Counted? |
 |---|---|---|
-| `BROWSER_BLOCK` | `browser_block_signals` contains `vendor:*`, `challenge_title`, or `no_html_many_apis` | Excluded from coverage |
-| `BROWSER_BLOCK` | `capture_diagnostic` in (`no_endpoints_extracted`, `all_endpoints_filtered_by_noise_rules`) | Excluded from coverage |
-| `AUTH_GATED` | `error_code == "auth_required"` | Excluded from coverage |
+| `ANTIBOT_BLOCK` | `browser_block_signals` contains `vendor:*`, `challenge_title`, or `no_html_many_apis` | ✗ Fail (PRODUCT capability gap) |
+| `ANTIBOT_BLOCK` | `capture_diagnostic` in (`no_endpoints_extracted`, `all_endpoints_filtered_by_noise_rules`) | ✗ Fail (PRODUCT capability gap) |
+| `AUTH_GATED` | `error_code == "auth_required"` or `auth_recommended == true` | Excluded from coverage (USER credential gap, not product) |
 | `PASS` | `has_available_operations == true && n_operations > 0` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "dom-fallback"` | ✓ Pass |
 | `PASS` | `trace_success == true && source == "direct-fetch"` | ✓ Pass (raw body returned) |
 | `SPARSE_REVIEW` | `browser_block_signals` contains only `sparse_capture_mostly_noise` (no vendor) | Agent judges in-thread |
 | `PRODUCT_FAIL` | anything else | ✗ Fail |
 
-Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW)`**. Never include browser-blocked or auth-gated sites in the denominator — they're not our bug to fix. The stop hook's "100% coverage unless browser-blocked" maps directly to this formula.
+Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW + ANTIBOT_BLOCK)`**. AUTH_GATED is still excluded because the agent cannot proceed without user credentials (cookie injection, magic link, OAuth grant) and that's a SETUP gap, not a runtime product gap. Everything else counts toward the denominator. The stop hook's "100% coverage" claim now means: 100% of probes the agent could possibly resolve given valid credentials, with no antibot-as-excuse exclusion.
+
+Antibot bypass is a PRODUCT capability gap, not "not our bug." Saying we have 100% coverage "except for the blocked sites" is dishonest: the blocked sites are exactly where Unbrowse needs to differentiate (libcurl-impersonate, residential proxy fallback per `UNBROWSE_PROXY_URL`, JA4 spoof, cookie injection from real Chrome/Firefox profiles, headful fallback). Counting them as PRODUCT_FAIL (renamed ANTIBOT_BLOCK so the failure mode is visible in the tally) makes the bench tell the truth and pushes the team toward the right wedge.
+
+### Action-verification rubric (overrides PASS in some cases)
+
+The structural PASS rules (`n_operations > 0`, `source == dom-fallback`, etc.) check that something came back. They don't check whether the CALLER's intent was satisfied. The action-verification fields emitted by `.bench-local/extract.py` (`intent_action_class`, `intent_tokens`, `response_token_hits`, `response_token_hit_rate`, `action_side_effect_required`, `action_side_effect_check`, `agent_judgment_question`) close that gap:
+
+- If `intent_action_class == "perform"` AND `action_side_effect_required == true`: row CANNOT be PASS without a per-probe side-effect verifier. Default to `MANUAL_REVIEW` until one ships.
+- If `intent_action_class in ("get_data","list_or_search")` AND `response_token_hit_rate < 0.34`: agent reads `text_excerpt` (or `markdown` if present) to confirm the response is on-topic. PASS only if judged on-topic in-thread, overriding the structural rule. Catches gzip-magic and captcha-200 failures.
+- If `intent_action_class in ("get_data","list_or_search")` AND `response_token_hit_rate >= 0.34` AND structural PASS criteria met: PASS without further review.
+- The `agent_judgment_question` field is the prompt the agent answers when the row is ambiguous.
+
 
 ### When a row is `SPARSE_REVIEW`
 
