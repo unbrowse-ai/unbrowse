@@ -11,10 +11,27 @@
 
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
-import { connect } from "cloudflare:sockets";
 import { optionalAuth } from "../middleware/auth.js";
 
-type Socket = ReturnType<typeof connect>;
+// cloudflare:sockets is a Workers-runtime virtual module. It does not exist in
+// Bun (which loads this file during backend tests via the Hono app import
+// graph). The residential proxy path that uses it is Workers-only at runtime,
+// so we resolve `connect` lazily inside that path and type `Socket`
+// structurally here.
+type Socket = {
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  close(): Promise<void>;
+  startTls(opts: { expectedServerHostname: string }): Socket;
+};
+type CfConnect = (
+  addr: { hostname: string; port: number },
+  opts?: { secureTransport?: "starttls" | "off"; allowHalfOpen?: boolean },
+) => Socket;
+async function getCloudflareConnect(): Promise<CfConnect> {
+  const mod = await import("cloudflare:sockets");
+  return mod.connect as CfConnect;
+}
 
 interface ProxyRequestBody {
   url: string;
@@ -214,7 +231,9 @@ async function fetchViaIproyal(
   const isHttps = url.protocol === "https:";
 
   // Open TCP socket to iproyal proxy endpoint. Cloudflare's cloudflare:sockets
-  // connect() returns a Socket with readable/writable streams.
+  // connect() returns a Socket with readable/writable streams. Loaded lazily
+  // because the module is a Workers virtual; Bun can't resolve it statically.
+  const connect = await getCloudflareConnect();
   const sock: Socket = connect(
     { hostname: iproyalHost, port: iproyalPort },
     // `secureTransport: "starttls"` is required by cloudflare:sockets so a
