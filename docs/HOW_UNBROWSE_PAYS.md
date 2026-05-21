@@ -78,6 +78,20 @@ Agents pay per call. The x402 response carries the price, recipient, and memo. T
 
 Accounts exist for one reason: to accumulate and read earnings. The magic-link flow at `backend/src/routes/auth.ts:53-172` issues an API key and an agent_id; the agent_id is what we attribute contributions to. You can use unbrowse without ever creating one; you just can't see a balance until you do.
 
+## Anti-reverse-engineering: server-bound execution
+
+The unbrowse marketplace is the moat: a CLI binary lifted from npm and run standalone still has local capture / extraction code, but without server-issued search + skill access the agent loses the intelligence layer it needs to be useful.
+
+To enforce this server-side (Wave 1 shipping 2026-05-22):
+
+- Every marketplace API call (`/v1/search`, `/v1/search/endpoints`, `/v1/skills/*`) is gated on a per-session HMAC token mint at `POST /v1/session/exec-token`.
+- The token mint requires the caller to send `{ build_sha, deployed_at }` matching either the CURRENT server's `/v1/version` triple OR a tuple CI previously registered via the admin-gated `POST /v1/internal/register-build`.
+- Tokens are signed with `RELEASE_MANIFEST_SIGNING_SECRET` (the same secret that signs `/v1/version`) and bound to `{ agent_id, build_sha, deployed_at, exp }`. Constant-time HMAC compare on verify.
+- Patching the CLI to skip token injection is fine, but every marketplace call then returns `401 error_code=missing_token`. The binary still runs locally; it just has no intelligence layer behind it.
+- Reverse-engineered or hand-built binaries cannot self-register a `(build_sha, deployed_at)` tuple because the registration route is `ADMIN_KEY`-gated and only the CI release workflow has that key.
+
+Substrate-faithful: tokens carry actionable next_step (`run \`unbrowse update\` to get a CI-signed build`) and the gate refuses on `secret_unconfigured` rather than fake-passing. See `backend/src/services/exec-token.ts` for the canonical contract and `backend/tests/exec-token.test.ts` for the 10 locked invariants.
+
 ## What this is not
 
 - Not a custodial wallet. Funds never sit in an unbrowse account.
