@@ -22,7 +22,9 @@
     "tagAnnotation": "Release v${version}",
     "push": true
   },
-  "npm": false,
+  "npm": {
+    "publish": false
+  },
   "github": {
     "release": true,
     "releaseName": "v${version}"
