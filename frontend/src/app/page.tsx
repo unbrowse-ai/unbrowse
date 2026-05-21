@@ -27,6 +27,7 @@ import { BenchmarkTable } from "@/components/benchmark-table";
 import { EarnSection } from "@/components/earn-section";
 import { AntiIcpBlock } from "@/components/anti-icp-block";
 import { ObjectionFaq } from "@/components/objection-faq";
+import { TrustStrip } from "@/components/trust-strip";
 import { Github } from "lucide-react";
 import {
   getStatsSummary,
@@ -37,8 +38,6 @@ import {
 import { IconArrow, IconChevron } from "@/components/archival-icons";
 
 export const revalidate = 60;
-
-const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 
 // FAQ JSON-LD aligned with the locked H1: "Direct access to anything on
 // the web. Without setting up another MCP." First question carries the
@@ -70,7 +69,7 @@ const faqJsonLd = {
       name: "How is Unbrowse different from Playwright MCP?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Playwright MCP drives a real browser and streams the full accessibility tree on every call — about 114K tokens per typical task. Microsoft's own Playwright team recommends their CLI over their MCP for that reason. Unbrowse calls the website's internal API instead, returning the answer the agent asked for in roughly 5K tokens. Across 94 live domains the paper measures 3.6x mean (5.4x median) speedup over Playwright on read-shaped tasks.",
+        text: "Playwright MCP drives a real browser and streams the full accessibility tree on every call, about 114K tokens per typical task. Microsoft's own Playwright team recommends their CLI over their MCP for that reason. Unbrowse calls the website's internal API instead, returning the answer the agent asked for in roughly 5K tokens. Across 94 live domains the paper measures 3.6x mean (5.4x median) speedup over Playwright on read-shaped tasks.",
       },
     },
     {
@@ -348,17 +347,14 @@ export default function Home() {
                   [ See what your agent can do ]
                 </ScrollToButton>
               </div>
-              <div className="flex items-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
-                <a
-                  href={WHITEPAPER_URL}
-                  target="_blank"
-                  rel="noopener"
-                  className="hover:text-[rgba(255,176,96,1)] transition-colors"
-                >
-                  read the paper
-                </a>
-              </div>
             </div>
+            <Suspense
+              fallback={
+                <div className="mt-8 h-14 w-full max-w-3xl rounded-sm border border-[rgba(255,122,32,0.12)]" />
+              }
+            >
+              <TrustStrip />
+            </Suspense>
 
             <Suspense fallback={null}>
               <HeroWhyItMatters />

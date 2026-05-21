@@ -614,3 +614,21 @@ Instead of handoff when ranker yields empty, the orchestrator should include `de
 
 **Honest scoping:** still N-cycles to gate.passed=true. Each PR should land + re-bench to measure. The handoff fix is the highest-leverage single change because it addresses retrieve coverage's biggest gap (22 of 47 = 47% of retrievable probes).
 
+
+---
+
+## Tick 77 update — #604 bug impact quantified: 8/39 probes affected (20%)
+
+**Scan of in-flight bench (`.bench-gate/20260521T004240Z`) at 33/66**: 8 of 39 completed probes returned HTTP 500 with `buildCanonical*` error from `src/api/routes.ts:2034` (the pre-existing rename drift fix shipped this tick as PR #604). Affected probes span every lane:
+
+- **anchor**: 006 wikipedia (gate-blocker)
+- **semantic-rank**: 018/019 openlibrary works
+- **ssr-list**: 026 amazon usb-c, 030 pubmed
+- **auth-gated**: 037 jmail, 039 notion, 040 drive
+
+All 8 were trying the Try-2 canonical-replay endpoint-recovery cascade and 500'd. With #604 on main, these probes flip to RETRIEVE via the now-working buildPageFetchEndpoint path. Estimated retrieve-coverage delta from #604 alone: **+8 to +12 PASS** (some auth-gated may stay EXCLUDED_AUTH per rubric, but the 500 was masking what the path SHOULD have done).
+
+**Bench-cycle-3 ETA**: when current cycle (`20260521T004240Z`) finishes (~10-15 min). Then fresh restart with #604 + V1.5 (#603) + audit V4 (#605) all on main produces the clean measurement.
+
+**Session tally — 13 PRs**: #595, #596, #597, #598, #599, #600, #602, #603, #604, #605 + audit doc + 4 scaffold promotions + Stop-hook fix.
+
