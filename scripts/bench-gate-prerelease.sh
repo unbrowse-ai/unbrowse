@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 # bench-gate-prerelease.sh — release-it before:init hook.
 #
-# Refuses to start a release unless a fresh agent-judged bench-gate PASS
-# exists for the current state of capability-affecting code paths.
+# Source of truth: the meta-harness scaffold
+#   .claude/use-unbrowse-mcp-against-the-1000-probe-bench-co/ledgers/iterations.jsonl
 #
-# The agent in-thread is the judge (see docs/release-gate-bench-plan.md),
-# so this hook cannot run the gate itself. It checks for the stamp file
-# the agent commits after a successful run:
-#
-#   .bench-gate/stamp.json   { commit_sha, gate_passed, run_id, ... }
+# Substrate-faithful: the harness COLLECTS evidence per iterate, the agent
+# JUDGES in-thread, this gate just SURFACES the most recent row + the
+# capability-affecting commit timestamp it must post-date. No stamp.json,
+# no separate verdict pipeline; one harness drives both bench and release.
 #
 # Algorithm:
-#   1. Stamp absent           → FAIL with instructions
-#   2. Stamp.gate_passed!=true → FAIL
-#   3. Stamp commit == HEAD   → PASS
-#   4. Stamp commit older AND no capability-affecting changes since stamp
-#      AND no uncommitted capability-affecting changes → PASS
-#   5. Otherwise              → FAIL with the file list
+#   1. Ledger absent              -> FAIL with iterate instructions
+#   2. Tail row malformed         -> FAIL (read the file by hand)
+#   3. Tail row status in PASS_SET AND ts >= last_capability_commit -> PASS
+#   4. Tail row exit_code != 0    -> FAIL (re-iterate)
+#   5. Capability code newer than row -> FAIL (re-iterate)
 #
 # Capability-affecting paths (regression in any of these requires re-judging):
 #   src/                                          CLI + resolve + execute + capture
@@ -30,18 +28,8 @@
 
 set -euo pipefail
 
-# Two stamp files are accepted; prefer the MCP-surface stamp (the codex-yolo
-# convergence loop at scripts/bench-converge/orchestrate.sh writes this on
-# PROMOTE) over the legacy CLI-shortcut stamp. The MCP stamp covers the
-# real agent path: empty index -> browse -> publish -> resolve -> execute
-# loop, judged in-thread; the CLI stamp covers `unbrowse capture` only.
-STAMP_MCP=".bench-gate/stamp.mcp.json"
-STAMP_LEGACY=".bench-gate/stamp.json"
-if [[ -f "$STAMP_MCP" ]]; then
-  STAMP="$STAMP_MCP"
-else
-  STAMP="$STAMP_LEGACY"
-fi
+HARNESS_DIR=".claude/use-unbrowse-mcp-against-the-1000-probe-bench-co"
+LEDGER="$HARNESS_DIR/ledgers/iterations.jsonl"
 PATHS=(
   "src"
   "packages/sdk"
@@ -49,6 +37,12 @@ PATHS=(
   "harness/probes/GATE_JUDGE.md"
   "harness/probes/bench-gate-baseline.json"
 )
+# Statuses produced by the harness's verify.sh that the gate accepts as PASS.
+# "verified" is the canonical OK; "shipped" is wave-shipped (already merged);
+# "converged" is end-of-loop. "verified-with-harness-bug" is a harness verify
+# script bug, NOT a product bug, but we still require it to be post-dated by
+# the last capability commit (handled below).
+PASS_SET='^(verified|shipped|converged)$'
 
 red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 yel() { printf '\033[33m%s\033[0m\n' "$*" >&2; }
@@ -61,93 +55,126 @@ if [[ "${BENCH_GATE_BYPASS:-0}" == "1" ]]; then
   exit 0
 fi
 
-if [[ ! -f "$STAMP" ]]; then
-  red "[bench-gate-prerelease] FAIL — no bench-gate stamp at $STAMP"
+iterate_instructions() {
   cat >&2 <<'EOF'
-This release is blocked because no agent-judged bench-gate PASS exists
+This release is blocked because no fresh agent-judged harness PASS exists
 for the current code state.
 
-RECOMMENDED — MCP-driven gate (measures the real agent path):
+To produce one: iterate the bench-mcp-safety meta-harness scaffold, then
+let it judge the wave in-thread per references/SUBSTRATE-PRINCIPLE.md:
 
-  1. bun run bench:gate:mcp                         # prep run dir + per-probe prompts
-  2. (parent agent fans out one Agent-tool call per probe, batches of 4-6;
-     each subagent uses ONLY mcp__unbrowse__* tools to run the full
-     empty-index browse -> index -> publish -> resolve -> execute loop
-     N times; subagents write subagent.result.json)
-  3. bun run bench:gate:mcp:collect -- --artifacts .bench-gate/<run-id>
-  4. bun run bench:gate:validate -- --artifacts .bench-gate/<run-id>
-  5. bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --stamp
-  6. git add .bench-gate/stamp.json && git commit -m "chore: bench-gate stamp"
-  7. retry the release
+  bash ~/.claude/skills/meta-harness/scripts/harness iterate \
+    use-unbrowse-mcp-against-the-1000-probe-bench-co
 
-LEGACY — CLI-shortcut gate (one-shot capture; faster, narrower coverage):
+That appends one row to:
+  .claude/use-unbrowse-mcp-against-the-1000-probe-bench-co/ledgers/iterations.jsonl
 
-  1. bun run bench:gate:full
-  2. (agent reads .bench-gate/<run-id>/judge.bundle.md and writes verdict.json)
-  3. bun run bench:gate:validate -- --artifacts .bench-gate/<run-id>
-  4. bun run bench:gate:compare -- --artifacts .bench-gate/<run-id> --stamp
-  5. git add .bench-gate/stamp.json && git commit -m "chore: bench-gate stamp"
-  6. retry the release
+The agent judges the wave's verdict per the inherited substrate principle
+(no script verdicts). When the tail row's status is one of
+(verified | shipped | converged) AND its ts post-dates every capability-
+affecting commit, this gate accepts it and the release proceeds.
 
-See docs/bench-gate-mcp.md for the MCP flow, docs/release-gate-bench-plan.md
-for the underlying protocol. To bypass deliberately (NOT in CI), set
-BENCH_GATE_BYPASS=1 and explain in CHANGELOG.
+To bypass deliberately (NOT in CI), set BENCH_GATE_BYPASS=1 and explain
+in CHANGELOG.
 EOF
+}
+
+if [[ ! -f "$LEDGER" ]]; then
+  red "[bench-gate-prerelease] FAIL — no harness ledger at $LEDGER"
+  iterate_instructions
   exit 1
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  red "[bench-gate-prerelease] FAIL — jq required to read $STAMP"
+# Read the tail row. python3 is already a hard prereq across this repo.
+ROW_JSON=$(tail -n 1 "$LEDGER" 2>/dev/null || true)
+if [[ -z "$ROW_JSON" ]]; then
+  red "[bench-gate-prerelease] FAIL — ledger exists but is empty: $LEDGER"
+  iterate_instructions
   exit 1
 fi
 
-GATE_PASSED=$(jq -r '.gate_passed // false' "$STAMP")
-STAMP_SHA=$(jq -r '.commit_sha // ""' "$STAMP")
-STAMP_RUN=$(jq -r '.run_id // "?"' "$STAMP")
-STAMP_AT=$(jq -r '.stamped_at // "?"' "$STAMP")
-STAMP_IDX=$(jq -r '.index_coverage // 0' "$STAMP")
-STAMP_RET=$(jq -r '.retrieve_coverage // 0' "$STAMP")
-
-if [[ "$GATE_PASSED" != "true" ]]; then
-  red "[bench-gate-prerelease] FAIL — stamp exists but gate_passed=$GATE_PASSED"
-  red "  Re-run the gate (step 1-5 above) before retrying release."
+if ! ROW_FIELDS=$(printf '%s' "$ROW_JSON" | python3 -c '
+import json, sys
+try:
+    row = json.loads(sys.stdin.read())
+except Exception as e:
+    print(f"_PARSE_ERROR_:{e}", end="")
+    sys.exit(0)
+ts = row.get("ts", "")
+status = row.get("status", "")
+exit_code = row.get("exit_code", "?")
+iter_n = row.get("iter", "?")
+note = (row.get("note") or "")[:240]
+print(f"{ts}|{status}|{exit_code}|{iter_n}|{note}", end="")
+' 2>&1); then
+  red "[bench-gate-prerelease] FAIL — tail row unreadable"
+  red "  $ROW_FIELDS"
+  iterate_instructions
   exit 1
 fi
 
-CURRENT_SHA=$(git rev-parse HEAD)
+if [[ "$ROW_FIELDS" == _PARSE_ERROR_:* ]]; then
+  red "[bench-gate-prerelease] FAIL — tail row not valid JSON: ${ROW_FIELDS#_PARSE_ERROR_:}"
+  iterate_instructions
+  exit 1
+fi
 
-# Uncommitted changes to gate-affecting paths invalidate any stamp.
-# Check this BEFORE the stamp==HEAD shortcut so a dirty working tree never
-# slips through.
+IFS='|' read -r ROW_TS ROW_STATUS ROW_EXIT ROW_ITER ROW_NOTE <<< "$ROW_FIELDS"
+
+# Capability-affecting commit timestamp (ISO-8601 UTC of newest commit
+# touching any declared capability path; missing path => skipped silently).
+LAST_CAP_TS=$(git log -1 --format=%cI -- "${PATHS[@]}" 2>/dev/null || true)
+LAST_CAP_SHA=$(git log -1 --format=%H -- "${PATHS[@]}" 2>/dev/null || true)
+
+if [[ -z "$LAST_CAP_TS" ]]; then
+  # No capability-path history (fresh repo / shallow clone) — no gate signal
+  # to apply. Trust the harness row alone.
+  LAST_CAP_TS="1970-01-01T00:00:00+00:00"
+fi
+
+# Status must be in PASS_SET AND row exit_code must be 0
+if ! [[ "$ROW_STATUS" =~ $PASS_SET ]]; then
+  red "[bench-gate-prerelease] FAIL — latest harness row status is '$ROW_STATUS' (need: verified|shipped|converged)"
+  red "  iter=$ROW_ITER  ts=$ROW_TS  exit=$ROW_EXIT"
+  [[ -n "$ROW_NOTE" ]] && red "  note: $ROW_NOTE"
+  iterate_instructions
+  exit 1
+fi
+
+if [[ "$ROW_EXIT" != "0" ]]; then
+  red "[bench-gate-prerelease] FAIL — latest harness row exit_code=$ROW_EXIT (need 0)"
+  red "  iter=$ROW_ITER  status=$ROW_STATUS  ts=$ROW_TS"
+  [[ -n "$ROW_NOTE" ]] && red "  note: $ROW_NOTE"
+  iterate_instructions
+  exit 1
+fi
+
+# Lexicographic ISO-8601 comparison: row must be at-or-after last capability commit.
+if [[ "$ROW_TS" < "$LAST_CAP_TS" ]]; then
+  red "[bench-gate-prerelease] FAIL — capability code has changed since the last harness wave"
+  red "  last capability commit: $LAST_CAP_SHA at $LAST_CAP_TS"
+  red "  latest harness row:     iter=$ROW_ITER status=$ROW_STATUS at $ROW_TS"
+  red ""
+  red "  Capability-affecting files changed since the harness ran:"
+  git log "${LAST_CAP_SHA}^..HEAD" --name-only --pretty=format: -- "${PATHS[@]}" 2>/dev/null | sort -u | sed '/^$/d' | while IFS= read -r f; do
+    red "    $f"
+  done || true
+  iterate_instructions
+  exit 1
+fi
+
+# Uncommitted changes to capability paths invalidate the row.
 UNCOMMITTED=$(git status --porcelain -- "${PATHS[@]}" 2>/dev/null | awk '{print $2}' || true)
 if [[ -n "$UNCOMMITTED" ]]; then
-  red "[bench-gate-prerelease] FAIL — uncommitted changes to gate-affecting paths:"
+  red "[bench-gate-prerelease] FAIL — uncommitted changes to capability paths invalidate the harness row:"
   while IFS= read -r f; do red "    $f"; done <<< "$UNCOMMITTED"
-  red "  Either commit them and re-judge, or stash."
+  red "  Commit them and re-iterate the harness, or stash."
   exit 1
 fi
 
-if [[ "$STAMP_SHA" == "$CURRENT_SHA" ]]; then
-  grn "[bench-gate-prerelease] PASS — stamp matches HEAD ($CURRENT_SHA)"
-  grn "  run_id=$STAMP_RUN  stamped_at=$STAMP_AT  index=${STAMP_IDX}  retrieve=${STAMP_RET}"
-  exit 0
-fi
-
-if [[ -z "$STAMP_SHA" ]]; then
-  red "[bench-gate-prerelease] FAIL — stamp has no commit_sha"
-  red "  Stamp was written outside a git checkout. Re-run with a clean repo state."
-  exit 1
-fi
-
-# Stamp is older than HEAD. Allow only if no gate-affecting path changed.
-CHANGED=$(git diff --name-only "$STAMP_SHA" HEAD -- "${PATHS[@]}" 2>/dev/null || true)
-if [[ -n "$CHANGED" ]]; then
-  red "[bench-gate-prerelease] FAIL — gate-affecting paths changed since stamp commit $STAMP_SHA:"
-  while IFS= read -r f; do red "    $f"; done <<< "$CHANGED"
-  red "  Re-run the gate (step 1-5 above) before retrying release."
-  exit 1
-fi
-
-grn "[bench-gate-prerelease] PASS — stamp from $STAMP_SHA; no gate-affecting changes since"
-grn "  run_id=$STAMP_RUN  stamped_at=$STAMP_AT  index=${STAMP_IDX}  retrieve=${STAMP_RET}"
+grn "[bench-gate-prerelease] PASS — harness ledger row post-dates capability code"
+grn "  source:  $LEDGER"
+grn "  row:     iter=$ROW_ITER  status=$ROW_STATUS  exit=$ROW_EXIT  ts=$ROW_TS"
+grn "  capcode: $LAST_CAP_SHA at $LAST_CAP_TS"
+[[ -n "$ROW_NOTE" ]] && grn "  note:    $ROW_NOTE"
 exit 0
