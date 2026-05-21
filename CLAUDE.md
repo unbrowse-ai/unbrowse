@@ -958,3 +958,49 @@ Verify at PR time:
 - Network trace confirms every `fetch(` hits a real route declared in `backend/src/routes/*`
 
 When the real implementation needs external docs to wire correctly: USE DEEPWIKI (`mcp__deepwiki__ask_question`) rather than ship a stub. Confirmed pattern from the kuri Wave-6 fix this session (deepwiki ziglang/zig surfaced `std.Io.Dir.cwd()` API in place of the deprecated `std.fs.cwd()` we were about to fake).
+
+## Staging-then-prod with signed release manifest (2026-05-22 standing rule)
+
+Crystallised principle `20260521T194246Z-7ad798e3` (global principle store, gitea `6b65693`).
+
+Every shipping flow MUST split into **two declared environments** (`staging` + `production`) and deploy to production ONLY after staging is green on the same artifact.
+
+### Required substrate (server + client)
+
+1. **Explicit env blocks** in `wrangler.toml`:
+   - `[env.staging]` + `[env.staging.vars]` declare staging Worker + secrets
+   - `[env.production]` + `[env.production.vars]` declare prod (top-level `[vars]` is NOT enough — be explicit so `wrangler deploy --env production` is the only path)
+2. **Cloudflare Pages branch split** for client: `staging` branch → `staging.<domain>`, `main` → production `<domain>`. Both signed by the same release manifest.
+3. **`GET /v1/version`** — public, unauth'd. Returns the deployed artifact identity:
+   ```json
+   {
+     "version": "6.17.0-preview.7",
+     "build_sha": "abc1234",
+     "deployed_at": "2026-05-22T03:45:00Z",
+     "channel": "production" | "staging",
+     "signed_manifest_hash": "<hex hmac-sha256>",
+     "payload_format": "version|build_sha|deployed_at",
+     "payload_signed_with": "HMAC-SHA256"
+   }
+   ```
+   `signed_manifest_hash = hex(hmac-sha256(version|build_sha|deployed_at, RELEASE_MANIFEST_SIGNING_SECRET))`. The SDK / CLI verifies on first call; mismatch = artifact was tampered post-build.
+
+### Required gate (release-and-verify ordering)
+
+`scripts/release-and-verify.sh` MUST:
+1. Build + sign the artifact.
+2. Deploy to **staging** first (`wrangler deploy --env staging`, Cloudflare Pages `staging` branch).
+3. Curl `https://staging.<domain>/v1/version` — assert `channel === "staging"` + `signed_manifest_hash` matches the expected HMAC.
+4. Run the regression gate (bench-mcp ledger row + parity test) against staging.
+5. Curl `https://staging.<domain>/health` confirms `storage_backend` + dependency wiring.
+6. ONLY after all of 3–5 pass: deploy to **production**, write the public CHANGELOG block + version.json bump in the SAME commit, push the signed tag.
+7. Post-flip: curl `https://<domain>/v1/version` asserts the production artifact carries the same signed_manifest_hash as the staging build.
+
+### Why this is load-bearing
+
+This session's release-cutover-v4..v7 stalled because (a) the working tree kept getting dirtied by peer agents while release-it was rolling back, AND (b) prod silently served EmergentDB empty for hours because there was no signed `/v1/version` for users to check. Both failure modes are addressed by the substrate above.
+
+### Pre-existing surface still load-bearing
+
+- `RELEASE_MANIFEST_SIGNING_SECRET` env var: already exists, used by `backend/src/services/release-manifest.ts` `verifyReleaseManifest` (HMAC over manifest+signature). `/v1/version` reuses the same secret to sign the version triple.
+- `backend/wrangler.toml` already has `[env.staging]` + `[env.experiments]` + `[env.gate-staging]`. Production is the unscoped top-level `[vars]` block. Next deploy MUST add explicit `[env.production]` per this principle so `wrangler deploy` without `--env` becomes a clean error.
