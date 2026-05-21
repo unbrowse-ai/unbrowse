@@ -1,0 +1,88 @@
+{
+  "run_id": "20260521T010031Z",
+  "cli_version": "mcp:d7475856",
+  "baseline_run": null,
+  "passed": false,
+  "coverage": {
+    "index_pass": 30,
+    "index_total_indexable": 37,
+    "index_coverage": 0.8108108108108109,
+    "retrieve_pass": 16,
+    "retrieve_total_retrievable": 37,
+    "retrieve_coverage": 0.43243243243243246,
+    "suspicious_count": 0,
+    "by_lane": {
+      "anchor": {
+        "index_pass": 9,
+        "indexable": 11,
+        "retrieve_pass": 7,
+        "retrievable": 11
+      },
+      "semantic-rank": {
+        "index_pass": 6,
+        "indexable": 8,
+        "retrieve_pass": 3,
+        "retrievable": 8
+      },
+      "graphql": {
+        "index_pass": 5,
+        "indexable": 6,
+        "retrieve_pass": 0,
+        "retrievable": 6
+      },
+      "ssr-list": {
+        "index_pass": 8,
+        "indexable": 10,
+        "retrieve_pass": 4,
+        "retrievable": 10
+      },
+      "auth-gated": {
+        "index_pass": 1,
+        "indexable": 1,
+        "retrieve_pass": 1,
+        "retrievable": 1
+      },
+      "auth-cookies": {
+        "index_pass": 1,
+        "indexable": 1,
+        "retrieve_pass": 1,
+        "retrievable": 1
+      },
+      "hostile": {
+        "index_pass": 0,
+        "indexable": 0,
+        "retrieve_pass": 0,
+        "retrievable": 0
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "index_coverage >= floor",
+      "passed": true,
+      "detail": "81.1% vs floor 80.0% (30/37)"
+    },
+    {
+      "name": "retrieve_coverage >= floor",
+      "passed": false,
+      "detail": "43.2% vs floor 65.0% (16/37)"
+    },
+    {
+      "name": "anchor lane must pass",
+      "passed": false,
+      "detail": "4 anchor probe(s) failing: 001_anchor_https___news_ycombinator_com_[idx=INDEX_FAIL_NO_ENDPOINTS,ret=RETRIEVE_FAIL_ERROR_BODY], 002_anchor_https___www_npmjs_com_package_openai[idx=INDEX_FAIL_NO_ENDPOINTS,ret=RETRIEVE_FAIL_ERROR_BODY], 009_anchor_https___pypi_org_project_anthropic_[idx=INDEX_PASS,ret=RETRIEVE_FAIL_WRONG_SHAPE], 010_anchor_https___hub_docker_com_r_library_nginx_tags[idx=INDEX_PASS,ret=RETRIEVE_FAIL_ERROR_BODY]"
+    },
+    {
+      "name": "no per-probe PASS→FAIL regression",
+      "passed": true,
+      "detail": "no per-probe baseline frozen yet (informational)"
+    },
+    {
+      "name": "no new hostile-lane suspicious",
+      "passed": true,
+      "detail": "none"
+    }
+  ],
+  "per_probe_regressions": [],
+  "new_suspicious_hostile": []
+}

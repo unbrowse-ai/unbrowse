@@ -16,7 +16,7 @@ import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
-import { tryRecoverFromSchemaDrift } from "./drift-page-recovery.js";
+import { tryRecoverFromSchemaDrift, recoveredDataMatchesOriginalShape } from "./drift-page-recovery.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
@@ -4166,22 +4166,53 @@ export async function executeEndpoint(
               undefined,
             );
             if (recovery) {
-              trace.success = true;
-              trace.error = undefined;
-              trace.steps?.push({
-                step: "schema_drift_recovered_via_page_fetch",
-                confidence: recovery.confidence,
-                extraction_method: recovery.extraction_method,
-              });
-              data = {
-                _drift_recovered: true,
-                _drift_recovery_method: "page_fetch",
-                _drift_recovery_confidence: recovery.confidence,
-                _drift_recovery_final_url: recovery.final_url,
-                re_capture_signal: recaptureSignal,
-                data: recovery.data,
-              };
-              trace.result = data;
+              // Substrate-faithful shape-overlap gate: extracted DOM data
+              // may pass the confidence floor while having NO structural
+              // relationship to the original endpoint's response_schema
+              // (real case: x.com /home logged-out SSR shell — keys
+              // `optimist`, `entities`, `featureSwitch`, `settings` —
+              // confidence 0.85 vs original contract
+              // `data.home.home_timeline_urt.instructions[].entries[]`).
+              // Verify the recovered shape overlaps the original schema
+              // before accepting it. Tiny schemas skip the check; the
+              // confidence floor alone gates them.
+              const shapeCheck = recoveredDataMatchesOriginalShape(
+                endpoint.response_schema,
+                recovery.data,
+              );
+              if (!shapeCheck.matches) {
+                trace.steps?.push({
+                  step: "drift_recovered_shape_mismatch",
+                  recovery_confidence: recovery.confidence,
+                  recovery_path: recovery.recovery_path,
+                  original_keys_sample: shapeCheck.originalKeys.slice(0, 5),
+                  recovered_keys_sample: shapeCheck.recoveredKeys.slice(0, 5),
+                  reason: shapeCheck.reason,
+                });
+                // Fall through to the envelope path; do NOT overwrite
+                // trace.success or replace `data`. The schema_drift_
+                // recapture_required envelope built above remains the
+                // returned payload, so the agent still gets the actionable
+                // re_capture_signal instead of a junk shell.
+              } else {
+                trace.success = true;
+                trace.error = undefined;
+                trace.steps?.push({
+                  step: "schema_drift_recovered_via_page_fetch",
+                  confidence: recovery.confidence,
+                  extraction_method: recovery.extraction_method,
+                  shape_overlap_reason: shapeCheck.reason,
+                });
+                data = {
+                  _drift_recovered: true,
+                  _drift_recovery_method: "page_fetch",
+                  _drift_recovery_confidence: recovery.confidence,
+                  _drift_recovery_final_url: recovery.final_url,
+                  re_capture_signal: recaptureSignal,
+                  data: recovery.data,
+                };
+                trace.result = data;
+              }
             }
           } catch {
             /* best-effort; fall through to envelope */
