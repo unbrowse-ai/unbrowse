@@ -473,3 +473,61 @@ accountRoutes.get("/account/private-domains", async (c) => {
 
   return c.json({ takedowns, claims, agent_id: agentId });
 });
+
+// ---------------------------------------------------------------------------
+// POST /v1/account/payment-provider
+//
+// Wave 2 of .claude/add-a-payment-provider-choice-prompt-to-unbrowse.
+// Syncs the CLI-chosen payment-provider (from ~/.unbrowse/config.json
+// `payment.provider`) up to the backend so `agent.wallet_provider`
+// reflects the rail the user picked. Different from POST
+// /v1/account/wallet (updateAgentWallet) because this route accepts a
+// provider WITHOUT requiring a wallet_address — for pay.sh + lobster.cash
+// the wallet lives inside the provider's own CLI, not in the agent
+// record. For external_solana + privy_embedded the wallet binding
+// flows through a separate path (updateAgentWallet via
+// /v1/auth/privy/start for Privy; `unbrowse wallet` for external).
+// ---------------------------------------------------------------------------
+const ALLOWED_PROVIDERS = new Set([
+  "pay_sh",
+  "lobster_cash",
+  "external_solana",
+  "privy_embedded",
+  "privy_embedded_solana",
+  "skip",
+]);
+
+accountRoutes.post("/account/payment-provider", async (c) => {
+  const agentId = c.get("agent_id");
+  if (!agentId) return c.json({ error: "agent_required" }, 401);
+
+  let body: { provider?: string };
+  try {
+    body = (await c.req.json()) as { provider?: string };
+  } catch {
+    return c.json({ error: "invalid_json", message: "Body must be JSON with a `provider` field" }, 400);
+  }
+
+  const provider = (body.provider ?? "").trim();
+  if (!provider) {
+    return c.json({ error: "provider_required", message: "Body must include `provider`" }, 400);
+  }
+  if (!ALLOWED_PROVIDERS.has(provider)) {
+    return c.json(
+      {
+        error: "provider_not_allowed",
+        message: `Provider must be one of: ${Array.from(ALLOWED_PROVIDERS).join(", ")}`,
+        received: provider,
+      },
+      400,
+    );
+  }
+
+  const { updateAgentPaymentProvider } = await import("../services/agents.js");
+  const result = await updateAgentPaymentProvider(c.env, agentId, provider);
+  return c.json({
+    agent_id: agentId,
+    wallet_provider: result.profile.wallet_provider ?? null,
+    wallet_address: result.profile.wallet_address ?? null,
+  });
+});
