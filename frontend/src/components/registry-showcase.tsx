@@ -14,7 +14,7 @@ export async function RegistryShowcase() {
   const displaySkills = skills.filter((s) => s.lifecycle !== "deprecated").slice(0, 30);
 
   return (
-    <section id="registry" className="relative max-sm:h-auto max-sm:min-h-0 max-sm:pb-8 h-screen flex flex-col py-10 sm:py-14 pb-14">
+    <section id="registry" className="relative max-sm:h-auto max-sm:min-h-0 max-sm:pb-8 min-h-[100dvh] flex flex-col py-10 sm:py-14 pb-14">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 w-full flex flex-col flex-1 min-h-0">
 
         {/* Header */}
