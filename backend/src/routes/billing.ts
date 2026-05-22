@@ -21,13 +21,17 @@ billingRoutes.use("/billing/*", rateLimit({ limit: 30, window: 60, prefix: "bill
 billingRoutes.post("/billing/checkout", bearerAuth, async (c) => {
   const userId = c.get("user_id");
   if (!userId) return c.json({ error: "user_required" }, 401);
-  const body = await c.req.json<{ return_url?: string; tier?: "pro" | "metered" | "base" }>().catch(
-    () => ({} as { return_url?: string; tier?: "pro" | "metered" | "base" }),
-  );
+  const body = await c.req
+    .json<{ return_url?: string; tier?: "pro" | "metered" | "base"; price_id?: string }>()
+    .catch(() => ({}) as { return_url?: string; tier?: "pro" | "metered" | "base"; price_id?: string });
   const returnUrl = body.return_url ?? `${c.env.PUBLIC_FRONTEND_URL ?? "https://unbrowse.ai"}/billing/success`;
   const email = ((c.get as unknown as (k: string) => string | undefined)("email")) ?? `${userId}@users.unbrowse.ai`;
   try {
+    // price_id wins when present (a declared plan such as AikoNotch Pro,
+    // whose grant rides in the Stripe Price metadata); tier is the legacy
+    // env-keyed fallback.
     const result = await createCheckoutSession(c.env, userId, email, returnUrl, {
+      priceId: body.price_id,
       tier: body.tier,
     });
     return c.json(result);

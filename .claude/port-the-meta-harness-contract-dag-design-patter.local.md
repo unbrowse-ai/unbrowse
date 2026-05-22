@@ -1,39 +1,32 @@
 ---
-plan: test-the-unbrowse-agent-experience-end-to-end-an
-plan_text: "Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source."
+plan: port-the-meta-harness-contract-dag-design-patter
+plan_text: "Port the meta-harness contract-DAG design pattern server-side into the unbrowse backend so AikoNotch and other clients rely on it without ever seeing the harness / contract / DAG machinery. Contracts become server-side DAG nodes: the mh.core Contract model plus bound_contracts edges plus the ledger schema map to a drizzle / D1 schema (contracts, contract_edges, ledger_rows). The iterate loop (verify, gates, ship) runs server-side as a Cloudflare Worker route plus a Durable Object per running contract holding the stateful loop, iteration counter, surviving between waves. The client submits a user INTENT; the server resolves intent to a contract DAG and returns only results, never the machinery. LLM inference is paid by the user's own x402 via the existing Flex / credit lane, keeping payment (x402, user-funded) and orchestration intelligence (unbrowse server-side) as separate concerns. The verify channel server-side uses unbrowse's own browser automation (Kuri / agent-browser) since a Worker cannot screencap. A private-by-default, publishable, opt-out index of contracts and DAGs lives inside unbrowse: a visibility column private or published plus a public read API, the server-side analogue of harness discover. shipping_surface = unbrowse backend Cloudflare Worker via wrangler deploy plus D1 migrations. verify_gate = http-curl matrix asserting a submitted intent resolves to a contract DAG, the Durable Object executes a wave and writes a real ledger row, the index honors private and published visibility, and the x402 lane bills inference, never a build-only proxy."
 project: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
-template: agent-system
+template: web-app
 scope: project
 shipping_surface: "cloudflare (wrangler deploy / pages)"
 ship_command: |
-    git add -A && git diff --cached --quiet || git commit -m 'iterate: $(date +%s)'
-verify_gate: "http-curl E2E: health + resolve + server-side moat source audit"
+    wrangler deploy
+verify_gate: "agent-browser UX outcome (build preflight)"
 verify_command: |
-    bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/verify.sh
-validation_channel: "http-curl"
+    npx tsc --noEmit && npm run build && { echo '[validation_channel=agent-browser] build preflight ok. This is a PROXY, not a UX gate. Declare the real outcome check as verify_command in the state file: agent-browser open <url> && agent-browser wait --load networkidle && agent-browser diff screenshot --baseline <png> (the channel exit code IS the gate).'; false; }
+validation_channel: "agent-browser"
 loop_primitive: linear-iterate
 bound_contracts:
-  - move-only-the-deterministic-credential-free-non-
-  - bind-unbrowse-execution-logic-to-server-signed-p
-  - rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty
-  # - port-the-meta-harness-contract-dag-design-patter   # organ-mate candidate
-  # - audit-the-unbrowse-capture-enrichment-resolve-ra   # organ-mate candidate
-  #
-  # skills this contract could LEAN ON:
-  #   ~ unbrowse-self-build
-  #   ~ unbrowse-improvement-loop
-  # skills this contract could LEAN ON (find-skills evidence). A
-  # skill is invoked, not bound or iterated -- these are hints,
-  # not YAML list entries; the agent judges whether to reach for one:
-  #   ~ unbrowse-self-build   overlap 0.171
-  #   ~ autonomous-build-harness   overlap 0.105
-  #   ~ unbrowse-improvement-loop   overlap 0.086
-  #   ~ graff-harness   overlap 0.076
-second_frontend: false
-parallel_budget: 8
-iteration_cap: 30
+  # bind candidates surfaced by build (token-overlap = raw evidence,
+  # NOT a verdict). Judge per references/biology-architecture.md:
+  # do this contract and the candidate, TOGETHER, perform ONE
+  # coherent function (an organ)? If yes, uncomment to bind. Same
+  # archetype alone (same tissue) is not a reason to bind.
+  # - build-end-to-end-funnel-tracking-for-unbrowse-ev   # organ-mate candidate, overlap 0.246
+  # - add-an-opt-in-paid-residential-proxy-fallback-fo   # organ-mate candidate, overlap 0.221
+  # - drive-the-harness-queue-to-completion-without-th   # organ-mate candidate, overlap 0.213
+  # - end-to-end-inspiration-site-real-data-routing-vi   # organ-mate candidate, overlap 0.189
+  # - make-meta-harness-bind-relevant-contracts-togeth   # organ-mate candidate, overlap 0.172
+parallel_budget: 1
+iteration_cap: 20
 inferred_from:
-  template: agent-system
+  template: web-app
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
@@ -41,7 +34,7 @@ last_iterated: ""
 status: pending
 ---
 
-# Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source.
+# Port the meta-harness contract-DAG design pattern server-side into the unbrowse backend so AikoNotch and other clients rely on it without ever seeing the harness / contract / DAG machinery. Contracts become server-side DAG nodes: the mh.core Contract model plus bound_contracts edges plus the ledger schema map to a drizzle / D1 schema (contracts, contract_edges, ledger_rows). The iterate loop (verify, gates, ship) runs server-side as a Cloudflare Worker route plus a Durable Object per running contract holding the stateful loop, iteration counter, surviving between waves. The client submits a user INTENT; the server resolves intent to a contract DAG and returns only results, never the machinery. LLM inference is paid by the user's own x402 via the existing Flex / credit lane, keeping payment (x402, user-funded) and orchestration intelligence (unbrowse server-side) as separate concerns. The verify channel server-side uses unbrowse's own browser automation (Kuri / agent-browser) since a Worker cannot screencap. A private-by-default, publishable, opt-out index of contracts and DAGs lives inside unbrowse: a visibility column private or published plus a public read API, the server-side analogue of harness discover. shipping_surface = unbrowse backend Cloudflare Worker via wrangler deploy plus D1 migrations. verify_gate = http-curl matrix asserting a submitted intent resolves to a contract DAG, the Durable Object executes a wave and writes a real ledger row, the index honors private and published visibility, and the x402 lane bills inference, never a build-only proxy.
 
 Generated by meta-harness/scripts/builder/build.py on 2026-05-22.
 
@@ -144,7 +137,7 @@ the build compile?".
 ## Layout (skill-creator canon)
 
 ```
-.claude/test-the-unbrowse-agent-experience-end-to-end-an/
+.claude/port-the-meta-harness-contract-dag-design-patter/
 ├── scripts/
 │   ├── verify.sh    runs verify_command + lane bench_commands
 │   ├── ship.sh      runs ship_command
@@ -162,7 +155,7 @@ the build compile?".
 ## How to run
 
 ```bash
-bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/iterate.sh
+bash .claude/port-the-meta-harness-contract-dag-design-patter/scripts/iterate.sh
 ```
 
 The iterate driver reads this state file, runs scripts/verify.sh, on pass runs
@@ -174,7 +167,7 @@ copy is the record, not the live source).
 
 ## Loop primitive
 
-self-build - meaning:
+linear-iterate - meaning:
 
 - linear-iterate: one verify -> ship cycle per invocation
 - self-build: spawn N parallel probes, delegate to /self-build, write conductor row referencing its run_id
@@ -206,26 +199,6 @@ substrate runs the declared list and surfaces verdicts, never auto-picks
 a contract and never folds a bound verdict into this contract's pass or
 fail. Cycles are skipped via a binding-chain guard.
 
-## Second-frontend enforcement
-
-`second_frontend:` in the frontmatter is a declared boolean. If this plan
-rewrites, wraps, or agent-native re-skins a product the user already has
-(a second window onto an existing service, like the Pantry build over
-Zeemart), set it to `true`. That activates the four-rule gate from
-`references/second-frontend.md`:
-
-1. No stored logins (creds server-side only, pointer-not-payload).
-2. No scraped data (read the origin's live endpoints, never mirror).
-3. Second frontend, not a fork (the origin stays system of record).
-4. Retain the original UI elements, rendered via generative UI (a
-   server-emitted JSON UI spec, the json-render.dev pattern).
-
-When `second_frontend: true`, the always-collect `second-frontend.sh`
-gate runs every iterate and surfaces whether this scaffold's verify.sh
-asserts all four rules; under `--gates` a flagged row blocks ship. The
-agent DECLARES this field by judging the plan; the substrate never
-sniffs the plan text. Leave it `false` for an original product.
-
 ## Optional gate phase
 
 Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify and ship:
@@ -233,4 +206,4 @@ Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify 
 
 ## Notes from template
 
-For Claude Code skill/agent/loop builds. Loop primitive 'self-build' fans out N parallel probes per wave, judges in-thread, writes wave row. validation_channel=os-control: the default verify_command runs the bench-gate as a PREFLIGHT then fails closed until the declarant wires a real OS-level outcome assertion (screencapture+diff / osascript) or switches validation_channel to http-curl for an API surface. The substrate-audit proxy_only_gate_lines row surfaces a bench-only gate so the agent judges whether it is a real e2e check.
+Default for web-app plans. Per CLAUDE.md: Cloudflare for new deploys, never Vercel unless asked. validation_channel=agent-browser: the default verify_command preflights (tsc+build) then FAILS CLOSED until the declarant wires a real agent-browser assertion in the state file. typecheck+build alone is a proxy and the substrate-audit proxy_only_gate_lines row will surface it. Override verify_command for the actual stack (bun build / pnpm build) and the actual URL + assertion.
