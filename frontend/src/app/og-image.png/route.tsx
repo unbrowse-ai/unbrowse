@@ -31,7 +31,7 @@ export async function GET() {
           alignItems: "flex-start",
           justifyContent: "space-between",
           // Warm-evening scene per CLAUDE.md design laws: low-chroma
-          // neutrals tinted toward the brand hue, never #000.
+          // neutrals tinted toward brand hue, no pure-black (OKLCH only)
           background:
             "linear-gradient(135deg, #0e1116 0%, #161b22 60%, #1c232d 100%)",
           padding: "80px",

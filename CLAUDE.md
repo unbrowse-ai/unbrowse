@@ -437,23 +437,11 @@ When Lewis starts a conversation about pipeline, fundraising, or sprint progress
 4. Cross-reference: flag anyone who's been silent >5 days, anyone where Lewis owes a response, any SAFEs unsigned >3 days
 5. Update memory with any new signals found
 
-### Sprint Tracker
-1. Pull Linear issues for "20x Traction Sprint (Apr 1-14)" — show status (backlog/in-progress/done)
-2. Check traction API (`https://launch.unbrowse.ai/api/traction`) and stats API (`https://beta-api.unbrowse.ai/v1/stats/summary`) for current metrics
-3. Compare against sprint targets in `project_20x_sprint.md`
-4. Flag overdue issues and blockers
-
 ### Content & Marketing Pulse
 1. Check Typefully (via `typefully` skill) for scheduled/published posts
 2. Check X engagement on recent @getFoundry and @lekt8_ posts
 3. Compare against content plan in Linear (GET-12 through GET-17)
 4. Flag content that's drafted but not posted
-
-### Nascent GP Prep (active until Apr 10 2026)
-1. Track days until Nascent GP meeting (Apr 10, 9am PST)
-2. Ensure deck, demo, team intros are ready
-3. Pull Granola notes from Jack meeting (`not_TDTFi83iGBdbZD`) for talking points
-4. Flag any DD materials Jack's team has requested
 
 ### Key investor follow-up cadences
 - **SAFEs sent**: nudge after 3 days, escalate after 7
@@ -890,45 +878,37 @@ Why + remediation in `project_fare_splits_jl_collision_20260518` memory. Linked:
 
 For any non-trivial plan in this project (ship a feature, fix a named bug,
 build an agent or skill, redesign a UI, run a sustained convergence loop),
-**you MUST route through meta-harness BEFORE freelancing or before
+**you MUST route through /contract BEFORE freelancing or before
 emitting any code/edit tool call**. This is binding agent behavior, not
-a suggestion (Lewis 2026-05-20: "harness it so that i dont have to say
-harness it"). The agent that ignores this rule and answers freelance is
-in violation of the project contract.
+a suggestion (Lewis 2026-05-22: routing through /contract first to validate
+it as a standalone primitive instead of /meta-harness). The agent that
+ignores this rule and answers freelance is in violation of the project contract.
 
 REQUIRED first action on a plan-shaped prompt:
 
-1. `bash ~/.claude/skills/meta-harness/scripts/harness discover` — surfaces
-   every callable past harness in this project AND every global harness.
-   If a past harness's plan_text matches the current request closely
-   (agent judges similarity in-thread), `harness iterate <slug>` it
-   instead of building new.
-2. If no close match: `harness build "<plan>"`. Add `--global` when the
-   harness is cross-project (integration with an external service,
-   reusable tool surface, research loop).
-3. The harness surfaces evidence; you judge in-thread. It never bakes a
-   verdict, a banned list, or a per-case rule into the substrate.
+1. `contract habit --context "<plan>"` — surfaces existing contracts that overlap.
+   If a close match exists, `contract iterate <id>` to re-check or spawn children.
+2. If no close match: `contract build "<plan>"` — searches, declares, and runs
+   first wave. Supply `--action "<shell cmd>"` for a mechanical gate, or omit
+   for `agent-judges` judgment shape.
+3. The contract surfaces evidence; you judge in-thread. It never bakes a verdict.
 
-DEFAULT for integration-shaped plans (connect to / integrate with / wire
-up any external service, API, SDK, webhook, OAuth flow, .env-keyed
-endpoint): the global `/integrate-anything` harness is the surfaced
-default. Run `INTEGRATION_TARGET=<service> bash
-~/.claude/skills/meta-harness/scripts/harness iterate integrate-anything
---global` instead of building a bespoke scaffold. It already implements
-deepwiki research, masked .env key discovery, recipe generation, and a
-live authenticated probe asserting the declared 2xx (never a proxy).
-The agent JUDGES whether the plan truly fits; the default is a surface,
-not a verdict.
+For large plans: `contract declare "<plan>" --action "children-satisfy"` then
+fan-out child contracts in parallel. For cross-project plans, run from a dir
+without `.claude/` (writes to `~/.contracts/contracts.jsonl` global store).
 
-EXEMPTIONS (the only cases where you may skip discover/build):
+/meta-harness remains available for plans needing scaffold infrastructure
+(verify.sh, ship.sh, gitea push, loop primitives). Use `harness build` only
+when contract iteration alone is insufficient — judge in-thread.
+
+EXEMPTIONS (the only cases where you may skip contract/build):
 
 - A single scoped edit with no convergence shape (one-line typo fix,
   rename, comment).
 - Pure analysis with no construction (answering a question, reading
   files, no writes / no deploys).
 
-Everything else MUST go through harness. If you find yourself about to
-freelance a multi-step task, STOP and run discover first. This block is
+Everything else MUST go through contract. This block is
 managed by `~/.claude/skills/meta-harness/scripts/autopin.py`; edit
 there, not here.
 <!-- meta-harness:autopin END -->
