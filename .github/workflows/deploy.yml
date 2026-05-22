@@ -94,6 +94,7 @@ jobs:
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
+    needs: [deploy-backend]
     runs-on: self-hosted
     defaults:
       run:
