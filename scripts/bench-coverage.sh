@@ -181,7 +181,7 @@ while IFS= read -r _line; do URLS+=("$_line"); done < "$URLS_FILE"
 
 for (( i=0; i<TOTAL; i++ )); do
   PROBE_OUT="$OUT_DIR/probes/${i}.json"
-  raw="$(< "$PROBE_OUT" 2>/dev/null)" || raw=""
+  raw="$(cat "$PROBE_OUT" 2>/dev/null)" || raw=""
   classification="$(printf '%s' "$raw" | python3 "$TMP_DIR/classify.py" 2>/dev/null)" || classification="PRODUCT_FAIL|parse_error|"
   bucket="${classification%%|*}"
   rest="${classification#*|}"
