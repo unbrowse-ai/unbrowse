@@ -1106,7 +1106,7 @@ function operationScore(op: SkillOperationNode, intent?: string): number {
     if (looksLikeApiEndpoint && /(search|timeline|feed|stream|result|results|entries|posts|tweets|statuses|updates)/i.test(opTextLower)) {
       score += 18;
     }
-    if (/(sidebar|recommend|recommendations|usersbyrestids|userclaims|viewer|spotlight|pinned)/i.test(opTextLower)) {
+    if (/(sidebar|recommend|recommendations|userclaims|viewer|spotlight|pinned)/i.test(opTextLower)) {
       score -= 14;
     }
   }
@@ -1115,11 +1115,11 @@ function operationScore(op: SkillOperationNode, intent?: string): number {
   // Detect entity-detail intents that imply a per-user feed.
   if (/\b(tweets|posts|statuses|updates)\s+(from|by|of)\b/i.test(intentLower) ||
       /\b(profile|user|member)\b/i.test(intentLower)) {
-    if (/(userbyscreenname|userbyresttid|usertweets|userprofile|memberprofile|public_identifier|screen_name|screenname|username)/i.test(opTextLower)) {
+    if (/(userprofile|memberprofile|public_identifier|screen_name|screenname|username)/i.test(opTextLower)) {
       score += 16;
     }
     // Home/main feeds are wrong for per-user intent
-    if (/(hometimeline|mainfeed|main_feed|globalnav|launchpad)/i.test(opTextLower)) {
+    if (/(mainfeed|main_feed|globalnav|launchpad)/i.test(opTextLower)) {
       score -= 10;
     }
   }
