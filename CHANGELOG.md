@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### CLI `--json` is now pure JSON on stdout — usable as a /contract `--action` (2026-05-23)
+
+**fix**: `bun src/cli.ts resolve --json` (and every `--json` command) used to
+print `[perf] ...`, `[lifecycle] ...`, `[direct-document] ...`, `[unbrowse] ...`
+progress lines on **stdout** before the JSON payload, so a `/contract iterate`
+that piped the output into `json.load` crashed with `JSONDecodeError`. Root
+cause in `src/cli.ts:main()`: `console.log` (56 sites across the orchestrator
+alone) all went to stdout. Fix: when `--json` is set, `console.log/info/warn`
+are redirected to `process.stderr.write`. `process.stdout.write` (used by
+`output()`) is untouched, so the JSON payload stays on stdout. Any unbrowse
+verb is now a valid `/contract --action` pointer. Documented in
+`docs/dag-contract-pattern.md` with one worked example. Regression test:
+`tests/cli-json-pure-stdout.test.ts`. Contract 7ae6a26d.
+
 ### Web2 subscription (Stripe) now hides x402 (2026-05-23)
 
 **feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
