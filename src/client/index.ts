@@ -552,6 +552,73 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
+// --- Exec-token (anti-reverse-engineering Wave 2) ---
+//
+// Acquire a per-session HMAC token from /v1/session/exec-token and carry
+// it as X-Unbrowse-Session on every marketplace call. The server gate
+// (backend/src/middleware/exec-token.ts) binds authenticated callers to
+// a CI-signed build; a patched binary that can't acquire a token loses
+// the marketplace index.
+//
+// Best-effort: any failure returns null and the request proceeds without
+// the header. While the server runs in observe mode this is harmless;
+// when the server flips to enforce, a CLI that genuinely came from CI
+// will have a valid (build_sha, deployed_at) and acquire a token, and a
+// reverse-engineered build will not.
+let execTokenCache: { token: string; exp: number } | null = null;
+let execTokenInFlight: Promise<string | null> | null = null;
+
+function execBuildIdentity(): { build_sha: string; deployed_at: string } | null {
+  const manifest = decodeBase64Json(RELEASE_MANIFEST_BASE64 || "") as
+    | { git_sha?: string; issued_at?: string }
+    | undefined;
+  const build_sha = manifest?.git_sha || GIT_SHA;
+  const deployed_at = manifest?.issued_at;
+  if (!build_sha || !deployed_at) return null;
+  return { build_sha, deployed_at };
+}
+
+async function getExecToken(): Promise<string | null> {
+  if (LOCAL_ONLY) return null;
+  const now = Math.floor(Date.now() / 1000);
+  // Re-use a cached token until 5 min before expiry.
+  if (execTokenCache && execTokenCache.exp - 300 > now) {
+    return execTokenCache.token;
+  }
+  if (execTokenInFlight) return execTokenInFlight;
+
+  execTokenInFlight = (async (): Promise<string | null> => {
+    try {
+      const key = getApiKey();
+      if (!key || key === "local-only") return null;
+      const identity = execBuildIdentity();
+      if (!identity) return null;
+      const res = await fetch(`${API_URL}/v1/session/exec-token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Encoding": "gzip, deflate",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(identity),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { token?: string; exp?: number };
+      if (typeof data.token === "string" && typeof data.exp === "number") {
+        execTokenCache = { token: data.token, exp: data.exp };
+        return data.token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      execTokenInFlight = null;
+    }
+  })();
+  return execTokenInFlight;
+}
+
 async function apiRequest<T = unknown>(
   method: string,
   path: string,
@@ -563,6 +630,13 @@ async function apiRequest<T = unknown>(
     RELEASE_MANIFEST_BASE64,
     RELEASE_MANIFEST_SIGNATURE,
   );
+  // Anti-reverse-engineering Wave 2: carry the server-bound exec-token on
+  // every authenticated marketplace call. Best-effort -- skipped for
+  // noAuth requests and for the exec-token mint route itself (no recursion).
+  const execToken =
+    opts?.noAuth || path.startsWith("/v1/session/exec-token")
+      ? null
+      : await getExecToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
@@ -577,6 +651,7 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Trace-Version": TRACE_VERSION,
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
+        ...(execToken ? { "X-Unbrowse-Session": execToken } : {}),
         ...releaseAttestationHeaders,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
         ...(opts?.extraHeaders ?? {}),

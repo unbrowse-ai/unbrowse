@@ -258,6 +258,40 @@ jobs:
           fi
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
 
+      # Anti-reverse-engineering Wave 2: register this CLI build's
+      # (git_sha, issued_at) tuple with the exec-token registry so the
+      # freshly-published CLI can mint session tokens. A reverse-
+      # engineered build cannot self-register (this route is ADMIN_KEY-
+      # gated and only CI has the key). See backend/src/services/exec-token.ts.
+      - name: Register CLI build with exec-token registry
+        if: steps.publish-result.outputs.published == '1' || steps.npm-publish.outputs.duplicate_version == '1'
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          UNBROWSE_API_URL: ${{ vars.UNBROWSE_API_URL || 'https://beta-api.unbrowse.ai' }}
+        run: |
+          if [ -z "$ADMIN_KEY" ]; then
+            echo "::warning::ADMIN_KEY secret not set; skipping exec-token build registration"
+            exit 0
+          fi
+          MANIFEST_B64=$(node -e "console.log(require('./src/build-info.generated.ts'.replace('.ts','.js')) ? '' : '')" 2>/dev/null || true)
+          # build-info.generated.ts is TS; read the manifest the simple way.
+          BUILD_SHA=$(node -e "const fs=require('fs');const t=fs.readFileSync('src/build-info.generated.ts','utf8');const m=t.match(/BUILD_GIT_SHA\s*=\s*\"([^\"]+)\"/);console.log(m?m[1]:'')")
+          MANIFEST=$(node -e "const fs=require('fs');const t=fs.readFileSync('src/build-info.generated.ts','utf8');const m=t.match(/BUILD_RELEASE_MANIFEST_BASE64\s*=\s*\"([^\"]+)\"/);console.log(m?m[1]:'')")
+          ISSUED_AT=$(node -e "const b='$MANIFEST';if(!b){console.log('');process.exit(0);}try{const j=JSON.parse(Buffer.from(b,'base64url').toString('utf8'));console.log(j.issued_at||'');}catch{console.log('');}")
+          if [ -z "$BUILD_SHA" ] || [ -z "$ISSUED_AT" ]; then
+            echo "::warning::could not extract build_sha/issued_at from build-info.generated.ts; skipping registration"
+            exit 0
+          fi
+          echo "::notice::registering exec-token build (${BUILD_SHA:0:8}, ${ISSUED_AT})"
+          HTTP=$(curl -sS -o /tmp/reg.out -w "%{http_code}" -X POST "${UNBROWSE_API_URL%/}/v1/internal/register-build" \
+            -H "Content-Type: application/json" \
+            -H "X-Admin-Key: ${ADMIN_KEY}" \
+            -d "{\"build_sha\":\"${BUILD_SHA}\",\"deployed_at\":\"${ISSUED_AT}\",\"version\":\"${{ steps.pkg.outputs.version }}\",\"channel\":\"cli\"}" || echo "000")
+          echo "register-build http=$HTTP body=$(cat /tmp/reg.out 2>/dev/null)"
+          if [ "$HTTP" != "200" ]; then
+            echo "::warning::register-build returned $HTTP; exec-token mint for this CLI build will fail until registered"
+          fi
+
       - name: Sync npm dist-tags (latest + preview)
         if: steps.publish-result.outputs.published == '1' || steps.npm-publish.outputs.duplicate_version == '1'
         run: bash scripts/npm-dist-tag-sync.sh

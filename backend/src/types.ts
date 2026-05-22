@@ -59,6 +59,17 @@ export interface Env {
    * again. See: services/keys.ts verifyLocalKey early-return.
    */
   ALL_KEYS_REVOKED?: string;
+  /**
+   * Anti-reverse-engineering exec-token gate (services/exec-token.ts,
+   * middleware/exec-token.ts). When "1" / "true", marketplace routes
+   * (/v1/search*, /v1/skills*) REJECT authenticated callers that do
+   * not present a valid X-Unbrowse-Session token. Default unset =
+   * observe mode (logs `[exec-token]` evidence, never blocks) so
+   * existing CLIs in the wild keep working until they ship the header.
+   * Flip to "1" only after observe-mode logs confirm real CLIs send
+   * valid tokens.
+   */
+  EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
   /**
