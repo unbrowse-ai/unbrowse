@@ -132,9 +132,9 @@ describe("sanitizeForPublish", () => {
     expect(clean.path_params).toEqual({ id: "example" });
   });
 
-  it("strips header values but keeps keys", () => {
+  it("removes headers_template entirely — no keys or values published to marketplace", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.headers_template).toEqual({ "x-custom": "", accept: "" });
+    expect(clean.headers_template).toBeUndefined();
   });
 
   it("strips trigger_url query params", () => {
