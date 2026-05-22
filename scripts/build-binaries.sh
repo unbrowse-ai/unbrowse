@@ -36,7 +36,27 @@ node "$ROOT_DIR/packages/skill/scripts/build-kuri-binaries.mjs"
 # then falls back to workspace->src resolution.) Build the SDK here so the
 # dist/ entry exists and the bundle resolves deterministically.
 echo "[build] building @unbrowse/sdk (CLI bundles it; dist/ is gitignored)"
-( cd "$ROOT_DIR/packages/sdk" && bun run build )
+# Clean any stale dist/ + incremental tsc state before building. On a
+# persistent self-hosted runner a lingering .tsbuildinfo makes
+# `tsc -p tsconfig.json` no-op ("already built") while dist/ is absent,
+# so dist/index.js is never produced -- the leading suspect for the
+# release failing on CI but not on an ephemeral dev machine.
+( cd "$ROOT_DIR/packages/sdk" && rm -rf dist tsconfig.tsbuildinfo .tsbuildinfo *.tsbuildinfo 2>/dev/null; bun run build )
+# Hard post-build assertion + disk-state dump. The release pipeline has
+# failed three times with "Could not resolve @unbrowse/sdk" at the bun
+# bundle step despite this build running; the failure does not reproduce
+# on a dev machine even under the reconstructed CI condition. Make the
+# truth legible: confirm the dist entry the package.json exports map
+# points at actually exists, and dump what is on disk so a CI failure
+# shows the real state instead of only the downstream resolve error.
+echo "[build] @unbrowse/sdk post-build disk state:"
+ls -la "$ROOT_DIR/packages/sdk/dist" 2>&1 || echo "  (no dist/ dir)"
+ls -la "$ROOT_DIR/node_modules/@unbrowse/sdk" 2>&1 || echo "  (no node_modules/@unbrowse/sdk)"
+if [ ! -f "$ROOT_DIR/packages/sdk/dist/index.js" ]; then
+  echo "[build] FATAL: @unbrowse/sdk build produced no dist/index.js — the CLI bundle cannot resolve @unbrowse/sdk"
+  exit 1
+fi
+echo "[build] @unbrowse/sdk dist/index.js OK ($(wc -c < "$ROOT_DIR/packages/sdk/dist/index.js") bytes)"
 
 build_target() {
   local target="$1" # e.g. darwin-arm64, win-x64
