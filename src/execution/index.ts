@@ -6175,7 +6175,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const companyHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
       if (/(organization|company|companies|org)/i.test(companyHaystack) && looksLikeApiEndpoint) score += 110;
       if (/(mailbox|messaging|messagecenter|notifications?|inbox|launchpad|identity|sharebox)/i.test(companyHaystack)) score -= 140;
-      if (/(organizationdashcompanies|universalname|companyprofile|organizationprofile|aboutthisprofile|organizationresult|companyresult)/i.test(companyHaystack)) score += 95;
+      if (/(companyprofile|organizationprofile|aboutthisprofile|organizationresult|companyresult)/i.test(companyHaystack)) score += 95;
       if (looksLikeDocumentRoute) score -= 35;
     }
 
@@ -6183,18 +6183,18 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const profileHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
       if (/(sidebar|recommend|recommendations|suggested|spotlight|timeline|tweets|following|followers)/i.test(profileHaystack)) score -= 90;
       if (/(sharebox|closedsharebox|mailbox|messaging|conversation|alerts?|notification|presence|badging|feedtype|main_feed)/i.test(profileHaystack)) score -= 180;
-      if (/(userbyscreenname|profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
+      if (/(profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
     }
 
     if (intent && /\b(feed|timeline|stream|home)\b/i.test(intent) && /\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
       const feedHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
-      if (/(voyagerfeeddashmainfeed|voyagerfeeddashfeedupdates|mainfeed|feedupdates|main_feed)/i.test(feedHaystack)) score += 170;
-      if (/(identitydashprofiles|voyageridentity|storylines|newsdashstorylines|globalnav|launchpad|mailbox|notification|presence)/i.test(feedHaystack)) score -= 150;
+      if (/(mainfeed|feedupdates|main_feed)/i.test(feedHaystack)) score += 170;
+      if (/(storylines|globalnav|launchpad|mailbox|notification|presence)/i.test(feedHaystack)) score -= 150;
     }
     if (intent && /\b(search|list|find|feed|timeline|stream|home|latest|trending|discover|browse)\b/i.test(intent) && /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/i.test(intent)) {
       const contentHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
       if (looksLikeApiEndpoint && /(search|timeline|feed|stream|result|results|entries|posts|tweets|statuses|updates)/i.test(contentHaystack)) score += 180;
-      if (/(sidebar|recommend|recommendations|usersbyrestids|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
+      if (/(sidebar|recommend|recommendations|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
       if (isCapturedPageArtifact && hasStructuredApiSibling) score -= 320;
       else if (looksLikeDocumentRoute && hasStructuredApiSibling) score -= 200;
     }
@@ -6229,8 +6229,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (hasConcreteEntityRoute) {
       if (requestHint.includes(contextLeaf)) score += 120;
       else if (endpointHint.includes(contextLeaf)) score += 40;
-      if (/(screen_name|screenname|username|userby|slug|vanity|universalname|public_identifier|identifier)/i.test(endpointHint + " " + requestHint)) score += 55;
-      if (/(restids|usersbyrestids|recommendations|timeline|tweets|following|followers)/i.test(endpointHint + " " + requestHint)) score -= 70;
+      if (/(screen_name|screenname|username|slug|vanity|public_identifier|identifier)/i.test(endpointHint + " " + requestHint)) score += 55;
+      if (/(recommendations|timeline|tweets|following|followers)/i.test(endpointHint + " " + requestHint)) score -= 70;
     }
 
     // Penalize fixed entity/detail pages when the user asked for a list/search flow.
