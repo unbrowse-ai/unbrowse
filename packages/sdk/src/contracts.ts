@@ -80,6 +80,8 @@ export interface EndpointDescriptor {
   /** Learned constraints from API errors and agent observations. */
   constraints?: EndpointConstraint[];
   annotations?: EndpointAnnotation[];
+  /** Set by backend when a domain owner officially submitted this endpoint via x402 triage. */
+  owner_submitted?: boolean;
 }
 
 
