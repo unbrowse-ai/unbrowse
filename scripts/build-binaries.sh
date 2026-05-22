@@ -25,6 +25,19 @@ eval "$(bun "$ROOT_DIR/scripts/build-release-manifest.ts" --shell-env)"
 echo "[build] ensuring kuri vendor binaries (build-kuri-binaries.mjs)"
 node "$ROOT_DIR/packages/skill/scripts/build-kuri-binaries.mjs"
 
+# Build @unbrowse/sdk before the bun bundle below. src/payments/flex-pay.ts
+# imports "@unbrowse/sdk", whose package.json exports point at dist/ -- and
+# dist/ is gitignored. On a fresh CI checkout dist/ does not exist; once
+# `bun install` has created node_modules/@unbrowse/sdk as a real symlink,
+# `bun build src/single-binary.ts` resolves the import through that
+# package.json exports map, hits the missing dist/index.js, and fails with
+# "Could not resolve: @unbrowse/sdk". (It only appears to work on a dev
+# machine whose bun install aborted before linking the symlink, because bun
+# then falls back to workspace->src resolution.) Build the SDK here so the
+# dist/ entry exists and the bundle resolves deterministically.
+echo "[build] building @unbrowse/sdk (CLI bundles it; dist/ is gitignored)"
+( cd "$ROOT_DIR/packages/sdk" && bun run build )
+
 build_target() {
   local target="$1" # e.g. darwin-arm64, win-x64
   local ext=""
