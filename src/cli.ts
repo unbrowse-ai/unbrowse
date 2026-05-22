@@ -4028,6 +4028,16 @@ async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
   const cliParams = parsed.params;
+  // Agent-UX / contract-harness invariant: under --json, stdout MUST contain
+  // ONLY the final JSON payload (emitted via process.stdout.write in output()).
+  // Reroute every console.log (orchestrator progress, [perf]/[lifecycle]/[direct-document]
+  // chatter) to stderr so a /contract --action can consume KEY 1 cleanly.
+  if (flags.json) {
+    const _stderrLog = (...rest: unknown[]) => process.stderr.write(rest.map(String).join(" ") + "\n");
+    console.log = _stderrLog;
+    console.info = _stderrLog;
+    console.warn = _stderrLog;
+  }
   if (command === "browse") {
     const subcommand = args.shift();
     if (!subcommand || subcommand === "help") {
