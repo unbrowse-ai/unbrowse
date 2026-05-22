@@ -3274,6 +3274,12 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
   if (relevanceScore > 5) confidence += 0.05;
   if (relevanceScore > 10) confidence += 0.05;
 
+  // Signal 5: substantial list — multiple objects each with multiple fields.
+  // This is the clearest structural indicator of "real page data" vs thin stubs.
+  if (shape.kind === "array_of_objects" && shape.avg_keys_per_item >= 2 && structure.element_count >= 2) {
+    confidence += 0.15;
+  }
+
   return Math.min(confidence, 1);
 }
 
@@ -3283,7 +3289,7 @@ interface ExtractedShape {
   key_count: number;
 }
 
-function inspectExtractedShape(data: unknown): ExtractedShape {
+function inspectExtractedShape(data: unknown, _depth = 0): ExtractedShape {
   if (Array.isArray(data)) {
     if (data.length === 0) {
       return { kind: "scalar_or_empty", avg_keys_per_item: 0, key_count: 0 };
@@ -3303,6 +3309,14 @@ function inspectExtractedShape(data: unknown): ExtractedShape {
   }
   if (data !== null && typeof data === "object") {
     const keys = Object.keys(data as Record<string, unknown>);
+    // Single-key wrapper pattern: pageProps = {items: [...]} — common in Next.js.
+    // Drill into the nested value to surface the real shape rather than
+    // reporting key_count=1 (which scores 0 in Signal 2).
+    if (keys.length === 1 && _depth === 0) {
+      const nested = (data as Record<string, unknown>)[keys[0]];
+      const nestedShape = inspectExtractedShape(nested, 1);
+      if (nestedShape.kind !== "scalar_or_empty") return nestedShape;
+    }
     return { kind: "object_with_keys", avg_keys_per_item: 0, key_count: keys.length };
   }
   return { kind: "scalar_or_empty", avg_keys_per_item: 0, key_count: 0 };
