@@ -231,7 +231,13 @@ function sanitizeSemanticUpdate(endpoint: EndpointDescriptor, update: LlmEndpoin
     ...semantic,
     ...(typeof update.action_kind === "string" && update.action_kind ? { action_kind: update.action_kind } : {}),
     ...(typeof update.resource_kind === "string" && update.resource_kind ? { resource_kind: update.resource_kind } : {}),
-    ...(typeof update.description_out === "string" && update.description_out ? { description_out: update.description_out } : {}),
+    ...(() => {
+      if (typeof update.description_out !== "string" || !update.description_out) return {};
+      const description_id_pattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+      const hasLeakedId = description_id_pattern.test(update.description_out) ||
+        /\b[A-Za-z0-9_-]{24,}\b/.test(update.description_out);
+      return hasLeakedId ? {} : { description_out: update.description_out };
+    })(),
     ...(Array.isArray(update.negative_tags) ? { negative_tags: update.negative_tags.filter((tag): tag is string => typeof tag === "string" && tag.length > 0).slice(0, 8) } : {}),
     requires: mergeBindings(semantic.requires, update.requires, allowedKeys),
     provides: mergeBindings(semantic.provides, update.provides, allowedKeys),

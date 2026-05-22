@@ -146,6 +146,7 @@ async function tryLiveSessionFallback(
   headers: Record<string, string>,
   body: unknown,
   decisionTrace: Array<Record<string, unknown>>,
+  page_metadata?: { localStorage?: Record<string, string> },
 ): Promise<{ status: number; data: unknown } | null> {
   let sessions: ReturnType<typeof readActiveSessions>;
   try {
@@ -184,6 +185,11 @@ async function tryLiveSessionFallback(
     target_url: url,
   });
   try {
+    // Restore stored anti-bot localStorage tokens to the live tab before in-page fetch
+    if (page_metadata?.localStorage && Object.keys(page_metadata.localStorage).length > 0) {
+      const tokens = JSON.stringify(page_metadata.localStorage);
+      await kuri.evaluate(match.tabId, `(function(){var t=JSON.parse(${JSON.stringify(tokens)});Object.keys(t).forEach(function(k){try{localStorage.setItem(k,t[k]);}catch{}});})();`).catch(() => {});
+    }
     const tabResult = await kuri.executeInPageFetch(match.tabId, url, method, headers, body);
     if (tabResult.status === 0) {
       decisionTrace.push({
@@ -3649,6 +3655,7 @@ export async function executeEndpoint(
           return `${c.name}=${v}`;
         }).join("; ");
       }
+      const operationNode = skill.operation_graph?.operations?.find(op => op.endpoint_id === endpoint.endpoint_id);
       const liveResult = await tryLiveSessionFallback(
         epDomain,
         url,
@@ -3656,6 +3663,7 @@ export async function executeEndpoint(
         liveFetchHeaders,
         body,
         decisionTrace,
+        operationNode?.page_metadata,
       );
       if (liveResult && liveResult.status >= 200 && liveResult.status < 300) {
         status = liveResult.status;

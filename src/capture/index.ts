@@ -308,6 +308,12 @@ export interface CaptureResult {
   screenshots?: Record<string, string>;
   /** Proof metadata generated during capture, keyed by "METHOD:URL" */
   zk_proofs?: Map<string, import("../types/proof.js").ZkProof>;
+  /** Anti-bot localStorage tokens + embedded SSR JSON extracted post-navigation.
+   *  Used by execute-time DAG recomputation on difficult sites. */
+  page_state?: {
+    localStorage?: Record<string, string>;
+    embedded_json?: Record<string, unknown>[];
+  };
 }
 
 export interface RawRequest {
@@ -1465,6 +1471,7 @@ export async function captureSession(
   let noProgressBail = false;
   let retryFreshTab = false;
   let captureError: unknown;
+  let pageState: CaptureResult["page_state"];
   const abortController = new AbortController();
   const { signal } = abortController;
   // phase() races each CDP call against the overall capture timeout (bug #113 fix)
@@ -1958,6 +1965,35 @@ export async function captureSession(
     // Extract session cookies via document.cookie
     const rawCookies = await phase("extractCookies", () => extractCookiesFromPage(tabId, url));
     const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
+    // Best-effort: extract page_metadata (anti-bot localStorage tokens + embedded SSR JSON)
+    // after full page settle. Stored as page_state on CaptureResult; propagated to
+    // SkillOperationNode.page_metadata via buildSkillOperationGraph for DAG recomputation.
+    // Named postEvalScript to mirror the bundle-replay postEval mechanism (see src/sandbox/bundle-replay-client.ts).
+    try {
+      const postEvalScript = `(function() {
+        var ANTIBOT = ["_px", "_cbl", "cf_", "CRAWL", "pxde", "__cf", "datadome", "incap_", "_abck"];
+        var ls = {};
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && ANTIBOT.some(function(p) { return k.indexOf(p) === 0; })) {
+            ls[k] = localStorage.getItem(k) || "";
+          }
+        }
+        var embedded = [];
+        var scripts = document.querySelectorAll("script[type=application/json]");
+        for (var j = 0; j < scripts.length && j < 5; j++) {
+          try { var p = JSON.parse(scripts[j].textContent || ""); if (p && typeof p === "object") embedded.push(p); } catch {}
+        }
+        return JSON.stringify({ ls: ls, embedded: embedded });
+      })()`;
+      const psRaw = await kuri.evaluate(tabId, postEvalScript);
+      if (typeof psRaw === "string") {
+        const ps = JSON.parse(psRaw) as { ls: Record<string, string>; embedded: Record<string, unknown>[] };
+        const hasLs = Object.keys(ps.ls ?? {}).length > 0;
+        const hasEmb = (ps.embedded ?? []).length > 0;
+        if (hasLs || hasEmb) pageState = { localStorage: ps.ls, embedded_json: ps.embedded };
+      }
+    } catch { /* page_state extraction is best-effort — never block capture */ }
 
     if (captureTimedOut) {
       if (noProgressBail) {
@@ -2012,6 +2048,7 @@ export async function captureSession(
         js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined,
         // Harness #2: Visual context
         screenshots: Object.keys(screenshots).length > 0 ? screenshots : undefined,
+        page_state: pageState,
       };
     }
   } catch (error) {
