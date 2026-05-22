@@ -12,7 +12,7 @@ import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/ind
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory, loadConfig } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
-import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
+import { shapeSnapResult, markNewSnapElements, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
 import { buildGateRefusal } from "./payments/index.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
@@ -1937,6 +1937,12 @@ function recordImpactForTool(
 // slot - no leak risk in practice.
 let currentRequestId: number | string | null = null;
 
+// Last accessibility snapshot per browse session, keyed by session_id. Lets
+// unbrowse_snap mark elements new since the prior snap of the same session
+// (browser-use new-element indicator). Process-lifetime Map: a browse session
+// lives inside one MCP process, and distinct session_ids never cross-read.
+const lastSnapshotBySession = new Map<string, string>();
+
 const tools: ToolDefinition[] = [
   {
     name: "unbrowse_health",
@@ -2765,12 +2771,30 @@ const tools: ToolDefinition[] = [
         warning?: unknown;
         next_step?: unknown;
       };
+      // Mark elements that appeared since the prior snapshot of this browse
+      // session (browser-use new-element indicator). Diff is keyed on the
+      // real session_id so concurrent sessions never cross-contaminate; the
+      // stored prior is the CLEAN snapshot, never the marked one.
+      let new_element_count: number | undefined;
+      const snapSid = typeof raw.session_id === "string"
+        ? raw.session_id
+        : (typeof args.session_id === "string" ? args.session_id : undefined);
+      if (snapSid && typeof raw.snapshot === "string") {
+        const cleanSnapshot = raw.snapshot;
+        const delta = markNewSnapElements(cleanSnapshot, lastSnapshotBySession.get(snapSid));
+        raw.snapshot = delta.snapshot;
+        if (!delta.first_snapshot) new_element_count = delta.new_element_count;
+        lastSnapshotBySession.set(snapSid, cleanSnapshot);
+      }
       const level: SnapDetailLevel | undefined =
         args.detail_level === "minimal" || args.detail_level === "summary" || args.detail_level === "full"
           ? args.detail_level
           : undefined;
       const shaped = shapeSnapResult(raw as Record<string, unknown>, level);
-      return successResult(shaped.value, shaped.summary);
+      const value = new_element_count !== undefined
+        ? { ...(shaped.value as Record<string, unknown>), new_element_count }
+        : shaped.value;
+      return successResult(value, shaped.summary);
     },
   },
   {
