@@ -1,0 +1,14 @@
+{
+  "type": "hero",
+  "title": "make-unbrowse-banger-a-meta-contract-that-writes",
+  "subtitle": "running",
+  "stateRef": "/harness/{{slug}}/{{run_id}}/meta/latest_phase",
+  "mono": false,
+  "children": [
+    {
+      "type": "pill",
+      "label": "status",
+      "stateRef": "/harness/{{slug}}/{{run_id}}/meta/latest_status"
+    }
+  ]
+}
