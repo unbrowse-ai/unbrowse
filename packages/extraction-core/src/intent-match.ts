@@ -1176,11 +1176,13 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   }
 
   if (/\b(person|people|user|users|profile|profiles|member|members)\b/.test(lower)) {
-    if (Array.isArray(unwrapped.people)) return unwrapped.people;
-    if (Array.isArray(unwrapped.users)) return unwrapped.users;
-    if (Array.isArray(unwrapped.accounts)) return unwrapped.accounts;
-    if (Array.isArray(unwrapped.elements)) return unwrapped.elements;
-    if (Array.isArray(unwrapped.included)) return unwrapped.included;
+    if (isRecord(unwrapped)) {
+      if (Array.isArray(unwrapped.people)) return unwrapped.people;
+      if (Array.isArray(unwrapped.users)) return unwrapped.users;
+      if (Array.isArray(unwrapped.accounts)) return unwrapped.accounts;
+      if (Array.isArray(unwrapped.elements)) return unwrapped.elements;
+      if (Array.isArray(unwrapped.included)) return unwrapped.included;
+    }
     const normalizedXUsers = normalizeXUsers(unwrapped);
     if (normalizedXUsers.length > 0) return normalizedXUsers;
     const normalizedGenericPeople = normalizeGenericPeopleRows(unwrapped);
@@ -1205,18 +1207,20 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
               : { url: `https://x.com/search?q=${encodeURIComponent(String(name))}` }),
           };
         })
-        .filter((item): item is Record<string, unknown> => !!item);
+        .filter((item): item is NonNullable<typeof item> => item !== null);
       if (normalized.length > 0) return normalized;
     }
-    if (Array.isArray(unwrapped.topics)) return unwrapped.topics;
-    if (Array.isArray(unwrapped.trends)) return unwrapped.trends;
-    if (Array.isArray(unwrapped.hashtags)) return unwrapped.hashtags;
+    if (isRecord(unwrapped)) {
+      if (Array.isArray(unwrapped.topics)) return unwrapped.topics;
+      if (Array.isArray(unwrapped.trends)) return unwrapped.trends;
+      if (Array.isArray(unwrapped.hashtags)) return unwrapped.hashtags;
+    }
   }
 
   if (/\b(model|models)\b/.test(lower)) {
     const normalizedModels = normalizeHuggingFaceModels(unwrapped);
     if (normalizedModels.length > 0) return normalizedModels;
-    if (Array.isArray(unwrapped.models)) return unwrapped.models;
+    if (isRecord(unwrapped) && Array.isArray(unwrapped.models)) return unwrapped.models;
   }
 
   if (/\b(news|story|stories|article|articles|hacker news)\b/.test(lower)) {
@@ -1238,15 +1242,19 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
     const normalizedEmails = normalizeEmailRows(unwrapped);
     if (normalizedEmails.length > 0) return normalizedEmails;
-    if (Array.isArray(unwrapped.emails)) return unwrapped.emails;
-    if (Array.isArray(unwrapped.messages)) return unwrapped.messages;
-    if (Array.isArray(unwrapped.results)) return unwrapped.results;
+    if (isRecord(unwrapped)) {
+      if (Array.isArray(unwrapped.emails)) return unwrapped.emails;
+      if (Array.isArray(unwrapped.messages)) return unwrapped.messages;
+      if (Array.isArray(unwrapped.results)) return unwrapped.results;
+    }
   }
 
   if (/\b(repo|repository|repositories|project|projects)\b/.test(lower)) {
-    if (Array.isArray(unwrapped.repositories)) return unwrapped.repositories;
-    if (Array.isArray(unwrapped.items)) return unwrapped.items;
-    if (Array.isArray(unwrapped.projects)) return unwrapped.projects;
+    if (isRecord(unwrapped)) {
+      if (Array.isArray(unwrapped.repositories)) return unwrapped.repositories;
+      if (Array.isArray(unwrapped.items)) return unwrapped.items;
+      if (Array.isArray(unwrapped.projects)) return unwrapped.projects;
+    }
   }
 
   return unwrapped;
