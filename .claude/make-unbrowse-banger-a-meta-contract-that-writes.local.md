@@ -44,7 +44,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: 2026-05-22
-status: "shipped-wave-2: drove all 4 wave-1 children. FINDING: 2 of 4 best-practices were already shipped in unbrowse (structured next_action; execute path/extract/limit + truncation recipe) — wave-1 research leaned on a stale CLAUDE.md Known-Issues list; those children are now regression guards. 1 real gap shipped: flash resolve mode (commit 464b20ec). 1 real gap remains: snap new-element delta marker (child awaits its iterate)"
+status: "shipped-wave-3: all 4 wave-1 children driven to terminal. 2 best-practices were already adopted by unbrowse (structured next_action; execute path/extract/limit + truncation recipe) — those children are regression guards. 2 real gaps SHIPPED: flash resolve mode (commit 464b20ec) + unbrowse_snap new-element delta marker (commit 74939f24), both on branch feat/unbrowse-banger-flash-snap, each with a real bun test. The contract-writer produced 2 cited, tested unbrowse upgrades."
 ---
 
 # Make unbrowse banger: a meta-contract that writes contracts that write contracts. Each wave researches one best-practice domain from competing apps, leading agent harnesses, and /find-skills matches, then writes a scoped improvement contract that ships exactly one unbrowse upgrade, verified by bench-local coverage delta plus bun tests plus the MCP corpus gate. The umbrella binds every generated child contract so the ledger stitches the recursive tree.
