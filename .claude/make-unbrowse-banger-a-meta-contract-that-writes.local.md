@@ -43,8 +43,8 @@ inferred_from:
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
-last_iterated: ""
-status: pending
+last_iterated: 2026-05-22
+status: "shipped-wave-1: contract-writer live (generate-child.sh + research.sh); 4 child contracts written from cited research (deepwiki browser-use + claude-code), bound + stitched into the ledger; each child awaits its own iterate to ship the scoped unbrowse code upgrade"
 ---
 
 # Make unbrowse banger: a meta-contract that writes contracts that write contracts. Each wave researches one best-practice domain from competing apps, leading agent harnesses, and /find-skills matches, then writes a scoped improvement contract that ships exactly one unbrowse upgrade, verified by bench-local coverage delta plus bun tests plus the MCP corpus gate. The umbrella binds every generated child contract so the ledger stitches the recursive tree.
