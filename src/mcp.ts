@@ -3178,7 +3178,7 @@ const tools: ToolDefinition[] = [
       if (!apiKey) return errorResult("No API key configured. Run `unbrowse setup` first.");
       const { DEFAULT_BACKEND_URL } = await import("./version.js");
       const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
-      const r = await fetch(`${base}/v1/billing/me`, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const r = await fetch(`${base}/v1/account/billing-status`, { headers: { Authorization: `Bearer ${apiKey}` } });
       const body = (await r.json()) as Record<string, unknown>;
       if (typeof body.error === "string") return errorResult(body.error, body);
       return successResult(body, "Billing status.");
@@ -3190,6 +3190,7 @@ const tools: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
+        plan_id: { type: "string", description: "Optional plan id (Stripe price id, or tier shorthand: 'pro' / 'metered' / 'base')." },
         return_url: { type: "string", description: "Optional URL to redirect to after checkout completes." },
       },
       additionalProperties: false,
@@ -3200,8 +3201,9 @@ const tools: ToolDefinition[] = [
       const { DEFAULT_BACKEND_URL } = await import("./version.js");
       const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
       const payload: Record<string, unknown> = {};
+      if (typeof args.plan_id === "string") payload.plan_id = args.plan_id;
       if (typeof args.return_url === "string") payload.return_url = args.return_url;
-      const r = await fetch(`${base}/v1/billing/checkout`, {
+      const r = await fetch(`${base}/v1/account/billing-subscribe-url`, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -3226,8 +3228,13 @@ const tools: ToolDefinition[] = [
       if (!apiKey) return errorResult("No API key configured. Run `unbrowse setup` first.");
       const { DEFAULT_BACKEND_URL } = await import("./version.js");
       const base = process.env.UNBROWSE_API_URL ?? process.env.UNBROWSE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
-      const query = typeof args.return_url === "string" ? `?return_url=${encodeURIComponent(args.return_url)}` : "";
-      const r = await fetch(`${base}/v1/billing/portal${query}`, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const payload: Record<string, unknown> = {};
+      if (typeof args.return_url === "string") payload.return_url = args.return_url;
+      const r = await fetch(`${base}/v1/account/billing-portal-url`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const body = (await r.json()) as Record<string, unknown>;
       if (typeof body.error === "string") return errorResult(body.error, body);
       return successResult(body, "Stripe customer portal URL.");

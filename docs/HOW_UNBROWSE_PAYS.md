@@ -2,6 +2,21 @@
 
 This page explains how money moves through unbrowse on every paid call. The math, the splits, the wallet ownership, and the rails. Every claim cites a file and line in the codebase.
 
+## Web2 subscription path (contract 9474c6ab)
+
+For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
+
+1. The user opens the URL returned by `POST /v1/account/billing-subscribe-url` (`backend/src/routes/account.ts`), pays with a card via Stripe Checkout, and lands back on the configured success URL.
+2. Stripe's webhook (`POST /v1/billing/webhook`) drives `syncStripeDataToUserKV` (`backend/src/services/stripe.ts:226`), which writes the canonical `STRIPE_SUB_CACHE` to `stripe:customer:<customer_id>` in KV.
+3. On every paid `execute`, when the worker is started with `UNBROWSE_BILLING_ENABLED=1` the sponsor middleware (`backend/src/middleware/sponsor.ts:maybeSponsor`) consults `subscriptionAdmits` BEFORE the x402 platform-sponsor wallet check. A subscribed user with quota is admitted; usage is recorded against the Stripe-tracked balance via `recordUsage`; a sponsor-ledger row tagged `payment_method: "stripe"` is written for audit. The agent never sees a 402.
+4. Status is observable via `GET /v1/account/billing-status` — `{ subscription_active, plan_name, monthly_limit_usd, consumed_usd, remaining_usd, renewal_date, payment_method_present, auto_refill_enabled }`. The absent-subscription case returns `{ subscription_active: false, ...nulls }`, never 404.
+5. The user manages cards, invoices, and cancellation via the Stripe customer-portal URL from `POST /v1/account/billing-portal-url`.
+
+The gate is reversible: `UNBROWSE_BILLING_ENABLED` unset → the Stripe lane is a no-op and every paid call rides the x402 path documented below. On a worker where `STRIPE_SECRET_KEY` is also unset, the three account routes soft-fail with `503 billing_not_configured` rather than crash.
+
+Non-subscribers (or subscribers over quota with no auto-refill) continue to use the x402 / Flex / sponsor rails described next.
+
+
 ## The 50/35/15 split
 
 Every paid `unbrowse execute` settles on-chain through a Faremeter Flex authorization with up to five recipients in one transaction.
@@ -77,6 +92,22 @@ Stripe optionally wraps either rail for fiat-billed customers, but the underlyin
 Agents pay per call. The x402 response carries the price, recipient, and memo. The caller signs and the facilitator settles. There is no signup, no API key gate on the pay path.
 
 Accounts exist for one reason: to accumulate and read earnings. The magic-link flow at `backend/src/routes/auth.ts:53-172` issues an API key and an agent_id; the agent_id is what we attribute contributions to. You can use unbrowse without ever creating one; you just can't see a balance until you do.
+
+## Settlement cycle
+
+Each paid execute writes one row to `sponsor:ledger:<id>` carrying the agent, the skill, `amount_uc` (µ¢), `creator_wallet`, and `settled_at`. Those rows are the source-of-truth for the dashboards (`GET /v1/analytics/payments` reads them directly: platform cut, sponsor recoup, creator payouts are all derived from the ledger, not stamped separately).
+
+Operators roll the unsettled rows into a batch via two admin routes:
+
+1. `POST /v1/admin/aggregate-settlement?since=&until=&dry_run=` — walks `sponsor:ledger:*`, filters to rows whose `batch_settled_tx` is absent, groups them by `skill_id`, looks up each `SkillManifest`, runs `computeFlexSplits` to derive the recipient layout (platform / owner / contributor), and writes a `settlement:ledger:<batch_id>` row in `status:"pending"`. `dry_run=1` still persists the batch — it is the source-of-truth that `execute-settlement` reads from — but lets the operator inspect the recipients before submitting.
+2. `POST /v1/admin/execute-settlement` body `{batch_id, dry_run?}` — reads the batch, normalises the per-recipient µ¢ amounts into Flex bps (re-normalised to sum to exactly 10000), assembles a `FlexAuthorizationDraft`, and either returns the draft (`dry_run:true`) or signs+submits via `sendSponsorFlexPayment` and stamps each source row with `batch_settled_tx + batch_settled_at` so it does not replay.
+
+Batch state is readable any time via `GET /v1/admin/settlement/:batch_id` — returns the pending or executed `SettlementBatch` row from KV, or 404 when absent. The shape includes `recipients[]` (with the `owner_lane` flag set on the verified-domain entry), `tx_signature` (once executed), `total_amount_uc`, and `source_ledger_ids[]`.
+
+### Domain opt-out propagation
+
+A verified domain owner can opt out via the DNS-TXT takedown flow (`unbrowse-takedown=<challenge>`). The verify endpoint writes a persistent `domain-optout:<domain>` record to KV. Aggregation reads that key for every skill it groups; when present, it coerces `owner_compensation_opt_in` to `false` at compute time and the 1500 bps owner lane rolls back into the contributor + platform pool. Opt-out is a binary, one-way signal — the owner can re-enable compensation by re-running the claim flow.
+
 
 ## What this is not
 

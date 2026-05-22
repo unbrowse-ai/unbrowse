@@ -151,15 +151,21 @@ describe("GET /v1/analytics/payments — schema", () => {
     expect(body.sponsor_settled_usd_24h).toBe("0.00");
     expect(body.sponsor_recouped_usd_24h).toBe("0.00");
 
-    // Honest-about-coverage flag
+    // Honest-about-coverage flag (contract b21e7d7e: platform_cut +
+    // creator_payouts are now real reads off the settlement ledger; the only
+    // remaining TODO fields are the external facilitator-snapshot fields).
     expect(body._partial).toBe(true);
     expect(Array.isArray(body._instrumented_fields)).toBe(true);
     expect(body._instrumented_fields).toContain("sponsor_settled_usd_24h");
     expect(body._instrumented_fields).toContain("sponsor_recouped_usd_24h");
-    // Fields we explicitly do NOT yet instrument must not be claimed as real
-    expect(body._instrumented_fields).not.toContain("platform_cut_usd_24h");
-    expect(body._instrumented_fields).not.toContain("creator_payouts_usd_24h");
+    // contract b21e7d7e: these three are now derived from the real ledger.
+    expect(body._instrumented_fields).toContain("platform_cut_usd_24h");
+    expect(body._instrumented_fields).toContain("platform_cut_usd_30d");
+    expect(body._instrumented_fields).toContain("creator_payouts_usd_24h");
+    // Facilitator-snapshot fields are still not-yet-instrumented.
     expect(body._instrumented_fields).not.toContain("flex_escrows_active");
+    expect(body._instrumented_fields).not.toContain("flex_pending_settlements");
+    expect(body._instrumented_fields).not.toContain("flex_holds_in_memory");
   });
 });
 
