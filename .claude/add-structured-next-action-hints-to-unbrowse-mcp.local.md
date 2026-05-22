@@ -39,8 +39,8 @@ inferred_from:
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
-last_iterated: ""
-status: pending
+last_iterated: 2026-05-22
+status: "converged-already-shipped: structured next_action ships in src/mcp.ts (addExecuteNextStepHints L1528, addCaptureNextStepHints L1560, addGoNextStepHints L1599). The CLAUDE.md Known-Issue line was stale. verify is now a regression guard (mcp-go-next-action.test.ts 6/6). Remaining cleanup: fix stale addResolveHitGuidance import in tests/mcp-next-action-shape.test.ts"
 ---
 
 # Add structured next_action hints to unbrowse MCP tool results: replace the prose _workflow_hints field in src/mcp.ts with a machine-readable next_action object carrying tool, args_hint and why, on resolve, execute and browse_go results, so the calling LLM picks its next call without parsing English. Best practice source_id deepwiki:anthropics/claude-code (contextual structured next-step hints). Scoped to one upgrade. Verified by a bun test asserting the next_action shape on each result and a bench-local row showing the agent reached the goal within the two-tool-call contract.

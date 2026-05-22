@@ -39,8 +39,8 @@ inferred_from:
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
-last_iterated: ""
-status: pending
+last_iterated: 2026-05-22
+status: "shipped: applyFlashMode + opt-in flash flag added to unbrowse_resolve in src/mcp.ts (commit 464b20ec, branch feat/resolve-flash-mode). verify green: tests/mcp-resolve-flash-mode.test.ts 8/8"
 ---
 
 # Add a flash minimal resolve output mode to unbrowse: a resolve flag that returns only endpoint_id plus a one-line evidence string per shortlist candidate instead of the full rich object with URL score samples schema requires and yields, cutting shortlist tokens so the two-tool-call contract is cheaper. Best practice source_id deepwiki:browser-use/browser-use (flash_mode minimal output format). Scoped to one upgrade, the full shortlist stays the default. Verified by a bun test asserting the flash shape and a bench-local row showing the agent still picks the correct endpoint from the minimal shortlist.
