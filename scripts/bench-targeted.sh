@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# bench-targeted.sh — CLI/MCP parity runner.
+# bench-targeted.sh — CLI/MCP parity runner (probes run in parallel).
 #
-# Runs a corpus of `intent|url` probes through BOTH the CLI and MCP
-# (HTTP) transports, prints a side-by-side comparison table, and exits 1
-# if any probe has a transport divergence (CLI passes but MCP fails, or
-# vice versa).
+# Runs ALL corpus probes concurrently through BOTH CLI and MCP transports,
+# prints a side-by-side comparison table, exits 1 on any parity divergence.
+#
+# Total wall time = max(single_probe_latency) + ~2s, not sum.
 #
 # Usage:
 #   bash scripts/bench-targeted.sh [--corpus-file <path>] [--timeout <s>] [--dry-run]
@@ -15,7 +15,7 @@
 #         OR status == "dom-fallback"
 #         OR trace_success == true
 #
-# MCP transport (HTTP proxy to in-process app, same resolveAndExecute path):
+# MCP transport (HTTP -> running server, same resolveAndExecute path):
 #   POST http://localhost:6969/v1/intent/resolve {"url":..., "intent":...}
 #   PASS if: available_operations[] length > 0
 #         OR status == "dom-fallback"
@@ -31,7 +31,7 @@ set -uo pipefail
 # Argument parsing
 # ---------------------------------------------------------------------------
 CORPUS_FILE="scripts/corpus/bench-on-change.txt"
-TIMEOUT=30
+TIMEOUT=6
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -66,7 +66,6 @@ export PATH="$HOME/.npm-global/bin:/opt/nanobrew/prefix/bin:/usr/local/bin:/opt/
 TMP_DIR="$(mktemp -d /tmp/bench-targeted-XXXXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Write a python helper to the temp dir for JSON operations.
 cat > "$TMP_DIR/jhelper.py" << 'PY_HELPER'
 import sys, json
 
@@ -105,26 +104,72 @@ if [[ "$MCP_AVAILABLE" -eq 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# PASS detection helper
+# Helper: PASS detection
 # ---------------------------------------------------------------------------
 pass_check() {
   printf '%s' "$1" | python3 "$TMP_DIR/jhelper.py" pass_check
 }
 
 # ---------------------------------------------------------------------------
-# JSON body builder (safe for any url/intent string)
+# Helper: JSON body builder
 # ---------------------------------------------------------------------------
 build_mcp_body() {
   python3 "$TMP_DIR/jhelper.py" build_body "$1" "$2"
 }
 
 # ---------------------------------------------------------------------------
-# Run probes
+# Phase 1: read corpus and spawn ALL probes in parallel
+# ---------------------------------------------------------------------------
+INTENTS_FILE="$TMP_DIR/intents.txt"
+URLS_FILE="$TMP_DIR/urls.txt"
+touch "$INTENTS_FILE" "$URLS_FILE"
+
+IDX=0
+while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
+  [[ -z "${intent:-}" || "${intent:-}" =~ ^[[:space:]]*# ]] && continue
+  intent="${intent# }"; intent="${intent% }"
+  url="${url# }"; url="${url% }"
+  [[ -z "${url:-}" ]] && continue
+
+  echo "$intent" >> "$INTENTS_FILE"
+  echo "$url" >> "$URLS_FILE"
+
+  # Spawn CLI probe in background
+  (
+    timeout "$TIMEOUT" bun src/cli.ts resolve "$url" --intent "$intent" --json \
+      > "$TMP_DIR/cli-${IDX}.out" 2>/dev/null
+    echo $? > "$TMP_DIR/cli-${IDX}.exit"
+  ) &
+
+  # Spawn MCP probe in background (or write SKIP marker)
+  if [[ "$MCP_AVAILABLE" -eq 1 ]]; then
+    MCP_BODY="$(build_mcp_body "$url" "$intent")"
+    (
+      timeout "$TIMEOUT" curl -s --max-time "$TIMEOUT" \
+        -X POST "http://localhost:6969/v1/intent/resolve" \
+        -H "Content-Type: application/json" \
+        -d "$MCP_BODY" \
+        > "$TMP_DIR/mcp-${IDX}.out" 2>/dev/null
+      echo $? > "$TMP_DIR/mcp-${IDX}.exit"
+    ) &
+  else
+    echo "SKIP" > "$TMP_DIR/mcp-${IDX}.out"
+  fi
+
+  IDX=$(( IDX + 1 ))
+done < "$CORPUS_FILE"
+
+TOTAL=$IDX
+
+# Wait for all background probe jobs to finish
+wait
+
+# ---------------------------------------------------------------------------
+# Phase 2: collect results and print table
 # ---------------------------------------------------------------------------
 PROBE_WIDTH=35
 COL_WIDTH=7
 
-# Table header
 printf "%-${PROBE_WIDTH}s | %-${COL_WIDTH}s | %-${COL_WIDTH}s | %s\n" \
   "probe" "CLI" "MCP" "match"
 printf -- "%s-+-%s-+-%s-+------\n" \
@@ -137,27 +182,21 @@ CLI_FAIL=0
 MCP_PASS=0
 MCP_FAIL=0
 DIVERGENCES=0
-TOTAL=0
 
-while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
-  # Skip blank lines and comments
-  [[ -z "${intent:-}" || "${intent:-}" =~ ^[[:space:]]*# ]] && continue
-  intent="${intent# }"; intent="${intent% }"
-  url="${url# }"; url="${url% }"
-  [[ -z "${url:-}" ]] && continue
+PROBE_INTENTS=()
+while IFS= read -r _line; do
+  PROBE_INTENTS+=("$_line")
+done < "$INTENTS_FILE"
 
-  TOTAL=$(( TOTAL + 1 ))
-
-  # Truncate probe label for display
+for (( i=0; i<TOTAL; i++ )); do
+  intent="${PROBE_INTENTS[$i]}"
   label="${intent:0:$PROBE_WIDTH}"
 
-  # -- CLI probe --
-  CLI_RESULT="FAIL"
-  CLI_OUT_FILE="$TMP_DIR/cli-${TOTAL}.out"
-  timeout "$TIMEOUT" bun src/cli.ts resolve "$url" --intent "$intent" --json \
-    > "$CLI_OUT_FILE" 2>/dev/null || true
-  CLI_JSON="$(< "$CLI_OUT_FILE" 2>/dev/null)" || CLI_JSON=""
+  CLI_JSON="$(< "$TMP_DIR/cli-${i}.out" 2>/dev/null)" || CLI_JSON=""
+  MCP_JSON="$(< "$TMP_DIR/mcp-${i}.out" 2>/dev/null)" || MCP_JSON=""
 
+  # CLI result
+  CLI_RESULT="FAIL"
   if pass_check "$CLI_JSON"; then
     CLI_RESULT="PASS"
     CLI_PASS=$(( CLI_PASS + 1 ))
@@ -165,19 +204,10 @@ while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
     CLI_FAIL=$(( CLI_FAIL + 1 ))
   fi
 
-  # -- MCP probe --
+  # MCP result
   MCP_RESULT="SKIP"
   if [[ "$MCP_AVAILABLE" -eq 1 ]]; then
     MCP_RESULT="FAIL"
-    MCP_BODY="$(build_mcp_body "$url" "$intent")"
-    MCP_OUT_FILE="$TMP_DIR/mcp-${TOTAL}.out"
-    timeout "$TIMEOUT" curl -s --max-time "$TIMEOUT" \
-      -X POST "http://localhost:6969/v1/intent/resolve" \
-      -H "Content-Type: application/json" \
-      -d "$MCP_BODY" \
-      > "$MCP_OUT_FILE" 2>/dev/null || true
-    MCP_JSON="$(< "$MCP_OUT_FILE" 2>/dev/null)" || MCP_JSON=""
-
     if pass_check "$MCP_JSON"; then
       MCP_RESULT="PASS"
       MCP_PASS=$(( MCP_PASS + 1 ))
@@ -186,16 +216,13 @@ while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
     fi
   fi
 
-  # -- Match / Diverge --
+  # Match/diverge
   MATCH="OK"
-  if [[ "$MCP_RESULT" != "SKIP" ]]; then
-    if [[ "$CLI_RESULT" != "$MCP_RESULT" ]]; then
-      MATCH="DIVERGE"
-      DIVERGENCES=$(( DIVERGENCES + 1 ))
-    fi
+  if [[ "$MCP_RESULT" != "SKIP" && "$CLI_RESULT" != "$MCP_RESULT" ]]; then
+    MATCH="DIVERGE"
+    DIVERGENCES=$(( DIVERGENCES + 1 ))
   fi
 
-  # -- Print row --
   if [[ "$MATCH" == "DIVERGE" ]]; then
     printf "%-${PROBE_WIDTH}s | %-${COL_WIDTH}s | %-${COL_WIDTH}s | %s\n" \
       "$label" "$CLI_RESULT" "$MCP_RESULT" "DIVERGE <- exits 1"
@@ -203,8 +230,7 @@ while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
     printf "%-${PROBE_WIDTH}s | %-${COL_WIDTH}s | %-${COL_WIDTH}s | %s\n" \
       "$label" "$CLI_RESULT" "$MCP_RESULT" "$MATCH"
   fi
-
-done < "$CORPUS_FILE"
+done
 
 # ---------------------------------------------------------------------------
 # Summary line
@@ -225,7 +251,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Exit code
+# Exit
 # ---------------------------------------------------------------------------
 if [[ "$DIVERGENCES" -gt 0 ]]; then
   exit 1
