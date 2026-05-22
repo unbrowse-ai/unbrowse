@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
+import { execTokenGate } from "../middleware/exec-token.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
@@ -381,7 +382,7 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills -- publish/update
-skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
+skillRoutes.post("/skills", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
   const body = await c.req.json<Record<string, unknown> & {
     indexer_id?: string;
     endpoints?: unknown[];

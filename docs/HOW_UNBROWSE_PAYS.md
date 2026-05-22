@@ -90,7 +90,13 @@ To enforce this server-side (Wave 1 shipping 2026-05-22):
 - Patching the CLI to skip token injection is fine, but every marketplace call then returns `401 error_code=missing_token`. The binary still runs locally; it just has no intelligence layer behind it.
 - Reverse-engineered or hand-built binaries cannot self-register a `(build_sha, deployed_at)` tuple because the registration route is `ADMIN_KEY`-gated and only the CI release workflow has that key.
 
-Substrate-faithful: tokens carry actionable next_step (`run \`unbrowse update\` to get a CI-signed build`) and the gate refuses on `secret_unconfigured` rather than fake-passing. See `backend/src/services/exec-token.ts` for the canonical contract and `backend/tests/exec-token.test.ts` for the 10 locked invariants.
+Substrate-faithful: tokens carry actionable next_step (`run \`unbrowse update\` to get a CI-signed build`) and the gate refuses on `secret_unconfigured` rather than fake-passing. See `backend/src/services/exec-token.ts` for the canonical contract and `backend/tests/exec-token.test.ts` for the locked invariants.
+
+### Rollout (staged, observe-then-enforce)
+
+Wave 2 (2026-05-22) wired the gate onto the live marketplace routes (`/v1/search`, `/v1/search/domain`, `/v1/search/resolve`, `/v1/search/endpoints`, `/v1/search/rank`, `/v1/skills`) and the CLI now mints + injects the token automatically.
+
+The gate ships in **observe mode**: it logs an `[exec-token]` evidence line per request but never blocks, so every CLI already in the wild keeps working while the new token-carrying builds roll out. Flipping `EXEC_TOKEN_ENFORCE=1` (a one-line wrangler var) turns on hard 401 rejection. The flip happens only after the observe-mode logs confirm real CLIs are sending valid tokens, the same staged shape as the staging-first release gate. CI's release workflow registers each published CLI build's `(git_sha, issued_at)` tuple so freshly-shipped binaries can mint tokens the moment they land.
 
 ## What this is not
 
