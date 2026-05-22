@@ -3286,6 +3286,82 @@ const tools: ToolDefinition[] = [
       };
     },
   },
+  // Dev-only: type parity audit tool. Available when source files exist (running from repo).
+  // Harness verify scripts call this instead of running a local Python extractor.
+  // Pointer-not-payload: the intelligence (field diff logic) lives server-side in the MCP tool;
+  // the local harness calls MCP and judges the returned evidence in-thread.
+  ...(existsSync("backend/src/types.ts") ? [{
+    name: "unbrowse_type_audit",
+    description:
+      "Dev tool: audit type parity between the canonical backend EndpointDescriptor and its SDK/CLI counterparts. " +
+      "Returns raw field-diff evidence: missing_in_sdk, stale_in_sdk, missing_in_cli, field counts per file. " +
+      "Available only when running from source (backend/src/types.ts exists). " +
+      "Harness verify scripts call this instead of running a local Python field extractor.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        interface_name: {
+          type: "string",
+          description: "Interface to audit. Defaults to EndpointDescriptor.",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
+      const name = typeof args.interface_name === "string" ? args.interface_name : "EndpointDescriptor";
+      const FILES = {
+        backend: "backend/src/types.ts",
+        cli: "src/types/skill.ts",
+        sdk: "packages/sdk/src/contracts.ts",
+      } as const;
+
+      function extractFields(filePath: string, interfaceName: string): string[] {
+        const content = readFileSync(filePath, "utf8");
+        const lines = content.split("\n");
+        const startIdx = lines.findIndex((l) =>
+          new RegExp(`^\\s*export interface ${interfaceName}\\s*\\{`).test(l),
+        );
+        if (startIdx === -1) return [];
+        let depth = 0;
+        const bodyLines: string[] = [];
+        for (let i = startIdx; i < lines.length; i++) {
+          const l = lines[i];
+          depth += (l.match(/\{/g) ?? []).length - (l.match(/\}/g) ?? []).length;
+          bodyLines.push(l);
+          if (depth <= 0) break;
+        }
+        return bodyLines
+          .filter((l) => /^\s{2,4}\w+\??:/.test(l) && !/^\s{6}/.test(l))
+          .map((l) => l.match(/^\s{2,4}(\w+)\??:/)![1]);
+      }
+
+      try {
+        const backend = extractFields(FILES.backend, name);
+        const cli = extractFields(FILES.cli, name);
+        const sdk = extractFields(FILES.sdk, name);
+        const backendSet = new Set(backend);
+        const cliSet = new Set(cli);
+        const sdkSet = new Set(sdk);
+        const evidence = {
+          interface: name,
+          backend_field_count: backendSet.size,
+          sdk_field_count: sdkSet.size,
+          cli_field_count: cliSet.size,
+          missing_in_sdk: [...backendSet].filter((f) => !sdkSet.has(f)).sort(),
+          stale_in_sdk: [...sdkSet].filter((f) => !backendSet.has(f)).sort(),
+          missing_in_cli: [...backendSet].filter((f) => !cliSet.has(f)).sort(),
+          extra_in_cli: [...cliSet].filter((f) => !backendSet.has(f)).sort(),
+          files: FILES,
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(evidence, null, 2) }],
+          structuredContent: evidence,
+        };
+      } catch (e) {
+        return { content: [{ type: "text", text: `type_audit error: ${e}` }], isError: true };
+      }
+    },
+  } satisfies ToolDefinition] : []),
   // Day 5 Phase 0c test-only crash trigger. Registered ONLY when
   // UNBROWSE_TEST_CRASH=1 is set in the env. Throws synchronously so the
   // tools/call catch + the process-level resilience guards can be exercised
