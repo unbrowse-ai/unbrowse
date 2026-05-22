@@ -1,0 +1,10 @@
+get top hacker news stories|https://news.ycombinator.com/
+get package info|https://www.npmjs.com/package/openai
+get repo info for anthropics/anthropic-sdk-python|https://github.com/anthropics/anthropic-sdk-python
+get wikipedia article|https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
+search rust crates|https://crates.io/search?q=tokio
+get package info pypi|https://pypi.org/project/flask/
+get github trending repos|https://github.com/trending
+get spacex launches|https://api.spacexdata.com/v5/launches/latest
+get random user|https://randomuser.me/api/
+get bitcoin price|https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd
