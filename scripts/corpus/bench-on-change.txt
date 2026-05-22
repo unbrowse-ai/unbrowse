@@ -1,30 +1,54 @@
 # bench-on-change.txt — targeted corpus for CLI/MCP parity runner
 # Format: intent|url
-# Categories: [CF] Cloudflare-gated, [SSR] SSR-heavy, [API] direct API, [ANTIBOT] anti-bot
+# Categories: [CF_GATED] [SSR_HEAVY] [REST_PUBLIC] [ANTIBOT_AGGR] [GRAPHQL] [ECOMMERCE] [SOCIAL] [GOV_PUBLIC]
 #
-# [CF] Cloudflare Turnstile-gated — validates bypass work
+# [CF_GATED] Cloudflare Turnstile-gated — validates bypass work
 check bot detection status|https://nowsecure.nl
 search glassdoor company reviews|https://www.glassdoor.com/Search/results.htm?keyword=software+engineer
 get g2 product reviews|https://www.g2.com/products/linear/reviews
 search indeed jobs|https://www.indeed.com/jobs?q=software+engineer&l=remote
 #
-# [SSR] SSR-heavy — validates page artifact promotion
+# [SSR_HEAVY] SSR-heavy pages — validates page artifact promotion
 get top hacker news stories|https://news.ycombinator.com/
 get github trending repos|https://github.com/trending
 search product hunt launches|https://www.producthunt.com/
 get devto articles|https://dev.to/
 get wikipedia article|https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
 #
-# [API] Direct API canaries — validates marketplace + cache paths
-get package info|https://www.npmjs.com/package/openai
+# [REST_PUBLIC] Direct public REST APIs — validates marketplace + cache paths
+get package info npm|https://www.npmjs.com/package/openai
 search rust crates|https://crates.io/search?q=tokio
 get package info pypi|https://pypi.org/project/flask/
 get spacex launches|https://api.spacexdata.com/v5/launches/latest
 get random user|https://randomuser.me/api/
 get bitcoin price|https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd
-get repo info for anthropics/anthropic-sdk-python|https://github.com/anthropics/anthropic-sdk-python
+get repo info|https://github.com/anthropics/anthropic-sdk-python
+get nasa astronomy picture|https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY
+get weather forecast open meteo|https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true
+get exchange rates usd|https://open.er-api.com/v6/latest/USD
 #
-# [ANTIBOT] Anti-bot signal sites — validates SSR fast-path + proxy fallback
-get cloudflare ray ID test|https://cloudflare.com/
+# [ANTIBOT_AGGR] Aggressive non-CF antibot (DataDome, Akamai, PerimeterX) — validates proxy fallback + SSR fast-path
 get datadome protected page|https://datadome.co/
 get akamai bot manager test|https://www.barnesandnoble.com/
+search wayfair furniture|https://www.wayfair.com/furniture/sb0/sofas-c45974.html
+search ticketmaster events|https://www.ticketmaster.com/search?q=concert
+#
+# [GRAPHQL] Public GraphQL APIs — validates GraphQL operation extraction + decomposeGraphqlEndpoint
+get rick and morty characters|https://rickandmortyapi.com/graphql
+search anime by title anilist|https://graphql.anilist.co
+get countries and currencies|https://countries.trevorblades.com/
+#
+# [ECOMMERCE] E-commerce product search pages — validates SSR + antibot + product listing extraction
+search products ebay|https://www.ebay.com/sch/i.html?_nkw=laptop
+search products etsy|https://www.etsy.com/search?q=wooden+puzzle
+search products bestbuy|https://www.bestbuy.com/site/searchpage.jsp?st=laptop
+#
+# [SOCIAL] Social/community platforms — validates community content + thread extraction
+search reddit posts|https://www.reddit.com/r/programming/
+search stackoverflow questions|https://stackoverflow.com/questions?tab=newest&sort=newest
+get lobsters tech links|https://lobste.rs/
+#
+# [GOV_PUBLIC] Government/public data portals — validates open data REST extraction
+get weather forecast noaa|https://api.weather.gov/points/40.7128,-74.0060
+get usgs earthquake data|https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_30days.geojson
+search data gov climate datasets|https://catalog.data.gov/dataset?q=climate+change
