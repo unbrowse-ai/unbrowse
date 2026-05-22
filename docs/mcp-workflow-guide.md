@@ -22,7 +22,7 @@ Unbrowse is an **API-native agent browser**: it takes a natural-language intent 
 | **2b** Cold intent | Same shape, but first time on this domain | `unbrowse_resolve` (falls through) → `unbrowse_go` | `unbrowse_close` → `unbrowse_review` → `unbrowse_publish` |
 | **2c** URL → contents | "open this URL and tell me what's there" | `unbrowse_resolve` (with `url`, `--raw`) | Falls into 2a or 2b |
 
-`unbrowse_fetch` ships as of v6.16 (`src/mcp.ts` line ~3180) -- it's the one-shot URL fetcher Class 2c falls through to when the marketplace has no skill yet. The §M4 entry below is kept as historical context for callers reading older transcripts; current callers should use `unbrowse_fetch` directly.
+`unbrowse_fetch` is registered as a **compatibility tombstone** — calling it returns `"unbrowse_fetch was removed. Call unbrowse_resolve."` as both text and error, with `deprecated: true` in `structuredContent`. It is not a functional tool. For URL-fetch intents, use `unbrowse_resolve { url, raw: true }` directly (see §2c).
 
 ---
 
@@ -111,7 +111,7 @@ unbrowse_publish { skill, confirm_publish: true }  ← src/mcp.ts:1282
 
 Today, "just fetch this URL" routes through `unbrowse_resolve { url, raw: true }`. If a cached endpoint matches (most major sites have one), execute it. If not, fall through to §2b's browse path, but exit early after `unbrowse_text` or `unbrowse_markdown` — you still close + review + publish for the domain's first visit.
 
-When `unbrowse_fetch` ships (tracked separately), this section collapses to one tool call. See Part III §M4.
+`unbrowse_fetch` exists only as a tombstone (see §M4) — it redirects callers to `unbrowse_resolve`. This section will not collapse to one tool call. Use `unbrowse_resolve { url, raw: true }` throughout.
 
 ---
 
@@ -305,9 +305,9 @@ Every tool registered by `src/mcp.ts` (40 total as of v6.16). The list below is 
 
 ### §M4 — Try to call `unbrowse_fetch`
 
-**What happens:** Several prose hints reference `unbrowse_fetch` (`src/mcp.ts:566, 573, 945, 1398`). It does NOT exist as a registered tool. Your `tools/call` returns method-not-found.
+**What happens:** `unbrowse_fetch` is registered at `src/mcp.ts:3265` as a **compatibility tombstone**, not a functional tool. Calling it returns `"unbrowse_fetch was removed. Call unbrowse_resolve."` as both the text content and a `structuredContent.error` field, with `deprecated: true` and `renamed_to: "unbrowse_resolve"`. Several prose hints in `src/mcp.ts` still reference it by name (lines 566, 573, 945, 1398); those hints are stale.
 
-**Prevention:** Until the tool ships, route URL-fetch intents through `unbrowse_resolve { url, raw: true }` and fall through to §2b's browse path if cache misses. Track in `docs/mcp-ux-fix-plan.md` for future addition.
+**Prevention:** Route URL-fetch intents through `unbrowse_resolve { url, raw: true }` and fall through to §2b's browse path if cache misses. There is no functional `unbrowse_fetch` to call.
 
 ### §M5 — Publish without `confirm_publish: true`
 
