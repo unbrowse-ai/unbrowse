@@ -123,6 +123,7 @@ export async function augmentEndpointsSemantic(
     "Prefer precise semantic types like repository_owner, repository_name, profile_identifier, query_text, product_identifier, recommendation_placement_id.",
     "Reject generic output like identifier, input, resource unless no better grounded type exists.",
     "For each endpoint, produce endpoint_id plus any improved action_kind, resource_kind, description_out, requires, provides, and negative_tags.",
+    "description_out must be instance-independent and transferable to any caller — never embed captured user IDs, session tokens, entity-specific values, or user-specific names in description_out.",
   ].join("\n");
   const preamble = typeof req.note_preamble === "string" ? req.note_preamble : "";
   const prompt = preamble ? `${preamble}${basePrompt}` : basePrompt;

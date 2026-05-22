@@ -1223,8 +1223,17 @@ function isBefore(lhs?: string, rhs?: string): boolean {
   return left <= right;
 }
 
-export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): SkillOperationGraph {
+export function buildSkillOperationGraph(
+  endpoints: EndpointDescriptor[],
+  pageState?: { localStorage?: Record<string, string>; embedded_json?: Record<string, unknown>[] },
+): SkillOperationGraph {
   const operations = endpoints.map(buildOperationNode);
+  if (pageState && (Object.keys(pageState.localStorage ?? {}).length > 0 || (pageState.embedded_json ?? []).length > 0)) {
+    const capturedAt = new Date().toISOString();
+    for (const op of operations) {
+      op.page_metadata = { ...pageState, captured_at: capturedAt };
+    }
+  }
   const edges: SkillOperationEdge[] = [];
   const seenEdges = new Set<string>();
   for (const target of operations) {
