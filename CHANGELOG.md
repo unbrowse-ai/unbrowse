@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Web2 subscription (Stripe) now hides x402 (2026-05-23)
+
+**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
+
 ### CLI no longer hangs after a resolve (2026-05-23)
 
 `unbrowse resolve` intermittently (~1 in 3 runs) produced its result but never

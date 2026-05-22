@@ -2,6 +2,21 @@
 
 This page explains how money moves through unbrowse on every paid call. The math, the splits, the wallet ownership, and the rails. Every claim cites a file and line in the codebase.
 
+## Web2 subscription path (contract 9474c6ab)
+
+For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
+
+1. The user opens the URL returned by `POST /v1/account/billing-subscribe-url` (`backend/src/routes/account.ts`), pays with a card via Stripe Checkout, and lands back on the configured success URL.
+2. Stripe's webhook (`POST /v1/billing/webhook`) drives `syncStripeDataToUserKV` (`backend/src/services/stripe.ts:226`), which writes the canonical `STRIPE_SUB_CACHE` to `stripe:customer:<customer_id>` in KV.
+3. On every paid `execute`, when the worker is started with `UNBROWSE_BILLING_ENABLED=1` the sponsor middleware (`backend/src/middleware/sponsor.ts:maybeSponsor`) consults `subscriptionAdmits` BEFORE the x402 platform-sponsor wallet check. A subscribed user with quota is admitted; usage is recorded against the Stripe-tracked balance via `recordUsage`; a sponsor-ledger row tagged `payment_method: "stripe"` is written for audit. The agent never sees a 402.
+4. Status is observable via `GET /v1/account/billing-status` — `{ subscription_active, plan_name, monthly_limit_usd, consumed_usd, remaining_usd, renewal_date, payment_method_present, auto_refill_enabled }`. The absent-subscription case returns `{ subscription_active: false, ...nulls }`, never 404.
+5. The user manages cards, invoices, and cancellation via the Stripe customer-portal URL from `POST /v1/account/billing-portal-url`.
+
+The gate is reversible: `UNBROWSE_BILLING_ENABLED` unset → the Stripe lane is a no-op and every paid call rides the x402 path documented below. On a worker where `STRIPE_SECRET_KEY` is also unset, the three account routes soft-fail with `503 billing_not_configured` rather than crash.
+
+Non-subscribers (or subscribers over quota with no auto-refill) continue to use the x402 / Flex / sponsor rails described next.
+
+
 ## The 50/35/15 split
 
 Every paid `unbrowse execute` settles on-chain through a Faremeter Flex authorization with up to five recipients in one transaction.
