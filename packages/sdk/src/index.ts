@@ -44,6 +44,8 @@ export type {
   DashboardContributions,
   DashboardEarnings,
   DashboardSpending,
+  EndpointAnnotation,
+  EndpointConstraint,
   EndpointDescriptor,
   ExecuteInput,
   ExecuteResponse,

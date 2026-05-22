@@ -12,7 +12,7 @@ import type { WorkflowPublishArtifact, WorkflowPublishRecipe } from "./types/ind
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { getAgentId, getApiKey, getCreatorEarnings, getMyProfile, getTransactionHistory, loadConfig } from "./client/index.js";
 import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.js";
-import { shapeSnapResult, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
+import { shapeSnapResult, markNewSnapElements, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
 import { buildGateRefusal } from "./payments/index.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
@@ -1808,6 +1808,43 @@ export function addResolveMissGuidance(
   };
 }
 
+/**
+ * Token-minimal resolve shortlist (browser-use flash_mode pattern).
+ *
+ * When `args.flash` is set, every available_endpoints[] candidate is reduced
+ * to its dispatch keys (endpoint_id + skill_id) plus a single one-line
+ * `flash_evidence` string, dropping the heavy fields (example_response_compact,
+ * sample_values, input_params, requires, yields schema). The agent still has
+ * exactly what it needs to pick a candidate and call unbrowse_execute, at a
+ * fraction of the shortlist token cost. The full rich shortlist stays the
+ * default; flash is strictly opt-in. A non-array shortlist or flash=false is
+ * returned unchanged.
+ */
+export function applyFlashMode(
+  result: Record<string, unknown>,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (args.flash !== true) return result;
+  const list = result.available_endpoints;
+  if (!Array.isArray(list)) return result;
+  const flashed = list.map((raw) => {
+    const c = isPlainObject(raw) ? raw : {};
+    const endpoint_id = typeof c.endpoint_id === "string" ? c.endpoint_id : undefined;
+    const skill_id = typeof c.skill_id === "string" ? c.skill_id : undefined;
+    const desc = typeof c.description === "string" ? c.description.trim() : "";
+    const url = typeof c.url === "string" ? c.url : "";
+    const score = typeof c.score === "number" ? c.score : undefined;
+    const evid: string[] = [];
+    if (desc) evid.push(desc);
+    if (score !== undefined) evid.push(`score ${score.toFixed(2)}`);
+    if (url) evid.push(url);
+    let flash_evidence = evid.join(" | ");
+    if (flash_evidence.length > 200) flash_evidence = `${flash_evidence.slice(0, 197)}...`;
+    return { endpoint_id, skill_id, flash_evidence };
+  });
+  return { ...result, available_endpoints: flashed, flash_mode: true };
+}
+
 async function executeResolvedEndpoint(result: Record<string, unknown>, args: Record<string, unknown>, endpointId?: string): Promise<Record<string, unknown>> {
   const skillId = resolveSkillId(result);
   if (!skillId) return { error: "resolve returned endpoints but no skill_id" };
@@ -1900,6 +1937,12 @@ function recordImpactForTool(
 // slot - no leak risk in practice.
 let currentRequestId: number | string | null = null;
 
+// Last accessibility snapshot per browse session, keyed by session_id. Lets
+// unbrowse_snap mark elements new since the prior snap of the same session
+// (browser-use new-element indicator). Process-lifetime Map: a browse session
+// lives inside one MCP process, and distinct session_ids never cross-read.
+const lastSnapshotBySession = new Map<string, string>();
+
 const tools: ToolDefinition[] = [
   {
     name: "unbrowse_health",
@@ -1930,6 +1973,7 @@ const tools: ToolDefinition[] = [
         path: { type: "string", description: "Drill into the result before returning it, e.g. data.items[] ." },
         extract: { type: "string", description: "Project specific fields, e.g. name,url or alias:path.to.value." },
         limit: { type: "number", description: "Limit returned array rows." },
+        flash: { type: "boolean", description: "Token-minimal shortlist: each candidate is reduced to endpoint_id + skill_id + a one-line flash_evidence string. Opt-in; default returns the full rich shortlist." },
       },
       required: ["intent"],
       additionalProperties: false,
@@ -1974,6 +2018,7 @@ const tools: ToolDefinition[] = [
       }
 
       result = addResolveMissGuidance(result, args);
+      result = applyFlashMode(result, args);
       const nestedError = resolveNestedError(result);
       recordImpactForTool("resolve", result, args);
       if (nestedError) return errorResult(nestedError, result);
@@ -2726,12 +2771,30 @@ const tools: ToolDefinition[] = [
         warning?: unknown;
         next_step?: unknown;
       };
+      // Mark elements that appeared since the prior snapshot of this browse
+      // session (browser-use new-element indicator). Diff is keyed on the
+      // real session_id so concurrent sessions never cross-contaminate; the
+      // stored prior is the CLEAN snapshot, never the marked one.
+      let new_element_count: number | undefined;
+      const snapSid = typeof raw.session_id === "string"
+        ? raw.session_id
+        : (typeof args.session_id === "string" ? args.session_id : undefined);
+      if (snapSid && typeof raw.snapshot === "string") {
+        const cleanSnapshot = raw.snapshot;
+        const delta = markNewSnapElements(cleanSnapshot, lastSnapshotBySession.get(snapSid));
+        raw.snapshot = delta.snapshot;
+        if (!delta.first_snapshot) new_element_count = delta.new_element_count;
+        lastSnapshotBySession.set(snapSid, cleanSnapshot);
+      }
       const level: SnapDetailLevel | undefined =
         args.detail_level === "minimal" || args.detail_level === "summary" || args.detail_level === "full"
           ? args.detail_level
           : undefined;
       const shaped = shapeSnapResult(raw as Record<string, unknown>, level);
-      return successResult(shaped.value, shaped.summary);
+      const value = new_element_count !== undefined
+        ? { ...(shaped.value as Record<string, unknown>), new_element_count }
+        : shaped.value;
+      return successResult(value, shaped.summary);
     },
   },
   {
