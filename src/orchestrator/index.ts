@@ -1764,7 +1764,6 @@ function inferPreferredEntityTokens(intent: string): string[] {
       "member",
       "members",
       "screen_name",
-      "userbyscreenname",
     ];
   }
   if (/\b(company|companies|organization|organisations|business|org)\b/.test(lower))
