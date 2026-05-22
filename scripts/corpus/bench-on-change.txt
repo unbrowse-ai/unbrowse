@@ -1,10 +1,30 @@
+# bench-on-change.txt — targeted corpus for CLI/MCP parity runner
+# Format: intent|url
+# Categories: [CF] Cloudflare-gated, [SSR] SSR-heavy, [API] direct API, [ANTIBOT] anti-bot
+#
+# [CF] Cloudflare Turnstile-gated — validates bypass work
+check bot detection status|https://nowsecure.nl
+search glassdoor company reviews|https://www.glassdoor.com/Search/results.htm?keyword=software+engineer
+get g2 product reviews|https://www.g2.com/products/linear/reviews
+search indeed jobs|https://www.indeed.com/jobs?q=software+engineer&l=remote
+#
+# [SSR] SSR-heavy — validates page artifact promotion
 get top hacker news stories|https://news.ycombinator.com/
-get package info|https://www.npmjs.com/package/openai
-get repo info for anthropics/anthropic-sdk-python|https://github.com/anthropics/anthropic-sdk-python
+get github trending repos|https://github.com/trending
+search product hunt launches|https://www.producthunt.com/
+get devto articles|https://dev.to/
 get wikipedia article|https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)
+#
+# [API] Direct API canaries — validates marketplace + cache paths
+get package info|https://www.npmjs.com/package/openai
 search rust crates|https://crates.io/search?q=tokio
 get package info pypi|https://pypi.org/project/flask/
-get github trending repos|https://github.com/trending
 get spacex launches|https://api.spacexdata.com/v5/launches/latest
 get random user|https://randomuser.me/api/
 get bitcoin price|https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd
+get repo info for anthropics/anthropic-sdk-python|https://github.com/anthropics/anthropic-sdk-python
+#
+# [ANTIBOT] Anti-bot signal sites — validates SSR fast-path + proxy fallback
+get cloudflare ray ID test|https://cloudflare.com/
+get datadome protected page|https://datadome.co/
+get akamai bot manager test|https://www.barnesandnoble.com/
