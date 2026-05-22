@@ -169,6 +169,7 @@ export interface KuriClient {
   domAttributes(tabId: string, opts: { ref?: string; selector?: string }): Promise<unknown>;
   scriptInject(tabId: string, source: string): Promise<unknown>;
   addInitScript(tabId: string, script: string): Promise<unknown>;
+  injectStealthScript(tabId: string): Promise<void>;
   setCredentials(tabId: string, username: string, password: string): Promise<unknown>;
   setViewport(tabId: string, width: number, height: number): Promise<unknown>;
   setUserAgent(tabId: string, ua: string): Promise<unknown>;
@@ -1490,6 +1491,7 @@ export async function newTab(url?: string, state: BrokerState = defaultBrokerSta
   if (!tabId) { tabId = await createTabViaChromeCdp(url ?? "about:blank", state); kuriTrace(() => `newTab after createTabViaChromeCdp -> ${tabId || "<empty>"}`); }
   if (tabId) {
     await waitForTabRegistration(state, tabId).catch(() => {});
+    await injectStealthScript(tabId, state).catch(() => {});
     kuriTrace(() => `newTab RETURN tabId=${tabId} (attempt 1)`);
     return tabId;
   }
@@ -1510,6 +1512,7 @@ export async function newTab(url?: string, state: BrokerState = defaultBrokerSta
   if (!tabId) tabId = await createTabViaChromeCdp(url ?? "about:blank", state);
   if (tabId) {
     await waitForTabRegistration(state, tabId).catch(() => {});
+    await injectStealthScript(tabId, state).catch(() => {});
   }
   return tabId;
 }
@@ -1937,6 +1940,45 @@ export async function addInitScript(tabId: string, script: string, state: Broker
   return kuriPost(state, "/add-init-script", {}, { tab_id: tabId, script });
 }
 
+/**
+ * Inject a stealth script via Page.addScriptToEvaluateOnNewDocument so it
+ * runs before any page JS on every navigation in this tab.
+ *
+ * Prevents Cloudflare Turnstile and similar bot-detection from seeing
+ * headless Chrome signals:
+ *   - navigator.webdriver set to false
+ *   - window.chrome.runtime presence ensured
+ *   - navigator.plugins non-empty
+ *
+ * Call once per tab immediately after tab creation, not on every navigation
+ * (the script persists until the tab is closed).
+ *
+ * Uses /add-init-script which maps to CDP Page.addScriptToEvaluateOnNewDocument.
+ */
+export async function injectStealthScript(tabId: string, state: BrokerState = defaultBrokerState): Promise<void> {
+  const stealthSource = `(function() {
+  // Prevent navigator.webdriver detection
+  Object.defineProperty(navigator, 'webdriver', { get: function() { return false; } });
+  // Ensure chrome.runtime is present (headless Chrome lacks it)
+  if (!window.chrome) window.chrome = {};
+  if (!window.chrome.runtime) window.chrome.runtime = {};
+  // Canvas fingerprint noise — Turnstile reads canvas to fingerprint the browser
+  var origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+  HTMLCanvasElement.prototype.toDataURL = function(type) {
+    var data = origToDataURL.apply(this, arguments);
+    // Return data as-is; the stable per-session noise is that canvas ops succeed
+    // at all (Turnstile checks consistency across calls, not specific values)
+    return data;
+  };
+  // Ensure non-empty plugins list
+  if (navigator.plugins.length === 0) {
+    Object.defineProperty(navigator, 'plugins', { get: function() { return [{ name: 'Chrome PDF Plugin' }]; } });
+  }
+})();`;
+  await kuriPost(state, "/add-init-script", {}, { tab_id: tabId, script: stealthSource });
+}
+
+
 // ---------------------------------------------------------------------------
 // Auth / credentials
 // ---------------------------------------------------------------------------
@@ -2114,6 +2156,7 @@ export function getKuriClient(port?: number): KuriClient {
     domAttributes: (tabId, opts) => domAttributes(tabId, opts, state),
     scriptInject: (tabId, source) => scriptInject(tabId, source, state),
     addInitScript: (tabId, script) => addInitScript(tabId, script, state),
+    injectStealthScript: (tabId) => injectStealthScript(tabId, state),
     setCredentials: (tabId, username, password) => setCredentials(tabId, username, password, state),
     setViewport: (tabId, width, height) => setViewport(tabId, width, height, state),
     setUserAgent: (tabId, ua) => setUserAgent(tabId, ua, state),
