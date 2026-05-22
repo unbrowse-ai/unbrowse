@@ -13,11 +13,11 @@ import { HeroTerminalGated } from "@/components/hero-terminal-gated";
 import { AudienceToggle } from "@/components/audience-toggle";
 import {
   HeroSubhead,
-  HeroPrimaryCtaLabel,
   HeroWhyItMatters,
   HeroHeadlineInner,
   HeroSpeedProofStrip,
 } from "@/components/hero-copy";
+import { HeroCopyInstall } from "@/components/hero-copy-install";
 import { InstallFigure } from "@/components/install-figure";
 import { DemoParallax } from "@/components/demo-parallax";
 import { MobileNav } from "@/components/mobile-nav";
@@ -36,9 +36,38 @@ import {
   type StatsSummary,
   type PopularSkillSummary,
 } from "@/lib/api";
-import { IconArrow, IconChevron } from "@/components/archival-icons";
+import { IconChevron } from "@/components/archival-icons";
 
 export const revalidate = 60;
+
+/**
+ * GitHubStarCount — server component. Fetched at build/revalidate time (1h),
+ * so the GitHub pill in the hero shows a real number rather than generic text.
+ * Falls back to null-render if the API is unreachable (avoids blocking SSR).
+ */
+async function GitHubStarCount() {
+  try {
+    const res = await fetch("https://api.github.com/repos/unbrowse-ai/unbrowse", {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { stargazers_count?: number };
+    const count = data.stargazers_count;
+    if (typeof count !== "number") return null;
+    const label =
+      count >= 1000
+        ? `${(count / 1000).toFixed(1)}K`
+        : String(count);
+    return (
+      <span className="ml-0.5 tabular-nums text-orange-500 font-medium">
+        {label}
+      </span>
+    );
+  } catch {
+    return null;
+  }
+}
+
 
 // FAQ JSON-LD aligned with the locked H1: "Direct access to anything on
 // the web. Without setting up another MCP." First question carries the
@@ -268,8 +297,11 @@ export default function Home() {
                 <Github className="w-3.5 h-3.5" />
                 <span>Free, open source, runs locally</span>
                 <span className="text-[rgba(255,122,32,0.4)]">·</span>
-                <span className="flex items-center gap-1">
-                  Star on GitHub{" "}
+                <span className="inline-flex items-center gap-1">
+                  <Suspense fallback={null}>
+                    <GitHubStarCount />
+                  </Suspense>
+                  <span>stars on GitHub</span>
                   <IconChevron
                     size={11}
                     className="group-hover:translate-x-0.5 transition-transform"
@@ -320,34 +352,23 @@ export default function Home() {
               <HeroSubhead />
             </Suspense>
 
-            <div className="animate-fade-up stagger-3 flex flex-col items-center gap-4 mt-10">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <ScrollToButton
-                  sectionId="install"
-                  umamiEvent="install_cta_click"
-                  className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
-                             text-white font-mono font-medium text-sm w-full sm:w-auto
-                             hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
-                >
-                  <Suspense
-                    fallback={<span>[ npx unbrowse setup → ]</span>}
-                  >
-                    <HeroPrimaryCtaLabel />
-                  </Suspense>
-                  <IconArrow
-                    size={14}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
-                </ScrollToButton>
-                <ScrollToButton
-                  sectionId="use-cases"
-                  className="flex items-center justify-center gap-2 px-7 py-2.5
-                             bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                             hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
-                >
-                  [ See what your agent can do ]
-                </ScrollToButton>
-              </div>
+            {/* ICP persona anchor — tells developers in 1 line who this is for */}
+            <p className="animate-fade-up stagger-2 mt-4 text-xs font-mono uppercase tracking-[0.18em] text-text-muted">
+              Built for AI agent developers using Claude, Cursor, and Codex
+            </p>
+
+            {/* ═══ Primary CTA: copy-to-clipboard + single secondary ═══ */}
+            <div className="animate-fade-up stagger-3 flex flex-col sm:flex-row items-center gap-3 mt-8">
+              <HeroCopyInstall />
+              <ScrollToButton
+                sectionId="demo"
+                className="flex items-center justify-center gap-2 px-7 py-3
+                           bg-transparent border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
+                           hover:bg-[rgba(255,122,32,0.08)] hover:border-[rgba(255,122,32,0.65)] active:scale-[0.98]
+                           transition-all duration-200 ease-out cursor-pointer"
+              >
+                [ See Demo ]
+              </ScrollToButton>
             </div>
             <Suspense
               fallback={

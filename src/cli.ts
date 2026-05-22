@@ -213,6 +213,42 @@ async function api(method: string, path: string, body?: unknown, opts?: { timeou
     payload = undefined;
   }
 
+  // When UNBROWSE_URL is explicitly set the caller is pointing at an external
+  // server (e.g. a test stub or a remote daemon). Skip in-process Fastify and
+  // make a real HTTP request so the caller's server actually receives traffic.
+  if (process.env.UNBROWSE_URL) {
+    const fullUrl = BASE_URL.replace(/\/+$/, "") + url;
+    const fetchOpts: RequestInit = {
+      method,
+      headers: {
+        ...(payload !== undefined ? { "content-type": "application/json" } : {}),
+        "x-unbrowse-client-id": CLI_CLIENT_ID,
+      },
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    };
+    const timeoutMs = opts?.timeoutMs;
+    const controller = timeoutMs && timeoutMs > 0 ? new AbortController() : undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (controller && timeoutMs) {
+      timer = setTimeout(() => controller.abort(), timeoutMs);
+    }
+    try {
+      const res = await fetch(fullUrl, controller ? { ...fetchOpts, signal: controller.signal } : fetchOpts);
+      const ct = res.headers.get("content-type") ?? "";
+      const ok = res.ok;
+      if (!ok && ct.includes("json")) return res.json();
+      if (!ok) return { error: `HTTP ${res.status}: ${await res.text()}` };
+      return res.json();
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") {
+        return { error: "cli_timeout", message: `API request exceeded ${timeoutMs}ms.` };
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   // Phase 0d: no HTTP, no :6969 daemon. Dispatch in-process via Fastify
   // inject against the same route surface. Kuri (the separate CDP broker)
   // holds the only live state.
@@ -4173,7 +4209,7 @@ async function main(): Promise<void> {
   if (!KNOWN_COMMANDS.has(command)) {
     const pack = findSitePack(command);
     if (pack) {
-      await getInProcessApp();
+      if (!process.env.UNBROWSE_URL) await getInProcessApp();
       const taskName = args[0];
       if (!taskName || taskName === "help") {
         return cmdSiteHelp(pack, flags);
@@ -4189,7 +4225,7 @@ async function main(): Promise<void> {
     }
   }
 
-  await getInProcessApp();
+  if (!process.env.UNBROWSE_URL) await getInProcessApp();
 
   switch (command) {
     case "health": return cmdHealth(flags);
