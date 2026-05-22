@@ -9,6 +9,7 @@ TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/unbrowse-packaged-home.XXXXXX")"
 PORT="${UNBROWSE_PACKAGED_SMOKE_PORT:-$(node -e 'const net=require("node:net"); const s=net.createServer(); s.listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); });')}"
 SERVER_PID=""
 TARBALL=""
+RUNTIME_ENTRY=""
 
 cleanup() {
   if [[ -n "$SERVER_PID" ]]; then
@@ -26,7 +27,7 @@ cleanup() {
   fi
   # Also sweep any orphan bun/unbrowse/kuri descendants spawned by the smoke
   pkill -9 -P $$ 2>/dev/null || true
-  pkill -9 -f "$RUNTIME_ENTRY" 2>/dev/null || true
+  [[ -n "$RUNTIME_ENTRY" ]] && pkill -9 -f "$RUNTIME_ENTRY" 2>/dev/null || true
   if [[ -n "$TARBALL" && -f "$TARBALL" ]]; then
     rm -f "$TARBALL"
   fi
@@ -45,9 +46,9 @@ if [[ ! -x "$LOCAL_BIN" ]]; then
   bash "$ROOT_DIR/scripts/build-binaries.sh" 2>/dev/null || true
 fi
 if [[ -x "$LOCAL_BIN" ]]; then
-  UNBROWSE_INSTALL_BINARY_PATH="$LOCAL_BIN" NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL" --silent
+  UNBROWSE_INSTALL_BINARY_PATH="$LOCAL_BIN" NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL"
 else
-  NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL" --silent
+  NPM_CONFIG_PREFIX="$TMP_PREFIX" npm install -g "$ROOT_DIR/$TARBALL"
 fi
 
 BIN="$TMP_PREFIX/bin/unbrowse"
