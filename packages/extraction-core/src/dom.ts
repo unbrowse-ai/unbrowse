@@ -1763,7 +1763,11 @@ function extractArticleBodySpecial(html: string, intent: string): ExtractedStruc
       if (current.parts.join("\n").length < 1500) current.parts.push(txt);
     }
   });
-  if (current && current.parts.length) sections.push({ heading: current.heading, text: current.parts.join("\n").slice(0, 1500) });
+  // `current` is mutated only inside the .each() closure above; TypeScript's
+  // control-flow analysis collapses its post-closure type, so re-state the
+  // declared type explicitly here.
+  const _lastSection = current as { heading: string; parts: string[] } | null;
+  if (_lastSection && _lastSection.parts.length) sections.push({ heading: _lastSection.heading, text: _lastSection.parts.join("\n").slice(0, 1500) });
 
   if (!summary && sections.length === 0) return [];
 
