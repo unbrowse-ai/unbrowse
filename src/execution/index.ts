@@ -45,6 +45,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
 }
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
+import { extractFromDOMServerFirst } from "../extraction/server-first.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -3238,8 +3239,8 @@ export async function executeEndpoint(
         // HTML response + DOM extraction recipe — run the extractor in-process
         // and return the structured records the recipe was captured against.
         try {
-          const { extractFromDOM } = await import("../extraction/index.js");
-          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
+          const { extractFromDOMServerFirst } = await import("../extraction/server-first.js");
+          const extracted = await extractFromDOMServerFirst(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3254,8 +3255,8 @@ export async function executeEndpoint(
         // before declaring format mismatch. Many SSR pages serve the data on the rendered HTML.
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)} — trying DOM extraction fallback`);
         try {
-          const { extractFromDOM } = await import("../extraction/index.js");
-          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
+          const { extractFromDOMServerFirst } = await import("../extraction/server-first.js");
+          const extracted = await extractFromDOMServerFirst(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3933,7 +3934,7 @@ export async function executeEndpoint(
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
-          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
+          const extracted = await extractFromDOMServerFirst(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -3981,7 +3982,7 @@ export async function executeEndpoint(
         const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
-          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
+          const extracted = await extractFromDOMServerFirst(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -4297,7 +4298,7 @@ export async function executeEndpoint(
       };
       trace.result = data;
     } else {
-      const extracted = extractFromDOM(data, intent, replayUrl);
+      const extracted = await extractFromDOMServerFirst(data, intent, replayUrl);
       if (extracted.data) {
         const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
         const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };

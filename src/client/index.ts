@@ -28,6 +28,7 @@ import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
+import type { ExtractionResult as ExtractionCoreResult } from "@unbrowse/extraction-core";
 import {
   decodeTelemetryAttribution,
   mergeTelemetryAttribution,
@@ -1613,6 +1614,46 @@ export async function rankEndpointsRemote(
     );
     if (!data || data.degraded === true || !Array.isArray(data.ranked)) return null;
     return data.ranked;
+  } catch (err) {
+    if (isX402Error(err)) throw err;
+    return null;
+  }
+}
+
+/**
+ * Server-side deterministic DOM extraction (WAVE 2 server-move, principle
+ * 20260522T031732Z-3c67f936). Posts the credential-free HTML skeleton to
+ * POST /v1/extract/refine and returns the structured ExtractionResult.
+ * Returns null on ANY failure (local-only mode, network unreachable,
+ * non-2xx, degraded flag) so the caller falls back to the local
+ * `extractFromDOM` -- the capture/execution path must never hard-fail
+ * because the refinement server is unreachable. x402 payment-required
+ * errors propagate (same contract as rankEndpointsRemote).
+ *
+ * The server only ever receives an already-credential-stripped HTML
+ * string; the browser, cookies, and the authenticated fetch stay
+ * client-side. Reverse-engineering the client yields no extraction alpha.
+ */
+export async function refineExtractionRemote(
+  html: string,
+  intent: string,
+  contextUrl?: string,
+): Promise<ExtractionCoreResult | null> {
+  if (LOCAL_ONLY) return null;
+  if (typeof html !== "string" || html.length === 0) return null;
+  // Match the route's 5MB payload bound; oversize bodies fall back to local.
+  if (html.length > 5_000_000) return null;
+  try {
+    const data = await api<ExtractionCoreResult & { error?: string; degraded?: boolean }>(
+      "POST",
+      "/v1/extract/refine",
+      { html, intent, contextUrl },
+      { timeoutMs: 4000 },
+    );
+    if (!data || data.degraded === true || typeof data.error === "string" || !("data" in data)) {
+      return null;
+    }
+    return data;
   } catch (err) {
     if (isX402Error(err)) throw err;
     return null;
