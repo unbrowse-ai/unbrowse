@@ -175,6 +175,14 @@ export interface Env {
   STRIPE_AUTOREFILL_USD?: string;
   STRIPE_AUTOREFILL_MAX_PER_PERIOD?: string;
   /**
+   * Web2 subscription gate (contract 9474c6ab). When set to "1", the sponsor
+   * middleware first asks the Stripe admission ladder whether the caller has a
+   * subscription with quota, and if so draws from the Stripe-tracked balance
+   * instead of the x402 platform-sponsor wallet. Unset = legacy behaviour
+   * (every paid call rides x402, sponsor middleware unchanged).
+   */
+  UNBROWSE_BILLING_ENABLED?: string;
+  /**
    * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
    * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
    * for the sponsor middleware to enable; otherwise it refuses-to-enable and

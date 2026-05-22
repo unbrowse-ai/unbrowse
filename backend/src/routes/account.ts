@@ -531,3 +531,173 @@ accountRoutes.post("/account/payment-provider", async (c) => {
     wallet_address: result.profile.wallet_address ?? null,
   });
 });
+
+// ---------------------------------------------------------------------------
+// Web2 subscription billing routes (contract 9474c6ab)
+//
+// Three account-bound routes that hide x402 entirely behind a Stripe
+// subscription. They wrap the existing helpers in services/stripe.ts and
+// soft-fail with 503 `billing_not_configured` when STRIPE_SECRET_KEY is unset
+// so a worker without Stripe wired keeps booting cleanly.
+// ---------------------------------------------------------------------------
+
+function billingNotConfigured(c: Context<AccountEnv>) {
+  return c.json(
+    {
+      error: "billing_not_configured",
+      message:
+        "Stripe is not wired on this worker (STRIPE_SECRET_KEY missing). Web2 billing is unavailable; use the x402 lane.",
+    },
+    503,
+  );
+}
+
+// POST /v1/account/billing-subscribe-url -- { plan_id?, return_url? }
+// Returns a Stripe Checkout URL the caller can open to subscribe.
+accountRoutes.post("/account/billing-subscribe-url", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  if (!c.env.STRIPE_SECRET_KEY) return billingNotConfigured(c);
+
+  let body: { plan_id?: string; return_url?: string; tier?: "pro" | "metered" | "base" };
+  try {
+    body = (await c.req.json()) as typeof body;
+  } catch {
+    body = {};
+  }
+
+  const { createCheckoutSession } = await import("../services/stripe.js");
+  const user = await getUserById(c.env, userId);
+  const email = user?.email ?? `${userId}@users.unbrowse.ai`;
+  const returnUrl =
+    body.return_url ??
+    `${c.env.PUBLIC_FRONTEND_URL ?? "https://unbrowse.ai"}/billing/success`;
+
+  // `plan_id` is the canonical contract field. It maps to Stripe price_id
+  // when the caller knows the exact price, or to the tier shorthand
+  // ("pro" / "metered" / "base") which `createCheckoutSession` resolves
+  // against the configured price ids.
+  const planId = body.plan_id?.trim();
+  const isTier = planId === "pro" || planId === "metered" || planId === "base";
+  try {
+    const result = await createCheckoutSession(c.env, userId, email, returnUrl, {
+      priceId: isTier ? undefined : planId || undefined,
+      tier: isTier ? (planId as "pro" | "metered" | "base") : body.tier,
+    });
+    return c.json({
+      checkout_url: result.url,
+      session_id: null,
+      plan_id: planId ?? result.tier,
+      price_id: result.price_id,
+    });
+  } catch (err) {
+    const msg = (err as Error).message;
+    console.error("[account/billing-subscribe-url]", msg);
+    return c.json({ error: "checkout_failed", message: msg }, 500);
+  }
+});
+
+// POST /v1/account/billing-portal-url -- returns Stripe customer-portal URL.
+accountRoutes.post("/account/billing-portal-url", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  if (!c.env.STRIPE_SECRET_KEY) return billingNotConfigured(c);
+
+  let body: { return_url?: string };
+  try {
+    body = (await c.req.json()) as typeof body;
+  } catch {
+    body = {};
+  }
+  const returnUrl =
+    body.return_url ?? `${c.env.PUBLIC_FRONTEND_URL ?? "https://unbrowse.ai"}/billing`;
+
+  const { createPortalSession } = await import("../services/stripe.js");
+  try {
+    const { url } = await createPortalSession(c.env, userId, returnUrl);
+    return c.json({ portal_url: url });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === "no_customer") {
+      return c.json(
+        {
+          error: "no_customer",
+          message:
+            "No Stripe customer record yet — subscribe via /v1/account/billing-subscribe-url first.",
+        },
+        404,
+      );
+    }
+    console.error("[account/billing-portal-url]", msg);
+    return c.json({ error: "portal_failed", message: msg }, 500);
+  }
+});
+
+// GET /v1/account/billing-status -- declarative subscription + usage snapshot.
+// Returns `subscription_active: false` with nulls when no subscription is
+// found; never 404 — the absent-subscription case is a normal state.
+accountRoutes.get("/account/billing-status", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  if (!c.env.STRIPE_SECRET_KEY) return billingNotConfigured(c);
+
+  const { readSubFromKV } = await import("../services/stripe.js");
+  let sub: Awaited<ReturnType<typeof readSubFromKV>> = null;
+  try {
+    sub = await readSubFromKV(c.env, userId);
+  } catch (err) {
+    console.warn("[account/billing-status] readSubFromKV threw:", (err as Error).message);
+  }
+
+  if (!sub || sub.status === "none") {
+    return c.json({
+      subscription_active: false,
+      plan_name: null,
+      monthly_limit_usd: null,
+      consumed_usd: null,
+      remaining_usd: null,
+      renewal_date: null,
+      payment_method_present: false,
+      auto_refill_enabled: false,
+    });
+  }
+
+  // Read current-period consumption from the same Neon table peekUsage uses.
+  // peekUsage is internal to stripe.ts; mirror its public surface via the
+  // exported `subscriptionAdmits` helper which already returns `consumed`.
+  const { subscriptionAdmits } = await import("../services/stripe.js");
+  let consumed = 0;
+  try {
+    const admit = await subscriptionAdmits(
+      c.env,
+      c as unknown as Parameters<typeof subscriptionAdmits>[1],
+    );
+    if (typeof admit.consumed === "number") consumed = admit.consumed;
+  } catch (err) {
+    console.warn(
+      "[account/billing-status] subscriptionAdmits threw:",
+      (err as Error).message,
+    );
+  }
+
+  const active = sub.status === "active" || sub.status === "trialing";
+  const quota = sub.quota; // declared in units (USD-cents semantics owned by Stripe price metadata)
+  const monthlyLimitUsd = quota / 100;
+  const consumedUsd = consumed / 100;
+  const remainingUsd = Math.max(0, monthlyLimitUsd - consumedUsd);
+  const renewalDate =
+    sub.currentPeriodEnd && sub.currentPeriodEnd > 0
+      ? new Date(sub.currentPeriodEnd * 1000).toISOString()
+      : null;
+
+  return c.json({
+    subscription_active: active,
+    plan_name: sub.priceId || null,
+    monthly_limit_usd: monthlyLimitUsd,
+    consumed_usd: consumedUsd,
+    remaining_usd: remainingUsd,
+    renewal_date: renewalDate,
+    payment_method_present: !!sub.paymentMethod,
+    auto_refill_enabled: sub.overageAllowed,
+  });
+});
