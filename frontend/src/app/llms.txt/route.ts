@@ -22,8 +22,8 @@ export async function GET() {
 
 ## Getting Started
 
-- [Native Browser Install (Recommended)](https://www.unbrowse.ai/skill.md): Run \`${installOpenClaw}\` to make Unbrowse the default browser — every page.goto() routes through Unbrowse automatically, no code changes needed
-- [CLI Install](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
+- [Native Browser Install (Recommended)](https://www.unbrowse.ai/install): Run \`${installOpenClaw}\` to make Unbrowse the default browser — every page.goto() routes through Unbrowse automatically, no code changes needed
+- [CLI Install](https://www.unbrowse.ai/install): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
 - [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run \`${installMcp}\`, then import the generated config or use this template
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
 - [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with \`${installNpm}\`
@@ -31,7 +31,7 @@ export async function GET() {
 
 ## Documentation
 
-- [Skill Reference (SKILL.md)](https://www.unbrowse.ai/skill.md): Complete agent-facing documentation -- all CLI commands, Browser API, auth flows, payment tiers, and rules
+- [SDK Quickstart](https://www.unbrowse.ai/docs): Three-step quickstart — install \`@unbrowse/client\`, mint an API key on /login, resolve and execute against the live worker
 - [Skill Registry / Marketplace](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain
 - [Dashboard](https://www.unbrowse.ai/dashboard): View signed-in CLI/account economics, or public contributor earnings, spending, savings, and rank by wallet address
 - [Contribution Leaderboard](https://www.unbrowse.ai/leaderboard): Public all-time ranking by earnings, executions, and discovered skills
@@ -44,7 +44,7 @@ export async function GET() {
 
 ## API Reference
 
-- [Local REST API](https://www.unbrowse.ai/skill.md): Local server at \`http://localhost:6969\` -- resolve intents, execute endpoints, manage auth, search marketplace
+- [SDK / Local API](https://www.unbrowse.ai/docs): \`@unbrowse/client\` calls \`beta-api.unbrowse.ai\` directly -- resolve intents, execute endpoints, manage auth, search marketplace
 - [Marketplace API](https://beta-api.unbrowse.ai): Cloudflare Worker backend -- skill storage, semantic vector search, agent registration, endpoint graph, transaction ledger
 - POST \`/v1/intent/resolve\`: Natural-language intent resolution -- searches cache, marketplace, and live capture
 - GET \`/v1/skills\`: List all marketplace skills with metadata and scoring
