@@ -97,7 +97,8 @@
     "ethers": "6",
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
-    "turndown": "^7.2.4"
+    "turndown": "^7.2.4",
+    "@unbrowse/extraction-core": "workspace:*"
   },
   "devDependencies": {
     "@release-it/bumper": "^7.0.5",
