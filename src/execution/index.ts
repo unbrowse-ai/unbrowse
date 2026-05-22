@@ -44,7 +44,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
 }
 import { getRegistrableDomain } from "../domain.js";
-import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
+import { extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { extractFromDOMServerFirst } from "../extraction/server-first.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
@@ -694,18 +694,18 @@ function looksLikeApiUrl(url: string): boolean {
     })());
 }
 
-export function buildPageArtifactCapture(
+export async function buildPageArtifactCapture(
   url: string,
   intent: string,
   html: string,
   authRequired = false,
-): {
+): Promise<{
   endpoint?: EndpointDescriptor;
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
   search_form?: SearchFormSpec;
-} {
-  const extracted = extractFromDOM(html, intent, url);
+}> {
+  const extracted = await extractFromDOMServerFirst(html, intent, url);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
   const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
   if (!quality.valid) {
@@ -1389,7 +1389,7 @@ async function trySeedPublicDocumentFetchSkill(
 
   if (!isHtml(html) || isSpaShell(html)) return undefined;
 
-  const built = buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);
+  const built = await buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);
   if (!built.endpoint) return undefined;
 
   const domain = getRegistrableDomain(targetDomain);
@@ -1692,7 +1692,7 @@ async function executeBrowserCapture(
           proxy: process.env.UNBROWSE_PROXY_URL,
         });
         if (ssr?.html && ssr.html.length > 1024) {
-          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
             log("execution", `no_progress_bail_ssr_fastpath_success: ${ssr.html.length} bytes from libcurl`);
             const trace: ExecutionTrace = stampTrace({
@@ -1763,7 +1763,7 @@ async function executeBrowserCapture(
         const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
         const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr?.html && ssr.html.length > 1024) {
-          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
+          const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
             log("execution", `auth_required_ssr_reroute_success: ${ssr.html.length} bytes from libcurl, vendor signal detected (${requestUrls.find((u) => /captcha-delivery|cdn-cgi|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck|_pxhd/i.test(u))?.slice(0, 80)})`);
             (captured as { html?: string }).html = ssr.html;
@@ -2002,7 +2002,7 @@ async function executeBrowserCapture(
   }
 
   const pageArtifact = captured.html
-    ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
+    ? await buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
   let domArtifactEndpoint = pageArtifact.endpoint;
   let domArtifactResult = pageArtifact.result;
@@ -2020,7 +2020,7 @@ async function executeBrowserCapture(
       const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
       const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
       if (ssr?.html && ssr.html.length > 1024) {
-        const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
+        const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
         if (ssrArtifact.endpoint && ssrArtifact.result) {
           domArtifactEndpoint = ssrArtifact.endpoint;
           domArtifactResult = ssrArtifact.result;
