@@ -4,6 +4,15 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "FAQ — Unbrowse",
   description: "Frequently asked questions about Unbrowse — the API-native browser for AI agents.",
+  alternates: {
+    canonical: "https://www.unbrowse.ai/faq",
+  },
+  openGraph: {
+    title: "FAQ — Unbrowse",
+    description: "Frequently asked questions about Unbrowse — the API-native browser for AI agents.",
+    url: "https://www.unbrowse.ai/faq",
+    type: "article",
+  },
 };
 
 const faqs = [
@@ -37,9 +46,49 @@ const faqs = [
   },
 ];
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: f.a,
+    },
+  })),
+};
+
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: "https://www.unbrowse.ai",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "FAQ",
+      item: "https://www.unbrowse.ai/faq",
+    },
+  ],
+};
+
 export default function FAQPage() {
   return (
     <div className="min-h-screen bg-surface">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-28 pb-20">
         <div className="mb-12">
           <Link href="/" className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors">
