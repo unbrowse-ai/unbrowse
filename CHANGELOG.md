@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Server-side deterministic extraction: `POST /v1/extract/refine` (Wave 2)
+
+Pointer-not-payload server-move (principle `20260522T031732Z-3c67f936`).
+The deterministic DOM-extraction know-how moved into a shared workspace
+package `@unbrowse/extraction-core` and is now served from the backend:
+
+- New workspace package `packages/extraction-core/` holds the runtime-
+  neutral extraction logic (DOM parsing + intent matching), imported by
+  both the CLI and the Cloudflare Worker backend. Strangler-fig shims
+  keep every existing CLI import path resolving unchanged.
+- New route `POST /v1/extract/refine` (`backend/src/routes/extract.ts`):
+  the client captures in its own browser, strips credentials, and POSTs
+  only the credential-free HTML skeleton; the server runs `extractFromDOM`
+  and returns the structured result. The server never drives a browser
+  and never sees raw traffic or credentials. Behind the exec-token gate,
+  sibling of `/v1/search/rank`.
+
 ### Session-arc 2026-05-21 (17 PRs #685–#701)
 
 Consolidated summary of the multi-track work that landed across one
