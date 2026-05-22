@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### CLI no longer hangs after a resolve (2026-05-23)
+
+`unbrowse resolve` intermittently (~1 in 3 runs) produced its result but never
+exited — the process hung until killed, so the result was never flushed. Root
+cause: `postTelemetry` issued its `fetch()` with no timeout, and
+`recordFunnelTelemetryEvent("resolve_completed")` is `await`ed inline on the
+resolve hot path; a stalled telemetry POST blocked `output()` indefinitely.
+The telemetry `fetch` now carries a hard 5s `AbortSignal.timeout` — telemetry
+is best-effort and can never block a result again. Verified 8/8 clean CLI
+resolves (was 1/3 hanging). Restores `bench-local`, the canonical iteration loop.
+
 ### Resolve coverage — three root-cause fixes (2026-05-23)
 
 Driven by the `bench-on-change.txt` corpus (38 probes, 8 categories). Strict
