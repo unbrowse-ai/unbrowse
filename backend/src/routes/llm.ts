@@ -34,6 +34,8 @@ import {
   sponsorAcceptsForPriceUsd,
   handleFlexPaymentAuthorized,
 } from "../services/flex-route-helpers.js";
+import { debitUserCredits, addUserCredits, UC_PER_USD } from "../services/user-credits.js";
+import type { AutoRefillResult } from "../services/stripe.js";
 
 type LlmRouteEnv = { Bindings: Env; Variables: { agent_id?: string; user_id?: string } };
 
@@ -77,6 +79,97 @@ llmRoutes.post("/:provider/messages", async (c: Context<LlmRouteEnv>) => {
   const outputTokens = typeof body.max_tokens === "number" ? body.max_tokens : DEFAULT_OUTPUT_TOKEN_ESTIMATE;
   const passthroughUsd = estimatePassthroughUsd(pricing, promptTokens, outputTokens);
   const chargeUsd = operatorChargeUsd(passthroughUsd);
+
+  // ── Subscription credit lane (parallel to Flex x402) ──────────────────
+  // If the caller presents a bearer key resolving to a user with unspent
+  // monthly-plan credit, debit the micro-cent ledger and serve the call
+  // directly — the subscription already paid for it, so x402 is skipped.
+  // No key / no credit falls through to the anonymous Flex x402 path below,
+  // unchanged. Optional-auth resolution mirrors skills.ts and never throws,
+  // so the anonymous x402 contract is preserved exactly.
+  const authzHeader = c.req.header("Authorization");
+  if (authzHeader?.startsWith("Bearer ")) {
+    try {
+      const token = authzHeader.slice("Bearer ".length).trim();
+      if (c.env.API_KEY && token === c.env.API_KEY) {
+        c.set("agent_id", "__admin__");
+      } else {
+        const { verifyLocalKey } = await import("../services/keys.js");
+        const { lookupUserIdByKey } = await import("../services/accounts.js");
+        const verified = await verifyLocalKey(c.env, token);
+        if (verified?.valid && verified.keyId) {
+          c.set("agent_id", verified.keyId);
+          const uid = await lookupUserIdByKey(c.env, verified.keyId).catch(() => null);
+          if (uid) c.set("user_id", uid);
+        }
+      }
+    } catch (err) {
+      console.warn("[llm] optional auth lookup failed:", (err as Error).message);
+    }
+  }
+
+  const userId = c.get("user_id");
+  if (userId) {
+    const chargeUc = Math.max(1, Math.round(chargeUsd * UC_PER_USD));
+
+    // Serve a credit-funded call: proxy upstream, refund the debit on an
+    // operator-side 402, stamp cost headers. Shared by the first debit and
+    // the post-auto-refill retry so both paths behave identically.
+    const serveFromCredit = async (
+      balanceUc: number,
+      refilledUsd?: number,
+    ): Promise<Response> => {
+      const outcome = await proxyToXgate(c.env, { model, body });
+      if (outcome.status === 402) {
+        // Operator wallet dry: refund so the subscriber is not charged for
+        // an undelivered call, then surface the operator-side fault.
+        await addUserCredits(c.env, userId, chargeUc).catch(() => {});
+        return c.json(
+          { error: { code: "operator_upstream_payment_required", message: "operator wallet needs replenishment" } },
+          503,
+        );
+      }
+      const resp = c.json(outcome.body as Record<string, unknown>, outcome.status as 200);
+      resp.headers.set("x-aiko-cost-usd", chargeUsd.toFixed(6));
+      resp.headers.set("x-aiko-passthrough-usd", passthroughUsd.toFixed(6));
+      resp.headers.set("x-aiko-markup", String(OPERATOR_MARKUP));
+      resp.headers.set("X-Unbrowse-Billing", `subscription balance_uc=${balanceUc}`);
+      if (refilledUsd != null) {
+        resp.headers.set("X-Unbrowse-Autorefill", `refilled amount_usd=${refilledUsd}`);
+      }
+      return resp;
+    };
+
+    const debit = await debitUserCredits(c.env, userId, chargeUc).catch((err) => {
+      console.warn("[llm] debitUserCredits threw, falling through to x402:", (err as Error).message);
+      return { ok: false as const, reason: "insufficient" as const };
+    });
+    if (debit.ok) {
+      return serveFromCredit(debit.balance.balance_uc);
+    }
+
+    // Insufficient plan credit → auto-refill overage: charge the card on
+    // file off-session, then retry the debit once. A declined card, a
+    // missing payment method, the per-month cap, or a concurrent refill
+    // already in flight all fall through cleanly to the Flex x402 path.
+    if (debit.reason === "insufficient") {
+      const { autoRefillUserCredits } = await import("../services/stripe.js");
+      const refill: AutoRefillResult = await autoRefillUserCredits(c.env, userId).catch(
+        (err) => {
+          console.warn("[llm] autoRefillUserCredits threw:", (err as Error).message);
+          return { ok: false, reason: "charge_failed" } as AutoRefillResult;
+        },
+      );
+      if (refill.ok) {
+        const retry = await debitUserCredits(c.env, userId, chargeUc).catch(() => null);
+        if (retry?.ok) {
+          return serveFromCredit(retry.balance.balance_uc, refill.amount_usd);
+        }
+      }
+    }
+    // No credit and no successful refill → fall through to the Flex x402
+    // path below, unchanged.
+  }
 
   // Faremeter Flex path: when the request lacks an X-PAYMENT header, return
   // a 402 with the sponsor-accepts envelope (single payee, platform wallet,

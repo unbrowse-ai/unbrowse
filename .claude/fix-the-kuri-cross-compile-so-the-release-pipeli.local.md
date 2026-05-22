@@ -1,47 +1,40 @@
 ---
-plan: test-the-unbrowse-agent-experience-end-to-end-an
-plan_text: "Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source."
+plan: fix-the-kuri-cross-compile-so-the-release-pipeli
+plan_text: "Fix the kuri cross-compile so the release pipeline publishes properly (the P0 blocking every session PR from reaching npm; deployed-is-not-shipped principle 20260522T052552Z-9d0e226a; CI-CD-only-publish contract 20260522T053846Z-ebc3deca). The Upload CLI Release Assets job runs scripts/build-binaries.sh --all which cross-compiles kuri (Zig) for 4 targets; darwin-x64 fails on iconv+icucore (macOS system libs absent when cross-compiling from a Linux runner) and aarch64-linux fails on z+idn2. darwin-x64 already writes a placeholder stub and continues, but the job still exits non-zero. Wave 1 ship-now: make build-binaries.sh treat a minority cross-target failure the same graceful way for ALL targets -- stub the failed target, exit 0 as long as the primary targets darwin-arm64 and linux-x64 produced real binaries, so the release job goes green and the npm publish + SDK publish run; stubbed targets fall back to the postinstall binary fetch. Wave 2 proper fix: cross-compile darwin-x64 and aarch64-linux correctly -- either a GitHub Actions native-runner matrix (macos runner for darwin targets, arm runner for aarch64-linux) or vendored per-target iconv/icucore/z/idn2 alongside the already-vendored curl-impersonate. Verify: build-binaries.sh exits 0 locally with the primary targets real and minority targets stubbed; then a fresh release tag publishes preview.8 (or higher) and npm view unbrowse shows the new preview. Per the CI-CD-only contract the publish happens ONLY via the release pipeline, never a local npm publish."
 project: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
-template: agent-system
+template: content
 scope: project
 shipping_surface: "cloudflare (wrangler deploy / pages)"
 ship_command: |
-    git add -A && git diff --cached --quiet || git commit -m 'iterate: $(date +%s)'
-verify_gate: "http-curl E2E: health + resolve + server-side moat source audit"
+    echo 'TODO: invoke the publishing skill for this artifact'; false
+verify_gate: "agent-browser published-artifact check (length preflight)"
 verify_command: |
-    bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/verify.sh
-validation_channel: "http-curl"
+    wc -w .claude/$PLAN.draft.md | awk '$1 >= 30 && $1 <= 4000 {exit 0} {exit 1}' && { echo '[validation_channel=agent-browser] length preflight ok. Declare the real outcome check as verify_command in the state file: agent-browser open <published/preview url> && agent-browser snapshot -i to confirm the artifact renders and reads as intended. A word-count is a proxy, not proof it published correctly.'; false; }
+validation_channel: "agent-browser"
 loop_primitive: linear-iterate
 bound_contracts:
-  - move-only-the-deterministic-credential-free-non-
-  - bind-unbrowse-execution-logic-to-server-signed-p
-  - rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty
-  # - port-the-meta-harness-contract-dag-design-patter   # organ-mate candidate
-  # - audit-the-unbrowse-capture-enrichment-resolve-ra   # organ-mate candidate
-  #
-  # skills this contract could LEAN ON:
-  #   ~ unbrowse-self-build
-  #   ~ unbrowse-improvement-loop
-  # skills this contract could LEAN ON (find-skills evidence). A
-  # skill is invoked, not bound or iterated -- these are hints,
-  # not YAML list entries; the agent judges whether to reach for one:
-  #   ~ unbrowse-self-build   overlap 0.171
-  #   ~ autonomous-build-harness   overlap 0.105
-  #   ~ unbrowse-improvement-loop   overlap 0.086
-  #   ~ graff-harness   overlap 0.076
-second_frontend: false
-parallel_budget: 8
-iteration_cap: 30
+  # bind candidates surfaced by build (token-overlap = raw evidence,
+  # NOT a verdict). Judge per references/biology-architecture.md:
+  # do this contract and the candidate, TOGETHER, perform ONE
+  # coherent function (an organ)? If yes, uncomment to bind. Same
+  # archetype alone (same tissue) is not a reason to bind.
+  # - minimize-the-unbrowse-cli-and-mcp-flag-surface-p   # organ-mate candidate, overlap 0.245
+  # - build-kuri-for-windows-x86-64-windows-so-unbrows   # organ-mate candidate, overlap 0.227
+  # - build-end-to-end-funnel-tracking-for-unbrowse-ev   # organ-mate candidate, overlap 0.173
+  # - drive-every-bug-class-surfaced-by-the-mcp-gate-r   # organ-mate candidate, overlap 0.155
+  # - drive-the-harness-queue-to-completion-without-th   # organ-mate candidate, overlap 0.136
+parallel_budget: 1
+iteration_cap: 8
 inferred_from:
-  template: agent-system
+  template: content
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: ""
-status: pending
+status: BUILD-P0-FIXED-PR725-734 PUBLISH-blocked-3-structural-pack-bugs:(1)dist-not-in-skill-files (2)packages-sdk-version-unsynced-stuck-preview.7 (3)smoke-npm-pack-vs-publish-leave-workspace-literal
 ---
 
-# Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source.
+# Fix the kuri cross-compile so the release pipeline publishes properly (the P0 blocking every session PR from reaching npm; deployed-is-not-shipped principle 20260522T052552Z-9d0e226a; CI-CD-only-publish contract 20260522T053846Z-ebc3deca). The Upload CLI Release Assets job runs scripts/build-binaries.sh --all which cross-compiles kuri (Zig) for 4 targets; darwin-x64 fails on iconv+icucore (macOS system libs absent when cross-compiling from a Linux runner) and aarch64-linux fails on z+idn2. darwin-x64 already writes a placeholder stub and continues, but the job still exits non-zero. Wave 1 ship-now: make build-binaries.sh treat a minority cross-target failure the same graceful way for ALL targets -- stub the failed target, exit 0 as long as the primary targets darwin-arm64 and linux-x64 produced real binaries, so the release job goes green and the npm publish + SDK publish run; stubbed targets fall back to the postinstall binary fetch. Wave 2 proper fix: cross-compile darwin-x64 and aarch64-linux correctly -- either a GitHub Actions native-runner matrix (macos runner for darwin targets, arm runner for aarch64-linux) or vendored per-target iconv/icucore/z/idn2 alongside the already-vendored curl-impersonate. Verify: build-binaries.sh exits 0 locally with the primary targets real and minority targets stubbed; then a fresh release tag publishes preview.8 (or higher) and npm view unbrowse shows the new preview. Per the CI-CD-only contract the publish happens ONLY via the release pipeline, never a local npm publish.
 
 Generated by meta-harness/scripts/builder/build.py on 2026-05-22.
 
@@ -144,7 +137,7 @@ the build compile?".
 ## Layout (skill-creator canon)
 
 ```
-.claude/test-the-unbrowse-agent-experience-end-to-end-an/
+.claude/fix-the-kuri-cross-compile-so-the-release-pipeli/
 ├── scripts/
 │   ├── verify.sh    runs verify_command + lane bench_commands
 │   ├── ship.sh      runs ship_command
@@ -162,7 +155,7 @@ the build compile?".
 ## How to run
 
 ```bash
-bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/iterate.sh
+bash .claude/fix-the-kuri-cross-compile-so-the-release-pipeli/scripts/iterate.sh
 ```
 
 The iterate driver reads this state file, runs scripts/verify.sh, on pass runs
@@ -174,7 +167,7 @@ copy is the record, not the live source).
 
 ## Loop primitive
 
-self-build - meaning:
+linear-iterate - meaning:
 
 - linear-iterate: one verify -> ship cycle per invocation
 - self-build: spawn N parallel probes, delegate to /self-build, write conductor row referencing its run_id
@@ -206,26 +199,6 @@ substrate runs the declared list and surfaces verdicts, never auto-picks
 a contract and never folds a bound verdict into this contract's pass or
 fail. Cycles are skipped via a binding-chain guard.
 
-## Second-frontend enforcement
-
-`second_frontend:` in the frontmatter is a declared boolean. If this plan
-rewrites, wraps, or agent-native re-skins a product the user already has
-(a second window onto an existing service, like the Pantry build over
-Zeemart), set it to `true`. That activates the four-rule gate from
-`references/second-frontend.md`:
-
-1. No stored logins (creds server-side only, pointer-not-payload).
-2. No scraped data (read the origin's live endpoints, never mirror).
-3. Second frontend, not a fork (the origin stays system of record).
-4. Retain the original UI elements, rendered via generative UI (a
-   server-emitted JSON UI spec, the json-render.dev pattern).
-
-When `second_frontend: true`, the always-collect `second-frontend.sh`
-gate runs every iterate and surfaces whether this scaffold's verify.sh
-asserts all four rules; under `--gates` a flagged row blocks ship. The
-agent DECLARES this field by judging the plan; the substrate never
-sniffs the plan text. Leave it `false` for an original product.
-
 ## Optional gate phase
 
 Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify and ship:
@@ -233,4 +206,4 @@ Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify 
 
 ## Notes from template
 
-For Claude Code skill/agent/loop builds. Loop primitive 'self-build' fans out N parallel probes per wave, judges in-thread, writes wave row. validation_channel=os-control: the default verify_command runs the bench-gate as a PREFLIGHT then fails closed until the declarant wires a real OS-level outcome assertion (screencapture+diff / osascript) or switches validation_channel to http-curl for an API surface. The substrate-audit proxy_only_gate_lines row surfaces a bench-only gate so the agent judges whether it is a real e2e check.
+Content plans. Replace ship_command with the right publishing skill (x-max for X, typefully for scheduling, blog-publisher for long-form). validation_channel=agent-browser: the default verify_command checks draft length as a PREFLIGHT then fails closed until the declarant wires an agent-browser check that the published/previewed artifact actually renders. The substrate-audit proxy_only_gate_lines row surfaces a length-only gate.

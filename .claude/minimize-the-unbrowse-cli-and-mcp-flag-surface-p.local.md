@@ -1,47 +1,40 @@
 ---
-plan: test-the-unbrowse-agent-experience-end-to-end-an
-plan_text: "Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source."
+plan: minimize-the-unbrowse-cli-and-mcp-flag-surface-p
+plan_text: "Minimize the unbrowse CLI and MCP flag surface per the flag-minimization contract 20260522T053119Z-654f3119. Audit every CLI flag and every behavior-toggling UNBROWSE_ env var. For each, judge: would the caller ever pass a different value on two consecutive calls. If no, it is set-once config not a per-call flag. Convert: set-once toggles become either a baked safe default or a key in the home-folder config file at ~/.unbrowse/config.json. Extend the config schema and loadConfig in src/client/index.ts to read the new keys. Add an unbrowse config set command and the equivalent MCP tool, and wire unbrowse setup to write the config interactively. Establish one-directional precedence: baked default then ~/.unbrowse config then env var then explicit flag, where the explicit flag is only a rare escape hatch. The per-invocation flag surface shrinks toward zero: resolve takes only the intent, execute takes only the id. Verify per wave: bun tsc clean, the CLI test suite green vs origin/main baseline, and a from-config smoke check that a value set via unbrowse config set is honored without any flag. DEPENDENCY per the deployed-is-not-shipped principle 20260522T052552Z-9d0e226a: client-side changes do not reach users until the npm publish is unblocked (currently stuck at preview.6 behind the kuri cross-compile failure in Upload CLI Release Assets), so this harness ships onto main but its user-facing value is gated behind that P0 publish fix."
 project: /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse
-template: agent-system
+template: content
 scope: project
 shipping_surface: "cloudflare (wrangler deploy / pages)"
 ship_command: |
-    git add -A && git diff --cached --quiet || git commit -m 'iterate: $(date +%s)'
-verify_gate: "http-curl E2E: health + resolve + server-side moat source audit"
+    echo 'TODO: invoke the publishing skill for this artifact'; false
+verify_gate: "agent-browser published-artifact check (length preflight)"
 verify_command: |
-    bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/verify.sh
-validation_channel: "http-curl"
+    wc -w .claude/$PLAN.draft.md | awk '$1 >= 30 && $1 <= 4000 {exit 0} {exit 1}' && { echo '[validation_channel=agent-browser] length preflight ok. Declare the real outcome check as verify_command in the state file: agent-browser open <published/preview url> && agent-browser snapshot -i to confirm the artifact renders and reads as intended. A word-count is a proxy, not proof it published correctly.'; false; }
+validation_channel: "agent-browser"
 loop_primitive: linear-iterate
 bound_contracts:
-  - move-only-the-deterministic-credential-free-non-
-  - bind-unbrowse-execution-logic-to-server-signed-p
-  - rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty
-  # - port-the-meta-harness-contract-dag-design-patter   # organ-mate candidate
-  # - audit-the-unbrowse-capture-enrichment-resolve-ra   # organ-mate candidate
-  #
-  # skills this contract could LEAN ON:
-  #   ~ unbrowse-self-build
-  #   ~ unbrowse-improvement-loop
-  # skills this contract could LEAN ON (find-skills evidence). A
-  # skill is invoked, not bound or iterated -- these are hints,
-  # not YAML list entries; the agent judges whether to reach for one:
-  #   ~ unbrowse-self-build   overlap 0.171
-  #   ~ autonomous-build-harness   overlap 0.105
-  #   ~ unbrowse-improvement-loop   overlap 0.086
-  #   ~ graff-harness   overlap 0.076
-second_frontend: false
-parallel_budget: 8
-iteration_cap: 30
+  # bind candidates surfaced by build (token-overlap = raw evidence,
+  # NOT a verdict). Judge per references/biology-architecture.md:
+  # do this contract and the candidate, TOGETHER, perform ONE
+  # coherent function (an organ)? If yes, uncomment to bind. Same
+  # archetype alone (same tissue) is not a reason to bind.
+  # - build-end-to-end-funnel-tracking-for-unbrowse-ev   # organ-mate candidate, overlap 0.203
+  # - add-an-opt-in-paid-residential-proxy-fallback-fo   # organ-mate candidate, overlap 0.163
+  # - drive-every-bug-class-surfaced-by-the-mcp-gate-r   # organ-mate candidate, overlap 0.163
+  # - rebuild-the-unbrowse-sdk-as-a-thin-http-first-ty   # organ-mate candidate, overlap 0.163
+  # - port-the-meta-harness-contract-dag-design-patter   # organ-mate candidate, overlap 0.154
+parallel_budget: 1
+iteration_cap: 8
 inferred_from:
-  template: agent-system
+  template: content
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: ""
-status: pending
+status: contract-crystallised-20260522T053119Z scaffolded recon-done-17plus-env-vars+config.json-exists DEPENDENCY-client-code-unreachable-until-P0-npm-publish-fixed
 ---
 
-# Test the unbrowse agent experience end to end AND contract that the unbrowse intelligence stays a server-side DAG moat. Two coupled invariants verified together as one organ: (1) AGENT-EXPERIENCE — drive the real MCP/CLI agent journey (resolve to execute to capture to browse) end to end against the running product and judge in-thread that the calling agent gets correct data with the two-tool-call contract intact; (2) SERVER-SIDE MOAT — assert the deterministic credential-free non-LLM intelligence (extraction filters, ranking heuristics, requires/yields DAG graph construction) executes server-side, and the client holds ONLY the irreducible local surface: browser driving via Kuri, the calling agent's own LLM, credential IO (cookie SQLite reads, wallet signing, the authenticated fetch), and opaque server-issued pointers/tokens. A decompiled client must reveal only a transport, a credential reader and a bag of opaque ids. Bind the existing children move-only-the-deterministic-credential-free-non- and bind-unbrowse-execution-logic-to-server-signed-p; this umbrella stitches their ledgers and adds the end-to-end agent-experience verification neither child runs. Verify gate must exercise the SERVED artifact, never the source.
+# Minimize the unbrowse CLI and MCP flag surface per the flag-minimization contract 20260522T053119Z-654f3119. Audit every CLI flag and every behavior-toggling UNBROWSE_ env var. For each, judge: would the caller ever pass a different value on two consecutive calls. If no, it is set-once config not a per-call flag. Convert: set-once toggles become either a baked safe default or a key in the home-folder config file at ~/.unbrowse/config.json. Extend the config schema and loadConfig in src/client/index.ts to read the new keys. Add an unbrowse config set command and the equivalent MCP tool, and wire unbrowse setup to write the config interactively. Establish one-directional precedence: baked default then ~/.unbrowse config then env var then explicit flag, where the explicit flag is only a rare escape hatch. The per-invocation flag surface shrinks toward zero: resolve takes only the intent, execute takes only the id. Verify per wave: bun tsc clean, the CLI test suite green vs origin/main baseline, and a from-config smoke check that a value set via unbrowse config set is honored without any flag. DEPENDENCY per the deployed-is-not-shipped principle 20260522T052552Z-9d0e226a: client-side changes do not reach users until the npm publish is unblocked (currently stuck at preview.6 behind the kuri cross-compile failure in Upload CLI Release Assets), so this harness ships onto main but its user-facing value is gated behind that P0 publish fix.
 
 Generated by meta-harness/scripts/builder/build.py on 2026-05-22.
 
@@ -144,7 +137,7 @@ the build compile?".
 ## Layout (skill-creator canon)
 
 ```
-.claude/test-the-unbrowse-agent-experience-end-to-end-an/
+.claude/minimize-the-unbrowse-cli-and-mcp-flag-surface-p/
 ├── scripts/
 │   ├── verify.sh    runs verify_command + lane bench_commands
 │   ├── ship.sh      runs ship_command
@@ -162,7 +155,7 @@ the build compile?".
 ## How to run
 
 ```bash
-bash .claude/test-the-unbrowse-agent-experience-end-to-end-an/scripts/iterate.sh
+bash .claude/minimize-the-unbrowse-cli-and-mcp-flag-surface-p/scripts/iterate.sh
 ```
 
 The iterate driver reads this state file, runs scripts/verify.sh, on pass runs
@@ -174,7 +167,7 @@ copy is the record, not the live source).
 
 ## Loop primitive
 
-self-build - meaning:
+linear-iterate - meaning:
 
 - linear-iterate: one verify -> ship cycle per invocation
 - self-build: spawn N parallel probes, delegate to /self-build, write conductor row referencing its run_id
@@ -206,26 +199,6 @@ substrate runs the declared list and surfaces verdicts, never auto-picks
 a contract and never folds a bound verdict into this contract's pass or
 fail. Cycles are skipped via a binding-chain guard.
 
-## Second-frontend enforcement
-
-`second_frontend:` in the frontmatter is a declared boolean. If this plan
-rewrites, wraps, or agent-native re-skins a product the user already has
-(a second window onto an existing service, like the Pantry build over
-Zeemart), set it to `true`. That activates the four-rule gate from
-`references/second-frontend.md`:
-
-1. No stored logins (creds server-side only, pointer-not-payload).
-2. No scraped data (read the origin's live endpoints, never mirror).
-3. Second frontend, not a fork (the origin stays system of record).
-4. Retain the original UI elements, rendered via generative UI (a
-   server-emitted JSON UI spec, the json-render.dev pattern).
-
-When `second_frontend: true`, the always-collect `second-frontend.sh`
-gate runs every iterate and surfaces whether this scaffold's verify.sh
-asserts all four rules; under `--gates` a flagged row blocks ship. The
-agent DECLARES this field by judging the plan; the substrate never
-sniffs the plan text. Leave it `false` for an original product.
-
 ## Optional gate phase
 
 Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify and ship:
@@ -233,4 +206,4 @@ Pass `--gates` to iterate.sh to run the falsifier-borrowed gates between verify 
 
 ## Notes from template
 
-For Claude Code skill/agent/loop builds. Loop primitive 'self-build' fans out N parallel probes per wave, judges in-thread, writes wave row. validation_channel=os-control: the default verify_command runs the bench-gate as a PREFLIGHT then fails closed until the declarant wires a real OS-level outcome assertion (screencapture+diff / osascript) or switches validation_channel to http-curl for an API surface. The substrate-audit proxy_only_gate_lines row surfaces a bench-only gate so the agent judges whether it is a real e2e check.
+Content plans. Replace ship_command with the right publishing skill (x-max for X, typefully for scheduling, blog-publisher for long-form). validation_channel=agent-browser: the default verify_command checks draft length as a PREFLIGHT then fails closed until the declarant wires an agent-browser check that the published/previewed artifact actually renders. The substrate-audit proxy_only_gate_lines row surfaces a length-only gate.

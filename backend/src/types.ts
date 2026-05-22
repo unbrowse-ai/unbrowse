@@ -165,6 +165,16 @@ export interface Env {
   /** Stripe price ID for metered overage (per-unit) above the quota. */
   STRIPE_PRICE_OVERAGE?: string;
   /**
+   * Auto-refill overage (subscription-billing-layer wave 2). When a user's
+   * monthly-plan credit is exhausted mid-cycle, the /llm route fires an
+   * off-session Stripe PaymentIntent on the card on file and grants the
+   * equivalent credit. STRIPE_AUTOREFILL_USD is the dollar size of each
+   * refill (default 5). STRIPE_AUTOREFILL_MAX_PER_PERIOD caps refills per
+   * UTC month so a runaway loop cannot drain a card (default 20).
+   */
+  STRIPE_AUTOREFILL_USD?: string;
+  STRIPE_AUTOREFILL_MAX_PER_PERIOD?: string;
+  /**
    * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
    * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
    * for the sponsor middleware to enable; otherwise it refuses-to-enable and
