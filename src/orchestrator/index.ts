@@ -11,7 +11,8 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
+
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
   getSkillChunk,
@@ -4900,6 +4901,74 @@ export async function resolveAndExecute(
         return handoff;
       }
     }
+    // vendor:cloudflare / vendor:datadome / vendor:perimeterx block detected:
+    // libcurl-impersonate (Chrome131 JA4) may bypass the JS challenge that
+    // Kuri's --headless=new triggered. executeBrowserCapture already attempts
+    // this inside the capture pipeline (src/execution/index.ts L2017), but
+    // that rescue also fails when Kuri returns an empty or CF-challenge-shaped
+    // page. This second attempt runs at the orchestrator boundary so any vendor
+    // block — regardless of capture-side error type — gets one libcurl shot
+    // before the agent sees an ANTIBOT_BLOCK failure.
+    // Only fires when: no learned_skill, trace failed, url present, not auth_required.
+    if (!isAuthRequired && context?.url) {
+      const capturedBlockSignals = (resultRecord?.captured_meta as Record<string, unknown> | undefined)?.browser_block_signals;
+      const hasVendorBlockSignal =
+        Array.isArray(capturedBlockSignals) &&
+        capturedBlockSignals.some((s: unknown) => typeof s === "string" && s.startsWith("vendor:"));
+      if (hasVendorBlockSignal) {
+        try {
+          const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+          const ssr = await trySsrFastPathOnBlock({
+            url: context.url,
+            timeoutMs: 15_000,
+            proxy: process.env.UNBROWSE_PROXY_URL,
+          });
+          if (ssr && ssr.html.length > 500) {
+            const ssrArtifact = buildPageArtifactCapture(context.url, queryIntent, ssr.html, false);
+            if (ssrArtifact.endpoint && ssrArtifact.result) {
+              console.log(
+                `[orchestrator] vendor_block_ssr_fastpath_success: ${ssr.html.length} bytes via libcurl-impersonate (signals: ${capturedBlockSignals.join(", ")})`,
+              );
+              const ssrTrace: import("../types/index.js").ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: ssrArtifact.endpoint.endpoint_id,
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+
+              recordRoutingStep("live-capture", captureSkill, ssrTrace, ssrArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: ssrArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: ssrArtifact.result,
+                trace: ssrTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", ssrArtifact.result, captureSkill!.skill_id, captureSkill, ssrTrace),
+              };
+            }
+            console.log(
+              `[orchestrator] vendor_block_ssr_fastpath_null: libcurl returned ${ssr.html.length} bytes but DOM extraction yielded no usable artifact`,
+            );
+          } else {
+            console.log(
+              `[orchestrator] vendor_block_ssr_fastpath_null: libcurl returned ${ssr ? ssr.html.length : 0} bytes (below 500-byte floor or null)`,
+            );
+          }
+        } catch (ssrErr) {
+          console.log(
+            `[orchestrator] vendor_block_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`,
+          );
+        }
+      }
+    }
+
     return {
       result,
       trace,
