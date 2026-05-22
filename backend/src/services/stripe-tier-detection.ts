@@ -37,6 +37,8 @@ export interface StripeSubscriptionLike {
     data?: Array<{
       price?: {
         id?: string | null;
+        /** Price-level declaration; metadata.grant_uc names the per-period credit grant. */
+        metadata?: Record<string, string> | null;
       } | null;
     }>;
   } | null;
@@ -88,9 +90,32 @@ export function inferTier(
   if (status === "canceled" || status === "incomplete_expired") {
     return { tier: "free", grant_uc: 0, matched_price_id: null, status };
   }
+  const isHealthy = status === "active" || status === "trialing";
 
-  const priceIds = (subscription.items?.data ?? [])
-    .map((item) => item.price?.id?.trim())
+  const prices = (subscription.items?.data ?? [])
+    .map((item) => item.price)
+    .filter((p): p is NonNullable<typeof p> => !!p?.id);
+
+  // Declared plan (substrate-faithful): a Stripe Price that carries
+  // metadata.grant_uc declares its own per-period credit grant. The price
+  // IS the declaration; inferTier surfaces it rather than mapping an env-
+  // keyed id to a hardcoded per-tier constant. A declared plan wins over
+  // the legacy env-keyed tiers below. Grant is flat ("pro"-shaped) for
+  // tier-routing; the real per-plan amount rides in grant_uc.
+  for (const price of prices) {
+    const declared = Number(price.metadata?.grant_uc);
+    if (Number.isFinite(declared) && declared > 0) {
+      return {
+        tier: "pro",
+        grant_uc: isHealthy ? Math.floor(declared) : 0,
+        matched_price_id: price.id?.trim() ?? null,
+        status,
+      };
+    }
+  }
+
+  const priceIds = prices
+    .map((p) => p.id?.trim())
     .filter((id): id is string => !!id);
 
   const proPrice = env.STRIPE_PRICE_PRO_MONTHLY?.trim();
@@ -109,7 +134,6 @@ export function inferTier(
     };
   }
   if (hasPro) {
-    const isHealthy = status === "active" || status === "trialing";
     return {
       tier: "pro",
       grant_uc: isHealthy ? PRO_TIER_GRANT_UC : 0,

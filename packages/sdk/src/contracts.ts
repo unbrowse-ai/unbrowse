@@ -59,19 +59,44 @@ export interface EndpointDescriptor {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
   description?: string;
+  headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
-  path_params?: Record<string, string>;
-  body_params?: Record<string, unknown>;
   body?: Record<string, unknown>;
   idempotency: Idempotency;
   verification_status: VerificationStatus;
   reliability_score: number;
   last_verified_at?: string;
+  /** Server-signed HMAC binding this endpoint to the current build. Verify before execute. */
+  signature?: string;
   response_schema?: ResponseSchema;
+  graphql_info?: {
+    operation_name?: string;
+  };
   trigger_url?: string;
-  exec_strategy?: "server" | "trigger-intercept" | "browser";
   graph_visibility?: GraphVisibility;
   corroboration?: EndpointCorroboration;
+  /** Admission-time signal: server flagged this endpoint as requiring authentication. */
+  auth_walled?: boolean;
+  /** Learned constraints from API errors and agent observations. */
+  constraints?: EndpointConstraint[];
+  annotations?: EndpointAnnotation[];
+  /** Set by backend when a domain owner officially submitted this endpoint via x402 triage. */
+  owner_submitted?: boolean;
+}
+
+
+export interface EndpointConstraint {
+  param: string;
+  rule: "required" | "deprecated" | "format" | "enum" | "max_length" | "forbidden_in_body";
+  message: string;
+  source: "api_error" | "agent";
+  learned_at: string;
+}
+
+export interface EndpointAnnotation {
+  text: string;
+  agent_id?: string;
+  created_at: string;
 }
 
 export interface SkillManifest {

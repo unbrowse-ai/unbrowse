@@ -168,3 +168,21 @@ packages/skill/dist-sm/
 !.claude/ralph-loop.local.md
 !.claude/*.local.md
 !.claude/mcps/
+
+# meta-harness:gitignore START
+# Re-include meta-harness scaffold artifacts so the contract-writer and its
+# generated child contracts survive a clean clone. Parent dir is re-included
+# first (gitignore: cannot re-include a file under an excluded dir), then
+# transient logs/ is re-ignored. generate-child.sh extends this block per
+# new child contract.
+!.claude/make-unbrowse-banger-a-meta-contract-that-writes/
+.claude/make-unbrowse-banger-a-meta-contract-that-writes/logs/
+!.claude/add-structured-next-action-hints-to-unbrowse-mcp/
+.claude/add-structured-next-action-hints-to-unbrowse-mcp/logs/
+!.claude/honor-path-extract-and-limit-in-unbrowse-mcp-exe/
+.claude/honor-path-extract-and-limit-in-unbrowse-mcp-exe/logs/
+!.claude/add-a-flash-minimal-resolve-output-mode-to-unbro/
+.claude/add-a-flash-minimal-resolve-output-mode-to-unbro/logs/
+!.claude/mark-new-and-changed-interactive-elements-in-unb/
+.claude/mark-new-and-changed-interactive-elements-in-unb/logs/
+# meta-harness:gitignore END

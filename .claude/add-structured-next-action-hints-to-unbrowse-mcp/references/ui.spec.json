@@ -1,0 +1,14 @@
+{
+  "type": "hero",
+  "title": "add-structured-next-action-hints-to-unbrowse-mcp",
+  "subtitle": "running",
+  "stateRef": "/harness/{{slug}}/{{run_id}}/meta/latest_phase",
+  "mono": false,
+  "children": [
+    {
+      "type": "pill",
+      "label": "status",
+      "stateRef": "/harness/{{slug}}/{{run_id}}/meta/latest_status"
+    }
+  ]
+}

@@ -24,6 +24,7 @@ import type {
   StripeSubStatus,
   SubscriptionAdmitResult,
 } from "./stripe.types.js";
+import { addUserCredits, UC_PER_USD } from "./user-credits.js";
 
 export const STRIPE_NOT_IMPLEMENTED = new Error(
   "stripe.ts skeleton — implementation lands Day 4 (Luminaries)",
@@ -523,5 +524,134 @@ export async function processBillingEvent(
     } catch (err) {
       console.warn(`[stripe-grants] dispatcher threw: ${(err as Error).message}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-refill overage (subscription-billing-layer wave 2)
+// ---------------------------------------------------------------------------
+export interface AutoRefillResult {
+  ok: boolean;
+  reason:
+    | "refilled"
+    | "no_stripe"
+    | "no_customer"
+    | "no_payment_method"
+    | "period_cap"
+    | "in_progress"
+    | "charge_failed";
+  granted_uc?: number;
+  amount_usd?: number;
+  payment_intent_id?: string;
+}
+
+/**
+ * Off-session auto-refill. When a subscriber's monthly-plan credit is
+ * exhausted mid-cycle, charge the card on file for `STRIPE_AUTOREFILL_USD`
+ * and grant the equivalent credit. Guarded by a KV lock (no concurrent
+ * double-charge from a burst of insufficient-credit calls) and a per-UTC-
+ * month cap so a runaway loop cannot drain a card. Returns evidence; the
+ * caller (the /llm route) judges whether to retry the debit or fall to x402.
+ */
+export async function autoRefillUserCredits(
+  env: Env,
+  userId: string,
+): Promise<AutoRefillResult> {
+  if (!env.STRIPE_SECRET_KEY) return { ok: false, reason: "no_stripe" };
+  const kv = statsKV(env);
+
+  const customerId = (await kv.get(KV_KEYS.userCustomer(userId))) as
+    | string
+    | null;
+  if (!customerId || typeof customerId !== "string") {
+    return { ok: false, reason: "no_customer" };
+  }
+
+  // Per-UTC-month cap: refuse once this user has hit the refill ceiling.
+  const period = currentPeriod();
+  const capRaw = Number(env.STRIPE_AUTOREFILL_MAX_PER_PERIOD ?? "20");
+  const cap = Number.isFinite(capRaw) && capRaw > 0 ? Math.floor(capRaw) : 20;
+  const countKey = `stripe:autorefill:count:${userId}:${period}`;
+  const used = Number(((await kv.get(countKey)) as string | null) ?? "0");
+  if (Number.isFinite(used) && used >= cap) {
+    return { ok: false, reason: "period_cap" };
+  }
+
+  // Concurrency lock: a burst of insufficient-credit calls must not each
+  // fire a charge. First caller holds the lock; others see in_progress.
+  const lockKey = `stripe:autorefill:lock:${userId}`;
+  if (await kv.get(lockKey)) {
+    return { ok: false, reason: "in_progress" };
+  }
+  await kv.put(lockKey, new Date().toISOString(), { expirationTtl: 120 });
+
+  try {
+    const stripe = getStripe(env);
+
+    // Off-session charges need an explicit payment_method id. Prefer the
+    // customer's default; fall back to the most recently attached card.
+    let paymentMethodId: string | null = null;
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer && !customer.deleted) {
+      const dpm = customer.invoice_settings?.default_payment_method;
+      paymentMethodId = typeof dpm === "string" ? dpm : (dpm?.id ?? null);
+    }
+    if (!paymentMethodId) {
+      const pms = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: "card",
+        limit: 1,
+      });
+      paymentMethodId = pms.data[0]?.id ?? null;
+    }
+    if (!paymentMethodId) {
+      return { ok: false, reason: "no_payment_method" };
+    }
+
+    const amountUsdRaw = Number(env.STRIPE_AUTOREFILL_USD ?? "5");
+    const amountUsd =
+      Number.isFinite(amountUsdRaw) && amountUsdRaw > 0 ? amountUsdRaw : 5;
+    const amountCents = Math.round(amountUsd * 100);
+
+    const intent = await stripe.paymentIntents.create(
+      {
+        amount: amountCents,
+        currency: "usd",
+        customer: customerId,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        description: `AikoNotch credit auto-refill (${period})`,
+        metadata: { userId, kind: "autorefill", period },
+      },
+      {
+        idempotencyKey: `autorefill:${userId}:${period}:${Math.floor(
+          Date.now() / 60_000,
+        )}`,
+      },
+    );
+
+    if (intent.status !== "succeeded") {
+      return { ok: false, reason: "charge_failed", payment_intent_id: intent.id };
+    }
+
+    const grantedUc = Math.round(amountUsd * UC_PER_USD);
+    await addUserCredits(env, userId, grantedUc);
+    await kv.put(countKey, String(used + 1), {
+      expirationTtl: 60 * 60 * 24 * 40,
+    });
+
+    return {
+      ok: true,
+      reason: "refilled",
+      granted_uc: grantedUc,
+      amount_usd: amountUsd,
+      payment_intent_id: intent.id,
+    };
+  } catch (err) {
+    console.warn("[autorefill] charge failed:", (err as Error).message);
+    return { ok: false, reason: "charge_failed" };
+  } finally {
+    await kv.delete(lockKey).catch(() => {});
   }
 }

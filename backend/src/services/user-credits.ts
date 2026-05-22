@@ -21,6 +21,14 @@ import { statsKV } from "./kv.js";
 
 const USER_CREDITS_PREFIX = "user_credits:";
 
+/**
+ * Credit-ledger unit. The $20/mo Pro plan grants 200_000 uc
+ * (`PRO_TIER_GRANT_UC` in stripe-tier-detection.ts), so 1 uc = $0.0001 and
+ * uc = usd * 10_000. This is the single usd<->uc conversion the credit
+ * lane and the auto-refill path share; never re-derive it inline.
+ */
+export const UC_PER_USD = 10_000;
+
 export interface UserCreditBalance {
   user_id: string;
   /** Cumulative micro-cents granted via Stripe subscription events. */
