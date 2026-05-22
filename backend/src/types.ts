@@ -6,6 +6,8 @@ export interface Env {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   EMERGENTDB_TIMEOUT_MS?: string;
+  /** BUG-011 (contract 311771e1): per-value byte cap for EdbKV.put. Default 10240. */
+  EMERGENTDB_MAX_VALUE_BYTES?: string;
   NEBIUS_API_KEY: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;
@@ -175,6 +177,14 @@ export interface Env {
   STRIPE_AUTOREFILL_USD?: string;
   STRIPE_AUTOREFILL_MAX_PER_PERIOD?: string;
   /**
+   * Web2 subscription gate (contract 9474c6ab). When set to "1", the sponsor
+   * middleware first asks the Stripe admission ladder whether the caller has a
+   * subscription with quota, and if so draws from the Stripe-tracked balance
+   * instead of the x402 platform-sponsor wallet. Unset = legacy behaviour
+   * (every paid call rides x402, sponsor middleware unchanged).
+   */
+  UNBROWSE_BILLING_ENABLED?: string;
+  /**
    * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
    * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
    * for the sponsor middleware to enable; otherwise it refuses-to-enable and
@@ -243,6 +253,14 @@ export interface Env {
   UNBROWSE_AGENT_JUDGE_MODEL?: string;
   /** Disable server-side semantic augmentation entirely (returns no enrichment; client falls back to local heuristic). */
   UNBROWSE_AGENT_SEMANTIC_AUGMENT?: string;
+  /**
+   * LLM PII scrubber model (publish-path defense-in-depth, contract 101b1f77).
+   * Inspects augmented endpoint descriptions/examples for PII the regex layer
+   * missed. Defaults to `moonshotai/Kimi-K2.5` in
+   * `backend/src/services/ai-scrub.ts`. NEBIUS_API_KEY (already declared) is
+   * the cheap-model bearer used; soft-fails if unset.
+   */
+  UNBROWSE_AI_SCRUB_MODEL?: string;
 }
 // --- Agent identity ---
 

@@ -23,6 +23,7 @@ import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
 import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
+import { aiScrubEndpoints } from "../services/ai-scrub.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -433,8 +434,26 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
         details: residual,
       }, 422);
     }
-    body.endpoints = scrubbed as unknown[];
+    // WAVE 2 (contract 101b1f77): LLM-layer PII scrubber over augmented
+    // descriptions/examples. Defense-in-depth above the regex layer —
+    // catches real-shaped phone numbers, named-individual prose, "your
+    // bearer is ..." sentences whose value escapes the token-shape regex.
+    // Soft-fails if NEBIUS_API_KEY is unset (publish proceeds with regex
+    // layer only); hard-rejects 422 on any high-confidence LLM leak.
+    const ai = await aiScrubEndpoints(scrubbed, c.env);
+    if (ai.rejected) {
+      return c.json({
+        error: "publish_blocked_pii",
+        message:
+          "LLM scrubber detected residual PII or credential leakage in one or " +
+          "more endpoints. Re-run the client sanitizer and remove the flagged " +
+          "values before re-publishing.",
+        reasons: ai.reasons,
+      }, 422);
+    }
+    body.endpoints = ai.endpoints as unknown[];
     (body as Record<string, unknown>).server_sanitized = true;
+    (body as Record<string, unknown>).ai_scrubbed = ai.scrubbed;
   }
 
   let skill;

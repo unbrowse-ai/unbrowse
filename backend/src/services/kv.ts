@@ -33,6 +33,28 @@ const LARGE_THRESHOLD = 512;
  */
 const MAX_IDX_BYTES = 400_000;
 
+/**
+ * BUG-011 default per-value size cap. EmergentDB silently truncates oversize
+ * values, so EdbKV.put/putBatch refuse anything beyond this many bytes (UTF-8).
+ * Override via the EMERGENTDB_MAX_VALUE_BYTES env var or the EdbKV constructor.
+ */
+const DEFAULT_MAX_VALUE_BYTES = 10_240;
+
+function readMaxValueBytes(explicit?: number): number {
+  if (typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0) {
+    return explicit;
+  }
+  // Read from process.env so Worker bindings (set via wrangler vars) and
+  // node-test runners both see the same knob.
+  const raw = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env?.EMERGENTDB_MAX_VALUE_BYTES;
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return DEFAULT_MAX_VALUE_BYTES;
+}
+
 interface IdxEntry { k: string; v: string }
 interface ListResult { keys: { name: string }[]; list_complete: boolean; cursor?: string }
 interface ValuedEntry { name: string; key: string; value: string }
@@ -54,13 +76,30 @@ export function clearKVCacheForTests(namespace?: string): void {
 export class EdbKV {
   private h: Record<string, string>;
   private ns: string;
+  private maxValueBytes: number;
 
-  constructor(apiKey: string, namespace: string) {
+  constructor(apiKey: string, namespace: string, opts?: { maxValueBytes?: number }) {
     this.h = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
     this.ns = namespace;
+    this.maxValueBytes = readMaxValueBytes(opts?.maxValueBytes);
   }
 
   private k(key: string): string { return `${this.ns}:${key}`; }
+
+  /**
+   * BUG-011 (contract 311771e1): qdkv/set returns {ok:true} even when the value
+   * exceeds EmergentDB's storage limit — the data is silently truncated/lost.
+   * Pre-check the byte length so the write fails LOUDLY at the caller instead
+   * of leaving an empty row behind. Threshold is configurable via the
+   * EMERGENTDB_MAX_VALUE_BYTES env var (default 10240 = 10 KB), matching the
+   * empirical limit observed in the bug investigation.
+   */
+  private assertWithinSizeLimit(key: string, value: string): void {
+    const bytes = Buffer.byteLength(value, "utf8");
+    if (bytes > this.maxValueBytes) {
+      throw new Error(`value_too_large: ${bytes} bytes exceeds ${this.maxValueBytes} (key=${key})`);
+    }
+  }
 
   // --- public API ---
 
@@ -96,6 +135,12 @@ export class EdbKV {
   }
 
   async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {
+    // BUG-011: refuse oversize writes before they silently truncate.
+    // Index buckets (_idx*) are managed by _idxSave with its own overflow
+    // protection, so allow them to bypass the gate.
+    if (!key.startsWith("_idx")) {
+      this.assertWithinSizeLimit(key, value);
+    }
     const body: Record<string, unknown> = { key: this.k(key), value };
     if (opts?.expirationTtl) body.ttlMs = opts.expirationTtl * 1000;
     const res = await fetch(`${BASE}/qdkv/set`, { method: "POST", headers: this.h, body: JSON.stringify(body) });
@@ -123,6 +168,10 @@ export class EdbKV {
 
   /** N parallel data writes + 1 idx load + 1 idx save. Values inline so listWithValues stays zero-fetch. */
   async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
+    // BUG-011: same pre-write size gate as put().
+    for (const { key, value } of pairs) {
+      if (!key.startsWith("_idx")) this.assertWithinSizeLimit(key, value);
+    }
     const ttl = opts?.expirationTtl;
     const results = await Promise.all(pairs.map(({ key, value }) => {
       const body: Record<string, unknown> = { key: this.k(key), value };
@@ -417,6 +466,8 @@ function safeJson(s: string): unknown {
 type KVEnv = {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY?: string;
+  /** BUG-011: override the per-value byte cap. Read by EdbKV.put / putBatch. */
+  EMERGENTDB_MAX_VALUE_BYTES?: string;
   ENVIRONMENT?: string;
   /**
    * Emergency rollback flag (2026-05-21 Lewis decision: flip primary back to
@@ -427,6 +478,13 @@ type KVEnv = {
    */
   USE_PGKV?: string;
 };
+
+function readEnvMaxBytes(env: KVEnv): number | undefined {
+  const raw = env.EMERGENTDB_MAX_VALUE_BYTES;
+  if (!raw) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 function pgkvRollbackEnabled(env: KVEnv): boolean {
   const v = (env.USE_PGKV ?? "").trim().toLowerCase();
@@ -444,7 +502,7 @@ export function skillsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
   if (!env.EMERGENTDB_API_KEY?.trim()) {
     throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns);
+  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
 }
 
 export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
@@ -458,7 +516,7 @@ export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
   if (!env.EMERGENTDB_API_KEY?.trim()) {
     throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns);
+  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
 }
 
 export function kvBackend(env: KVEnv): "postgres" | "emergentdb" | "unconfigured" {

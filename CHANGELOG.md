@@ -2,6 +2,76 @@
 
 ## Unreleased
 
+### Domain verification ON by default + publish-time LLM PII scrubber (2026-05-23)
+### EmergentDB prod-readiness (contract 311771e1)
+
+- **EmergentDB prod-readiness**: silent indexing failures now log + flag `needs_reindex:<id>` (BUG-007); `EdbKV.put` rejects oversize values pre-write (BUG-011); new admin route `POST /v1/ops/reindex` walks all skills and rebuilds the global vector namespace with `?dry_run=1` preview (BUG-003 fix); `migrate-kv.mjs` now writes to the canonical `unbrowse--global` namespace. Contract 311771e1.
+
+### Server-side deterministic extraction: `POST /v1/extract/refine` (Wave 2)
+
+Two security/UX fixes for the May 20 Granola release ask, contracts
+`73026078` and `101b1f77`.
+
+- **BREAKING — `REQUIRE_DOMAIN_VERIFICATION` now defaults ON.** Non-admin
+  publishes against a domain without a verified DNS-TXT `_unbrowse-claim`
+  binding are rejected with `publish_forbidden_domain_unverified`. Existing
+  publishers must claim their domain via `POST /v1/claim/challenge` then
+  `/verify` before re-publishing. Set `REQUIRE_DOMAIN_VERIFICATION=0` to
+  opt out (loud, not recommended). Admin publishes bypass as before.
+  Pre-existing test envs gain `REQUIRE_DOMAIN_VERIFICATION: "0"` for
+  back-compat.
+- **LLM PII scrubber over augmented endpoint descriptions before publish.**
+  Defense-in-depth above the regex layer at `backend/src/services/ai-scrub.ts`.
+  Inspects `description`, `semantic.description_out`, `semantic.response_summary`,
+  example payloads for residual phone numbers / named individuals / "your
+  bearer is …" prose the regex token-shape pass misses. High-confidence
+  leaks → 422 `publish_blocked_pii`. Soft-fails (regex layer stays
+  authoritative) if `NEBIUS_API_KEY` is unset, the model is unreachable,
+  or the JSON is malformed. Cheap-model: `moonshotai/Kimi-K2.5` via
+  Nebius TokenFactory; tunable via `UNBROWSE_AI_SCRUB_MODEL`.
+
+### Web2 subscription (Stripe) now hides x402 (2026-05-23)
+
+**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
+### Marketplace settlement live end-to-end (2026-05-23, contract b21e7d7e)
+
+**feat**: marketplace settlement live end-to-end — `POST /v1/admin/aggregate-settlement`, `POST /v1/admin/execute-settlement`, `GET /v1/admin/settlement/:id`. `GET /v1/analytics/payments` now returns real `platform_cut_usd_24h`, `platform_cut_usd_30d`, and `creator_payouts_usd_24h` from the settlement ledger (default 50% platform bps per `docs/HOW_UNBROWSE_PAYS.md`, overridable per-row via `effective_platform_bps`). Domain opt-out (DomainTakedownRecord at `domain-optout:<domain>`) verified to zero out the owner lane in aggregation: contributors + platform absorb the freed bps. The two settlement-mutating routes are gated by the same `ADMIN_KEY` bearer pattern as the existing admin surface. `_partial:true` on the analytics endpoint now reflects only the facilitator-snapshot gap (`flex_escrows_active`, `flex_pending_settlements`, `flex_holds_in_memory`). Tests: aggregate-settlement.test.ts, settlement-domain-optout.test.ts, settlement-execute-dryrun.test.ts, settlement-analytics.test.ts (21 new assertions; 41 across the settlement + adjacent suites; no regression in admin-sponsor-ledger or analytics-payments). Contract b21e7d7e.
+
+### CLI no longer hangs after a resolve (2026-05-23)
+
+`unbrowse resolve` intermittently (~1 in 3 runs) produced its result but never
+exited — the process hung until killed, so the result was never flushed. Root
+cause: `postTelemetry` issued its `fetch()` with no timeout, and
+`recordFunnelTelemetryEvent("resolve_completed")` is `await`ed inline on the
+resolve hot path; a stalled telemetry POST blocked `output()` indefinitely.
+The telemetry `fetch` now carries a hard 5s `AbortSignal.timeout` — telemetry
+is best-effort and can never block a result again. Verified 8/8 clean CLI
+resolves (was 1/3 hanging). Restores `bench-local`, the canonical iteration loop.
+
+### Resolve coverage — three root-cause fixes (2026-05-23)
+
+Driven by the `bench-on-change.txt` corpus (38 probes, 8 categories). Strict
+PASS coverage rose 58% → 81%; browser-blocked probes 9 → 4; product failures
+1 → 0. All three fixes are generic — no per-domain heuristics.
+
+- **Direct-fetch now runs before the Exa-highlights shortcut.** A plain JSON
+  API the caller passed as the context URL (`open.er-api.com`,
+  `api.open-meteo.com`, `*.geojson` feeds) was being answered with web-search
+  highlights *about* the topic because the Exa early-return fired before the
+  direct-fetch block. The caller's URL is the ground truth and is now fetched
+  first.
+- **GraphQL endpoints resolve to a real result.** A GraphQL endpoint answers
+  GET with 204/empty/a playground, so browser DOM extraction failed
+  (`low_quality_dom_extraction`). Resolve now probes with a `{__typename}`
+  introspection POST; on a GraphQL response it introspects the root Query
+  fields and surfaces the endpoint + schema so the caller can build a query.
+  Detection is the POST probe itself, not a `/graphql` URL match (covers
+  endpoints served at `/`).
+- **A failed manifest validation no longer crashes a resolve.**
+  `validateManifest` POSTs to `/v1/validate`; a transport failure or missing
+  route threw and aborted the whole resolve. Validation is a publish-quality
+  enhancement, not a resolve gate — it now degrades gracefully.
+
 ### Session-arc 2026-05-21 (17 PRs #685–#701)
 
 Consolidated summary of the multi-track work that landed across one

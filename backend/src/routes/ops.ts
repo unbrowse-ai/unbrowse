@@ -110,7 +110,23 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
     return c.json({ error: "Admin only" }, 403);
   }
 
-  const body = await c.req.json<{ purge_skill_ids?: string[]; limit?: number; offset?: number }>().catch(() => ({} as { purge_skill_ids?: string[]; limit?: number; offset?: number }));
+  // dry_run accepts ?dry_run=1 (query) or { dry_run: true } (body). Returns
+  // the projected batch + total count without touching the vector store, so
+  // operators can preview a sweep before paying the EmergentDB cost.
+  const queryDryRun = c.req.query("dry_run");
+  const body = await c.req.json<{
+    purge_skill_ids?: string[];
+    limit?: number;
+    offset?: number;
+    dry_run?: boolean;
+  }>().catch(() => ({} as {
+    purge_skill_ids?: string[];
+    limit?: number;
+    offset?: number;
+    dry_run?: boolean;
+  }));
+
+  const dryRun = body.dry_run === true || queryDryRun === "1" || queryDryRun === "true";
 
   const limit = body.limit ?? 3;
   const offset = body.offset ?? 0;
@@ -121,7 +137,7 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
 
   // Purge stale vectors for skill IDs not in active KV set
   const purged: string[] = [];
-  if (body.purge_skill_ids) {
+  if (body.purge_skill_ids && !dryRun) {
     for (const staleId of body.purge_skill_ids) {
       if (activeIds.has(staleId)) continue; // don't purge active skills
       try {
@@ -132,6 +148,21 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
   }
 
   const batch = active.slice(offset, offset + limit);
+
+  if (dryRun) {
+    // No writes — emit the projection only.
+    return c.json({
+      dry_run: true,
+      total_active: active.length,
+      batch_offset: offset,
+      batch_limit: limit,
+      projected: batch.map((s) => ({ skill_id: s.skill_id, domain: s.domain })),
+      skipped: skills.length - active.length,
+      has_more: offset + limit < active.length,
+      next_offset: offset + limit < active.length ? offset + limit : null,
+    });
+  }
+
   const results: Array<{ skill_id: string; domain: string; ok: boolean; error?: string }> = [];
 
   // Process sequentially to stay within CF Worker limits
