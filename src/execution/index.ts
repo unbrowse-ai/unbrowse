@@ -4424,6 +4424,47 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
+  // Per-execute telemetry ledger: fire-and-forget row to backend for semantic resolution improvement.
+  // Captures intent, skill_id, endpoint_id, outcome, status_code, latency_ms, proxy_used, block_signals.
+  // Never throws, never blocks the return. Same UNBROWSE_API_URL as recordExecution above.
+  (async () => {
+    try {
+      const __telemBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+      const __telemLatency = startedAt ? Date.now() - new Date(startedAt).getTime() : undefined;
+      const __telemOutcome = trace.success ? "success" : (trace.error ?? "failure");
+      const __telemProxyUsed = decisionTrace.some((s) =>
+        typeof (s as Record<string, unknown>).step === "string" &&
+        ((s as Record<string, unknown>).step as string).includes("proxy_fallback_success"),
+      );
+      const __telemBlockSignals: string[] = decisionTrace
+        .filter((s) =>
+          typeof (s as Record<string, unknown>).step === "string" &&
+          (
+            ((s as Record<string, unknown>).step as string).includes("vendor_block") ||
+            ((s as Record<string, unknown>).step as string).includes("_blocked")
+          ),
+        )
+        .map((s) => {
+          const vendor = (s as Record<string, unknown>).vendor;
+          return typeof vendor === "string" ? vendor : String((s as Record<string, unknown>).step);
+        });
+      await fetch(`${__telemBase}/v1/telemetry/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent: options?.intent ?? skill.intent_signature ?? undefined,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          outcome: __telemOutcome,
+          status_code: status,
+          latency_ms: __telemLatency,
+          proxy_used: __telemProxyUsed,
+          block_signals: __telemBlockSignals,
+        }),
+      });
+    } catch { /* best-effort — never surface to caller */ }
+  })();
+
   // Record transaction if this was a paid execution (fire-and-forget)
   if (trace.success && options?.payment_verified === true && skill.base_price_usd && skill.base_price_usd > 0) {
     const consumerConfig = (() => {

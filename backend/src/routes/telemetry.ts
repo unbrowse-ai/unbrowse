@@ -504,3 +504,67 @@ telemetryRoutes.get("/telemetry/retention", bearerAuth, async (c) => {
     return c.json({ error: "query_failed" }, 500);
   }
 });
+
+// ============================================================================
+// Per-execute telemetry ledger (semantic resolution improvement feed).
+// Receives one row per executeEndpoint call: intent, skill_id, endpoint_id,
+// outcome, status_code, latency_ms, proxy_used, block_signals.
+// Stored in telemetry_executions (Neon Postgres) — same connection pool as
+// telemetry_sessions. Falls open (200 ok=true) when DATABASE_URL is absent so
+// the client fire-and-forget is never penalised.
+// ============================================================================
+telemetryRoutes.post("/telemetry/execute", async (c) => {
+  const body = await c.req.json<{
+    intent?: string;
+    skill_id?: string;
+    endpoint_id?: string;
+    outcome?: string;
+    status_code?: number;
+    latency_ms?: number;
+    proxy_used?: boolean;
+    block_signals?: string[];
+  }>().catch(() => null);
+
+  if (!body?.skill_id || !body.endpoint_id || !body.outcome) {
+    return c.json({ error: "skill_id, endpoint_id, and outcome are required" }, 400);
+  }
+
+  c.header("Cache-Control", "no-store");
+  c.header("Access-Control-Allow-Origin", "*");
+
+  if (!c.env.DATABASE_URL) {
+    // Fall open — don't penalise the client for missing infra.
+    return c.json({ ok: true, stored: false, reason: "storage_not_configured" });
+  }
+
+  try {
+    const sql = await getNeonClient(c.env.DATABASE_URL);
+    await sql`
+      INSERT INTO telemetry_executions
+        (intent, skill_id, endpoint_id, outcome, status_code, latency_ms,
+         proxy_used, block_signals, received_at)
+      VALUES (
+        ${body.intent ?? null},
+        ${body.skill_id},
+        ${body.endpoint_id},
+        ${body.outcome},
+        ${body.status_code ?? null},
+        ${body.latency_ms ?? null},
+        ${body.proxy_used ?? false},
+        ${JSON.stringify(body.block_signals ?? [])},
+        NOW()
+      )
+    `;
+  } catch (err) {
+    // Fall open — telemetry write failure must never break a caller's execute
+    // path. Log for ops visibility but return ok=true so fire-and-forget
+    // callers don't surface this as an error.
+    console.warn(
+      "[telemetry/execute] insert failed:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return c.json({ ok: true, stored: false, reason: "insert_failed" });
+  }
+
+  return c.json({ ok: true, stored: true });
+});
