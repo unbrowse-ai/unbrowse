@@ -1808,6 +1808,43 @@ export function addResolveMissGuidance(
   };
 }
 
+/**
+ * Token-minimal resolve shortlist (browser-use flash_mode pattern).
+ *
+ * When `args.flash` is set, every available_endpoints[] candidate is reduced
+ * to its dispatch keys (endpoint_id + skill_id) plus a single one-line
+ * `flash_evidence` string, dropping the heavy fields (example_response_compact,
+ * sample_values, input_params, requires, yields schema). The agent still has
+ * exactly what it needs to pick a candidate and call unbrowse_execute, at a
+ * fraction of the shortlist token cost. The full rich shortlist stays the
+ * default; flash is strictly opt-in. A non-array shortlist or flash=false is
+ * returned unchanged.
+ */
+export function applyFlashMode(
+  result: Record<string, unknown>,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (args.flash !== true) return result;
+  const list = result.available_endpoints;
+  if (!Array.isArray(list)) return result;
+  const flashed = list.map((raw) => {
+    const c = isPlainObject(raw) ? raw : {};
+    const endpoint_id = typeof c.endpoint_id === "string" ? c.endpoint_id : undefined;
+    const skill_id = typeof c.skill_id === "string" ? c.skill_id : undefined;
+    const desc = typeof c.description === "string" ? c.description.trim() : "";
+    const url = typeof c.url === "string" ? c.url : "";
+    const score = typeof c.score === "number" ? c.score : undefined;
+    const evid: string[] = [];
+    if (desc) evid.push(desc);
+    if (score !== undefined) evid.push(`score ${score.toFixed(2)}`);
+    if (url) evid.push(url);
+    let flash_evidence = evid.join(" | ");
+    if (flash_evidence.length > 200) flash_evidence = `${flash_evidence.slice(0, 197)}...`;
+    return { endpoint_id, skill_id, flash_evidence };
+  });
+  return { ...result, available_endpoints: flashed, flash_mode: true };
+}
+
 async function executeResolvedEndpoint(result: Record<string, unknown>, args: Record<string, unknown>, endpointId?: string): Promise<Record<string, unknown>> {
   const skillId = resolveSkillId(result);
   if (!skillId) return { error: "resolve returned endpoints but no skill_id" };
@@ -1930,6 +1967,7 @@ const tools: ToolDefinition[] = [
         path: { type: "string", description: "Drill into the result before returning it, e.g. data.items[] ." },
         extract: { type: "string", description: "Project specific fields, e.g. name,url or alias:path.to.value." },
         limit: { type: "number", description: "Limit returned array rows." },
+        flash: { type: "boolean", description: "Token-minimal shortlist: each candidate is reduced to endpoint_id + skill_id + a one-line flash_evidence string. Opt-in; default returns the full rich shortlist." },
       },
       required: ["intent"],
       additionalProperties: false,
@@ -1974,6 +2012,7 @@ const tools: ToolDefinition[] = [
       }
 
       result = addResolveMissGuidance(result, args);
+      result = applyFlashMode(result, args);
       const nestedError = resolveNestedError(result);
       recordImpactForTool("resolve", result, args);
       if (nestedError) return errorResult(nestedError, result);
