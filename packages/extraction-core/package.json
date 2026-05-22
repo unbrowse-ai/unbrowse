@@ -1,0 +1,14 @@
+{
+  "name": "@unbrowse/extraction-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runtime-neutral deterministic extraction logic (DOM extraction + intent matching). Worker-clean: imported by both the CLI (src/) and the Cloudflare Worker backend (backend/src/). No browser, no credentials, no Node-only or Worker-only APIs.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./intent-match": "./src/intent-match.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
+}
