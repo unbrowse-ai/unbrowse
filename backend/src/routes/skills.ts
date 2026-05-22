@@ -372,6 +372,18 @@ publicSkillRoutes.get("/skills/:id/price", async (c) => {
   const price = computeRoutePrice(skill, statsArr);
   return c.json(price);
 });
+// GET /v1/skills/:id/graph -- return the SkillOperationGraph for DAG introspection.
+// Public (no auth) — the graph contains only structural schema, no private data.
+// 404 if skill not found; 200 with operation_graph: null if skill exists but has no graph yet.
+publicSkillRoutes.get("/skills/:id/graph", async (c) => {
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  return c.json({
+    skill_id: skill.skill_id,
+    domain: skill.domain,
+    operation_graph: skill.operation_graph ?? null,
+  });
+});
 // Protected write routes -- auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
