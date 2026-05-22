@@ -50,5 +50,5 @@ get lobsters tech links|https://lobste.rs/
 #
 # [GOV_PUBLIC] Government/public data portals — validates open data REST extraction
 get weather forecast noaa|https://api.weather.gov/points/40.7128,-74.0060
-get usgs earthquake data|https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_30days.geojson
+get usgs earthquake data|https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.geojson
 search data gov climate datasets|https://catalog.data.gov/dataset?q=climate+change

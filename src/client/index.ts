@@ -1725,7 +1725,20 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
   if (LOCAL_ONLY) return { valid: true, hardErrors: [], softWarnings: [] };
-  return api<ValidationResult>("POST", "/v1/validate", manifest);
+  try {
+    return await api<ValidationResult>("POST", "/v1/validate", manifest);
+  } catch (err) {
+    // The remote validation endpoint is best-effort. A transport failure or a
+    // missing route (404) must never abort a resolve/capture — validation is a
+    // publish-quality enhancement, not a resolve gate. Degrade to the same
+    // optimistic shape LOCAL_ONLY returns; publishSkill is independently
+    // try/catch-guarded at every call site, so an unvalidated publish that
+    // would fail just falls back to the local draft.
+    console.warn(
+      `[validate] remote validation unavailable (${(err as Error).message}); proceeding unvalidated`,
+    );
+    return { valid: true, hardErrors: [], softWarnings: [] };
+  }
 }
 
 // --- Graph Edge Publishing ---
