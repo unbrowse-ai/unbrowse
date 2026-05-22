@@ -40,8 +40,8 @@ inferred_from:
   verify: package.json:scripts.test
   shipping: meta-harness.local.md
 created: 2026-05-22
-last_iterated: ""
-status: pending
+last_iterated: 2026-05-22
+status: "pending: real gap confirmed — no prior-snapshot state exists in the snap path. Next iterate adds per-browse-session snapshot storage + diffs the a11y tree to mark elements absent from the prior snapshot"
 ---
 
 # Mark new and changed interactive elements in unbrowse snap output after an action: when snap runs following a click fill or submit in the same browse session, prefix elements that appeared since the previous snapshot with a delta marker so the agent sees what changed without re-reading the whole accessibility tree. Best practice source_id deepwiki:browser-use/browser-use (new-element star indicator). Scoped to one upgrade. Verified by a bun test asserting the delta marker appears only on elements absent from the prior snapshot.

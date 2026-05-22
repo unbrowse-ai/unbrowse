@@ -39,8 +39,8 @@ inferred_from:
   scope: project
   shipping: meta-harness.local.md
 created: 2026-05-22
-last_iterated: ""
-status: pending
+last_iterated: 2026-05-22
+status: "converged-already-shipped: execute honors path/extract/limit (maybePostProcessResult callerProjected bypass) and dietIfOversize surfaces a recovery recipe (top_level_keys + suggested_limit + next_step). verify is now a regression guard (projection+diet suites 12/12)"
 ---
 
 # Honor path extract and limit in unbrowse MCP execute with a jq truncation recipe: make the execute tool in src/mcp.ts apply the caller-supplied path, extract and limit before the ~25KB wire budget truncates, and when the response still exceeds the budget emit a claude-code-style truncation hint carrying a concrete jq recipe and a maxResultSizeChars override pointer instead of a dead-end cut. Best practice source_id deepwiki:anthropics/claude-code (large-output handling, format-specific recipes). Scoped to one upgrade. Verified by a bun test on a response over 25KB asserting path and limit narrow the body and the truncation hint with jq recipe is present.

@@ -44,7 +44,7 @@ inferred_from:
   shipping: meta-harness.local.md
 created: 2026-05-22
 last_iterated: 2026-05-22
-status: "shipped-wave-1: contract-writer live (generate-child.sh + research.sh); 4 child contracts written from cited research (deepwiki browser-use + claude-code), bound + stitched into the ledger; each child awaits its own iterate to ship the scoped unbrowse code upgrade"
+status: "shipped-wave-2: drove all 4 wave-1 children. FINDING: 2 of 4 best-practices were already shipped in unbrowse (structured next_action; execute path/extract/limit + truncation recipe) — wave-1 research leaned on a stale CLAUDE.md Known-Issues list; those children are now regression guards. 1 real gap shipped: flash resolve mode (commit 464b20ec). 1 real gap remains: snap new-element delta marker (child awaits its iterate)"
 ---
 
 # Make unbrowse banger: a meta-contract that writes contracts that write contracts. Each wave researches one best-practice domain from competing apps, leading agent harnesses, and /find-skills matches, then writes a scoped improvement contract that ships exactly one unbrowse upgrade, verified by bench-local coverage delta plus bun tests plus the MCP corpus gate. The umbrella binds every generated child contract so the ledger stitches the recursive tree.
