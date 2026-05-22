@@ -16,9 +16,9 @@ import {
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+  title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
   description:
-    "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+    "One MCP server replaces Notion MCP, Browser MCP, Playwright MCP, and per-site scrapers. First visit captures the site's shadow APIs; your agent calls them directly forever after, signed in with your cookies. 3.6x mean speedup vs Playwright across 94 domains.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -53,7 +53,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
+    creator: "@lekt8_",
     title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
       "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
@@ -121,8 +122,12 @@ export default function RootLayout({
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
-                "https://x.com/unbrowse",
+                "https://github.com/justrach/kuri",
+                "https://x.com/getFoundry",
+                "https://x.com/lekt8_",
                 "https://www.npmjs.com/package/unbrowse",
+                "https://arxiv.org/abs/2604.00694",
+                "https://discord.gg/VWugEeFNsG",
               ],
             }),
           }}
