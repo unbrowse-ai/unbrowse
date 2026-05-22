@@ -55,6 +55,14 @@ export type SponsorDecision =
       amount_usdc: string;
       remaining_credit_usd: number;
       ledger_id: string;
+      /**
+       * Settlement rail. Legacy x402 sponsor path is "platform" (USDC out of
+       * PLATFORM_SPONSOR_WALLET). When the Stripe subscription integration
+       * admits (contract 9474c6ab, UNBROWSE_BILLING_ENABLED=1), we draw from
+       * the user's Stripe-tracked balance instead and surface "stripe" here.
+       * Existing branches that only check `kind === "sponsored"` keep working.
+       */
+      method?: "platform" | "stripe";
     }
   | {
       kind: "exhausted";
@@ -115,7 +123,7 @@ export interface SponsorLedgerRow {
    * codepath ran, "flex" when the sponsor-on-Flex authorization was minted.
    * Older rows (v6.15) elide this field — readers treat absent as "direct_spl".
    */
-  payment_method?: "direct_spl" | "flex" | "surcharge";
+  payment_method?: "direct_spl" | "flex" | "surcharge" | "stripe";
   /** Flex authorization id (only present when payment_method === "flex"). */
   authorization_id?: string;
   /** Per-call surcharge marker. When set, this row is a paid-proxy retry
@@ -242,6 +250,84 @@ export async function maybeSponsor(
   }
 
   const env = c.env;
+
+  // 1.5. Web2 subscription gate (contract 9474c6ab). When
+  // UNBROWSE_BILLING_ENABLED=1 and the caller carries a Stripe subscription
+  // with quota, admit BEFORE the x402 sponsor wallet check so a subscribed
+  // user is served even on workers with no platform sponsor wallet wired.
+  // The Stripe-tracked balance is debited via recordUsage; non-subscribers
+  // fall through to the platform sponsor path unchanged.
+  if (env.UNBROWSE_BILLING_ENABLED === "1") {
+    try {
+      const { subscriptionAdmits, recordUsage, autoRefillUserCredits } =
+        await import("../services/stripe.js");
+      const userId = (c.get as unknown as (k: string) => string | undefined)("user_id");
+      let admit = await subscriptionAdmits(
+        env,
+        c as unknown as Parameters<typeof subscriptionAdmits>[1],
+      );
+      if (!admit.admit && admit.reason === "quota_exhausted" && userId) {
+        // Optional auto-refill: try once, then re-check. Failures are
+        // swallowed; we fall through to the platform sponsor path so the
+        // call still has a chance to settle.
+        const refill = await autoRefillUserCredits(env, userId).catch(() => null);
+        if (refill?.ok) {
+          admit = await subscriptionAdmits(
+            env,
+            c as unknown as Parameters<typeof subscriptionAdmits>[1],
+          );
+        }
+      }
+      if (admit.admit && userId) {
+        const term0 = paymentTerms[0];
+        const amountUc0 = term0 ? Number.parseInt(term0.amount, 10) : 0;
+        const finalAmountUc =
+          Number.isFinite(amountUc0) && amountUc0 > 0 ? amountUc0 : 1;
+        // Record usage on the Stripe-tracked balance. Failures here are
+        // logged but never block admission — the subscription already said
+        // yes, so we don't gate the request on a Neon write hiccup.
+        try {
+          await recordUsage(env, userId, finalAmountUc);
+        } catch (err) {
+          console.warn(
+            `[sponsor] recordUsage failed for user ${userId}: ${(err as Error).message}`,
+          );
+        }
+        // Best-effort sponsor ledger row tagged payment_method:"stripe"
+        // so the existing ledger query surface (admin endpoints) sees it.
+        const dateStr = todayUtc((opts?.now ?? (() => new Date()))());
+        const ledgerId = `str-${dateStr}-${crypto.randomUUID().slice(0, 8)}`;
+        const stripeRow: SponsorLedgerRow = {
+          ledger_id: ledgerId,
+          kind: "sponsor",
+          agent_id: agentId,
+          skill_id: extractSkillIdFromUrl(c.req.url),
+          amount_uc: finalAmountUc,
+          creator_wallet: term0?.payTo ?? "",
+          settled_tx: `stripe:${userId}:${dateStr}`,
+          settled_at: new Date().toISOString(),
+          payment_method: "stripe",
+        };
+        await writeLedgerRow(env, stripeRow).catch(() => {});
+        return {
+          kind: "sponsored",
+          tx_hash: stripeRow.settled_tx,
+          amount_usdc: term0?.amount ?? String(finalAmountUc),
+          remaining_credit_usd:
+            typeof admit.quota === "number" && typeof admit.consumed === "number"
+              ? Math.max(0, (admit.quota - admit.consumed) / 100)
+              : 0,
+          ledger_id: ledgerId,
+          method: "stripe",
+        };
+      }
+      // Not admitted by subscription — fall through to legacy platform sponsor.
+    } catch (err) {
+      console.warn(
+        `[sponsor] subscription gate threw, falling through to platform sponsor: ${(err as Error).message}`,
+      );
+    }
+  }
 
   // 2. Wallet ready? If not, refuse-to-enable (debounced warn).
   if (!sponsorWalletReady(env)) {
