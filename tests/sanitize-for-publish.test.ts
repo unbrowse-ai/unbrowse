@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { sanitizeForPublish, looksLikeSecret, redactSecrets } from "../src/indexer/index.js";
+import { sanitizeForPublish, looksLikeSecret, redactSecrets } from "../src/publish/sanitize.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 function makeEndpoint(overrides: Partial<EndpointDescriptor> = {}): EndpointDescriptor {
