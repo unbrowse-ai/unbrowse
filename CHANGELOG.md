@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Resolve coverage — three root-cause fixes (2026-05-23)
+
+Driven by the `bench-on-change.txt` corpus (38 probes, 8 categories). Strict
+PASS coverage rose 58% → 81%; browser-blocked probes 9 → 4; product failures
+1 → 0. All three fixes are generic — no per-domain heuristics.
+
+- **Direct-fetch now runs before the Exa-highlights shortcut.** A plain JSON
+  API the caller passed as the context URL (`open.er-api.com`,
+  `api.open-meteo.com`, `*.geojson` feeds) was being answered with web-search
+  highlights *about* the topic because the Exa early-return fired before the
+  direct-fetch block. The caller's URL is the ground truth and is now fetched
+  first.
+- **GraphQL endpoints resolve to a real result.** A GraphQL endpoint answers
+  GET with 204/empty/a playground, so browser DOM extraction failed
+  (`low_quality_dom_extraction`). Resolve now probes with a `{__typename}`
+  introspection POST; on a GraphQL response it introspects the root Query
+  fields and surfaces the endpoint + schema so the caller can build a query.
+  Detection is the POST probe itself, not a `/graphql` URL match (covers
+  endpoints served at `/`).
+- **A failed manifest validation no longer crashes a resolve.**
+  `validateManifest` POSTs to `/v1/validate`; a transport failure or missing
+  route threw and aborted the whole resolve. Validation is a publish-quality
+  enhancement, not a resolve gate — it now degrades gracefully.
+
 ### Session-arc 2026-05-21 (17 PRs #685–#701)
 
 Consolidated summary of the multi-track work that landed across one
