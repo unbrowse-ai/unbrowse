@@ -30,7 +30,7 @@
 //   - Best-effort: never throws.
 
 import { tryHttpFetch } from "./index.js";
-import { extractFromDOM } from "../extraction/index.js";
+import { extractFromDOMServerFirst } from "../extraction/server-first.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 
 export interface DriftPageRecoveryResult {
@@ -67,7 +67,7 @@ export async function tryRecoverFromSchemaDrift(
       timeoutMs: 12000,
     });
     if (ssr && typeof ssr.html === "string" && ssr.html.length > 0) {
-      const extracted = extractFromDOM(ssr.html, intent ?? "", url);
+      const extracted = await extractFromDOMServerFirst(ssr.html, intent ?? "", url);
       if (extracted.data != null && extracted.confidence >= minConfidence) {
         return {
           data: extracted.data,
@@ -87,7 +87,7 @@ export async function tryRecoverFromSchemaDrift(
   try {
     const fetched = await tryHttpFetch(url, authHeaders ?? {}, cookies ?? []);
     if (!fetched) return null;
-    const extracted = extractFromDOM(fetched.html, intent ?? "", url);
+    const extracted = await extractFromDOMServerFirst(fetched.html, intent ?? "", url);
     if (extracted.data == null) return null;
     if (extracted.confidence < minConfidence) return null;
     return {
