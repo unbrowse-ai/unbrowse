@@ -17,7 +17,7 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { tryRecoverFromSchemaDrift, recoveredDataMatchesOriginalShape } from "./drift-page-recovery.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema, getApiKey } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
@@ -535,6 +535,13 @@ export interface ExecutionResult {
    *  trigger_intercept / browser / return_error. Mirrored on trace.decision_trace
    *  for backward compat with 7.1 tests; will become the single source in Phase 8. */
   decision_trace?: Array<Record<string, unknown>>;
+  /** Structural intent-verification verdict — machine check (KEY 1).
+   *  "pass"    — status < 300, response body > 100 bytes, no challenge indicators.
+   *  "fail"    — status >= 400, empty body, or challenge/captcha indicators detected.
+   *  "unknown" — status 3xx, or could not determine from structural signals alone.
+   *  This field surfaces fake-greens (HTTP 200 with wrong/empty data) without
+   *  blocking the response or changing any other field. */
+  intent_verdict?: "pass" | "fail" | "unknown";
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -2675,6 +2682,70 @@ export async function executeEndpoint(
     return { trace, result: resultData };
   }
 
+  // Marketplace backend routing — x402 gate runs server-side for marketplace skills.
+  // Local executeEndpoint is the fallback for self-hosted/local skills only.
+  // Conditions: non-local skill_id + http execution type + marketplace/user owner.
+  // Falls through silently on network error, 5xx, or missing UNBROWSE_API_URL.
+  const isMarketplaceSkill =
+    !skill.skill_id.startsWith("local:") &&
+    skill.execution_type === "http" &&
+    skill.owner_type !== "agent";
+  if (isMarketplaceSkill) {
+    const backendBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+    const apiKey = getApiKey();
+    try {
+      const backendRes = await fetch(`${backendBase}/v1/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          intent: options?.intent,
+          params,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (backendRes.ok) {
+        const backendData = await backendRes.json() as Record<string, unknown>;
+        // Backend returned a usable result — surface it directly.
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          result: backendData,
+        });
+        return { trace, result: backendData };
+      }
+      // 4xx from backend (payment_required, auth_required, etc.) — surface as-is.
+      if (backendRes.status >= 400 && backendRes.status < 500) {
+        let errBody: unknown;
+        try { errBody = await backendRes.json(); } catch { errBody = { error: `backend_${backendRes.status}` }; }
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: backendRes.status,
+          error: `backend_${backendRes.status}`,
+          result: errBody,
+        });
+        return { trace, result: errBody as ExecutionResult["result"] };
+      }
+      // 5xx — fall through to local execution.
+    } catch {
+      // Network error or timeout — fall through to local execution.
+    }
+  }
+
+
   const workflowArtifact = readWorkflowArtifact(skill.skill_id);
   const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
@@ -4518,8 +4589,32 @@ export async function executeEndpoint(
     (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_strategy = workflowChosenStrategy;
   }
 
+  // Structural intent-verification — machine check (KEY 1).
+  // Surfaces fake-greens (HTTP 200 with wrong/empty data) without blocking the response.
+  // No LLM call — purely structural signals on status + body size + challenge markers.
+  const intentVerdict = ((): "pass" | "fail" | "unknown" => {
+    // Empty or error body is always fail
+    const bodyStr = typeof resultData === "string"
+      ? resultData
+      : (resultData != null ? JSON.stringify(resultData) : "");
+    const bodyBytes = Buffer.byteLength(bodyStr, "utf8");
+    // Challenge/captcha indicators in the body text
+    const challengePattern = /\b(cf-chl|turnstile|challenge|robot|captcha|are you human|verify you are|blocked|access denied)\b/i;
+    const hasChallenge = challengePattern.test(bodyStr.slice(0, 4096));
+    if (status >= 400 || bodyBytes === 0 || (typeof resultData === "object" && resultData !== null && !Array.isArray(resultData) && Object.keys(resultData as object).length === 0)) {
+      return "fail";
+    }
+    if (hasChallenge && bodyBytes < 8192) {
+      return "fail";
+    }
+    if (status >= 200 && status < 300 && bodyBytes > 100 && !hasChallenge) {
+      return "pass";
+    }
+    return "unknown";
+  })();
+
   return {
-    trace, result: resultData, decision_trace: decisionTrace,
+    trace, result: resultData, decision_trace: decisionTrace, intent_verdict: intentVerdict,
   };
 }
 
