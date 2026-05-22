@@ -152,9 +152,10 @@ async function HeroStats() {
   } catch {
     summary = null;
   }
-  const domains = summary?.domains ?? 600;
-  const executions = summary?.executions ?? 1_000_000;
-  const skills = summary?.skills ?? 18_000;
+  // If the marketplace stats endpoint is unreachable, render nothing rather
+  // than paint a hardcoded 600/1M/18K placeholder that looks live. The
+  // landing page must never show fake counters (contract c89fca3b).
+  if (!summary) return null;
 
   const fmt = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -171,9 +172,9 @@ async function HeroStats() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center font-mono">
           {[
-            { label: "domains in registry", value: fmt(domains) },
-            { label: "agent visits", value: fmt(executions) },
-            { label: "shadow API endpoints", value: fmt(skills) },
+            { label: "domains in registry", value: fmt(summary.domains) },
+            { label: "agent visits", value: fmt(summary.executions) },
+            { label: "shadow API endpoints", value: fmt(summary.skills) },
           ].map((s) => (
             <div
               key={s.label}
@@ -275,7 +276,9 @@ export default function Home() {
           <p>MCP setup: npx unbrowse setup --mcp</p>
           <p>Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp</p>
           <p>Manual MCP wiring: add to mcp.json with command &quot;npx&quot; args [&quot;-y&quot;, &quot;unbrowse&quot;, &quot;mcp&quot;]</p>
-          <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
+          <p>Install walkthrough: https://www.unbrowse.ai/install</p>
+          <p>SDK quickstart: https://www.unbrowse.ai/docs</p>
+          <p>Earnings + claim a domain: https://www.unbrowse.ai/claim</p>
         </section>
 
         {/* ═══ Hero (h1: "Direct access to anything on the web. Without setting up another MCP.") ═══ */}
@@ -367,7 +370,7 @@ export default function Home() {
                            hover:bg-[rgba(255,122,32,0.08)] hover:border-[rgba(255,122,32,0.65)] active:scale-[0.98]
                            transition-all duration-200 ease-out cursor-pointer"
               >
-                [ See Demo ]
+                [ Watch an agent book Airbnb ]
               </ScrollToButton>
             </div>
             <Suspense

@@ -31,9 +31,9 @@ export const metadata: Metadata = {
     canonical: "https://www.unbrowse.ai",
   },
   openGraph: {
-    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
     description:
-      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "One MCP server, any site. First visit captures the site's shadow APIs; your agent calls them directly forever after, signed in with your cookies. No per-site MCP to install.",
     url: "https://www.unbrowse.ai",
     siteName: "Unbrowse",
     type: "website",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
         url: "https://www.unbrowse.ai/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Unbrowse — The API layer for AI agents",
+        alt: "Unbrowse, one MCP for any website. Direct access for AI agents.",
       },
       {
         url: "https://www.unbrowse.ai/nvidia-inception.png",
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@getFoundry",
     creator: "@lekt8_",
-    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
     description:
-      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "One MCP server, any site. First visit captures the shadow APIs; your agent calls them directly thereafter, signed in with your cookies. No per-site MCP needed.",
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
@@ -118,7 +118,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
-                "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
+                "One MCP server for any website. Unbrowse captures a site's shadow APIs on first visit so AI agents call them directly thereafter, signed in with your cookies. Replaces per-site MCPs and Playwright scripts.",
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
@@ -140,7 +140,7 @@ export default function RootLayout({
               "@type": "SoftwareApplication",
               name: "Unbrowse",
               description:
-                "Reverse-engineer any website into reusable API skills for AI agents. Auto-discovers undocumented website APIs and converts them to clean, direct API calls.",
+                "One MCP for any website. Unbrowse captures a site's shadow APIs on first visit so AI agents call them directly forever after, signed in with the user's cookies. Replaces per-site MCPs (Notion, Slack, Gmail, Browser MCP, Playwright MCP) with one install.",
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
