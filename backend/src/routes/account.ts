@@ -78,11 +78,24 @@ accountRoutes.get("/account/me", async (c) => {
 // Reads the Stripe-tier grant ledger keyed by user_id. Independent of
 // the agent-keyed credits.ts subsidy pool which stays for free-tier
 // agent credits.
+//
+// Contract 900714e4 (founder allowlist): verified founder emails are
+// surfaced with tier="founder" and unlimited=true so frontends can render
+// "unlimited" instead of a synthetic 9.0e15 number. The underlying
+// balance_uc still rides on the UserCreditBalance shape so existing
+// clients keep working.
 accountRoutes.get("/account/credits", async (c) => {
   const userId = c.get("user_id");
   if (!userId) return accountRequired(c);
   const { getUserCreditBalance } = await import("../services/user-credits.js");
-  const balance = await getUserCreditBalance(c.env, userId);
+  const { isFounderUser } = await import("../services/founder-allowlist.js");
+  const [balance, founder] = await Promise.all([
+    getUserCreditBalance(c.env, userId),
+    isFounderUser(c.env, userId),
+  ]);
+  if (founder) {
+    return c.json({ ...balance, tier: "founder", unlimited: true, balance: "unlimited" });
+  }
   return c.json(balance);
 });
 
