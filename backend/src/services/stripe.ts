@@ -641,6 +641,18 @@ export async function autoRefillUserCredits(
       expirationTtl: 60 * 60 * 24 * 40,
     });
 
+    // Flywheel closure (contract organ 98973c11 G1) — carve
+    // PLATFORM_REVENUE_TO_POOL_BPS off the granted revenue into the
+    // sponsor pool so future sponsored executes draw from real revenue
+    // instead of the platform-sponsor wallet. Idempotent on
+    // intent.id; opportunistic — never breaks the auto-refill path.
+    const { addSponsorPoolCredits } = await import("./sponsor-pool.js");
+    await addSponsorPoolCredits(env, {
+      event_id: `autorefill:${intent.id}`,
+      source: "stripe_autorefill",
+      revenue_uc: grantedUc,
+    });
+
     return {
       ok: true,
       reason: "refilled",
