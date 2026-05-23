@@ -351,3 +351,202 @@ opsRoutes.post("/ops/backfill-analytics", bearerAuth, async (c) => {
   const result = await backfillFromProfiles(c.env);
   return c.json(result);
 });
+
+/**
+ * POST /v1/ops/migrate-pgkv-to-edb — port PgKV (Neon) rows into EmergentDB qdkv.
+ *
+ * Contract e65c7118. The Worker has DATABASE_URL + EMERGENTDB_API_KEY bound,
+ * which lets us run the migration server-side without exposing those secrets
+ * to a developer machine. Idempotent (qdkv/set is upsert); resumable via the
+ * `offset` body field.
+ *
+ * Body:
+ *   - dry_run    (bool, default false) — count rows, no writes
+ *   - namespace  (string, optional)    — limit to one namespace
+ *   - offset     (int, default 0)      — start cursor across namespaces
+ *   - max_rows   (int, default 500)    — soft cap per call (CF Worker CPU budget)
+ *
+ * Returns { namespaces: [{name, total, written, failed, examples_failed}],
+ *           next_offset, has_more, written_total, failed_total }
+ *
+ * Auth: bearerAuth + agent_id === "__admin__" (same as /v1/ops/reindex).
+ */
+type MigBody = {
+  dry_run?: boolean;
+  namespace?: string;
+  offset?: number;
+  max_rows?: number;
+};
+opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  if (!c.env.DATABASE_URL?.trim()) {
+    return c.json({ error: "DATABASE_URL not bound on this worker" }, 400);
+  }
+  if (!c.env.EMERGENTDB_API_KEY?.trim()) {
+    return c.json({ error: "EMERGENTDB_API_KEY not bound on this worker" }, 400);
+  }
+
+  const body: MigBody = (await c.req.json<MigBody>().catch(() => ({} as MigBody))) as MigBody;
+  const dryRun = Boolean(body.dry_run);
+  const namespaceFilter = (body.namespace ?? "").trim() || null;
+  const offset = Math.max(0, Number.isFinite(body.offset) ? Number(body.offset) : 0);
+  const maxRows = Math.min(2000, Math.max(50, Number.isFinite(body.max_rows) ? Number(body.max_rows) : 500));
+
+  const { getNeonClient } = await import("../services/neon.js");
+  const sql = await getNeonClient(c.env.DATABASE_URL);
+
+  type NsRow = { namespace: string; n: number };
+  const allRows = (await sql`
+    SELECT namespace, COUNT(*)::int AS n
+    FROM app_kv
+    GROUP BY namespace
+    ORDER BY namespace
+  `) as Array<NsRow>;
+  const targets = namespaceFilter
+    ? allRows.filter((r) => r.namespace === namespaceFilter)
+    : allRows;
+
+  if (targets.length === 0) {
+    return c.json({
+      error: "no_namespaces_to_migrate",
+      filter: namespaceFilter,
+      all_namespaces: allRows,
+    }, 404);
+  }
+
+  if (dryRun) {
+    return c.json({
+      dry_run: true,
+      all_namespaces: allRows,
+      targets,
+      total_rows: targets.reduce((s, r) => s + r.n, 0),
+    });
+  }
+
+  const EDB = "https://api.emergentdb.com";
+  const H = { Authorization: `Bearer ${c.env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" };
+
+  const namespaceResults: Array<{
+    namespace: string;
+    total: number;
+    written: number;
+    failed: number;
+    examples_failed: string[];
+  }> = [];
+
+  let remaining = maxRows;
+  let cursorOffset = offset;
+  let hasMore = false;
+  let nextOffset = offset;
+
+  let consumed = 0;
+  for (const ns of targets) {
+    if (remaining <= 0) { hasMore = true; break; }
+    if (cursorOffset >= consumed + ns.n) {
+      consumed += ns.n;
+      continue;
+    }
+    const intraOffset = Math.max(0, cursorOffset - consumed);
+    const take = Math.min(remaining, ns.n - intraOffset);
+
+    const rows = (await sql`
+      SELECT key, value
+      FROM app_kv
+      WHERE namespace = ${ns.namespace}
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY key
+      OFFSET ${intraOffset}
+      LIMIT ${take}
+    `) as Array<{ key: string; value: string }>;
+
+    let written = 0;
+    let failed = 0;
+    const examplesFailed: string[] = [];
+    // Parallel chunks with per-row 429-retry. Sequential await over N rows
+    // blows the CF Worker CPU budget (50ms unbound / 30s bundled). At
+    // ~500ms per qdkv/set HTTP roundtrip, 50 rows sequential ≈ 25s and
+    // 200 rows times out. Chunked Promise.allSettled keeps each chunk
+    // bounded; CHUNK_SIZE=6 stays gentle on EmergentDB's per-second rate
+    // limit (empirically 16 triggered ~50% 429s; 6 holds steady).
+    // 429s get one retry with a short backoff — qdkv/set is upsert so the
+    // retry is safe.
+    const CHUNK_SIZE = 6;
+    const writeOne = async (row: { key: string; value: string }): Promise<{ ok: true } | { ok: false; reason: string }> => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const r = await fetch(`${EDB}/qdkv/set`, {
+            method: "POST",
+            headers: H,
+            body: JSON.stringify({ key: `${ns.namespace}:${row.key}`, value: row.value }),
+          });
+          if (r.ok) return { ok: true };
+          if (r.status === 429 && attempt === 0) {
+            await new Promise((res) => setTimeout(res, 250));
+            continue;
+          }
+          return { ok: false, reason: `HTTP ${r.status}` };
+        } catch (err) {
+          if (attempt === 0) {
+            await new Promise((res) => setTimeout(res, 250));
+            continue;
+          }
+          return { ok: false, reason: (err as Error).message.slice(0, 60) };
+        }
+      }
+      return { ok: false, reason: "retry exhausted" };
+    };
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE);
+      const results = await Promise.allSettled(chunk.map(async (row) => ({ row, res: await writeOne(row) })));
+      for (const settled of results) {
+        if (settled.status === "fulfilled") {
+          const { row, res } = settled.value;
+          if (res.ok) {
+            written++;
+          } else {
+            failed++;
+            if (examplesFailed.length < 3) {
+              examplesFailed.push(`${row.key.slice(0, 60)} :: ${res.reason}`);
+            }
+          }
+        } else {
+          failed++;
+          if (examplesFailed.length < 3) {
+            examplesFailed.push(`network :: ${String(settled.reason).slice(0, 60)}`);
+          }
+        }
+      }
+    }
+
+    namespaceResults.push({
+      namespace: ns.namespace,
+      total: ns.n,
+      written,
+      failed,
+      examples_failed: examplesFailed,
+    });
+
+    consumed += ns.n;
+    cursorOffset += rows.length;
+    nextOffset = cursorOffset;
+    remaining -= rows.length;
+    if (intraOffset + rows.length < ns.n) { hasMore = true; break; }
+  }
+
+  if (!hasMore) {
+    const totalAcrossAll = allRows.reduce((s, r) => s + r.n, 0);
+    if (nextOffset < totalAcrossAll) hasMore = true;
+  }
+
+  return c.json({
+    dry_run: false,
+    next_offset: nextOffset,
+    has_more: hasMore,
+    namespaces: namespaceResults,
+    written_total: namespaceResults.reduce((s, r) => s + r.written, 0),
+    failed_total: namespaceResults.reduce((s, r) => s + r.failed, 0),
+  });
+});
