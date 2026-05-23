@@ -77,39 +77,24 @@ jobs:
       - name: Deploy backend worker
         run: |
           WRANGLER_VARS="--var UNBROWSE_VERSION:${{ steps.vars.outputs.version }} --var UNBROWSE_BUILD_SHA:${{ steps.vars.outputs.build_sha }} --var UNBROWSE_DEPLOYED_AT:${{ steps.vars.outputs.deployed_at }}"
-          # Bind the release-manifest signing secret to the worker so
-          # /v1/version can sign its manifest. Without this the staging-
-          # first gate fails with "manifest missing signed_manifest_hash"
-          # -- the gate verifies a signature nothing was producing.
-          # `wrangler secret put` (not --var) keeps it a real secret.
-          put_signing_secret() {
-            if [ -z "${RELEASE_MANIFEST_SIGNING_SECRET:-}" ]; then
-              echo "::error::RELEASE_MANIFEST_SIGNING_SECRET not available; /v1/version cannot sign"
-              exit 1
-            fi
-            printf '%s' "$RELEASE_MANIFEST_SIGNING_SECRET" | ./node_modules/.bin/wrangler secret put RELEASE_MANIFEST_SIGNING_SECRET --config wrangler.ci.toml "$@"
-          }
           case "${GITHUB_REF_NAME}" in
             staging)
               ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging $WRANGLER_VARS
-              put_signing_secret --env staging
               ;;
             lewis/experiments)
               ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments $WRANGLER_VARS
-              put_signing_secret --env experiments
               ;;
             *)
               ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml $WRANGLER_VARS
-              put_signing_secret
               ;;
           esac
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.RELEASE_MANIFEST_SIGNING_SECRET || secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
+    needs: [deploy-backend]
     runs-on: self-hosted
     defaults:
       run:

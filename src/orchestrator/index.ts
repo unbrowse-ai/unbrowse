@@ -11,7 +11,8 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
+
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
   getSkillChunk,
@@ -1764,6 +1765,7 @@ function inferPreferredEntityTokens(intent: string): string[] {
       "member",
       "members",
       "screen_name",
+      "userbyscreenname",
     ];
   }
   if (/\b(company|companies|organization|organisations|business|org)\b/.test(lower))
@@ -4377,6 +4379,186 @@ export async function resolveAndExecute(
       }
     }
 
+    // 1.4 Direct JSON fetch — try the caller's URL directly BEFORE the Exa
+    // highlights shortcut below. The URL the caller gave IS the ground truth:
+    // if it returns JSON (or a usable HTML document) that always beats web-
+    // search highlights ABOUT the topic. This block used to run AFTER the Exa
+    // early-return, so plain JSON APIs (open.er-api.com, api.open-meteo.com,
+    // *.geojson feeds) were answered with Exa highlights and never had their
+    // real response fetched. Content-type is checked on the response; no URL
+    // pattern heuristic gates it.
+    if (context?.url) {
+      try {
+        const directRes = await fetch(context.url, {
+          headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
+          signal: AbortSignal.timeout(15000),  // 15s — slow APIs like NASA cold-start need headroom
+          redirect: "follow",
+        });
+        const ct = directRes.headers.get("content-type") ?? "";
+        const ctSaysJson = ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
+        if (directRes.ok) {
+          let data: unknown = undefined;
+          if (ctSaysJson) {
+            data = await directRes.json();
+          } else {
+            // Body-sniff fallback: some APIs (adviceslip, numbersapi, etc.) return
+            // valid JSON with text/html or text/plain content-type headers. Read
+            // the body and try to parse — if it parses AND looks like structured
+            // data (object or array), treat as a direct JSON endpoint anyway.
+            // Cap at 2MB to avoid pulling a real HTML page into memory.
+            const bodyText = await directRes.text();
+            if (bodyText.length < 2_000_000) {
+              const trimmed = bodyText.trimStart();
+              if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                try {
+                  const parsed = JSON.parse(bodyText);
+                  if (parsed !== null && typeof parsed === "object") {
+                    data = parsed;
+                    console.log(`[direct-fetch] ${context.url} body-sniff hit: ct="${ct}" but body parses as JSON`);
+                  }
+                } catch {
+                  // Not JSON, fall through to browser capture
+                }
+              }
+            }
+            const directDocument = buildBloombergDirectDocumentResult(context.url, bodyText, ct, intent);
+            if (!directDocument.rejected) {
+              const trace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "direct-document",
+                endpoint_id: "direct-document",
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+              const t = finalize("direct-document", directDocument, "direct-document", undefined as any, trace);
+              console.log(`[direct-document] ${context.url} returned HTML directly — skipping browser`);
+              return {
+                result: directDocument,
+                trace,
+                source: "direct-document",
+                skill: undefined as any,
+                timing: t,
+              };
+            } else {
+              // Surface rejection in logs so bench-local diagnostic fields can be
+              // read at .bench-local/*.out and the agent can judge in-thread
+              // whether the fallthrough to the browser ladder was warranted.
+              // Generic: covers all rejection reasons (intent_mismatch /
+              // interstitial_detected / challenge_html / too_small / not_html).
+              const evidenceJson = (directDocument as any).evidence ? ` evidence=${JSON.stringify((directDocument as any).evidence)}` : "";
+              console.log(`[direct-document] ${context.url} REJECTED reason=${directDocument.reason}${evidenceJson}; handing off to browser ladder`);
+            }
+          }
+          if (data !== undefined) {
+            const trace: ExecutionTrace = {
+              trace_id: nanoid(),
+              skill_id: "direct-fetch",
+              endpoint_id: "direct-fetch",
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              success: true,
+            };
+            const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
+            console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
+            return {
+              result: data,
+              trace,
+              source: "direct-fetch" as any,
+              skill: undefined as any,
+              timing: t,
+            };
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`[direct-fetch] ${context.url} skipped: ${msg.slice(0, 100)}`);
+      }
+    }
+    // 1.5 GraphQL endpoint detection — a GraphQL server answers GET with 204 /
+    // empty / a playground (nothing to extract) but responds to a POST. Probe
+    // with a minimal introspection query; if it answers in GraphQL shape,
+    // surface the endpoint + its root query fields so the caller's LLM can
+    // build a query and POST it (the two-tool-call contract). This replaces
+    // browser-scraping a playground, which fails low_quality_dom_extraction.
+    // Generic: the POST probe IS the signal — not a /graphql URL heuristic
+    // (countries.trevorblades.com serves GraphQL at "/").
+    if (context?.url) {
+      try {
+        const gqlProbe = await fetch(context.url, {
+          method: "POST",
+          headers: { "content-type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ query: "{__typename}" }),
+          signal: AbortSignal.timeout(12000),
+          redirect: "follow",
+        });
+        const gqlCt = gqlProbe.headers.get("content-type") ?? "";
+        if (gqlProbe.ok && gqlCt.includes("json")) {
+          const probeJson = (await gqlProbe.json().catch(() => null)) as { data?: { __typename?: unknown } } | null;
+          if (probeJson && probeJson.data && typeof probeJson.data.__typename === "string") {
+            // Confirmed GraphQL. Introspect the root Query type for evidence.
+            let rootFields: Array<{ name: string; description: string | null }> = [];
+            try {
+              const introspectRes = await fetch(context.url, {
+                method: "POST",
+                headers: { "content-type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({ query: "{__schema{queryType{fields{name description}}}}" }),
+                signal: AbortSignal.timeout(12000),
+                redirect: "follow",
+              });
+              if (introspectRes.ok) {
+                const schemaJson = (await introspectRes.json().catch(() => null)) as
+                  | { data?: { __schema?: { queryType?: { fields?: Array<{ name?: unknown; description?: unknown }> } } } }
+                  | null;
+                const fields = schemaJson?.data?.__schema?.queryType?.fields;
+                if (Array.isArray(fields)) {
+                  rootFields = fields
+                    .map((f) => ({
+                      name: typeof f?.name === "string" ? f.name : "",
+                      description: typeof f?.description === "string" ? f.description : null,
+                    }))
+                    .filter((f) => f.name);
+                }
+              }
+            } catch {
+              // Introspection is best-effort — the endpoint is still usable.
+            }
+            const trace: ExecutionTrace = {
+              trace_id: nanoid(),
+              skill_id: "graphql-endpoint",
+              endpoint_id: "graphql-query",
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              success: true,
+              status_code: 200,
+            };
+            const gqlResult = {
+              status: "graphql_endpoint",
+              graphql_endpoint: context.url,
+              method: "POST",
+              message:
+                "This is a GraphQL endpoint. POST a JSON body {\"query\":\"...\"} containing a GraphQL query that selects the fields you need.",
+              root_query_fields: rootFields,
+              next_step:
+                rootFields.length > 0
+                  ? `Build a GraphQL query over one of these root fields and POST it: ${rootFields.map((f) => f.name).slice(0, 24).join(", ")}`
+                  : "Build a GraphQL query and POST it to graphql_endpoint.",
+            };
+            const t = finalize("direct-fetch", gqlResult, "graphql-endpoint", undefined as any, trace);
+            console.log(`[graphql] ${context.url} confirmed GraphQL — ${rootFields.length} root query field(s) introspected`);
+            return {
+              result: gqlResult,
+              trace,
+              source: "direct-fetch" as any,
+              skill: undefined as any,
+              timing: t,
+            };
+          }
+        }
+      } catch {
+        // Not a GraphQL endpoint (or unreachable) — fall through to the ladder.
+      }
+    }
     // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
     // synthesize an answer directly from the web excerpts — no browser needed.
     if (viable.length === 0 && exaResults?.length) {
@@ -4407,99 +4589,6 @@ export async function resolveAndExecute(
       }
     }
   } // end !forceCapture
-
-  // 1.4 Direct JSON fetch: always try — if the URL returns JSON, use it directly.
-  // Previously this was gated on URL pattern heuristics like .json, /api/, api.
-  // which missed sites like jsonplaceholder.typicode.com/posts. Now we just try
-  // and check content-type on the response.
-  if (context?.url) {
-    try {
-      const directRes = await fetch(context.url, {
-        headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
-        signal: AbortSignal.timeout(15000),  // 15s — slow APIs like NASA cold-start need headroom
-        redirect: "follow",
-      });
-      const ct = directRes.headers.get("content-type") ?? "";
-      const ctSaysJson = ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
-      if (directRes.ok) {
-        let data: unknown = undefined;
-        if (ctSaysJson) {
-          data = await directRes.json();
-        } else {
-          // Body-sniff fallback: some APIs (adviceslip, numbersapi, etc.) return
-          // valid JSON with text/html or text/plain content-type headers. Read
-          // the body and try to parse — if it parses AND looks like structured
-          // data (object or array), treat as a direct JSON endpoint anyway.
-          // Cap at 2MB to avoid pulling a real HTML page into memory.
-          const bodyText = await directRes.text();
-          if (bodyText.length < 2_000_000) {
-            const trimmed = bodyText.trimStart();
-            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-              try {
-                const parsed = JSON.parse(bodyText);
-                if (parsed !== null && typeof parsed === "object") {
-                  data = parsed;
-                  console.log(`[direct-fetch] ${context.url} body-sniff hit: ct="${ct}" but body parses as JSON`);
-                }
-              } catch {
-                // Not JSON, fall through to browser capture
-              }
-            }
-          }
-          const directDocument = buildBloombergDirectDocumentResult(context.url, bodyText, ct, intent);
-          if (!directDocument.rejected) {
-            const trace: ExecutionTrace = {
-              trace_id: nanoid(),
-              skill_id: "direct-document",
-              endpoint_id: "direct-document",
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-              success: true,
-            };
-            const t = finalize("direct-document", directDocument, "direct-document", undefined as any, trace);
-            console.log(`[direct-document] ${context.url} returned HTML directly — skipping browser`);
-            return {
-              result: directDocument,
-              trace,
-              source: "direct-document",
-              skill: undefined as any,
-              timing: t,
-            };
-          } else {
-            // Surface rejection in logs so bench-local diagnostic fields can be
-            // read at .bench-local/*.out and the agent can judge in-thread
-            // whether the fallthrough to the browser ladder was warranted.
-            // Generic: covers all rejection reasons (intent_mismatch /
-            // interstitial_detected / challenge_html / too_small / not_html).
-            const evidenceJson = (directDocument as any).evidence ? ` evidence=${JSON.stringify((directDocument as any).evidence)}` : "";
-            console.log(`[direct-document] ${context.url} REJECTED reason=${directDocument.reason}${evidenceJson}; handing off to browser ladder`);
-          }
-        }
-        if (data !== undefined) {
-          const trace: ExecutionTrace = {
-            trace_id: nanoid(),
-            skill_id: "direct-fetch",
-            endpoint_id: "direct-fetch",
-            started_at: new Date().toISOString(),
-            completed_at: new Date().toISOString(),
-            success: true,
-          };
-          const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
-          console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
-          return {
-            result: data,
-            trace,
-            source: "direct-fetch" as any,
-            skill: undefined as any,
-            timing: t,
-          };
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.log(`[direct-fetch] ${context.url} skipped: ${msg.slice(0, 100)}`);
-    }
-  }
 
   if (process.env.UNBROWSE_LOCAL_ONLY === "1" && !forceCapture) {
     return buildNoCachedMatch();
@@ -4899,6 +4988,74 @@ export async function resolveAndExecute(
         return handoff;
       }
     }
+    // vendor:cloudflare / vendor:datadome / vendor:perimeterx block detected:
+    // libcurl-impersonate (Chrome131 JA4) may bypass the JS challenge that
+    // Kuri's --headless=new triggered. executeBrowserCapture already attempts
+    // this inside the capture pipeline (src/execution/index.ts L2017), but
+    // that rescue also fails when Kuri returns an empty or CF-challenge-shaped
+    // page. This second attempt runs at the orchestrator boundary so any vendor
+    // block — regardless of capture-side error type — gets one libcurl shot
+    // before the agent sees an ANTIBOT_BLOCK failure.
+    // Only fires when: no learned_skill, trace failed, url present, not auth_required.
+    if (!isAuthRequired && context?.url) {
+      const capturedBlockSignals = (resultRecord?.captured_meta as Record<string, unknown> | undefined)?.browser_block_signals;
+      const hasVendorBlockSignal =
+        Array.isArray(capturedBlockSignals) &&
+        capturedBlockSignals.some((s: unknown) => typeof s === "string" && s.startsWith("vendor:"));
+      if (hasVendorBlockSignal) {
+        try {
+          const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+          const ssr = await trySsrFastPathOnBlock({
+            url: context.url,
+            timeoutMs: 15_000,
+            proxy: process.env.UNBROWSE_PROXY_URL,
+          });
+          if (ssr && ssr.html.length > 500) {
+            const ssrArtifact = buildPageArtifactCapture(context.url, queryIntent, ssr.html, false);
+            if (ssrArtifact.endpoint && ssrArtifact.result) {
+              console.log(
+                `[orchestrator] vendor_block_ssr_fastpath_success: ${ssr.html.length} bytes via libcurl-impersonate (signals: ${capturedBlockSignals.join(", ")})`,
+              );
+              const ssrTrace: import("../types/index.js").ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: ssrArtifact.endpoint.endpoint_id,
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+
+              recordRoutingStep("live-capture", captureSkill, ssrTrace, ssrArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: ssrArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: ssrArtifact.result,
+                trace: ssrTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", ssrArtifact.result, captureSkill!.skill_id, captureSkill, ssrTrace),
+              };
+            }
+            console.log(
+              `[orchestrator] vendor_block_ssr_fastpath_null: libcurl returned ${ssr.html.length} bytes but DOM extraction yielded no usable artifact`,
+            );
+          } else {
+            console.log(
+              `[orchestrator] vendor_block_ssr_fastpath_null: libcurl returned ${ssr ? ssr.html.length : 0} bytes (below 500-byte floor or null)`,
+            );
+          }
+        } catch (ssrErr) {
+          console.log(
+            `[orchestrator] vendor_block_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`,
+          );
+        }
+      }
+    }
+
     return {
       result,
       trace,

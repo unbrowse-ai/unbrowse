@@ -17,7 +17,7 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { tryRecoverFromSchemaDrift, recoveredDataMatchesOriginalShape } from "./drift-page-recovery.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema, getApiKey } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
@@ -44,8 +44,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   return createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url").slice(0, 21);
 }
 import { getRegistrableDomain } from "../domain.js";
-import { extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
-import { extractFromDOMServerFirst } from "../extraction/server-first.js";
+import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -147,6 +146,7 @@ async function tryLiveSessionFallback(
   headers: Record<string, string>,
   body: unknown,
   decisionTrace: Array<Record<string, unknown>>,
+  page_metadata?: { localStorage?: Record<string, string> },
 ): Promise<{ status: number; data: unknown } | null> {
   let sessions: ReturnType<typeof readActiveSessions>;
   try {
@@ -185,6 +185,11 @@ async function tryLiveSessionFallback(
     target_url: url,
   });
   try {
+    // Restore stored anti-bot localStorage tokens to the live tab before in-page fetch
+    if (page_metadata?.localStorage && Object.keys(page_metadata.localStorage).length > 0) {
+      const tokens = JSON.stringify(page_metadata.localStorage);
+      await kuri.evaluate(match.tabId, `(function(){var t=JSON.parse(${JSON.stringify(tokens)});Object.keys(t).forEach(function(k){try{localStorage.setItem(k,t[k]);}catch{}});})();`).catch(() => {});
+    }
     const tabResult = await kuri.executeInPageFetch(match.tabId, url, method, headers, body);
     if (tabResult.status === 0) {
       decisionTrace.push({
@@ -530,6 +535,13 @@ export interface ExecutionResult {
    *  trigger_intercept / browser / return_error. Mirrored on trace.decision_trace
    *  for backward compat with 7.1 tests; will become the single source in Phase 8. */
   decision_trace?: Array<Record<string, unknown>>;
+  /** Structural intent-verification verdict — machine check (KEY 1).
+   *  "pass"    — status < 300, response body > 100 bytes, no challenge indicators.
+   *  "fail"    — status >= 400, empty body, or challenge/captcha indicators detected.
+   *  "unknown" — status 3xx, or could not determine from structural signals alone.
+   *  This field surfaces fake-greens (HTTP 200 with wrong/empty data) without
+   *  blocking the response or changing any other field. */
+  intent_verdict?: "pass" | "fail" | "unknown";
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -694,18 +706,18 @@ function looksLikeApiUrl(url: string): boolean {
     })());
 }
 
-export async function buildPageArtifactCapture(
+export function buildPageArtifactCapture(
   url: string,
   intent: string,
   html: string,
   authRequired = false,
-): Promise<{
+): {
   endpoint?: EndpointDescriptor;
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
   search_form?: SearchFormSpec;
-}> {
-  const extracted = await extractFromDOMServerFirst(html, intent, url);
+} {
+  const extracted = extractFromDOM(html, intent, url);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
   const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
   if (!quality.valid) {
@@ -1389,7 +1401,7 @@ async function trySeedPublicDocumentFetchSkill(
 
   if (!isHtml(html) || isSpaShell(html)) return undefined;
 
-  const built = await buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);
+  const built = buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);
   if (!built.endpoint) return undefined;
 
   const domain = getRegistrableDomain(targetDomain);
@@ -1692,7 +1704,7 @@ async function executeBrowserCapture(
           proxy: process.env.UNBROWSE_PROXY_URL,
         });
         if (ssr?.html && ssr.html.length > 1024) {
-          const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, false);
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
             log("execution", `no_progress_bail_ssr_fastpath_success: ${ssr.html.length} bytes from libcurl`);
             const trace: ExecutionTrace = stampTrace({
@@ -1763,7 +1775,7 @@ async function executeBrowserCapture(
         const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
         const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr?.html && ssr.html.length > 1024) {
-          const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, false);
+          const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
             log("execution", `auth_required_ssr_reroute_success: ${ssr.html.length} bytes from libcurl, vendor signal detected (${requestUrls.find((u) => /captcha-delivery|cdn-cgi|datadome|perimeterx|kasada|akamai-bot|akm_bmfp|kpsdk|_abck|_pxhd/i.test(u))?.slice(0, 80)})`);
             (captured as { html?: string }).html = ssr.html;
@@ -2002,7 +2014,7 @@ async function executeBrowserCapture(
   }
 
   const pageArtifact = captured.html
-    ? await buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
+    ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
   let domArtifactEndpoint = pageArtifact.endpoint;
   let domArtifactResult = pageArtifact.result;
@@ -2020,7 +2032,7 @@ async function executeBrowserCapture(
       const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
       const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
       if (ssr?.html && ssr.html.length > 1024) {
-        const ssrArtifact = await buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
+        const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
         if (ssrArtifact.endpoint && ssrArtifact.result) {
           domArtifactEndpoint = ssrArtifact.endpoint;
           domArtifactResult = ssrArtifact.result;
@@ -2670,6 +2682,70 @@ export async function executeEndpoint(
     return { trace, result: resultData };
   }
 
+  // Marketplace backend routing — x402 gate runs server-side for marketplace skills.
+  // Local executeEndpoint is the fallback for self-hosted/local skills only.
+  // Conditions: non-local skill_id + http execution type + marketplace/user owner.
+  // Falls through silently on network error, 5xx, or missing UNBROWSE_API_URL.
+  const isMarketplaceSkill =
+    !skill.skill_id.startsWith("local:") &&
+    skill.execution_type === "http" &&
+    skill.owner_type !== "agent";
+  if (isMarketplaceSkill) {
+    const backendBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+    const apiKey = getApiKey();
+    try {
+      const backendRes = await fetch(`${backendBase}/v1/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          intent: options?.intent,
+          params,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (backendRes.ok) {
+        const backendData = await backendRes.json() as Record<string, unknown>;
+        // Backend returned a usable result — surface it directly.
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          result: backendData,
+        });
+        return { trace, result: backendData };
+      }
+      // 4xx from backend (payment_required, auth_required, etc.) — surface as-is.
+      if (backendRes.status >= 400 && backendRes.status < 500) {
+        let errBody: unknown;
+        try { errBody = await backendRes.json(); } catch { errBody = { error: `backend_${backendRes.status}` }; }
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: backendRes.status,
+          error: `backend_${backendRes.status}`,
+          result: errBody,
+        });
+        return { trace, result: errBody as ExecutionResult["result"] };
+      }
+      // 5xx — fall through to local execution.
+    } catch {
+      // Network error or timeout — fall through to local execution.
+    }
+  }
+
+
   const workflowArtifact = readWorkflowArtifact(skill.skill_id);
   const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
@@ -3239,8 +3315,8 @@ export async function executeEndpoint(
         // HTML response + DOM extraction recipe — run the extractor in-process
         // and return the structured records the recipe was captured against.
         try {
-          const { extractFromDOMServerFirst } = await import("../extraction/server-first.js");
-          const extracted = await extractFromDOMServerFirst(text, skill.intent_signature ?? "", replayUrl);
+          const { extractFromDOM } = await import("../extraction/index.js");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3255,8 +3331,8 @@ export async function executeEndpoint(
         // before declaring format mismatch. Many SSR pages serve the data on the rendered HTML.
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)} — trying DOM extraction fallback`);
         try {
-          const { extractFromDOMServerFirst } = await import("../extraction/server-first.js");
-          const extracted = await extractFromDOMServerFirst(text, skill.intent_signature ?? "", replayUrl);
+          const { extractFromDOM } = await import("../extraction/index.js");
+          const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
           } else {
@@ -3650,6 +3726,7 @@ export async function executeEndpoint(
           return `${c.name}=${v}`;
         }).join("; ");
       }
+      const operationNode = skill.operation_graph?.operations?.find(op => op.endpoint_id === endpoint.endpoint_id);
       const liveResult = await tryLiveSessionFallback(
         epDomain,
         url,
@@ -3657,6 +3734,7 @@ export async function executeEndpoint(
         liveFetchHeaders,
         body,
         decisionTrace,
+        operationNode?.page_metadata,
       );
       if (liveResult && liveResult.status >= 200 && liveResult.status < 300) {
         status = liveResult.status;
@@ -3934,7 +4012,7 @@ export async function executeEndpoint(
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
-          const extracted = await extractFromDOMServerFirst(ssr.html, fallbackIntent, fallbackUrl);
+          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -3982,7 +4060,7 @@ export async function executeEndpoint(
         const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
-          const extracted = await extractFromDOMServerFirst(ssr.html, fallbackIntent, fallbackUrl);
+          const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
           if (extracted.data) {
             trace.success = true;
             trace.status_code = ssr.status;
@@ -4298,7 +4376,7 @@ export async function executeEndpoint(
       };
       trace.result = data;
     } else {
-      const extracted = await extractFromDOMServerFirst(data, intent, replayUrl);
+      const extracted = extractFromDOM(data, intent, replayUrl);
       if (extracted.data) {
         const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
         const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
@@ -4417,6 +4495,47 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
+  // Per-execute telemetry ledger: fire-and-forget row to backend for semantic resolution improvement.
+  // Captures intent, skill_id, endpoint_id, outcome, status_code, latency_ms, proxy_used, block_signals.
+  // Never throws, never blocks the return. Same UNBROWSE_API_URL as recordExecution above.
+  (async () => {
+    try {
+      const __telemBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+      const __telemLatency = startedAt ? Date.now() - new Date(startedAt).getTime() : undefined;
+      const __telemOutcome = trace.success ? "success" : (trace.error ?? "failure");
+      const __telemProxyUsed = decisionTrace.some((s) =>
+        typeof (s as Record<string, unknown>).step === "string" &&
+        ((s as Record<string, unknown>).step as string).includes("proxy_fallback_success"),
+      );
+      const __telemBlockSignals: string[] = decisionTrace
+        .filter((s) =>
+          typeof (s as Record<string, unknown>).step === "string" &&
+          (
+            ((s as Record<string, unknown>).step as string).includes("vendor_block") ||
+            ((s as Record<string, unknown>).step as string).includes("_blocked")
+          ),
+        )
+        .map((s) => {
+          const vendor = (s as Record<string, unknown>).vendor;
+          return typeof vendor === "string" ? vendor : String((s as Record<string, unknown>).step);
+        });
+      await fetch(`${__telemBase}/v1/telemetry/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent: options?.intent ?? skill.intent_signature ?? undefined,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          outcome: __telemOutcome,
+          status_code: status,
+          latency_ms: __telemLatency,
+          proxy_used: __telemProxyUsed,
+          block_signals: __telemBlockSignals,
+        }),
+      });
+    } catch { /* best-effort — never surface to caller */ }
+  })();
+
   // Record transaction if this was a paid execution (fire-and-forget)
   if (trace.success && options?.payment_verified === true && skill.base_price_usd && skill.base_price_usd > 0) {
     const consumerConfig = (() => {
@@ -4470,8 +4589,32 @@ export async function executeEndpoint(
     (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_strategy = workflowChosenStrategy;
   }
 
+  // Structural intent-verification — machine check (KEY 1).
+  // Surfaces fake-greens (HTTP 200 with wrong/empty data) without blocking the response.
+  // No LLM call — purely structural signals on status + body size + challenge markers.
+  const intentVerdict = ((): "pass" | "fail" | "unknown" => {
+    // Empty or error body is always fail
+    const bodyStr = typeof resultData === "string"
+      ? resultData
+      : (resultData != null ? JSON.stringify(resultData) : "");
+    const bodyBytes = Buffer.byteLength(bodyStr, "utf8");
+    // Challenge/captcha indicators in the body text
+    const challengePattern = /\b(cf-chl|turnstile|challenge|robot|captcha|are you human|verify you are|blocked|access denied)\b/i;
+    const hasChallenge = challengePattern.test(bodyStr.slice(0, 4096));
+    if (status >= 400 || bodyBytes === 0 || (typeof resultData === "object" && resultData !== null && !Array.isArray(resultData) && Object.keys(resultData as object).length === 0)) {
+      return "fail";
+    }
+    if (hasChallenge && bodyBytes < 8192) {
+      return "fail";
+    }
+    if (status >= 200 && status < 300 && bodyBytes > 100 && !hasChallenge) {
+      return "pass";
+    }
+    return "unknown";
+  })();
+
   return {
-    trace, result: resultData, decision_trace: decisionTrace,
+    trace, result: resultData, decision_trace: decisionTrace, intent_verdict: intentVerdict,
   };
 }
 
@@ -4515,9 +4658,42 @@ function buildProducerIndex(skill: SkillManifest): Map<string, string> {
       if (typeof binding.key === "string" && binding.key.length > 0) {
         index.set(binding.key, ep.endpoint_id);
       }
+      // Pointer-gated indexing — organ b9c8a64d stage 3. When a binding
+      // declares a ContractRef (a cell contract id whose satisfaction
+      // produces this value), we ALSO index that ref → producer
+      // endpoint. Uuid-shaped ids effectively never collide with
+      // snake_case binding keys; in the rare malformed case both shapes
+      // share the same map and last-wins (same convention as multi-
+      // provider-same-key today). Stage 1 (d00ac17d) introduced the
+      // optional field; this is the first consumer.
+      if (typeof binding.contract_ref === "string" && binding.contract_ref.length > 0) {
+        index.set(binding.contract_ref, ep.endpoint_id);
+      }
     }
   }
   return index;
+}
+
+/** Resolve a binding to its producer endpoint id. Prefers a ContractRef
+ *  pointer (binding.contract_ref) over the binding.key match — the
+ *  pointer is a stronger claim ("this exact cell produces this value")
+ *  than the key match (which can collide across producers). Returns
+ *  undefined when neither resolves. Pure function; no I/O. Stage 3 of
+ *  organ b9c8a64d (unbrowse runtime ↔ /contract substrate isomorphism). */
+export function resolveBindingProducer(
+  binding: OperationBinding,
+  producerIndex: Map<string, string>,
+): string | undefined {
+  // KEY 1 (pointer): contract_ref names the producer cell directly.
+  if (typeof binding.contract_ref === "string" && binding.contract_ref.length > 0) {
+    const byRef = producerIndex.get(binding.contract_ref);
+    if (byRef) return byRef;
+  }
+  // KEY 2 (legacy): fall back to free-form key match.
+  if (typeof binding.key === "string" && binding.key.length > 0) {
+    return producerIndex.get(binding.key);
+  }
+  return undefined;
 }
 
 /** Conservative extraction of a binding value from a leaf ExecutionResult.
@@ -6176,7 +6352,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const companyHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
       if (/(organization|company|companies|org)/i.test(companyHaystack) && looksLikeApiEndpoint) score += 110;
       if (/(mailbox|messaging|messagecenter|notifications?|inbox|launchpad|identity|sharebox)/i.test(companyHaystack)) score -= 140;
-      if (/(companyprofile|organizationprofile|aboutthisprofile|organizationresult|companyresult)/i.test(companyHaystack)) score += 95;
+      if (/(organizationdashcompanies|universalname|companyprofile|organizationprofile|aboutthisprofile|organizationresult|companyresult)/i.test(companyHaystack)) score += 95;
       if (looksLikeDocumentRoute) score -= 35;
     }
 
@@ -6184,18 +6360,18 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const profileHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
       if (/(sidebar|recommend|recommendations|suggested|spotlight|timeline|tweets|following|followers)/i.test(profileHaystack)) score -= 90;
       if (/(sharebox|closedsharebox|mailbox|messaging|conversation|alerts?|notification|presence|badging|feedtype|main_feed)/i.test(profileHaystack)) score -= 180;
-      if (/(profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
+      if (/(userbyscreenname|profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
     }
 
     if (intent && /\b(feed|timeline|stream|home)\b/i.test(intent) && /\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
       const feedHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
-      if (/(mainfeed|feedupdates|main_feed)/i.test(feedHaystack)) score += 170;
-      if (/(storylines|globalnav|launchpad|mailbox|notification|presence)/i.test(feedHaystack)) score -= 150;
+      if (/(voyagerfeeddashmainfeed|voyagerfeeddashfeedupdates|mainfeed|feedupdates|main_feed)/i.test(feedHaystack)) score += 170;
+      if (/(identitydashprofiles|voyageridentity|storylines|newsdashstorylines|globalnav|launchpad|mailbox|notification|presence)/i.test(feedHaystack)) score -= 150;
     }
     if (intent && /\b(search|list|find|feed|timeline|stream|home|latest|trending|discover|browse)\b/i.test(intent) && /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/i.test(intent)) {
       const contentHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
       if (looksLikeApiEndpoint && /(search|timeline|feed|stream|result|results|entries|posts|tweets|statuses|updates)/i.test(contentHaystack)) score += 180;
-      if (/(sidebar|recommend|recommendations|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
+      if (/(sidebar|recommend|recommendations|usersbyrestids|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
       if (isCapturedPageArtifact && hasStructuredApiSibling) score -= 320;
       else if (looksLikeDocumentRoute && hasStructuredApiSibling) score -= 200;
     }
@@ -6230,8 +6406,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (hasConcreteEntityRoute) {
       if (requestHint.includes(contextLeaf)) score += 120;
       else if (endpointHint.includes(contextLeaf)) score += 40;
-      if (/(screen_name|screenname|username|slug|vanity|public_identifier|identifier)/i.test(endpointHint + " " + requestHint)) score += 55;
-      if (/(recommendations|timeline|tweets|following|followers)/i.test(endpointHint + " " + requestHint)) score -= 70;
+      if (/(screen_name|screenname|username|userby|slug|vanity|universalname|public_identifier|identifier)/i.test(endpointHint + " " + requestHint)) score += 55;
+      if (/(restids|usersbyrestids|recommendations|timeline|tweets|following|followers)/i.test(endpointHint + " " + requestHint)) score -= 70;
     }
 
     // Penalize fixed entity/detail pages when the user asked for a list/search flow.

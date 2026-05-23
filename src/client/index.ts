@@ -28,7 +28,6 @@ import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
-import type { ExtractionResult as ExtractionCoreResult } from "@unbrowse/extraction-core";
 import {
   decodeTelemetryAttribution,
   mergeTelemetryAttribution,
@@ -338,6 +337,12 @@ async function postTelemetry(path: string, body: Record<string, unknown>): Promi
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: JSON.stringify(body),
+      // Telemetry is best-effort and is awaited inline on the resolve hot
+      // path (e.g. recordFunnelTelemetryEvent("resolve_completed")). Without
+      // a bound, a stalled POST hangs fetch() forever — the process never
+      // reaches output() and never exits. A hard 5s cap keeps telemetry from
+      // ever blocking the caller's result; the AbortError lands in catch.
+      signal: AbortSignal.timeout(5000),
     });
     return res.ok;
   } catch {
@@ -553,73 +558,6 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-// --- Exec-token (anti-reverse-engineering Wave 2) ---
-//
-// Acquire a per-session HMAC token from /v1/session/exec-token and carry
-// it as X-Unbrowse-Session on every marketplace call. The server gate
-// (backend/src/middleware/exec-token.ts) binds authenticated callers to
-// a CI-signed build; a patched binary that can't acquire a token loses
-// the marketplace index.
-//
-// Best-effort: any failure returns null and the request proceeds without
-// the header. While the server runs in observe mode this is harmless;
-// when the server flips to enforce, a CLI that genuinely came from CI
-// will have a valid (build_sha, deployed_at) and acquire a token, and a
-// reverse-engineered build will not.
-let execTokenCache: { token: string; exp: number } | null = null;
-let execTokenInFlight: Promise<string | null> | null = null;
-
-function execBuildIdentity(): { build_sha: string; deployed_at: string } | null {
-  const manifest = decodeBase64Json(RELEASE_MANIFEST_BASE64 || "") as
-    | { git_sha?: string; issued_at?: string }
-    | undefined;
-  const build_sha = manifest?.git_sha || GIT_SHA;
-  const deployed_at = manifest?.issued_at;
-  if (!build_sha || !deployed_at) return null;
-  return { build_sha, deployed_at };
-}
-
-async function getExecToken(): Promise<string | null> {
-  if (LOCAL_ONLY) return null;
-  const now = Math.floor(Date.now() / 1000);
-  // Re-use a cached token until 5 min before expiry.
-  if (execTokenCache && execTokenCache.exp - 300 > now) {
-    return execTokenCache.token;
-  }
-  if (execTokenInFlight) return execTokenInFlight;
-
-  execTokenInFlight = (async (): Promise<string | null> => {
-    try {
-      const key = getApiKey();
-      if (!key || key === "local-only") return null;
-      const identity = execBuildIdentity();
-      if (!identity) return null;
-      const res = await fetch(`${API_URL}/v1/session/exec-token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept-Encoding": "gzip, deflate",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify(identity),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { token?: string; exp?: number };
-      if (typeof data.token === "string" && typeof data.exp === "number") {
-        execTokenCache = { token: data.token, exp: data.exp };
-        return data.token;
-      }
-      return null;
-    } catch {
-      return null;
-    } finally {
-      execTokenInFlight = null;
-    }
-  })();
-  return execTokenInFlight;
-}
-
 async function apiRequest<T = unknown>(
   method: string,
   path: string,
@@ -631,13 +569,6 @@ async function apiRequest<T = unknown>(
     RELEASE_MANIFEST_BASE64,
     RELEASE_MANIFEST_SIGNATURE,
   );
-  // Anti-reverse-engineering Wave 2: carry the server-bound exec-token on
-  // every authenticated marketplace call. Best-effort -- skipped for
-  // noAuth requests and for the exec-token mint route itself (no recursion).
-  const execToken =
-    opts?.noAuth || path.startsWith("/v1/session/exec-token")
-      ? null
-      : await getExecToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
@@ -652,7 +583,6 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Trace-Version": TRACE_VERSION,
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
-        ...(execToken ? { "X-Unbrowse-Session": execToken } : {}),
         ...releaseAttestationHeaders,
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
         ...(opts?.extraHeaders ?? {}),
@@ -1620,46 +1550,6 @@ export async function rankEndpointsRemote(
   }
 }
 
-/**
- * Server-side deterministic DOM extraction (WAVE 2 server-move, principle
- * 20260522T031732Z-3c67f936). Posts the credential-free HTML skeleton to
- * POST /v1/extract/refine and returns the structured ExtractionResult.
- * Returns null on ANY failure (local-only mode, network unreachable,
- * non-2xx, degraded flag) so the caller falls back to the local
- * `extractFromDOM` -- the capture/execution path must never hard-fail
- * because the refinement server is unreachable. x402 payment-required
- * errors propagate (same contract as rankEndpointsRemote).
- *
- * The server only ever receives an already-credential-stripped HTML
- * string; the browser, cookies, and the authenticated fetch stay
- * client-side. Reverse-engineering the client yields no extraction alpha.
- */
-export async function refineExtractionRemote(
-  html: string,
-  intent: string,
-  contextUrl?: string,
-): Promise<ExtractionCoreResult | null> {
-  if (LOCAL_ONLY) return null;
-  if (typeof html !== "string" || html.length === 0) return null;
-  // Match the route's 5MB payload bound; oversize bodies fall back to local.
-  if (html.length > 5_000_000) return null;
-  try {
-    const data = await api<ExtractionCoreResult & { error?: string; degraded?: boolean }>(
-      "POST",
-      "/v1/extract/refine",
-      { html, intent, contextUrl },
-      { timeoutMs: 4000 },
-    );
-    if (!data || data.degraded === true || typeof data.error === "string" || !("data" in data)) {
-      return null;
-    }
-    return data;
-  } catch (err) {
-    if (isX402Error(err)) throw err;
-    return null;
-  }
-}
-
 // --- Stats ---
 
 /** Execution payload sent to POST /v1/stats/execution */
@@ -1841,7 +1731,20 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
   if (LOCAL_ONLY) return { valid: true, hardErrors: [], softWarnings: [] };
-  return api<ValidationResult>("POST", "/v1/validate", manifest);
+  try {
+    return await api<ValidationResult>("POST", "/v1/validate", manifest);
+  } catch (err) {
+    // The remote validation endpoint is best-effort. A transport failure or a
+    // missing route (404) must never abort a resolve/capture — validation is a
+    // publish-quality enhancement, not a resolve gate. Degrade to the same
+    // optimistic shape LOCAL_ONLY returns; publishSkill is independently
+    // try/catch-guarded at every call site, so an unvalidated publish that
+    // would fail just falls back to the local draft.
+    console.warn(
+      `[validate] remote validation unavailable (${(err as Error).message}); proceeding unvalidated`,
+    );
+    return { valid: true, hardErrors: [], softWarnings: [] };
+  }
 }
 
 // --- Graph Edge Publishing ---

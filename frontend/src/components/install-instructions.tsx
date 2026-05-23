@@ -260,7 +260,7 @@ export function InstallInstructions() {
             padding: "2px 10px",
             border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
             background: copied ? "#FF7A20" : "#FF7A20",
-            color: copied ? "#fff" : "#fff",
+            color: copied ? "oklch(0.98 0.012 55)" : "oklch(0.98 0.012 55)",
             borderRadius: 2, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}
         >

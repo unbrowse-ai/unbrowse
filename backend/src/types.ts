@@ -6,6 +6,8 @@ export interface Env {
   DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   EMERGENTDB_TIMEOUT_MS?: string;
+  /** BUG-011 (contract 311771e1): per-value byte cap for EdbKV.put. Default 10240. */
+  EMERGENTDB_MAX_VALUE_BYTES?: string;
   NEBIUS_API_KEY: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;
@@ -59,17 +61,6 @@ export interface Env {
    * again. See: services/keys.ts verifyLocalKey early-return.
    */
   ALL_KEYS_REVOKED?: string;
-  /**
-   * Anti-reverse-engineering exec-token gate (services/exec-token.ts,
-   * middleware/exec-token.ts). When "1" / "true", marketplace routes
-   * (/v1/search*, /v1/skills*) REJECT authenticated callers that do
-   * not present a valid X-Unbrowse-Session token. Default unset =
-   * observe mode (logs `[exec-token]` evidence, never blocks) so
-   * existing CLIs in the wild keep working until they ship the header.
-   * Flip to "1" only after observe-mode logs confirm real CLIs send
-   * valid tokens.
-   */
-  EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
   /**
@@ -186,6 +177,14 @@ export interface Env {
   STRIPE_AUTOREFILL_USD?: string;
   STRIPE_AUTOREFILL_MAX_PER_PERIOD?: string;
   /**
+   * Web2 subscription gate (contract 9474c6ab). When set to "1", the sponsor
+   * middleware first asks the Stripe admission ladder whether the caller has a
+   * subscription with quota, and if so draws from the Stripe-tracked balance
+   * instead of the x402 platform-sponsor wallet. Unset = legacy behaviour
+   * (every paid call rides x402, sponsor middleware unchanged).
+   */
+  UNBROWSE_BILLING_ENABLED?: string;
+  /**
    * Platform-sponsor wallet (v6.15.0+) — funds first-call subsidies so route
    * creators see x402 earnings immediately. Both ADDRESS and KEY must be set
    * for the sponsor middleware to enable; otherwise it refuses-to-enable and
@@ -197,6 +196,15 @@ export interface Env {
   SPONSOR_CAP_DAILY_USD?: string;
   /** Org-wide daily sponsor cap in USD (default 50.0). */
   SPONSOR_GLOBAL_DAILY_USD?: string;
+  /**
+   * Flywheel closure (v6.17+) — fraction of Stripe revenue carved off
+   * into the sponsor pool on every subscription grant + auto-refill.
+   * Default 1000 bps (10%) per arXiv 2604.00694 §3.5 "infrastructure
+   * ≈ 10% platform toll". Set to 0 to disable the pool feed (sponsor
+   * middleware falls back to PLATFORM_SPONSOR_WALLET_ADDRESS). See
+   * backend/src/services/sponsor-pool.ts.
+   */
+  PLATFORM_REVENUE_TO_POOL_BPS?: string;
   /**
    * Admin-only operations key (v6.15.0+) — gates `/v1/admin/*` read surfaces
    * like sponsor-ledger. Separate from API_KEY (which doubles as a legacy
@@ -254,6 +262,14 @@ export interface Env {
   UNBROWSE_AGENT_JUDGE_MODEL?: string;
   /** Disable server-side semantic augmentation entirely (returns no enrichment; client falls back to local heuristic). */
   UNBROWSE_AGENT_SEMANTIC_AUGMENT?: string;
+  /**
+   * LLM PII scrubber model (publish-path defense-in-depth, contract 101b1f77).
+   * Inspects augmented endpoint descriptions/examples for PII the regex layer
+   * missed. Defaults to `moonshotai/Kimi-K2.5` in
+   * `backend/src/services/ai-scrub.ts`. NEBIUS_API_KEY (already declared) is
+   * the cheap-model bearer used; soft-fails if unset.
+   */
+  UNBROWSE_AI_SCRUB_MODEL?: string;
 }
 // --- Agent identity ---
 
@@ -409,6 +425,16 @@ export interface ProofSummary {
   proof_types: Record<string, number>;
 }
 
+/**
+ * Pointer to another contract's id in the /contract substrate. A
+ * ContractRef is the string id of a cell contract whose satisfaction
+ * is the precondition for this field's truth claim. See
+ * ~/.claude/skills/contract/SKILL.md — "pointer principle". Wave-1
+ * carrier of the runtime↔substrate isomorphism (organ b9c8a64d stage 1).
+ * Tri-file synced with `src/types/skill.ts` and `frontend/src/lib/api.ts`.
+ */
+export type ContractRef = string;
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -479,6 +505,62 @@ export interface DiscoveryCost {
   capture_tokens: number;
   response_bytes: number;
   captured_at: string;
+}
+
+export interface OperationBinding {
+  key: string;
+  description?: string;
+  type?: string;
+  semantic_type?: string;
+  required?: boolean;
+  source?: string;
+  example_value?: string;
+  ttl_ms?: number;
+  single_use?: boolean;
+  observed_at?: string;
+}
+
+export interface SkillOperationNode {
+  operation_id: string;
+  endpoint_id: string;
+  method: string;
+  url_template: string;
+  trigger_url?: string;
+  action_kind: string;
+  resource_kind: string;
+  description_in?: string;
+  description_out?: string;
+  response_summary?: string;
+  requires: OperationBinding[];
+  provides: OperationBinding[];
+  negative_tags?: string[];
+  example_request?: unknown;
+  example_response_compact?: unknown;
+  example_fields?: string[];
+  confidence: number;
+  observed_at?: string;
+  auth_required?: boolean;
+  page_metadata?: {
+    localStorage?: Record<string, string>;
+    embedded_json?: Record<string, unknown>[];
+    captured_at?: string;
+  };
+}
+
+export interface SkillOperationEdge {
+  edge_id: string;
+  from_operation_id: string;
+  to_operation_id: string;
+  binding_key: string;
+  kind: "dependency" | "hint" | "parent_child" | "pagination" | "auth";
+  confidence: number;
+}
+
+export interface SkillOperationGraph {
+  generated_at: string;
+  entry_operation_ids: string[];
+  operations: SkillOperationNode[];
+  edges: SkillOperationEdge[];
 }
 
 export interface SkillManifest {
@@ -617,6 +699,12 @@ export interface SkillManifest {
    * graph index so resolve stays consistent.
    */
   visibility?: "public" | "private";
+  /**
+   * Operation graph for this skill — populated by `buildSkillOperationGraph`
+   * at capture time. Exposed verbatim at GET /v1/skills/:id/graph so callers
+   * can introspect requires/yields edges and parameter schemas without reading source.
+   */
+  operation_graph?: SkillOperationGraph;
 }
 
 /**

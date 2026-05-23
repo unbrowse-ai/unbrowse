@@ -22,3 +22,6 @@ search beatsaver maps|https://beatsaver.com/?q=camellia
 list NUS modules|https://nusmods.com/modules
 search openlibrary books|https://openlibrary.org/search?q=dune
 search pubmed papers|https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning
+# Cloudflare Turnstile-gated (antibot benchmark)
+check bot detection result|https://nowsecure.nl
+search glassdoor company reviews|https://www.glassdoor.com/Search/results.htm?keyword=software+engineer

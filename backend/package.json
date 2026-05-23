@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@faremeter/flex-solana": "^0.2.1",
-    "@unbrowse/extraction-core": "workspace:*",
     "@faremeter/middleware": "^0.21.0",
     "@faremeter/payment-solana": "^0.21.0",
     "@faremeter/types": "^0.21.0",

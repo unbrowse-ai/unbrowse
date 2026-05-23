@@ -14,7 +14,6 @@ import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { rankEndpointsServer, type RankRequest } from "../services/rank.js";
-import { execTokenGate } from "../middleware/exec-token.js";
 
 /**
  * Public discovery: the website's anonymous skill search must work without an
@@ -203,7 +202,7 @@ searchRoutes.use("/search/rank", rateLimit({ limit: 60, window: 60, prefix: "sea
 searchRoutes.use("/search/endpoints", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 
 
-searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, execTokenGate(), async (c) => {
+searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
@@ -235,7 +234,7 @@ searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, execTokenGate()
   }
 });
 
-searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, async (c) => {
   const { intent, domain, k } = await c.req.json<{ intent: string; domain: string; k?: number }>();
   if (!intent || !domain) return c.json({ error: "intent and domain required" }, 400);
   try {
@@ -260,7 +259,7 @@ searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, execTokenGa
   }
 });
 
-searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) => {
   const { intent, domain, domain_k, global_k } = await c.req.json<{
     intent: string;
     domain?: string;
@@ -301,7 +300,7 @@ searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, execTokenG
 // directly. Anonymous-allowed (same gating as /v1/search) so public
 // discovery works without an API key; authenticated agents pay the
 // search fee per the existing x402 economics.
-searchRoutes.post("/search/endpoints", optionalAuth, signedClientIfAuthed, execTokenGate(), async (c) => {
+searchRoutes.post("/search/endpoints", optionalAuth, signedClientIfAuthed, async (c) => {
   const { intent, k, domain } = await c.req.json<{ intent: string; k?: number; domain?: string }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
@@ -342,7 +341,7 @@ searchRoutes.post("/search/endpoints", optionalAuth, signedClientIfAuthed, execT
 // per-domain registry, no second LLM — pure evidence-derived signals.
 // The client keeps a full local ranker as a degraded fallback for when
 // this route is unreachable, so offline resolve never hard-fails.
-searchRoutes.post("/search/rank", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+searchRoutes.post("/search/rank", bearerAuth, requireSignedClient, async (c) => {
   let body: RankRequest;
   try {
     body = await c.req.json<RankRequest>();

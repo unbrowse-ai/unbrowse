@@ -1106,7 +1106,7 @@ function operationScore(op: SkillOperationNode, intent?: string): number {
     if (looksLikeApiEndpoint && /(search|timeline|feed|stream|result|results|entries|posts|tweets|statuses|updates)/i.test(opTextLower)) {
       score += 18;
     }
-    if (/(sidebar|recommend|recommendations|userclaims|viewer|spotlight|pinned)/i.test(opTextLower)) {
+    if (/(sidebar|recommend|recommendations|usersbyrestids|userclaims|viewer|spotlight|pinned)/i.test(opTextLower)) {
       score -= 14;
     }
   }
@@ -1115,11 +1115,11 @@ function operationScore(op: SkillOperationNode, intent?: string): number {
   // Detect entity-detail intents that imply a per-user feed.
   if (/\b(tweets|posts|statuses|updates)\s+(from|by|of)\b/i.test(intentLower) ||
       /\b(profile|user|member)\b/i.test(intentLower)) {
-    if (/(userprofile|memberprofile|public_identifier|screen_name|screenname|username)/i.test(opTextLower)) {
+    if (/(userbyscreenname|userbyresttid|usertweets|userprofile|memberprofile|public_identifier|screen_name|screenname|username)/i.test(opTextLower)) {
       score += 16;
     }
     // Home/main feeds are wrong for per-user intent
-    if (/(mainfeed|main_feed|globalnav|launchpad)/i.test(opTextLower)) {
+    if (/(hometimeline|mainfeed|main_feed|globalnav|launchpad)/i.test(opTextLower)) {
       score -= 10;
     }
   }
@@ -1223,8 +1223,17 @@ function isBefore(lhs?: string, rhs?: string): boolean {
   return left <= right;
 }
 
-export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): SkillOperationGraph {
+export function buildSkillOperationGraph(
+  endpoints: EndpointDescriptor[],
+  pageState?: { localStorage?: Record<string, string>; embedded_json?: Record<string, unknown>[] },
+): SkillOperationGraph {
   const operations = endpoints.map(buildOperationNode);
+  if (pageState && (Object.keys(pageState.localStorage ?? {}).length > 0 || (pageState.embedded_json ?? []).length > 0)) {
+    const capturedAt = new Date().toISOString();
+    for (const op of operations) {
+      op.page_metadata = { ...pageState, captured_at: capturedAt };
+    }
+  }
   const edges: SkillOperationEdge[] = [];
   const seenEdges = new Set<string>();
   for (const target of operations) {

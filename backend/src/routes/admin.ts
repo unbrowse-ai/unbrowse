@@ -26,6 +26,12 @@ import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { statsKV } from "../services/kv.js";
 import type { SponsorLedgerRow } from "../middleware/sponsor.js";
+import {
+  aggregateUnsettled,
+  executeSettlement,
+  persistBatch,
+  readBatch,
+} from "../services/settlement.js";
 
 type AdminEnv = { Bindings: Env; Variables: Record<string, never> };
 
@@ -212,13 +218,18 @@ adminRoutes.get("/analytics/payments", async (c) => {
 
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
-  // Read all sponsor rows; filter to 24h window in-memory. (KV listWithValues
-  // is zero-fetch on the LocalKV / PgKV paths used in prod, so the row count
-  // is bounded by sponsor activity, not by listing cost.)
+  const month = 30 * day;
+  // Read all sponsor rows; filter to 24h / 30d windows in-memory. (KV
+  // listWithValues is zero-fetch on the LocalKV / PgKV paths used in prod, so
+  // the row count is bounded by sponsor activity, not by listing cost.)
   const all = await readSponsorLedgerRows(c.env);
   const sponsor24h = all.filter((row) => {
     const ms = Date.parse(row.settled_at);
     return Number.isFinite(ms) && ms >= now - day;
+  });
+  const sponsor30d = all.filter((row) => {
+    const ms = Date.parse(row.settled_at);
+    return Number.isFinite(ms) && ms >= now - month;
   });
 
   // µ¢ → USD: divide by 1_000_000 (USDC has 6 decimals, µ¢ map 1:1).
@@ -236,20 +247,147 @@ adminRoutes.get("/analytics/payments", async (c) => {
       0,
     );
 
+  // ─── contract b21e7d7e: real platform_cut + creator_payouts ────────────
+  //
+  // Each settled sponsor:ledger row represents a paid execute. The platform
+  // cut is `amount_uc * effective_platform_bps / 10000` for that row; when
+  // a row doesn't carry `effective_platform_bps` (the v6.16 default writer
+  // doesn't), we fall back to PLATFORM_BPS (5000 = 50%) per
+  // docs/HOW_UNBROWSE_PAYS.md. The creator + owner + contributors share the
+  // remainder.
+  //
+  // SponsorLedgerRow is treated structurally — we read `effective_platform_bps`
+  // as an optional extension that future writers can stamp.
+  type RowWithBps = (typeof sponsor24h)[number] & {
+    effective_platform_bps?: number;
+  };
+  const DEFAULT_PLATFORM_BPS = 5000;
+  function platformCutUc(rows: RowWithBps[]): number {
+    return rows.reduce((sum, r) => {
+      const amount = Number.isFinite(r.amount_uc) ? r.amount_uc : 0;
+      const bps = typeof r.effective_platform_bps === "number"
+        && Number.isFinite(r.effective_platform_bps)
+        && r.effective_platform_bps >= 0
+        && r.effective_platform_bps <= 10000
+        ? r.effective_platform_bps
+        : DEFAULT_PLATFORM_BPS;
+      return sum + Math.floor((amount * bps) / 10000);
+    }, 0);
+  }
+
+  const platformCut24hUc = platformCutUc(sponsor24h as RowWithBps[]);
+  const platformCut30dUc = platformCutUc(sponsor30d as RowWithBps[]);
+  // Creator payouts = total settled minus the platform cut (the creator +
+  // owner + contributors share that remainder). For 24h only — the plan
+  // hardcodes the 24h window for creator_payouts.
+  const creatorPayouts24hUc = sponsorSettled24hUc - platformCut24hUc;
+
   const ucToUsd = (uc: number): string => (uc / 1_000_000).toFixed(2);
 
   return c.json({
-    platform_cut_usd_24h: "0.00",
-    platform_cut_usd_30d: "0.00",
+    platform_cut_usd_24h: ucToUsd(platformCut24hUc),
+    platform_cut_usd_30d: ucToUsd(platformCut30dUc),
     sponsor_settled_usd_24h: ucToUsd(sponsorSettled24hUc),
     sponsor_recouped_usd_24h: ucToUsd(sponsorRecouped24hUc),
-    creator_payouts_usd_24h: "0.00",
+    creator_payouts_usd_24h: ucToUsd(Math.max(0, creatorPayouts24hUc)),
     flex_escrows_active: 0,
     flex_pending_settlements: 0,
     flex_holds_in_memory: 0,
     _partial: true,
-    _instrumented_fields: ["sponsor_settled_usd_24h", "sponsor_recouped_usd_24h"],
+    _instrumented_fields: [
+      "platform_cut_usd_24h",
+      "platform_cut_usd_30d",
+      "sponsor_settled_usd_24h",
+      "sponsor_recouped_usd_24h",
+      "creator_payouts_usd_24h",
+    ],
     _todo:
-      "platform_cut/creator_payouts pending settlement-ledger (v6.17); facilitator state pending hold-manager-snapshot integration",
+      "flex_escrows_active / flex_pending_settlements / flex_holds_in_memory pending facilitator hold-manager-snapshot integration",
   });
+});
+
+/**
+ * POST /v1/admin/aggregate-settlement?since=&until=&dry_run= — contract b21e7d7e.
+ *
+ * Walks unsettled `sponsor:ledger:*` rows in the optional time window, groups
+ * them via `aggregateUnsettled`, persists the resulting pending batch under
+ * `settlement:ledger:<id>` via `persistBatch`, and returns the batch shape.
+ * When `dry_run=1` the batch is still persisted (it is the source-of-truth for
+ * `POST /v1/admin/execute-settlement` to read from), but the caller can see
+ * exactly what would be settled before executing.
+ *
+ * Query params (all optional):
+ *   since=<unix_ms>      — inclusive lower bound on row settled_at
+ *   until=<unix_ms>      — exclusive upper bound on row settled_at
+ *   dry_run=1            — informational; the route still persists the batch
+ */
+adminRoutes.post("/admin/aggregate-settlement", async (c) => {
+  if (!isAdmin(c)) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const since = parsePositiveInt(c.req.query("since"));
+  const until = parsePositiveInt(c.req.query("until"));
+  const dryRun = c.req.query("dry_run") === "1" || c.req.query("dry_run") === "true";
+
+  const filter: { since?: number; until?: number } = {};
+  if (since !== undefined) filter.since = since;
+  if (until !== undefined) filter.until = until;
+
+  const batch = await aggregateUnsettled(c.env, filter);
+  await persistBatch(c.env, batch);
+  return c.json({ batch, dry_run: dryRun });
+});
+
+/**
+ * POST /v1/admin/execute-settlement — contract b21e7d7e.
+ *
+ * Body: `{ batch_id: string, dry_run?: boolean }`.
+ *
+ * Reads the batch from KV (must exist; pending status only — already-executed
+ * batches return the prior receipt unchanged), builds the FlexAuthorization,
+ * and on `dry_run` returns the auth shape + projected splits WITHOUT submitting
+ * any Solana RPC. On live, signs+submits via `sendSponsorFlexPayment` and
+ * stamps each source row with `batch_settled_tx` so it does not replay.
+ */
+adminRoutes.post("/admin/execute-settlement", async (c) => {
+  if (!isAdmin(c)) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  let body: { batch_id?: string; dry_run?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json_body" }, 400);
+  }
+  const batchId = body?.batch_id?.trim();
+  if (!batchId) {
+    return c.json({ error: "batch_id_required" }, 400);
+  }
+  const dryRun = body.dry_run === true;
+  try {
+    const result = await executeSettlement(c.env, batchId, { dry_run: dryRun });
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 404);
+  }
+});
+
+/**
+ * GET /v1/admin/settlement/:batch_id — contract b21e7d7e.
+ *
+ * Returns the persisted SettlementBatch row, or 404 when absent.
+ */
+adminRoutes.get("/admin/settlement/:batch_id", async (c) => {
+  if (!isAdmin(c)) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const batchId = c.req.param("batch_id")?.trim();
+  if (!batchId) {
+    return c.json({ error: "batch_id_required" }, 400);
+  }
+  const batch = await readBatch(c.env, batchId);
+  if (!batch) {
+    return c.json({ error: "batch_not_found", batch_id: batchId }, 404);
+  }
+  return c.json({ batch });
 });

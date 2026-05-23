@@ -12,6 +12,7 @@ const env: Env = {
     get: async () => null,
   } as unknown as KVNamespace,
   ENVIRONMENT: "staging",
+  REQUIRE_DOMAIN_VERIFICATION: "0",
   RELEASE_MANIFEST_SIGNING_SECRET: "release-secret",
 };
 
