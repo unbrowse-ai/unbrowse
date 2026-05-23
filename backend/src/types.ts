@@ -61,6 +61,17 @@ export interface Env {
    * again. See: services/keys.ts verifyLocalKey early-return.
    */
   ALL_KEYS_REVOKED?: string;
+  /**
+   * Anti-reverse-engineering exec-token gate (services/exec-token.ts,
+   * middleware/exec-token.ts). When "1" / "true", marketplace routes
+   * (/v1/search*, /v1/skills*) REJECT authenticated callers that do
+   * not present a valid X-Unbrowse-Session token. Default unset =
+   * observe mode (logs `[exec-token]` evidence, never blocks) so
+   * existing CLIs in the wild keep working until they ship the header.
+   * Flip to "1" only after observe-mode logs confirm real CLIs send
+   * valid tokens.
+   */
+  EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
   /**
@@ -162,6 +173,20 @@ export interface Env {
   STRIPE_PRICE_METERED?: string;
   /** Stripe Meter event name (default `unbrowse_execute`) for the metered tier. */
   STRIPE_METER_EVENT_NAME?: string;
+  /**
+   * Monthly-USDC subscription pricing (contract organ 1682152a stage B —
+   * ported from aiko-v2 so unbrowse is the single source of truth for
+   * payments). When set, POST /v1/billing/crypto-sub/{base,pro} mints a
+   * 30-day subscription paid in USDC over x402 instead of card-on-file.
+   *
+   * CRYPTO_BASE_USDC / CRYPTO_PRO_USDC override the default $19 / $59.
+   * CRYPTO_BASE_QUOTA / CRYPTO_PRO_QUOTA set the included call budget
+   * (defaults 200_000 / 1_000_000 — read-side decides the unit).
+   */
+  CRYPTO_BASE_USDC?: string;
+  CRYPTO_PRO_USDC?: string;
+  CRYPTO_BASE_QUOTA?: string;
+  CRYPTO_PRO_QUOTA?: string;
   /** Stripe price ID for the base subscription tier (monthly quota). */
   STRIPE_PRICE_BASE?: string;
   /** Stripe price ID for metered overage (per-unit) above the quota. */
