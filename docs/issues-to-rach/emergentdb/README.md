@@ -36,11 +36,12 @@ in chat.
 
 ## Index (2026-05-23 wave)
 
-| Local .md | GitHub issue | Severity |
+| Local .md | GitHub | Status |
 |---|---|---|
-| [`2026-05-23-bug011-qdkv-silent-drop-over-10kb.md`](2026-05-23-bug011-qdkv-silent-drop-over-10kb.md) | [justrach/emergentDB#4](https://github.com/justrach/emergentDB/issues/4) | P0 silent data loss above ~10 KB |
-| [`2026-05-23-graph-search-returns-no-metadata.md`](2026-05-23-graph-search-returns-no-metadata.md) | [justrach/emergentDB#5](https://github.com/justrach/emergentDB/issues/5) | P1 `/graph/search` strips `metadata` |
-| [`2026-05-23-qdkv-rate-limit-blocks-bulk-migration.md`](2026-05-23-qdkv-rate-limit-blocks-bulk-migration.md) | [justrach/emergentDB#7](https://github.com/justrach/emergentDB/issues/7) | P2 per-isolate rate limit |
+| [`2026-05-23-bug011-qdkv-silent-drop-over-10kb.md`](2026-05-23-bug011-qdkv-silent-drop-over-10kb.md) | [#4](https://github.com/justrach/emergentDB/issues/4) | **P1 OPEN** — real bug, lower priority for us after architecture clarification |
+| [`2026-05-23-graph-search-returns-no-metadata.md`](2026-05-23-graph-search-returns-no-metadata.md) | [#5](https://github.com/justrach/emergentDB/issues/5) | **closed** — by-design per OSS source; SDK docs cleanup ask |
+| [`2026-05-23-qdkv-rate-limit-blocks-bulk-migration.md`](2026-05-23-qdkv-rate-limit-blocks-bulk-migration.md) | [#7](https://github.com/justrach/emergentDB/issues/7) | **closed** — `/vectors/batch_insert` (1000/call) mitigates for our use |
+| [`2026-05-23-architecture-clarification-emergentdb-by-design.md`](2026-05-23-architecture-clarification-emergentdb-by-design.md) | (internal) | clarification — EmergentDB qdkv is NOT a general KV; lean unbrowse arch documented |
 
 All three reproduce against `https://api.emergentdb.com` as of
 2026-05-23T04:00Z with the unbrowse `EMERGENTDB_API_KEY` (`emdb__...`).
