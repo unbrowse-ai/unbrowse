@@ -18,6 +18,7 @@
 
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
+import { isFounderUser, FOUNDER_BALANCE_UC } from "./founder-allowlist.js";
 
 const USER_CREDITS_PREFIX = "user_credits:";
 
@@ -61,6 +62,21 @@ export async function getUserCreditBalance(
   env: Env,
   user_id: string,
 ): Promise<UserCreditBalance> {
+  // Founder allowlist bypass (contract 900714e4). Verified founder emails
+  // see a synthetic unlimited balance instead of the real KV ledger; their
+  // KV row is left untouched so revoking the bypass restores the real number.
+  if (await isFounderUser(env, user_id)) {
+    const now = new Date().toISOString();
+    return {
+      user_id,
+      granted_uc: FOUNDER_BALANCE_UC,
+      earned_uc: 0,
+      consumed_uc: 0,
+      balance_uc: FOUNDER_BALANCE_UC,
+      created_at: now,
+      updated_at: now,
+    };
+  }
   const existing = await readBalance(env, user_id);
   if (existing) return existing;
   const now = new Date().toISOString();
@@ -125,6 +141,25 @@ export async function debitUserCredits(
 ): Promise<{ ok: true; balance: UserCreditBalance } | { ok: false; balance: UserCreditBalance; reason: "insufficient" | "invalid_amount" }> {
   if (!Number.isFinite(amount_uc) || amount_uc <= 0) {
     return { ok: false, balance: await getUserCreditBalance(env, user_id), reason: "invalid_amount" };
+  }
+  // Founder allowlist bypass (contract 900714e4). Verified founder emails
+  // never deduct from the KV ledger; the debit short-circuits to ok with a
+  // synthetic unlimited balance so chat completions, paid-skill executes,
+  // and every other consumer of debitUserCredits inherit the bypass.
+  if (await isFounderUser(env, user_id)) {
+    const now = new Date().toISOString();
+    return {
+      ok: true,
+      balance: {
+        user_id,
+        granted_uc: FOUNDER_BALANCE_UC,
+        earned_uc: 0,
+        consumed_uc: 0,
+        balance_uc: FOUNDER_BALANCE_UC,
+        created_at: now,
+        updated_at: now,
+      },
+    };
   }
   const balance = await getUserCreditBalance(env, user_id);
   if (balance.balance_uc < amount_uc) {
