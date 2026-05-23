@@ -498,6 +498,62 @@ export interface DiscoveryCost {
   captured_at: string;
 }
 
+export interface OperationBinding {
+  key: string;
+  description?: string;
+  type?: string;
+  semantic_type?: string;
+  required?: boolean;
+  source?: string;
+  example_value?: string;
+  ttl_ms?: number;
+  single_use?: boolean;
+  observed_at?: string;
+}
+
+export interface SkillOperationNode {
+  operation_id: string;
+  endpoint_id: string;
+  method: string;
+  url_template: string;
+  trigger_url?: string;
+  action_kind: string;
+  resource_kind: string;
+  description_in?: string;
+  description_out?: string;
+  response_summary?: string;
+  requires: OperationBinding[];
+  provides: OperationBinding[];
+  negative_tags?: string[];
+  example_request?: unknown;
+  example_response_compact?: unknown;
+  example_fields?: string[];
+  confidence: number;
+  observed_at?: string;
+  auth_required?: boolean;
+  page_metadata?: {
+    localStorage?: Record<string, string>;
+    embedded_json?: Record<string, unknown>[];
+    captured_at?: string;
+  };
+}
+
+export interface SkillOperationEdge {
+  edge_id: string;
+  from_operation_id: string;
+  to_operation_id: string;
+  binding_key: string;
+  kind: "dependency" | "hint" | "parent_child" | "pagination" | "auth";
+  confidence: number;
+}
+
+export interface SkillOperationGraph {
+  generated_at: string;
+  entry_operation_ids: string[];
+  operations: SkillOperationNode[];
+  edges: SkillOperationEdge[];
+}
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -634,6 +690,12 @@ export interface SkillManifest {
    * graph index so resolve stays consistent.
    */
   visibility?: "public" | "private";
+  /**
+   * Operation graph for this skill — populated by `buildSkillOperationGraph`
+   * at capture time. Exposed verbatim at GET /v1/skills/:id/graph so callers
+   * can introspect requires/yields edges and parameter schemas without reading source.
+   */
+  operation_graph?: SkillOperationGraph;
 }
 
 /**

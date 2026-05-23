@@ -113,10 +113,10 @@ export default function DashboardPage() {
             <span>[ Sign in with email ]</span>
           </Link>
           <Link
-            href="/#get-started"
+            href="/install"
             className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
           >
-            <span>[ Get CLI key ]</span>
+            <span>[ Install the MCP ]</span>
           </Link>
         </div>
         <form onSubmit={openWallet} className="mt-10 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">

@@ -124,6 +124,116 @@ publicSkillRoutes.get("/skills/popular", async (c) => {
   schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
   return c.json(payload);
 });
+
+// GET /v1/skills/discover -- public intent directory for agents
+// Returns top 50 skills (by recency) with machine-readable intent summary,
+// required params, and yields so any agent can find capabilities without
+// knowing a skill_id. Optional ?intent=<text> filters by substring match.
+publicSkillRoutes.get("/skills/discover", async (c) => {
+  const intentFilter = (c.req.query("intent") ?? "").trim().toLowerCase();
+  const limitRaw = c.req.query("limit");
+  const limit = Math.min(
+    limitRaw ? Math.max(1, parseInt(limitRaw, 10) || 50) : 50,
+    200,
+  );
+
+  const cacheKey = `skills:discover:${intentFilter}:${limit}`;
+  const ttlSeconds = 300;
+
+  const edgeCached = await getEdgeCacheJson<{ skills: unknown[] }>(cacheKey);
+  if (edgeCached) {
+    c.header("Cache-Control", buildCacheControl(ttlSeconds));
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json(edgeCached);
+  }
+
+  const allSkills = await listSkills(c.env);
+
+  // Filter: public, visible, non-suppressed
+  const visible = allSkills.filter((skill) => {
+    if (skill.visibility === "private") return false;
+    const lifecycle = skill.lifecycle;
+    if (lifecycle === "deprecated" || lifecycle === "disabled") return false;
+    return true;
+  });
+
+  // Sort by most recently updated
+  visible.sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+
+  // Optional intent filter (substring match on description + intent_signature + intents)
+  const filtered = intentFilter
+    ? visible.filter((skill) => {
+        const haystack = [
+          skill.description ?? "",
+          skill.intent_signature ?? "",
+          ...(skill.intents ?? []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(intentFilter);
+      })
+    : visible;
+
+  // Build machine-readable directory rows
+  const rows = filtered.slice(0, limit).map((skill) => {
+    // Top 3 endpoints by reliability score descending
+    const topEndpoints = [...skill.endpoints]
+      .sort((a, b) => (b.reliability_score ?? 0) - (a.reliability_score ?? 0))
+      .slice(0, 3);
+
+    const top_operations = topEndpoints.map((ep) => {
+      // Access extended semantic fields not declared in EndpointDescriptor's type
+      const epAny = ep as unknown as Record<string, unknown>;
+      const semantic = (epAny["semantic"] ?? {}) as {
+        requires?: Array<{ key?: string }>;
+        provides?: Array<{ key?: string }>;
+      };
+
+      // Extract required_params: prefer semantic binding keys, fall back to URL template {params}
+      const semanticRequires: string[] = (semantic.requires ?? [])
+        .map((b) => b.key ?? "")
+        .filter(Boolean);
+      const urlParams: string[] = [
+        ...(ep.url_template ?? "").matchAll(/\{([^}]+)\}/g),
+      ].map((m) => m[1]);
+      const required_params =
+        semanticRequires.length > 0 ? semanticRequires : urlParams;
+
+      const yields: string[] = (semantic.provides ?? [])
+        .map((b) => b.key ?? "")
+        .filter(Boolean);
+
+      return {
+        description: (ep.description ?? "").slice(0, 160) || undefined,
+        method: ep.method,
+        required_params,
+        yields,
+      };
+    });
+
+    // intent_summary: best description from top endpoint, or skill description
+    const bestDesc =
+      top_operations.find((op) => op.description)?.description ??
+      (skill.description ?? "").slice(0, 120);
+
+    return {
+      skill_id: skill.skill_id,
+      domain: skill.domain,
+      intent_summary: bestDesc.slice(0, 120),
+      top_operations,
+      endpoint_count: skill.endpoints.length,
+    };
+  });
+
+  const payload = { skills: rows };
+  c.header("Cache-Control", buildCacheControl(ttlSeconds));
+  c.header("Access-Control-Allow-Origin", "*");
+  schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
+  return c.json(payload);
+});
+
 // GET /v1/skills/:id -- get by ID (x402-gated for paid skills)
 publicSkillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
@@ -372,6 +482,18 @@ publicSkillRoutes.get("/skills/:id/price", async (c) => {
   );
   const price = computeRoutePrice(skill, statsArr);
   return c.json(price);
+});
+// GET /v1/skills/:id/graph -- return the SkillOperationGraph for DAG introspection.
+// Public (no auth) — the graph contains only structural schema, no private data.
+// 404 if skill not found; 200 with operation_graph: null if skill exists but has no graph yet.
+publicSkillRoutes.get("/skills/:id/graph", async (c) => {
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  return c.json({
+    skill_id: skill.skill_id,
+    domain: skill.domain,
+    operation_graph: skill.operation_graph ?? null,
+  });
 });
 // Protected write routes -- auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();

@@ -379,6 +379,11 @@ export interface SkillOperationNode {
   confidence: number;
   observed_at?: string;
   auth_required?: boolean;
+  page_metadata?: {
+    localStorage?: Record<string, string>;
+    embedded_json?: Record<string, unknown>[];
+    captured_at?: string;
+  };
 }
 
 export interface SkillOperationEdge {

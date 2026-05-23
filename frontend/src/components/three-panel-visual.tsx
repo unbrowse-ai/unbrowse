@@ -162,7 +162,7 @@ export function ThreePanelVisual() {
   ];
 
     return (
-      <section ref={sectionRef} className="relative min-h-screen flex flex-col justify-center overflow-hidden py-8">
+      <section ref={sectionRef} className="relative min-h-[100dvh] flex flex-col justify-center overflow-hidden py-8">
         <div className="relative max-w-[90rem] mx-auto px-4 sm:px-6">
             <div className="text-center mb-12 sm:mb-16 relative">
               <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4">

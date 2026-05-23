@@ -66,7 +66,7 @@ export async function GET() {
               letterSpacing: "-0.02em",
             }}
           >
-            Reverse-engineer any website into API skills for AI agents.
+            Direct access to anything on the web. Without setting up another MCP.
           </div>
         </div>
         <div
@@ -79,9 +79,9 @@ export async function GET() {
             fontWeight: 600,
           }}
         >
-          <span>100x faster</span>
+          <span>1 MCP, any site</span>
           <span style={{ color: "#30363d" }}>·</span>
-          <span>40x fewer tokens</span>
+          <span>3.6x mean vs Playwright</span>
         </div>
       </div>
     ),

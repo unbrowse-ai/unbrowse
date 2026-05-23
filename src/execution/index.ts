@@ -17,7 +17,7 @@ import { detectSchemaDrift } from "../transform/drift.js";
 import { classifyDrift, detectGraphqlErrorEnvelope } from "../transform/drift-classifier.js";
 import { buildDriftRecaptureSignal } from "./drift-recapture-signal.js";
 import { tryRecoverFromSchemaDrift, recoveredDataMatchesOriginalShape } from "./drift-page-recovery.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, evictCachedEndpoint, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema, getApiKey } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-strikes.js";
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
@@ -146,6 +146,7 @@ async function tryLiveSessionFallback(
   headers: Record<string, string>,
   body: unknown,
   decisionTrace: Array<Record<string, unknown>>,
+  page_metadata?: { localStorage?: Record<string, string> },
 ): Promise<{ status: number; data: unknown } | null> {
   let sessions: ReturnType<typeof readActiveSessions>;
   try {
@@ -184,6 +185,11 @@ async function tryLiveSessionFallback(
     target_url: url,
   });
   try {
+    // Restore stored anti-bot localStorage tokens to the live tab before in-page fetch
+    if (page_metadata?.localStorage && Object.keys(page_metadata.localStorage).length > 0) {
+      const tokens = JSON.stringify(page_metadata.localStorage);
+      await kuri.evaluate(match.tabId, `(function(){var t=JSON.parse(${JSON.stringify(tokens)});Object.keys(t).forEach(function(k){try{localStorage.setItem(k,t[k]);}catch{}});})();`).catch(() => {});
+    }
     const tabResult = await kuri.executeInPageFetch(match.tabId, url, method, headers, body);
     if (tabResult.status === 0) {
       decisionTrace.push({
@@ -529,6 +535,13 @@ export interface ExecutionResult {
    *  trigger_intercept / browser / return_error. Mirrored on trace.decision_trace
    *  for backward compat with 7.1 tests; will become the single source in Phase 8. */
   decision_trace?: Array<Record<string, unknown>>;
+  /** Structural intent-verification verdict — machine check (KEY 1).
+   *  "pass"    — status < 300, response body > 100 bytes, no challenge indicators.
+   *  "fail"    — status >= 400, empty body, or challenge/captcha indicators detected.
+   *  "unknown" — status 3xx, or could not determine from structural signals alone.
+   *  This field surfaces fake-greens (HTTP 200 with wrong/empty data) without
+   *  blocking the response or changing any other field. */
+  intent_verdict?: "pass" | "fail" | "unknown";
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -2669,6 +2682,70 @@ export async function executeEndpoint(
     return { trace, result: resultData };
   }
 
+  // Marketplace backend routing — x402 gate runs server-side for marketplace skills.
+  // Local executeEndpoint is the fallback for self-hosted/local skills only.
+  // Conditions: non-local skill_id + http execution type + marketplace/user owner.
+  // Falls through silently on network error, 5xx, or missing UNBROWSE_API_URL.
+  const isMarketplaceSkill =
+    !skill.skill_id.startsWith("local:") &&
+    skill.execution_type === "http" &&
+    skill.owner_type !== "agent";
+  if (isMarketplaceSkill) {
+    const backendBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+    const apiKey = getApiKey();
+    try {
+      const backendRes = await fetch(`${backendBase}/v1/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          intent: options?.intent,
+          params,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (backendRes.ok) {
+        const backendData = await backendRes.json() as Record<string, unknown>;
+        // Backend returned a usable result — surface it directly.
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+          result: backendData,
+        });
+        return { trace, result: backendData };
+      }
+      // 4xx from backend (payment_required, auth_required, etc.) — surface as-is.
+      if (backendRes.status >= 400 && backendRes.status < 500) {
+        let errBody: unknown;
+        try { errBody = await backendRes.json(); } catch { errBody = { error: `backend_${backendRes.status}` }; }
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: backendRes.status,
+          error: `backend_${backendRes.status}`,
+          result: errBody,
+        });
+        return { trace, result: errBody as ExecutionResult["result"] };
+      }
+      // 5xx — fall through to local execution.
+    } catch {
+      // Network error or timeout — fall through to local execution.
+    }
+  }
+
+
   const workflowArtifact = readWorkflowArtifact(skill.skill_id);
   const workflowRecipe = pickWorkflowRecipe(workflowArtifact, endpoint.endpoint_id);
   const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
@@ -3649,6 +3726,7 @@ export async function executeEndpoint(
           return `${c.name}=${v}`;
         }).join("; ");
       }
+      const operationNode = skill.operation_graph?.operations?.find(op => op.endpoint_id === endpoint.endpoint_id);
       const liveResult = await tryLiveSessionFallback(
         epDomain,
         url,
@@ -3656,6 +3734,7 @@ export async function executeEndpoint(
         liveFetchHeaders,
         body,
         decisionTrace,
+        operationNode?.page_metadata,
       );
       if (liveResult && liveResult.status >= 200 && liveResult.status < 300) {
         status = liveResult.status;
@@ -4416,6 +4495,47 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
+  // Per-execute telemetry ledger: fire-and-forget row to backend for semantic resolution improvement.
+  // Captures intent, skill_id, endpoint_id, outcome, status_code, latency_ms, proxy_used, block_signals.
+  // Never throws, never blocks the return. Same UNBROWSE_API_URL as recordExecution above.
+  (async () => {
+    try {
+      const __telemBase = process.env.UNBROWSE_API_URL ?? "https://beta-api.unbrowse.ai";
+      const __telemLatency = startedAt ? Date.now() - new Date(startedAt).getTime() : undefined;
+      const __telemOutcome = trace.success ? "success" : (trace.error ?? "failure");
+      const __telemProxyUsed = decisionTrace.some((s) =>
+        typeof (s as Record<string, unknown>).step === "string" &&
+        ((s as Record<string, unknown>).step as string).includes("proxy_fallback_success"),
+      );
+      const __telemBlockSignals: string[] = decisionTrace
+        .filter((s) =>
+          typeof (s as Record<string, unknown>).step === "string" &&
+          (
+            ((s as Record<string, unknown>).step as string).includes("vendor_block") ||
+            ((s as Record<string, unknown>).step as string).includes("_blocked")
+          ),
+        )
+        .map((s) => {
+          const vendor = (s as Record<string, unknown>).vendor;
+          return typeof vendor === "string" ? vendor : String((s as Record<string, unknown>).step);
+        });
+      await fetch(`${__telemBase}/v1/telemetry/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent: options?.intent ?? skill.intent_signature ?? undefined,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          outcome: __telemOutcome,
+          status_code: status,
+          latency_ms: __telemLatency,
+          proxy_used: __telemProxyUsed,
+          block_signals: __telemBlockSignals,
+        }),
+      });
+    } catch { /* best-effort — never surface to caller */ }
+  })();
+
   // Record transaction if this was a paid execution (fire-and-forget)
   if (trace.success && options?.payment_verified === true && skill.base_price_usd && skill.base_price_usd > 0) {
     const consumerConfig = (() => {
@@ -4469,8 +4589,32 @@ export async function executeEndpoint(
     (trace as ExecutionTrace & { workflow_selected_bindings?: unknown; workflow_strategy?: string }).workflow_strategy = workflowChosenStrategy;
   }
 
+  // Structural intent-verification — machine check (KEY 1).
+  // Surfaces fake-greens (HTTP 200 with wrong/empty data) without blocking the response.
+  // No LLM call — purely structural signals on status + body size + challenge markers.
+  const intentVerdict = ((): "pass" | "fail" | "unknown" => {
+    // Empty or error body is always fail
+    const bodyStr = typeof resultData === "string"
+      ? resultData
+      : (resultData != null ? JSON.stringify(resultData) : "");
+    const bodyBytes = Buffer.byteLength(bodyStr, "utf8");
+    // Challenge/captcha indicators in the body text
+    const challengePattern = /\b(cf-chl|turnstile|challenge|robot|captcha|are you human|verify you are|blocked|access denied)\b/i;
+    const hasChallenge = challengePattern.test(bodyStr.slice(0, 4096));
+    if (status >= 400 || bodyBytes === 0 || (typeof resultData === "object" && resultData !== null && !Array.isArray(resultData) && Object.keys(resultData as object).length === 0)) {
+      return "fail";
+    }
+    if (hasChallenge && bodyBytes < 8192) {
+      return "fail";
+    }
+    if (status >= 200 && status < 300 && bodyBytes > 100 && !hasChallenge) {
+      return "pass";
+    }
+    return "unknown";
+  })();
+
   return {
-    trace, result: resultData, decision_trace: decisionTrace,
+    trace, result: resultData, decision_trace: decisionTrace, intent_verdict: intentVerdict,
   };
 }
 
