@@ -29,7 +29,11 @@ run_tests() {
     return 0
   fi
   echo "[pre-commit] bun test $*"
-  bun test "$@"
+  # Integration tests like cli-input-payload spawn `bun src/cli.ts` which
+  # cold-starts in 5-7s under load on slower machines. Default bun-test
+  # timeout is 5s, which surfaces as flake without a real regression.
+  # 30s covers cold-start with margin; CI runs unaffected.
+  bun test --timeout 30000 "$@"
 }
 
 echo "[pre-commit] staged files: ${#staged_files[@]}"
