@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Prod wrangler.toml carries STATS_KV explicitly (2026-05-23)
+
+**fix(deploy)**: top-level `backend/wrangler.toml` did not declare the
+production STATS_KV KV namespace. Prod-side deploys worked only when
+invoked through `backend/wrangler.ci.toml` (which carries
+`[[unsafe.bindings]] name=STATS_KV type=inherit`). A manual
+`wrangler deploy --env=""` from `wrangler.toml` silently stripped the
+binding — once stripped, the `inherit` mechanism in `wrangler.ci.toml`
+failed with `code 10057` ("previous version does not have binding named
+'STATS_KV'"), and every call to `env.STATS_KV.put(...)` in
+`indexEndpoints` crashed with `Cannot read properties of undefined
+(reading 'put')`. Reindex went 0/26 on prod under that state. Fix:
+explicit `[[kv_namespaces]]` block at top level (id
+`1d315d7cda1742b785cf5d23c892c5d7`, from
+`wrangler kv namespace list -> unbrowse-backend-STATS_KV`). Both
+`wrangler.toml` and `wrangler.ci.toml` paths now produce equivalent
+prod workers. Verified post-deploy: reindex 24/26 succeed.
+
 ### Domain verification ON by default + publish-time LLM PII scrubber (2026-05-23)
 ### EmergentDB prod-readiness (contract 311771e1)
 
