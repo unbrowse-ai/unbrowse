@@ -4514,9 +4514,42 @@ function buildProducerIndex(skill: SkillManifest): Map<string, string> {
       if (typeof binding.key === "string" && binding.key.length > 0) {
         index.set(binding.key, ep.endpoint_id);
       }
+      // Pointer-gated indexing — organ b9c8a64d stage 3. When a binding
+      // declares a ContractRef (a cell contract id whose satisfaction
+      // produces this value), we ALSO index that ref → producer
+      // endpoint. Uuid-shaped ids effectively never collide with
+      // snake_case binding keys; in the rare malformed case both shapes
+      // share the same map and last-wins (same convention as multi-
+      // provider-same-key today). Stage 1 (d00ac17d) introduced the
+      // optional field; this is the first consumer.
+      if (typeof binding.contract_ref === "string" && binding.contract_ref.length > 0) {
+        index.set(binding.contract_ref, ep.endpoint_id);
+      }
     }
   }
   return index;
+}
+
+/** Resolve a binding to its producer endpoint id. Prefers a ContractRef
+ *  pointer (binding.contract_ref) over the binding.key match — the
+ *  pointer is a stronger claim ("this exact cell produces this value")
+ *  than the key match (which can collide across producers). Returns
+ *  undefined when neither resolves. Pure function; no I/O. Stage 3 of
+ *  organ b9c8a64d (unbrowse runtime ↔ /contract substrate isomorphism). */
+export function resolveBindingProducer(
+  binding: OperationBinding,
+  producerIndex: Map<string, string>,
+): string | undefined {
+  // KEY 1 (pointer): contract_ref names the producer cell directly.
+  if (typeof binding.contract_ref === "string" && binding.contract_ref.length > 0) {
+    const byRef = producerIndex.get(binding.contract_ref);
+    if (byRef) return byRef;
+  }
+  // KEY 2 (legacy): fall back to free-form key match.
+  if (typeof binding.key === "string" && binding.key.length > 0) {
+    return producerIndex.get(binding.key);
+  }
+  return undefined;
 }
 
 /** Conservative extraction of a binding value from a leaf ExecutionResult.

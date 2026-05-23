@@ -103,6 +103,16 @@ export interface PopularSkillSummary {
   last_execution_at?: string;
 }
 
+/**
+ * Pointer to another contract's id in the /contract substrate. A
+ * ContractRef is the string id of a cell contract whose satisfaction
+ * is the precondition for this field's truth claim. See
+ * ~/.claude/skills/contract/SKILL.md — "pointer principle". Wave-1
+ * carrier of the runtime↔substrate isomorphism (organ b9c8a64d stage 1).
+ * Tri-file synced with `src/types/skill.ts` and `backend/src/types.ts`.
+ */
+export type ContractRef = string;
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: string;

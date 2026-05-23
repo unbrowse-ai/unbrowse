@@ -4060,6 +4060,101 @@ async function cmdConnectChrome(): Promise<void> {
   }
   console.error("Could not connect to Chrome. Make sure all Chrome windows are closed and try again.");
 }
+
+/**
+ * `unbrowse contract <subcommand>` — thin client over the cloud
+ * /v1/contract/* harness at beta-api.unbrowse.ai (organ ddff0c96 + a499b1f3).
+ *
+ * Subcommands:
+ *   tools                                       — list cloud routes + local capabilities
+ *   declare --plan TEXT --action TEXT [--parent ID]  — POST /v1/contract/declare
+ *   status ID                                   — GET  /v1/contract/status?id=ID
+ *   plan-for-intent --intent TEXT [--limit N]   — POST /v1/contract/plan-for-intent
+ *
+ * Holds NO decision logic — just HTTP I/O against the production cloud
+ * surface, demonstrating the pointers-over-payload local/cloud split.
+ * The cloud holds the DAG, the ledger, the ranking; this local CLI
+ * holds the capability surface + dumb wire transport. Per CLAUDE.md
+ * "Pointers over anything — the architectural law".
+ */
+async function cmdContract(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  // parseArgs strips the command name, so args[0] is the subcommand.
+  const sub = args[0];
+  const baseUrl = (
+    (typeof flags["url"] === "string" ? flags["url"] : undefined) ??
+    process.env.UNBROWSE_API_URL ??
+    "https://beta-api.unbrowse.ai"
+  ).replace(/\/+$/, "");
+
+  async function call(path: string, opts: { method?: "GET" | "POST"; body?: unknown; query?: Record<string, string> } = {}) {
+    const url = new URL(`${baseUrl}${path}`);
+    if (opts.query) {
+      for (const [k, v] of Object.entries(opts.query)) url.searchParams.set(k, v);
+    }
+    const res = await fetch(url.toString(), {
+      method: opts.method ?? "GET",
+      headers: { "content-type": "application/json" },
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`HTTP ${res.status}: ${text}`);
+      process.exit(1);
+    }
+    return JSON.parse(text);
+  }
+
+  switch (sub) {
+    case undefined:
+    case "tools":
+    case "help": {
+      const out = await call("/v1/contract/tools");
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
+    case "declare": {
+      const plan = typeof flags["plan"] === "string" ? flags["plan"] : undefined;
+      const action = typeof flags["action"] === "string" ? flags["action"] : undefined;
+      if (!plan || !action) {
+        console.error("usage: unbrowse contract declare --plan TEXT --action TEXT [--parent ID]");
+        process.exit(2);
+      }
+      const body: Record<string, unknown> = { plan, action };
+      if (typeof flags["parent"] === "string") body.parent_id = flags["parent"];
+      const out = await call("/v1/contract/declare", { method: "POST", body });
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
+    case "status": {
+      const id = args[1];
+      if (!id) {
+        console.error("usage: unbrowse contract status ID");
+        process.exit(2);
+      }
+      const out = await call("/v1/contract/status", { query: { id } });
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
+    case "plan-for-intent":
+    case "plan": {
+      const intent = typeof flags["intent"] === "string" ? flags["intent"] : args[1];
+      if (!intent) {
+        console.error("usage: unbrowse contract plan-for-intent --intent TEXT [--limit N]");
+        process.exit(2);
+      }
+      const body: Record<string, unknown> = { intent };
+      if (typeof flags["limit"] === "string") body.limit = Number(flags["limit"]);
+      const out = await call("/v1/contract/plan-for-intent", { method: "POST", body });
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
+    default:
+      console.error(`unknown subcommand: ${sub}`);
+      console.error("usage: unbrowse contract <tools|declare|status|plan-for-intent>");
+      process.exit(2);
+  }
+}
+
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
@@ -4307,6 +4402,12 @@ async function main(): Promise<void> {
     case "note": return cmdNote(flags, args);
     case "sandbox-replay": return cmdSandboxReplay(args, flags);
     case "fetch": return cmdFetch(args, flags);
+    // contract — thin-client over the cloud /v1/contract/* harness.
+    // Demonstrates the pointers-over-payload local/cloud split: this
+    // command holds NO decision logic, just dumb HTTP I/O to the
+    // production /v1/contract/* surface at beta-api.unbrowse.ai.
+    // Subcommands: tools | declare | iterate | status | plan-for-intent.
+    case "contract": return cmdContract(args, flags);
     // auth-capture — open a Kuri tab so the user can sign in to a site;
     // cookies are persisted automatically and used by future fetch/resolve.
     // Old name `login` was misleading (sounded like Unbrowse account login).

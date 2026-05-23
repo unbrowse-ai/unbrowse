@@ -1,5 +1,50 @@
 # CLAUDE.md
 
+## Operating rules — pointer index into the contract ledger
+
+Behavioral rules do not live here as prose. Each line below is a
+pointer; resolve it with `bash ~/.claude/skills/contract/scripts/contract
+status <id>`. Adding a rule means declaring a contract, not appending
+prose. The reference sections below (Architecture, Structure, Known
+Issues, Releases, GitHub, bench-local rubric, ranker philosophy) carry
+facts about the codebase, NOT rules — facts stay as prose because they
+describe what exists; rules go to the substrate because they govern
+what must hold. Governing meta-law: global `contract 9c162224`.
+
+Pre-migration snapshot: `CLAUDE.md.pre-contract-migration.bak`.
+
+### Architectural laws (load-bearing)
+
+- Pointers over anything (capture completeness + stateless trace + DAG recompute): `contract 50d0419e` (clauses A `contract 6bae27e0`, B `contract fe9fcd49`, C `contract 6eb9a088`)
+- Local/cloud split — local holds only capability pointers; cloud holds compute + ledger + moat: `contract 1db6f5e3` (refines pointers-over-payload law)
+- Unbrowse server runtime is /contract-organism (every endpoint is a cell, every skill is a sequence/funnel): `contract b9c8a64d`
+- Thin client over remote /contract harness — MCP and CLI converge as dynamic transports: `contract ddff0c96`
+- Pointer-not-payload client architecture (global default #3): `contract 3c2dd353`
+
+### Substrate discipline
+
+- Plan-fulfillment proof — every `_mark satisfied` carries `--proof` or `--proof-skip`: `contract 173c8819`
+- Sequence walker advances past merged children (fossils count as resolved): `contract c9e9a127`
+- Schema vocabulary isomorphism — ContractRef in all 3 mirror files: `contract d00ac17d`
+
+### Ship discipline
+
+- Staging-then-prod with signed release manifest (no direct-to-prod deploys): global principle `20260521T194246Z-7ad798e3`
+- No stubs / no dummy data at shipping-surface layers: global principle `20260521T193905Z-61e01c0e`
+- Served-surface gate (standing): global `contract 27125bd7`
+- Empathy gate (standing): global `contract 4a055cf7`
+- Observe-original gate (rewrite-before): global `contract f669f09c`
+
+### Bench / verification
+
+- Harness collects, agent judges (C-G01): global `contract 5b9574ee`
+- No-regression commit gate (C-G02): global `contract e8179ca0`
+- Bench corpus realistic URLs / cookie freshness / antibot honesty: see "bench-local" reference section below (project-internal — bind contracts as needed)
+
+Discovery: `bash ~/.claude/skills/contract/scripts/contract list --scope project` enumerates every active contract in this project's ledger. `contract search --context "<concern>"` ranks them by relevance.
+
+---
+
 ## Project
 
 Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (shadow APIs) from real browsing traffic and progressively replaces browser calls with cached API routes. Monorepo with bun workspaces.
@@ -39,6 +84,43 @@ Every code change is judged against the calling agent's experience. The four inv
 - **Browse session handoff**: on resolve miss, if first-pass has a tab, Unbrowse opens a browser session with auth/interceptor and returns `{ status: "browse_session_open", next_step: "unbrowse snap" }`. The calling agent drives the browser; Unbrowse indexes passively.
 - **Skill path retired in v6.15.0** — SDK is the integration surface, MCP is the agent protocol, `unbrowse setup` bootstraps both. No more `SKILL.md` or `unbrowse-ai/unbrowse` skill-repo sync.
 - **x402 sponsor tier (v6.15.0)** — `backend/src/middleware/sponsor.ts` gates every paid execute through a per-agent + per-platform daily USD cap. Lewis's wallet sponsors first $1/day/agent and $50/day/platform; agents fall through to their own x402 wallet once caps trip. State lives in KV: `sponsor:agent:<id>:<UTC-date>`, `sponsor:global:<UTC-date>`, `sponsor:ledger:<id>`. Exposed via `GET /v1/account/sponsor-status` and admin ledger at `GET /v1/admin/sponsor-ledger` (ADMIN_KEY-gated).
+
+## Pointers over anything — the architectural law
+
+Codifies contract `50d0419e` (universal pointers-over-payload law) into a
+project-binding rule. Three clauses, all backed by real code in this repo:
+
+**Clause A — dependency-capture completeness.** Every binding a browser
+requires down to the runtime — cookies, auth headers/tokens, CSRF,
+runtime config, SSR/JS-heap bindings, the full request closure — is
+traversed during capture and the common bindings across all captures
+are identified. Substrate: `src/capture/index.ts` (2487 LOC; HAR + JS
+interceptor + WS messages + first-party cookies + headers + perf entries),
+`src/reverse-engineer/token-sources.ts` (379 LOC; traces tokens to
+HTML-meta / inline-script / JS-bundle sources), `src/graph/index.ts`
+(`inferRequires` at L469 + `inferProvidesFromFields` at L488).
+
+**Clause B — stateless trace.** The append-only trace log is the sole
+source of truth; recomputing any value needs no in-memory session state.
+Substrate: `src/graph/trace-store.ts` (`storeExecutionTrace`,
+`readTraces`, `getRecentTraces`, `findTracesByIntent` — append-only
+StoredTrace rows on disk) + the `contract` substrate's own
+`~/.contracts/contracts.jsonl` ledger which is structurally identical.
+
+**Clause C — DAG recompute.** A DAG surfaced from the stateless trace
+recomputes any value from pointer data, reproducibly, from any session.
+Substrate: `src/graph/index.ts:1226` `buildSkillOperationGraph` +
+`buildOperationNode` + `classifyEdgeKind` + `computeReachableEndpoints`
+(line 928+) — the graph IS a pure function of the captured endpoints.
+
+**Standing implication for every future change:** if a feature
+introduces a value the runtime depends on, that value MUST be reachable
+via an opaque pointer (URL, contract:id, ledger row id, capability
+name) — never inlined as a payload field that lives only in process
+memory. **Pointers over anything.** This applies fractally: client-vs-
+server (CLAUDE.md default #3 / contract `3c2dd353`), contract:<id>
+references in the substrate (`/contract` pointer principle), and the
+local/cloud thin-client split (organ `b9c8a64d` → `ddff0c96`).
 
 ## Known Issues to Fix
 

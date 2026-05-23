@@ -4,6 +4,17 @@ export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
 export type GraphVisibility = "shadow" | "public";
 
+/**
+ * Pointer to another contract's id in the /contract substrate.
+ * A ContractRef is the string id of a cell contract whose satisfaction
+ * is the precondition for this field's truth claim. See
+ * ~/.claude/skills/contract/SKILL.md — "pointer principle". Wave-1
+ * carrier of the runtime↔substrate isomorphism (organ b9c8a64d stage 1).
+ * Today a bare string alias; future stages may refine to a richer
+ * { id, kind, required } record without breaking the wire format.
+ */
+export type ContractRef = string;
+
 export interface SkillSubmissionProvenance {
   submitted_at: string;
   submitter_agent_id?: string;
@@ -92,6 +103,14 @@ export interface OperationBinding {
   required?: boolean;
   source?: string;
   example_value?: string;
+  /**
+   * Optional pointer to a producer cell contract whose satisfaction
+   * proves this binding's value is available. When present, the DAG
+   * walker resolves dependency by querying the substrate ledger rather
+   * than inferring from heuristic key-match. Stage 1 (organ b9c8a64d)
+   * lands the field as optional; stage 3 wires the walker to consume it.
+   */
+  contract_ref?: ContractRef;
   // NEW freshness metadata, all optional for backward compat.
   // See .claude/jesus-loop.default.architecture.md and
   // ~/.claude/projects/-Users-lekt9-Projects-unbrowse-ecosystem-unbrowse/memory/project_dag_recompute_north_star.md
