@@ -154,7 +154,7 @@ async function HeroStats() {
   }
   // If the marketplace stats endpoint is unreachable, render nothing rather
   // than paint a hardcoded 600/1M/18K placeholder that looks live. The
-  // landing page must never show fake counters (contract c89fca3b).
+  // landing page must never show fake counters.
   if (!summary) return null;
 
   const fmt = (n: number) => {

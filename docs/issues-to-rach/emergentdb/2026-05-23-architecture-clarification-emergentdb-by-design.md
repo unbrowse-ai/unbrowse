@@ -3,9 +3,7 @@
 **Severity:** N/A (clarification, not a bug)
 **Source:** unbrowse OSS-source audit 2026-05-23 — `oss/emergentDB/crates/api-server/src/handlers.rs` + `oss/emergent-sdk/typescript/src/index.ts`
 **Source contract:** unbrowse `37b21004` (lean architecture)
-**Reporter:** Lewis via /contract
-
-## What we got wrong (unbrowse side)
+**Reporter:** Lewis (unbrowse-team)## What we got wrong (unbrowse side)
 
 We had been treating EmergentDB's `/qdkv/set` as a general-purpose KV — pushing 615 skill manifests (some >10 KB) into it as a backup-store for Cloudflare KV. That collides with three EmergentDB realities we discovered by reading the OSS source:
 

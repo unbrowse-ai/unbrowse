@@ -15,7 +15,7 @@ defensively normalize missing/null metadata to `{}` before access. (2)
 when BM25 has hits. BM25 docs in `STATS_KV bm25-idx:<domain>` carry the
 metadata we wrote at index time, so identity survives the metadata-less
 graph response. Regression test:
-`backend/tests/search-metadata-less-graceful.test.ts`. Contract 8b2f65ea.
+`backend/tests/search-metadata-less-graceful.test.ts`.
 
 
 ### Prod wrangler.toml carries STATS_KV explicitly (2026-05-23)
@@ -37,14 +37,13 @@ explicit `[[kv_namespaces]]` block at top level (id
 prod workers. Verified post-deploy: reindex 24/26 succeed.
 
 ### Domain verification ON by default + publish-time LLM PII scrubber (2026-05-23)
-### EmergentDB prod-readiness (contract 311771e1)
+### EmergentDB prod-readiness
 
-- **EmergentDB prod-readiness**: silent indexing failures now log + flag `needs_reindex:<id>` (BUG-007); `EdbKV.put` rejects oversize values pre-write (BUG-011); new admin route `POST /v1/ops/reindex` walks all skills and rebuilds the global vector namespace with `?dry_run=1` preview (BUG-003 fix); `migrate-kv.mjs` now writes to the canonical `unbrowse--global` namespace. Contract 311771e1.
+- **EmergentDB prod-readiness**: silent indexing failures now log + flag `needs_reindex:<id>` (BUG-007); `EdbKV.put` rejects oversize values pre-write (BUG-011); new admin route `POST /v1/ops/reindex` walks all skills and rebuilds the global vector namespace with `?dry_run=1` preview (BUG-003 fix); `migrate-kv.mjs` now writes to the canonical `unbrowse--global` namespace.
 
 ### Server-side deterministic extraction: `POST /v1/extract/refine` (Wave 2)
 
-Two security/UX fixes for the May 20 Granola release ask, contracts
-`73026078` and `101b1f77`.
+Two security/UX fixes for the May 20 Granola release ask.
 
 - **BREAKING — `REQUIRE_DOMAIN_VERIFICATION` now defaults ON.** Non-admin
   publishes against a domain without a verified DNS-TXT `_unbrowse-claim`
@@ -66,10 +65,10 @@ Two security/UX fixes for the May 20 Granola release ask, contracts
 
 ### Web2 subscription (Stripe) now hides x402 (2026-05-23)
 
-**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
-### Marketplace settlement live end-to-end (2026-05-23, contract b21e7d7e)
+**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes.
+### Marketplace settlement live end-to-end (2026-05-23,
 
-**feat**: marketplace settlement live end-to-end — `POST /v1/admin/aggregate-settlement`, `POST /v1/admin/execute-settlement`, `GET /v1/admin/settlement/:id`. `GET /v1/analytics/payments` now returns real `platform_cut_usd_24h`, `platform_cut_usd_30d`, and `creator_payouts_usd_24h` from the settlement ledger (default 50% platform bps per `docs/HOW_UNBROWSE_PAYS.md`, overridable per-row via `effective_platform_bps`). Domain opt-out (DomainTakedownRecord at `domain-optout:<domain>`) verified to zero out the owner lane in aggregation: contributors + platform absorb the freed bps. The two settlement-mutating routes are gated by the same `ADMIN_KEY` bearer pattern as the existing admin surface. `_partial:true` on the analytics endpoint now reflects only the facilitator-snapshot gap (`flex_escrows_active`, `flex_pending_settlements`, `flex_holds_in_memory`). Tests: aggregate-settlement.test.ts, settlement-domain-optout.test.ts, settlement-execute-dryrun.test.ts, settlement-analytics.test.ts (21 new assertions; 41 across the settlement + adjacent suites; no regression in admin-sponsor-ledger or analytics-payments). Contract b21e7d7e.
+**feat**: marketplace settlement live end-to-end — `POST /v1/admin/aggregate-settlement`, `POST /v1/admin/execute-settlement`, `GET /v1/admin/settlement/:id`. `GET /v1/analytics/payments` now returns real `platform_cut_usd_24h`, `platform_cut_usd_30d`, and `creator_payouts_usd_24h` from the settlement ledger (default 50% platform bps per `docs/HOW_UNBROWSE_PAYS.md`, overridable per-row via `effective_platform_bps`). Domain opt-out (DomainTakedownRecord at `domain-optout:<domain>`) verified to zero out the owner lane in aggregation: contributors + platform absorb the freed bps. The two settlement-mutating routes are gated by the same `ADMIN_KEY` bearer pattern as the existing admin surface. `_partial:true` on the analytics endpoint now reflects only the facilitator-snapshot gap (`flex_escrows_active`, `flex_pending_settlements`, `flex_holds_in_memory`). Tests: aggregate-settlement.test.ts, settlement-domain-optout.test.ts, settlement-execute-dryrun.test.ts, settlement-analytics.test.ts (21 new assertions; 41 across the settlement + adjacent suites; no regression in admin-sponsor-ledger or analytics-payments).
 
 ### CLI no longer hangs after a resolve (2026-05-23)
 
@@ -106,23 +105,23 @@ PASS coverage rose 58% → 81%; browser-blocked probes 9 → 4; product failures
   route threw and aborted the whole resolve. Validation is a publish-quality
   enhancement, not a resolve gate — it now degrades gracefully.
 
-### CLI `--json` is now pure JSON on stdout — usable as a /contract `--action` (2026-05-23)
+### CLI `--json` is now pure JSON on stdout — usable as a an automation pipeline `--action` (2026-05-23)
 
 **fix**: `bun src/cli.ts resolve --json` (and every `--json` command) used to
 print `[perf] ...`, `[lifecycle] ...`, `[direct-document] ...`, `[unbrowse] ...`
-progress lines on **stdout** before the JSON payload, so a `/contract iterate`
+progress lines on **stdout** before the JSON payload, so a `a programmatic check`
 that piped the output into `json.load` crashed with `JSONDecodeError`. Root
 cause in `src/cli.ts:main()`: `console.log` (56 sites across the orchestrator
 alone) all went to stdout. Fix: when `--json` is set, `console.log/info/warn`
 are redirected to `process.stderr.write`. `process.stdout.write` (used by
 `output()`) is untouched, so the JSON payload stays on stdout. Any unbrowse
-verb is now a valid `/contract --action` pointer. Documented in
+verb is now a valid `an automation pipeline` pointer. Documented in
 `docs/dag-contract-pattern.md` with one worked example. Regression test:
-`tests/cli-json-pure-stdout.test.ts`. Contract 7ae6a26d.
+`tests/cli-json-pure-stdout.test.ts`.
 
 ### Web2 subscription (Stripe) now hides x402 (2026-05-23)
 
-**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
+**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes.
 
 ### CLI no longer hangs after a resolve (2026-05-23)
 

@@ -3,7 +3,7 @@
 **Severity:** P0 (silent data loss)
 **Surface:** `POST https://api.emergentdb.com/qdkv/set`
 **Source contract:** unbrowse `8b2f65ea` (empty-search investigation), `e65c7118` (PgKV → EdbKV migration)
-**Reporter:** Lewis via /contract (unbrowse `04e535fe`)
+**Reporter:** Lewis (unbrowse-team)
 
 ## Symptom
 

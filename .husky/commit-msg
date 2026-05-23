@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Block /contract substrate vocabulary in commit messages going forward.
+# COMMIT_MSG_FILE is git's standard arg; scripts/check-contract-leak.sh
+# reads it when set and scans for substrate-vocabulary patterns.
+COMMIT_MSG_FILE="$1" bash scripts/check-contract-leak.sh
