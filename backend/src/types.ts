@@ -197,6 +197,15 @@ export interface Env {
   /** Org-wide daily sponsor cap in USD (default 50.0). */
   SPONSOR_GLOBAL_DAILY_USD?: string;
   /**
+   * Flywheel closure (v6.17+) — fraction of Stripe revenue carved off
+   * into the sponsor pool on every subscription grant + auto-refill.
+   * Default 1000 bps (10%) per arXiv 2604.00694 §3.5 "infrastructure
+   * ≈ 10% platform toll". Set to 0 to disable the pool feed (sponsor
+   * middleware falls back to PLATFORM_SPONSOR_WALLET_ADDRESS). See
+   * backend/src/services/sponsor-pool.ts.
+   */
+  PLATFORM_REVENUE_TO_POOL_BPS?: string;
+  /**
    * Admin-only operations key (v6.15.0+) — gates `/v1/admin/*` read surfaces
    * like sponsor-ledger. Separate from API_KEY (which doubles as a legacy
    * admin token for CLI back-compat) so the admin surface can rotate

@@ -3627,7 +3627,35 @@ async function cmdSync(flags: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdClose(flags: Record<string, string | boolean>): Promise<void> {
-  output(await api("POST", "/v1/browse/close", typeof flags.session === "string" ? { session_id: flags.session } : undefined), false);
+  const result = await api("POST", "/v1/browse/close", typeof flags.session === "string" ? { session_id: flags.session } : undefined);
+  output(result, false);
+  // Earnings hook (contract 0ec97cbe under organ 9a334e93). After close
+  // — the moment passive-publish has just attributed captured routes to
+  // this agent_id — surface the earn-loop so the user sees the payout
+  // path at peak context. CTAs only print to a TTY on stderr (no log
+  // pollution for piped / scripted callers; JSON stdout stays clean).
+  if (process.stdout.isTTY && !flags.json) {
+    const epCount = typeof result === "object" && result && "endpoint_count" in result
+      ? Number((result as Record<string, unknown>).endpoint_count) || 0
+      : 0;
+    if (epCount > 0) {
+      let walletBound = false;
+      try {
+        const account = await api("GET", "/v1/account/me");
+        const wa = account && typeof account === "object" && "wallet_address" in account
+          ? (account as Record<string, unknown>).wallet_address
+          : null;
+        walletBound = typeof wa === "string" && wa.trim().length > 0;
+      } catch {
+        // account endpoint may 401 — that's a CTA opportunity, not an error
+      }
+      if (walletBound) {
+        console.error(`[unbrowse] published ${epCount} endpoint(s) — your indexer share lands on chain whenever another agent executes. Check earnings: unbrowse stats --earnings`);
+      } else {
+        console.error(`[unbrowse] published ${epCount} endpoint(s) — bind a payout wallet to start earning USDC on every execute: npx @crossmint/lobster-cli setup`);
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

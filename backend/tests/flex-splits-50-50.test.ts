@@ -68,8 +68,10 @@ describe("L1 computeFlexSplits — contributor cardinality", () => {
       PLATFORM,
     );
     expect(splits.length).toBe(2);
-    expect(splits[0]).toEqual({ recipient: PLATFORM, bps: 5000 });
-    expect(splits[1]).toEqual({ recipient: "WALLET_A", bps: 5000 });
+    // G3: every split now carries an optional role tag; use toMatchObject
+    // for forward-compat against future additive fields.
+    expect(splits[0]).toMatchObject({ recipient: PLATFORM, bps: 5000 });
+    expect(splits[1]).toMatchObject({ recipient: "WALLET_A", bps: 5000 });
     expect(splits.reduce((s, e) => s + e.bps, 0)).toBe(10000);
   });
 
@@ -85,7 +87,7 @@ describe("L1 computeFlexSplits — contributor cardinality", () => {
       PLATFORM,
     );
     expect(splits.length).toBe(4);
-    expect(splits[0]).toEqual({ recipient: PLATFORM, bps: 5000 });
+    expect(splits[0]).toMatchObject({ recipient: PLATFORM, bps: 5000 });
     expect(splits.reduce((s, e) => s + e.bps, 0)).toBe(10000);
     // Top contributor (delta=50, 50% of contributor pool) gets ~2500bps.
     const a = splits.find((s) => s.recipient === "WALLET_A");
