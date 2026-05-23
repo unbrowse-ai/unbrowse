@@ -58,6 +58,13 @@ export interface RegisterMcpHostsOptions {
   homeDir?: string;       // override for tests
   hosts?: McpHostId[];    // limit which hosts to attempt; default = all
   skip?: McpHostId[];     // explicit per-host skip
+  /**
+   * Name under which the server entry is registered in each host's config
+   * (the `mcpServers.<entryName>` key, the Continue `name` field, and the
+   * Codex `[mcp_servers.<entryName>]` stanza header). Defaults to "unbrowse"
+   * for backward compatibility with first-party callers.
+   */
+  entryName?: string;
 }
 
 const ALL_HOSTS: McpHostId[] = [
@@ -128,6 +135,7 @@ function registerSimpleMcpServer(
   serverCommand: string,
   serverArgs: string[],
   env: Record<string, string> | undefined,
+  entryName = "unbrowse",
 ): McpHostResult {
   if (!existsSync(configPath)) {
     return { host, config_path: configPath, action: "not_detected" };
@@ -144,7 +152,7 @@ function registerSimpleMcpServer(
   }
   const current = data ?? {};
   const mcpServers = (current.mcpServers as Record<string, unknown> | undefined) ?? {};
-  const existing = mcpServers.unbrowse as Record<string, unknown> | undefined;
+  const existing = mcpServers[entryName] as Record<string, unknown> | undefined;
   const proposed: Record<string, unknown> = {
     command: serverCommand,
     args: serverArgs,
@@ -157,7 +165,7 @@ function registerSimpleMcpServer(
 
   const next = {
     ...current,
-    mcpServers: { ...mcpServers, unbrowse: proposed },
+    mcpServers: { ...mcpServers, [entryName]: proposed },
   };
   const wrote = writeJsonIfChanged(configPath, next, current);
   return {
@@ -174,6 +182,7 @@ function registerContinueMcpServer(
   serverCommand: string,
   serverArgs: string[],
   env: Record<string, string> | undefined,
+  entryName = "unbrowse",
 ): McpHostResult {
   if (!existsSync(configPath)) {
     return { host: "continue", config_path: configPath, action: "not_detected" };
@@ -195,16 +204,16 @@ function registerContinueMcpServer(
     : [];
   const proposed: Record<string, unknown> = {
     transport: { type: "stdio", command: serverCommand, args: serverArgs },
-    name: "unbrowse",
+    name: entryName,
   };
   if (env && Object.keys(env).length > 0) {
     (proposed.transport as Record<string, unknown>).env = env;
   }
-  const already = servers.find((s) => s.name === "unbrowse");
+  const already = servers.find((s) => s.name === entryName);
   if (already && JSON.stringify(already) === JSON.stringify(proposed)) {
     return { host: "continue", config_path: configPath, action: "already_present" };
   }
-  const filtered = servers.filter((s) => s.name !== "unbrowse");
+  const filtered = servers.filter((s) => s.name !== entryName);
   const next = {
     ...current,
     experimental: {
@@ -229,6 +238,7 @@ function registerCodexMcpServer(
   serverCommand: string,
   serverArgs: string[],
   env: Record<string, string> | undefined,
+  entryName = "unbrowse",
 ): McpHostResult {
   if (!existsSync(configPath)) {
     return { host: "codex", config_path: configPath, action: "not_detected" };
@@ -244,25 +254,29 @@ function registerCodexMcpServer(
   const envLines: string[] = [];
   if (env && Object.keys(env).length > 0) {
     envLines.push("");
-    envLines.push("[mcp_servers.unbrowse.env]");
+    envLines.push(`[mcp_servers.${entryName}.env]`);
     for (const [k, v] of Object.entries(env)) {
       envLines.push(`${k} = ${JSON.stringify(v)}`);
     }
   }
   const proposedStanza = [
     "",
-    "[mcp_servers.unbrowse]",
+    `[mcp_servers.${entryName}]`,
     `command = ${JSON.stringify(serverCommand)}`,
     `args = ${argsTomlArray}`,
     ...envLines,
     "",
   ].join("\n");
 
-  // Already-present detection: any line that starts with `[mcp_servers.unbrowse`
+  // Already-present detection: any line that starts with `[mcp_servers.<entryName>`
   // (with optional `.env` sub-table) means the entry exists. We do not attempt
   // to compare deeply against a TOML parse; if the user has customized it we
   // leave it alone.
-  if (/^\[mcp_servers\.unbrowse(\.|\])/m.test(body)) {
+  const headerRe = new RegExp(
+    `^\\[mcp_servers\\.${entryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\.|\\])`,
+    "m",
+  );
+  if (headerRe.test(body)) {
     return { host: "codex", config_path: configPath, action: "already_present" };
   }
 
@@ -277,6 +291,7 @@ export function registerMcpHosts(opts: RegisterMcpHostsOptions): McpHostResult[]
   const env = opts.env;
   const targets = opts.hosts ?? ALL_HOSTS;
   const skipSet = new Set(opts.skip ?? []);
+  const entryName = opts.entryName ?? "unbrowse";
   const results: McpHostResult[] = [];
 
   for (const host of targets) {
@@ -294,13 +309,13 @@ export function registerMcpHosts(opts: RegisterMcpHostsOptions): McpHostResult[]
       case "claude-desktop":
       case "cursor":
       case "windsurf":
-        results.push(registerSimpleMcpServer(host, configPath, opts.serverCommand, opts.serverArgs, env));
+        results.push(registerSimpleMcpServer(host, configPath, opts.serverCommand, opts.serverArgs, env, entryName));
         break;
       case "continue":
-        results.push(registerContinueMcpServer(configPath, opts.serverCommand, opts.serverArgs, env));
+        results.push(registerContinueMcpServer(configPath, opts.serverCommand, opts.serverArgs, env, entryName));
         break;
       case "codex":
-        results.push(registerCodexMcpServer(configPath, opts.serverCommand, opts.serverArgs, env));
+        results.push(registerCodexMcpServer(configPath, opts.serverCommand, opts.serverArgs, env, entryName));
         break;
     }
   }

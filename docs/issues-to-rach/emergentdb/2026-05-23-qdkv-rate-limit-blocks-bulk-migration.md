@@ -3,7 +3,7 @@
 **Severity:** P2 (no data loss; throughput ceiling)
 **Surface:** `POST https://api.emergentdb.com/qdkv/set` (rate-limit at the API gateway)
 **Source contract:** unbrowse `e65c7118` (PgKV → EdbKV migration)
-**Reporter:** Lewis via /contract (unbrowse `04e535fe`)
+**Reporter:** Lewis (unbrowse-team)
 
 ## Symptom
 
@@ -57,7 +57,7 @@ So the limit is enforced per-source-IP and CF Workers from `cf-placement: local-
 
 ## Why the .md instead of a Slack ping
 
-Per our /contract `2dbdf6d6`: every EmergentDB issue gets reproducible repro + impact + ask in a single .md so it's diff-able, searchable, and won't get lost in chat. Happy to drop these into Telegram/GitHub issues too — let me know your preferred channel.
+Per our our internal workflow: every EmergentDB issue gets reproducible repro + impact + ask in a single .md so it's diff-able, searchable, and won't get lost in chat. Happy to drop these into Telegram/GitHub issues too — let me know your preferred channel.
 
 ## References
 

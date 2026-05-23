@@ -131,6 +131,8 @@ async function main() {
     console.log(`unbrowse running on http://${server.host}:${server.port}`);
   } else if (args[0] === "mcp-serve") {
     await import("./mcp.js");
+  } else if (args[0] === "contract-bridge-serve") {
+    await import("./contract-bridge.js");
   } else {
     // CLI mode
     await import("./cli.js");

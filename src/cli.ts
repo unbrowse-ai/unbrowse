@@ -171,7 +171,18 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
         "target-origin", "target-href", "bundle-url", "bundle-source", "post-eval", "fingerprint",
         "impersonate", "origin", "bundle", "eval",
       ]);
-      if (valueExpectedFlags.has(key)) {
+      // Flags that NEVER consume the next arg, even if it doesn't start with --.
+      // Lets `unbrowse fetch --proxy https://httpbin.org/ip` parse correctly
+      // with the URL as positional and --proxy as a boolean toggle.
+      const booleanOnlyFlags = new Set([
+        "proxy", "raw", "pretty", "envelope", "stdin",
+        "no-browser-cookies", "publish", "no-start", "skip-browser",
+        "no-claude-register", "no-auto-start", "no-open", "register",
+        "reset-key", "help",
+      ]);
+      if (booleanOnlyFlags.has(key)) {
+        flags[key] = true;
+      } else if (valueExpectedFlags.has(key)) {
         // Don't consume the next arg if it's clearly another flag (-p, --foo).
         // nanoid IDs may start with `-` but never `-p` or `--`.
         if (next === undefined) die(`--${key} requires a value`);
@@ -2014,6 +2025,77 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     }
   }
 
+  // Register the local /contract primitive as a sibling MCP server entry.
+  // Default ON. Skip with --no-contract. The bridge (src/contract-bridge.ts)
+  // translates MCP tool calls into spawned `contract` CLI invocations; the
+  // host configs point at `npx -y unbrowse contract-bridge`. The /contract
+  // bin is resolved at bridge startup via $CONTRACT_BIN → which contract →
+  // ~/.cargo/bin/contract → ~/.claude/skills/contract/scripts/contract.
+  //
+  // We intentionally do NOT add mcp__contract__* entries to the unbrowse
+  // allow-list — that consent surface belongs to /contract, not to unbrowse
+  // setup. Claude Code's normal permission prompt fires on first call.
+  if (flags["no-contract"]) {
+    info("Contract MCP registration skipped (--no-contract).");
+  } else {
+    try {
+      const { resolveContractBin } = await import("./setup/contract-bin-resolver.js");
+      const resolution = resolveContractBin();
+      if (!resolution.path) {
+        info(
+          "Contract MCP registration: no /contract bin detected " +
+          "(checked $CONTRACT_BIN, PATH, ~/.cargo/bin/contract, ~/.claude/skills/contract/scripts/contract). " +
+          "Install Claude Code or set $CONTRACT_BIN, then re-run `unbrowse setup`.",
+        );
+      } else {
+        info(`Contract MCP registration: /contract bin at ${resolution.path} (source=${resolution.source}).`);
+
+        // GUI/editor host configs (Claude Desktop, Cursor, Codex, Continue,
+        // Windsurf) all get the `contract` sibling entry.
+        const { registerMcpHosts } = await import("./setup/mcp-hosts-register.js");
+        const contractHostResults = registerMcpHosts({
+          entryName: "contract",
+          serverCommand: "npx",
+          serverArgs: ["-y", "unbrowse", "contract-bridge"],
+          env: { CONTRACTS_STORE: "${HOME}/.contracts/contracts.jsonl" },
+        });
+        for (const r of contractHostResults) {
+          if (r.action === "merged") {
+            info(`MCP host ${r.host}: registered /contract at ${r.config_path}`);
+          } else if (r.action === "already_present") {
+            info(`MCP host ${r.host}: /contract already configured`);
+          } else if (r.action === "parse_error") {
+            info(`MCP host ${r.host}: /contract ${r.detail ?? "config malformed; skipped"}`);
+          }
+        }
+
+        // Claude Code (separate path: `claude mcp add` writes ~/.claude.json).
+        if (!flags["no-claude-register"]) {
+          const { registerSiblingMcpServer } = await import("./setup/claude-mcp-register.js");
+          const contractClaudeReg = await registerSiblingMcpServer({
+            entryName: "contract",
+            serverCommand: "npx",
+            serverArgs: ["-y", "unbrowse", "contract-bridge"],
+            env: { CONTRACTS_STORE: `${process.env.HOME ?? ""}/.contracts/contracts.jsonl` },
+          });
+          if (contractClaudeReg.skipped) {
+            if (contractClaudeReg.skip_reason === "claude_cli_not_found") {
+              info("Claude Code not found on PATH — skipping /contract MCP registration.");
+            }
+          } else if (contractClaudeReg.already_present) {
+            info("Claude Code: /contract MCP server already registered.");
+          } else if (contractClaudeReg.mcp_server_registered) {
+            info("Claude Code: registered /contract MCP server at user scope.");
+          } else {
+            info("Claude Code: /contract MCP registration attempted but `claude mcp add` did not exit 0.");
+          }
+        }
+      }
+    } catch (err) {
+      info(`Contract MCP registration skipped (${err instanceof Error ? err.message : String(err)}).`);
+    }
+  }
+
   await recordInstallTelemetryEvent("setup", {
     hostType,
     status: report.browser_engine.action === "failed" ? "failed" : "installed",
@@ -2429,6 +2511,18 @@ async function runSandboxCore(
   const impersonate = (flags.impersonate as string) ?? "chrome131";
   const timeoutMs = flags["timeout-ms"] ? Number(flags["timeout-ms"]) : 30_000;
 
+  // --proxy: route the libcurl-impersonate call through IPRoyal residential
+  // proxy (same primitive as the 429 fallback path in executeEndpoint).
+  // Caller decides — no per-domain registry, no heuristics. Closes gap §2.3
+  // from docs/RUNTIME-BINDING-RECOMPUTE.md.
+  let proxyUrl: string | undefined;
+  if (flags.proxy === true) {
+    const { resolveProxyUrl } = await import("./execution/proxy-fetch.js");
+    proxyUrl = resolveProxyUrl(process.env);
+    if (!proxyUrl) die("--proxy: set IPROYAL_USER / IPROYAL_PASS env vars or omit --proxy");
+    info(`[fetch] routing via residential proxy (${proxyUrl.replace(/\/\/[^@]+@/, "//***@")})`);
+  }
+
   if (bundleSource === "-" || flags["stdin"]) {
     const chunks: Buffer[] = [];
     for await (const c of process.stdin) chunks.push(c as Buffer);
@@ -2465,6 +2559,7 @@ async function runSandboxCore(
     postEval,
     timeoutMs,
     seedCookies,
+    proxy: proxyUrl,
   }, { kuriBase });
 
   // Default: convert HTML body fields (>1KB, look HTML-shaped) to markdown
@@ -2608,7 +2703,7 @@ export const CLI_REFERENCE = {
   // canonical command.
   commands: [
     // ── Setup & lifecycle ─────────────────────────────────────────────────
-    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register] [--no-mcp-host-register] [--no-contract]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), register the local /contract bin as a sibling MCP entry across detected hosts, and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
     { name: "health", usage: "", desc: "Quick local server health check. Returns version + uptime." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
@@ -2717,6 +2812,7 @@ export const CLI_REFERENCE = {
     { flag: "--header 'K: V'", desc: "Extra request header (single use)." },
     { flag: "--timeout-ms N", desc: "Request timeout in ms (default 30000)." },
     { flag: "--impersonate chrome131|chrome120|firefox120|...", desc: "TLS fingerprint impersonation target (default chrome131)." },
+    { flag: "--proxy", desc: "Route the libcurl-impersonate call through the IPRoyal residential proxy. Requires IPROYAL_USER + IPROYAL_PASS env vars (optionally IPROYAL_HOST / IPROYAL_PORT for country-locked endpoints)." },
     { flag: "--publish", desc: "Explicitly publish observed routes to the marketplace." },
     { flag: "--intent \"...\"", desc: "Label for explicit marketplace publish of observed routes." },
     { flag: "--envelope", desc: "Force full envelope output (cookies + routes_observed + post_eval) instead of body-only." },
@@ -3328,6 +3424,37 @@ async function cmdMcp(flags: Record<string, string | boolean>): Promise<void> {
     });
   });
 
+  if (code !== 0) process.exit(code);
+}
+
+// Spawn the /contract MCP bridge as a sibling entrypoint. Host configs
+// register `npx -y unbrowse contract-bridge`; this dispatch is what they
+// actually invoke. Mirrors cmdMcp's resolve+spawn pattern so the bundled
+// single-file binary and the dev-from-source path both work.
+async function cmdContractBridge(_flags: Record<string, string | boolean>): Promise<void> {
+  const entrypoint = resolveSiblingEntrypoint(import.meta.url, "contract-bridge");
+  const childArgs = isBundledVirtualEntrypoint(entrypoint)
+    ? ["contract-bridge-serve"]
+    : [...runtimeArgsForEntrypoint(import.meta.url, entrypoint)];
+  const child = spawn(
+    process.execPath,
+    childArgs,
+    {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: { ...process.env, CONTRACT_BRIDGE_MODE: "1" },
+    },
+  );
+  const code = await new Promise<number>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (exitCode, signal) => {
+      if (signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+      resolve(exitCode ?? 1);
+    });
+  });
   if (code !== 0) process.exit(code);
 }
 
@@ -4337,6 +4464,7 @@ async function main(): Promise<void> {
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "wallet", "eval", "back", "forward", "sync", "close",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
+    "contract-bridge",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -4363,6 +4491,7 @@ async function main(): Promise<void> {
   switch (command) {
     case "health": return cmdHealth(flags);
     case "mcp": return cmdMcp(flags);
+    case "contract-bridge": return cmdContractBridge(flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "run": return cmdRun(args, flags);

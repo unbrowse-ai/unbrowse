@@ -38,6 +38,13 @@ run_tests() {
 
 echo "[pre-commit] staged files: ${#staged_files[@]}"
 
+# Substrate-leak guard: blocks /contract vocabulary from leaking into
+# public surfaces (README.md, CHANGELOG.md, frontend/src/, docs/ but NOT
+# docs/internal/). Pattern + scope at scripts/check-contract-leak.sh.
+if has_match '^(README\.md|CHANGELOG\.md|frontend/src/|docs/)' && [[ "${CONTRACT_LEAK_ALLOW:-}" != "1" ]]; then
+  bash scripts/check-contract-leak.sh
+fi
+
 if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
   run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
 fi

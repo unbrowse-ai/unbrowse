@@ -3,7 +3,7 @@
 This folder is the canonical drop zone for **EmergentDB issues that unbrowse
 observes in production or during contract work**. Governed by contract
 [`2dbdf6d6`](https://github.com/unbrowse-ai/unbrowse-dev) (loop-until): every
-time a new EmergentDB issue surfaces in a `/contract` turn, a fresh `.md`
+time a new EmergentDB issue surfaces in a `internal workflow` turn, a fresh `.md`
 lands here AND a matching GitHub issue is opened on
 [`justrach/emergentDB`](https://github.com/justrach/emergentDB).
 
