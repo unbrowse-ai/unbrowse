@@ -5,7 +5,7 @@ import { listAgents, countAgents } from "../services/agents.js";
 import { reindexSkill, removeSkillFromIndex, purgeSkillVectors } from "../services/discovery.js";
 import { backfillFromProfiles } from "../services/analytics.js";
 import { summarizeEmergentDBError } from "../services/emergentdb.js";
-import { skillsKV, statsKV } from "../services/kv.js";
+import { skillsKV, statsKV, EdbKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { deleteHttpCache } from "../services/http-cache.js";
 
@@ -426,14 +426,18 @@ opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
     });
   }
 
-  const EDB = "https://api.emergentdb.com";
-  const H = { Authorization: `Bearer ${c.env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" };
-
+  // Use the EdbKV class — it carries the BUG-011 pre-write size gate
+  // (qdkv/set returns {ok:true} for values > 10KB but silently drops them).
+  // Going via raw fetch here would re-introduce the silent-drop on large
+  // skill manifests; routing through EdbKV makes the failure LOUD.
+  // EmergentDB rate-limits CF Worker traffic per-isolate; we still chunk
+  // the writes to stay under the CPU budget.
   const namespaceResults: Array<{
     namespace: string;
     total: number;
     written: number;
     failed: number;
+    oversize: number;
     examples_failed: string[];
   }> = [];
 
@@ -462,38 +466,37 @@ opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
       LIMIT ${take}
     `) as Array<{ key: string; value: string }>;
 
+    // Instantiate EdbKV per-namespace — its put() carries the BUG-011 size
+    // gate (refuses to send > EMERGENTDB_MAX_VALUE_BYTES, default 10 KB).
+    // qdkv/set returns ok:true even on silent-drop above the limit, so
+    // raw-fetch writes would report success while losing the data.
+    const edb = new EdbKV(c.env.EMERGENTDB_API_KEY, ns.namespace);
     let written = 0;
     let failed = 0;
+    let oversize = 0;
     const examplesFailed: string[] = [];
-    // Parallel chunks with per-row 429-retry. Sequential await over N rows
-    // blows the CF Worker CPU budget (50ms unbound / 30s bundled). At
-    // ~500ms per qdkv/set HTTP roundtrip, 50 rows sequential ≈ 25s and
-    // 200 rows times out. Chunked Promise.allSettled keeps each chunk
-    // bounded; CHUNK_SIZE=6 stays gentle on EmergentDB's per-second rate
-    // limit (empirically 16 triggered ~50% 429s; 6 holds steady).
-    // 429s get one retry with a short backoff — qdkv/set is upsert so the
-    // retry is safe.
+    // CHUNK_SIZE=6 stays gentle on EmergentDB's per-isolate rate limit
+    // (empirically 16 → 50% 429s; 6 → near-zero 429s). 429 retry once.
     const CHUNK_SIZE = 6;
-    const writeOne = async (row: { key: string; value: string }): Promise<{ ok: true } | { ok: false; reason: string }> => {
+    const writeOne = async (row: { key: string; value: string }): Promise<{ ok: true } | { ok: false; reason: string; oversize?: boolean }> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const r = await fetch(`${EDB}/qdkv/set`, {
-            method: "POST",
-            headers: H,
-            body: JSON.stringify({ key: `${ns.namespace}:${row.key}`, value: row.value }),
-          });
-          if (r.ok) return { ok: true };
-          if (r.status === 429 && attempt === 0) {
+          await edb.put(row.key, row.value);
+          return { ok: true };
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (msg.startsWith("value_too_large")) {
+            return { ok: false, reason: msg.slice(0, 80), oversize: true };
+          }
+          if (msg.includes("429") && attempt === 0) {
             await new Promise((res) => setTimeout(res, 250));
             continue;
           }
-          return { ok: false, reason: `HTTP ${r.status}` };
-        } catch (err) {
           if (attempt === 0) {
             await new Promise((res) => setTimeout(res, 250));
             continue;
           }
-          return { ok: false, reason: (err as Error).message.slice(0, 60) };
+          return { ok: false, reason: msg.slice(0, 80) };
         }
       }
       return { ok: false, reason: "retry exhausted" };
@@ -508,13 +511,14 @@ opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
             written++;
           } else {
             failed++;
-            if (examplesFailed.length < 3) {
+            if (res.oversize) oversize++;
+            if (examplesFailed.length < 5) {
               examplesFailed.push(`${row.key.slice(0, 60)} :: ${res.reason}`);
             }
           }
         } else {
           failed++;
-          if (examplesFailed.length < 3) {
+          if (examplesFailed.length < 5) {
             examplesFailed.push(`network :: ${String(settled.reason).slice(0, 60)}`);
           }
         }
@@ -526,6 +530,7 @@ opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
       total: ns.n,
       written,
       failed,
+      oversize,
       examples_failed: examplesFailed,
     });
 
