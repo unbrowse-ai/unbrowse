@@ -181,6 +181,12 @@ async function migrateNamespace(nsId, edbPrefix, label, indexVectors = false) {
             source_url: skill.domain || "",
           };
           const ns = domainNamespace(skill.domain);
+          // BUG-003 (contract 311771e1): the global vector namespace is
+          // `unbrowse--global` (two hyphens). Pre-fix runs of this script
+          // wrote to `unbrowse-skill` (one hyphen, dead namespace) which
+          // never matched the search-side GLOBAL_NS in discovery.ts, so
+          // older skills were invisible to global search.  Keep the literal
+          // exact — do NOT rename for readability.
           await Promise.all([
             vectorInsert(ns, numericId, vector, meta),
             vectorInsert("unbrowse--global", numericId, vector, meta),

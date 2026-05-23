@@ -7,6 +7,7 @@ import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { recordGraphFee, type GraphOperation } from "../services/fees.js";
 import { ingestEdgeOutcomes, projectConfidences, type EdgeOutcomeSignal } from "../services/graph-confidence.js";
+import { getNeonClient } from "../services/neon.js";
 
 /** Record a graph fee in the background — never blocks or fails the response. */
 function chargeFee(env: Env, agentId: string, op: GraphOperation): void {
@@ -296,5 +297,109 @@ graphRoutes.get("/graph/proxy/*", bearerAuth, async (c) => {
   } catch (err) {
     console.error("[graph/proxy] error:", (err as Error).message);
     return c.json({ error: "graph proxy failed" }, 502);
+  }
+});
+
+// GET /v1/graph/endpoint-penalties — read telemetry_executions to surface per-endpoint
+// failure counts for the last 7 days. Used by the resolve/ranking path so that endpoints
+// with repeated bad outcomes (fail or antibot_block) are penalised in resolve results.
+//
+// The ledger is write-and-read, not write-only: POST /telemetry/execute writes rows;
+// this route reads them back to feed the ranker. Falls open gracefully when DATABASE_URL
+// is absent or the telemetry_executions table does not yet exist.
+//
+// Query params:
+//   endpoint_ids  comma-separated list of endpoint_id values to look up  (required)
+//   intent        optional intent string; if supplied, restricts to rows whose intent
+//                 contains this string (case-insensitive ILIKE match)
+//
+// Response:
+//   { penalties: { [endpoint_id]: { fail_count: number; penalty_score: number } } }
+//
+// penalty_score formula: min(1.0, fail_count * 0.15)
+// A penalty of 0.15 per failure, capped at 1.0 (full demotion).
+// The caller subtracts this from the endpoint's normalised score before ranking.
+//
+// SQL note — telemetry_executions DDL (if not yet created):
+//   CREATE TABLE IF NOT EXISTS telemetry_executions (
+//     id            BIGSERIAL PRIMARY KEY,
+//     intent        TEXT,
+//     skill_id      TEXT NOT NULL,
+//     endpoint_id   TEXT NOT NULL,
+//     outcome       TEXT NOT NULL,       -- 'success' | 'fail' | 'antibot_block' | ...
+//     status_code   INTEGER,
+//     latency_ms    INTEGER,
+//     proxy_used    BOOLEAN DEFAULT FALSE,
+//     block_signals JSONB DEFAULT '[]',
+//     received_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+//   );
+//   CREATE INDEX IF NOT EXISTS telemetry_executions_endpoint_outcome
+//     ON telemetry_executions (endpoint_id, outcome, received_at);
+graphRoutes.get("/graph/endpoint-penalties", bearerAuth, async (c) => {
+  const rawIds = c.req.query("endpoint_ids");
+  if (!rawIds) return c.json({ error: "endpoint_ids query param required" }, 400);
+
+  const endpointIds = rawIds
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (endpointIds.length === 0) return c.json({ error: "endpoint_ids must not be empty" }, 400);
+  if (endpointIds.length > 200) return c.json({ error: "endpoint_ids: max 200 per request" }, 400);
+
+  const intent = c.req.query("intent") ?? null;
+
+  // Default response shape — returned verbatim when storage is absent.
+  const penalties: Record<string, { fail_count: number; penalty_score: number }> = {};
+
+  if (!c.env.DATABASE_URL) {
+    return c.json({ penalties, _unconfigured: true });
+  }
+
+  try {
+    const sql = await getNeonClient(c.env.DATABASE_URL);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Count bad outcomes per endpoint_id from telemetry_executions over the
+    // last 7 days. If `intent` is supplied, restrict to similar intents using
+    // a case-insensitive substring match so the penalty is intent-scoped.
+    let rows: Array<{ endpoint_id: string; fail_count: string | number }>;
+    if (intent) {
+      rows = await sql`
+        SELECT endpoint_id, COUNT(*) AS fail_count
+        FROM telemetry_executions
+        WHERE endpoint_id = ANY(${endpointIds})
+          AND outcome IN ('fail', 'antibot_block')
+          AND received_at >= ${sevenDaysAgo}
+          AND intent ILIKE ${'%' + intent + '%'}
+        GROUP BY endpoint_id
+      ` as Array<{ endpoint_id: string; fail_count: string | number }>;
+    } else {
+      rows = await sql`
+        SELECT endpoint_id, COUNT(*) AS fail_count
+        FROM telemetry_executions
+        WHERE endpoint_id = ANY(${endpointIds})
+          AND outcome IN ('fail', 'antibot_block')
+          AND received_at >= ${sevenDaysAgo}
+        GROUP BY endpoint_id
+      ` as Array<{ endpoint_id: string; fail_count: string | number }>;
+    }
+
+    for (const row of rows) {
+      const failCount = Number(row.fail_count);
+      penalties[row.endpoint_id] = {
+        fail_count: failCount,
+        penalty_score: Math.min(1.0, failCount * 0.15),
+      };
+    }
+
+    return c.json({ penalties });
+  } catch (err) {
+    // Fall open — if the table doesn't exist or the query fails, return empty
+    // penalties so the ranker continues unaffected.
+    console.warn(
+      "[graph/endpoint-penalties] query failed (falling open):",
+      err instanceof Error ? err.message : String(err),
+    );
+    return c.json({ penalties, _error: "query_failed" });
   }
 });

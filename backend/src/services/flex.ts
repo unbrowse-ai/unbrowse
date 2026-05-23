@@ -16,9 +16,38 @@
 import type { Env, SkillManifest } from "../types.js";
 import { flexRefundTimeoutSlots } from "./flex-facilitator.js";
 
+/**
+ * Role tag for a FlexSplit entry. Off-chain only — the Flex on-chain
+ * program consumes `{ recipient, bps }` and ignores extra fields, so this
+ * tag is preserved for journal rows / API responses without changing the
+ * settlement contract. Roles follow the paper's $F = C + M + I + T$
+ * partition (arXiv 2604.00694 §3.5) plus the site-owner carve-out from
+ * §3.6.
+ *
+ * - `infrastructure` — platform toll (paper $I$, ~10%); always present.
+ * - `site_owner`     — opted-in site owner share (§3.6); present when
+ *                      owner_compensation_opt_in && owner_wallet_usdc_ata.
+ * - `contributor`    — delta-attributed contributor share (paper $C$);
+ *                      one entry per payable contributor.
+ * - `maintainer`     — validator share (paper $M$); present when
+ *                      MAINTAINER_BPS > 0 and a maintainer wallet binds.
+ * - `treasury`       — network reserve (paper $T$); present when
+ *                      TREASURY_BPS > 0 and a treasury wallet binds.
+ *
+ * Contract organ 98973c11 stage G3 (264c3841).
+ */
+export type FlexSplitRole = "infrastructure" | "site_owner" | "contributor" | "maintainer" | "treasury";
+
 export interface FlexSplit {
   recipient: string;  // SPL token account (USDC ATA) of recipient
   bps: number;        // basis points, summing to 10000
+  /**
+   * Optional role tag (G3) — off-chain semantic label so journal readers
+   * and admin endpoints can audit the deployed split against the paper's
+   * partition. Absence is backwards-compatible; the on-chain program
+   * never sees this field.
+   */
+  role?: FlexSplitRole;
 }
 
 export interface FlexAuthorizationDraft {
@@ -57,6 +86,22 @@ export const MARKUP_BPS_MAX = 8000;
 // the indexer pool keeps the full 10000 - PLATFORM_BPS = 5000 bps.
 export const OWNER_BPS = 1500;
 
+// Maintainer + treasury shares (paper §3.5 $F = C + M + I + T$). Default
+// 0 today — the structure is wired so off-chain readers can audit the
+// 5-role partition (G3), but maintainer / treasury recipients are not
+// yet bound on production. When the env vars MAINTAINER_WALLET_ADDRESS
+// and TREASURY_WALLET_ADDRESS get set with real USDC ATAs, a deploy
+// can dial these up without further code change. Each carries an
+// (env -> constant) override knob so a deployment can rebalance
+// without a recompile.
+//
+// Backwards-compatibility: with both set to 0, computeFlexSplits emits
+// exactly the splits it emitted before G3. The 5-role partition is
+// activated only when MAINTAINER_BPS > 0 || TREASURY_BPS > 0 AND the
+// corresponding wallet env var is set.
+export const MAINTAINER_BPS_DEFAULT = 0;
+export const TREASURY_BPS_DEFAULT = 0;
+
 // Mainnet USDC. Devnet/test override happens via the facilitator service in
 // Day-5, not here — this module is pure assembly.
 const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -69,6 +114,20 @@ const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
  * - Up to FLEX_MAX_SPLITS (5) entries.
  * - Returns empty array if no payable contributor (caller must handle).
  */
+/**
+ * Optional 5-role partition inputs (G3, contract organ 98973c11). When
+ * `maintainer_bps > 0` AND `maintainer_recipient` is set, a maintainer
+ * split is emitted. Same for treasury. Both default to 0 / unset, so
+ * passing nothing reproduces today's 3-role behaviour (platform +
+ * site-owner + contributors) byte-for-byte.
+ */
+export interface FlexSplitRoleConfig {
+  maintainer_bps?: number;
+  maintainer_recipient?: string;
+  treasury_bps?: number;
+  treasury_recipient?: string;
+}
+
 export function computeFlexSplits(
   skill: Pick<SkillManifest,
     | "contributors"
@@ -77,6 +136,7 @@ export function computeFlexSplits(
     | "markup_bps"
   >,
   platformRecipient: string,
+  roleConfig?: FlexSplitRoleConfig,
 ): FlexSplit[] {
   // Per-skill markup override (Pontus / ABK Labs 2026-05-21 brief).
   // Clamp before using so a misconfigured skill still produces a
@@ -104,24 +164,56 @@ export function computeFlexSplits(
   const ownerUsdcAta = skill.owner_wallet_usdc_ata?.trim();
   const ownerActive = ownerOptedIn && !!ownerUsdcAta;
   const ownerSplit: FlexSplit | null = ownerActive
-    ? { recipient: ownerUsdcAta!, bps: OWNER_BPS }
+    ? { recipient: ownerUsdcAta!, bps: OWNER_BPS, role: "site_owner" }
     : null;
 
-  // When there is no indexer contributor pool AND no owner share,
-  // there is nothing to split beyond the platform; return empty so
-  // the caller falls back to a single-recipient transfer (today's
-  // behavior).
-  if (payable.length === 0 && !ownerActive) return [];
+  // G3 — maintainer + treasury lanes (paper §3.5 $F = C + M + I + T$).
+  // Both default to 0 / unset; activation requires BOTH a non-zero bps
+  // AND a recipient wallet (passed via roleConfig, derived from
+  // MAINTAINER_WALLET_ADDRESS / TREASURY_WALLET_ADDRESS at the call
+  // site). Clamped to [0, 10000] in case env vars carry garbage.
+  const maintainerBpsRaw = Math.round(roleConfig?.maintainer_bps ?? MAINTAINER_BPS_DEFAULT);
+  const maintainerBps = Math.min(10000, Math.max(0, Number.isFinite(maintainerBpsRaw) ? maintainerBpsRaw : 0));
+  const maintainerRecipient = roleConfig?.maintainer_recipient?.trim();
+  const maintainerActive = maintainerBps > 0 && !!maintainerRecipient;
+  const maintainerSplit: FlexSplit | null = maintainerActive
+    ? { recipient: maintainerRecipient!, bps: maintainerBps, role: "maintainer" }
+    : null;
 
-  // Top contributors only — cap at (FLEX_MAX_SPLITS - 2) when an owner
-  // lane is active (reserves room for both platform AND owner), else
-  // (FLEX_MAX_SPLITS - 1) (just platform).
-  const contributorCap = ownerActive ? FLEX_MAX_SPLITS - 2 : FLEX_MAX_SPLITS - 1;
+  const treasuryBpsRaw = Math.round(roleConfig?.treasury_bps ?? TREASURY_BPS_DEFAULT);
+  const treasuryBps = Math.min(10000, Math.max(0, Number.isFinite(treasuryBpsRaw) ? treasuryBpsRaw : 0));
+  const treasuryRecipient = roleConfig?.treasury_recipient?.trim();
+  const treasuryActive = treasuryBps > 0 && !!treasuryRecipient;
+  const treasurySplit: FlexSplit | null = treasuryActive
+    ? { recipient: treasuryRecipient!, bps: treasuryBps, role: "treasury" }
+    : null;
+
+  // When there is no indexer contributor pool AND no owner share AND
+  // no G3 maintainer / treasury lane, there is nothing to split beyond
+  // the platform; return empty so the caller falls back to a single-
+  // recipient transfer (today's behavior). G3 lanes count as a reason
+  // to emit a multi-recipient split even when contributors / owner
+  // are empty.
+  if (payable.length === 0 && !ownerActive && !maintainerActive && !treasuryActive) return [];
+
+  // Top contributors only — cap at (FLEX_MAX_SPLITS - reservedSlots)
+  // where reservedSlots = 1 (platform) + owner + maintainer + treasury
+  // when each lane is active. The Faremeter Flex program caps splits at
+  // FLEX_MAX_SPLITS=5; G3 lanes consume slots in the same budget.
+  const reservedSlots = 1 + (ownerActive ? 1 : 0) + (maintainerActive ? 1 : 0) + (treasuryActive ? 1 : 0);
+  const contributorCap = FLEX_MAX_SPLITS - reservedSlots;
   const sorted = [...payable].sort((a, b) => b.cumulative_delta - a.cumulative_delta);
   const eligible = sorted.slice(0, Math.max(contributorCap, 0));
 
   const totalDelta = eligible.reduce((s, c) => s + Math.max(c.cumulative_delta, 0.01), 0);
-  const contributorPool = 10000 - effectivePlatformBps - (ownerActive ? OWNER_BPS : 0);
+  // reservedBps counts only ACTIVE lanes (each needs both bps>0 AND a
+  // recipient). A half-configured lane (bps set, recipient missing)
+  // does not dock from the contributor pool.
+  const reservedBps =
+    (ownerActive ? OWNER_BPS : 0) +
+    (maintainerActive ? maintainerBps : 0) +
+    (treasuryActive ? treasuryBps : 0);
+  const contributorPool = 10000 - effectivePlatformBps - reservedBps;
 
   const contributorSplits: FlexSplit[] = eligible.length > 0
     ? eligible.map((c) => {
@@ -129,6 +221,7 @@ export function computeFlexSplits(
         return {
           recipient: c.wallet_address!.trim(),
           bps: Math.max(1, Math.round(weight * contributorPool)),
+          role: "contributor" as const,
         };
       })
     : [];
@@ -147,10 +240,14 @@ export function computeFlexSplits(
     // would otherwise leave a hole; this keeps the on-chain sum exact.)
   }
 
-  // Merge order: platform -> owner -> contributors (stable for the
-  // Flex facilitator's duplicate-recipient remediation).
-  const splits: FlexSplit[] = [{ recipient: platformRecipient, bps: effectivePlatformBps }];
+  // Merge order: platform -> owner -> maintainer -> treasury ->
+  // contributors (stable for the Flex facilitator's duplicate-recipient
+  // remediation). The order also preserves the paper §3.5 partition
+  // visually for journal-row readers: $I$, $S$, $M$, $T$, then $C$.
+  const splits: FlexSplit[] = [{ recipient: platformRecipient, bps: effectivePlatformBps, role: "infrastructure" }];
   if (ownerSplit) splits.push(ownerSplit);
+  if (maintainerSplit) splits.push(maintainerSplit);
+  if (treasurySplit) splits.push(treasurySplit);
   splits.push(...contributorSplits);
 
   // If the contributor pool was empty but owner was active, fold any
@@ -177,6 +274,11 @@ export function mergeSplits(splits: FlexSplit[]): FlexSplit[] {
   if (splits.length <= 1) return splits;
   const order: string[] = [];
   const byRecipient = new Map<string, number>();
+  // Preserve the role tag from the FIRST appearance — duplicate-merge
+  // collisions are rare in practice (a contributor wallet == platform
+  // recipient is the only realistic case), and the first-seen role is
+  // the authoritative one for that recipient's primary purpose.
+  const roleByRecipient = new Map<string, FlexSplitRole | undefined>();
   for (const s of splits) {
     const r = s.recipient.trim();
     if (!r) continue;
@@ -184,10 +286,16 @@ export function mergeSplits(splits: FlexSplit[]): FlexSplit[] {
       byRecipient.set(r, byRecipient.get(r)! + s.bps);
     } else {
       byRecipient.set(r, s.bps);
+      roleByRecipient.set(r, s.role);
       order.push(r);
     }
   }
-  return order.map((r) => ({ recipient: r, bps: byRecipient.get(r)! }));
+  return order.map((r) => {
+    const role = roleByRecipient.get(r);
+    return role !== undefined
+      ? { recipient: r, bps: byRecipient.get(r)!, role }
+      : { recipient: r, bps: byRecipient.get(r)! };
+  });
 }
 
 /**

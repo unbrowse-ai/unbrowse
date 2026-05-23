@@ -120,5 +120,18 @@ export async function handleSubscriptionGrantEvent(
   // a missed grant.
   await kv.put(idem_key, new Date().toISOString());
 
+  // Flywheel closure (contract organ 98973c11 G1) — carve
+  // PLATFORM_REVENUE_TO_POOL_BPS off the subscription-tier grant into
+  // the sponsor pool so the sponsor middleware draws from real revenue
+  // instead of the platform-sponsor wallet. Idempotent on idem_key
+  // (one-shot per customer per billing period); opportunistic —
+  // never breaks the subscription-grant path.
+  const { addSponsorPoolCredits } = await import("./sponsor-pool.js");
+  await addSponsorPoolCredits(env, {
+    event_id: `sub_grant:${idem_key}`,
+    source: "stripe_subscription_grant",
+    revenue_uc: tier.grant_uc,
+  });
+
   return { kind: "applied", user_id, amount_uc: tier.grant_uc, balance, idem_key };
 }

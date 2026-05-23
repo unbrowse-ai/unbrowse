@@ -1,0 +1,3 @@
+{"gate": "substrate-audit", "baseline": "HEAD~5", "em_dash_hits": 2, "hardcoded_host_lines": 0, "host_branch_lines": 0, "prose_template_lines": 1, "banned_list_lines": 0, "mirrored_assert_lines": 0, "real_channel_lines": 3, "proxy_gate_lines": 1, "proxy_only_gate_lines": 0}
+{"gate": "doc-delta", "baseline": "HEAD~5", "baseline_hash": "edd7c91cfa6f3c679a0ed560ca22154860da77c1", "workspace_lines": 0, "bin_lines": 0, "deploy_target_files": 0, "new_toplevel_dirs": [], "new_manifest_files": [], "shipping_surface_total": 0, "canonical_docs_found": ["README.md", "docs/README.md"], "canonical_docs_touched": [], "canonical_docs_untouched": ["README.md", "docs/README.md"], "doc_delta_required": false}
+{"gate": "second-frontend", "applicable": false, "declared": "false"}

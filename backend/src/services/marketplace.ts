@@ -195,13 +195,16 @@ export async function publishSkill(
     }
   }
 
-  // Optional: require .well-known domain-verification probe before any
-  // non-admin publish lands. Operators flip `REQUIRE_DOMAIN_VERIFICATION=1`
-  // once the publisher tooling supports the challenge/probe flow. Existing
-  // verified skills (re-publishes) bypass; admins always bypass.
-  const requireVerification = ((env as { REQUIRE_DOMAIN_VERIFICATION?: string }).REQUIRE_DOMAIN_VERIFICATION ?? "").toLowerCase();
-  const requireVerificationOn = requireVerification === "1" || requireVerification === "true";
-  if (requireVerificationOn && !isAdminSubmission) {
+  // Require .well-known / DNS-TXT (`_unbrowse-claim`) domain-verification
+  // probe before any non-admin publish lands. ON by default as of contract
+  // 73026078 (Granola May 20 ask: publishers must prove control of the
+  // domain they index, with no env var required). Existing verified skills
+  // (re-publishes) bypass; admins always bypass. Operators may opt OUT
+  // for staging back-compat by setting `REQUIRE_DOMAIN_VERIFICATION=0`
+  // (or `false`) — explicit, loud, and not recommended in prod.
+  const requireVerificationRaw = ((env as { REQUIRE_DOMAIN_VERIFICATION?: string }).REQUIRE_DOMAIN_VERIFICATION ?? "").toLowerCase();
+  const requireVerificationOff = requireVerificationRaw === "0" || requireVerificationRaw === "false";
+  if (!requireVerificationOff && !isAdminSubmission) {
     const verified = existing?.domain_verified === true;
     if (!verified) {
       throw new Error(`publish_forbidden_domain_unverified:${draft.domain.toLowerCase()}`);
@@ -359,13 +362,25 @@ export async function publishSkill(
   const verifiedCount = publicEndpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = publicEndpoints.length > 0 ? verifiedCount / publicEndpoints.length : 0;
 
-  // Remove old endpoint vectors that were replaced during merge (if any)
+  // Remove old endpoint vectors that were replaced during merge (if any).
+  // Failures here are non-fatal but must be visible (BUG-004 ghost-vector
+  // root cause) — log + flag for re-index. (contract 311771e1 / BUG-007.)
   if (existing) {
     const removedIds = existing.endpoints
       .filter((old) => !skill.endpoints.some((ep) => ep.endpoint_id === old.endpoint_id))
       .map((ep) => ep.endpoint_id);
     if (removedIds.length > 0) {
-      removeEndpointsFromIndex(env, skill.skill_id, removedIds, skill.domain).catch(() => {});
+      removeEndpointsFromIndex(env, skill.skill_id, removedIds, skill.domain).catch((err) => {
+        const summary = summarizeEmergentDBError(err);
+        console.error(`[removeEndpointsFromIndex] failed skill=${skill.skill_id} domain=${skill.domain}:`, summary);
+        void statsKV(env)
+          .put(`needs_reindex:${skill.skill_id}`, JSON.stringify({
+            ts: Date.now(),
+            phase: "remove_stale",
+            err: summary.slice(0, 200),
+          }))
+          .catch(() => {});
+      });
     }
   }
 
@@ -387,7 +402,15 @@ export async function publishSkill(
     }
   } catch (err) {
     index_status = summarizeEmergentDBError(err);
-    console.error(`[indexEndpoints] failed for ${skill.skill_id}:`, index_status);
+    console.error(`[indexEndpoints] failed skill=${skill.skill_id} domain=${skill.domain}:`, index_status);
+    // BUG-007 (contract 311771e1): flag for the reindex sweeper.
+    void statsKV(env)
+      .put(`needs_reindex:${skill.skill_id}`, JSON.stringify({
+        ts: Date.now(),
+        phase: "index_endpoints",
+        err: index_status.slice(0, 200),
+      }))
+      .catch(() => {});
   }
 
   // Infer DAG edges from endpoint URL templates and upsert them

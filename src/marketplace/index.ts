@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import * as client from "../client/index.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
+import { sanitizeForPublish } from "../publish/sanitize.js";
 
 export async function listSkills(): Promise<SkillManifest[]> {
   return client.listSkills();
@@ -123,8 +124,16 @@ export async function publishSkill(
     return preCache;
   }
 
+  // Transport boundary: sanitize endpoints before any data leaves the client.
+  // Callers upstream may or may not sanitize; this ensures PII (secrets in
+  // headers_template, real example_response_compact values, etc.) never reaches
+  // the backend regardless of which code path invoked publishSkill.
+  const sanitizedDraft = draft.endpoints
+    ? { ...draft, endpoints: sanitizeForPublish(draft.endpoints) }
+    : draft;
+
   try {
-    const { warnings: _, ...backendFields } = await client.publishSkill(draft);
+    const { warnings: _, ...backendFields } = await client.publishSkill(sanitizedDraft);
     // Merge draft with backend response — avoids read-after-write race
     const skill = { ...draft, ...backendFields } as SkillManifest;
     client.cachePublishedSkill(skill);

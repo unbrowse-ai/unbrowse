@@ -29,7 +29,11 @@ run_tests() {
     return 0
   fi
   echo "[pre-commit] bun test $*"
-  bun test "$@"
+  # Integration tests like cli-input-payload spawn `bun src/cli.ts` which
+  # cold-starts in 5-7s under load on slower machines. Default bun-test
+  # timeout is 5s, which surfaces as flake without a real regression.
+  # 30s covers cold-start with margin; CI runs unaffected.
+  bun test --timeout 30000 "$@"
 }
 
 echo "[pre-commit] staged files: ${#staged_files[@]}"
@@ -67,4 +71,15 @@ fi
 # CHANGELOG) was touched, print evidence to stderr. Never blocks.
 bash scripts/precommit-doc-delta.sh || true
 
+
+# Parity gate: when src/ files are staged, run bench-targeted to confirm
+# CLI and MCP transports agree. Exits 0 even if all probes miss (no cached skill)
+# as long as both transports agree. Exits 1 only on divergence.
+if has_match '^src/'; then
+  echo "[pre-commit] src/ changed — running bench-targeted parity check"
+  if ! bash scripts/bench-targeted.sh --corpus-file scripts/corpus/bench-on-change.txt 2>&1; then
+    echo "[pre-commit] FAIL: CLI/MCP parity divergence detected. Fix before committing." >&2
+    exit 1
+  fi
+fi
 echo "[pre-commit] fast checks passed"

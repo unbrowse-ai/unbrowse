@@ -210,18 +210,8 @@ h1, h2, .font-display {
   font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
-/* ═══ Utility ═══ */
-.gradient-text {
-  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+/* .gradient-text and .glass removed — both violated CLAUDE.md Absolute Bans (gradient via clip, glassmorphism). Dead code, 0 usages. */
 
-.glass {
-  backdrop-filter: blur(16px) saturate(180%);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-}
 
 .orange-glow {
   box-shadow: 0 0 40px -8px var(--glow);

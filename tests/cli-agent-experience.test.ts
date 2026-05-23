@@ -40,6 +40,7 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
       ...process.env,
       UNBROWSE_URL: baseUrl,
       UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+      UNBROWSE_LOCAL_ONLY: "1",
     },
     stdout: "pipe",
     stderr: "pipe",

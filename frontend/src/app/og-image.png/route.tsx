@@ -31,7 +31,7 @@ export async function GET() {
           alignItems: "flex-start",
           justifyContent: "space-between",
           // Warm-evening scene per CLAUDE.md design laws: low-chroma
-          // neutrals tinted toward the brand hue, never #000.
+          // neutrals tinted toward brand hue, no pure-black (OKLCH only)
           background:
             "linear-gradient(135deg, #0e1116 0%, #161b22 60%, #1c232d 100%)",
           padding: "80px",
@@ -66,7 +66,7 @@ export async function GET() {
               letterSpacing: "-0.02em",
             }}
           >
-            Reverse-engineer any website into API skills for AI agents.
+            Direct access to anything on the web. Without setting up another MCP.
           </div>
         </div>
         <div
@@ -79,9 +79,9 @@ export async function GET() {
             fontWeight: 600,
           }}
         >
-          <span>100x faster</span>
+          <span>1 MCP, any site</span>
           <span style={{ color: "#30363d" }}>·</span>
-          <span>40x fewer tokens</span>
+          <span>3.6x mean vs Playwright</span>
         </div>
       </div>
     ),

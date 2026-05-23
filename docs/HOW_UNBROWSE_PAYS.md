@@ -2,6 +2,21 @@
 
 This page explains how money moves through unbrowse on every paid call. The math, the splits, the wallet ownership, and the rails. Every claim cites a file and line in the codebase.
 
+## Web2 subscription path (contract 9474c6ab)
+
+For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
+
+1. The user opens the URL returned by `POST /v1/account/billing-subscribe-url` (`backend/src/routes/account.ts`), pays with a card via Stripe Checkout, and lands back on the configured success URL.
+2. Stripe's webhook (`POST /v1/billing/webhook`) drives `syncStripeDataToUserKV` (`backend/src/services/stripe.ts:226`), which writes the canonical `STRIPE_SUB_CACHE` to `stripe:customer:<customer_id>` in KV.
+3. On every paid `execute`, when the worker is started with `UNBROWSE_BILLING_ENABLED=1` the sponsor middleware (`backend/src/middleware/sponsor.ts:maybeSponsor`) consults `subscriptionAdmits` BEFORE the x402 platform-sponsor wallet check. A subscribed user with quota is admitted; usage is recorded against the Stripe-tracked balance via `recordUsage`; a sponsor-ledger row tagged `payment_method: "stripe"` is written for audit. The agent never sees a 402.
+4. Status is observable via `GET /v1/account/billing-status` — `{ subscription_active, plan_name, monthly_limit_usd, consumed_usd, remaining_usd, renewal_date, payment_method_present, auto_refill_enabled }`. The absent-subscription case returns `{ subscription_active: false, ...nulls }`, never 404.
+5. The user manages cards, invoices, and cancellation via the Stripe customer-portal URL from `POST /v1/account/billing-portal-url`.
+
+The gate is reversible: `UNBROWSE_BILLING_ENABLED` unset → the Stripe lane is a no-op and every paid call rides the x402 path documented below. On a worker where `STRIPE_SECRET_KEY` is also unset, the three account routes soft-fail with `503 billing_not_configured` rather than crash.
+
+Non-subscribers (or subscribers over quota with no auto-refill) continue to use the x402 / Flex / sponsor rails described next.
+
+
 ## The 50/35/15 split
 
 Every paid `unbrowse execute` settles on-chain through a Faremeter Flex authorization with up to five recipients in one transaction.
@@ -78,25 +93,21 @@ Agents pay per call. The x402 response carries the price, recipient, and memo. T
 
 Accounts exist for one reason: to accumulate and read earnings. The magic-link flow at `backend/src/routes/auth.ts:53-172` issues an API key and an agent_id; the agent_id is what we attribute contributions to. You can use unbrowse without ever creating one; you just can't see a balance until you do.
 
-## Anti-reverse-engineering: server-bound execution
+## Settlement cycle
 
-The unbrowse marketplace is the moat: a CLI binary lifted from npm and run standalone still has local capture / extraction code, but without server-issued search + skill access the agent loses the intelligence layer it needs to be useful.
+Each paid execute writes one row to `sponsor:ledger:<id>` carrying the agent, the skill, `amount_uc` (µ¢), `creator_wallet`, and `settled_at`. Those rows are the source-of-truth for the dashboards (`GET /v1/analytics/payments` reads them directly: platform cut, sponsor recoup, creator payouts are all derived from the ledger, not stamped separately).
 
-To enforce this server-side (Wave 1 shipping 2026-05-22):
+Operators roll the unsettled rows into a batch via two admin routes:
 
-- Every marketplace API call (`/v1/search`, `/v1/search/endpoints`, `/v1/skills/*`) is gated on a per-session HMAC token mint at `POST /v1/session/exec-token`.
-- The token mint requires the caller to send `{ build_sha, deployed_at }` matching either the CURRENT server's `/v1/version` triple OR a tuple CI previously registered via the admin-gated `POST /v1/internal/register-build`.
-- Tokens are signed with `RELEASE_MANIFEST_SIGNING_SECRET` (the same secret that signs `/v1/version`) and bound to `{ agent_id, build_sha, deployed_at, exp }`. Constant-time HMAC compare on verify.
-- Patching the CLI to skip token injection is fine, but every marketplace call then returns `401 error_code=missing_token`. The binary still runs locally; it just has no intelligence layer behind it.
-- Reverse-engineered or hand-built binaries cannot self-register a `(build_sha, deployed_at)` tuple because the registration route is `ADMIN_KEY`-gated and only the CI release workflow has that key.
+1. `POST /v1/admin/aggregate-settlement?since=&until=&dry_run=` — walks `sponsor:ledger:*`, filters to rows whose `batch_settled_tx` is absent, groups them by `skill_id`, looks up each `SkillManifest`, runs `computeFlexSplits` to derive the recipient layout (platform / owner / contributor), and writes a `settlement:ledger:<batch_id>` row in `status:"pending"`. `dry_run=1` still persists the batch — it is the source-of-truth that `execute-settlement` reads from — but lets the operator inspect the recipients before submitting.
+2. `POST /v1/admin/execute-settlement` body `{batch_id, dry_run?}` — reads the batch, normalises the per-recipient µ¢ amounts into Flex bps (re-normalised to sum to exactly 10000), assembles the on-chain authorization, and either returns it for inspection (`dry_run:true`) or signs and submits it; each source row is stamped with `batch_settled_tx + batch_settled_at` so it does not replay.
 
-Substrate-faithful: tokens carry actionable next_step (`run \`unbrowse update\` to get a CI-signed build`) and the gate refuses on `secret_unconfigured` rather than fake-passing. See `backend/src/services/exec-token.ts` for the canonical contract and `backend/tests/exec-token.test.ts` for the locked invariants.
+Batch state is readable any time via `GET /v1/admin/settlement/:batch_id` — returns the pending or executed `SettlementBatch` row from KV, or 404 when absent. The shape includes `recipients[]` (with the `owner_lane` flag set on the verified-domain entry), `tx_signature` (once executed), `total_amount_uc`, and `source_ledger_ids[]`.
 
-### Rollout (staged, observe-then-enforce)
+### Domain opt-out propagation
 
-Wave 2 (2026-05-22) wired the gate onto the live marketplace routes (`/v1/search`, `/v1/search/domain`, `/v1/search/resolve`, `/v1/search/endpoints`, `/v1/search/rank`, `/v1/skills`) and the CLI now mints + injects the token automatically.
+A verified domain owner can opt out via the DNS-TXT takedown flow (`unbrowse-takedown=<challenge>`). The verify endpoint writes a persistent `domain-optout:<domain>` record to KV. Aggregation reads that key for every skill it groups; when present, it coerces `owner_compensation_opt_in` to `false` at compute time and the 1500 bps owner lane rolls back into the contributor + platform pool. Opt-out is a binary, one-way signal — the owner can re-enable compensation by re-running the claim flow.
 
-The gate ships in **observe mode**: it logs an `[exec-token]` evidence line per request but never blocks, so every CLI already in the wild keeps working while the new token-carrying builds roll out. Flipping `EXEC_TOKEN_ENFORCE=1` (a one-line wrangler var) turns on hard 401 rejection. The flip happens only after the observe-mode logs confirm real CLIs are sending valid tokens, the same staged shape as the staging-first release gate. CI's release workflow registers each published CLI build's `(git_sha, issued_at)` tuple so freshly-shipped binaries can mint tokens the moment they land.
 
 ## What this is not
 

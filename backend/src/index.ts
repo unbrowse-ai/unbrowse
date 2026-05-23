@@ -3,8 +3,6 @@ import { cors } from "hono/cors";
 import type { Env } from "./types.js";
 import { skillRoutes, publicSkillRoutes } from "./routes/skills.js";
 import { searchRoutes } from "./routes/search.js";
-import { extractRoutes } from "./routes/extract.js";
-import { sessionRoutes } from "./routes/session.js";
 import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/stats.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { healthRoutes } from "./routes/health.js";
@@ -31,6 +29,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
 import { proxyRoutes } from "./routes/proxy.js";
+import { contractRoutes } from "./routes/contract.js";
 import {
   mountFaremeterTestRoute,
   stubFaremeterHandlers,
@@ -67,8 +66,6 @@ app.route("/", healthRoutes);
 app.route("/v1", adminRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
-app.route("/v1", extractRoutes);
-app.route("/v1", sessionRoutes);
 app.route("/v1", publicSkillRoutes);
 app.route("/v1", analyticsRoutes);
 // Universal x402-gated LLM proxy (Stripe x402 -> xgate.run upstream + 50% markup).
@@ -85,6 +82,7 @@ app.route("/v1", transactionRoutes);
 app.route("/v1", attributionRoutes);
 app.route("/v1", publicDashboardRoutes);
 app.route("/v1", publicMinerRoutes);
+app.route("/v1", contractRoutes);
 app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);

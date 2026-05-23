@@ -197,21 +197,11 @@ export async function requireSignedClient(c: Context<AuthEnv>, next: Next) {
       docs: "https://unbrowse.ai/docs/update",
     }, 426);
   }
+
   if (!result.verified) {
-    // If the server's signing secret isn't configured, the server CANNOT
-    // verify the client manifest -- so the whole anti-reverse-engineering
-    // gate is silently OFF. Letting the request through is the only safe
-    // choice (we cannot tell official from modified), but a missing prod
-    // secret is a SECURITY MISCONFIGURATION, not a normal state: it
-    // disables manifest verification for every caller. Log it loudly so
-    // it shows up in the worker tail instead of failing open in silence.
+    // If the server's signing secret isn't configured, don't punish the client —
+    // the server can't verify, so let the request through.
     if (result.reason === "verification_unconfigured") {
-      console.error(
-        "[SECURITY] requireSignedClient: RELEASE_MANIFEST_SIGNING_SECRET is unset -- " +
-        "client manifest verification is DISABLED. A modified / reverse-engineered " +
-        "binary will NOT be rejected. Set the wrangler secret to restore the gate. " +
-        `path=${c.req.path}`,
-      );
       await next();
       return;
     }

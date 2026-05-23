@@ -1,5 +1,50 @@
 # CLAUDE.md
 
+## Operating rules — pointer index into the contract ledger
+
+Behavioral rules do not live here as prose. Each line below is a
+pointer; resolve it with `bash ~/.claude/skills/contract/scripts/contract
+status <id>`. Adding a rule means declaring a contract, not appending
+prose. The reference sections below (Architecture, Structure, Known
+Issues, Releases, GitHub, bench-local rubric, ranker philosophy) carry
+facts about the codebase, NOT rules — facts stay as prose because they
+describe what exists; rules go to the substrate because they govern
+what must hold. Governing meta-law: global `contract 9c162224`.
+
+Pre-migration snapshot: `CLAUDE.md.pre-contract-migration.bak`.
+
+### Architectural laws (load-bearing)
+
+- Pointers over anything (capture completeness + stateless trace + DAG recompute): `contract 50d0419e` (clauses A `contract 6bae27e0`, B `contract fe9fcd49`, C `contract 6eb9a088`)
+- Local/cloud split — local holds only capability pointers; cloud holds compute + ledger + moat: `contract 1db6f5e3` (refines pointers-over-payload law)
+- Unbrowse server runtime is /contract-organism (every endpoint is a cell, every skill is a sequence/funnel): `contract b9c8a64d`
+- Thin client over remote /contract harness — MCP and CLI converge as dynamic transports: `contract ddff0c96`
+- Pointer-not-payload client architecture (global default #3): `contract 3c2dd353`
+
+### Substrate discipline
+
+- Plan-fulfillment proof — every `_mark satisfied` carries `--proof` or `--proof-skip`: `contract 173c8819`
+- Sequence walker advances past merged children (fossils count as resolved): `contract c9e9a127`
+- Schema vocabulary isomorphism — ContractRef in all 3 mirror files: `contract d00ac17d`
+
+### Ship discipline
+
+- Staging-then-prod with signed release manifest (no direct-to-prod deploys): global principle `20260521T194246Z-7ad798e3`
+- No stubs / no dummy data at shipping-surface layers: global principle `20260521T193905Z-61e01c0e`
+- Served-surface gate (standing): global `contract 27125bd7`
+- Empathy gate (standing): global `contract 4a055cf7`
+- Observe-original gate (rewrite-before): global `contract f669f09c`
+
+### Bench / verification
+
+- Harness collects, agent judges (C-G01): global `contract 5b9574ee`
+- No-regression commit gate (C-G02): global `contract e8179ca0`
+- Bench corpus realistic URLs / cookie freshness / antibot honesty: see "bench-local" reference section below (project-internal — bind contracts as needed)
+
+Discovery: `bash ~/.claude/skills/contract/scripts/contract list --scope project` enumerates every active contract in this project's ledger. `contract search --context "<concern>"` ranks them by relevance.
+
+---
+
 ## Project
 
 Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (shadow APIs) from real browsing traffic and progressively replaces browser calls with cached API routes. Monorepo with bun workspaces.
@@ -40,13 +85,50 @@ Every code change is judged against the calling agent's experience. The four inv
 - **Skill path retired in v6.15.0** — SDK is the integration surface, MCP is the agent protocol, `unbrowse setup` bootstraps both. No more `SKILL.md` or `unbrowse-ai/unbrowse` skill-repo sync.
 - **x402 sponsor tier (v6.15.0)** — `backend/src/middleware/sponsor.ts` gates every paid execute through a per-agent + per-platform daily USD cap. Lewis's wallet sponsors first $1/day/agent and $50/day/platform; agents fall through to their own x402 wallet once caps trip. State lives in KV: `sponsor:agent:<id>:<UTC-date>`, `sponsor:global:<UTC-date>`, `sponsor:ledger:<id>`. Exposed via `GET /v1/account/sponsor-status` and admin ledger at `GET /v1/admin/sponsor-ledger` (ADMIN_KEY-gated).
 
+## Pointers over anything — the architectural law
+
+Codifies contract `50d0419e` (universal pointers-over-payload law) into a
+project-binding rule. Three clauses, all backed by real code in this repo:
+
+**Clause A — dependency-capture completeness.** Every binding a browser
+requires down to the runtime — cookies, auth headers/tokens, CSRF,
+runtime config, SSR/JS-heap bindings, the full request closure — is
+traversed during capture and the common bindings across all captures
+are identified. Substrate: `src/capture/index.ts` (2487 LOC; HAR + JS
+interceptor + WS messages + first-party cookies + headers + perf entries),
+`src/reverse-engineer/token-sources.ts` (379 LOC; traces tokens to
+HTML-meta / inline-script / JS-bundle sources), `src/graph/index.ts`
+(`inferRequires` at L469 + `inferProvidesFromFields` at L488).
+
+**Clause B — stateless trace.** The append-only trace log is the sole
+source of truth; recomputing any value needs no in-memory session state.
+Substrate: `src/graph/trace-store.ts` (`storeExecutionTrace`,
+`readTraces`, `getRecentTraces`, `findTracesByIntent` — append-only
+StoredTrace rows on disk) + the `contract` substrate's own
+`~/.contracts/contracts.jsonl` ledger which is structurally identical.
+
+**Clause C — DAG recompute.** A DAG surfaced from the stateless trace
+recomputes any value from pointer data, reproducibly, from any session.
+Substrate: `src/graph/index.ts:1226` `buildSkillOperationGraph` +
+`buildOperationNode` + `classifyEdgeKind` + `computeReachableEndpoints`
+(line 928+) — the graph IS a pure function of the captured endpoints.
+
+**Standing implication for every future change:** if a feature
+introduces a value the runtime depends on, that value MUST be reachable
+via an opaque pointer (URL, contract:id, ledger row id, capability
+name) — never inlined as a payload field that lives only in process
+memory. **Pointers over anything.** This applies fractally: client-vs-
+server (CLAUDE.md default #3 / contract `3c2dd353`), contract:<id>
+references in the substrate (`/contract` pointer principle), and the
+local/cloud thin-client split (organ `b9c8a64d` → `ddff0c96`).
+
 ## Known Issues to Fix
 
 - **Endpoint routing picks wrong template match** — e.g. Reddit r/singularity resolve executed r/programming endpoint instead. URL template params need better semantic matching, and skill/endpoint descriptions should be reverse-engineered by the LLM to capture what each endpoint actually does (subreddit name, query params, etc.).
 - **Kuri HAR misses async fetch/XHR** — HAR recording via CDP doesn't capture all requests on SPAs. The JS interceptor (`INTERCEPTOR_SCRIPT`) catches what HAR misses. Both sources must be merged on close.
 - **Stale marketplace skills** — old skills with non-functional endpoints still rank high in resolve. Need staleness detection + auto-deprecation.
 - **X.com timeline API not captured passively** — X's GraphQL HomeTimeline uses POST with massive JSON body that `extractEndpoints` filters out. Need to handle GraphQL POST endpoints with `operationName` extraction.
-- **MCP UX gaps vs CLI** — see [`docs/mcp-vs-cli-ux-audit.md`](docs/mcp-vs-cli-ux-audit.md). `src/mcp.ts` has command parity with the CLI but `listChanged: false`, hints are prose-only `_workflow_hints` instead of structured `next_action`, and no `workflow:*` recipe prompts. Verify claims still hold: `bash scripts/verify-mcp-audit.sh`.
+- **MCP UX gaps vs CLI** — all Phase 1-3 gaps shipped 2026-05-11. `listChanged: true` for tools+prompts, structured `next_action` in all hints, and workflow recipe prompts (`workflow:resolve-execute-feedback`, `workflow:browse-and-publish`) are live. Verify: `bash scripts/verify-mcp-audit.sh`.
 - **MCP workflow guide** — step-by-step tool-call sequence for callers, see [`docs/mcp-workflow-guide.md`](docs/mcp-workflow-guide.md). Three intent classes (cached / cold-browse-publish / URL-contents), all 33 tools referenced with `src/mcp.ts:LINE` cites. Falsifier: `bash scripts/verify-mcp-workflow-guide.sh` (length, coverage, citation-content match).
 ## Structure
 
@@ -437,23 +519,11 @@ When Lewis starts a conversation about pipeline, fundraising, or sprint progress
 4. Cross-reference: flag anyone who's been silent >5 days, anyone where Lewis owes a response, any SAFEs unsigned >3 days
 5. Update memory with any new signals found
 
-### Sprint Tracker
-1. Pull Linear issues for "20x Traction Sprint (Apr 1-14)" — show status (backlog/in-progress/done)
-2. Check traction API (`https://launch.unbrowse.ai/api/traction`) and stats API (`https://beta-api.unbrowse.ai/v1/stats/summary`) for current metrics
-3. Compare against sprint targets in `project_20x_sprint.md`
-4. Flag overdue issues and blockers
-
 ### Content & Marketing Pulse
 1. Check Typefully (via `typefully` skill) for scheduled/published posts
 2. Check X engagement on recent @getFoundry and @lekt8_ posts
 3. Compare against content plan in Linear (GET-12 through GET-17)
 4. Flag content that's drafted but not posted
-
-### Nascent GP Prep (active until Apr 10 2026)
-1. Track days until Nascent GP meeting (Apr 10, 9am PST)
-2. Ensure deck, demo, team intros are ready
-3. Pull Granola notes from Jack meeting (`not_TDTFi83iGBdbZD`) for talking points
-4. Flag any DD materials Jack's team has requested
 
 ### Key investor follow-up cadences
 - **SAFEs sent**: nudge after 3 days, escalate after 7
@@ -890,45 +960,37 @@ Why + remediation in `project_fare_splits_jl_collision_20260518` memory. Linked:
 
 For any non-trivial plan in this project (ship a feature, fix a named bug,
 build an agent or skill, redesign a UI, run a sustained convergence loop),
-**you MUST route through meta-harness BEFORE freelancing or before
+**you MUST route through /contract BEFORE freelancing or before
 emitting any code/edit tool call**. This is binding agent behavior, not
-a suggestion (Lewis 2026-05-20: "harness it so that i dont have to say
-harness it"). The agent that ignores this rule and answers freelance is
-in violation of the project contract.
+a suggestion (Lewis 2026-05-22: routing through /contract first to validate
+it as a standalone primitive instead of /meta-harness). The agent that
+ignores this rule and answers freelance is in violation of the project contract.
 
 REQUIRED first action on a plan-shaped prompt:
 
-1. `bash ~/.claude/skills/meta-harness/scripts/harness discover` — surfaces
-   every callable past harness in this project AND every global harness.
-   If a past harness's plan_text matches the current request closely
-   (agent judges similarity in-thread), `harness iterate <slug>` it
-   instead of building new.
-2. If no close match: `harness build "<plan>"`. Add `--global` when the
-   harness is cross-project (integration with an external service,
-   reusable tool surface, research loop).
-3. The harness surfaces evidence; you judge in-thread. It never bakes a
-   verdict, a banned list, or a per-case rule into the substrate.
+1. `contract habit --context "<plan>"` — surfaces existing contracts that overlap.
+   If a close match exists, `contract iterate <id>` to re-check or spawn children.
+2. If no close match: `contract build "<plan>"` — searches, declares, and runs
+   first wave. Supply `--action "<shell cmd>"` for a mechanical gate, or omit
+   for `agent-judges` judgment shape.
+3. The contract surfaces evidence; you judge in-thread. It never bakes a verdict.
 
-DEFAULT for integration-shaped plans (connect to / integrate with / wire
-up any external service, API, SDK, webhook, OAuth flow, .env-keyed
-endpoint): the global `/integrate-anything` harness is the surfaced
-default. Run `INTEGRATION_TARGET=<service> bash
-~/.claude/skills/meta-harness/scripts/harness iterate integrate-anything
---global` instead of building a bespoke scaffold. It already implements
-deepwiki research, masked .env key discovery, recipe generation, and a
-live authenticated probe asserting the declared 2xx (never a proxy).
-The agent JUDGES whether the plan truly fits; the default is a surface,
-not a verdict.
+For large plans: `contract declare "<plan>" --action "children-satisfy"` then
+fan-out child contracts in parallel. For cross-project plans, run from a dir
+without `.claude/` (writes to `~/.contracts/contracts.jsonl` global store).
 
-EXEMPTIONS (the only cases where you may skip discover/build):
+/meta-harness remains available for plans needing scaffold infrastructure
+(verify.sh, ship.sh, gitea push, loop primitives). Use `harness build` only
+when contract iteration alone is insufficient — judge in-thread.
+
+EXEMPTIONS (the only cases where you may skip contract/build):
 
 - A single scoped edit with no convergence shape (one-line typo fix,
   rename, comment).
 - Pure analysis with no construction (answering a question, reading
   files, no writes / no deploys).
 
-Everything else MUST go through harness. If you find yourself about to
-freelance a multi-step task, STOP and run discover first. This block is
+Everything else MUST go through contract. This block is
 managed by `~/.claude/skills/meta-harness/scripts/autopin.py`; edit
 there, not here.
 <!-- meta-harness:autopin END -->

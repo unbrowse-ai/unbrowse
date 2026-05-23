@@ -211,15 +211,26 @@ Then confirm `POST /v1/search {"intent": "get stock data", "k": 10}` returns sto
 
 | Fix | Status | File |
 |-----|--------|------|
-| `POST /v1/ops/reindex` endpoint | Done | `backend/src/routes/ops.ts` |
+| `POST /v1/ops/reindex` endpoint | SHIPPED (`7876f2a6`) — now with `?dry_run=1` (contract 311771e1) | `backend/src/routes/ops.ts` |
 | Filter null-metadata search results | Done | `backend/src/services/discovery.ts` |
-| Log indexing failures | Done | `backend/src/services/marketplace.ts` |
-| Fix `migrate-kv.mjs` namespace | Done | `backend/migrate-kv.mjs` |
+| Log indexing failures + `needs_reindex:<id>` flag | SHIPPED (`712022a9`) — BUG-007 contract 311771e1 | `backend/src/services/marketplace.ts` |
+| Fix `migrate-kv.mjs` namespace | SHIPPED (`<commit-4>`) — BUG-003 contract 311771e1 | `backend/migrate-kv.mjs` |
 | KV idx stores keys-only (no full values) | Done | `backend/src/services/kv.ts` |
+| Pre-write size gate in `EdbKV.put` | SHIPPED (`452446c9`) — BUG-011 contract 311771e1 | `backend/src/services/kv.ts` |
 | Search route error handling (try/catch) | Done | `backend/src/routes/search.ts` |
 | Batched reindex with limit/offset | Done | `backend/src/routes/ops.ts` |
 | Await indexSkill + return index_status | Done | `backend/src/services/marketplace.ts` |
 | Harden search functions (try/catch in discovery) | Done | `backend/src/services/discovery.ts` |
+
+### Per-bug ledger (contract 311771e1)
+
+| Bug | Status | Notes |
+|-----|--------|-------|
+| BUG-003 (migrate-kv namespace) | SHIPPED — namespace was already `unbrowse--global` on the current branch; this commit adds a comment so the historical mismatch can't recur. | `backend/migrate-kv.mjs:186` |
+| BUG-004 (ghost vectors) | PARTIALLY MITIGATED — the reindex route + `needs_reindex` flag now provide a heal loop; a full purge still needs an EmergentDB list-vector-IDs API. | `backend/src/routes/ops.ts` (`/v1/ops/reindex`, `/v1/ops/purge-reindex`) |
+| BUG-005 (vector entry has no metadata) | PARTIALLY MITIGATED — reindex re-writes metadata; null-metadata filter at search time. | `backend/src/services/discovery.ts` |
+| BUG-007 (silent indexing failures) | SHIPPED — `indexEndpoints` and `removeEndpointsFromIndex` failures now log + flag `needs_reindex:<skill_id>`. | `backend/src/services/marketplace.ts` |
+| BUG-011 (silent `_idx` size limit) | SHIPPED — `EdbKV.put` / `putBatch` refuse oversize writes pre-network with the byte count + threshold + key in the error. Knob: `EMERGENTDB_MAX_VALUE_BYTES` (default 10240). | `backend/src/services/kv.ts` |
 
 ## Remaining (not fixed yet)
 

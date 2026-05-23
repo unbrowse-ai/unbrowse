@@ -1,6 +1,5 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
-import { execTokenGate } from "../middleware/exec-token.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
@@ -24,6 +23,7 @@ import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
 import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
+import { aiScrubEndpoints } from "../services/ai-scrub.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -124,6 +124,116 @@ publicSkillRoutes.get("/skills/popular", async (c) => {
   schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
   return c.json(payload);
 });
+
+// GET /v1/skills/discover -- public intent directory for agents
+// Returns top 50 skills (by recency) with machine-readable intent summary,
+// required params, and yields so any agent can find capabilities without
+// knowing a skill_id. Optional ?intent=<text> filters by substring match.
+publicSkillRoutes.get("/skills/discover", async (c) => {
+  const intentFilter = (c.req.query("intent") ?? "").trim().toLowerCase();
+  const limitRaw = c.req.query("limit");
+  const limit = Math.min(
+    limitRaw ? Math.max(1, parseInt(limitRaw, 10) || 50) : 50,
+    200,
+  );
+
+  const cacheKey = `skills:discover:${intentFilter}:${limit}`;
+  const ttlSeconds = 300;
+
+  const edgeCached = await getEdgeCacheJson<{ skills: unknown[] }>(cacheKey);
+  if (edgeCached) {
+    c.header("Cache-Control", buildCacheControl(ttlSeconds));
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json(edgeCached);
+  }
+
+  const allSkills = await listSkills(c.env);
+
+  // Filter: public, visible, non-suppressed
+  const visible = allSkills.filter((skill) => {
+    if (skill.visibility === "private") return false;
+    const lifecycle = skill.lifecycle;
+    if (lifecycle === "deprecated" || lifecycle === "disabled") return false;
+    return true;
+  });
+
+  // Sort by most recently updated
+  visible.sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+
+  // Optional intent filter (substring match on description + intent_signature + intents)
+  const filtered = intentFilter
+    ? visible.filter((skill) => {
+        const haystack = [
+          skill.description ?? "",
+          skill.intent_signature ?? "",
+          ...(skill.intents ?? []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(intentFilter);
+      })
+    : visible;
+
+  // Build machine-readable directory rows
+  const rows = filtered.slice(0, limit).map((skill) => {
+    // Top 3 endpoints by reliability score descending
+    const topEndpoints = [...skill.endpoints]
+      .sort((a, b) => (b.reliability_score ?? 0) - (a.reliability_score ?? 0))
+      .slice(0, 3);
+
+    const top_operations = topEndpoints.map((ep) => {
+      // Access extended semantic fields not declared in EndpointDescriptor's type
+      const epAny = ep as unknown as Record<string, unknown>;
+      const semantic = (epAny["semantic"] ?? {}) as {
+        requires?: Array<{ key?: string }>;
+        provides?: Array<{ key?: string }>;
+      };
+
+      // Extract required_params: prefer semantic binding keys, fall back to URL template {params}
+      const semanticRequires: string[] = (semantic.requires ?? [])
+        .map((b) => b.key ?? "")
+        .filter(Boolean);
+      const urlParams: string[] = [
+        ...(ep.url_template ?? "").matchAll(/\{([^}]+)\}/g),
+      ].map((m) => m[1]);
+      const required_params =
+        semanticRequires.length > 0 ? semanticRequires : urlParams;
+
+      const yields: string[] = (semantic.provides ?? [])
+        .map((b) => b.key ?? "")
+        .filter(Boolean);
+
+      return {
+        description: (ep.description ?? "").slice(0, 160) || undefined,
+        method: ep.method,
+        required_params,
+        yields,
+      };
+    });
+
+    // intent_summary: best description from top endpoint, or skill description
+    const bestDesc =
+      top_operations.find((op) => op.description)?.description ??
+      (skill.description ?? "").slice(0, 120);
+
+    return {
+      skill_id: skill.skill_id,
+      domain: skill.domain,
+      intent_summary: bestDesc.slice(0, 120),
+      top_operations,
+      endpoint_count: skill.endpoints.length,
+    };
+  });
+
+  const payload = { skills: rows };
+  c.header("Cache-Control", buildCacheControl(ttlSeconds));
+  c.header("Access-Control-Allow-Origin", "*");
+  schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
+  return c.json(payload);
+});
+
 // GET /v1/skills/:id -- get by ID (x402-gated for paid skills)
 publicSkillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
@@ -373,6 +483,18 @@ publicSkillRoutes.get("/skills/:id/price", async (c) => {
   const price = computeRoutePrice(skill, statsArr);
   return c.json(price);
 });
+// GET /v1/skills/:id/graph -- return the SkillOperationGraph for DAG introspection.
+// Public (no auth) — the graph contains only structural schema, no private data.
+// 404 if skill not found; 200 with operation_graph: null if skill exists but has no graph yet.
+publicSkillRoutes.get("/skills/:id/graph", async (c) => {
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  return c.json({
+    skill_id: skill.skill_id,
+    domain: skill.domain,
+    operation_graph: skill.operation_graph ?? null,
+  });
+});
 // Protected write routes -- auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -382,7 +504,7 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills -- publish/update
-skillRoutes.post("/skills", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
   const body = await c.req.json<Record<string, unknown> & {
     indexer_id?: string;
     endpoints?: unknown[];
@@ -434,8 +556,26 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, execTokenGate(), as
         details: residual,
       }, 422);
     }
-    body.endpoints = scrubbed as unknown[];
+    // WAVE 2 (contract 101b1f77): LLM-layer PII scrubber over augmented
+    // descriptions/examples. Defense-in-depth above the regex layer —
+    // catches real-shaped phone numbers, named-individual prose, "your
+    // bearer is ..." sentences whose value escapes the token-shape regex.
+    // Soft-fails if NEBIUS_API_KEY is unset (publish proceeds with regex
+    // layer only); hard-rejects 422 on any high-confidence LLM leak.
+    const ai = await aiScrubEndpoints(scrubbed, c.env);
+    if (ai.rejected) {
+      return c.json({
+        error: "publish_blocked_pii",
+        message:
+          "LLM scrubber detected residual PII or credential leakage in one or " +
+          "more endpoints. Re-run the client sanitizer and remove the flagged " +
+          "values before re-publishing.",
+        reasons: ai.reasons,
+      }, 422);
+    }
+    body.endpoints = ai.endpoints as unknown[];
     (body as Record<string, unknown>).server_sanitized = true;
+    (body as Record<string, unknown>).ai_scrubbed = ai.scrubbed;
   }
 
   let skill;
