@@ -24,9 +24,13 @@ export interface ResolvedSearchResult {
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
-  const direct = result.metadata.source_url;
+  // Defensive: when EmergentDB returns metadata-less results, result.metadata
+  // is undefined. Guard so the suppression filter doesn't crash and zero out
+  // the entire result set. Contract 8b2f65ea.
+  const meta: Record<string, unknown> = (result.metadata && typeof result.metadata === "object") ? result.metadata : {};
+  const direct = meta.source_url;
   if (typeof direct === "string" && direct) return direct;
-  const content = result.metadata.content;
+  const content = meta.content;
   if (typeof content !== "string") return null;
   try {
     const parsed = JSON.parse(content) as { domain?: unknown };
@@ -307,7 +311,13 @@ export function rescoreWithComposite(
   if (results.length === 0) return results;
   return results
     .map((r) => {
-      const meta = extractMeta(r.metadata);
+      // Defensive: EmergentDB /graph/search returns metadata-less results
+      // ({id, score} only). Without this normalization, extractMeta and
+      // metadata.source_url crash with `Cannot read properties of undefined`,
+      // the route's try/catch swallows it, and /v1/search returns [].
+      // Contract 8b2f65ea — empty-search-after-reindex root cause.
+      const safeMeta: Record<string, unknown> = (r.metadata && typeof r.metadata === "object") ? r.metadata : {};
+      const meta = extractMeta(safeMeta);
       const composite = computeCompositeSearchScore(
         r.score,
         meta.avg_reliability,
@@ -316,11 +326,11 @@ export function rescoreWithComposite(
       );
       const domainBoost = requestDomain
         ? computeDomainAffinityBoost(
-            typeof r.metadata.source_url === "string" ? r.metadata.source_url : "",
+            typeof safeMeta.source_url === "string" ? safeMeta.source_url : "",
             requestDomain,
           )
         : 0;
-      return { ...r, score: Math.min(1, composite + domainBoost) };
+      return { ...r, metadata: safeMeta, score: Math.min(1, composite + domainBoost) };
     })
     .sort((a, b) => b.score - a.score);
 }
@@ -472,18 +482,37 @@ export async function searchIntent(
   console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return filterSuppressedSearchResults(env, JSON.parse(hit)); } catch { /* fall through */ }
 
+  // Global search now mirrors searchIntentInDomain: parallel graph + BM25.
+  // EmergentDB /graph/search returns metadata-less {id, score} only; the BM25
+  // path (docs in STATS_KV `bm25-idx:<domain>`) carries the metadata we wrote
+  // at index time, so RRF-fusing the two gives us identifiable, rescorable
+  // results even when graph metadata is unavailable. Contract 8b2f65ea.
+  const normGlobal = normalizeDomain(env, "global");
   let results: SearchResult;
   try {
-    results = await graphSearch(env, "global", intent, k);
+    const [graphSettled, bm25Settled] = await Promise.allSettled([
+      graphSearch(env, "global", intent, k),
+      bm25Search(env, normGlobal, intent, k),
+    ]);
+    const graphResults = graphSettled.status === "fulfilled" ? graphSettled.value : [];
+    const bm25Results = bm25Settled.status === "fulfilled" ? bm25Settled.value : [];
+    if (graphSettled.status === "rejected") console.warn(`[search] global graph failed: ${graphSettled.reason}`);
+    if (bm25Settled.status === "rejected") console.warn(`[search] global bm25 failed: ${bm25Settled.reason}`);
+    const t2 = Date.now();
+    console.log(`[perf:search-global] graph-search: ${t2 - t1}ms graph=${graphResults.length} bm25=${bm25Results.length}`);
+    if (bm25Results.length > 0) {
+      results = rrfFuse(graphResults, bm25Results, k);
+    } else {
+      results = graphResults;
+    }
   } catch (err) {
     console.error(`[search] global error:`, (err as Error).message);
     return [];
   }
   // Rescore with composite formula (Section 3.3) before caching
   results = filterSuppressedSearchResults(env, rescoreWithComposite(results));
-  const t2 = Date.now();
-  console.log(`[perf:search-global] graph-search: ${t2 - t1}ms results=${results.length}`);
-  console.log(`[perf:search-global] TOTAL: ${t2 - t0}ms`);
+  const t3 = Date.now();
+  console.log(`[perf:search-global] TOTAL: ${t3 - t0}ms results=${results.length}`);
 
   if (results.length > 0) {
     cachePut(env, ckey, JSON.stringify(results));

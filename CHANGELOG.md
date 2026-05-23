@@ -1,6 +1,22 @@
 # Changelog
 
 ## Unreleased
+### Semantic search returns results again — defensive metadata + BM25 global fallback (2026-05-23)
+
+**fix(search)**: `/v1/search` had been returning `{"results":[]}` for every query
+on prod. Root cause: EmergentDB `/graph/search` returns `{id, score}` only —
+no `metadata` field, regardless of `include_metadata: true`. The backend
+`rescoreWithComposite -> extractMeta(r.metadata)` then crashed on undefined
+`.content`, the `/v1/search` route's try/catch swallowed the error, and the
+result set zeroed out. Fix: (1) `rescoreWithComposite` + `resultDomain` now
+defensively normalize missing/null metadata to `{}` before access. (2)
+`searchIntent` (global) now mirrors `searchIntentInDomain` — runs
+`graphSearch` + `bm25Search(env, normGlobal, ...)` in parallel and RRF-fuses
+when BM25 has hits. BM25 docs in `STATS_KV bm25-idx:<domain>` carry the
+metadata we wrote at index time, so identity survives the metadata-less
+graph response. Regression test:
+`backend/tests/search-metadata-less-graceful.test.ts`. Contract 8b2f65ea.
+
 
 ### CLI `--json` is now pure JSON on stdout — usable as a /contract `--action` (2026-05-23)
 
