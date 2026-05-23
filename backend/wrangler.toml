@@ -11,6 +11,18 @@ first_party_worker = true
 [triggers]
 crons = ["17 */6 * * *"]
 
+# STATS_KV — production analytics + bm25-idx + sponsor:ledger writes.
+# Previously bound only via `wrangler.ci.toml`'s `unsafe.bindings type=inherit`.
+# Making it explicit here keeps top-level (= prod) deploys self-contained — a
+# `wrangler deploy --env=""` from this file now carries the binding through
+# instead of silently stripping it (which manifested as
+# `Cannot read properties of undefined (reading 'put')` in indexEndpoints).
+# Namespace id from `wrangler kv namespace list` → `unbrowse-backend-STATS_KV`.
+[[kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
 # Secrets (set via `wrangler secret put`):
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
 #   RESEND_API_KEY, CASCADE_SIGNER_SECRET_KEY, CLOUDFLARE_API_TOKEN
