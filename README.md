@@ -31,7 +31,36 @@ That's it. `npx` fetches the `unbrowse` binary on first run; every web task in t
 
 ### Option 2 — TypeScript SDK
 
-For agents you write yourself (LangChain, CrewAI, your own loop), use the SDK. It auto-spawns the binary for you, no separate `setup` step required.
+Two SDK options. **New code should use `@unbrowse/client` (v7).**
+
+#### `@unbrowse/client` (v7 — recommended)
+
+Thin HTTP-first client. Browser + Node 18+. Zero runtime deps. Talks directly to the hosted Unbrowse API — no local binary required.
+
+```bash
+npm i @unbrowse/client
+```
+
+```ts
+import { Unbrowse } from "@unbrowse/client";
+
+const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
+
+const result = await unbrowse.resolve({
+  intent: "search hackernews for AI agent papers",
+});
+
+const data = await unbrowse.execute({
+  endpoint_id: result.available_operations![0].endpoint_id,
+  params: { q: "agents" },
+});
+```
+
+Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. See [`packages/sdk-v2/README.md`](./packages/sdk-v2/README.md) for streaming, proxy routing, and the full method surface.
+
+#### `@unbrowse/sdk` (v6 — legacy, binary-spawn)
+
+For existing v6 integrations or workflows that need the local CLI running alongside. Auto-spawns the `unbrowse` binary as a child process; talks to `127.0.0.1:6969`.
 
 ```bash
 npm install @unbrowse/sdk
@@ -41,14 +70,13 @@ npm install @unbrowse/sdk
 import { Unbrowse } from "@unbrowse/sdk";
 
 const u = await Unbrowse.local();
-
 const result = await u.resolve({
   intent: "list tomorrow's events",
   url: "https://calendar.google.com",
 });
 ```
 
-`Unbrowse.local()` probes `127.0.0.1:6969`, connects if a daemon is already running, and spawns the `unbrowse` CLI as a child process if not. See [`packages/sdk/README.md`](./packages/sdk/README.md) for `connect()` and `spawn()` factories, and [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/) for the payment surface.
+`Unbrowse.local()` probes `127.0.0.1:6969`, connects if a daemon is already running, and spawns the `unbrowse` CLI as a child process if not. See [`packages/sdk/README.md`](./packages/sdk/README.md) for `connect()` / `spawn()` factories and [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/) for the payment surface. v6 stays supported until existing users migrate to v7.
 
 ### Option 3 — Standalone CLI
 
