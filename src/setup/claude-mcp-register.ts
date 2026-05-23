@@ -121,8 +121,24 @@ export function applyAllowList(
 // claude-CLI presence + register behavior without touching spawnSync.
 export interface ClaudeCliAdapter {
   available(): boolean;
-  serverAlreadyRegistered(homeDir: string): boolean;
-  registerServer(serverCommand: string, serverArgs: string[], env: Record<string, string>): boolean;
+  /**
+   * Whether an MCP server with the given entryName is already registered at
+   * user scope in ~/.claude.json. The entryName argument was added when the
+   * registrar was extended to register more than just `unbrowse` (e.g. the
+   * /contract bridge). Existing callers that omit it default to `unbrowse`
+   * for backward compatibility.
+   */
+  serverAlreadyRegistered(homeDir: string, entryName?: string): boolean;
+  /**
+   * Register an MCP server at user scope. entryName is the key under which
+   * it appears in ~/.claude.json's mcpServers map. Defaults to `unbrowse`.
+   */
+  registerServer(
+    serverCommand: string,
+    serverArgs: string[],
+    env: Record<string, string>,
+    entryName?: string,
+  ): boolean;
 }
 
 export function realClaudeCliAdapter(): ClaudeCliAdapter {
@@ -131,20 +147,20 @@ export function realClaudeCliAdapter(): ClaudeCliAdapter {
       const r = spawnSync("claude", ["--version"], { stdio: "ignore", timeout: 5000 });
       return r.status === 0;
     },
-    serverAlreadyRegistered(homeDir: string): boolean {
+    serverAlreadyRegistered(homeDir: string, entryName = "unbrowse"): boolean {
       const claudeJson = join(homeDir, ".claude.json");
       if (!existsSync(claudeJson)) return false;
       try {
         const data = JSON.parse(readFileSync(claudeJson, "utf-8"));
-        return !!data?.mcpServers?.unbrowse;
+        return !!data?.mcpServers?.[entryName];
       } catch {
         return false;
       }
     },
-    registerServer(serverCommand, serverArgs, env): boolean {
+    registerServer(serverCommand, serverArgs, env, entryName = "unbrowse"): boolean {
       const envArgs = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
       const args = [
-        "mcp", "add", "unbrowse",
+        "mcp", "add", entryName,
         "--scope", "user",
         ...envArgs,
         "--", serverCommand, ...serverArgs,
@@ -152,6 +168,77 @@ export function realClaudeCliAdapter(): ClaudeCliAdapter {
       const r = spawnSync("claude", args, { stdio: "pipe", timeout: 15000 });
       return r.status === 0;
     },
+  };
+}
+
+/**
+ * Register a sibling MCP server entry with Claude Code WITHOUT touching the
+ * unbrowse-specific allow-list. Used by the /contract bridge registration so
+ * we don't mis-attribute mcp__contract__* tools to the unbrowse consent surface
+ * (those tools get permission-prompted by Claude Code's normal flow the first
+ * time they're called, which is the right semantics — consent for /contract
+ * belongs to the user, not to unbrowse setup).
+ */
+export async function registerSiblingMcpServer(opts: {
+  entryName: string;
+  serverCommand: string;
+  serverArgs: string[];
+  env?: Record<string, string>;
+  skip?: boolean;
+  homeDir?: string;
+  adapter?: ClaudeCliAdapter;
+}): Promise<{
+  claude_cli_present: boolean;
+  mcp_server_registered: boolean;
+  already_present: boolean;
+  skipped: boolean;
+  skip_reason?: string;
+  entry_name: string;
+}> {
+  const adapter = opts.adapter ?? realClaudeCliAdapter();
+  const home = opts.homeDir ?? homedir();
+  if (opts.skip) {
+    return {
+      claude_cli_present: false,
+      mcp_server_registered: false,
+      already_present: false,
+      skipped: true,
+      skip_reason: "explicit_skip_flag",
+      entry_name: opts.entryName,
+    };
+  }
+  if (!adapter.available()) {
+    return {
+      claude_cli_present: false,
+      mcp_server_registered: false,
+      already_present: false,
+      skipped: true,
+      skip_reason: "claude_cli_not_found",
+      entry_name: opts.entryName,
+    };
+  }
+  const already = adapter.serverAlreadyRegistered(home, opts.entryName);
+  if (already) {
+    return {
+      claude_cli_present: true,
+      mcp_server_registered: true,
+      already_present: true,
+      skipped: false,
+      entry_name: opts.entryName,
+    };
+  }
+  const registered = adapter.registerServer(
+    opts.serverCommand,
+    opts.serverArgs,
+    opts.env ?? {},
+    opts.entryName,
+  );
+  return {
+    claude_cli_present: true,
+    mcp_server_registered: registered,
+    already_present: false,
+    skipped: false,
+    entry_name: opts.entryName,
   };
 }
 

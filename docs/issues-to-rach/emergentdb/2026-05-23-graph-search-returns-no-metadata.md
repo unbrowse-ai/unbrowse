@@ -3,7 +3,7 @@
 **Severity:** P1 (forces client-side workaround; broke unbrowse `/v1/search` until we shipped a fix)
 **Surface:** `POST https://api.emergentdb.com/graph/search`
 **Source contract:** unbrowse `8b2f65ea` (empty-search-after-reindex root-cause)
-**Reporter:** Lewis via /contract (unbrowse `04e535fe`)
+**Reporter:** Lewis (unbrowse-team)
 
 ## Symptom
 
