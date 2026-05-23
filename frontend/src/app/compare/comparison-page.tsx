@@ -116,11 +116,40 @@ export function ComparisonPage({ slug }: { slug: string }) {
     ],
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Unbrowse",
+        item: "https://www.unbrowse.ai",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Compare",
+        item: "https://www.unbrowse.ai/compare",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: competitor.name,
+        item: `https://www.unbrowse.ai/compare/${slug}`,
+      },
+    ],
+  };
+
   return (
     <div className="bg-surface min-h-screen text-text-primary">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       <article className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">

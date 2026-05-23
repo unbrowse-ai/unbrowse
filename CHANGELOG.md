@@ -106,6 +106,59 @@ PASS coverage rose 58% → 81%; browser-blocked probes 9 → 4; product failures
   route threw and aborted the whole resolve. Validation is a publish-quality
   enhancement, not a resolve gate — it now degrades gracefully.
 
+### CLI `--json` is now pure JSON on stdout — usable as a /contract `--action` (2026-05-23)
+
+**fix**: `bun src/cli.ts resolve --json` (and every `--json` command) used to
+print `[perf] ...`, `[lifecycle] ...`, `[direct-document] ...`, `[unbrowse] ...`
+progress lines on **stdout** before the JSON payload, so a `/contract iterate`
+that piped the output into `json.load` crashed with `JSONDecodeError`. Root
+cause in `src/cli.ts:main()`: `console.log` (56 sites across the orchestrator
+alone) all went to stdout. Fix: when `--json` is set, `console.log/info/warn`
+are redirected to `process.stderr.write`. `process.stdout.write` (used by
+`output()`) is untouched, so the JSON payload stays on stdout. Any unbrowse
+verb is now a valid `/contract --action` pointer. Documented in
+`docs/dag-contract-pattern.md` with one worked example. Regression test:
+`tests/cli-json-pure-stdout.test.ts`. Contract 7ae6a26d.
+
+### Web2 subscription (Stripe) now hides x402 (2026-05-23)
+
+**feat**: Web2 subscription (Stripe) now hides x402 — `POST /v1/account/billing-subscribe-url`, `POST /v1/account/billing-portal-url`, `GET /v1/account/billing-status`. Sponsor middleware drains Stripe-tracked balance for subscribed users when `UNBROWSE_BILLING_ENABLED=1`; non-subscribers continue on the platform x402 sponsor tier. The three routes soft-fail with `503 billing_not_configured` on workers where `STRIPE_SECRET_KEY` is unset, so the legacy x402 lane remains unchanged. MCP tools `billing_subscribe_url`, `billing_portal_url`, `billing_status` re-pointed at the new account routes. Contract 9474c6ab.
+
+### CLI no longer hangs after a resolve (2026-05-23)
+
+`unbrowse resolve` intermittently (~1 in 3 runs) produced its result but never
+exited — the process hung until killed, so the result was never flushed. Root
+cause: `postTelemetry` issued its `fetch()` with no timeout, and
+`recordFunnelTelemetryEvent("resolve_completed")` is `await`ed inline on the
+resolve hot path; a stalled telemetry POST blocked `output()` indefinitely.
+The telemetry `fetch` now carries a hard 5s `AbortSignal.timeout` — telemetry
+is best-effort and can never block a result again. Verified 8/8 clean CLI
+resolves (was 1/3 hanging). Restores `bench-local`, the canonical iteration loop.
+
+### Resolve coverage — three root-cause fixes (2026-05-23)
+
+Driven by the `bench-on-change.txt` corpus (38 probes, 8 categories). Strict
+PASS coverage rose 58% → 81%; browser-blocked probes 9 → 4; product failures
+1 → 0. All three fixes are generic — no per-domain heuristics.
+
+- **Direct-fetch now runs before the Exa-highlights shortcut.** A plain JSON
+  API the caller passed as the context URL (`open.er-api.com`,
+  `api.open-meteo.com`, `*.geojson` feeds) was being answered with web-search
+  highlights *about* the topic because the Exa early-return fired before the
+  direct-fetch block. The caller's URL is the ground truth and is now fetched
+  first.
+- **GraphQL endpoints resolve to a real result.** A GraphQL endpoint answers
+  GET with 204/empty/a playground, so browser DOM extraction failed
+  (`low_quality_dom_extraction`). Resolve now probes with a `{__typename}`
+  introspection POST; on a GraphQL response it introspects the root Query
+  fields and surfaces the endpoint + schema so the caller can build a query.
+  Detection is the POST probe itself, not a `/graphql` URL match (covers
+  endpoints served at `/`).
+- **A failed manifest validation no longer crashes a resolve.**
+  `validateManifest` POSTs to `/v1/validate`; a transport failure or missing
+  route threw and aborted the whole resolve. Validation is a publish-quality
+  enhancement, not a resolve gate — it now degrades gracefully.
+
 ### Session-arc 2026-05-21 (17 PRs #685–#701)
 
 Consolidated summary of the multi-track work that landed across one

@@ -1476,6 +1476,8 @@ function DomainClaimsCard() {
 function QuickLinks() {
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: "/dashboard", label: "Dashboard / earnings + activity" },
+    { href: "/install", label: "Install the MCP" },
+    { href: "/claim", label: "Claim a domain / submit official API" },
     { href: "/account/cookies", label: "Cookie cloud vault" },
     { href: "/search", label: "Marketplace / browse skills" },
     { href: "/billing", label: "Billing / subscription + usage" },

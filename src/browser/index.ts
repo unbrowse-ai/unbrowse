@@ -280,6 +280,22 @@ export class Page {
       } catch {
         // Non-fatal — content() will retry on demand
       }
+
+      // Wait for Cloudflare interstitial to clear before returning to caller.
+      let cfTimeout = false;
+      if (await kuri.hasCloudflareChallenge(liveTabId)) {
+        const cleared = await kuri.waitForCloudflare(liveTabId, 15000);
+        cfTimeout = !cleared;
+      }
+
+      if (cfTimeout) {
+        return new UnbrowseResponse({
+          status: 200,
+          headers: { "x-unbrowse-source": "browser", "x-unbrowse-cf-timeout": "true" },
+          url: this._url,
+          body: { cf_timeout: true, message: "Cloudflare challenge did not clear within 15s" },
+        });
+      }
     }
 
     return new UnbrowseResponse({

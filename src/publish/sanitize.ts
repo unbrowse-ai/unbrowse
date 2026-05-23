@@ -123,9 +123,12 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
   return endpoints.map((endpoint) => {
     const clean = { ...endpoint };
 
-    if (clean.headers_template) {
-      clean.headers_template = redactSecrets(clean.headers_template) as Record<string, string>;
-    }
+    // headers_template is never published to the marketplace — not even empty placeholder
+    // keys. Credentials are injected exclusively from the user's private vault at execution
+    // time. The schema signal (auth_required) in semantic.requires already tells the agent
+    // that auth is needed without exposing which headers to use.
+    delete clean.headers_template;
+
     if (clean.query) {
       clean.query = redactSecrets(clean.query) as Record<string, unknown>;
     }
@@ -144,12 +147,6 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
     }
     if (clean.body) clean.body = synthesizeExample(clean.body) as Record<string, unknown>;
     if (clean.body_params) clean.body_params = synthesizeExample(clean.body_params) as Record<string, unknown>;
-
-    if (clean.headers_template) {
-      clean.headers_template = Object.fromEntries(
-        Object.keys(clean.headers_template).map((key) => [key, ""]),
-      );
-    }
 
     if (clean.trigger_url) {
       try {
