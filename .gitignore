@@ -186,3 +186,18 @@ packages/skill/dist-sm/
 !.claude/mark-new-and-changed-interactive-elements-in-unb/
 .claude/mark-new-and-changed-interactive-elements-in-unb/logs/
 # meta-harness:gitignore END
+
+# Session evidence / scratch (added 2026-05-23 for release readiness)
+.scratch/
+.bench-par/
+backend/src/.zigrep_archive
+docs/outline-api/
+frontend/.claude/contracts.jsonl
+frontend/.claude/scripts/
+frontend/.claude/set-up-auto-enforcing-contracts-for-unbrowse-fro/
+frontend/.claude/set-up-auto-enforcing-contracts-for-unbrowse-fro.local.md
+frontend/.claude/settings.json
+frontend/.safe-sync/
+.planning/contract-roadmap.md
+scripts/bench-contract-scan.py
+scripts/bench-probe-verify.sh
