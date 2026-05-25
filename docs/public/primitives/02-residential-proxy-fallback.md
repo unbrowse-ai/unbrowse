@@ -42,13 +42,20 @@ When the user sets `UNBROWSE_KURI_PROXY=auto` but the credentials are missing:
 
 This is the honest mode of the bridge: it tells the user the toggle was on but the credentials were missing, instead of silently routing direct.
 
-## How managed Chrome is forced
+## How managed Chrome is forced (and the auth caveat)
 
-CDP cannot retrofit a proxy onto a Chrome process that was already launched without one. When the bridge wires a proxy, it also sets `KURI_DISABLE_CDP_ATTACH=1` automatically. That env tells the Unbrowse launcher to start a new managed Chrome instead of attaching to whatever Chrome the user already has open, so the `--proxy-server` flag is actually applied on launch.
+CDP cannot retrofit a proxy onto a Chrome process that was already launched without one. When the bridge wires a proxy, it tries to set `KURI_DISABLE_CDP_ATTACH=1` so the Unbrowse launcher starts a new managed Chrome that actually receives the `--proxy-server` flag.
 
-The result: turning on `UNBROWSE_KURI_PROXY=auto` in any environment (CI, clean dev, a developer's machine with Chrome running) gives the same observable behavior. The bridge does both halves of the wire-up in one place.
+There is one honest exception. Chrome's `--proxy-server` flag does not accept inline credentials (`user:pass@host:port`); a URL in that shape returns `ERR_NO_SUPPORTED_PROXIES` on every navigation. When the bridge detects inline credentials in the proxy URL, it does not force managed Chrome. It logs the limitation to stderr so the operator knows the wire-up is partial:
 
-If a user explicitly wants to keep attaching to their existing Chrome and accept the loss of the proxy effect, they can set `KURI_ATTACH_EXISTING_CHROME=1` themselves; explicit opt-in still wins over the automatic disable, but the bridge will not silently route Reddit through datacenter IPs when the user thought they enabled residential.
+```
+[kuri-proxy] proxy has inline credentials; Chrome --proxy-server rejects auth-in-URL.
+Not forcing managed Chrome (proxy applies only when kuri launches its own browser for other reasons).
+```
+
+In this state, the bridge still sets `KURI_PROXY`. When kuri launches managed Chrome for other reasons (no user Chrome to attach to, or `KURI_DISABLE_CDP_ATTACH=1` already in env), the proxy is passed through. When kuri attaches to user Chrome, the proxy is not applied for that session.
+
+The proper fix is a future `KURI_PROXY_USERNAME` / `KURI_PROXY_PASSWORD` env that kuri injects via a PAC script or basic-auth extension, so credentials never travel in the URL. Until that ships, an unauthenticated proxy URL gives the bridge full effect, and an authenticated one gives partial effect with an honest stderr line.
 
 ## What this rules out
 
