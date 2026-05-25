@@ -28,20 +28,19 @@
  * Must be called BEFORE kuri/client first spawns, so the inherited
  * process.env carries KURI_PROXY into the spawned Zig binary.
  *
- * Runtime gap (documented 2026-05-25):
- * The bridge has effect ONLY when kuri launches MANAGED Chrome. When
- * kuri attaches to a user's pre-existing Chrome via CDP (the default
- * dev path when Chrome is already running on the user's machine), the
- * `--proxy-server` flag is never applied — that Chrome was launched
- * without a proxy and CDP cannot retrofit one. Symptom: bridge logs
- * `wired KURI_PROXY` correctly but Reddit/Cloudflare still return
- * datacenter-IP responses.
+ * Runtime gap (closed 2026-05-25 same day): when the proxy is wired,
+ * the bridge ALSO sets KURI_DISABLE_CDP_ATTACH=1 so kuri's launch
+ * config forces managed Chrome instead of attaching to the user's
+ * existing Chrome. This guarantees --proxy-server is actually applied
+ * even in local dev where the user has Chrome running. Without this,
+ * the bridge would log `wired` correctly but Reddit / Cloudflare still
+ * return datacenter-IP responses because CDP cannot retrofit a proxy
+ * onto an already-launched Chrome process.
  *
- * Affects local dev with user Chrome running. CI bench probes that
- * spawn a clean environment with no pre-existing Chrome get the
- * managed-Chrome path and the proxy DOES take effect. To force the
- * managed path locally: kill user Chrome (or close all Chrome windows)
- * before invoking unbrowse, OR set KURI_ATTACH_TO_EXISTING_CHROME=0.
+ * KURI_DISABLE_CDP_ATTACH is the documented opt-OUT in kuri's launch
+ * config (src/kuri/client.ts:resolveKuriLaunchConfig). Setting it from
+ * the bridge respects the kuri-client/edit-ban (CLAUDE.md) while
+ * closing the gap end-to-end.
  */
 
 import { resolveProxyUrl } from "../execution/proxy-fetch.js";
@@ -57,10 +56,25 @@ function redactProxyUrl(url: string): string {
   return url.replace(/\/\/[^@]+@/, "//***@");
 }
 
+// Forces Kuri to launch managed Chrome instead of attaching to user's
+// existing Chrome. Kuri's attach-vs-managed decision lives in
+// src/kuri/client.ts:resolveKuriLaunchConfig — it reads
+// KURI_DISABLE_CDP_ATTACH (opt-OUT) which trumps the opt-IN
+// KURI_ATTACH_EXISTING_CHROME. Setting it here is the documented fix
+// for the runtime gap noted in this module's header: when proxy is
+// wired but kuri attaches to user Chrome, --proxy-server is never
+// applied. Forcing managed Chrome closes the gap.
+function forceManagedChrome(env: NodeJS.ProcessEnv): void {
+  if (!env.KURI_DISABLE_CDP_ATTACH) {
+    env.KURI_DISABLE_CDP_ATTACH = "1";
+  }
+}
+
 export function bridgeKuriProxyEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): KuriProxyBridgeOutcome {
   if (env.KURI_PROXY) {
+    forceManagedChrome(env);
     return { wired: false, reason: "already_set", existing: redactProxyUrl(env.KURI_PROXY) };
   }
 
@@ -71,6 +85,7 @@ export function bridgeKuriProxyEnv(
 
   if (/^(?:https?|socks5):\/\//.test(toggle)) {
     env.KURI_PROXY = toggle;
+    forceManagedChrome(env);
     return { wired: true, source: "explicit_url", redacted: redactProxyUrl(toggle) };
   }
 
@@ -79,6 +94,7 @@ export function bridgeKuriProxyEnv(
     const proxy = fromUrl || resolveProxyUrl(env);
     if (!proxy) return { wired: false, reason: "creds_missing" };
     env.KURI_PROXY = proxy;
+    forceManagedChrome(env);
     return { wired: true, source: "auto", redacted: redactProxyUrl(proxy) };
   }
 
