@@ -763,9 +763,16 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     const startedAt = Date.now();
     async function resolveOnce(message = "Still working. Searching cached routes..."): Promise<Record<string, unknown>> {
-      // CLI guard: never wait longer than budget + 30s slack on the local
+      // CLI guard: never wait longer than budget + slack on the local
       // daemon. Fixes silent hangs where pkill races with daemon startup.
-      const cliTimeoutMs = (typeof body.budget_ms === "number" ? body.budget_ms : 8000) + 30_000;
+      // UNBROWSE_API_TIMEOUT_MS env overrides the computed value when set
+      // (bench runs that include cold Chrome launch + full capture
+      // routinely exceed the 38s default; setting the env to e.g. 75000
+      // gives them honest room rather than misclassifying as cli_timeout).
+      const envOverride = Number(process.env.UNBROWSE_API_TIMEOUT_MS);
+      const cliTimeoutMs = Number.isFinite(envOverride) && envOverride > 0
+        ? envOverride
+        : (typeof body.budget_ms === "number" ? body.budget_ms : 8000) + 30_000;
       return withPendingNotice(
         api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
         message,
@@ -1073,7 +1080,11 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
   async function resolveStep(label: string): Promise<Record<string, unknown>> {
     runPlan.push({ step: "resolve", mode: "direct_or_cached", status: "started", label });
     const body = resolveBody();
-    const cliTimeoutMs = (typeof body.budget_ms === "number" ? body.budget_ms : 8_000) + 30_000;
+    // UNBROWSE_API_TIMEOUT_MS env override — see resolveOnce for rationale.
+    const envOverride = Number(process.env.UNBROWSE_API_TIMEOUT_MS);
+    const cliTimeoutMs = Number.isFinite(envOverride) && envOverride > 0
+      ? envOverride
+      : (typeof body.budget_ms === "number" ? body.budget_ms : 8_000) + 30_000;
     let result = await withPendingNotice(
       api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
       "Still working. Searching cached routes...",
