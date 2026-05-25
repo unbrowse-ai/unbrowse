@@ -46,6 +46,12 @@ export type PaymentProvider =
   | "venice_x402"
   | "moonpay_x402"
   | "bankr_sdk"
+  // Wave-32 expansion (wallets + facilitator).
+  | "agentcash_dev"
+  | "corbits_onramp"
+  | "ruflo_agentic"
+  | "stellar_agentic"
+  | "coinbase_monetize"
   | "skip";
 
 export interface PaymentProviderConfig {

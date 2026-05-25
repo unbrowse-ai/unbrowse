@@ -42,6 +42,12 @@ export type ProviderName =
   | "venice_x402"
   | "moonpay_x402"
   | "bankr_sdk"
+  // Wave-32 expansion: more 402-payment providers (wallets + facilitators).
+  | "agentcash_dev"
+  | "corbits_onramp"
+  | "ruflo_agentic"
+  | "stellar_agentic"
+  | "coinbase_monetize"
   | "external_solana";
 
 export interface ProviderConfig {
@@ -204,6 +210,47 @@ export const PROVIDER_REGISTRY: readonly ProviderConfig[] = [
     endpointPath: "/v1/payments/bankr/x402",
     skill_install_count: 290,
     contract_id: "f0fc502d",
+  },
+  // Wave-32 additions.
+  {
+    name: "agentcash_dev",
+    label: "agentcash.dev wallet (x402-native)",
+    precheck: () => existsSync(join(process.env.HOME || homedir(), ".agentcash", "wallet.json")),
+    endpointPath: "/v1/payments/agentcash/x402",
+    skill_install_count: 0, // not on skills.sh; tracked by Lewis as alt to lobster.cash
+    contract_id: "5ee941f3",
+  },
+  {
+    name: "corbits_onramp",
+    label: "Corbits.dev card-to-x402 onramp (facilitator)",
+    precheck: () => !!process.env.CORBITS_API_KEY,
+    endpointPath: "/v1/payments/corbits/x402",
+    skill_install_count: 0, // facilitator, not skill-listed
+    contract_id: "07d7fc0b",
+  },
+  {
+    name: "ruflo_agentic",
+    label: "Ruflo agentic payments",
+    precheck: () => existsSync(join(process.env.HOME || homedir(), ".ruflo", "agent.json")),
+    endpointPath: "/v1/payments/ruflo/x402",
+    skill_install_count: 499,
+    contract_id: "dde8a2b1",
+  },
+  {
+    name: "stellar_agentic",
+    label: "Stellar agentic payments (XLM/USDC)",
+    precheck: () => !!process.env.STELLAR_SECRET_KEY,
+    endpointPath: "/v1/payments/stellar/x402",
+    skill_install_count: 14,
+    contract_id: "c0c715f3",
+  },
+  {
+    name: "coinbase_monetize",
+    label: "Coinbase monetize-service (x402 receive-side)",
+    precheck: () => !!process.env.COINBASE_MONETIZE_API_KEY,
+    endpointPath: "/v1/payments/coinbase-monetize/x402",
+    skill_install_count: 2900,
+    contract_id: "49ae6384",
   },
 ];
 
