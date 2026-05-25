@@ -15,6 +15,12 @@ set -uo pipefail
 # so the npm-global bin is missing. Without this the whole bench is a no-op.
 export PATH="$HOME/.npm-global/bin:/opt/nanobrew/prefix/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 
+# Give probes that need cold Chrome + full capture honest room. The CLI's
+# default in-process API cap is budget_ms + 30s (≈38s for the default 8s
+# budget). Bench probes routinely exceed that. Caller can override.
+: "${UNBROWSE_API_TIMEOUT_MS:=75000}"
+export UNBROWSE_API_TIMEOUT_MS
+
 CORPUS="scripts/corpus/benchmark-baseline.txt"
 OFFSET=0
 SIZE=0
