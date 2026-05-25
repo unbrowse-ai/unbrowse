@@ -80,7 +80,7 @@ await unbrowse.keys.rotate(keyId);       // revokes old, returns new key plainte
 Every error inherits from `UnbrowseError`. Typed for easy handling:
 
 ```ts
-import { Unbrowse, UnbrowseRateLimitError, UnbrowsePaymentRequiredError } from "@unbrowse/sdk";
+import { Unbrowse, UnbrowseRateLimitError, UnbrowsePaymentRequiredError } from "@unbrowse/client";
 
 try {
   await unbrowse.resolve({ intent });
@@ -126,9 +126,9 @@ new Unbrowse({
 });
 ```
 
-## On-device kuri (advanced)
+## Local runtime capture (advanced)
 
-Most users do not need this. If you specifically need to run the local Kuri browser binary on a developer machine (capturing traffic for a new domain that the marketplace does not yet cover), install the separate runtime:
+Most users do not need this. If you specifically need a local browser session for a new domain the marketplace does not yet cover, use the legacy local-runtime package:
 
 ```bash
 npm i @unbrowse/local
@@ -139,7 +139,7 @@ import { spawnUnbrowseRuntime } from "@unbrowse/local";
 // pre-v7 binary-spawn API preserved here
 ```
 
-The default `@unbrowse/sdk` package has no Kuri dependency and runs in browsers + edge runtimes.
+The default `@unbrowse/client` package has no local-runtime dependency and runs in browsers + edge runtimes.
 
 ## Stability
 
