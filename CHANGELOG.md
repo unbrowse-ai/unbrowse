@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+### Blog index gains a guided reading path (2026-05-25)
+
+**fix(frontend)**: `/blog` now surfaces a five-step "Start here" path over the
+existing article manifest, with matching ItemList schema, so visitors and
+crawlers can follow the thesis → mechanism → evidence → agent surface →
+contributor loop without relying on the flat article list.
+
 ### Semantic search returns results again — defensive metadata + BM25 global fallback (2026-05-23)
 
 **fix(search)**: `/v1/search` had been returning `{"results":[]}` for every query
