@@ -14,6 +14,7 @@
     "scripts/postinstall-ping.mjs",
     "scripts/verify-release-assets.mjs",
     "README.md",
+    "SKILL.md",
     "LICENSE"
   ],
   "scripts": {

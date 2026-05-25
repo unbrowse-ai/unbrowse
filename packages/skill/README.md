@@ -1,8 +1,6 @@
 # Unbrowse
 
-> ## ⚠️ The Anthropic skill path retired in v6.15.0
->
-> Agents should connect via the **MCP server**. The CLI (`unbrowse ...`) and SDK are unaffected. Add this to your MCP host config (Claude Desktop, Cursor, Codex, or any MCP-compatible client):
+> Skill, MCP server, SDK, CLI — four surfaces on one substrate. `SKILL.md` is back in this package; the MCP block below still works as the canonical agent path. Pick what your host supports.
 >
 > ```json
 > {
@@ -15,7 +13,7 @@
 > }
 > ```
 >
-> Then run `npx unbrowse setup` once. The `SKILL.md` file from this package was retired in v6.15.0; the MCP block above replaces it.
+> Then run `npx unbrowse setup` once. The SKILL.md in this directory is loadable via `find-skills` / `/find-skills`; reading it gives an agent the same map (resolve + execute + browse-session) without an MCP host.
 
 This package installs the `unbrowse` CLI.
 
