@@ -47,7 +47,7 @@ The application calls the endpoint. The 402 response carries `accepts`. The acce
 
 - `exact` over USDC on Solana (Unbrowse's wallet, the default)
 - `@faremeter/flex` over USDC on Solana (Unbrowse's wallet, for variable-cost endpoints)
-- A third-party provider's scheme (`pay.sh`, `agentcash.dev`, or any other x402-compliant facilitator)
+- A third-party provider's scheme (`pay` signer, `agentcash.dev`, or any other x402-compliant facilitator)
 - The site's own payment endpoint (if the site already speaks x402, the marketplace publish references it)
 
 The cut Unbrowse takes is at the Faremeter facilitator layer, on `@faremeter/flex` settlements with a `defaultSplits` recipient set we control. When the user pays through a third-party scheme or the site's own endpoint, we do not see the payment and we do not take a cut. The provider boundary is the boundary.
@@ -70,6 +70,6 @@ Surface for the agent and Lewis:
 ## What this rules out
 
 - Application code reaching into the payment scheme to inspect signatures, holds, or chains.
-- Per-endpoint provider hardcoding ("this endpoint always uses pay.sh"). Provider plurality is at the 402 `accepts` boundary, not in the application code.
+- Per-endpoint provider hardcoding ("this endpoint always uses one named pay signer"). Provider plurality is at the 402 `accepts` boundary, not in the application code.
 - The marketplace taking a cut on payments routed through a non-Faremeter provider. The cut is layered with the settlement.
 - Refunds going through application code. Refund is a Faremeter-layer surface (the refund window on Flex, the dispute window on exact).

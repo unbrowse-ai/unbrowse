@@ -62,7 +62,7 @@ import { payAndRetryFlex, type FlexWalletLike } from "../../packages/sdk/src/fle
 // Fixtures
 // ----------------------------------------------------------------------------
 
-const PLATFORM_ATA = "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+const PLATFORM_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const CONTRIB_WALLET = "CtrbWalletxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 const AGENT_ESCROW = "EscrowAgentxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 const AGENT_SESSION_KEY = "SessKeyAgntxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
@@ -266,9 +266,11 @@ describe("v6.16 Flex routing — end-to-end (Day 5 Creatures)", () => {
     // Canonical x402 envelope.
     expect(terms.x402Version).toBe(2);
     expect(terms.error).toBe("Payment Required");
-    expect(terms.accepts.length).toBe(1);
+    expect(terms.accepts.length).toBeGreaterThanOrEqual(2);
 
-    const accept = terms.accepts[0]!;
+    const accept = terms.accepts.find((entry) => entry.scheme === "@faremeter/flex");
+    expect(accept).toBeTruthy();
+    if (!accept || accept.scheme !== "@faremeter/flex") throw new Error("missing Flex accept");
     expect(accept.scheme).toBe("@faremeter/flex");
     expect(accept.network).toBe("solana-mainnet");
     expect(accept.payTo).toBe(AGENT_ESCROW);
@@ -375,7 +377,9 @@ describe("v6.16 Flex routing — end-to-end (Day 5 Creatures)", () => {
       currentSlot: 200_000n,
     });
 
-    const accept = terms.accepts[0]!;
+    const accept = terms.accepts.find((entry) => entry.scheme === "@faremeter/flex");
+    expect(accept).toBeTruthy();
+    if (!accept || accept.scheme !== "@faremeter/flex") throw new Error("missing Flex accept");
     const sdkAccepts = [{
       scheme: accept.scheme,
       network: accept.network,
