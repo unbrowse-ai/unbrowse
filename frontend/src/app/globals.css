@@ -468,7 +468,8 @@ body.editions-page h3 {
    Both files emit unscoped class names so we hook by structural selectors
    added in navbar.tsx/site-footer.tsx (data-global-chrome). */
 body.editions-page [data-global-chrome="navbar"],
-body.editions-page [data-global-chrome="site-footer"] {
+body.editions-page [data-global-chrome="site-footer"],
+body.editions-page [data-global-chrome="docs-embed"] {
   display: none !important;
 }
 

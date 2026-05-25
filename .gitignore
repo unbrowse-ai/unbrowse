@@ -201,3 +201,4 @@ frontend/.safe-sync/
 .planning/contract-roadmap.md
 scripts/bench-contract-scan.py
 scripts/bench-probe-verify.sh
+.bench-served-surface/

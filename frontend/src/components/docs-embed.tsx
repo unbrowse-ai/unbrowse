@@ -9,8 +9,10 @@ export function DocsEmbed() {
 
   return (
     <GitBookProvider siteURL="https://docs.unbrowse.ai">
-      {/* Floating toggle button */}
+      {/* Floating toggle button. data-global-chrome lets .editions-page hide it
+          on the cream landing. */}
       <button
+        data-global-chrome="docs-embed"
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-[0_0_24px_rgba(255,109,0,0.4)] hover:bg-orange-600 hover:shadow-[0_0_32px_rgba(255,109,0,0.6)] transition-all active:scale-95"
         aria-label={open ? "Close docs" : "Open docs"}
