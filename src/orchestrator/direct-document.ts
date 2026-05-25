@@ -182,6 +182,39 @@ export function buildDirectDocumentResult(
       },
     };
   }
+  // SPA-hydration gate (wired separately from the constants block at L91/97):
+  // when the body text is below the hydration floor AND the HTML carries any
+  // SSR-shell marker (__NEXT_DATA__, _next/static, __NUXT__, __INITIAL_STATE__,
+  // __APOLLO_STATE__, __PRELOADED_STATE__, __INITIAL_PROPS__, _nuxt/static),
+  // reject with `spa_hydration_required` so the orchestrator escalates to the
+  // browser ladder with a hydration wait rather than returning the chrome-only
+  // meta envelope. Generic across Next.js / Nuxt / Apollo / Redux SSR — no
+  // per-host arm. Runs BEFORE the `body_text_below_floor` interstitial path so
+  // SPA shells get the precise diagnostic (the agent reads `spa_markers` in
+  // evidence and knows to wait for hydration); a thin body WITHOUT any
+  // hydration marker still falls through to the interstitial path below.
+  if (bodyText.length < SPA_HYDRATION_BODY_TEXT_FLOOR) {
+    const spaMarkers: string[] = [];
+    const headSlice = html.slice(0, Math.min(html.length, 200_000));
+    const scanRe = new RegExp(SPA_HYDRATION_RE.source, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = scanRe.exec(headSlice)) !== null) {
+      if (m[0] && !spaMarkers.includes(m[0])) spaMarkers.push(m[0]);
+      if (spaMarkers.length >= 4) break;
+    }
+    if (spaMarkers.length > 0) {
+      return {
+        rejected: true,
+        reason: "spa_hydration_required",
+        evidence: {
+          spa_markers: spaMarkers,
+          body_text_chars: bodyText.length,
+          html_bytes: html.length,
+        },
+      };
+    }
+  }
+
   if (bodyText.length < MIN_DIRECT_DOCUMENT_BODY_TEXT) {
     return {
       rejected: true,
