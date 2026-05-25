@@ -59,10 +59,14 @@ RETR|get youtube channel mkbhd|https://www.youtube.com/@mkbhd
 # EXEC — paid execute must fire correctly (no write on a read)
 EXEC|list NUS modules|https://nusmods.com/modules
 EXEC|tweets from elonmusk|https://x.com/elonmusk
+EXEC|get github user repos|https://github.com/torvalds?tab=repositories
+EXEC|get hackernews user submissions|https://news.ycombinator.com/submitted?id=pg
 
 # META — graph walks dependency chain
 META|get jupiter swap quote SOL to USDC|https://jup.ag/
 META|get reddit post comments|https://www.reddit.com/r/programming/comments/
+META|get arxiv paper abstract|https://arxiv.org/abs/2604.00694
+META|get pypi package versions|https://pypi.org/project/requests/
 
 # Antibot baseline (these are expected hard cases; not part of dimensional
 # pass-rate unless residential proxy is on)
