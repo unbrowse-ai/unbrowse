@@ -59,14 +59,92 @@ function redactProxyUrl(url: string): string {
 
 // Whether the proxy URL has inline credentials (user:pass@host).
 // Chrome's --proxy-server flag REJECTS such URLs with
-// ERR_NO_SUPPORTED_PROXIES on every navigation — empirically verified
-// in bench-2026-05-25 where 5 probes returned chrome-error://chromewebdata
-// because kuri passed the auth-in-URL proxy through to Chrome. We must
-// NOT set KURI_PROXY in that case; the proxy stays available to the
-// fetch / curl_cffi paths via UNBROWSE_PROXY_URL which DO support
-// auth-in-URL.
+// ERR_NO_SUPPORTED_PROXIES on every navigation. Bridge spawns a local
+// auth-injecting forwarder on localhost so Chrome connects unauth and
+// the forwarder adds the Proxy-Authorization header on its way upstream.
 function hasInlineAuth(proxyUrl: string): boolean {
   return /^\w+:\/\/[^/@]+@/.test(proxyUrl);
+}
+
+// Spawns scripts/local-proxy-auth-forwarder.py for the given upstream
+// URL. Reads the first line of stdout ("ready port=<N>") to discover
+// the kernel-picked port. Returns the localhost URL Chrome can use.
+// Returns null if the forwarder didn't start within 3 seconds or
+// stdout didn't carry a `port=` line. The child process is detached
+// (unref'd) so it survives parent exit until something else kills it;
+// kuri-broker shutdown + the standard pkill set already catch this.
+function spawnAuthForwarder(upstreamUrl: string): string | null {
+  try {
+    const { spawnSync, spawn } = require("node:child_process") as typeof import("node:child_process");
+    const path = require("node:path") as typeof import("node:path");
+    const fs = require("node:fs") as typeof import("node:fs");
+
+    // Locate scripts/local-proxy-auth-forwarder.py: walk up from this
+    // file until we find a `scripts/` directory containing it. The
+    // bridge module ships under src/env/, so the script is two dirs up.
+    let here = __dirname;
+    let scriptPath: string | null = null;
+    for (let i = 0; i < 6; i++) {
+      const candidate = path.join(here, "scripts", "local-proxy-auth-forwarder.py");
+      if (fs.existsSync(candidate)) {
+        scriptPath = candidate;
+        break;
+      }
+      const parent = path.dirname(here);
+      if (parent === here) break;
+      here = parent;
+    }
+    if (!scriptPath) {
+      process.stderr.write("[kuri-proxy] could not locate local-proxy-auth-forwarder.py; auth-proxy bridge unavailable.\n");
+      return null;
+    }
+
+    // Probe — confirm python3 + script can parse the URL before
+    // backgrounding. spawnSync with a 1s timeout, --help-like dry-run
+    // via empty stdin. Skipped here; rely on background spawn's
+    // ready-line as the probe.
+
+    // File-based ready signal — more reliable than racing the
+    // child's stdout pipe across the bun/node runtime boundary.
+    const os = require("node:os") as typeof import("node:os");
+    const readyFile = path.join(os.tmpdir(), `kuri-proxy-forwarder-${process.pid}-${Date.now()}.ready`);
+    try { fs.unlinkSync(readyFile); } catch { /* not present yet */ }
+
+    const child = spawn("python3", [scriptPath, "--upstream", upstreamUrl, "--quiet", "--ready-file", readyFile], {
+      stdio: "ignore",
+      detached: true,
+    });
+    child.unref();
+
+    // Poll the ready file up to 3 seconds. Forwarder writes
+    // "port=<N>\n" once listening.
+    const deadline = Date.now() + 3000;
+    let port: string | null = null;
+    while (Date.now() < deadline) {
+      try {
+        const content = fs.readFileSync(readyFile, "utf-8");
+        const m = content.match(/port=(\d+)/);
+        if (m) {
+          port = m[1];
+          break;
+        }
+      } catch { /* not ready yet */ }
+      spawnSync("sh", ["-c", "sleep 0.1"]);
+    }
+
+    // Best-effort cleanup of the ready file (forwarder doesn't need it after start)
+    try { fs.unlinkSync(readyFile); } catch { /* ignore */ }
+
+    if (!port) {
+      try { if (child.pid) process.kill(child.pid, "SIGTERM"); } catch { /* ignore */ }
+      process.stderr.write("[kuri-proxy] auth-proxy forwarder failed to report ready within 3s\n");
+      return null;
+    }
+    return `http://127.0.0.1:${port}`;
+  } catch (err) {
+    process.stderr.write(`[kuri-proxy] auth-proxy spawn error: ${err instanceof Error ? err.message : String(err)}\n`);
+    return null;
+  }
 }
 
 // Forces Kuri to launch managed Chrome instead of attaching to user's
@@ -81,19 +159,25 @@ function forceManagedChrome(env: NodeJS.ProcessEnv): void {
   }
 }
 
-// Apply the proxy to kuri's environment. Returns true iff KURI_PROXY
-// was actually set (Chrome-compatible URL). When auth-in-URL is present,
-// emits an honest stderr line and leaves KURI_PROXY unset so kuri's
-// Chrome runs direct rather than receiving a broken --proxy-server flag.
+// Apply the proxy to kuri's environment. When the URL has inline
+// credentials, spawn a local auth-injecting forwarder and point
+// KURI_PROXY at the localhost endpoint (Chrome-compatible). When the
+// URL is already Chrome-compatible (no inline auth), set KURI_PROXY
+// directly. Returns false only when the forwarder failed to start;
+// caller surfaces that as chrome_incompatible_proxy_format so the
+// agent knows kuri's Chrome will run direct.
 function applyKuriProxy(env: NodeJS.ProcessEnv, proxyUrl: string): boolean {
   if (hasInlineAuth(proxyUrl)) {
+    const forwarderUrl = spawnAuthForwarder(proxyUrl);
+    if (!forwarderUrl) return false;
+    env.KURI_PROXY = forwarderUrl;
+    forceManagedChrome(env);
     process.stderr.write(
-      "[kuri-proxy] proxy has inline credentials (user:pass@host). " +
-      "Chrome --proxy-server rejects this shape with ERR_NO_SUPPORTED_PROXIES; " +
-      "leaving KURI_PROXY unset. Fetch/curl_cffi paths still use UNBROWSE_PROXY_URL. " +
-      "Future fix: KURI_PROXY_USERNAME / KURI_PROXY_PASSWORD env via PAC or basic-auth extension.\n",
+      `[kuri-proxy] auth-forwarder bridged: Chrome connects to ${forwarderUrl} (unauth), ` +
+      "forwarder injects Proxy-Authorization to upstream. Chrome accepts the unauth localhost " +
+      "URL where it rejected inline-auth.\n",
     );
-    return false;
+    return true;
   }
   env.KURI_PROXY = proxyUrl;
   forceManagedChrome(env);
