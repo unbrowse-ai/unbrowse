@@ -201,3 +201,8 @@ frontend/.safe-sync/
 .planning/contract-roadmap.md
 scripts/bench-contract-scan.py
 scripts/bench-probe-verify.sh
+
+# Session local artifacts
+.agent-xp/
+.conductor/
+harness/.agent-xp/
