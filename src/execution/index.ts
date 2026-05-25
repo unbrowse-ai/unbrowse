@@ -699,7 +699,15 @@ function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
 }
 
 function looksLikeApiUrl(url: string): boolean {
-  return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|\/v\d+(?:\/|$)|\/\d+\.\d+\/|\.json(?:\?|$)/i.test(url)
+  // Data-format extensions beyond .json that publish structured payloads:
+  // .geojson (GeoJSON feature collections — usgs earthquake feed),
+  // .xml / .atom / .rss (syndication + structured docs),
+  // .ndjson / .jsonl (streaming JSON). These are real API surfaces even
+  // when the path doesn't include /api/ or /v1/. Triggered by usgs probe
+  // whose canonical feed URL is .../summary/2.5_day.geojson — the
+  // page-artifact dom_extraction was winning over the actual geojson
+  // endpoint because looksLikeApiUrl returned false for the extension.
+  return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|\/v\d+(?:\/|$)|\/\d+\.\d+\/|\.(?:json|geojson|ndjson|jsonl|xml|atom|rss)(?:\?|$)/i.test(url)
     || /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|quote-api)\./i.test((() => {
       try { return new URL(url).hostname; } catch { return ""; }
     })())
@@ -5812,6 +5820,56 @@ export function buildGraphqlRequestParams(
   };
 }
 
+// Walks a JSON-Schema-shaped object looking for "data-rich" array shapes at any
+// depth. Returns true when ANY array-typed node is reachable from the root via
+// `items` / `properties` / `oneOf` / `anyOf` / `allOf` traversal. Used to
+// detect whether a sibling endpoint's response carries listable structured
+// data (GeoJSON FeatureCollection: object → properties.features.type==='array';
+// generic envelope: object → properties.data.items[].properties.X.type==='array').
+// Generic primitive — no domain registry, no path heuristic.
+//
+// Triggered by usgs probe (DEFERRED contract ebc82be0): the canonical feed at
+// /summary/2.5_day.geojson has inferred schema
+// `{type:'object', properties:{features:{type:'array', items:{...}}}}`,
+// which the pre-fix shallow walker missed because it only checked
+// `schema.type === "array"` OR `schema.type === "object" with one array
+// property at the TOP level`. A deeper-nested array (or one hidden inside
+// oneOf/anyOf/allOf) was invisible, so the page-artifact got the data-rich
+// promotion and beat the real geojson endpoint.
+function schemaContainsArrayAtAnyDepth(
+  schema: unknown,
+  maxDepth = 8,
+): boolean {
+  if (!schema || typeof schema !== "object" || maxDepth <= 0) return false;
+  const s = schema as Record<string, unknown>;
+  if (s.type === "array") return true;
+  // Union shapes — recurse into each branch.
+  for (const k of ["oneOf", "anyOf", "allOf"] as const) {
+    const branches = s[k];
+    if (Array.isArray(branches)) {
+      for (const branch of branches) {
+        if (schemaContainsArrayAtAnyDepth(branch, maxDepth - 1)) return true;
+      }
+    }
+  }
+  // Items on array (already handled by type==='array' above, but cover nested
+  // schemas authored without an explicit `type` field).
+  if (s.items && schemaContainsArrayAtAnyDepth(s.items, maxDepth - 1)) return true;
+  // Object properties — recurse one level then let the recursive call handle
+  // further depth. inferSchema emits objects as
+  // `{type:'object', properties:{...}}`; GeoJSON sits one level deep.
+  if (s.properties && typeof s.properties === "object") {
+    for (const v of Object.values(s.properties as Record<string, unknown>)) {
+      if (schemaContainsArrayAtAnyDepth(v, maxDepth - 1)) return true;
+    }
+  }
+  // additionalProperties can be a schema (not boolean) — recurse.
+  if (s.additionalProperties && typeof s.additionalProperties === "object") {
+    if (schemaContainsArrayAtAnyDepth(s.additionalProperties, maxDepth - 1)) return true;
+  }
+  return false;
+}
+
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string, params?: Record<string, unknown>): RankedEndpoint[] {
   // Noise filter patterns moved to src/ranking/filters/noise-patterns.ts (P1 W3 cleanup)
   const filtered = endpoints.filter((ep) => {
@@ -5896,6 +5954,23 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const url = ep.url_template.toLowerCase();
     const looksLikeApi = looksLikeApiUrl(url);
     return looksLikeApi && !ep.dom_extraction && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
+  });
+  // Stronger sibling signal: a non-page-artifact endpoint that BOTH looks
+  // API-shaped AND has a data-rich response schema reachable at any depth
+  // (object→properties.features:array, oneOf/anyOf branches, etc.). The
+  // shallow check at L6263-L6272 already handles single-level arrays on the
+  // page-artifact itself; this corpus-level check detects when a sibling
+  // CARRIES the structured payload so the page-artifact can be demoted
+  // unconditionally. Deep walker is `schemaContainsArrayAtAnyDepth`.
+  // Triggered by usgs (.geojson sibling beats a page-artifact synthesised
+  // from the surrounding earthquake-summary HTML).
+  const hasDataRichJsonSiblingInCorpus = rankedCandidates.some((ep) => {
+    const url = ep.url_template.toLowerCase();
+    if (!looksLikeApiUrl(url)) return false;
+    if (ep.dom_extraction) return false;
+    if (/captured (?:search form |page )?artifact/i.test(ep.description ?? "")) return false;
+    if (!ep.response_schema) return false;
+    return schemaContainsArrayAtAnyDepth(ep.response_schema);
   });
   const endpointHasSearchBinding = (ep: EndpointDescriptor): boolean => {
     const haystack = JSON.stringify({
@@ -6308,7 +6383,23 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       );
     if (isCapturedPageArtifact && !ep.dom_extraction && hasStructuredApiInCorpus) {
       score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
-    } else if (looksLikeContentRead && pageArtifactIsDataRich && !pageArtifactHasEmptyEntityBags) {
+    } else if (
+      looksLikeContentRead
+      && pageArtifactIsDataRich
+      && !pageArtifactHasEmptyEntityBags
+      // Skip the page-artifact promotion when a sibling endpoint already
+      // carries data-rich JSON shape (array reachable at any depth via
+      // properties / items / oneOf / anyOf). The sibling IS the real
+      // data and should win the shortlist; the page-artifact was a
+      // synthesised fallback. Triggered by usgs (.geojson sibling beats
+      // page-artifact synthesised from the surrounding HTML); the deep
+      // walker recurses into GeoJSON's `properties.features:array` shape
+      // that the shallow pageArtifactIsDataRich check at L6263-L6272
+      // already detects on the page-artifact itself, here re-applied to
+      // identify the sibling so the agent gets the real feed instead of
+      // an HTML scrape of the same data.
+      && !hasDataRichJsonSiblingInCorpus
+    ) {
       // Counter-promotion for content-read intents on data-rich page artifacts.
       // Beats the structural API demotion magnitude so the page wins.
       score += 250;
@@ -6321,6 +6412,16 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       // negative. Pin here so the data-rich page-artifact actually wins
       // when LIST_INTENT matches.
       score = Math.max(score, 100);
+    } else if (
+      // When the page-artifact IS data-rich but a real JSON sibling exists,
+      // explicitly DEMOTE the page-artifact (rather than just skipping the
+      // promotion). This ensures the geojson/atom/rss sibling wins the
+      // shortlist instead of accidentally tying on bonuses elsewhere.
+      looksLikeContentRead
+      && (isCapturedPageArtifact || isStructuralPageArtifact)
+      && hasDataRichJsonSiblingInCorpus
+    ) {
+      score = clampToFloor(score, PAGE_ARTIFACT_DEMOTION, HARD_NEGATIVE_FLOOR);
     }
     if (looksLikeContentRead && (pageArtifactHasEmptyEntityBags || (pageArtifactIsHtmlOnly && siblingHasEmptyEntityBagArtifact))) {
       score = clampToFloor(score, EMPTY_ENTITY_BAG_DEMOTION, EMPTY_ENTITY_BAG_FLOOR);
