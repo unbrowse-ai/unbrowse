@@ -9,6 +9,7 @@
 
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
+import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
 import {
@@ -46,6 +47,19 @@ import { getCapturePipelineSettings, updateCapturePipelineSettings } from "./set
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
+
+(() => {
+  const outcome = bridgeKuriProxyEnv();
+  if (outcome.wired) {
+    console.error(`[kuri-proxy] wired KURI_PROXY (source=${outcome.source}, url=${outcome.redacted})`);
+  } else if (outcome.reason === "already_set") {
+    console.error(`[kuri-proxy] respected pre-existing KURI_PROXY (${outcome.existing})`);
+  } else if (outcome.reason === "creds_missing") {
+    console.error("[kuri-proxy] UNBROWSE_KURI_PROXY=auto but IPROYAL_USER/PASS + UNBROWSE_PROXY_URL both unset — kuri runs direct");
+  } else if (outcome.reason === "invalid_toggle") {
+    console.error(`[kuri-proxy] UNBROWSE_KURI_PROXY="${outcome.value}" not recognized — expected auto|1|true|0|false or explicit http://|socks5:// URL`);
+  }
+})();
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
