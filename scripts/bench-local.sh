@@ -380,7 +380,12 @@ def _classify(row):
         return "PASS"
     if trace_ok and src == "dom-fallback":
         return "PASS_DOM_FALLBACK_ONLY"
-    if trace_ok and src in ("direct-fetch", "direct-document"):
+    if trace_ok and src in ("direct-fetch", "direct-document", "live-capture"):
+        # live-capture + trace.success means unbrowse fell through to capturing
+        # fresh, executed the captured endpoint, and got real data back. The
+        # response shape carries trace+result rather than available_operations
+        # (auto-execute path). Treat as a real PASS — not PASS_WEAK — because
+        # the agent got the data even though the shortlist was bypassed.
         return "PASS"
     if src == "browse-session":
         return "PASS"
