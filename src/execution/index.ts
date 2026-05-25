@@ -47,6 +47,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import { resolveProxyUrl } from "./proxy-fetch.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -1736,8 +1737,12 @@ async function executeBrowserCapture(
         // sites (proven 2026-05-25: youtube class returns 1.05MB real content).
         // Skips JS-challenge interstitial class cleanly (returns null).
         try {
-          // tryCurlImpersonateFetch hoisted to module-top static import (Β9)
-          const cffi = await tryCurlImpersonateFetch({ url, proxy: resolveAntibotProxy(), timeoutMs: 30_000 });
+          // tryCurlImpersonateFetch hoisted to module-top static import (Β9).
+          // resolveProxyUrl reads IPROYAL_USER/PASS (optionally
+          // IPROYAL_HOST/PORT); UNBROWSE_PROXY_URL wins when set. Replaces
+          // the missing resolveAntibotProxy reference that previously threw
+          // ReferenceError and silently turned this rescue branch into a no-op.
+          const cffi = await tryCurlImpersonateFetch({ url, proxy: process.env.UNBROWSE_PROXY_URL || resolveProxyUrl(), timeoutMs: 30_000 });
           if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
             const cffiArtifact = buildPageArtifactCapture(url, intent, cffi.html, false);
             if (cffiArtifact.endpoint && cffiArtifact.result) {
@@ -4143,7 +4148,8 @@ export async function executeEndpoint(
       // Consented: attempt the proxy retry.
       decisionTrace.push({ step: "429_proxy_fallback_attempted", target: targetUrl });
       try {
-        const { proxiedFetchOnce, resolveProxyUrl } = await import("./proxy-fetch.js");
+        // resolveProxyUrl now hoisted to module-top static import (T-antibot-cascade)
+        const { proxiedFetchOnce } = await import("./proxy-fetch.js");
         const proxyUrl = resolveProxyUrl();
         if (!proxyUrl) {
           decisionTrace.push({ step: "429_proxy_fallback_error", reason: "creds_missing" });
