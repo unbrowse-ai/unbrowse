@@ -86,7 +86,7 @@ export function ComparisonPage({ slug }: { slug: string }) {
         name: `What is the difference between Unbrowse and ${competitor.name}?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `${competitor.what} Unbrowse takes a fundamentally different approach: it learns reusable route metadata from websites and lets AI agents call those routes directly. In benchmarks across 94 domains, Unbrowse is 3.6x faster (mean) and uses 40x fewer tokens than browser automation.`,
+          text: `${competitor.what} Unbrowse takes a fundamentally different approach: it reverse-engineers the internal APIs websites already use and lets AI agents call them directly. In benchmarks across 94 domains, Unbrowse is 3.6x faster (mean) and uses 40x fewer tokens than browser automation.`,
         },
       },
       {
@@ -110,33 +110,8 @@ export function ComparisonPage({ slug }: { slug: string }) {
         name: "How do I switch from browser automation to Unbrowse?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Install with 'npx unbrowse setup --mcp', which wires Unbrowse up as an MCP server in Claude Code, Cursor, Windsurf, Codex, OpenClaw, or any MCP-aware host. Unbrowse works as a drop-in tool for AI coding agents and discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
+          text: "Install with 'curl -fsSL https://unbrowse.ai/install.sh | bash'. After install, hosts with skills support can also use 'npx skills add unbrowse-ai/unbrowse'. Unbrowse works as a drop-in tool for AI coding agents like Claude Code, Cursor, and Windsurf. It discovers APIs automatically from real browsing traffic — no manual endpoint mapping required.",
         },
-      },
-    ],
-  };
-
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Unbrowse",
-        item: "https://www.unbrowse.ai",
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Compare",
-        item: "https://www.unbrowse.ai/compare",
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: competitor.name,
-        item: `https://www.unbrowse.ai/compare/${slug}`,
       },
     ],
   };
@@ -146,10 +121,6 @@ export function ComparisonPage({ slug }: { slug: string }) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       <article className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
@@ -249,18 +220,17 @@ export function ComparisonPage({ slug }: { slug: string }) {
           </h2>
           <div className="space-y-4 text-base sm:text-lg leading-8 text-text-secondary">
             <p>
-              {competitor.name} works one layer too high for AI agents. It
-              automates the rendered HTML: parsing DOMs, clicking buttons, and
-              reading text that exists for human eyes, which costs roughly
-              8,000 tokens and several seconds on every page. The data your
-              agent actually needs was already structured as JSON one layer
-              below, returned by the internal APIs the site uses to render
-              itself. Skipping the DOM and calling those APIs directly cuts
-              out the translation entirely.
+              Every modern website is already powered by internal APIs that
+              return structured JSON before any pixel renders. {competitor.name}{" "}
+              works one layer too high, automating the rendered HTML, parsing
+              DOMs, and clicking buttons that exist for human eyes. That extra
+              translation costs about 8,000 tokens and several seconds on every
+              page, even when the data your agent needs was structured in the
+              first place. Working at the API layer skips the entire detour.
             </p>
             <p>
-              Unbrowse learns those internal endpoints from one real browsing
-              session, extracts reusable route metadata, and stores them
+              Unbrowse captures those internal endpoints from one real browsing
+              session, reverse-engineers their schemas and auth, and stores them
               as reusable skills in a shared marketplace of 600+ domains and
               18,000+ endpoints. The next call from any agent skips discovery
               and runs as a direct HTTP request, returning JSON in roughly 200

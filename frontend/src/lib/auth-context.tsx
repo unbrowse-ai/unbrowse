@@ -12,12 +12,6 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  // True once the client has read localStorage on mount. Pages that gate
-  // UX on `isAuthenticated` MUST treat `!hydrated` as a loading state, not
-  // a logged-out state (otherwise the user sees a "Sign in" flash on every
-  // navigation because React's first render predates the localStorage
-  // read). Server-side render always emits `hydrated: false`.
-  hydrated: boolean;
   register: (name: string, tosVersion: string) => Promise<{ agent_id: string; api_key: string }>;
   loginWithEmail: (email: string, opts?: { signal?: AbortSignal }) => Promise<{ token: string }>;
   consumeMagicToken: (
@@ -33,6 +27,7 @@ interface AuthContextValue extends AuthState {
   }) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  hydrated?: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,62 +59,20 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-const EMPTY_AUTH: AuthState = {
-  apiKey: null,
-  agentId: null,
-  agentName: null,
-  email: null,
-  userId: null,
-};
-
-function readStoredAuth(): AuthState {
-  if (typeof window === "undefined") return EMPTY_AUTH;
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return EMPTY_AUTH;
-    const parsed = JSON.parse(stored) as Partial<AuthState>;
-    if (!parsed || typeof parsed !== "object" || typeof parsed.apiKey !== "string") {
-      return EMPTY_AUTH;
-    }
-    return {
-      apiKey: parsed.apiKey,
-      agentId: typeof parsed.agentId === "string" ? parsed.agentId : null,
-      agentName: typeof parsed.agentName === "string" ? parsed.agentName : null,
-      email: typeof parsed.email === "string" ? parsed.email : null,
-      userId: typeof parsed.userId === "string" ? parsed.userId : null,
-    };
-  } catch {
-    return EMPTY_AUTH;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Lazy initializer reads localStorage on the very first client render,
-  // not after first paint. Pre-fix, the initializer set everything to null
-  // and a separate useEffect read localStorage on mount; every consumer
-  // that gates on `isAuthenticated` rendered the "logged out" UI for one
-  // render tick, which the user perceived as their session being purged
-  // on every navigation. The server still gets EMPTY_AUTH (no localStorage)
-  // so `hydrated` distinguishes "loading" from "actually logged out".
-  const [state, setState] = useState<AuthState>(readStoredAuth);
-  const [hydrated, setHydrated] = useState<boolean>(false);
+  const [state, setState] = useState<AuthState>({
+    apiKey: null,
+    agentId: null,
+    agentName: null,
+    email: null,
+    userId: null,
+  });
 
   useEffect(() => {
-    // Re-read after mount to cover the SSR pass (where readStoredAuth
-    // returned EMPTY_AUTH because window was undefined). A second call is
-    // cheap and idempotent; if it returns the same shape as `state`, React
-    // bails out of the rerender.
-    setState((prev) => {
-      const fresh = readStoredAuth();
-      const same =
-        prev.apiKey === fresh.apiKey &&
-        prev.agentId === fresh.agentId &&
-        prev.agentName === fresh.agentName &&
-        prev.email === fresh.email &&
-        prev.userId === fresh.userId;
-      return same ? prev : fresh;
-    });
-    setHydrated(true);
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setState(JSON.parse(stored));
+    } catch { /* ignore */ }
   }, []);
 
   const persist = useCallback((next: AuthState) => {
@@ -269,7 +222,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         ...state,
-        hydrated,
         register,
         loginWithEmail,
         consumeMagicToken,

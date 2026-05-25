@@ -19,13 +19,13 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse gives AI agents reusable API routes for websites. A first explicit browsing session can teach a route; later agents resolve and execute that route directly with local credentials, cutting repeated browser work from seconds to sub-second responses.
+> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
 ## Product Description
 
-Unbrowse is the intelligence layer on top of Kuri, a 464KB Zig-native browser runtime with ~3ms cold start. Together they form an API-native agent browser: Kuri handles browser automation, and Unbrowse learns reusable route shapes from explicit browsing sessions so repeated work can move to direct API calls.
+Unbrowse is the intelligence layer on top of Kuri, a 464KB Zig-native CDP (Chrome DevTools Protocol) broker with ~3ms cold start. Together they form an API-native agent browser: Kuri handles raw browser automation, and Unbrowse watches what Kuri does, learns the internal APIs that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
 
-The core insight is that many modern websites expose structured routes behind their UI. Unbrowse observes allowed browsing sessions, turns repeatable request shapes into reusable skills, and publishes only sanitized route metadata to a shared marketplace when the operator chooses to publish. One agent learns a site once; every later agent gets the fast path.
+The core insight is that every modern website is a thin UI layer over internal APIs -- REST endpoints, GraphQL queries, RPC calls. These "shadow APIs" are undocumented but fully functional. Unbrowse captures network traffic during normal browsing, reverse-engineers these APIs into reusable skills (structured endpoint definitions with schemas, auth patterns, and parameter bindings), and publishes them to a shared marketplace. One agent learns a site once; every later agent gets the fast path.
 
 Agents use Unbrowse as a drop-in replacement for Playwright or Puppeteer. Under the hood, \`page.goto()\` checks the skill cache first -- if a cached internal API route exists, it returns structured JSON data in under 200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background and indexes it for future reuse.
 
@@ -55,9 +55,9 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 ### Six-Layer Pipeline
 
-1. **Passive capture** -- the local runtime observes browser requests during an explicit session and keeps sensitive request material local.
+1. **Passive capture** -- every network API call is intercepted and recorded during browsing. A JS interceptor is injected via \`Page.addScriptToEvaluateOnNewDocument\` so early SPA hydration calls are never missed.
 
-2. **Background indexing** -- captured traffic is converted into sanitized route metadata without blocking the agent.
+2. **Background indexing** -- captured traffic is reverse-engineered into API endpoints without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache.
 
 3. **Cache-first resolution** -- the seven-layer resolution stack described above.
 
@@ -70,8 +70,8 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 ### System Components
 
 - **Local server** (\`localhost:6969\`) -- handles intent resolution, browser capture, skill execution, auth management, background indexing, and payment gates.
-- **Backend API** (\`beta-api.unbrowse.ai\`) -- Cloudflare Worker powering the shared marketplace: skill storage, semantic search, reliability scoring, agent registration, route graph, and transaction records.
-- **Kuri** -- Zig-native browser runtime. 464KB binary. ~3ms cold start.
+- **Backend API** (\`beta-api.unbrowse.ai\`) -- Cloudflare Worker powering the shared marketplace: KV-backed skill storage, Gemini embedding vector search (1536-dim, EmergentDB), EMA-based reliability scoring, Unkey agent registration, endpoint graph, and transaction ledger.
+- **Kuri** -- Zig-native CDP broker. 464KB binary. ~3ms cold start. 80+ HTTP endpoints covering navigation, snapshots, ref-based actions, HAR recording, cookies, screenshots, DOM queries, security testing, video recording, tracing, and profiling.
 
 ## Key Stats and Benchmarks
 
@@ -178,7 +178,7 @@ unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5 --outco
 | \`screenshot\` | | Capture screenshot (base64 PNG) |
 | \`text\` | | Get page text content |
 | \`markdown\` | | Get page as Markdown |
-| \`cookies\` | | Inspect local session state |
+| \`cookies\` | | Get page cookies |
 | \`eval\` | \`<expression>\` | Evaluate JavaScript |
 | \`back\` | | Navigate back |
 | \`forward\` | | Navigate forward |
@@ -226,8 +226,11 @@ const text = await page.text();
 const md = await page.markdown();
 const links = await page.links();
 
-// Page inspection
+// DOM, cookies, HAR
 await page.query("div.result");
+const cookies = await page.cookies();
+await page.harStart();
+const har = await page.harStop();
 
 await browser.close();
 \`\`\`
@@ -244,7 +247,8 @@ await browser.close();
 | Evaluate | \`evaluate(fn)\` |
 | DOM | \`query(css)\`, \`innerHTML(css)\`, \`attributes(ref)\`, \`findText(query)\` |
 | Screenshots | \`screenshot()\` |
-| Session/Auth | \`cookies()\`, \`setCookie(name, value)\`, \`setHeaders(headers)\` |
+| Cookies/Auth | \`cookies()\`, \`setCookie(name, value)\`, \`setHeaders(headers)\` |
+| HAR | \`harStart()\`, \`harStop()\`, \`networkEvents()\` |
 | Viewport | \`setViewport(w, h)\`, \`setUserAgent(ua)\`, \`setCredentials(user, pass)\` |
 | Session | \`sessionSave(name)\`, \`sessionLoad(name)\`, \`sessionList()\` |
 | Debug | \`console()\`, \`errors()\`, \`injectScript(js)\` |
@@ -258,7 +262,7 @@ Local server at \`http://localhost:6969\`:
 | POST | \`/v1/intent/resolve\` | Resolve intent: search/capture/execute | Free (local) or Tier 3 (graph) |
 | POST | \`/v1/skills/:id/execute\` | Execute a specific skill | Free (cached) or Tier 2 (opt-in site) |
 | POST | \`/v1/auth/login\` | Interactive browser login | Free |
-| POST | \`/v1/auth/import\` | Import a local browser session | Free |
+| POST | \`/v1/auth/steal\` | Import cookies from browser/Electron storage | Free |
 | POST | \`/v1/feedback\` | Submit feedback with diagnostics | Free |
 | POST | \`/v1/search\` | Search marketplace globally | Tier 3 |
 | POST | \`/v1/search/domain\` | Search marketplace by domain | Tier 3 |
@@ -275,7 +279,7 @@ Local server at \`http://localhost:6969\`:
 
 ## Payment Model
 
-Capture and indexing are free. Agents pay per execution when reusing a paid route or running a paid search/resolve.
+Capture, indexing, and reverse-engineering are free. Agents pay per execution when reusing a paid route or running a paid search/resolve.
 
 | Surface | When | What |
 |---|---|---|
@@ -290,11 +294,11 @@ Wallet operations are delegated to lobster.cash or any Solana-mainnet signer. On
 
 ### Route Mining Economics
 
-Agents earn by contributing useful route metadata for other agents. When another agent reuses that route, the original contributor wallet gets paid in USDC through the same settlement flow as the rest of the splits.
+Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them. When another agent reuses that route, the original contributor wallet gets paid — atomically, in USDC, in the same Solana transaction as the rest of the splits. Splits live natively in every signed authorization (90% to contributors, 10% to platform, 0% protocol fee, up to 5 recipients).
 
 ## Authentication
 
-Unbrowse can reuse your local browser sign-in when you allow it. Private session material stays on your machine.
+Unbrowse automatically extracts cookies from your Chrome/Firefox SQLite database. If you are logged into a site in Chrome, it just works.
 
 For sites requiring explicit login:
 
@@ -302,7 +306,7 @@ For sites requiring explicit login:
 unbrowse login --url "https://example.com/login"
 \`\`\`
 
-The user completes login in the browser window. Session state is stored locally under \`~/.unbrowse/profiles/<domain>/\` and reused automatically.
+The user completes login in the browser window. Cookies are stored in \`~/.unbrowse/profiles/<domain>/\` and reused automatically.
 
 Built-in sign-in URL detection for: Google (Calendar, Drive, Gmail), Microsoft/Office 365, GitHub, Notion, LinkedIn, Twitter/X, Slack, Atlassian (Jira, Confluence), Salesforce, Figma, Airtable, Dropbox, and HubSpot.
 
@@ -313,7 +317,7 @@ Built-in sign-in URL detection for: Google (Calendar, Drive, Gmail), Microsoft/O
 - **Travel automation** -- search flights, hotels, and listings on Airbnb, Booking.com, etc. via their undocumented APIs
 - **Social media integration** -- access X timelines, LinkedIn feeds, Reddit threads via their internal GraphQL and REST APIs
 - **Agent tooling** -- give any AI agent instant access to website functionality without DOM interaction or token-heavy page scraping
-- **Competitive intelligence** -- monitor public product pages, pricing, and inventory through reusable route metadata
+- **Competitive intelligence** -- monitor competitor product pages, pricing, and inventory through their shadow APIs
 - **Route mining** -- earn revenue by browsing the web normally while Unbrowse indexes APIs for the shared marketplace
 
 ## Integrations
@@ -342,7 +346,7 @@ Skills move through a lifecycle: **active** (published, queryable) to **deprecat
 
 | Path | Contents |
 |------|----------|
-| \`~/.unbrowse/profiles/<domain>/\` | Persistent local browser profile |
+| \`~/.unbrowse/profiles/<domain>/\` | Persistent browser profile (cookies, localStorage) |
 | \`~/.unbrowse/config.json\` | Agent credentials and marketplace API key |
 | \`~/.unbrowse/logs/\` | Daily debug logs |
 | \`~/.unbrowse/skill-snapshots/\` | Cached skill manifests |

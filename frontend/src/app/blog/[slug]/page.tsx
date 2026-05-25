@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     twitter: {
       card: "summary_large_image",
-      site: "@unbrowse",
+      site: "@getFoundry",
       title: post.title,
       description: post.description,
       images: ["https://www.unbrowse.ai/og-image.png"],

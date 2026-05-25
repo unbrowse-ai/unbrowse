@@ -32,20 +32,7 @@
  */
 
 import { useMemo, type ReactNode } from "react";
-import dynamic from "next/dynamic";
-import type { PrivyClientConfig } from "@privy-io/react-auth";
-
-// Dynamic import keeps the @privy-io/react-auth runtime chunk (~1.5 MB
-// WalletConnect tree) OFF every page when the env flag is unset, and
-// off non-account pages even when the flag is set, since the dynamic
-// factory only runs once this component renders the inner provider.
-const PrivyProviderDynamic = dynamic(
-  () =>
-    import("@privy-io/react-auth").then((m) => ({
-      default: m.PrivyProvider,
-    })),
-  { ssr: false },
-);
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 
 const DEFAULT_CONFIG: PrivyClientConfig = {
   // Match the dark theme the rest of the site uses (CLAUDE.md design
@@ -58,13 +45,9 @@ const DEFAULT_CONFIG: PrivyClientConfig = {
   },
   // Wallet-creation policy: only create a Privy-embedded wallet for
   // users who don't already have one. Existing wallets (lobster, any
-  // other Solana signer) stay the source of truth. Solana not ethereum:
-  // unbrowse's x402 sponsor middleware (backend/src/middleware/sponsor.ts)
-  // settles payments on Solana, and the agent.wallet_address column the
-  // bind step writes into is a Solana pubkey. An ethereum-only embedded
-  // wallet would be orphaned from the payment rail.
+  // other Solana signer) stay the source of truth.
   embeddedWallets: {
-    solana: { createOnLogin: "users-without-wallets" },
+    ethereum: { createOnLogin: "users-without-wallets" },
   },
   // Login methods: email + google + external wallet. Wallet covers
   // anyone arriving from lobster.cash who already has a Solana
@@ -90,15 +73,13 @@ export function PrivyOptionalProvider({
     [config],
   );
   if (!resolvedAppId || resolvedAppId.trim().length === 0) {
-    // Feature flag OFF: render children unchanged. The dynamic factory
-    // for @privy-io/react-auth is never invoked, so the SDK chunk is
-    // never fetched by the browser.
+    // Feature flag OFF: render children unchanged.
     return <>{children}</>;
   }
   return (
-    <PrivyProviderDynamic appId={resolvedAppId} config={resolvedConfig}>
+    <PrivyProvider appId={resolvedAppId} config={resolvedConfig}>
       {children}
-    </PrivyProviderDynamic>
+    </PrivyProvider>
   );
 }
 

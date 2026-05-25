@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { getStatus as getDomainClaimStatus, getTakedownStatus as getDomainTakedownStatus } from "@/lib/claim-client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -34,7 +33,6 @@ import {
   type UserCreditBalance,
   type AccountMe,
 } from "@/lib/account-client";
-import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 function copy(value: string): void {
   if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -44,10 +42,6 @@ function copy(value: string): void {
 
 function isRegisterRequired(err: unknown): boolean {
   return err instanceof AccountClientError && err.status === 403;
-}
-
-function isAuthInvalid(err: unknown): boolean {
-  return err instanceof AccountClientError && err.status === 401;
 }
 
 function Field({
@@ -81,27 +75,9 @@ function Field({
 }
 
 function ErrorChip({ message }: { message: string }) {
-  const [showDetails, setShowDetails] = useState(false);
-  const hasDetails = typeof message === "string" && message.length > 0;
   return (
-    <div className="rounded-2xl border border-border bg-surface-sunken p-4 text-sm text-text-secondary space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <span>Couldn&rsquo;t load this section.</span>
-        {hasDetails && (
-          <button
-            type="button"
-            onClick={() => setShowDetails((v) => !v)}
-            className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
-          >
-            {showDetails ? "Hide" : "Details"}
-          </button>
-        )}
-      </div>
-      {showDetails && hasDetails && (
-        <pre className="whitespace-pre-wrap break-words text-xs text-text-muted font-mono pt-1 border-t border-border">
-          {message}
-        </pre>
-      )}
+    <div className="rounded-2xl border border-border bg-surface-sunken p-4 text-sm text-text-secondary">
+      Failed to load: {message}
     </div>
   );
 }
@@ -134,31 +110,6 @@ function RegisterRequiredBanner() {
         </code>{" "}
         in your terminal to access this dashboard.
       </p>
-    </section>
-  );
-}
-
-function AuthInvalidBanner({ message }: { message: string }) {
-  return (
-    <section className="rounded-2xl border border-border bg-surface-raised p-5 space-y-3">
-      <h2 className="text-sm font-medium text-text-primary">
-        Your API key is no longer valid
-      </h2>
-      <p className="text-sm text-text-secondary">{message}</p>
-      <div className="flex gap-3 flex-wrap pt-1">
-        <Link
-          href="/login"
-          className="rounded-2xl bg-text-primary text-surface px-4 py-2 text-sm font-medium hover:opacity-90"
-        >
-          Sign in to mint a new key
-        </Link>
-        <Link
-          href="/"
-          className="rounded-2xl border border-border px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-raised"
-        >
-          Back to home
-        </Link>
-      </div>
     </section>
   );
 }
@@ -1015,13 +966,6 @@ function TierPicker({
         // direct backend POST in that case.
         throw err;
       });
-      // Surface rotated-key recovery on the shim path before falling through
-      // to the direct-backend retry, which would otherwise mask a 401 as
-      // "url not returned" and silently re-fire the same auth-doomed request.
-      if (await checkAuthInvalidResponse(res)) {
-        setError("Your API key was rotated. Sign in to mint a new one.");
-        return;
-      }
       let url: string | null = null;
       if (res.ok) {
         const json = (await res.json()) as { url?: string };
@@ -1039,10 +983,6 @@ function TierPicker({
           },
           body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
         });
-        if (await checkAuthInvalidResponse(direct)) {
-          setError("Your API key was rotated. Sign in to mint a new one.");
-          return;
-        }
         if (!direct.ok) {
           throw new Error(`HTTP ${direct.status}: ${await direct.text()}`);
         }
@@ -1261,114 +1201,12 @@ function X402Panel({
               </>
             )}
           </div>
-          <PaymentProviderCard wallet_provider={me?.wallet_provider ?? null} />
           <DomainClaimsCard />
         </div>
       )}
     </SectionCard>
   );
 }
-
-/**
- * Wave 4 of .claude/add-a-payment-provider-choice-prompt-to-unbrowse.
- * Mirrors the CLI's `unbrowse payment-provider` choice on the web side.
- * Reads the current rail from /v1/account/me (we already pass
- * wallet_provider into the parent), lets the user pick a different
- * rail from the same five options, and posts to
- * /v1/account/payment-provider (added in Wave 2) to update the agent
- * record. The Privy wallet pulse, lobster CLI link, and pay.sh link
- * are surfaced contextually so the user sees the next step for their
- * chosen rail without leaving /account.
- */
-function PaymentProviderCard({ wallet_provider }: { wallet_provider: string | null }) {
-  const initial = (wallet_provider ?? "skip") as PaymentRail;
-  const [selected, setSelected] = useState<PaymentRail>(initial);
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
-
-  // Re-sync when the parent's wallet_provider refreshes (e.g. after Privy
-  // sign-in writes privy_embedded_solana via /v1/auth/privy/start).
-  useEffect(() => {
-    setSelected((wallet_provider ?? "skip") as PaymentRail);
-  }, [wallet_provider]);
-
-  async function save() {
-    setStatus("saving");
-    setError(null);
-    try {
-      const { getConfiguredApiOrigin } = await import("@/lib/api-base");
-      const base = getConfiguredApiOrigin();
-      const res = await fetch(`${base}/v1/account/payment-provider`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: selected }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);
-      }
-      setStatus("saved");
-    } catch (err) {
-      setStatus("error");
-      setError((err as Error).message);
-    }
-  }
-
-  return (
-    <div className="space-y-3 p-4 rounded-2xl border border-border-subtle bg-surface-elevated">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs uppercase tracking-wider text-text-muted">Payment rail</div>
-        <div className="text-[10px] text-text-muted font-mono">{initial}</div>
-      </div>
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value as PaymentRail)}
-        className="w-full rounded-lg bg-surface-base border border-border-subtle px-3 py-2 text-sm text-text-primary"
-      >
-        <option value="pay_sh">pay.sh — TouchID + USDC (x402 MPP)</option>
-        <option value="lobster_cash">lobster.cash — credit card + virtual card + wallet</option>
-        <option value="external_solana">External — bring your own Solana signer</option>
-        <option value="privy_embedded">Privy — embedded wallet (Solana, created here)</option>
-        <option value="privy_embedded_solana">Privy embedded Solana (already bound)</option>
-        <option value="skip">Skip — free tier (sponsor middleware $1/day/agent)</option>
-      </select>
-      <div className="text-[11px] text-text-muted leading-relaxed">
-        {PROVIDER_NUDGES[selected] ?? "Run `unbrowse payment-provider` from the CLI to pick a rail."}
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={status === "saving" || selected === initial}
-          className="px-3 py-1.5 rounded-lg bg-text-primary text-surface-base text-xs font-medium disabled:opacity-40"
-        >
-          {status === "saving" ? "Saving..." : status === "saved" ? "Saved" : "Update rail"}
-        </button>
-        {status === "error" && error ? (
-          <div className="text-[10px] text-red-500 font-mono break-all">{error}</div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-type PaymentRail = "pay_sh" | "lobster_cash" | "external_solana" | "privy_embedded" | "privy_embedded_solana" | "skip";
-
-const PROVIDER_NUDGES: Record<PaymentRail, string> = {
-  pay_sh:
-    "Install pay.sh: npx @pay-sh/cli setup. Pay.sh prompts TouchID on each paid call; fund the local account with USDC.",
-  lobster_cash:
-    "Install lobster.cash: npm install -g @crossmint/lobster-cli, then lobstercash setup. Subscription billing tops up a Solana wallet; virtual cards purchase across the web.",
-  external_solana:
-    "Add your own Solana wallet via `unbrowse wallet` (CLI). Top up off-platform; x402 sponsor middleware settles from this address.",
-  privy_embedded:
-    "Sign in above with Privy and an embedded Solana wallet is created for you on first login. Fund it from any Solana wallet; backend signs x402 settlements via Privy's server API.",
-  privy_embedded_solana:
-    "Embedded Solana wallet is already bound to your agent. Fund the wallet_address shown above to settle paid x402 calls.",
-  skip:
-    "No setup needed. Sponsor middleware covers your first $1/day/agent + $50/day platform-wide. Switch rails any time.",
-};
 
 /**
  * Owner-earnings lookup card. Surfaces verified claim + opt-out status
@@ -1476,8 +1314,6 @@ function DomainClaimsCard() {
 function QuickLinks() {
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: "/dashboard", label: "Dashboard / earnings + activity" },
-    { href: "/install", label: "Install the MCP" },
-    { href: "/claim", label: "Claim a domain / submit official API" },
     { href: "/account/cookies", label: "Cookie cloud vault" },
     { href: "/search", label: "Marketplace / browse skills" },
     { href: "/billing", label: "Billing / subscription + usage" },
@@ -1519,20 +1355,15 @@ function QuickLinks() {
 }
 
 export default function AccountPage() {
-  const router = useRouter();
   const { isAuthenticated, apiKey } = useAuth();
   const [registerRequired, setRegisterRequired] = useState(false);
-  const [authInvalid, setAuthInvalid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!apiKey) return;
     let cancelled = false;
     fetchMe(apiKey).catch((err: unknown) => {
-      if (cancelled) return;
-      if (isRegisterRequired(err)) {
+      if (!cancelled && isRegisterRequired(err)) {
         setRegisterRequired(true);
-      } else if (isAuthInvalid(err)) {
-        setAuthInvalid(err instanceof Error ? err.message : String(err));
       }
     });
     return () => {
@@ -1540,22 +1371,8 @@ export default function AccountPage() {
     };
   }, [apiKey]);
 
-  useEffect(() => {
-    if (!authInvalid) return;
-    const t = setTimeout(() => {
-      router.push("/login?reason=key_rotated");
-    }, 1800);
-    return () => clearTimeout(t);
-  }, [authInvalid, router]);
-
   function handleAuthError(err: unknown) {
-    if (isRegisterRequired(err)) {
-      setRegisterRequired(true);
-    } else if (isAuthInvalid(err)) {
-      setAuthInvalid((prev) =>
-        prev ?? (err instanceof Error ? err.message : String(err)),
-      );
-    }
+    if (isRegisterRequired(err)) setRegisterRequired(true);
   }
 
   if (!isAuthenticated || !apiKey) {
@@ -1579,22 +1396,6 @@ export default function AccountPage() {
             <PrivyLoginButtonOptional className="rounded-2xl" />
           </div>
         </div>
-      </main>
-    );
-  }
-
-  if (authInvalid) {
-    return (
-      <main className="mx-auto max-w-[70ch] px-6 py-16 space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary mb-2">
-            Your account
-          </h1>
-          <p className="text-sm text-text-secondary">
-            Redirecting you to sign in...
-          </p>
-        </header>
-        <AuthInvalidBanner message={authInvalid} />
       </main>
     );
   }

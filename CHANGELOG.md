@@ -1,6 +1,22 @@
 # Changelog
 
 ## Unreleased
+### Editions rebuild Wave-2A — chapters 01-05 + cream footer (2026-05-25)
+
+**feat(frontend)**: ported five chapters onto the cream `#dcdcd0` editions
+surface — [01] Thesis, [02] Problem, [03] Mechanism, [04] Numbers, [05]
+Install — each as a single-file component under
+`frontend/src/components/editions/chapters/`. Dark surfaces are contained
+inside `ed-dark-figure` cards (Playwright import diff, JA4 fingerprint
+mini-table, ThreePanelVisual host); no chapter `<section>` carries a dark
+background. The legacy `EditionsFooter` was rewritten to match the
+Shopify-Editions footer pattern on cream (GitHub-star eyebrow, L2 tagline,
+four category columns, copyright row) with the link inventory ported from
+`site-footer.tsx`. Chapter nav now lists Cover · Thesis · Problem ·
+Mechanism · Numbers · Install. Load-bearing copy preserved verbatim from
+the May-18 inventory (locked H1 mechanics, 3.6x mean / 5.4x median, the
+two-call loop wording, the install canonical commands).
+
 ### Public docs and SDK metadata audit (2026-05-25)
 
 **docs**: cleaned stale public SDK/version/install copy across README, SDK docs,

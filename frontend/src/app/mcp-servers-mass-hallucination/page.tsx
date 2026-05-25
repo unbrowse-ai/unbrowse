@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -244,7 +244,7 @@ export default function McpMassHallucinationPage() {
               <ol className="space-y-2 text-sm text-text-secondary list-decimal pl-4">
                 <li>Browse the website once</li>
                 <li>Internal APIs are discovered automatically</li>
-                <li>Reusable route metadata is extracted</li>
+                <li>Schemas and auth are reverse-engineered</li>
                 <li>Published to a shared index</li>
                 <li>Every agent can call them directly</li>
               </ol>
@@ -283,7 +283,7 @@ export default function McpMassHallucinationPage() {
             <div>
               <p className="text-base sm:text-lg leading-8 text-text-secondary">
                 <strong className="text-text-primary">&ldquo;MCP servers give you nice, typed tool definitions.&rdquo;</strong>{" "}
-                So does automated schema extraction. Unbrowse extracts request and response shapes from observed traffic and generates typed interfaces. You get the same structured tool definitions without writing them by hand.
+                So does automated schema extraction. Unbrowse reverse-engineers request and response schemas from observed traffic and generates typed interfaces. You get the same structured tool definitions without writing them by hand.
               </p>
             </div>
             <div>

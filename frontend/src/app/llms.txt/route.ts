@@ -18,12 +18,12 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse gives AI agents reusable API routes for websites. A first explicit browsing session can teach a route; later agents resolve and execute that route directly with local credentials, cutting repeated browser work from seconds to sub-second responses.
+> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
 ## Getting Started
 
-- [Native Browser Install (Recommended)](https://www.unbrowse.ai/install): Run \`${installOpenClaw}\` to make Unbrowse the default browser — every page.goto() routes through Unbrowse automatically, no code changes needed
-- [CLI Install](https://www.unbrowse.ai/install): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
+- [Native Browser Install (Recommended)](https://www.unbrowse.ai/skill.md): Run \`${installOpenClaw}\` to make Unbrowse the default browser — every page.goto() routes through Unbrowse automatically, no code changes needed
+- [CLI Install](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
 - [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run \`${installMcp}\`, then import the generated config or use this template
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
 - [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with \`${installNpm}\`
@@ -31,7 +31,7 @@ export async function GET() {
 
 ## Documentation
 
-- [SDK Quickstart](https://www.unbrowse.ai/docs): Three-step quickstart — install \`@unbrowse/client\`, mint an API key on /login, resolve and execute against the live worker
+- [Skill Reference (SKILL.md)](https://www.unbrowse.ai/skill.md): Complete agent-facing documentation -- all CLI commands, Browser API, auth flows, payment tiers, and rules
 - [Skill Registry / Marketplace](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain
 - [Dashboard](https://www.unbrowse.ai/dashboard): View signed-in CLI/account economics, or public contributor earnings, spending, savings, and rank by wallet address
 - [Contribution Leaderboard](https://www.unbrowse.ai/leaderboard): Public all-time ranking by earnings, executions, and discovered skills
@@ -44,7 +44,7 @@ export async function GET() {
 
 ## API Reference
 
-- [SDK / Local API](https://www.unbrowse.ai/docs): \`@unbrowse/client\` calls \`beta-api.unbrowse.ai\` directly -- resolve intents, execute endpoints, manage auth, search marketplace
+- [Local REST API](https://www.unbrowse.ai/skill.md): Local server at \`http://localhost:6969\` -- resolve intents, execute endpoints, manage auth, search marketplace
 - [Marketplace API](https://beta-api.unbrowse.ai): Cloudflare Worker backend -- skill storage, semantic vector search, agent registration, endpoint graph, transaction ledger
 - POST \`/v1/intent/resolve\`: Natural-language intent resolution -- searches cache, marketplace, and live capture
 - GET \`/v1/skills\`: List all marketplace skills with metadata and scoring
@@ -61,7 +61,7 @@ export async function GET() {
 ## GitHub
 
 - [Source Code (unbrowse-ai/unbrowse)](https://github.com/unbrowse-ai/unbrowse): Full source, issue tracker, and contribution guidelines (AGPL-3.0)
-- [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native browser runtime used by Unbrowse -- 464KB binary, ~3ms cold start
+- [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native CDP broker powering Unbrowse -- 464KB binary, ~3ms cold start, 80+ HTTP endpoints
 
 ## Key Facts
 
@@ -70,9 +70,9 @@ export async function GET() {
 - Kuri browser engine: 464KB Zig binary, ~3ms cold start, full CDP surface
 - Three execution paths: skill cache (<200ms), shared route graph (sub-second), Kuri browser fallback (20-80s)
 - x402 micropayments in USDC on Solana mainnet, settled via Faremeter Flex -- capture and indexing are free, agents pay only when reusing a paid route or paid marketplace lookup
-- Cache-first resolution: local cache, marketplace search, then browser only when a route has not been learned yet
+- Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
 - Drop-in Playwright replacement: \`import { Browser } from "unbrowse"\` -- \`page.goto()\` resolves from skill cache first
-- Agents earn by contributing useful routes: browse sites you are allowed to use, publish sanitized route metadata, and earn when other agents reuse it
+- Agents earn by mining routes: browse sites, Unbrowse learns APIs, set up Crossmint lobster.cash, earn when other agents install discovered routes
 
 ## Optional
 

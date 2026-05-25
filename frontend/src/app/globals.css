@@ -1,12 +1,6 @@
 @import "tailwindcss";
 
-/* ═══════════════════════════════════════════════════════════
-   Unbrowse editions design system.
-   Pattern borrowed from shopify.com/editions for chapter layout
-   and motion, not branding. Palette: warm cream surface, ink
-   primary, single orange accent.
-   ═══════════════════════════════════════════════════════════ */
-
+/* ═══ Fonetika Font ═══ */
 @font-face {
   font-family: 'Fonetika';
   src: url('/fonts/Fonetika-Regular.otf') format('opentype'),
@@ -16,121 +10,97 @@
   font-display: swap;
 }
 
-/* ═══ Tokens — light (default) ═══ */
+/* ═══ Orange/White Theme ═══ */
 :root {
-  /* Editions cream palette, OKLCH-tinted toward warm. Never #fff. */
-  --surface:           oklch(0.972 0.012 82);     /* warm cream */
-  --surface-raised:    oklch(0.962 0.014 80);     /* feature card */
-  --surface-sunken:    oklch(0.945 0.018 78);     /* code blocks */
-  --surface-ink:       oklch(0.18 0.01 60);       /* inverted chapter (dark band) */
-  --border:            oklch(0.88 0.014 82);      /* hairline rules */
-  --border-strong:     oklch(0.78 0.018 78);      /* chapter dividers */
-
-  /* Ink scale — never #000. Tuned to clear WCAG AA (4.5:1) on cream. */
-  --text-primary:      oklch(0.18 0.01 60);       /* near-ink — 15.4:1 on cream */
-  --text-secondary:    oklch(0.36 0.014 70);      /* body — 7.6:1 on cream */
-  --text-muted:        oklch(0.48 0.012 75);      /* captions — 4.8:1 on cream (AA pass) */
-  --text-inverse:      oklch(0.97 0.012 82);      /* on dark band */
-
-  /* Brand accent — orange. Two roles: --orange-500 is the brand BACKGROUND
-     hue (used for solid CTAs only); --orange-text is the AA-safe text
-     orange (darker, 4.5:1+ on cream). Never use orange-500 as text color. */
-  --orange-50:         oklch(0.96 0.035 65);
-  --orange-100:        oklch(0.92 0.085 60);
-  --orange-200:        oklch(0.85 0.135 55);
-  --orange-300:        oklch(0.78 0.175 50);
-  --orange-400:        oklch(0.70 0.205 45);
-  --orange-500:        oklch(0.66 0.215 42);     /* brand bg — solid CTAs */
-  --orange-600:        oklch(0.54 0.20 38);      /* darker hover */
-  --orange-700:        oklch(0.42 0.155 36);     /* darkest */
-  --orange-text:       oklch(0.40 0.155 36);     /* TEXT orange — 5.6:1 on cream, 4.8:1 on tan panels */
-
-  /* Secondary accent — kept for existing components. */
-  --azure-50:          oklch(0.97 0.02 240);
-  --azure-100:         oklch(0.92 0.05 240);
-  --azure-400:         oklch(0.68 0.15 245);
-  --azure-500:         oklch(0.58 0.18 250);
-  --azure-600:         oklch(0.48 0.18 252);
-
-  --code-bg:           oklch(0.945 0.014 78);
-  --glow:              color-mix(in oklab, var(--orange-500) 18%, transparent);
-  --glow-azure:        color-mix(in oklab, var(--azure-500) 14%, transparent);
-  --noise-opacity:     0;
-
-  /* Editions typography ramp — chapter titles at editions scale
-     (gate e4bdb3f4: display type IS the artifact when no image). */
-  --type-display-1:    clamp(4rem, 11vw, 10.5rem);   /* hero H1 */
-  --type-display-2:    clamp(3.5rem, 8vw, 7.5rem);   /* chapter intro */
-  --type-display-3:    clamp(2.5rem, 5vw, 4.25rem);  /* sub-chapter */
-  --type-heading-1:    clamp(1.5rem, 2.2vw, 2rem);   /* feature h3 */
-  --type-heading-2:    clamp(1.125rem, 1.4vw, 1.25rem);
-  --type-body:         1rem;
-  --type-caption:      0.8125rem;
-  --type-stamp:        0.6875rem;
-
-  /* Editions rhythm */
-  --chapter-pad-y:     clamp(4rem, 9vw, 8rem);
-  --content-max:       1240px;
-  --content-pad-x:     clamp(1.25rem, 3vw, 2rem);
+  --orange-50: #FFF8F0;
+  --orange-100: #FFEDD5;
+  --orange-200: #FED7AA;
+  --orange-300: #FDBA74;
+  --orange-400: #FF6A00;
+  --orange-500: #FF5200;
+  --orange-600: #E04000;
+  --orange-700: #7A3000;
+  /* Technical / modern activation layer */
+  --azure-50: #EFF6FF;
+  --azure-100: #DBEAFE;
+  --azure-400: #60A5FA;
+  --azure-500: #3B82F6;
+  --azure-600: #2563EB;
+  --surface: #FFFFFF;
+  --surface-raised: #FAFAFA;
+  --surface-sunken: #F5F0EB;
+  --border: #E8E0D8;
+  --border-strong: #D4C9BE;
+  --text-primary: #1A1207;
+  --text-secondary: #6B5C4D;
+  --text-muted: #9C8E7E;
+  --code-bg: #FFF8F0;
+  --glow: rgba(255, 109, 0, 0.12);
+  --glow-azure: rgba(59, 130, 246, 0.10);
+  --noise-opacity: 0.03;
 }
 
-/* ═══ Tokens — dark (opt-in via data-theme="dark") ═══ */
 [data-theme="dark"] {
-  --surface:           oklch(0.16 0.01 60);
-  --surface-raised:    oklch(0.20 0.012 58);
-  --surface-sunken:    oklch(0.13 0.01 60);
-  --surface-ink:       oklch(0.97 0.012 82);
-  --border:            oklch(0.28 0.014 65);
-  --border-strong:     oklch(0.38 0.018 65);
-
-  --text-primary:      oklch(0.96 0.012 82);
-  --text-secondary:    oklch(0.74 0.014 75);
-  --text-muted:        oklch(0.56 0.012 70);
-  --text-inverse:      oklch(0.18 0.01 60);
-
-  --orange-300:        oklch(0.82 0.18 50);
-  --orange-400:        oklch(0.75 0.20 47);
-  --orange-500:        oklch(0.70 0.215 43);
-  --orange-600:        oklch(0.62 0.21 40);
-
-  --code-bg:           oklch(0.13 0.01 60);
-  --glow:              color-mix(in oklab, var(--orange-500) 32%, transparent);
+  --orange-50: #100600;
+  --orange-100: #1C0900;
+  --orange-200: #321200;
+  --orange-300: #FF9944;
+  --orange-400: #FF6A00;
+  --orange-500: #FF5200;
+  --orange-600: #E04000;
+  --orange-700: #FF8833;
+  /* Electric cyan as tech accent — pairs with vivid orange */
+  --azure-50: #030B10;
+  --azure-100: #071520;
+  --azure-400: #22D3EE;
+  --azure-500: #06B6D4;
+  --azure-600: #67E8F9;
+  /* Near-black surfaces */
+  --surface: rgba(10, 9, 8, 0.92);
+  --surface-raised: rgba(16, 14, 12, 0.94);
+  --surface-sunken: rgba(5, 4, 3, 0.96);
+  --border: rgba(255, 82, 0, 0.18);
+  --border-strong: rgba(255, 82, 0, 0.32);
+  /* High-contrast white text */
+  --text-primary: #F5F3EF;
+  --text-secondary: #8A8278;
+  --text-muted: #5A5450;
+  --code-bg: rgba(8, 7, 6, 0.96);
+  --glow: rgba(255, 82, 0, 0.45);
+  --glow-azure: rgba(34, 211, 238, 0.25);
+  --noise-opacity: 0.07;
 }
 
-/* ═══ Tailwind theme inline ═══ */
 @theme inline {
-  --color-background:       var(--surface);
-  --color-foreground:       var(--text-primary);
-  --color-surface:          var(--surface);
-  --color-surface-raised:   var(--surface-raised);
-  --color-surface-sunken:   var(--surface-sunken);
-  --color-surface-ink:      var(--surface-ink);
-  --color-border:           var(--border);
-  --color-border-strong:    var(--border-strong);
-  --color-orange-50:        var(--orange-50);
-  --color-orange-100:       var(--orange-100);
-  --color-orange-200:       var(--orange-200);
-  --color-orange-300:       var(--orange-300);
-  --color-orange-400:       var(--orange-400);
-  --color-orange-500:       var(--orange-500);
-  --color-orange-600:       var(--orange-600);
-  --color-orange-700:       var(--orange-700);
-  --color-azure-50:         var(--azure-50);
-  --color-azure-100:        var(--azure-100);
-  --color-azure-400:        var(--azure-400);
-  --color-azure-500:        var(--azure-500);
-  --color-azure-600:        var(--azure-600);
-  --color-text-primary:     var(--text-primary);
-  --color-text-secondary:   var(--text-secondary);
-  --color-text-muted:       var(--text-muted);
-  --color-text-inverse:     var(--text-inverse);
-  --color-code-bg:          var(--code-bg);
-  --color-glow:             var(--glow);
-  --color-glow-azure:       var(--glow-azure);
-
-  --font-sans:    var(--font-google-sans, 'Google Sans'), system-ui, sans-serif;
-  --font-mono:    ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  --font-display: 'Fonetika', 'Google Sans Display', 'Google Sans', system-ui, sans-serif;
+  --color-background: var(--surface);
+  --color-foreground: var(--text-primary);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-orange-50: var(--orange-50);
+  --color-orange-100: var(--orange-100);
+  --color-orange-200: var(--orange-200);
+  --color-orange-300: var(--orange-300);
+  --color-orange-400: var(--orange-400);
+  --color-orange-500: var(--orange-500);
+  --color-orange-600: var(--orange-600);
+  --color-orange-700: var(--orange-700);
+  --color-azure-50: var(--azure-50);
+  --color-azure-100: var(--azure-100);
+  --color-azure-400: var(--azure-400);
+  --color-azure-500: var(--azure-500);
+  --color-azure-600: var(--azure-600);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-code-bg: var(--code-bg);
+  --color-glow: var(--glow);
+  --color-glow-azure: var(--glow-azure);
+    --font-sans: var(--font-google-sans);
+    --font-mono: var(--font-jetbrains-mono);
+    --font-display: 'Google Sans Display', 'Google Sans', system-ui, sans-serif;
 }
 
 /* ═══ Base ═══ */
@@ -142,663 +112,179 @@ body {
   background: var(--surface);
   color: var(--text-primary);
   font-family: var(--font-google-sans), system-ui, sans-serif;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'cv11' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
-/* Display family for chapter titles and headings */
-h1, h2, h3, .font-display {
-  font-family: 'Fonetika', var(--font-google-sans), system-ui, sans-serif;
-  font-feature-settings: 'kern' 1, 'liga' 1;
-  letter-spacing: -0.022em;
+/* Near-black base + crown glow — dots handled by canvas FlowingDotField */
+[data-theme="dark"] body {
+  background-color: #090806;
+  background-image:
+    /* vivid orange crown glow at top */
+    radial-gradient(ellipse 130% 50% at 50% -6%, rgba(255, 82, 0, 0.18) 0%, transparent 60%);
+  background-size: 100% 100%;
+  background-attachment: fixed;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Editions primitives — chapter rhythm, sticky nav, type scale
-   ═══════════════════════════════════════════════════════════ */
-
-/* Page shell — provides max-width + side padding for chapters */
-.editions-shell {
-  max-width: var(--content-max);
-  margin-inline: auto;
-  padding-inline: var(--content-pad-x);
-}
-
-/* Chapter section — editorial vertical rhythm. Restraint gate 80af1b1e:
-   whitespace is meaning, not padding. */
-.chapter {
-  padding-block: clamp(5rem, 12vw, 11rem);
-  border-top: 1px solid var(--border);
-  position: relative;
-}
-.chapter:first-of-type {
-  border-top: 0;
-}
-
-/* Inverse chapter — dark band for break-out moments. Re-binds every text
-   token at scope so descendant utility classes (text-text-secondary,
-   text-text-muted, etc.) automatically flip to inverse-safe values.
-   Without this rebind, white text on white / dark text on dark slip in
-   through nested utility classes. */
-.chapter-inverse {
-  background: var(--surface-ink);
-  color: var(--text-inverse);
-  border-top: 0;
-
-  /* Scope-rebind: tokens used by descendant utility classes flip to
-     inverse values. Anything inside .chapter-inverse that resolves a
-     text token now reads from the dark palette. */
-  --text-primary:    var(--text-inverse);
-  --text-secondary:  color-mix(in oklab, var(--text-inverse) 92%, transparent);
-  --text-muted:      color-mix(in oklab, var(--text-inverse) 78%, transparent);
-  --border:          color-mix(in oklab, var(--text-inverse) 18%, transparent);
-  --border-strong:   color-mix(in oklab, var(--text-inverse) 30%, transparent);
-  --surface-raised:  color-mix(in oklab, var(--text-inverse) 6%, transparent);
-  --surface-sunken:  color-mix(in oklab, var(--surface-ink) 80%, black);
-  --code-bg:         color-mix(in oklab, var(--text-inverse) 8%, transparent);
-}
-.chapter-inverse .chapter-eyebrow,
-.chapter-inverse .chapter-meta {
-  color: color-mix(in oklab, var(--text-inverse) 70%, transparent);
-}
-.chapter-inverse a.cta-link {
-  color: var(--text-inverse);
-  border-color: color-mix(in oklab, var(--text-inverse) 30%, transparent);
-}
-.chapter-inverse a.cta-link:hover {
-  border-color: var(--text-inverse);
-}
-/* Any dark-ink surface (terminal panels, code blocks, dark hero
-   variants used outside .chapter-inverse) auto-rebinds text tokens
-   so descendant utility classes (text-text-primary, text-text-muted,
-   text-text-secondary) flip to AA-safe inverse values. Without this,
-   any component that ships `bg-surface-ink` plus token-text-classes
-   inherits the LIGHT theme tokens and renders dark-on-dark. */
-.bg-surface-ink,
-[class*="bg-[#06"],
-[class*="bg-[#07"],
-[class*="bg-[#08"] {
-  --text-primary:    var(--text-inverse);
-  --text-secondary:  color-mix(in oklab, var(--text-inverse) 92%, transparent);
-  --text-muted:      color-mix(in oklab, var(--text-inverse) 78%, transparent);
-  --border:          color-mix(in oklab, var(--text-inverse) 18%, transparent);
-  --border-strong:   color-mix(in oklab, var(--text-inverse) 30%, transparent);
-  /* Orange text inside dark surfaces flips to LIGHT orange (orange-300)
-     so it clears AA against the dark ink. Without this, --orange-text
-     (dark) renders dark-on-dark. */
-  --orange-text:     var(--orange-300);
-  color: var(--text-inverse);
-}
-.chapter-inverse {
-  --orange-text:     var(--orange-300);
-}
-
-/* AA-safe orange text — the brand --orange-500 hue clears AA when used
-   as BACKGROUND (cream text on -600+ orange), but FAILS as text on
-   cream (3.1:1). Remap Tailwind's text-orange-500 utility to the
-   --orange-text variant, which scopes to ink color (dark on cream,
-   light on dark via the scoped rebind above). The bg-orange-500
-   utility is untouched — it stays the brand fill. !important is
-   required because Tailwind 4 utility specificity beats unlayered
-   rules and we MUST win the cascade for accessibility. */
-.text-orange-500,
-.text-orange-500\/90,
-.text-orange-500\/80,
-.text-orange-500\/70 {
-  color: var(--orange-text) !important;
-}
-.text-orange-600 {
-  color: var(--orange-700) !important;
-}
-/* bg-orange-500 used as a CTA fill needs darker hue when foreground is
-   cream/white text (the [ Start earning ] / [ COPY ] pattern). Pin to
-   orange-600 anywhere bg-orange-500 is on an interactive element OR is
-   combined with text-white. Catches both same-element + descendant. */
-.bg-orange-500.text-white,
-.text-white.bg-orange-500,
-.bg-orange-500:has(.text-white),
-.bg-orange-500:has(*[class*="text-white"]),
-a.bg-orange-500,
-button.bg-orange-500,
-.bg-orange-500 {
-  background-color: var(--orange-600) !important;
-}
-
-/* Feature cards INSIDE an inverse chapter: keep them dark too so they
-   don't punch a cream rectangle into the dark band. */
-.chapter-inverse .feature-card {
-  background: color-mix(in oklab, var(--text-inverse) 5%, transparent);
-  border-color: color-mix(in oklab, var(--text-inverse) 18%, transparent);
-  color: var(--text-inverse);
-}
-.chapter-inverse .feature-card h3 { color: var(--text-inverse); }
-.chapter-inverse .feature-card p { color: color-mix(in oklab, var(--text-inverse) 78%, transparent); }
-
-/* Chapter-rule — animated hairline above each chapter eyebrow. Sits inside
-   the editions-shell so it paints from left to full-width on reveal,
-   gated by the parent ScrollReveal. Origin-left scaleX 0→1. */
-.chapter-rule {
-  height: 1px;
-  width: 100%;
-  background: var(--text-border);
-  margin-bottom: 3rem;
-  transform-origin: left center;
-  transform: scaleX(0);
-  opacity: 0;
-}
-.chapter-inverse .chapter-rule {
-  background: color-mix(in oklab, var(--text-inverse) 28%, transparent);
-}
-[data-reveal="in"] .chapter-rule {
-  animation: line-fade 0.9s var(--ease-slide) 0s forwards;
-}
-
-/* Eyebrow — chapter number + name, small caps mono */
-.chapter-eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--type-stamp);
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
-}
-.chapter-eyebrow::after {
+/* Scanline + film grain overlay — dense tech texture */
+[data-theme="dark"] body::after {
   content: '';
-  height: 1px;
-  background: currentColor;
-  opacity: 0.4;
-  flex: 1;
-  max-width: 6rem;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    /* horizontal scanlines — slightly stronger */
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.12) 2px,
+      rgba(0, 0, 0, 0.12) 3px
+    ),
+    /* film grain */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 100% 100%, 128px 128px;
+  opacity: 0.65;
+  mix-blend-mode: overlay;
 }
 
-/* Chapter title — display H2, fills the line. Generous max-width forces
-   intentional line breaks; tight tracking holds the eye. */
-.chapter-title {
-  font-family: 'Fonetika', var(--font-google-sans), system-ui, sans-serif;
-  font-size: var(--type-display-2);
-  font-weight: 400;
-  line-height: 0.92;
-  letter-spacing: -0.036em;
-  color: var(--text-primary);
-  text-wrap: balance;
-  max-width: 16ch;
-  margin: 0 0 clamp(1.5rem, 2.4vw, 2.25rem);
-}
-.chapter-inverse .chapter-title {
-  color: var(--text-inverse);
+/* Phosphor glow on headings */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2 {
+  text-shadow: 0 0 60px rgba(255, 82, 0, 0.18);
 }
 
-/* Chapter lede — first paragraph after title */
-.chapter-lede {
-  font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
-  line-height: 1.45;
-  color: var(--text-secondary);
-  max-width: 56ch;
-  margin: 0 0 clamp(2rem, 4vw, 3.5rem);
-  text-wrap: pretty;
-}
-.chapter-inverse .chapter-lede {
-  color: color-mix(in oklab, var(--text-inverse) 80%, transparent);
+
+/* ═══ Animations ═══ */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hero H1 — only the landing-page hero uses this */
-.editions-hero h1,
-.editions-hero-h1 {
-  font-family: 'Fonetika', var(--font-google-sans), system-ui, sans-serif;
-  font-size: var(--type-display-1);
-  font-weight: 400;
-  line-height: 0.94;
-  letter-spacing: -0.038em;
-  color: var(--text-primary);
-  text-wrap: balance;
-  margin: 0;
-}
-
-/* Feature card — clean, no hover-lift theatrics */
-.feature-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  padding: clamp(1.25rem, 2.2vw, 1.75rem);
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  min-height: 0;
-  transition: border-color 200ms ease;
-}
-.feature-card:hover {
-  border-color: var(--border-strong);
-}
-.feature-card h3 {
-  font-family: 'Fonetika', var(--font-google-sans), system-ui, sans-serif;
-  font-size: var(--type-heading-1);
-  font-weight: 400;
-  letter-spacing: -0.022em;
-  line-height: 1.15;
-  color: var(--text-primary);
-  margin: 0;
-}
-.feature-card p {
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin: 0;
-  max-width: 50ch;
-}
-
-/* Feature grid — responsive, no fancy auto-fit gimmickry */
-.feature-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-@media (min-width: 640px) {
-  .feature-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (min-width: 960px) {
-  .feature-grid-3 { grid-template-columns: repeat(3, 1fr); }
-}
-
-/* CTA link — underline-with-arrow, Shopify-style */
-.cta-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  text-decoration: none;
-  padding-block: 0.375rem;
-  border-bottom: 1px solid var(--border-strong);
-  width: fit-content;
-  transition: border-color 200ms ease, gap 200ms ease;
-}
-.cta-link:hover {
-  border-color: var(--text-primary);
-  gap: 0.75rem;
-}
-.cta-link::after {
-  content: '\2192';
-  font-size: 1em;
-}
-
-/* Primary CTA button — solid pill, used only in hero and chapter CTAs.
-   cta-accent uses --orange-600 (not -500) because cream text on the
-   lighter orange-500 only hits ~3.1:1 (AA-fail). The darker orange-600
-   clears 4.5:1 with cream foreground. */
-.cta-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--surface-ink);
-  color: var(--text-inverse);
-  font-size: 0.9375rem;
-  font-weight: 500;
-  padding: 0.75rem 1.375rem;
-  border-radius: 999px;
-  text-decoration: none;
-  border: 1px solid var(--surface-ink);
-  transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
-}
-.cta-primary:hover {
-  background: var(--orange-600);
-  color: var(--text-inverse);
-  border-color: var(--orange-600);
-}
-.cta-primary.cta-accent {
-  background: var(--orange-600);
-  border-color: var(--orange-600);
-  color: var(--text-inverse);
-}
-.cta-primary.cta-accent:hover {
-  background: var(--orange-700);
-  border-color: var(--orange-700);
-}
-
-/* Stamp label — used for chapter numbers, category tags */
-.stamp-label {
-  font-family: var(--font-mono);
-  font-size: var(--type-stamp);
-  font-weight: 600;
-  letter-spacing: 0.20em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-/* Hairline divider — single source of truth for chapter splits */
-.hairline {
-  height: 1px;
-  background: var(--border);
-  border: 0;
-  margin: 0;
-}
-.hairline-strong {
-  height: 1px;
-  background: var(--border-strong);
-  border: 0;
-  margin: 0;
-}
-
-/* ═══ Editions sticky chapter nav (used by EditionsNav component) ═══ */
-.editions-nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: color-mix(in oklab, var(--surface) 92%, transparent);
-  backdrop-filter: saturate(140%) blur(10px);
-  -webkit-backdrop-filter: saturate(140%) blur(10px);
-  border-bottom: 1px solid var(--border);
-}
-.editions-nav-inner {
-  max-width: var(--content-max);
-  margin-inline: auto;
-  padding-inline: var(--content-pad-x);
-  padding-block: 0.875rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-.editions-nav-chapters {
-  display: none;
-  gap: 1rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.editions-nav-chapters::-webkit-scrollbar { display: none; }
-@media (min-width: 900px) {
-  .editions-nav-chapters { display: flex; }
-}
-.editions-nav-chapters a {
-  color: var(--text-secondary);
-  text-decoration: none;
-  white-space: nowrap;
-  padding-block: 0.25rem;
-  border-bottom: 1px solid transparent;
-  transition: color 150ms ease, border-color 150ms ease;
-}
-.editions-nav-chapters a:hover,
-.editions-nav-chapters a.is-active {
-  color: var(--text-primary);
-  border-color: var(--text-primary);
-}
-
-/* ═══ Code blocks (chapter-friendly) ═══ */
-.editions-code {
-  background: var(--surface-ink);
-  color: var(--text-inverse);
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  line-height: 1.55;
-  padding: 1.25rem 1.5rem;
-  border-radius: 6px;
-  overflow-x: auto;
-  border: 1px solid var(--surface-ink);
-}
-.editions-code .tok-comment { color: color-mix(in oklab, var(--text-inverse) 50%, transparent); }
-.editions-code .tok-string  { color: var(--orange-300); }
-.editions-code .tok-keyword { color: var(--orange-200); }
-
-/* ═══════════════════════════════════════════════════════════
-   Motion primitives — match shopify.com/editions/winter2026.
-   Source CSS bundle: tailwind-G-N6aznT.css (Shopify CDN, Oxygen).
-   Reduced-motion: every animation is killed in the @media block at
-   the bottom of this file; substrate-level rule.
-   ═══════════════════════════════════════════════════════════ */
-
-:root {
-  /* Easings — verified verbatim against shopify.com/editions/winter2026's
-     tailwind bundle (cubic-bezier values pulled 2026-05-25 from
-     tailwind-G-N6aznT.css). The previous --ease-glide was a generic ease-out;
-     these are Shopify's load-bearing curves. */
-  --ease-nav-in:      cubic-bezier(0.13, 0.46, 0.15, 0.92);   /* nav-item-in */
-  --ease-bounce-out:  cubic-bezier(0.34, 1.56, 0.64, 1);      /* cloud-card hover (small overshoot) */
-  --ease-glide:       cubic-bezier(0.215, 0.61, 0.355, 1);    /* generic glide (Shopify's --scroll-state-easing close cousin) */
-  --ease-slide:       cubic-bezier(0.72, 0.16, 0.19, 0.96);   /* Shopify --slide-easing (snappy horizontal/slide) */
-  --ease-fade-out:    cubic-bezier(0.25, 0.46, 0.45, 0.94);   /* Shopify --fade-out-easing (drift) */
-  --ease-scroll:      cubic-bezier(0.41, 0.19, 0.13, 0.95);   /* Shopify --scroll-state-easing (chapter reveal) */
-
-  /* Durations — Shopify's exact values where known */
-  --motion-fast:      0.15s;
-  --motion-quick:     0.2s;
-  --motion-base:      0.3s;       /* Shopify media-entrance */
-  --motion-medium:    0.52s;      /* Shopify --fade-out-duration */
-  --motion-slide:     0.6s;       /* Shopify --slide-duration + --scroll-state-duration */
-  --motion-slow:      0.75s;      /* Shopify timeline-start */
-  --motion-hero:      1s;         /* Shopify nav-item-in */
-
-  /* Stagger — Shopify --stagger-fade-in-delay: 75ms */
-  --motion-stagger:   0.075s;
-  --motion-stagger-slide: 0.02s;  /* Shopify --stagger-slide-delay */
-
-  /* Initial fade delay — Shopify --fade-initial-delay */
-  --motion-initial-delay: 0.2s;
-}
-
-/* Editions keyframes — names match Shopify's bundle */
 @keyframes fade-in {
   from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slide {
-  /* Hero word slide-in — matches editions .title__word--ai slide */
-  from { opacity: 0; transform: translateY(0.6em); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes stagger-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes nav-item-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes media-entrance {
-  from { opacity: 0; filter: blur(8px); transform: scale(1.02); }
-  to   { opacity: 1; filter: blur(0);   transform: scale(1); }
-}
-@keyframes line-fade {
-  /* Hairline rule paint-on, used for chapter dividers */
-  from { transform: scaleX(0); transform-origin: left; opacity: 0; }
-  to   { transform: scaleX(1); transform-origin: left; opacity: 1; }
-}
-@keyframes opacity-pulse {
-  /* Play-button / cursor blink pulse */
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.55; }
-}
-@keyframes timeline-start {
-  from { opacity: 0; transform: translateY(20px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0)    scale(1); }
+  to { opacity: 1; }
 }
 
-/* Utility classes — single source of truth for editions motion */
-.animate-fade-in {
-  animation: fade-in var(--motion-medium) ease forwards;
-  opacity: 0;
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow); }
+  50% { box-shadow: 0 0 24px 4px var(--glow); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 .animate-fade-up {
-  animation: fade-up 0.7s var(--ease-glide) forwards;
+  animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   opacity: 0;
 }
-.animate-slide {
-  /* hero word slide */
-  animation: slide 0.7s var(--ease-glide) both;
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease forwards;
   opacity: 0;
 }
-.animate-stagger-fade-in {
-  animation: stagger-fade-in 0.6s var(--ease-glide) both;
+
+.animate-slide-right {
+  animation: slide-in-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   opacity: 0;
 }
-.animate-nav-item-in {
-  animation: nav-item-in 1s var(--ease-nav-in) both;
-}
-.animate-media-entrance {
-  animation: media-entrance 0.6s var(--ease-glide) both;
-}
-.animate-line-fade {
-  animation: line-fade 0.9s var(--ease-glide) both;
-  transform-origin: left;
-}
-.animate-pulse-soft {
-  animation: opacity-pulse 2s ease-in-out infinite;
-}
-.animate-timeline-start {
-  animation: timeline-start 0.75s ease-in-out forwards;
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+.stagger-6 { animation-delay: 0.6s; }
+
+/* ═══ Display Font ═══ */
+h1, h2, .font-display {
+  font-family: var(--font-display, 'Google Sans Display'), system-ui, sans-serif;
+  font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
-.stagger-0 { animation-delay: 0s; }
-.stagger-1 { animation-delay: calc(var(--motion-stagger) * 1); }
-.stagger-2 { animation-delay: calc(var(--motion-stagger) * 2); }
-.stagger-3 { animation-delay: calc(var(--motion-stagger) * 3); }
-.stagger-4 { animation-delay: calc(var(--motion-stagger) * 4); }
-.stagger-5 { animation-delay: calc(var(--motion-stagger) * 5); }
-.stagger-6 { animation-delay: calc(var(--motion-stagger) * 6); }
-.stagger-7 { animation-delay: calc(var(--motion-stagger) * 7); }
-.stagger-8 { animation-delay: calc(var(--motion-stagger) * 8); }
-.stagger-9 { animation-delay: calc(var(--motion-stagger) * 9); }
-
-/* ═══════════════════════════════════════════════════════════
-   Scroll-reveal: a chapter starts hidden, ScrollReveal client
-   component flips data-reveal="in" via IntersectionObserver.
-   ═══════════════════════════════════════════════════════════ */
-[data-reveal="pending"] {
-  opacity: 0;
-  transform: translateY(28px);
-  transition:
-    opacity var(--motion-slide) var(--ease-scroll),
-    transform var(--motion-slide) var(--ease-scroll);
-  will-change: opacity, transform;
-}
-[data-reveal="in"] {
-  opacity: 1;
-  transform: translateY(0);
-}
-/* Children stagger when parent reveals — set --i index on each child.
-   Tightened to Shopify's 75ms cadence and the fade-out easing for drift. */
-[data-reveal="in"] [data-reveal-child] {
-  animation: stagger-fade-in var(--motion-medium) var(--ease-fade-out) both;
-  animation-delay: calc(var(--i, 0) * var(--motion-stagger));
+/* ═══ Utility ═══ */
+.gradient-text {
+  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* Word-split hero — each word slides via Shopify's exact slide easing.
-   Was a generic glide; now matches the editions hero's snappy curve. */
-.word-split > .word {
-  display: inline-block;
-  opacity: 0;
-  animation: slide var(--motion-slide) var(--ease-slide) both;
-  animation-delay: calc(var(--i, 0) * 0.08s + var(--motion-initial-delay));
-  will-change: transform, opacity;
-}
-.word-split > .word-space {
-  display: inline-block;
-  width: 0.25em;
+.glass {
+  backdrop-filter: blur(16px) saturate(180%);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
-/* Feature card bounce hover — exact editions cloud-card easing */
-.feature-card {
-  transition:
-    transform 0.4s var(--ease-bounce-out),
-    border-color 0.3s ease-out,
-    background-color 0.3s ease-out;
-}
-.feature-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-strong);
-}
-
-/* CTA hover — small glide of the arrow */
-.cta-link {
-  transition:
-    border-color var(--motion-base) var(--ease-glide),
-    gap var(--motion-base) var(--ease-glide);
-}
-.cta-link::after { transition: transform var(--motion-base) var(--ease-glide); }
-.cta-link:hover::after { transform: translateX(2px); }
-
-/* Editions nav links — active state slides in underline */
-.editions-nav-chapters a {
-  position: relative;
-}
-.editions-nav-chapters a::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 100%;
-  bottom: -1px;
-  height: 1px;
-  background: currentColor;
-  transition: right 0.35s var(--ease-glide), background-color 0.2s ease;
-}
-.editions-nav-chapters a.is-active::after,
-.editions-nav-chapters a:hover::after {
-  right: 0;
-}
-.editions-nav-chapters a {
-  border-bottom: 0 !important; /* underline now driven by ::after */
-}
-
-/* Editions nav entrance — items fade-in nav-item-in style */
-.editions-nav-chapters a {
-  animation: nav-item-in 0.8s var(--ease-nav-in) both;
-  animation-delay: calc(var(--i, 0) * 0.04s);
-}
-
-/* Glow — kept narrow, used only on the install band */
 .orange-glow {
-  box-shadow: 0 0 56px -16px var(--glow);
+  box-shadow: 0 0 40px -8px var(--glow);
 }
 
-/* Grid pattern — used by hero / install figure */
+.bg-gradient-radial {
+  background-image: radial-gradient(ellipse at center, var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to));
+}
+
 .grid-pattern {
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 64px 64px;
 }
+
+/* ═══ Scrollbar ═══ */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #060402;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 122, 32, 0.3);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--orange-400);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ═══ Archival / Celestial Visual Language ═══ */
+
+/* Cartographic coordinate grid */
 .archival-grid {
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 80px 80px;
-  opacity: 0.55;
+  opacity: 0.4;
 }
 
-/* Halftone retained for backwards-compat (still referenced by hero terminal) */
-.halftone-overlay {
-  position: relative;
-}
-.halftone-overlay::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, color-mix(in oklab, var(--orange-500) 14%, transparent) 1.6px, transparent 1.6px);
-  background-size: 14px 14px;
-  pointer-events: none;
-  z-index: 0;
+/* Engraved text — subtle inset/letterpress effect */
+.engraved {
+  text-shadow:
+    0 1px 0 rgba(255, 248, 240, 0.04),
+    0 -1px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* Retro border kept for components that explicitly reference it */
-.retro-border {
-  border: 1px solid color-mix(in oklab, var(--orange-500) 22%, transparent);
-}
-
-/* Azure utility kept for backwards-compat */
+/* Technical glow — azure precision layer */
 .azure-glow {
   box-shadow: 0 0 32px -8px var(--glow-azure);
 }
 
-/* Ornament divider — softer, used in section breaks within a chapter */
+/* Archival ornament divider */
 .ornament-divider {
   display: flex;
   align-items: center;
@@ -813,211 +299,549 @@ button.bg-orange-500,
   background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
 }
 
-/* ═══ Scrollbar ═══ */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--text-primary) 18%, transparent);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--text-primary) 32%, transparent);
-}
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+/* ═══ Halftone / Retro Utilities ═══ */
 
-/* ═══════════════════════════════════════════════════════════
-   Docs markdown (used by markdown-rendered doc pages)
-   ═══════════════════════════════════════════════════════════ */
+/* Dense halftone overlay — use on hero sections or panel backgrounds */
+.halftone-overlay {
+  position: relative;
+}
+.halftone-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 82, 0, 0.16) 1.8px, transparent 1.8px);
+  background-size: 14px 14px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Retro card border — vivid orange-tinted */
+.retro-border {
+  border: 1px solid rgba(255, 82, 0, 0.28);
+}
+
+/* Ink stamp label — mono uppercase with retro weight */
+.stamp-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Route line animation — technical overlay */
+@keyframes route-trace {
+  0% { stroke-dashoffset: 300; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.6; }
+}
+
+.route-line {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: route-trace 3s ease-in-out infinite;
+}
+
+/* ═══ Docs Markdown (single-source-of-truth doc pages) ═══ */
+/* Used by pages that render markdown from /docs/<SLUG>.md via
+   src/lib/docs-renderer.ts. Matches the legacy hardcoded-JSX look
+   on /how-unbrowse-pays so the visual layout is unchanged. */
 .docs-markdown {
   color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.65;
-  max-width: 70ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 .docs-markdown h2 {
-  font-family: 'Fonetika', var(--font-google-sans), system-ui, sans-serif;
-  font-size: 1.625rem;
-  font-weight: 400;
-  letter-spacing: -0.018em;
-  color: var(--text-primary);
-  margin-top: 2.75rem;
-  margin-bottom: 0.875rem;
-}
-.docs-markdown h3 {
-  font-size: 1.125rem;
+  font-family: var(--font-display, 'Google Sans Display'), system-ui, sans-serif;
+  font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);
-  margin-top: 2rem;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+.docs-markdown h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 1.75rem;
   margin-bottom: 0.5rem;
 }
-.docs-markdown p { margin-bottom: 0.875rem; }
+.docs-markdown p {
+  margin-bottom: 0.75rem;
+}
 .docs-markdown ul,
 .docs-markdown ol {
-  margin: 0.875rem 0;
+  margin: 0.75rem 0;
   padding-left: 1.5rem;
 }
 .docs-markdown ul { list-style: disc; }
 .docs-markdown ol { list-style: decimal; }
-.docs-markdown li { margin: 0.3rem 0; }
+.docs-markdown li { margin: 0.25rem 0; }
+.docs-markdown li > p { margin-bottom: 0.25rem; }
 .docs-markdown strong { color: var(--text-primary); font-weight: 600; }
 .docs-markdown a {
   color: var(--text-primary);
   text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
-.docs-markdown a:hover { text-decoration-thickness: 2px; }
+.docs-markdown a:hover { color: var(--text-secondary); }
 .docs-markdown code {
-  font-family: var(--font-mono);
-  font-size: 0.875em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
   color: var(--text-primary);
   background: var(--code-bg);
-  padding: 0.1em 0.35em;
+  padding: 0.1rem 0.3rem;
   border-radius: 3px;
   border: 1px solid var(--border);
 }
 .docs-markdown pre {
-  background: var(--surface-ink);
-  color: var(--text-inverse);
-  border: 1px solid var(--surface-ink);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
   overflow-x: auto;
-  margin: 1rem 0;
+  margin: 0.75rem 0;
 }
 .docs-markdown pre code {
   background: transparent;
   border: 0;
   padding: 0;
-  color: inherit;
 }
 .docs-markdown blockquote {
   border-left: 2px solid var(--border-strong);
   padding-left: 1rem;
   color: var(--text-muted);
-  margin: 1rem 0;
+  margin: 0.75rem 0;
 }
 .docs-markdown hr {
   border: 0;
   border-top: 1px solid var(--border);
-  margin: 2.5rem 0;
+  margin: 2rem 0;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Accessibility (WCAG 2.2 AA baseline)
-   ═══════════════════════════════════════════════════════════ */
-.skip-link {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
+/* ═══════════════════════════════════════════════════════════════════
+   EDITIONS SURFACE (Shopify Editions Winter 2026 mirror)
+   Cream paper-and-ink palette. Activated by adding `.editions-page`
+   to the page wrapper. Scoped under .editions-surface so it never
+   bleeds into the rest of the dark/orange site.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Editions custom properties (cream surface). */
+.editions-surface,
+.editions-page {
+  --ed-cream: #dcdcd0;
+  --ed-cream-card: #e2e2d9;
+  --ed-cream-warm: #f7f7ee;
+  --ed-ink: #292919;
+  --ed-ink-muted: #5c5c4e;
+  --ed-hairline: #909083;
+  --ed-hairline-faint: rgba(41, 41, 25, 0.10);
+  --ed-accent: #5433eb;
+  --ed-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ed-ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* `.editions-page` flips the body into cream surface for landing only,
+   overriding the global dark theme for this route. */
+body.editions-page {
+  background-color: #dcdcd0 !important;
+  background-image: none !important;
+  color: #292919 !important;
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+/* Kill the dark-theme decorative overlay on editions pages. */
+body.editions-page::after {
+  display: none !important;
+}
+
+/* Kill phosphor glow on headings within editions surface. */
+body.editions-page h1,
+body.editions-page h2,
+body.editions-page h3 {
+  text-shadow: none;
+}
+
+/* Hide the global Navbar and SiteFooter on editions pages.
+   Both files emit unscoped class names so we hook by structural selectors
+   added in navbar.tsx/site-footer.tsx (data-global-chrome). */
+body.editions-page [data-global-chrome="navbar"],
+body.editions-page [data-global-chrome="site-footer"],
+body.editions-page [data-global-chrome="docs-embed"] {
+  display: none !important;
+}
+
+/* Editions surface base. Always wraps editions content. */
+.editions-surface {
+  background-color: var(--ed-cream);
+  color: var(--ed-ink);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+/* ─── Editions keyframes ─── */
+
+/* Per-word hero stagger: opacity-only, NO translate. */
+@keyframes ed-stagger-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Figure / media reveal: opacity-only. */
+@keyframes ed-media-entrance {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Nav pill load: slides down past resting and settles. */
+@keyframes ed-nav-item-in {
+  0% { opacity: 0; transform: translateY(-100%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Editions typography ─── */
+
+.editions-surface .ed-headline-1 {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(7.5rem, 35.7895px + 10.9649vw, 13.75rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+  color: var(--ed-ink);
+}
+
+.editions-surface .ed-headline-2,
+.editions-surface .chapter-title {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(6rem, 75.7895px + 2.63158vw, 7.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+  color: var(--ed-ink);
+  margin: 0;
+}
+
+.editions-surface .ed-narrative-1,
+.editions-surface .chapter-lede {
+  font-family: var(--font-serif-editions), HWCigars, Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+  color: var(--ed-ink);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.editions-surface .chapter-eyebrow {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
   font-size: 0.875rem;
-  text-decoration: none;
-  border: 2px solid var(--text-primary);
-  transform: translateY(-200%);
-  transition: transform 150ms ease-out;
-}
-.skip-link:focus,
-.skip-link:focus-visible {
-  transform: translateY(0);
-  outline: 2px solid var(--orange-500);
-  outline-offset: 2px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ed-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
-*:focus { outline: none; }
-*:focus-visible {
-  outline: 2px solid var(--orange-500);
-  outline-offset: 2px;
-  border-radius: 2px;
-  scroll-margin-top: 80px;
-  scroll-margin-bottom: 60px;
+.editions-surface .chapter-eyebrow .ed-number {
+  color: var(--ed-ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+/* ─── Chapter primitive ─── */
+
+.editions-surface .chapter {
+  border-top: 1px solid var(--ed-hairline);
+  padding: clamp(4rem, 8vw, 10rem) clamp(1rem, 4vw, 6rem);
+  background-color: var(--ed-cream);
+  color: var(--ed-ink);
+}
+
+.editions-surface .chapter:first-of-type,
+.editions-surface .chapter.chapter-first {
+  border-top: 0;
+}
+
+.editions-surface .editions-shell {
+  max-width: 90rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Hairlines */
+.editions-surface .hairline {
   border: 0;
+  border-top: 1px solid var(--ed-hairline);
+  margin: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+.editions-surface .hairline-faint {
+  border: 0;
+  border-top: 1px solid var(--ed-hairline-faint);
+  margin: 0;
+}
+
+/* Feature grid + cards (Wave-1 base; richer skin lands in Wave-2). */
+.editions-surface .feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 2rem);
+}
+
+.editions-surface .feature-grid-3 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+  .editions-surface .feature-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Archival visual layer — restored from main 2026-05-25 per
-   Lewis's "/contract to correct" ask. Texture utilities that
-   overlay the editions cream/ink palette without replacing it.
-   Use sparingly; editions restraint stays the dominant rule.
-   ═══════════════════════════════════════════════════════════ */
-
-.orange-glow {
-  box-shadow: 0 0 40px -8px color-mix(in oklab, var(--orange-text, #c54c1a) 32%, transparent);
+.editions-surface .feature-card {
+  background-color: var(--ed-cream-card);
+  border-radius: 0.75rem;
+  padding: clamp(1.5rem, 2vw, 2.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.grid-pattern {
-  background-image:
-    linear-gradient(var(--text-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--text-border) 1px, transparent 1px);
-  background-size: 64px 64px;
+.editions-surface .feature-card h3 {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.5rem, 2vw, 1.8125rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--ed-ink);
+  margin: 0;
 }
 
-.archival-grid {
-  background-image:
-    linear-gradient(var(--text-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--text-border) 1px, transparent 1px),
-    linear-gradient(color-mix(in oklab, var(--text-border) 60%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--text-border) 60%, transparent) 1px, transparent 1px);
-  background-size: 256px 256px, 256px 256px, 64px 64px, 64px 64px;
+.editions-surface .feature-card p {
+  font-family: var(--font-serif-editions), HWCigars, Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 0.97;
+  letter-spacing: -0.05em;
+  color: var(--ed-ink);
+  margin: 0;
 }
 
-/* Scanline + film grain texture on inverse (dark) chapter bands only.
-   Subtle broadcast feel, doesn't invade cream chapters. */
-.chapter-inverse {
-  position: relative;
-}
-.chapter-inverse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0px,
-      transparent 2px,
-      rgba(0, 0, 0, 0.12) 2px,
-      rgba(0, 0, 0, 0.12) 3px
-    ),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23g)'/%3E%3C/svg%3E");
-  background-size: 100% 100%, 128px 128px;
-  opacity: 0.18;
-  mix-blend-mode: overlay;
-}
-.chapter-inverse > * {
-  position: relative;
-  z-index: 1;
+.editions-surface .cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ed-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  font-size: 1rem;
 }
 
-/* Phosphor glow — subtle radial halo on the hero title only. */
-.editions-hero-h1 {
-  text-shadow: 0 0 60px color-mix(in oklab, var(--orange-text, #c54c1a) 22%, transparent);
+/* ─── Word-split per-word stagger ─── */
+.editions-surface .word-split {
+  display: inline;
 }
+
+.editions-surface .word-split-line {
+  display: inline;
+}
+
+.editions-surface .word-split .word {
+  display: inline-block;
+  opacity: 1; /* SSR visible default */
+}
+
+/* When the reveal flag is set, words start hidden and stagger in. */
+[data-reveal="pending"] .word-split .word,
+[data-reveal="in"] .word-split .word {
+  opacity: 0;
+  animation: ed-stagger-fade-in 0.5s var(--ed-ease) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+[data-reveal="pending"] [data-reveal-child] {
+  opacity: 0;
+}
+
+[data-reveal="in"] [data-reveal-child] {
+  opacity: 0;
+  animation: ed-media-entrance 0.6s var(--ed-ease) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* ─── Sticky chapter nav ─── */
+.editions-page .editions-nav,
+.editions-surface .editions-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 56px;
+  background-color: rgba(220, 220, 208, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ed-hairline);
+  width: 100%;
+}
+
+.editions-surface .editions-nav-inner {
+  max-width: 90rem;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2.5rem);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.editions-surface .editions-nav-chapters {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.editions-surface .editions-nav-chapters::-webkit-scrollbar {
+  display: none;
+}
+
+.editions-surface .editions-nav-chapters a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--ed-ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.18s var(--ed-ease);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+.editions-surface .editions-nav-chapters a:hover {
+  color: var(--ed-ink);
+}
+
+.editions-surface .editions-nav-chapters a.is-active {
+  color: var(--ed-ink);
+}
+
+.editions-surface .editions-nav-logo {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.012em;
+  color: var(--ed-ink);
+  text-decoration: none;
+}
+
+.editions-surface .editions-nav-link {
+  font-size: 0.8125rem;
+  color: var(--ed-ink-muted);
+  text-decoration: none;
+}
+
+.editions-surface .editions-nav-link:hover {
+  color: var(--ed-ink);
+}
+
+@media (max-width: 767px) {
+  .editions-surface .editions-nav-chapters {
+    display: none;
+  }
+}
+
+/* Anchor scroll padding for sticky-nav offset (SPEC §4). */
+html.editions-html {
+  scroll-padding-top: 60px;
+}
+
+@media (max-width: 768px) {
+  html.editions-html {
+    scroll-padding-top: 50px;
+  }
+}
+
+/* ─── Editions hero shell ─── */
+.editions-surface .editions-hero {
+  padding: clamp(4rem, 9vw, 8rem) clamp(1rem, 4vw, 6rem);
+  background-color: var(--ed-cream);
+}
+
+.editions-surface .ed-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background-color: var(--ed-ink);
+  color: var(--ed-cream);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border-radius: 0;
+  transition: background-color 0.18s var(--ed-ease);
+}
+
+.editions-surface .ed-cta-primary:hover {
+  background-color: #1a1a10;
+}
+
+.editions-surface .ed-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ed-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-size: 0.9375rem;
+}
+
+/* Hero speed-proof strip */
+.editions-surface .ed-proof-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ed-ink-muted);
+}
+
+.editions-surface .ed-proof-strip strong {
+  color: var(--ed-ink);
+  font-weight: 700;
+}
+
+/* ─── Contained dark figure cards ─── */
+.editions-surface .ed-dark-figure {
+  background-color: var(--ed-ink);
+  color: var(--ed-cream-warm);
+  border-radius: 0.75rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  margin: clamp(1rem, 2vw, 1.5rem) 0;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.editions-surface .ed-dark-figure pre {
+  margin: 0;
+  white-space: pre;
+}
+
+.editions-surface .ed-dark-figure .ed-diff-out {
+  color: rgba(247, 247, 238, 0.45);
+  text-decoration: line-through;
+  text-decoration-color: rgba(247, 247, 238, 0.45);
+}
+
+.editions-surface .ed-dark-figure .ed-diff-in {
+  color: var(--ed-cream-warm);
+}
+
