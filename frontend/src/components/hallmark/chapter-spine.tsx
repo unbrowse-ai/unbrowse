@@ -304,9 +304,10 @@ export function ChapterSpine() {
         title={<>Index a route. Get paid every time another agent reuses it.</>}
         lede={
           <>
-            Capture and indexing are free. When the next agent reuses your route
-            the call settles in USDC on Solana via Faremeter Flex, directly to
-            your wallet. The sponsor tier covers an agent&rsquo;s first $1/day.
+            Capture and indexing are free. When another agent reuses your
+            route, you get paid in USDC &mdash; settled on Solana via
+            Faremeter Flex, directly to your wallet. The sponsor tier covers
+            an agent&rsquo;s first $1/day.
           </>
         }
       >
