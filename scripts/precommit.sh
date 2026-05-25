@@ -45,6 +45,13 @@ if has_match '^(README\.md|CHANGELOG\.md|frontend/src/|docs/)' && [[ "${CONTRACT
   bash scripts/check-contract-leak.sh
 fi
 
+# Public-primitives doc honesty gate: when docs/public/primitives/ files
+# change, the README inventory must match the folder and no substrate
+# vocabulary may leak. Pattern at scripts/check-primitives-doc-public.sh.
+if has_match '^docs/public/primitives/'; then
+  bash scripts/check-primitives-doc-public.sh
+fi
+
 if has_match '^(src/client/index\.ts|src/runtime/|src/cli\.ts|packages/skill/README\.md|tests/client-registration\.test\.ts|tests/runtime-setup\.test\.ts)$'; then
   run_tests tests/client-registration.test.ts tests/runtime-setup.test.ts
 fi
