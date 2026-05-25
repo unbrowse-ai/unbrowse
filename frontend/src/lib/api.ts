@@ -1,5 +1,4 @@
 import { getConfiguredApiOrigin } from "@/lib/api-base";
-import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 const API_URL = getConfiguredApiOrigin();
 const SUPPRESSED_MARKETPLACE_DOMAINS = new Set(["pearlpediatric.curvehero.com"]);
@@ -78,14 +77,6 @@ export interface SkillManifest {
   reviewed_at?: string;
   /** Owner-controlled marketplace visibility. Tri-file sync with backend/src/types.ts + src/types/skill.ts (CLAUDE.md). */
   visibility?: "public" | "private";
-  /**
-   * Per-skill platform markup in basis points (1 bp = 0.01%).
-   * Optional override for the global PLATFORM_BPS constant in
-   * backend/src/services/flex.ts. Clamped to [500, 8000] (5-80%)
-   * at compute time. When unset, falls back to PLATFORM_BPS=5000.
-   * Tri-file synced with backend/src/types.ts + src/types/skill.ts.
-   */
-  markup_bps?: number;
 }
 
 export interface PopularSkillSummary {
@@ -102,13 +93,6 @@ export interface PopularSkillSummary {
   updated_at: string;
   last_execution_at?: string;
 }
-
-/**
- * Opaque reference to another binding's id. ContractRef is a string id
- * whose resolved status acts as a precondition for this field's claim.
- * Tri-file synced with `src/types/skill.ts` and `backend/src/types.ts`.
- */
-export type ContractRef = string;
 
 export interface EndpointDescriptor {
   endpoint_id: string;
@@ -381,7 +365,6 @@ async function request<T = unknown>(
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
-    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
@@ -530,37 +513,6 @@ export async function getAnalyticsEngagement(): Promise<EngagementMetrics> {
   return authApi<EngagementMetrics>("GET", "/v1/analytics/engagement");
 }
 
-// Admin-gated: backend route checks `agent_id === "__admin__"`. Non-admin
-// callers get a 403; the caller surfaces that as a forbidden-state UI.
-export interface TelemetryFailureRow {
-  session_id: string;
-  received_at: string;
-  reflection_status: string;
-  intent: string | null;
-  url: string | null;
-  intent_status: string | null;
-  error_class: string | null;
-  last_tool: string | null;
-  mcp_version: string | null;
-  platform: string | null;
-  agent_kind_fingerprint: string;
-}
-
-export interface TelemetryRecentFailuresResponse {
-  ok: boolean;
-  since: string;
-  limit: number;
-  count: number;
-  failures: TelemetryFailureRow[];
-}
-
-export async function getTelemetryRecentFailures(opts: { limit?: number; sinceIsoUtc?: string } = {}): Promise<TelemetryRecentFailuresResponse> {
-  const qs: string[] = [];
-  if (typeof opts.limit === "number") qs.push(`limit=${encodeURIComponent(String(opts.limit))}`);
-  if (opts.sinceIsoUtc) qs.push(`since=${encodeURIComponent(opts.sinceIsoUtc)}`);
-  const suffix = qs.length > 0 ? `?${qs.join("&")}` : "";
-  return authApi<TelemetryRecentFailuresResponse>("GET", `/v1/telemetry/recent-failures${suffix}`);
-}
 export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
   return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }
@@ -713,7 +665,6 @@ async function authRequestOrAccountRequired<T>(path: string): Promise<T | null> 
     throw new Error(data.error ?? `HTTP 403`);
   }
   if (!res.ok) {
-    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
@@ -755,10 +706,6 @@ export async function updateAccountPreferences(
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
-    // Surface rotated-key recovery before throwing a generic "HTTP 401" that
-    // the preferences toggle would otherwise render as a no-op. The detector
-    // is idempotent, safe to call on any !ok branch.
-    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }

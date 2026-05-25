@@ -221,33 +221,6 @@ unbrowse setup --wallet-address $AGENT_WALLET_ADDRESS`}
         </ol>
       </Card>
 
-      <Card title="Option 3 — fiat on-ramp via MoonPay (preview)">
-        <p className="text-sm text-text-secondary">
-          MoonPay one-way swap is the recommended fiat→USDC path for web2
-          users who don&apos;t already hold crypto. Buy USDC with card or bank
-          transfer, then pair the receiving Solana address to Unbrowse.
-        </p>
-        <ol className="space-y-2 text-sm text-text-secondary list-decimal pl-4">
-          <li>
-            Generate the on-ramp URL targeting your Solana wallet:
-            <CodeBlock>
-              {`https://buy.moonpay.com/?defaultCurrencyCode=usdc_sol&walletAddress=<your-base58-pubkey>`}
-            </CodeBlock>
-          </li>
-          <li>
-            After the swap settles, pair the same address with{" "}
-            <code className="font-mono text-text-primary">unbrowse setup --wallet-address $WALLET</code>{" "}
-            (same flow as Option 2).
-          </li>
-          <li>
-            <span className="text-text-muted">
-              Native MoonPay routing inside <code className="font-mono">unbrowse setup</code> is
-              on the roadmap; for now this is the manual link.
-            </span>
-          </li>
-        </ol>
-      </Card>
-
       <Card title="Next step">
         <p className="text-sm text-text-secondary">
           After pairing, fund your Flex escrow.

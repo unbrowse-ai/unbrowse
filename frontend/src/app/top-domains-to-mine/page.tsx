@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -93,7 +93,7 @@ const categories: Category[] = [
         why: "The default search for every agent. Autocomplete, search results, Knowledge Graph panels, and People Also Ask boxes all run through internal JSON endpoints. Agents that can call these directly skip the entire rendered SERP.",
         difficulty: "Hard",
         routes: "15-25",
-        tip: "Focus on documented autocomplete and Knowledge Graph-style responses first. Use only accounts and browser sessions you own, and keep the capture slow and intentional.",
+        tip: "Focus on the autocomplete and Knowledge Graph endpoints first — they return structured JSON and are less aggressively rate-limited than the main search results page. Use cookie injection from a real Chrome profile to pass bot detection.",
       },
       {
         domain: "bing.com",
@@ -195,14 +195,14 @@ const categories: Category[] = [
         why: "Twitter/X is the real-time pulse of the internet. Timeline, search, trends, user profiles, and spaces all use internal GraphQL endpoints. Since the API became paid ($100/month minimum), internal routes are the only free path for agents.",
         difficulty: "Hard",
         routes: "25-40",
-        tip: "X uses POST-based GraphQL with operation names in the request body. You must be logged in — unauthenticated browsing returns almost nothing. Use only a browser session you own, focus on read-only workflows, and expect routes to need periodic refresh.",
+        tip: "X uses POST-based GraphQL with operation names in the request body. You must be logged in — unauthenticated browsing returns almost nothing. Use cookie injection from your real browser session. Focus on the SearchTimeline and UserTweets operations first. The endpoints rotate bearer tokens, so routes need periodic refresh.",
       },
       {
         domain: "linkedin.com",
         why: "Professional network data — job listings, company profiles, people search, and industry insights. LinkedIn's official API is extremely restricted. Internal routes are the only way agents can access the full dataset.",
         difficulty: "Hard",
         routes: "20-30",
-        tip: "LinkedIn is policy-sensitive and heavily gated. Use only a real account you own, browse slowly, and focus on read-only workflows you are permitted to access.",
+        tip: "LinkedIn has aggressive bot detection (Arkose Labs). You must use cookie injection from a real logged-in session and browse slowly — do not rapid-fire page loads. Focus on the Voyager API endpoints (/voyager/api/) which power all dynamic content. These routes are extremely valuable because LinkedIn data is otherwise gated.",
       },
       {
         domain: "youtube.com",
@@ -225,7 +225,7 @@ const categories: Category[] = [
         why: "The world's largest product catalog. Search, product details, pricing, reviews, and recommendations all use internal APIs. Any agent that does product research or price comparison needs Amazon routes.",
         difficulty: "Hard",
         routes: "25-40",
-        tip: "Amazon is policy-sensitive and heavily gated. Use only accounts you own, keep sessions slow, and focus on search autocomplete, product detail, and review workflows you are permitted to access.",
+        tip: "Amazon has sophisticated bot detection, but cookie injection from a real session works reliably. Focus on the search autocomplete, product detail, and review endpoints. The /s?k= search results page loads data through multiple API calls — capture them all. Use a Prime account for access to the full pricing endpoints.",
       },
       {
         domain: "ebay.com",
@@ -606,7 +606,7 @@ export default function TopDomainsToMinePage() {
           <div className="mt-8 text-sm sm:text-base text-text-secondary">
             <div className="font-semibold text-text-primary">{AUTHOR.name}</div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -822,9 +822,10 @@ export default function TopDomainsToMinePage() {
               <strong className="text-text-primary">
                 Hard domains pay more.
               </strong>{" "}
-              Sites with stronger access controls (Google, LinkedIn, X,
+              Sites with aggressive bot detection (Google, LinkedIn, X,
               Bloomberg) have fewer contributors competing for their routes. If you
-              can successfully mine them using browser sessions you own, your routes earn disproportionately more because
+              can successfully mine them using cookie injection from your real
+              browser sessions, your routes earn disproportionately more because
               supply is constrained while demand is high.
             </p>
             <p>

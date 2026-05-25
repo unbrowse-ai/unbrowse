@@ -73,32 +73,6 @@ export default function MinersPage() {
           </div>
         </section>
 
-        <section className="animate-fade-up stagger-1 mt-6 rounded-sm border-[var(--border)] bg-surface-raised/60 p-6">
-          <p className="text-xs font-mono uppercase tracking-[0.3em] text-orange-500/90">
-            ## HOW THE FLYWHEEL PAYS
-          </p>
-          <ol className="mt-4 grid gap-4 sm:grid-cols-3">
-            <li className="flex gap-3">
-              <span className="font-mono text-sm text-orange-500/80">01</span>
-              <span className="text-sm leading-6 text-text-secondary">
-                You browse a real site. Unbrowse captures the shadow API calls behind the page and publishes them as a typed route.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="font-mono text-sm text-orange-500/80">02</span>
-              <span className="text-sm leading-6 text-text-secondary">
-                Another agent resolves the same intent, hits your route from the marketplace, and pays per execution in USDC on Solana via Faremeter Flex.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="font-mono text-sm text-orange-500/80">03</span>
-              <span className="text-sm leading-6 text-text-secondary">
-                Earnings settle to your wallet. The first $1 per day per agent is sponsored, so callers can try your route before they pay you directly.
-              </span>
-            </li>
-          </ol>
-        </section>
-
         {error && (
           <div className="mt-6 rounded-sm border-red-500/20 bg-red-500/10 px-4 py-3 font-mono text-sm text-red-400">
             {error}

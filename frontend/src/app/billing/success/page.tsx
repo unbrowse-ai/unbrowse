@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
-import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 const API_URL = getConfiguredApiOrigin();
 
@@ -16,18 +15,11 @@ export default function BillingSuccessPage() {
       setStatus("No API key found. Visit /billing to subscribe.");
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/v1/billing/success`, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (await checkAuthInvalidResponse(res)) {
-          if (!cancelled) setStatus("Your API key was rotated. Sign in to mint a new one.");
-          return;
-        }
-        const body = (await res.json()) as { status?: string };
-        if (cancelled) return;
+    fetch(`${API_URL}/v1/billing/success`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    })
+      .then((r) => r.json() as Promise<{ status?: string }>)
+      .then((body) => {
         if (body?.status === "active" || body?.status === "trialing") {
           setStatus("Subscription active. Redirecting...");
           setTimeout(() => {
@@ -41,13 +33,8 @@ export default function BillingSuccessPage() {
             window.location.href = "/billing";
           }, 3000);
         }
-      } catch (err) {
-        if (!cancelled) setStatus(`Sync failed: ${String(err)}`);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      })
+      .catch((err) => setStatus(`Sync failed: ${String(err)}`));
   }, [apiKey]);
 
   return (

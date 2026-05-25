@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -77,7 +77,7 @@ const sections: { title: string; body: string[] }[] = [
     title: "What proof of indexing actually is",
     body: [
       "Proof of work secures Bitcoin by making miners spend energy to validate blocks. Proof of indexing secures the agentic web by making contributors spend browsing effort to discover routes. But unlike proof of work, the effort is not wasted — every unit of work produces a real, reusable API route that makes agents faster and cheaper.",
-      "Here is how it works. You install Unbrowse and browse sites you are allowed to use. As you visit sites, Unbrowse observes the requests needed for that workflow, extracts reusable route metadata, and publishes the reviewed route shape to a shared route graph. That is a mining event. Every route you contribute is cryptographically attributed to your wallet and timestamped on-chain.",
+      "Here is how it works. You install Unbrowse and browse the web. As you visit sites, Unbrowse passively captures the network traffic flowing between your browser and the server. It identifies the internal API calls — the fetch and XHR requests that power every modern website — reverse-engineers their schemas, authentication patterns, and parameters, and publishes them to a shared route graph. That is a mining event. Every route you contribute is cryptographically attributed to your wallet and timestamped on-chain.",
       "When an AI agent later resolves a task using one of your routes, you earn a micropayment. No staking. No GPUs. No specialized hardware. Just the browsing you already do.",
     ],
   },
@@ -211,7 +211,7 @@ export default function ProofOfIndexingPage() {
           <div className="mt-8 text-sm sm:text-base text-text-secondary">
             <div className="font-semibold text-text-primary">{AUTHOR.name}</div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -323,7 +323,7 @@ export default function ProofOfIndexingPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-muted">
+          <p className="mt-3 text-sm text-text-secondary/60">
             Assumes 100 resolves per agent per day at $0.005 per resolve. Daily
             payout is the 70% contributor share.
           </p>
@@ -340,7 +340,7 @@ export default function ProofOfIndexingPage() {
             work.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-muted select-none">$ </span>
+            <span className="text-text-secondary/60 select-none">$ </span>
             <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

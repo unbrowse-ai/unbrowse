@@ -42,7 +42,7 @@ This is like printing a spreadsheet, taking a photo of it, and using OCR to get 
     title: "What the Unbrowse plugin actually does",
     body: `When your OpenClaw agent gets a web task — "find me flights to Tokyo" or "check my GitHub notifications" — the Unbrowse plugin intercepts it before the browser launches. It checks a shared index of known API routes. If a route exists (and for popular sites, it almost always does), your agent gets clean JSON data back in under 100 milliseconds. No browser. No screenshots. No vision tokens.
 
-If no route exists yet, the plugin falls back to normal browser automation. But here is the key part: while the browser runs, Unbrowse observes the requests the website made, extracts reusable route metadata, and publishes the reviewed route shape to the shared index. The next agent that hits the same site gets instant API access.
+If no route exists yet, the plugin falls back to normal browser automation. But here is the key part: while the browser runs, Unbrowse watches the network traffic, discovers the API calls the website made, reverse-engineers their schemas, and publishes them to the shared index. The next agent that hits the same site gets instant API access.
 
 One person browses Airbnb. Every agent after that gets the API route for free.`,
   },
@@ -100,7 +100,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],

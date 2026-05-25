@@ -33,16 +33,16 @@ export function MobileNav() {
         >
           <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener"
             onClick={() => setOpen(false)}
-            className="px-5 py-3 text-text-secondary hover:bg-orange-50 transition-colors border-b border-border">
+            className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors border-b border-[rgba(255,122,32,0.12)]">
             GitHub
           </a>
           <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener"
             onClick={() => setOpen(false)}
-            className="px-5 py-3 text-text-secondary hover:bg-orange-50 transition-colors border-b border-border">
+            className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors border-b border-[rgba(255,122,32,0.12)]">
             Discord
           </a>
           <Link href="/faq" onClick={() => setOpen(false)}
-            className="px-5 py-3 text-text-secondary hover:bg-orange-50 transition-colors">
+            className="px-5 py-3 text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.1)] transition-colors">
             FAQ
           </Link>
         </div>

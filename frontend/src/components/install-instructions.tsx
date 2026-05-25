@@ -25,7 +25,7 @@ const TABS = [
     lines: [
       { type: "header",  text: "▸  UNBROWSE MCP  ·  CLAUDE CODE" },
       { type: "divider", text: "──────────────────────────────────────────────" },
-      { type: "comment", text: "  ##  one command, registers the MCP server" },
+      { type: "comment", text: "  ##  one command — registers the MCP server" },
       { type: "cmd",     text: "  $  claude mcp add unbrowse -- npx -y unbrowse mcp" },
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  or use the bundled installer (auto-detects host)" },
@@ -48,7 +48,7 @@ const TABS = [
       { type: "comment", text: "  ##  or add to your mcp.json manually" },
       { type: "cmd",     text: '  {  "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] }  }' },
       { type: "blank",   text: "" },
-      { type: "comment", text: "  ##  restart the host. unbrowse is now an MCP server" },
+      { type: "comment", text: "  ##  restart the host — unbrowse is now an MCP server" },
     ] as TLine[],
   },
   {
@@ -183,35 +183,6 @@ export function InstallInstructions() {
           background: `radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(100,60,20,${isMobile ? 0.1 : 0.18}) 100%)`,
         }}
       />
-      {/* ── Earnings pre-frame ── */}
-      {/* Set the mental model BEFORE the install command: resolves cache       */}
-      {/* routes to the public marketplace, reuse settles in USDC on Solana via */}
-      {/* Faremeter Flex, first $1/day per agent is sponsored.                  */}
-      <div
-        data-testid="install-earnings-preframe"
-        style={{
-          borderBottom: "1px solid rgba(255,122,32,0.22)",
-          padding: "8px 14px",
-          fontFamily: "monospace",
-          fontSize: 11,
-          lineHeight: 1.55,
-          letterSpacing: "0.02em",
-          color: O_DIM,
-          background: "rgba(180,145,90,0.18)",
-          position: "relative",
-          zIndex: 30,
-        }}
-      >
-        <span style={{ color: O_HI, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-          heads up
-        </span>
-        <span style={{ margin: "0 8px", opacity: 0.5 }}>·</span>
-        <span>
-          every resolve also caches a route to the public marketplace. when another
-          agent reuses one of yours, the call settles in <span style={{ color: O_HI, fontWeight: 600 }}>USDC on Solana via Faremeter Flex</span>, straight to your
-          wallet. your first <span style={{ color: O_HI, fontWeight: 600 }}>$1 / day per agent</span> is sponsored, so exploration is free.
-        </span>
-      </div>
 
       {/* ── Toolbar ── */}
       <div
@@ -260,7 +231,7 @@ export function InstallInstructions() {
             padding: "2px 10px",
             border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
             background: copied ? "#FF7A20" : "#FF7A20",
-            color: copied ? "oklch(0.98 0.012 55)" : "oklch(0.98 0.012 55)",
+            color: copied ? "#fff" : "#fff",
             borderRadius: 2, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}
         >
@@ -307,7 +278,7 @@ export function InstallInstructions() {
           </>
         ) : (
           <>
-            <span style={{ opacity: 0.7 }}>○ anonymous install. the cli will prompt for an email on first run</span>
+            <span style={{ opacity: 0.7 }}>○ anonymous install — the cli will prompt for an email on first run</span>
             <a
               href="/login"
               style={{

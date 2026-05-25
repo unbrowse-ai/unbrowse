@@ -1,4 +1,4 @@
-import { searchSkills, listSkills, getStatsSummary, type SkillManifest } from "@/lib/api";
+import { searchSkills, listSkills, type SkillManifest } from "@/lib/api";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SearchBar } from "@/components/search-bar";
@@ -17,17 +17,6 @@ export default async function SearchPage({
   let results: Awaited<ReturnType<typeof searchSkills>> = [];
   let allSkills: SkillManifest[] = [];
   let error = "";
-
-  // Pull live coverage numbers so the subhead reflects actual marketplace
-  // size, not the prior "search millions of mapped endpoints" hyperbole
-  // (mismatched with the JSON-LD "600+ domains" and HeroStats live count).
-  // Falls back to neutral copy when the stats API is unreachable.
-  let stats: Awaited<ReturnType<typeof getStatsSummary>> | null = null;
-  try {
-    stats = await getStatsSummary();
-  } catch {
-    stats = null;
-  }
 
   try {
     allSkills = await listSkills();
@@ -128,9 +117,7 @@ export default async function SearchPage({
           Find any skill.
         </h1>
           <p className="text-text-secondary text-lg animate-fade-up stagger-2 max-w-2xl mx-auto leading-relaxed">
-            {stats && typeof stats.skills === "number" && typeof stats.domains === "number"
-              ? `Search ${stats.skills.toLocaleString()} mapped endpoints across ${stats.domains.toLocaleString()} domains by natural language intent.`
-              : "Search mapped endpoints by natural language intent."}
+            Search millions of mapped endpoints by natural language intent.
           </p>
       </div>
 
@@ -257,30 +244,19 @@ export default async function SearchPage({
       {!q && (
         <div className="animate-fade-up stagger-4 max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-text-secondary text-sm mb-2">
-              Search by intent, domain, or full URL.
-            </p>
-            <p className="text-text-muted text-xs mb-6 font-mono">
-              intent &middot; domain &middot; url
+            <p className="text-white/60 text-sm mb-6">
+              Try searching for an intent to find matching APIs:
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                { label: "search reddit for trending posts", hint: "intent" },
-                { label: "news.ycombinator.com", hint: "domain" },
-                { label: "https://github.com/trending", hint: "url" },
-              ].map((example) => (
+              {["get trending topics", "fetch user profile", "get newly launched token pairs"].map((example) => (
                 <Link
-                  key={example.label}
-                  href={`/search?q=${encodeURIComponent(example.label)}`}
-                  className="group px-4 py-2 bg-surface border border-border rounded-xl
+                  key={example}
+                  href={`/search?q=${encodeURIComponent(example)}`}
+                  className="px-4 py-2 bg-surface border border-border rounded-xl
                              text-sm text-text-secondary hover:border-text-primary
-                             hover:text-text-primary transition-all shadow-sm
-                             flex items-center gap-2"
+                             hover:text-text-primary transition-all shadow-sm"
                 >
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted group-hover:text-text-secondary">
-                    {example.hint}
-                  </span>
-                  <span>{example.label}</span>
+                  {example}
                 </Link>
               ))}
             </div>
