@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+### Blog index gains a guided reading path (2026-05-25)
+
+**fix(frontend)**: `/blog` now surfaces a six-step "Start here" path over the
+existing article manifest, with matching ItemList schema and a new workflow
+article at `/blog/contract-organ-explained`, so visitors and crawlers can
+follow the thesis → mechanism → workflow → evidence → agent surface →
+contributor loop without relying on the flat article list.
+
 ### Billing roadblocks become machine-readable (2026-05-25)
 
 **feat(backend)**: added `/v1/billing/topup-needed` as an authenticated
