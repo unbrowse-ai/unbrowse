@@ -15,6 +15,7 @@ The intent is auditable transparency. Anyone reading this folder can verify, wit
 7. [fair-split-and-claim](./07-fair-split-and-claim.md) — paid resolves split among indexer, domain owner, and Unbrowse; unclaimed domain shares accrue in a global holding wallet; Privy-tied claim transfers the balance.
 8. [deploy-gate](./08-deploy-gate.md) — production deploys mechanically refuse until every named impl is satisfied and the bench is 100% across all seven capability dimensions.
 9. [dimensional-bench](./09-dimensional-bench.md) — bench coverage is measured per-axis (INDEX, AUTH, CSRF, SEARCH, RETR, EXEC, META), not as an aggregate number; deploy gate's STAGE-2 reads the per-axis table.
+10. [kuri-first-principles-roadmap](./10-kuri-first-principles-roadmap.md) — six subtasks in priority order for moving the critical browser primitives into the Kuri Zig binary, so the runtime stops depending on Chrome's launch-flag limits.
 
 ## What this folder is not
 
