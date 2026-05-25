@@ -1,6 +1,19 @@
 # Clock-as-stdin — time becomes a substrate event
 
-**Status**: design, not deployed. Awaits Lewis approval before substrate land.
+**Status**: ⚠️ **SUPERSEDED by [`runpod-bound-contract-vm.md`](./runpod-bound-contract-vm.md).**
+
+The cron-walker shape proposed below was an antipattern. A central
+Cloudflare Triggers walker polling the ledger for due rows is literally
+cron — a meta-service operating ON the DAG instead of a neuron IN it.
+The substrate's whole point is "no external operators above the graph";
+this design violated that. Kept in the repo for provenance; do not
+implement.
+
+The canonical replacement: every contract that needs time-based firing
+gets its own Runpod pod whose own `sleep()` IS the clock. See the
+canonical doc.
+
+---
 
 ## Why this exists
 
