@@ -1729,7 +1729,12 @@ async function executeBrowserCapture(
         // Skips JS-challenge interstitial class cleanly (returns null).
         try {
           // tryCurlImpersonateFetch hoisted to module-top static import (Β9)
-          const cffi = await tryCurlImpersonateFetch({ url, proxy: resolveAntibotProxy(), timeoutMs: 30_000 });
+          // resolveProxyUrl reads IPROYAL_USER/PASS (optionally IPROYAL_HOST/PORT);
+          // UNBROWSE_PROXY_URL wins when set. Same composition as the orchestrator
+          // vendor-block + direct-document rescue paths. Replaces the missing
+          // resolveAntibotProxy reference that previously threw ReferenceError
+          // and silently turned this branch into a no-op.
+          const cffi = await tryCurlImpersonateFetch({ url, proxy: process.env.UNBROWSE_PROXY_URL || resolveProxyUrl(), timeoutMs: 30_000 });
           if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
             const cffiArtifact = buildPageArtifactCapture(url, intent, cffi.html, false);
             if (cffiArtifact.endpoint && cffiArtifact.result) {

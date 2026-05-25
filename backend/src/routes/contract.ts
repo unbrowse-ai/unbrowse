@@ -89,6 +89,52 @@ export interface StatusResponse {
   rows: ContractEventRow[];
 }
 
+/**
+ * POST /v1/contract/mirror — Π4 raw-row mirror endpoint.
+ *
+ * Accepts a *raw* ContractEventRow from a local /contract ledger (any
+ * event type: declared / iterated / satisfied / spawned / merged /
+ * crystallized / corroborated). The row IS the wire — per the schema
+ * doctrine (Φ6+Φ7) translating into domain-typed wire shapes here
+ * would force two sources of truth and drift the moment a new
+ * event-type lands locally.
+ *
+ * `strip_pii=true` routes the row to the configured GLOBAL ledger
+ * with identity fields stripped (agent, audience, parent_id) and text
+ * fields email-redacted (plan, learning, reason). This is the moat
+ * boundary — private rows stay private; the depersonalized projection
+ * goes to the cross-project mirror so doctrine can propagate without
+ * leaking sender identity.
+ *
+ * `strip_pii=false` (or absent) writes the row verbatim to the
+ * caller's PRIVATE ledger — identity preserved, no global write.
+ *
+ * Idempotency: re-mirroring the same row.id replaces nothing at this
+ * layer; the underlying ledger's append semantics govern (the durable
+ * postgres binding uses ON CONFLICT DO NOTHING keyed on
+ * (namespace, event_id) where event_id is a content hash). At the
+ * in-memory layer the row is appended; downstream readers project
+ * over all events and take the latest.
+ */
+export interface MirrorRequest {
+  /** Full raw ContractEventRow as emitted by contract_core.py's _append. */
+  row: ContractEventRow;
+  /** When true, depersonalize + route to globalLedger. When falsey,
+   *  write verbatim to the private (caller-bound) ledger. */
+  strip_pii?: boolean;
+}
+
+export interface MirrorResponse {
+  /** Always true on success — the row was written to a ledger. */
+  mirrored: boolean;
+  /** ISO-8601 timestamp the mirror call completed. */
+  mirrored_at: string;
+  /** Which ledger the row landed in. */
+  routed_to: "private" | "global";
+  /** The contract id this row is about — convenience echo. */
+  contract_id: string;
+}
+
 /** POST /v1/contract/plan-for-intent — given a free-text intent, return
  *  a ranked shortlist of cells whose plan matches the intent. This IS
  *  the search-as-resolve mapping (organ b9c8a64d stage 5) exposed over
@@ -186,6 +232,102 @@ export async function handleStatus(
 ): Promise<StatusResponse> {
   const rows = (await ledger.get(id)) ?? [];
   return { id, status: projectStatus(rows), rows };
+}
+
+/**
+ * POST /v1/contract/mirror — Π4 cross-project mirror. See MirrorRequest
+ * docstring above for the moat-boundary rationale (strip_pii=true
+ * routes to globalLedger with identity stripped; strip_pii=false
+ * writes verbatim to the caller's private ledger).
+ *
+ * Throws when:
+ *   - req.row is missing or not an object
+ *   - req.row lacks event or id (the two non-negotiable fields)
+ *   - strip_pii=true but no globalLedger was provided (config gap
+ *     surfaced honestly instead of silently swallowing the row)
+ */
+export async function handleMirror(
+  req: MirrorRequest,
+  privateLedger: ContractLedger,
+  opts: { globalLedger?: ContractLedger } = {},
+): Promise<MirrorResponse> {
+  if (!req?.row || typeof req.row !== "object") {
+    throw new Error("MirrorRequest requires { row: ContractEventRow }");
+  }
+  const row = req.row;
+  if (!row.event || !row.id) {
+    throw new Error("row must carry both event and id (any ContractEventType)");
+  }
+
+  const stripPii = req.strip_pii === true;
+
+  if (stripPii) {
+    if (!opts.globalLedger) {
+      throw new Error(
+        "strip_pii=true requires a global ledger to be configured; got none",
+      );
+    }
+    const sanitized = depersonalizeRow(row);
+    await opts.globalLedger.append(sanitized);
+    return {
+      mirrored: true,
+      mirrored_at: new Date().toISOString(),
+      routed_to: "global",
+      contract_id: row.id,
+    };
+  }
+
+  const stamped = { ...row, ts: row.ts || new Date().toISOString() };
+  await privateLedger.append(stamped);
+  return {
+    mirrored: true,
+    mirrored_at: new Date().toISOString(),
+    routed_to: "private",
+    contract_id: row.id,
+  };
+}
+
+/** Strip identity fields and redact emails from a row destined for the
+ *  global mirror. Identity stripping: agent, audience, parent_id are
+ *  removed (they're sender-bound; the global view is project-blind).
+ *  Text sanitization: email-shaped tokens in plan, learning, reason
+ *  are replaced with `<redacted-email>`. Truth-claim fields (id, event,
+ *  action, pointer_type, ts, wave, action_exit, action_result) are
+ *  preserved unchanged — that's what doctrine propagation needs. */
+function depersonalizeRow(row: ContractEventRow): ContractEventRow {
+  // Allow extra fields like `audience` that the test passes via cast.
+  const wide = row as ContractEventRow & {
+    audience?: unknown;
+  };
+  const {
+    agent: _agent,
+    audience: _audience,
+    parent_id: _parent,
+    ...rest
+  } = wide;
+
+  const sanitized: ContractEventRow = {
+    ...(rest as ContractEventRow),
+  };
+  if (typeof sanitized.plan === "string") {
+    sanitized.plan = redactEmails(sanitized.plan);
+  }
+  if (typeof sanitized.learning === "string") {
+    sanitized.learning = redactEmails(sanitized.learning);
+  }
+  if (typeof sanitized.reason === "string") {
+    sanitized.reason = redactEmails(sanitized.reason);
+  }
+  if (!sanitized.ts) sanitized.ts = new Date().toISOString();
+  return sanitized;
+}
+
+/** Replace anything that looks like an email with `<redacted-email>`. */
+function redactEmails(text: string): string {
+  return text.replace(
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+    "<redacted-email>",
+  );
 }
 
 /**
@@ -329,6 +471,112 @@ contractRoutes.post("/contract/plan-for-intent", async (c) => {
   }
 });
 
+/**
+ * Module-scoped ledgers — DEFERRED-contracts-mirror-storage.
+ *
+ * The mirror route is gated on the substrate-faithful invariant that
+ * write-paths to /v1/contract/mirror are namespaced per (agent, scope).
+ * Until the durable EmergentDB / Postgres binding wires through (see
+ * contract-ledger-postgres.ts on the feat/v1-exec-substrate-remote-proxy
+ * branch), we use module-scoped ephemeral ledgers so successive POSTs
+ * to the SAME process do see each other (unlike the per-request
+ * ephemeralLedger() above). This is enough for the unblock signal and
+ * for live `/v1/contract/status?id=` reads after a mirror within the
+ * same Worker isolate. Survival across isolate restarts requires the
+ * durable binding — explicit DEFERRED.
+ */
+const moduleScopedPrivateLedger: ContractLedger = (() => {
+  const rows: ContractEventRow[] = [];
+  return {
+    async append(row) {
+      const stamped = { ...row, ts: row.ts || new Date().toISOString() };
+      rows.push(stamped);
+      return stamped;
+    },
+    async get(id) {
+      const hit = rows.filter((r) => r.id === id);
+      return hit.length ? hit : null;
+    },
+    async listAll() {
+      return rows.slice();
+    },
+    async listChildren(parentId) {
+      return rows.filter((r) => r.parent_id === parentId);
+    },
+  };
+})();
+const moduleScopedGlobalLedger: ContractLedger = (() => {
+  const rows: ContractEventRow[] = [];
+  return {
+    async append(row) {
+      const stamped = { ...row, ts: row.ts || new Date().toISOString() };
+      rows.push(stamped);
+      return stamped;
+    },
+    async get(id) {
+      const hit = rows.filter((r) => r.id === id);
+      return hit.length ? hit : null;
+    },
+    async listAll() {
+      return rows.slice();
+    },
+    async listChildren(parentId) {
+      return rows.filter((r) => r.parent_id === parentId);
+    },
+  };
+})();
+
+/** Timing-safe equality for the bearer-token check. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/** Auth gate for the mirror route — `Authorization: Bearer <ADMIN_KEY>`
+ *  matching the worker's configured ADMIN_KEY env. Returns true iff the
+ *  request carries a matching token; returns false (without leaking
+ *  configured key length/prefix) otherwise. */
+function isMirrorAuthorized(c: { env: Env; req: { header: (k: string) => string | undefined } }): boolean {
+  const configured = c.env.ADMIN_KEY?.trim();
+  if (!configured) return false;
+  const header = c.req.header("Authorization");
+  if (!header?.startsWith("Bearer ")) return false;
+  return timingSafeEqual(header.slice(7), configured);
+}
+
+/**
+ * POST /v1/contract/mirror — Π4 doctrine mirror endpoint.
+ *
+ * Accepts a raw ContractEventRow + optional `strip_pii: true` flag.
+ * Gated by `Authorization: Bearer <ADMIN_KEY>` until per-agent auth
+ * wires through (Privy JWT binding is on the separate fundraise org).
+ * Also accepts the plural alias `/contracts/mirror` for callers that
+ * use the doctrine-spec wording.
+ */
+async function mirrorRouteHandler(c: any) {
+  if (!isMirrorAuthorized(c)) {
+    return c.json({ error: "unauthorized — Bearer ADMIN_KEY required" }, 401);
+  }
+  let req: MirrorRequest;
+  try {
+    req = await c.req.json();
+  } catch {
+    return c.json({ error: "request body must be valid JSON" }, 400);
+  }
+  try {
+    const result = await handleMirror(req, moduleScopedPrivateLedger, {
+      globalLedger: moduleScopedGlobalLedger,
+    });
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+  }
+}
+contractRoutes.post("/contract/mirror", mirrorRouteHandler);
+contractRoutes.post("/contracts/mirror", mirrorRouteHandler);
+
 // Self-introspection — what does the cloud /contract surface expose?
 // Lets the thin client discover its tools without a hardcoded list.
 contractRoutes.get("/contract/tools", (c) => {
@@ -338,6 +586,7 @@ contractRoutes.get("/contract/tools", (c) => {
       { method: "POST", path: "/v1/contract/iterate", purpose: "run one wave + return key2 prompt" },
       { method: "GET", path: "/v1/contract/status", purpose: "projection over all events for an id" },
       { method: "POST", path: "/v1/contract/plan-for-intent", purpose: "ranked shortlist over satisfied cells" },
+      { method: "POST", path: "/v1/contract/mirror", purpose: "Π4 doctrine mirror — accepts raw ContractEventRow (alias /v1/contracts/mirror)" },
       { method: "GET", path: "/v1/contract/tools", purpose: "self-introspect (this endpoint)" },
     ],
     local_capabilities: ["kuri", "cookies", "vault", "browser", "fs"],
