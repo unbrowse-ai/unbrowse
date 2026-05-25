@@ -36,8 +36,7 @@
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
     "tsx": "^4.20.6",
-    "ws": "^8.19.0",
-    "@unbrowse/sdk": "workspace:*"
+    "ws": "^8.19.0"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0",

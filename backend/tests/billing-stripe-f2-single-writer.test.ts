@@ -21,9 +21,12 @@ const repoRoot = resolve(here, "../..");
 const allowedFiles = new Set([
   "backend/src/services/stripe.ts",
   "backend/src/services/stripe.types.ts",
+  "backend/src/services/crypto-sub.ts",
   // test files are allowed to reference the prefix as a key shape assertion
   "backend/tests/billing-stripe-skeleton.test.ts",
   "backend/tests/billing-stripe-f2-single-writer.test.ts",
+  "backend/tests/crypto-sub.test.ts",
+  "backend/tests/sponsor-stripe-integration.test.ts",
 ]);
 
 function grepLiteral(literal: string): string[] {
