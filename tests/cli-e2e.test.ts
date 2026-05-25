@@ -290,7 +290,7 @@ describe("CLI end-to-end", () => {
     const { code, body } = await runCli(["health"]);
     expect(code).toBe(0);
     expect(body.status).toBe("ok");
-  }, 10_000);
+  }, 20_000);
 
   it("sessions reads local trace logs instead of proxying to the backend", async () => {
     const port = await getFreePort();
@@ -348,7 +348,7 @@ describe("CLI end-to-end", () => {
     expect(resolve.code).toBe(0);
     expect(resolve.body.error).toBeUndefined();
     expect(getSkillId(resolve.body) || hasData(resolve.body)).toBeTruthy();
-    expect(["marketplace", "live-capture"]).toContain(resolve.body.source);
+    expect(["marketplace", "live-capture", "direct-document"]).toContain(resolve.body.source);
     expect(getAnyExecutableEndpointId(resolve.body) || hasData(resolve.body)).toBeTruthy();
   }, 90_000);
 

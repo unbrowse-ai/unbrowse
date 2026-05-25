@@ -4,8 +4,8 @@
  * v6.15 emitted a Corbits-shaped envelope (scheme `exact`, accepts[] over two
  * chains, payTo = contributor wallet). v6.16 swaps the terms builder to
  * `buildFlexPaymentTerms` so the envelope now carries `scheme: @faremeter/flex`,
- * a single solana-mainnet accepts[] entry, `payTo = agent's escrow PDA`, and
- * `extra.splits` summing to 10000 bps with the platform at 1000.
+ * a solana-mainnet Flex accept entry, `payTo = agent's escrow PDA`, and
+ * `extra.splits` summing to 10000 bps with the current platform cut.
  *
  * The anonymous-caller path returns `flex_escrow_required` (402) since no
  * agent identity = no escrow PDA to author a Flex authorization against. The
@@ -21,6 +21,7 @@ import type { Env, SkillManifest, AgentProfile } from "../src/types.js";
 const PAID_SKILL_ID = "skill-paid-x402";
 // 48 hex chars body so verifyLocalKey's prefix + sha256 path works.
 const VALID_AGENT_API_KEY = "ubr_aabbccddeeff00112233445566778899aabbccddeeff0011";
+const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 const BASE_ENV: Env = {
   API_KEY: "test-api-key",
@@ -29,7 +30,7 @@ const BASE_ENV: Env = {
   STATS_KV: {} as KVNamespace,
   ENVIRONMENT: "local-dev",
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
-  FLEX_PLATFORM_RECIPIENT_USDC_ATA: "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
 };
 
@@ -161,17 +162,19 @@ describe("public skill x402 route — Flex envelope (v6.16)", () => {
     expect(res.status).toBe(402);
     expect(body.error).toBe("Payment Required");
     expect(body.x402Version).toBe(2);
-    expect(body.accepts.length).toBe(1);
-    expect(body.accepts[0].scheme).toBe("@faremeter/flex");
-    expect(body.accepts[0].network).toBe("solana-mainnet");
+    expect(body.accepts.length).toBeGreaterThanOrEqual(2);
+    const flex = body.accepts.find((entry) => entry.scheme === "@faremeter/flex");
+    expect(flex).toBeTruthy();
+    if (!flex) throw new Error("missing Flex accept");
+    expect(flex.network).toBe("solana-mainnet");
     // payTo is the agent's flex_escrow_address, not the contributor wallet.
-    expect(body.accepts[0].payTo).toBe("EscrowPdaXXXXXXXXXXXXXXXXXXXXXX");
-    // splits sum to 10000 bps with platform at 1000.
-    const splits = body.accepts[0].extra.splits;
+    expect(flex.payTo).toBe("EscrowPdaXXXXXXXXXXXXXXXXXXXXXX");
+    // splits sum to 10000 bps with platform at the current default cut.
+    const splits = flex.extra.splits;
     const total = splits.reduce((s, e) => s + e.bps, 0);
     expect(total).toBe(10000);
-    expect(splits[0].recipient).toBe("PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-    expect(splits[0].bps).toBe(1000);
+    expect(splits[0].recipient).toBe(PLATFORM_USDC_ATA);
+    expect(splits[0].bps).toBe(5000);
   });
 
   it("returns flex_onboarding_incomplete when agent profile is missing flex_escrow_address", async () => {
