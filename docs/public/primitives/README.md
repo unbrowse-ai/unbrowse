@@ -12,6 +12,7 @@ The intent is auditable transparency. Anyone reading this folder can verify, wit
 4. [x402-and-faremeter](./04-x402-and-faremeter.md) — payment for paid endpoints is gated at the HTTP layer via x402. Faremeter is the settlement layer; payment providers are pluggable.
 5. [user-response-never-contains](./05-user-response-never-contains.md) — the explicit list of fields that never appear in any user-facing response, with the audit gate that enforces it.
 6. [domain-opt-out](./06-domain-opt-out.md) — how a site verifies ownership of a domain and triggers removal from our index.
+7. [fair-split-and-claim](./07-fair-split-and-claim.md) — paid resolves split among indexer, domain owner, and Unbrowse; unclaimed domain shares accrue in a global holding wallet; Privy-tied claim transfers the balance.
 
 ## What this folder is not
 
