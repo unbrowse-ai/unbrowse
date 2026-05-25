@@ -2,7 +2,7 @@
 
 > **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (`@unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary.
 
-Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns any website into a reusable API for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
+Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
 One agent learns a site once. Every later agent gets the fast path.
 
@@ -100,7 +100,7 @@ You have three ways to pay:
 2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Splits live natively in every signed authorization: **50% to the indexer pool when no site owner has DNS-claimed the domain (35% once they do), 50% to the platform, and 15% earmarked for the site owner on claim** — up to 5 recipients per settlement. See [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md) for the canonical split.
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
-Walkthrough and diagrams: [`docs/x402-flywheel.md`](./docs/x402-flywheel.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). Upgrading from v6.15's `exact`-scheme integration: [`docs/x402-flex-migration.md`](./docs/x402-flex-migration.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
+Payment architecture: [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
 
 ## MCP server
 
@@ -184,12 +184,11 @@ This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](h
 Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 
 - [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) — canonical install, setup, and headless bootstrap path
-- [`docs/api.md`](./docs/api.md) — route-level behavior and API contracts
-- [`docs/deployment.md`](./docs/deployment.md) — deploy topology and release workflow behavior
-- [`docs/x402-flywheel.md`](./docs/x402-flywheel.md) — payment + sponsor flow on Faremeter Flex
+- [`docs/for-agents/how-an-agent-uses-unbrowse.md`](./docs/for-agents/how-an-agent-uses-unbrowse.md) — route-level behavior and agent workflow
+- [`docs/for-developers/integration-surfaces.md`](./docs/for-developers/integration-surfaces.md) — MCP, SDK, and CLI integration surfaces
+- [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md) — payment + sponsor flow on Faremeter Flex
 - [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
-- [`docs/x402-flex-migration.md`](./docs/x402-flex-migration.md) — v6.15 (`exact` + Corbits) → v6.16 (Flex) migration for integrators
-- [`docs/RELEASING.md`](./docs/RELEASING.md) — release checklist
+- [`docs/SECURITY.md`](./docs/SECURITY.md) — security model for public packages and runtime integrity
 
 Whitepaper companion set:
 
@@ -215,8 +214,8 @@ Unbrowse is a monorepo with two tiers:
 
 Six-layer pipeline:
 
-1. **Passive capture** — JS interceptor injected via `Page.addScriptToEvaluateOnNewDocument`; Chrome extension webRequest data supplements for service-worker traffic.
-2. **Checkpoint + indexing** — `sync` or `close` triggers a background reverse-engineer pass into endpoints + an operation graph; remote publish queued from the same checkpoint.
+1. **Passive capture** — the local runtime observes browser requests during an explicit session and keeps sensitive request material local.
+2. **Checkpoint + indexing** — `sync` or `close` queues a background route-indexing pass; only sanitized route metadata is eligible for marketplace publish.
 3. **Cache-first resolution** — In-memory cache → route cache (24h) → domain skill cache (7d) → local skill snapshots → marketplace semantic search → first-pass browser (8s) → live capture (last resort). Second visits resolve in <200 ms with no browser launch.
 4. **Browser replacement API** — `Browser.launch()` + `page.goto()` from the `unbrowse` import resolves from the skill cache first; cache miss falls through to kuri.
 5. **Endpoint graph** — Typed edges (list→detail, pagination, auth) prefetched in the same round-trip. `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.

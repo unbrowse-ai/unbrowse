@@ -6,7 +6,7 @@ TypeScript SDK for Unbrowse — the local agent browser that spawns the `unbrows
 
 The SDK auto-spawns the `unbrowse` binary if it isn't already running, so a single `await Unbrowse.local()` is all you need to go from `npm install` to your first resolve.
 
-Current version: **6.16.0-preview.0**.
+Current version: **6.17.0-preview.6**.
 
 > The SDK (this package) is MIT-licensed. The `unbrowse` runtime binary it talks to is distributed via npm. See [`OPEN-SOURCE-NOTICE.md`](../../docs/OPEN-SOURCE-NOTICE.md).
 ## Install
@@ -223,4 +223,4 @@ try {
 - API reference: [`docs/api-reference/`](./docs/api-reference/)
 - Payment surface: [`docs/payments/`](./docs/payments/)
 
-_Audited Day 6 (Dominion): 2026-05-14_
+_Audited for public docs + SDK staleness: 2026-05-25_

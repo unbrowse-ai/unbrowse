@@ -1,7 +1,7 @@
 {
   "name": "unbrowse",
   "version": "6.17.0-preview.6",
-  "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
+  "description": "Turn websites into reusable API routes for agents. Zero-dep single binary with embedded browser engine.",
   "type": "module",
   "bin": {
     "unbrowse": "bin/unbrowse-wrapper.mjs"
