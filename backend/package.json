@@ -9,7 +9,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@unbrowse/extraction-core": "workspace:*",
     "@faremeter/flex-solana": "^0.2.1",
     "@faremeter/middleware": "^0.21.0",
     "@faremeter/payment-solana": "^0.21.0",
