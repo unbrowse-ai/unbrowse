@@ -4619,8 +4619,25 @@ async function main(): Promise<void> {
 }
 
 if (isMainModule(import.meta.url)) {
+  // Drains run on best-effort terms. A stalled background job MUST NOT
+  // hang CLI exit — same bug class as the previously-fixed inline
+  // telemetry await (project_cli_resolve_exit_hang). Both drains race
+  // against a hard 8s timeout; if a drain doesn't settle, the CLI
+  // exits anyway and the pending work resumes in the next invocation.
+  const drainWithTimeout = (label: string, p: Promise<void>): Promise<void> =>
+    Promise.race([
+      p,
+      new Promise<void>((resolve) => setTimeout(() => {
+        process.stderr.write(`[exit] ${label} drain exceeded 8s budget — exiting anyway\n`);
+        resolve();
+      }, 8000)),
+    ]);
+
   main()
-    .then(() => Promise.all([drainPendingIndexJobs(), drainPendingPassivePublishes()]))
+    .then(() => Promise.all([
+      drainWithTimeout("index-jobs", drainPendingIndexJobs()),
+      drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
+    ]))
     .catch((err) => {
       die((err as Error).message);
     });
