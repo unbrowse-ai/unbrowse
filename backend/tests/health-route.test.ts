@@ -25,7 +25,7 @@ describe("health route", () => {
   it("reports Postgres when DATABASE_URL is configured", async () => {
     const res = await app.fetch(
       new Request("http://local.test/health"),
-      { ...baseEnv, DATABASE_URL: "postgres://test" },
+      { ...baseEnv, DATABASE_URL: "postgres://test", USE_PGKV: "1" },
     );
     const data = await res.json() as { storage_backend?: string };
 

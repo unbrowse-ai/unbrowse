@@ -10,12 +10,12 @@
 // Splits + escrow come FROM the 402 terms (backend-computed via the FROZEN
 // computeFlexSplits, serialized into accepts[0].extra). This module never
 // imports backend flex.ts and never recomputes splits (AC4 by topology).
-// The Ed25519 session-key signing is delegated to @unbrowse/sdk
+// The Ed25519 session-key signing is delegated to the SDK payment primitive
 // payAndRetryFlex; the private key is owned by the wallet provider, never
 // handled here.
 import { X402_CONFIG } from "./index.js";
-import { payAndRetryFlex } from "@unbrowse/sdk";
-import type { PaymentRequiredError, FlexWalletLike } from "@unbrowse/sdk";
+import { payAndRetryFlex, type FlexWalletLike } from "../../packages/sdk/src/flex.js";
+import type { PaymentRequiredError } from "../../packages/sdk/src/errors.js";
 import type { FlexPaymentRequired, FlexAcceptEntry } from "../../backend/src/services/flex-payment-terms.js";
 import type { FlexSplit } from "../../backend/src/services/flex.js";
 

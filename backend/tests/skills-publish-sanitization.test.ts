@@ -181,16 +181,12 @@ describe("skills publish — server-authoritative secret sanitization", () => {
     expect(serialized).not.toContain("alice@private.example");
     expect(serialized).not.toContain("my private search query");
 
-    // The pre-existing validator drops credential-NAMED headers entirely
-    // (authorization, cookie, x-api-key); non-credential headers survive with
-    // values blanked by server sanitizeForPublish. Either way no raw secret
-    // value persists — that is the security guarantee this test pins.
+    // The server-side publish sanitizer strips the whole headers_template
+    // payload before marketplace persistence. Header values are runtime
+    // bindings, not public skill payload.
     const ep = stored!.endpoints[0] as Record<string, unknown>;
     const headers = ep.headers_template as Record<string, string>;
-    expect(headers.authorization).toBeUndefined();
-    expect(headers.cookie).toBeUndefined();
-    expect(headers["x-api-key"]).toBeUndefined();
-    expect(headers.accept).toBe("");
+    expect(headers).toBeUndefined();
 
     // Query values genericized, key preserved.
     const query = ep.query as Record<string, unknown>;
