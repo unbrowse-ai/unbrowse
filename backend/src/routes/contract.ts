@@ -102,6 +102,18 @@ export interface PlanForIntentResponse {
   matches: SatisfiedCellMatch[];
 }
 
+/** POST /v1/contract/mirror — append a locally-produced contract row.
+ *  `strip_pii=true` routes through a configured global ledger after
+ *  depersonalizing identity-bearing fields. */
+export interface MirrorRequest {
+  row: ContractEventRow;
+  strip_pii?: boolean;
+}
+export interface MirrorResponse {
+  mirrored: true;
+  row: ContractEventRow;
+}
+
 // ---------------------------------------------------------------------------
 // Route handlers — pure projection over a ContractLedger implementation.
 // The actual binding to a Worker env (DurableObject, KV, EmergentDB) lands
@@ -219,6 +231,29 @@ export async function handlePlanForIntent(
   return { matches };
 }
 
+/**
+ * POST /v1/contract/mirror — write an already-shaped row into the cloud
+ * ledger. When `strip_pii=true`, the sanitized row is routed to the
+ * supplied global ledger so private agent attribution does not cross
+ * the public boundary.
+ */
+export async function handleMirror(
+  req: MirrorRequest,
+  ledger: ContractLedger,
+  opts: { globalLedger?: ContractLedger } = {},
+): Promise<MirrorResponse> {
+  if (!req.row || !req.row.id || !req.row.event) {
+    throw new Error("MirrorRequest requires row.id and row.event");
+  }
+  const target = req.strip_pii ? opts.globalLedger : ledger;
+  if (!target) {
+    throw new Error("strip_pii mirror requires a global ledger");
+  }
+  const row = req.strip_pii ? sanitizeMirroredRow(req.row) : req.row;
+  const persisted = await target.append(row);
+  return { mirrored: true, row: persisted };
+}
+
 // ---------------------------------------------------------------------------
 // Local helpers — no I/O.
 // ---------------------------------------------------------------------------
@@ -246,6 +281,29 @@ function guessPointerType(action: string): ContractPointerType {
   if (action.startsWith("quorum:")) return "quorum";
   if (action.startsWith("http://") || action.startsWith("https://")) return "api";
   return "cli";
+}
+
+function sanitizeMirroredRow(row: ContractEventRow): ContractEventRow {
+  const clone = sanitizeValue(row) as Record<string, unknown>;
+  delete clone.agent;
+  delete clone.audience;
+  delete clone.parent_id;
+  return clone as unknown as ContractEventRow;
+}
+
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]");
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, sanitizeValue(child)]),
+    );
+  }
+  return value;
 }
 
 /** Re-export the ContractEventType union so consumers can reference
@@ -329,6 +387,16 @@ contractRoutes.post("/contract/plan-for-intent", async (c) => {
   }
 });
 
+contractRoutes.post("/contract/mirror", async (c) => {
+  const req = await c.req.json<MirrorRequest>();
+  try {
+    const result = await handleMirror(req, ephemeralLedger());
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+  }
+});
+
 // Self-introspection — what does the cloud /contract surface expose?
 // Lets the thin client discover its tools without a hardcoded list.
 contractRoutes.get("/contract/tools", (c) => {
@@ -338,6 +406,7 @@ contractRoutes.get("/contract/tools", (c) => {
       { method: "POST", path: "/v1/contract/iterate", purpose: "run one wave + return key2 prompt" },
       { method: "GET", path: "/v1/contract/status", purpose: "projection over all events for an id" },
       { method: "POST", path: "/v1/contract/plan-for-intent", purpose: "ranked shortlist over satisfied cells" },
+      { method: "POST", path: "/v1/contract/mirror", purpose: "mirror an append-only contract event row" },
       { method: "GET", path: "/v1/contract/tools", purpose: "self-introspect (this endpoint)" },
     ],
     local_capabilities: ["kuri", "cookies", "vault", "browser", "fs"],
