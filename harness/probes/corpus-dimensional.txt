@@ -1,0 +1,64 @@
+# dimension|intent|url — dimensional bench corpus
+#
+# Each probe is tagged with the primary capability dimension it exercises.
+# The aggregator (scripts/bench-dimensional-summary.sh) reads bench-local
+# results plus this corpus, joins on url, and reports per-axis pass rate.
+#
+# Seven dimensions, each with at least three representative probes:
+#
+#   INDEX  — captured route is correctly classified as an indexed API endpoint
+#            (not a tracking beacon, not an ad collector, not a config endpoint)
+#   AUTH   — auth headers (Authorization, Cookie, X-Api-Key) extracted at
+#            capture time and replayed on execute
+#   CSRF   — CSRF token / nonce extracted from HTML or prior request, replayed
+#   SEARCH — query parameter recognized; agent fills {q} from intent
+#   RETR   — execute returns real content matching the intent (not boilerplate,
+#            not the captured-error body, not the wrong template's result)
+#   EXEC   — paid execute fires the right endpoint with the right method/body
+#            (proven_recipe replay or fresh capture, never a write on a read)
+#   META   — operation graph walks dependencies correctly (requires/yields
+#            chain resolved from trace store)
+#
+# Lines starting with # are comments. Lines starting with @class: tag the
+# next non-comment line with extra metadata (e.g. @class: antibot for sites
+# expected to require residential proxy).
+
+# INDEX — clean API discovery
+INDEX|search rust crates|https://crates.io/search?q=serde
+INDEX|search openlibrary books|https://openlibrary.org/search?q=dune
+INDEX|search pubmed papers|https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning
+INDEX|get package info|https://www.npmjs.com/package/openai
+
+# AUTH — auth-gated routes (user must have a cookie or token in vault)
+AUTH|get linkedin feed posts|https://www.linkedin.com/feed/
+AUTH|get home timeline|https://x.com/home
+AUTH|get gmail inbox|https://mail.google.com/mail/u/0/
+
+# CSRF — sites requiring CSRF token discovery
+CSRF|search github repos|https://github.com/search?q=openai&type=repositories
+CSRF|search hacker news|https://hn.algolia.com/?q=openai
+CSRF|search glassdoor company reviews|https://www.glassdoor.com/Search/results.htm?keyword=software+engineer
+
+# SEARCH — query parameter must be filled from intent
+SEARCH|search beatsaver maps|https://beatsaver.com/?q=camellia
+SEARCH|search tweets about AI agents|https://x.com/search?q=AI+agents&src=typed_query
+SEARCH|search hotels in Tokyo|https://www.priceline.com/relax/at/tokyo
+
+# RETR — content read must return on-topic data
+RETR|get top stories|https://news.ycombinator.com
+RETR|get singularity subreddit posts|https://www.reddit.com/r/singularity/
+RETR|get programming subreddit posts|https://www.reddit.com/r/programming/
+RETR|get youtube channel mkbhd|https://www.youtube.com/@mkbhd
+
+# EXEC — paid execute must fire correctly (no write on a read)
+EXEC|list NUS modules|https://nusmods.com/modules
+EXEC|tweets from elonmusk|https://x.com/elonmusk
+
+# META — graph walks dependency chain
+META|get jupiter swap quote SOL to USDC|https://jup.ag/
+META|get reddit post comments|https://www.reddit.com/r/programming/comments/
+
+# Antibot baseline (these are expected hard cases; not part of dimensional
+# pass-rate unless residential proxy is on)
+@class: antibot
+RETR|check bot detection result|https://nowsecure.nl
