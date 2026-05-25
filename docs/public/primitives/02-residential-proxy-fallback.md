@@ -42,11 +42,13 @@ When the user sets `UNBROWSE_KURI_PROXY=auto` but the credentials are missing:
 
 This is the honest mode of the bridge: it tells the user the toggle was on but the credentials were missing, instead of silently routing direct.
 
-## The runtime predicate (read this before reporting a bug)
+## How managed Chrome is forced
 
-The bridge only takes effect when the browser launches under Unbrowse's control. When Unbrowse attaches to a Chrome process the user already has open (the default in local development), the proxy flag is never applied: that Chrome was launched without a proxy, and CDP cannot retrofit one onto a running process.
+CDP cannot retrofit a proxy onto a Chrome process that was already launched without one. When the bridge wires a proxy, it also sets `KURI_DISABLE_CDP_ATTACH=1` automatically. That env tells the Unbrowse launcher to start a new managed Chrome instead of attaching to whatever Chrome the user already has open, so the `--proxy-server` flag is actually applied on launch.
 
-In CI and in clean dev environments without a user Chrome, the browser launches under Unbrowse's control and the proxy takes effect. In local environments with a running Chrome, the user needs to close that Chrome (or set `KURI_ATTACH_TO_EXISTING_CHROME=0`) before the bridge produces observable behavior.
+The result: turning on `UNBROWSE_KURI_PROXY=auto` in any environment (CI, clean dev, a developer's machine with Chrome running) gives the same observable behavior. The bridge does both halves of the wire-up in one place.
+
+If a user explicitly wants to keep attaching to their existing Chrome and accept the loss of the proxy effect, they can set `KURI_ATTACH_EXISTING_CHROME=1` themselves; explicit opt-in still wins over the automatic disable, but the bridge will not silently route Reddit through datacenter IPs when the user thought they enabled residential.
 
 ## What this rules out
 
