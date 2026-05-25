@@ -19,7 +19,7 @@ export async function RegistryShowcase() {
 
         {/* Header */}
         <div className="text-center mb-6 shrink-0">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[rgba(255,122,32,0.08)] border border-[rgba(255,122,32,0.35)] text-[rgba(255,176,96,0.9)] text-xs font-mono font-medium uppercase tracking-widest mb-4" style={{ textShadow: '0 0 6px rgba(255,176,96,0.4)' }}>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-50 border border-border text-text-secondary text-xs font-mono font-medium uppercase tracking-widest mb-4" style={{ textShadow: '0 0 6px rgba(255,176,96,0.4)' }}>
             <Database className="w-3.5 h-3.5" />
             Global Registry
           </div>
@@ -30,17 +30,17 @@ export async function RegistryShowcase() {
         </div>
 
         {/* Scrollable terminal container */}
-        <div className="flex flex-col flex-1 min-h-0 bg-[#060402] border border-[rgba(255,122,32,0.38)] rounded-sm overflow-hidden" style={{ boxShadow: '0 0 40px rgba(255,82,0,0.08)' }}>
+        <div className="flex flex-col flex-1 min-h-0 bg-surface-ink border border-border rounded-sm overflow-hidden" style={{ boxShadow: '0 0 40px rgba(255,82,0,0.08)' }}>
 
           {/* Column header */}
           <div className="flex items-center justify-between px-5 py-3.5 shrink-0 bg-[rgba(0,0,0,0.35)]" style={{ borderBottom: '1px solid rgba(255,122,32,0.18)' }}>
-            <h3 className="text-sm font-mono flex items-center gap-2 text-[rgba(255,122,32,0.8)]">
+            <h3 className="text-sm font-mono flex items-center gap-2 text-orange-500">
               <Globe2 className="w-4 h-4 text-orange-500" />
               Recently Indexed Skills
             </h3>
             <Link
               href="/search"
-              className="text-xs font-mono text-[rgba(255,122,32,0.6)] hover:text-[rgba(255,176,96,0.9)] transition-colors flex items-center gap-1 group"
+              className="text-xs font-mono text-orange-500 hover:text-text-secondary transition-colors flex items-center gap-1 group"
             >
               View all <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </Link>
@@ -57,28 +57,28 @@ export async function RegistryShowcase() {
                     <Link
                       key={skill.skill_id}
                       href={`/skills/${skill.skill_id}`}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-[rgba(255,122,32,0.05)] transition-colors group"
+                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-orange-50 transition-colors group"
                       style={i > 0 ? { borderTop: '1px solid rgba(255,122,32,0.1)' } : undefined}
                     >
                       {/* Domain initial */}
-                      <div className="w-9 h-9 rounded-sm bg-[#0a0806] border border-[rgba(255,122,32,0.25)] flex items-center justify-center text-sm font-bold font-mono text-[rgba(255,122,32,0.7)] shrink-0 group-hover:border-[rgba(255,122,32,0.45)] transition-colors uppercase">
+                      <div className="w-9 h-9 rounded-sm bg-[#0a0806] border border-border flex items-center justify-center text-sm font-bold font-mono text-orange-500 shrink-0 group-hover:border-border-strong transition-colors uppercase">
                         {skill.domain.charAt(0)}
                       </div>
 
                       {/* Name + domain */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-sm text-[rgba(255,122,32,0.85)] truncate">{skill.name}</span>
+                          <span className="font-mono text-sm text-orange-500 truncate">{skill.name}</span>
                           {skill.lifecycle === 'active' && (
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                           )}
                         </div>
-                        <span className="text-xs text-[rgba(255,122,32,0.4)] font-mono">{skill.domain}</span>
+                        <span className="text-xs text-text-muted font-mono">{skill.domain}</span>
                       </div>
 
                       {/* Stats */}
                       <div className="text-right shrink-0 hidden sm:block">
-                        <div className="text-xs font-mono text-[rgba(255,122,32,0.45)]">{endpointCount} endpoints</div>
+                        <div className="text-xs font-mono text-text-muted">{endpointCount} endpoints</div>
                         <div className="text-xs font-mono text-orange-500">{Math.round(avgScore * 100)}% reliable</div>
                       </div>
                     </Link>
@@ -87,7 +87,7 @@ export async function RegistryShowcase() {
               </div>
             ) : (
               <div className="flex items-center justify-center h-32">
-                <p className="text-[rgba(255,122,32,0.4)] text-sm font-mono">Loading registry skills...</p>
+                <p className="text-text-muted text-sm font-mono">Loading registry skills...</p>
               </div>
             )}
           </div>

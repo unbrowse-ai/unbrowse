@@ -109,7 +109,7 @@ export function UseCasesBand() {
     <section id="use-cases" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-8 flex flex-col items-center">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3">
             ##  Not just reading. Doing.
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary max-w-3xl">
@@ -131,17 +131,17 @@ export function UseCasesBand() {
 
         {/* Inline three-path latency strip */}
         <div className="mb-8 grid grid-cols-3 gap-2 sm:gap-3 max-w-3xl mx-auto font-mono text-xs">
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
+          <div className="border border-border bg-surface-ink rounded-sm px-3 py-3 text-center">
             <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">&lt;200ms</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">route cache</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">already on your machine</div>
           </div>
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
+          <div className="border border-border bg-surface-ink rounded-sm px-3 py-3 text-center">
             <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">~1s</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">marketplace</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">someone else already captured it</div>
           </div>
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
+          <div className="border border-border bg-surface-ink rounded-sm px-3 py-3 text-center">
             <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">20-80s</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">first-pass browser</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">unbrowse visits for you, captures the API</div>
@@ -152,10 +152,10 @@ export function UseCasesBand() {
           {cases.map((c) => (
             <div
               key={c.category}
-              className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 overflow-hidden transition-colors hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col"
+              className="group relative p-5 border border-border bg-surface-ink overflow-hidden transition-colors hover:border-border-strong rounded-sm flex flex-col"
             >
               <div className="mb-3 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[rgba(255,122,32,0.65)]">
+                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-orange-500">
                   {c.category}
                 </span>
                 <IconArrow size={12} className="text-text-muted group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
@@ -165,21 +165,21 @@ export function UseCasesBand() {
                 {c.headline}
               </h3>
 
-              <div className="bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 mb-3 rounded-sm font-mono text-xs leading-relaxed">
+              <div className="bg-surface-ink border border-border p-3 mb-3 rounded-sm font-mono text-xs leading-relaxed">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-1.5">Agent intent</div>
-                <div className="text-[rgba(255,176,96,0.95)]">{c.intent}</div>
+                <div className="text-text-secondary">{c.intent}</div>
               </div>
 
               <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
                 {c.apiHint}
               </p>
 
-              <div className="space-y-2 pt-3 border-t border-[rgba(255,122,32,0.12)] mt-auto">
+              <div className="space-y-2 pt-3 border-t border-border mt-auto">
                 <div className="flex flex-wrap gap-1.5">
                   {c.tools.map((t) => (
                     <code
                       key={t}
-                      className="text-[10px] font-mono text-[rgba(255,176,96,0.85)] bg-[#060402] border border-[rgba(255,122,32,0.18)] px-1.5 py-0.5 rounded-sm"
+                      className="text-[10px] font-mono text-text-secondary bg-surface-ink border border-border px-1.5 py-0.5 rounded-sm"
                     >
                       {t}
                     </code>
@@ -187,7 +187,7 @@ export function UseCasesBand() {
                 </div>
 
                 <div className="text-[11px] font-mono text-text-muted leading-relaxed">
-                  <span className="text-[rgba(255,122,32,0.6)]">sites:</span>{" "}
+                  <span className="text-orange-500">sites:</span>{" "}
                   {c.sites.join(", ")}
                 </div>
                 <div className="flex items-start gap-1.5 text-[11px] font-mono text-text-muted leading-relaxed">
@@ -200,9 +200,9 @@ export function UseCasesBand() {
         </div>
 
         {/* Write-action proof — honest framing, no Song-et-al number masquerading as ours */}
-        <div className="mt-8 border border-[rgba(255,122,32,0.18)] bg-[#070503]/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
+        <div className="mt-8 border border-border bg-surface-ink rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-2">
               Why the architecture works for writes too
             </p>
             <p className="text-text-primary text-base sm:text-lg leading-snug">
@@ -210,23 +210,23 @@ export function UseCasesBand() {
             </p>
             <p className="text-xs text-text-muted mt-2 leading-relaxed max-w-xl">
               <code className="font-mono">unbrowse_execute</code> calls any captured endpoint with your cookies,{" "}
-              <span className="text-[rgba(255,176,96,0.85)]">GET or POST</span>, idempotent or not. Our 94-domain
+              <span className="text-text-secondary">GET or POST</span>, idempotent or not. Our 94-domain
               published bench measures the read path (modelled after WebArena&apos;s
               information-retrieval category); the write path rides the same
               primitive with the same auth. Browse{" "}
-              <Link href="/leaderboard" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]">/leaderboard</Link>{" "}
+              <Link href="/leaderboard" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-orange-500">/leaderboard</Link>{" "}
               for the authenticated routes the community has already captured.
             </p>
           </div>
           <Link
             href="/leaderboard"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-all whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-border-strong text-text-secondary text-sm font-mono hover:bg-orange-50 hover:border-orange-500 transition-all whitespace-nowrap"
           >
             See the live marketplace →
           </Link>
         </div>
 
-        <p className="text-center mt-6 text-xs font-mono text-[rgba(255,122,32,0.55)] max-w-3xl mx-auto leading-relaxed">
+        <p className="text-center mt-6 text-xs font-mono text-orange-500 max-w-3xl mx-auto leading-relaxed">
           The first-pass browser is the only time a browser runs for any given
           site. After capture the marketplace serves the route forever. Every
           install adds new captures to the shared cache.

@@ -23,7 +23,7 @@ export function UniversalProofBand() {
     <section id="universal" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-8 flex flex-col items-center">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3">
             ##  What &quot;universal&quot; means here
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary max-w-3xl">
@@ -38,7 +38,7 @@ export function UniversalProofBand() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
           {/* Card 1 — Drop-in Playwright */}
-          <div className="group relative p-5 sm:p-6 border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 overflow-hidden hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col">
+          <div className="group relative p-5 sm:p-6 border border-border bg-surface-ink overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconCompass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Drop-in</span>
@@ -51,7 +51,7 @@ export function UniversalProofBand() {
               captured shadow API, not driving Chromium. Falls through to the
               real browser only when the route is not yet known.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 mt-auto rounded-sm font-mono text-xs leading-relaxed">
+            <div className="bg-surface-ink border border-border p-3 mt-auto rounded-sm font-mono text-xs leading-relaxed">
               <div className="text-text-muted line-through mb-1">
                 import {"{"} chromium {"}"} from &quot;playwright&quot;;
               </div>
@@ -62,7 +62,7 @@ export function UniversalProofBand() {
           </div>
 
           {/* Card 2 — resolve + execute canonical loop */}
-          <div className="group relative p-5 sm:p-6 border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 overflow-hidden hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col">
+          <div className="group relative p-5 sm:p-6 border border-border bg-surface-ink overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconCompass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">MCP surface</span>
@@ -70,14 +70,14 @@ export function UniversalProofBand() {
             <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">Two tool calls do most of the work.</h3>
             <p className="text-text-secondary text-sm leading-relaxed mb-4">
               The canonical loop is{" "}
-              <code className="text-[rgba(255,176,96,0.95)] font-mono">unbrowse_resolve</code>{" "}
+              <code className="text-text-secondary font-mono">unbrowse_resolve</code>{" "}
               (find the right captured endpoint) then{" "}
-              <code className="text-[rgba(255,176,96,0.95)] font-mono">unbrowse_execute</code>{" "}
+              <code className="text-text-secondary font-mono">unbrowse_execute</code>{" "}
               (call it with your cookies). 30+ other MCP tools{" "}
               (<code className="text-[10px]">_go, _snap, _click, _fill, _submit, _eval, _scroll, _press, _select, _cookies, _auth_capture</code>) are there for the
               cold-discovery path when a new site has not been captured yet.
             </p>
-            <div className="pt-3 border-t border-[rgba(255,122,32,0.15)] mt-auto space-y-1.5 text-sm">
+            <div className="pt-3 border-t border-border mt-auto space-y-1.5 text-sm">
               <div className="flex items-center gap-2 text-text-secondary">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> One <code className="text-xs font-mono">mcp.json</code> entry replaces your stack
               </div>
@@ -88,7 +88,7 @@ export function UniversalProofBand() {
           </div>
 
           {/* Card 3 — Bench coverage (numbers from OUR paper only) */}
-          <div className="group relative p-5 sm:p-6 border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 overflow-hidden hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col">
+          <div className="group relative p-5 sm:p-6 border border-border bg-surface-ink overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconCompass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Coverage</span>
@@ -102,7 +102,7 @@ export function UniversalProofBand() {
             </p>
             <Link
               href="/internal-apis-are-all-you-need"
-              className="inline-flex items-center gap-1.5 text-xs font-mono text-[rgba(255,176,96,0.85)] hover:text-orange-500 transition-colors mt-auto"
+              className="inline-flex items-center gap-1.5 text-xs font-mono text-text-secondary hover:text-orange-500 transition-colors mt-auto"
             >
               Read the paper{" "}
               <IconArrow size={11} className="group-hover:translate-x-0.5 transition-transform" />
@@ -110,7 +110,7 @@ export function UniversalProofBand() {
           </div>
 
           {/* Card 4 — Compounding flywheel */}
-          <div className="group relative p-5 sm:p-6 border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 overflow-hidden hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col">
+          <div className="group relative p-5 sm:p-6 border border-border bg-surface-ink overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconCompass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Compounds</span>
@@ -125,7 +125,7 @@ export function UniversalProofBand() {
             </p>
             <Link
               href="/search"
-              className="inline-flex items-center gap-1.5 text-xs font-mono text-[rgba(255,176,96,0.85)] hover:text-orange-500 transition-colors mt-auto"
+              className="inline-flex items-center gap-1.5 text-xs font-mono text-text-secondary hover:text-orange-500 transition-colors mt-auto"
             >
               Browse the marketplace{" "}
               <IconArrow size={11} />

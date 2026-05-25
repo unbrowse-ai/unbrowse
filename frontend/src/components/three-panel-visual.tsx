@@ -165,7 +165,7 @@ export function ThreePanelVisual() {
       <section ref={sectionRef} className="relative min-h-[100dvh] flex flex-col justify-center overflow-hidden py-8">
         <div className="relative max-w-[90rem] mx-auto px-4 sm:px-6">
             <div className="text-center mb-12 sm:mb-16 relative">
-              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4">
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-4">
                 ##  The Problem
               </p>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-3 mb-4 text-balance text-text-primary">
@@ -175,7 +175,7 @@ export function ThreePanelVisual() {
               <div className="absolute right-0 top-0 hidden md:block">
                 <button
                   onClick={handleReplay}
-                  className={`flex items-center gap-2 px-4 py-2 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-xs ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                  className={`flex items-center gap-2 px-4 py-2 border border-border bg-surface-ink text-orange-500 hover:text-text-secondary hover:border-orange-500 transition-all font-mono text-xs ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                 >
                   <IconCycle size={14} />
                   Replay
@@ -186,9 +186,9 @@ export function ThreePanelVisual() {
             <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
               
               {/* Shared Timer for Panels 1 & 2 */}
-              <div className="lg:col-span-2 relative rounded-sm p-4 sm:p-6 bg-[#060402] border border-[rgba(255,122,32,0.28)] mt-5">
+              <div className="lg:col-span-2 relative rounded-sm p-4 sm:p-6 bg-surface-ink border border-border mt-5">
                 {/* Timer badge — full width on mobile, centered pill on desktop */}
-                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-[#060402] text-[rgba(255,250,242,0.95)] text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 border border-[rgba(255,122,32,0.4)] flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-[rgba(0,0,0,0.2)]" style={{ boxShadow: '0 0 20px rgba(255,82,0,0.1)' }}>
+                <div className="absolute -top-4 left-4 right-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 z-50 bg-surface-ink text-text-secondary text-[10px] sm:text-xs font-mono px-3 sm:px-4 py-2 border border-border-strong flex items-center justify-center gap-2 sm:gap-4 shadow-xl shadow-[rgba(0,0,0,0.2)]" style={{ boxShadow: '0 0 20px rgba(255,82,0,0.1)' }}>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
                     <span className="text-zinc-400 hidden xs:inline">Time:</span>
@@ -208,15 +208,15 @@ export function ThreePanelVisual() {
                 <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
 
               {/* What Humans See */}
-            <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
-              <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
+            <div className="group rounded-sm border border-border bg-surface-ink overflow-hidden transition-all relative">
+              <div className="px-4 py-3 border-b border-border bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.2)] text-[10px] sm:text-xs text-[rgba(255,122,32,0.55)] font-mono flex items-center gap-2">
+                  <div className="px-3 py-1 rounded-sm bg-surface-ink border border-border text-[10px] sm:text-xs text-orange-500 font-mono flex items-center gap-2">
                     travelbooker.com
                   </div>
                 </div>
@@ -229,7 +229,7 @@ export function ThreePanelVisual() {
                       className="absolute inset-0 z-[60] bg-white pointer-events-none flex items-center justify-center"
                       style={{ opacity: currentFlash * 0.9 }}
                     >
-                      <div className="bg-[#0a0705]/95 text-[rgba(255,250,242,0.95)] px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono shadow-xl">
+                      <div className="bg-surface-ink text-text-secondary px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-mono shadow-xl">
                         <IconAperture size={14} />
                         <span>Screenshot captured</span>
                       </div>
@@ -306,24 +306,24 @@ export function ThreePanelVisual() {
                   </div>
                 </div>
               </div>
-              <div className="px-4 py-3 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-20">
-                <h4 className="text-[13px] font-mono text-[rgba(255,122,32,0.8)] flex items-center justify-center gap-2">
-                  <IconFrame size={14} className="text-[rgba(255,122,32,0.5)]" /> What Humans See
+              <div className="px-4 py-3 border-t border-border bg-[rgba(0,0,0,0.4)] text-center relative z-20">
+                <h4 className="text-[13px] font-mono text-orange-500 flex items-center justify-center gap-2">
+                  <IconFrame size={14} className="text-orange-500" /> What Humans See
                 </h4>
-                <p className="text-[11px] text-[rgba(255,122,32,0.4)] mt-0.5 font-mono">Beautiful, interactive UI</p>
+                <p className="text-[11px] text-text-muted mt-0.5 font-mono">Beautiful, interactive UI</p>
               </div>
             </div>
 
               {/* What Agents See Today */}
-              <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
-              <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3 relative z-20">
+              <div className="group rounded-sm border border-border bg-surface-ink overflow-hidden transition-all relative">
+              <div className="px-4 py-3 border-b border-border bg-[rgba(0,0,0,0.4)] flex items-center gap-3 relative z-20">
                 <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-50" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.2)] text-[10px] sm:text-xs text-[rgba(255,122,32,0.55)] font-mono flex items-center gap-2">
+                  <div className="px-3 py-1 rounded-sm bg-surface-ink border border-border text-[10px] sm:text-xs text-orange-500 font-mono flex items-center gap-2">
                     view-source:travelbooker.com
                   </div>
                 </div>
@@ -337,11 +337,11 @@ export function ThreePanelVisual() {
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent z-20 pointer-events-none" />
               </div>
-                <div className="px-4 py-3 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-30">
-                  <h4 className="text-[13px] font-mono text-[rgba(255,122,32,0.8)] flex items-center justify-center gap-2">
-                    <IconTerminal size={14} className="text-[rgba(255,122,32,0.5)]" /> What Agents See Today
+                <div className="px-4 py-3 border-t border-border bg-[rgba(0,0,0,0.4)] text-center relative z-30">
+                  <h4 className="text-[13px] font-mono text-orange-500 flex items-center justify-center gap-2">
+                    <IconTerminal size={14} className="text-orange-500" /> What Agents See Today
                   </h4>
-                  <p className="text-[11px] text-[rgba(255,122,32,0.4)] mt-0.5 font-mono">Image + 847KB DOM <span className="text-red-400 font-medium">× {browserPasses} passes</span></p>
+                  <p className="text-[11px] text-text-muted mt-0.5 font-mono">Image + 847KB DOM <span className="text-red-400 font-medium">× {browserPasses} passes</span></p>
                 </div>
               </div>
             </div>{/* end grid sm:grid-cols-2 */}
@@ -367,15 +367,15 @@ export function ThreePanelVisual() {
                   </div>
                 </div>
 
-            <div className="flex-1 rounded-sm border border-[rgba(255,122,32,0.5)] bg-[#060402] overflow-hidden transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.25)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.4)] hover:border-[rgba(255,122,32,0.7)] z-10 relative flex flex-col pt-3">
-              <div className="px-5 py-4 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
+            <div className="flex-1 rounded-sm border border-orange-500 bg-surface-ink overflow-hidden transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.25)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.4)] hover:border-orange-500 z-10 relative flex flex-col pt-3">
+              <div className="px-5 py-4 border-b border-border bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="px-3 py-1 rounded-sm bg-[#060402] border border-[rgba(255,122,32,0.35)] text-[10px] sm:text-xs text-[rgba(255,176,96,0.9)] font-mono flex items-center gap-2 font-medium" style={{ textShadow: '0 0 8px rgba(255,176,96,0.5)' }}>
+                  <div className="px-3 py-1 rounded-sm bg-surface-ink border border-border text-[10px] sm:text-xs text-text-secondary font-mono flex items-center gap-2 font-medium" style={{ textShadow: '0 0 8px rgba(255,176,96,0.5)' }}>
                     agent_session <IconArrow size={12} className="text-orange-400" /> API
                   </div>
                 </div>
@@ -429,11 +429,11 @@ export function ThreePanelVisual() {
                 )}
               </div>
 
-              <div className="px-5 py-4 border-t border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] text-center relative z-20">
-                <h4 className="text-[13px] font-mono text-[rgba(255,176,96,0.9)] flex items-center justify-center gap-2" style={{ textShadow: '0 0 12px rgba(255,176,96,0.4)' }}>
+              <div className="px-5 py-4 border-t border-border bg-[rgba(0,0,0,0.4)] text-center relative z-20">
+                <h4 className="text-[13px] font-mono text-text-secondary flex items-center justify-center gap-2" style={{ textShadow: '0 0 12px rgba(255,176,96,0.4)' }}>
                   <IconHourglass size={14} className="text-orange-500" /> What Unbrowse Does
                 </h4>
-                <p className="text-[11px] text-[rgba(255,122,32,0.55)] mt-0.5 font-mono">1KB JSON <span className="text-emerald-400 font-medium">× {apiPasses} calls</span></p>
+                <p className="text-[11px] text-orange-500 mt-0.5 font-mono">1KB JSON <span className="text-emerald-400 font-medium">× {apiPasses} calls</span></p>
               </div>
               </div>
             </div>
@@ -444,7 +444,7 @@ export function ThreePanelVisual() {
           <div className="mt-12 flex justify-center md:hidden">
             <button
               onClick={handleReplay}
-              className={`flex items-center gap-2 px-5 py-2.5 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 border border-border bg-surface-ink text-orange-500 hover:text-text-secondary hover:border-orange-500 transition-all font-mono text-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
             >
               <IconCycle size={16} />
               Replay Animation

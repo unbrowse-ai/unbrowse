@@ -158,7 +158,7 @@ export default function WhatIsUnbrowsePage() {
       />
 
       <article className="max-w-3xl mx-auto px-6 py-16 sm:py-24">
-        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+        <header className="mb-12 border-b border-border pb-10">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-orange-500/90 mb-4">
             ##  Definition
           </p>
@@ -173,12 +173,12 @@ export default function WhatIsUnbrowsePage() {
         {/* TL;DR — the citable one-liner. Speakable for voice surfaces. */}
         <section
           aria-labelledby="tldr-heading"
-          className="mb-12 rounded-sm border border-[rgba(255,122,32,0.28)] bg-surface-raised p-6 sm:p-7"
+          className="mb-12 rounded-sm border border-border bg-surface-raised p-6 sm:p-7"
           data-speakable="tldr"
         >
           <h2
             id="tldr-heading"
-            className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.6)] mb-3"
+            className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3"
           >
             ##  TL;DR
           </h2>
@@ -246,8 +246,8 @@ export default function WhatIsUnbrowsePage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm sm:text-base font-mono">
               <thead>
-                <tr className="border-b border-[rgba(255,122,32,0.25)]">
-                  <th className="text-left py-3 pr-6 text-[rgba(255,176,96,0.85)] font-medium">
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 pr-6 text-text-secondary font-medium">
                     Unbrowse is
                   </th>
                   <th className="text-left py-3 text-text-muted font-medium">
@@ -256,11 +256,11 @@ export default function WhatIsUnbrowsePage() {
                 </tr>
               </thead>
               <tbody className="text-text-secondary">
-                <tr className="border-b border-[rgba(255,122,32,0.1)]">
+                <tr className="border-b border-border">
                   <td className="py-3 pr-6">An MCP server</td>
                   <td className="py-3">A scraping framework you import</td>
                 </tr>
-                <tr className="border-b border-[rgba(255,122,32,0.1)]">
+                <tr className="border-b border-border">
                   <td className="py-3 pr-6">
                     One install for every website
                   </td>
@@ -268,7 +268,7 @@ export default function WhatIsUnbrowsePage() {
                     One MCP server per service you wire up by hand
                   </td>
                 </tr>
-                <tr className="border-b border-[rgba(255,122,32,0.1)]">
+                <tr className="border-b border-border">
                   <td className="py-3 pr-6">
                     Direct HTTP calls to a site&apos;s real APIs
                   </td>
@@ -276,7 +276,7 @@ export default function WhatIsUnbrowsePage() {
                     A headless browser that clicks through the UI
                   </td>
                 </tr>
-                <tr className="border-b border-[rgba(255,122,32,0.1)]">
+                <tr className="border-b border-border">
                   <td className="py-3 pr-6">
                     Signed in with the user&apos;s real cookies
                   </td>
@@ -305,7 +305,7 @@ export default function WhatIsUnbrowsePage() {
             By the numbers
           </h2>
           <div className="grid sm:grid-cols-3 gap-4">
-            <div className="border border-[rgba(255,122,32,0.22)] bg-surface-raised p-5 rounded-sm">
+            <div className="border border-border bg-surface-raised p-5 rounded-sm">
               <p className="text-3xl font-bold text-orange-500 tabular-nums">
                 3.6x
               </p>
@@ -313,7 +313,7 @@ export default function WhatIsUnbrowsePage() {
                 mean speedup vs Playwright across 94 live domains
               </p>
             </div>
-            <div className="border border-[rgba(255,122,32,0.22)] bg-surface-raised p-5 rounded-sm">
+            <div className="border border-border bg-surface-raised p-5 rounded-sm">
               <p className="text-3xl font-bold text-orange-500 tabular-nums">
                 40x
               </p>
@@ -321,7 +321,7 @@ export default function WhatIsUnbrowsePage() {
                 fewer tokens consumed per task (no DOM, no screenshots)
               </p>
             </div>
-            <div className="border border-[rgba(255,122,32,0.22)] bg-surface-raised p-5 rounded-sm">
+            <div className="border border-border bg-surface-raised p-5 rounded-sm">
               <p className="text-3xl font-bold text-orange-500 tabular-nums">
                 1
               </p>
@@ -366,11 +366,11 @@ export default function WhatIsUnbrowsePage() {
 
         <section
           aria-labelledby="next-heading"
-          className="rounded-sm border border-[rgba(255,122,32,0.28)] bg-surface-raised p-6 sm:p-7"
+          className="rounded-sm border border-border bg-surface-raised p-6 sm:p-7"
         >
           <h2
             id="next-heading"
-            className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.6)] mb-3"
+            className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3"
           >
             ##  Next
           </h2>
@@ -383,7 +383,7 @@ export default function WhatIsUnbrowsePage() {
               Internal APIs Are All You Need
             </Link>
             . Or install it now:{" "}
-            <code className="font-mono text-orange-500 bg-[#070503]/85 px-2 py-0.5 rounded-sm border border-[rgba(255,122,32,0.22)]">
+            <code className="font-mono text-orange-500 bg-surface-ink px-2 py-0.5 rounded-sm border border-border">
               npx unbrowse setup --mcp
             </code>
             .

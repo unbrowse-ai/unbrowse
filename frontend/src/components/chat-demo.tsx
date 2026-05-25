@@ -696,7 +696,7 @@ export function ChatDemo() {
                     border: "none",
                     outline: "none",
                   }}
-                  className="placeholder:text-[rgba(255,122,32,0.4)]"
+                  className="placeholder:text-text-muted"
                 />
                 <button
                   type="submit"

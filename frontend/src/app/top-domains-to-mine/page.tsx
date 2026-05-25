@@ -606,7 +606,7 @@ export default function TopDomainsToMinePage() {
           <div className="mt-8 text-sm sm:text-base text-text-secondary">
             <div className="font-semibold text-text-primary">{AUTHOR.name}</div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
           </div>
         </header>
 

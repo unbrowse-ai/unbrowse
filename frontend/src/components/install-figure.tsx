@@ -22,7 +22,7 @@ export function InstallFigure() {
       >
         {/* Header row: label + copy button */}
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <span className="text-[rgba(255,122,32,0.65)]">##  already installed?</span>
+          <span className="text-orange-500">##  already installed?</span>
           <button
             onClick={copy}
             title="Copy command"
@@ -45,10 +45,10 @@ export function InstallFigure() {
             )}
           </button>
         </div>
-        <div className="px-4 pb-3 text-[rgba(255,122,32,0.4)]">
-          <code className="text-[rgba(255,176,96,0.85)]">npm install -g unbrowse@latest</code>
+        <div className="px-4 pb-3 text-text-muted">
+          <code className="text-text-secondary">npm install -g unbrowse@latest</code>
           <span className="mx-1.5 opacity-50">&&</span>
-          <code className="text-[rgba(255,176,96,0.85)]">unbrowse setup</code>
+          <code className="text-text-secondary">unbrowse setup</code>
         </div>
       </div>
 

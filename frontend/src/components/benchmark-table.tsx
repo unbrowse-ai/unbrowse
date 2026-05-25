@@ -65,7 +65,7 @@ export function BenchmarkTable() {
     <section id="benchmark" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-8">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-2">
             ##  Same intent, three tools
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
@@ -75,7 +75,7 @@ export function BenchmarkTable() {
             Paper at{" "}
             <Link
               href="/internal-apis-are-all-you-need"
-              className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]"
+              className="underline decoration-[rgba(255,122,32,0.4)] hover:text-orange-500"
             >
               arxiv 2604.00694
             </Link>
@@ -85,9 +85,9 @@ export function BenchmarkTable() {
           </p>
         </div>
 
-        <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm overflow-x-auto">
+        <div className="border border-border bg-surface-ink rounded-sm overflow-x-auto">
           <table className="w-full text-sm font-mono">
-            <thead className="bg-[rgba(0,0,0,0.35)] border-b border-[rgba(255,122,32,0.2)]">
+            <thead className="bg-[rgba(0,0,0,0.35)] border-b border-border">
               <tr className="text-[11px] uppercase tracking-[0.2em] text-text-muted">
                 <th className="text-left px-4 py-3">Tool</th>
                 <th className="text-right px-4 py-3">Tokens / call</th>
@@ -100,7 +100,7 @@ export function BenchmarkTable() {
               {rows.map((r) => (
                 <tr
                   key={r.tool}
-                  className={`border-b border-[rgba(255,122,32,0.12)] last:border-0 ${r.highlight ? "bg-[rgba(255,122,32,0.04)]" : ""}`}
+                  className={`border-b border-border last:border-0 ${r.highlight ? "bg-orange-50" : ""}`}
                 >
                   <td className={`px-4 py-3 ${r.highlight ? "text-orange-500 font-medium" : "text-text-primary"}`}>{r.tool}</td>
                   <td className="text-right px-4 py-3 text-text-secondary">{r.tokens}</td>
@@ -114,9 +114,9 @@ export function BenchmarkTable() {
         </div>
 
         {/* Across-the-corpus headline number */}
-        <div className="mt-5 border border-[rgba(255,122,32,0.18)] bg-[#070503]/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
+        <div className="mt-5 border border-border bg-surface-ink rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-2">
               Across 94 live domains
             </p>
             <p className="text-text-primary text-base sm:text-lg leading-snug">
@@ -130,7 +130,7 @@ export function BenchmarkTable() {
           </div>
           <Link
             href="/internal-apis-are-all-you-need"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-all whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-border-strong text-text-secondary text-sm font-mono hover:bg-orange-50 hover:border-orange-500 transition-all whitespace-nowrap"
           >
             Read the methodology →
           </Link>

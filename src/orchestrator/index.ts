@@ -4448,6 +4448,45 @@ export async function resolveAndExecute(
               // interstitial_detected / challenge_html / too_small / not_html).
               const evidenceJson = (directDocument as any).evidence ? ` evidence=${JSON.stringify((directDocument as any).evidence)}` : "";
               console.log(`[direct-document] ${context.url} REJECTED reason=${directDocument.reason}${evidenceJson}; handing off to browser ladder`);
+              // UX shortcut: when direct-document already detected the interstitial
+              // (CF / Akamai / sign-in wall), skip the 30s+ browser ladder and try
+              // curl_cffi via residential proxy IMMEDIATELY. Same primitive the
+              // no_progress_bail rescue uses, just lifted earlier so the agent
+              // doesn't wait for the browser to time out. Saves 25-30s wall-clock
+              // per CF-blocked probe when curl_cffi is the answer (TLS-fingerprint
+              // class). When curl_cffi also fails (JS-challenge class), the
+              // existing browser ladder still runs as the final fallback.
+              if (directDocument.reason === "interstitial_detected") {
+                try {
+                  const { tryCurlImpersonateFetch } = await import("../capture/curl-impersonate-fallback.js");
+                  const proxy = process.env.UNBROWSE_PROXY_URL
+                    || (process.env.IPROYAL_USER && process.env.IPROYAL_PASS
+                        ? `http://${encodeURIComponent(process.env.IPROYAL_USER)}:${encodeURIComponent(process.env.IPROYAL_PASS)}@${process.env.IPROYAL_HOST || "geo.iproyal.com"}:${process.env.IPROYAL_PORT || "12321"}`
+                        : undefined);
+                  const cffi = await tryCurlImpersonateFetch({ url: context.url, proxy, timeoutMs: 25_000 });
+                  if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
+                    const cffiArtifact = buildPageArtifactCapture(context.url, intent, cffi.html, false);
+                    if (cffiArtifact.endpoint && cffiArtifact.result) {
+                      console.log(`[direct-document] ${context.url} interstitial bypassed via curl_cffi: ${cffi.html.length} bytes proxy=${cffi.proxy_used} — skipping browser ladder`);
+                      const trace: ExecutionTrace = {
+                        trace_id: nanoid(),
+                        skill_id: "direct-document-cffi",
+                        endpoint_id: "direct-document-cffi",
+                        started_at: new Date().toISOString(),
+                        completed_at: new Date().toISOString(),
+                        success: true,
+                      };
+                      const t = finalize("direct-document", cffiArtifact.result as Record<string, unknown>, "direct-document", undefined as any, trace);
+                      return { result: cffiArtifact.result as Record<string, unknown>, trace, source: "direct-document" as any, skill: undefined as any, timing: t };
+                    }
+                    console.log(`[direct-document] curl_cffi returned ${cffi.html.length} bytes but extraction quality insufficient (JS-challenge body still interstitial) — falling through to browser ladder`);
+                  } else if (cffi) {
+                    console.log(`[direct-document] curl_cffi status=${cffi.status} bytes=${cffi.html.length} — proxy reachable but content not viable, falling through to browser ladder`);
+                  }
+                } catch (cffiErr) {
+                  console.log(`[direct-document] curl_cffi interstitial-bypass error: ${cffiErr instanceof Error ? cffiErr.message : String(cffiErr)}`);
+                }
+              }
             }
           }
           if (data !== undefined) {

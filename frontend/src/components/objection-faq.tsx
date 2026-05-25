@@ -55,7 +55,7 @@ export function ObjectionFaq() {
     <section id="objections" className="relative py-16 sm:py-24">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-8">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-2">
             ##  Asked on Reddit
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
@@ -71,13 +71,13 @@ export function ObjectionFaq() {
           {rows.map((r) => (
             <details
               key={r.q}
-              className="group border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm transition-colors hover:border-[rgba(255,122,32,0.3)]"
+              className="group border border-border bg-surface-ink rounded-sm transition-colors hover:border-border"
             >
               <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4">
                 <span className="text-base font-medium text-text-primary leading-snug">
                   {r.q}
                 </span>
-                <span className="text-xs font-mono text-[rgba(255,122,32,0.6)] shrink-0 mt-1 group-open:rotate-45 transition-transform">
+                <span className="text-xs font-mono text-orange-500 shrink-0 mt-1 group-open:rotate-45 transition-transform">
                   +
                 </span>
               </summary>

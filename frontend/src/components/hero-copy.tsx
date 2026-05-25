@@ -52,7 +52,7 @@ export function HeroWhyItMatters() {
 
   return (
     <div className="animate-fade-up stagger-3 mt-12 max-w-2xl">
-      <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)] mb-3 text-left">
+      <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3 text-left">
         ##  Why it matters
       </p>
       <p className="text-sm sm:text-base text-text-secondary leading-relaxed text-left">
@@ -129,14 +129,14 @@ export function HeroSpeedProofStrip() {
       {stats.map((s, i) => (
         <span
           key={s.l}
-          className="inline-flex items-baseline gap-1.5 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
+          className="inline-flex items-baseline gap-1.5 px-3 py-1.5 bg-surface-ink border border-border rounded-sm text-xs"
         >
           <span className="text-orange-500 font-medium">{s.v}</span>
           <span className="text-text-muted text-[10px] uppercase tracking-[0.15em]">
             {s.l}
           </span>
           {i < stats.length - 1 && (
-            <span className="hidden sm:inline text-[rgba(255,122,32,0.3)] -mr-1.5">·</span>
+            <span className="hidden sm:inline text-text-muted -mr-1.5">·</span>
           )}
         </span>
       ))}

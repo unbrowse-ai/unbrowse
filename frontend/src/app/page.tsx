@@ -1,79 +1,52 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ChatDemo } from "@/components/chat-demo";
-import { UnbrowseChatLive } from "@/components/unbrowse-chat-live";
-import { InstallInstructions } from "@/components/install-instructions";
-import { ThreePanelVisual } from "@/components/three-panel-visual";
-import { RegistryShowcase } from "@/components/registry-showcase";
-import { ScrollToButton } from "@/components/full-page-scroll";
-import { LandingVisitTracker } from "@/components/landing-visit-tracker";
-import { FlowingDotField } from "@/components/flowing-dot-field";
-import { HeroHands } from "@/components/hero-hands";
-import { HeroTerminalGated } from "@/components/hero-terminal-gated";
-import { AudienceToggle } from "@/components/audience-toggle";
-import {
-  HeroSubhead,
-  HeroWhyItMatters,
-  HeroHeadlineInner,
-  HeroSpeedProofStrip,
-} from "@/components/hero-copy";
-import { HeroCopyInstall } from "@/components/hero-copy-install";
-import { InstallFigure } from "@/components/install-figure";
-import { DemoParallax } from "@/components/demo-parallax";
-import { MobileNav } from "@/components/mobile-nav";
-import { UniversalProofBand } from "@/components/universal-proof-band";
-import { UseCasesBand } from "@/components/use-cases-band";
-import { ZeroSetupBand } from "@/components/zero-setup-band";
-import { BenchmarkTable } from "@/components/benchmark-table";
-import { EarnSection } from "@/components/earn-section";
-import { AntiIcpBlock } from "@/components/anti-icp-block";
-import { ObjectionFaq } from "@/components/objection-faq";
-import { TrustStrip } from "@/components/trust-strip";
 import { Github } from "lucide-react";
 import {
-  getStatsSummary,
-  listPopularSkills,
-  type StatsSummary,
-  type PopularSkillSummary,
-} from "@/lib/api";
-import { IconChevron } from "@/components/archival-icons";
+  Chapter,
+  CtaLink,
+  Hairline,
+  EditionsHero,
+  EditionsNav,
+  WordSplit,
+  ShadowFlow,
+  SpeedupChart,
+  FlywheelDiagram,
+  InstallArtifact,
+  type EditionsChapter,
+} from "@/components/editions";
+import { ChatDemo } from "@/components/chat-demo";
+import { UnbrowseChatLive } from "@/components/unbrowse-chat-live";
+import { ObjectionFaq } from "@/components/objection-faq";
+import { LandingVisitTracker } from "@/components/landing-visit-tracker";
+import { FlowingDotField } from "@/components/flowing-dot-field";
+import { AntiIcpBlock } from "@/components/anti-icp-block";
+import { BenchmarkTable } from "@/components/benchmark-table";
+import { EarnSection } from "@/components/earn-section";
+import { UniversalProofBand } from "@/components/universal-proof-band";
+import { UseCasesBand } from "@/components/use-cases-band";
+import { getStatsSummary, type StatsSummary } from "@/lib/api";
 
 export const revalidate = 60;
 
-/**
- * GitHubStarCount — server component. Fetched at build/revalidate time (1h),
- * so the GitHub pill in the hero shows a real number rather than generic text.
- * Falls back to null-render if the API is unreachable (avoids blocking SSR).
- */
-async function GitHubStarCount() {
+async function getStarCount(): Promise<number | null> {
   try {
     const res = await fetch("https://api.github.com/repos/unbrowse-ai/unbrowse", {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { stargazers_count?: number };
-    const count = data.stargazers_count;
-    if (typeof count !== "number") return null;
-    const label =
-      count >= 1000
-        ? `${(count / 1000).toFixed(1)}K`
-        : String(count);
-    return (
-      <span className="ml-0.5 tabular-nums text-orange-500 font-medium">
-        {label}
-      </span>
-    );
+    return typeof data.stargazers_count === "number" ? data.stargazers_count : null;
   } catch {
     return null;
   }
 }
 
+function formatCount(n: number | null | undefined): string {
+  if (typeof n !== "number" || Number.isNaN(n)) return "";
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
+  return String(n);
+}
 
-// FAQ JSON-LD aligned with the locked H1: "Direct access to anything on
-// the web. Without setting up another MCP." First question carries the
-// pain frame; numbers verified against the paper + codebase. Do NOT
-// re-introduce Song et al.'s +24% number as ours. Do NOT claim Base
-// settlement (Solana via Faremeter Flex).
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -83,7 +56,8 @@ const faqJsonLd = {
       name: "Why do I need yet another MCP server?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "You probably already have Notion MCP, Slack MCP, Browser MCP, Playwright MCP, Gmail MCP, and a few hand-rolled site-specific ones. Unbrowse is one MCP that replaces all of them: drop a single line into your mcp.json and your agent gets direct access to any website without a per-site server. New site appears, same MCP server captures it on the first visit; there is no new MCP to install, no new config block, no new auth flow.",
+        text:
+          "You probably already have Notion MCP, Slack MCP, Browser MCP, Playwright MCP, Gmail MCP. Unbrowse is one MCP that replaces all of them: drop one line into mcp.json and your agent gets direct access to any website without a per-site server.",
       },
     },
     {
@@ -91,7 +65,8 @@ const faqJsonLd = {
       name: "How does my agent act on a website without clicking buttons?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Every modern website's UI calls its own internal APIs. When you tap \"Reserve\" on Airbnb, the page POSTs to /api/v3/reservations with your cookies. Unbrowse captures those same internal APIs on the first visit and lets your agent call them directly with the same cookies. Your agent says its intent in natural language; unbrowse_resolve picks the right captured endpoint, unbrowse_execute calls it. Browser automation tools (click, fill, submit, eval) are also exposed in the MCP surface but only as the cold-start fallback when a new site's APIs have not been captured yet.",
+        text:
+          "Every modern website's UI calls its own internal APIs. Unbrowse captures those same internal APIs on the first visit and lets your agent call them directly with the same cookies.",
       },
     },
     {
@@ -99,454 +74,270 @@ const faqJsonLd = {
       name: "How is Unbrowse different from Playwright MCP?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Playwright MCP drives a real browser and streams the full accessibility tree on every call, about 114K tokens per typical task. Microsoft's own Playwright team recommends their CLI over their MCP for that reason. Unbrowse calls the website's internal API instead, returning the answer the agent asked for in roughly 5K tokens. Across 94 live domains the paper measures 3.6x mean (5.4x median) speedup over Playwright on read-shaped tasks.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does Unbrowse get blocked by Cloudflare Turnstile or Datadome?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Most of the time the agent never hits the WAF because it never loads the page; it calls the JSON endpoint the page would have called. When a fresh-site capture is required, unbrowse_fetch ships with libcurl-impersonate so the TLS handshake matches the JA4 fingerprint of a real Chrome, combined with your own browser cookies, so Turnstile / Datadome / PerimeterX usually never fire. If the bare-browser path is still challenged, residential-proxy fallback is one env var away (UNBROWSE_PROXY_URL).",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does my agent inherit my browser logins, and what happens when a login expires?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes, opt-in per domain. Cookies from your real Chrome and Firefox authenticate every shadow-API call; per-domain auth profiles live in your system Keychain. When an endpoint returns a 401, the ranker marks it auth_walled and demotes it the next time you resolve. Three login-hint surfaces (Keychain / browser / agent prompt) tell you exactly where to reauthenticate. Nothing leaves your machine.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How does the earnings flow work?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Capture and indexing are free. Use Unbrowse normally; every shadow-API route you capture lands in the public marketplace. When the next agent reuses your route the call settles in USDC on Solana via Faremeter Flex, directly to your wallet. The sponsor tier covers an agent's first $1/day so they explore your routes before they spend their own. Set up Crossmint lobster.cash during `npx unbrowse setup` to wire the payout address.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is Unbrowse free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. Unbrowse is open source under AGPL-3.0 and runs locally. There are no paid tiers, cloud proxies, or usage credits required to install or run it. The marketplace settles in USDC; the tool itself is free.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How do I install Unbrowse?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Run npx unbrowse setup --mcp and your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) gets wired in one step. For Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp. For manual setup, add {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} to your mcp.json and restart.",
+        text:
+          "Playwright drives a real browser on every step. Unbrowse drives a real browser exactly once per site to capture the shadow APIs, then bypasses the browser forever. 3.6x mean speedup vs Playwright across 94 live domains.",
       },
     },
   ],
 };
 
-async function HeroStats() {
-  let summary: StatsSummary | null = null;
-  try {
-    summary = await getStatsSummary();
-  } catch {
-    summary = null;
+const CHAPTERS: EditionsChapter[] = [
+  { id: "thesis", label: "Thesis" },
+  { id: "install", label: "Install" },
+  { id: "speed", label: "Speed" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "demo", label: "Demo" },
+  { id: "faq", label: "FAQ" },
+];
+
+async function HeroStarMeta() {
+  const stars = await getStarCount();
+  const label = formatCount(stars);
+  if (!label) {
+    return (
+      <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener noreferrer" className="cta-link">
+        <Github className="w-4 h-4" aria-hidden /> Free, open source, runs locally
+      </a>
+    );
   }
-  // If the marketplace stats endpoint is unreachable, render nothing rather
-  // than paint a hardcoded 600/1M/18K placeholder that looks live. The
-  // landing page must never show fake counters.
-  if (!summary) return null;
-
-  const fmt = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-    return String(n);
-  };
-
   return (
-    <section
-      id="hero-stats"
-      aria-label="Live unbrowse marketplace stats"
-      className="relative py-10"
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center font-mono">
-          {[
-            { label: "domains in registry", value: fmt(summary.domains) },
-            { label: "agent visits", value: fmt(summary.executions) },
-            { label: "shadow API endpoints", value: fmt(summary.skills) },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-[#070503]/90 border border-[rgba(255,122,32,0.18)] rounded-sm py-5 px-3"
-            >
-              <div className="text-3xl sm:text-4xl text-orange-500 tracking-tighter font-display">
-                {s.value}
-              </div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mt-2">
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+    <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener noreferrer" className="cta-link">
+      <Github className="w-4 h-4" aria-hidden />
+      Free, open source · <span className="tabular-nums text-text-primary font-medium">{label}</span> stars on GitHub
+    </a>
   );
 }
 
-async function PopularSkillsGrid() {
-  let skills: PopularSkillSummary[] = [];
-  try {
-    skills = await listPopularSkills();
-  } catch {
-    skills = [];
-  }
-  if (!skills.length) return null;
-
+/* StatsBand — three big numbers as typographic moments, NOT a feature grid.
+   Brand-as-punctuation: orange appears only on ONE figure for accent. */
+async function StatsBand() {
+  let stats: StatsSummary | null = null;
+  try { stats = await getStatsSummary(); } catch { stats = null; }
+  if (!stats) return null;
+  const cells = [
+    { value: stats.domains?.toLocaleString() ?? "—", label: "Domains indexed", emphasised: false },
+    { value: stats.endpoints?.toLocaleString() ?? "—", label: "Shadow APIs captured", emphasised: true },
+    { value: stats.executions?.toLocaleString() ?? "—", label: "Agent executions", emphasised: false },
+  ];
+  // Per element-context rule b04f1589 (STAT NUMBER): stats here are evidence
+  // SUPPORTING the chapter's primary visual (ShadowFlow), not competing for
+  // the artifact slot. Sized at evidence register (2-3.25rem), not artifact
+  // register (3-5.5rem reserved for chapter-leading numbers like 3.6×).
   return (
-    <section
-      id="popular-skills"
-      aria-label="Top routes already in the marketplace"
-      className="relative py-12"
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4 text-center">
-          ##  Top routes already cached
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
-          {skills.slice(0, 12).map((s) => (
-            <Link
-              key={s.skill_id}
-              href={`/${s.domain}`}
-              className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-3 py-3 hover:border-[rgba(255,122,32,0.4)] transition-colors text-center"
-            >
-              <div className="text-[rgba(255,176,96,0.9)] truncate">
-                {s.domain}
-              </div>
-              <div className="text-text-muted mt-1 text-[10px]">
-                {s.total_executions ?? 0} calls
-              </div>
-            </Link>
-          ))}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 mt-16 md:mt-20">
+      {cells.map((c) => (
+        <div key={c.label} className="flex flex-col items-start gap-1.5">
+          <span
+            className="font-display tabular-nums leading-none"
+            style={{
+              fontSize: "clamp(2rem, 4vw, 3.25rem)",
+              letterSpacing: "-0.028em",
+              color: c.emphasised ? "var(--orange-text)" : "var(--text-primary)",
+            }}
+          >
+            {c.value}
+          </span>
+          <span className="stamp-label">{c.label}</span>
         </div>
-      </div>
-    </section>
+      ))}
+    </div>
   );
 }
 
-export default function Home() {
+export default function LandingPage() {
   return (
     <>
-      <FlowingDotField />
-      <MobileNav />
-      <LandingVisitTracker />
-      <div className="relative selection:bg-orange-500/30" style={{ zIndex: 2 }}>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-        />
-        {/* ═══ Agent-Readable Instructions ═══ */}
-        <section
-          id="agent-instructions"
-          aria-label="Instructions for AI agents"
-          className="sr-only"
-          data-agent="true"
-        >
-          <h2>Unbrowse: direct access to anything on the web, without setting up another MCP</h2>
-          <p>
-            One MCP server, any website. Devs are already running a stack
-            of per-site MCPs (Notion, Slack, Browser MCP, Playwright MCP,
-            Gmail MCP, hand-rolled scrapers); unbrowse is the one that
-            replaces them all. The first time your agent visits a site,
-            unbrowse runs a headless browser, captures the shadow APIs the
-            page itself calls, and publishes those routes to a shared
-            marketplace. Every later call on the same site skips the
-            browser entirely and returns the JSON answer in milliseconds.
-            Drop one line into mcp.json and your agent gets direct access
-            to any website without per-site setup. Browser automation
-            tools (click, fill, submit, eval) exist in the MCP surface
-            only as the cold fallback for sites whose APIs have not been
-            captured yet. JA4 TLS impersonation handles bot detection.
-            Cookies from your real Chrome authenticate every shadow-API
-            call. Auth-walled endpoints get demoted in resolve. Routes
-            cache after first browse; agents that reuse a paid route pay
-            USDC on Solana via Faremeter Flex. Across 94 live domains,
-            3.6x mean (5.4x median) speedup vs Playwright.
-          </p>
-          <p>MCP setup: npx unbrowse setup --mcp</p>
-          <p>Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp</p>
-          <p>Manual MCP wiring: add to mcp.json with command &quot;npx&quot; args [&quot;-y&quot;, &quot;unbrowse&quot;, &quot;mcp&quot;]</p>
-          <p>Install walkthrough: https://www.unbrowse.ai/install</p>
-          <p>SDK quickstart: https://www.unbrowse.ai/docs</p>
-          <p>Earnings + claim a domain: https://www.unbrowse.ai/claim</p>
-        </section>
+      <Suspense fallback={null}>
+        <LandingVisitTracker />
+      </Suspense>
 
-        {/* ═══ Hero (h1: "Direct access to anything on the web. Without setting up another MCP.") ═══ */}
-        <section
-          className="relative flex flex-col justify-start overflow-hidden"
-          style={{ minHeight: "90dvh" }}
-        >
-          <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center">
-            <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
-              <a
-                href="https://github.com/unbrowse-ai/unbrowse"
-                target="_blank"
-                rel="noopener"
-                className="group inline-flex items-center gap-2.5
-                           text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
-                           border-b border-[rgba(255,122,32,0.3)] pb-1.5
-                           hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
-              >
-                <Github className="w-3.5 h-3.5" />
-                <span>Free, open source, runs locally</span>
-                <span className="text-[rgba(255,122,32,0.4)]">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Suspense fallback={null}>
-                    <GitHubStarCount />
-                  </Suspense>
-                  <span>stars on GitHub</span>
-                  <IconChevron
-                    size={11}
-                    className="group-hover:translate-x-0.5 transition-transform"
-                  />
-                </span>
-              </a>
-              <Suspense fallback={<div className="h-7" />}>
-                <AudienceToggle />
-              </Suspense>
-            </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
-            <Suspense
-              fallback={
-                <div className="animate-fade-up stagger-1 mb-2 flex flex-wrap items-center justify-center gap-2 font-mono text-xs">
-                  <span className="px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm">
-                    <span className="text-orange-500 font-medium">1 MCP</span>{" "}
-                    <span className="text-text-muted">for any site</span>
-                  </span>
-                </div>
-              }
-            >
-              <HeroSpeedProofStrip />
-            </Suspense>
+      <EditionsNav
+        chapters={CHAPTERS}
+        primaryCta="Install"
+        primaryHref="/install"
+      />
 
-            <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-              <Suspense
-                fallback={
-                  <>
-                    Direct access to anything on the web.{" "}
-                    <br className="hidden sm:block" />
-                    <span className="text-orange-500">Without setting up another MCP.</span>
-                  </>
-                }
-              >
-                <HeroHeadlineInner />
-              </Suspense>
-            </h1>
-
-            <Suspense
-              fallback={
-                <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                  One MCP server, any site. First visit captures the site&apos;s
-                  shadow APIs; your agent calls them directly forever after,
-                  signed in with your cookies.
-                </p>
-              }
-            >
-              <HeroSubhead />
-            </Suspense>
-
-            {/* ICP persona anchor — tells developers in 1 line who this is for */}
-            <p className="animate-fade-up stagger-2 mt-4 text-xs font-mono uppercase tracking-[0.18em] text-text-muted">
-              Built for AI agent developers using Claude, Cursor, and Codex
-            </p>
-
-            {/* ═══ Primary CTA: copy-to-clipboard + single secondary ═══ */}
-            <div className="animate-fade-up stagger-3 flex flex-col sm:flex-row items-center gap-3 mt-8">
-              <HeroCopyInstall />
-              <ScrollToButton
-                sectionId="demo"
-                className="flex items-center justify-center gap-2 px-7 py-3
-                           bg-transparent border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                           hover:bg-[rgba(255,122,32,0.08)] hover:border-[rgba(255,122,32,0.65)] active:scale-[0.98]
-                           transition-all duration-200 ease-out cursor-pointer"
-              >
-                [ Watch an agent book Airbnb ]
-              </ScrollToButton>
-            </div>
-            <Suspense
-              fallback={
-                <div className="mt-8 h-14 w-full max-w-3xl rounded-sm border border-[rgba(255,122,32,0.12)]" />
-              }
-            >
-              <TrustStrip />
-            </Suspense>
-
-            <Suspense fallback={null}>
-              <HeroWhyItMatters />
-            </Suspense>
-
-            <Suspense fallback={null}>
-              <HeroTerminalGated />
-            </Suspense>
-          </div>
-
-          <HeroHands />
-        </section>
-
-        {/* ═══ Install ═══ */}
-        <section
-          id="install"
-          className="relative py-20 sm:py-28 flex flex-col items-center px-4 sm:px-6"
-        >
-          <div className="relative w-full max-w-4xl">
-            <div className="relative w-full border border-[rgba(255,122,32,0.45)] bg-[#060402] overflow-hidden rounded-sm shadow-2xl shadow-black/40">
-              <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">
-                      ##  MCP Install
-                    </p>
-                    <h2
-                      className="mt-1 text-xl sm:text-2xl font-mono tracking-tight text-[#FFB060]"
-                      style={{ textShadow: "0 0 20px rgba(255,176,96,0.4)" }}
-                    >
-                      $ unbrowse setup --mcp
-                    </h2>
-                  </div>
-                  <p className="max-w-sm text-sm leading-relaxed text-[rgba(255,122,32,0.55)] font-mono">
-                    Wires the Unbrowse MCP server into your agent host. One
-                    command per client.
-                  </p>
-                </div>
-              </div>
-              <div className="p-4 sm:p-6">
-                <InstallInstructions />
-              </div>
-            </div>
-
-            <InstallFigure />
-          </div>
-
-          <div className="w-full max-w-4xl mt-6 max-sm:flex max-sm:justify-center sm:flex">
-            <div
-              className="inline-flex flex-col gap-3 px-6 py-4 rounded-sm max-sm:items-center"
-              style={{
-                background: "rgba(6,4,2,0.82)",
-                border: "1px solid rgba(255,122,32,0.18)",
-              }}
-            >
-              <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">
-                Plugs into the agent stack you already use
-              </p>
-              <div className="flex flex-wrap max-sm:justify-center items-center gap-x-5 gap-y-2 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
-                <span className="text-sm font-mono tracking-tight">Claude Code</span>
-                <span className="text-sm font-mono tracking-tight">Claude Desktop</span>
-                <span className="text-sm font-mono tracking-tight">Cursor</span>
-                <span className="text-sm font-mono tracking-tight">Codex</span>
-                <span className="text-sm font-mono tracking-tight">Windsurf</span>
-                <span className="text-sm font-mono tracking-tight">OpenClaw</span>
-                <span className="text-sm font-mono tracking-tight">Any MCP framework</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <UniversalProofBand />
-        <UseCasesBand />
-        <ZeroSetupBand />
-        <BenchmarkTable />
-
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 90 }} />}>
-          <HeroStats />
-        </Suspense>
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 220 }} />}>
-          <PopularSkillsGrid />
-        </Suspense>
-
-        <EarnSection />
-
-        <section
-          id="demo"
-          className="relative py-16 sm:py-24 flex flex-col justify-center"
-        >
-          <DemoParallax />
-          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 w-full">
-            <div className="text-center mb-5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
-                ##  See it in action
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2 text-balance text-text-primary">
-                Example: <span className="text-orange-500">airbnb.com</span>
-              </h2>
-              <p className="text-text-secondary text-sm max-w-xl mx-auto leading-relaxed">
-                One agent browses Airbnb. Every agent on the network can now
-                search listings, check availability, and book, instantly, no
-                browser.
-              </p>
-            </div>
-            <ChatDemo />
-
-            <div className="mt-10 sm:mt-14">
-              <div className="text-center mb-5">
-                <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
-                  ##  Try it live
-                </p>
-                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2 text-text-primary">
-                  Resolve against the live marketplace
-                </h3>
-                <p className="text-text-secondary text-sm max-w-xl mx-auto leading-relaxed">
-                  Anonymous, no signup. We call <span className="font-mono text-orange-500">POST /v1/search</span> on the public worker and return the ranked shortlist.
-                </p>
-              </div>
-              <UnbrowseChatLive />
-            </div>
-          </div>
-        </section>
-
-        <RegistryShowcase />
-        <ThreePanelVisual />
-        <ObjectionFaq />
-        <AntiIcpBlock />
-
-        <footer
-          className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/95"
-          style={{ borderTop: "1px solid rgba(255,122,32,0.2)" }}
-        >
-          <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between gap-4">
-            <span className="text-xs text-[rgba(255,122,32,0.4)] font-mono">
-              $ &copy; {new Date().getFullYear()} Unbrowse AI Pte. Ltd.
+      {/* FlowingDotField — restored from main's visual signature; sits behind
+          the hero as a subtle canvas dot field, motion-respectful (honors
+          prefers-reduced-motion via FlowingDotField's own guard). */}
+      <div className="relative">
+        <div className="absolute inset-0 pointer-events-none -z-10 opacity-40">
+          <FlowingDotField />
+        </div>
+      <EditionsHero
+        eyebrow="One MCP, any website"
+        title={
+          <>
+            <WordSplit text="Direct access" />
+            <br />
+            <WordSplit text="to anything on the web." startIndex={2} />
+            <br />
+            <span className="text-text-muted">
+              <WordSplit text="Without setting up" startIndex={7} />{" "}
+              <WordSplit text="another MCP." startIndex={10} />
             </span>
-            <div className="hidden sm:flex items-center gap-5 text-xs text-[rgba(255,122,32,0.55)] font-mono">
-              <a
-                href="https://github.com/unbrowse-ai/unbrowse"
-                target="_blank"
-                rel="noopener"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                GitHub
-              </a>
-              <Link
-                href="/faq"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                FAQ
-              </Link>
-              <Link
-                href="/terms"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                Privacy
-              </Link>
-            </div>
-          </div>
-        </footer>
+          </>
+        }
+        lede="One install learns every site. First visit, your agent watches the site call its own API. Every visit after, your agent calls that API directly, signed in with your cookies."
+        primaryCta="Install Unbrowse"
+        primaryHref="/install"
+        secondaryCta="Watch an agent book Airbnb"
+        secondaryHref="#demo"
+        meta={
+          <Suspense fallback={null}>
+            <HeroStarMeta />
+          </Suspense>
+        }
+      />
       </div>
+
+      {/* 01 · THESIS — visual artifact is the ShadowFlow diagram */}
+      <Chapter
+        id="thesis"
+        number="01"
+        name="Thesis"
+        title={<>Use the site&apos;s own API.</>}
+        lede="Every modern site is HTML wrapping a JSON API. Unbrowse watches the site call its own API on the first visit; your agent calls that API directly on every visit after."
+      >
+        <ShadowFlow />
+        <div className="mt-10 flex flex-wrap gap-6">
+          <CtaLink href="/what-is-unbrowse">What is Unbrowse</CtaLink>
+          <CtaLink href="/shadow-apis-explained">How capture works</CtaLink>
+        </div>
+        <Suspense fallback={null}>
+          <StatsBand />
+        </Suspense>
+        {/* AntiIcpBlock — positioning band from main, the "vs every other thing" frame */}
+        <div className="mt-20"><AntiIcpBlock /></div>
+      </Chapter>
+
+      {/* USE CASES — band of agent use-cases between thesis and install */}
+      <section id="use-cases" className="editions-shell" style={{ paddingBlock: "clamp(4rem, 8vw, 7rem)" }}>
+        <UseCasesBand />
+      </section>
+
+      {/* 02 · INSTALL — visual artifact is the InstallArtifact code block */}
+      <Chapter
+        id="install"
+        number="02"
+        name="Install"
+        title={<>One command, any host.</>}
+        lede="Wires Unbrowse into Claude Code, Cursor, Codex, Windsurf, Claude Desktop, OpenClaw, and every MCP-aware framework after. Your first call lands in under two minutes."
+      >
+        <InstallArtifact />
+        <div className="mt-10 flex flex-wrap gap-6">
+          <Link href="/install" className="cta-primary cta-accent">
+            Read the install guide
+          </Link>
+          <CtaLink href="/docs">Open the docs</CtaLink>
+        </div>
+      </Chapter>
+
+      {/* 03 · SPEED — visual artifact is the SpeedupChart with the 3.6x as
+          display-type punctuation, NOT a stat in a grid */}
+      <Chapter
+        id="speed"
+        number="03"
+        name="Speed"
+        title={<>3.6x faster. 40x cheaper.</>}
+        lede="The Unbrowse paper benchmarks shadow-API capture against Playwright across 94 live production websites. Cached routes return in 50-200ms versus 5-30s for browser automation. Token cost drops 40x because there is no DOM, no screenshots, no headers to ferry."
+      >
+        <SpeedupChart meanMs={1840} playwrightMs={6624} />
+        {/* BenchmarkTable — concrete per-site results table from main, the data
+            backing the 3.6x claim. Reads as the receipts. */}
+        <div className="mt-16"><BenchmarkTable /></div>
+        <div className="mt-10 flex flex-wrap gap-6">
+          <CtaLink href="/benchmark-deep-dive">Read the benchmark deep-dive</CtaLink>
+          <CtaLink href="/papers">Read the paper</CtaLink>
+        </div>
+      </Chapter>
+
+      {/* 04 · MARKETPLACE — visual artifact is the FlywheelDiagram */}
+      <Chapter
+        id="marketplace"
+        number="04"
+        name="Marketplace"
+        title={<>Capture once. Earn forever.</>}
+        lede="The first agent to capture a domain is its indexer of record. Every later agent that reuses a paid route pays USDC on Solana via Faremeter Flex; the indexer earns the royalty. Discovery is the marketplace's job, not yours."
+      >
+        <FlywheelDiagram />
+        {/* EarnSection — concrete earnings surface from main, the
+            who-earns-what under the flywheel. */}
+        <div className="mt-16"><EarnSection /></div>
+        <div className="mt-10 flex flex-wrap gap-6">
+          <Link href="/openclaw-earn" className="cta-primary cta-accent">
+            Start earning
+          </Link>
+          <CtaLink href="/how-unbrowse-pays">How Unbrowse pays</CtaLink>
+          <CtaLink href="/claim">Claim a domain</CtaLink>
+        </div>
+      </Chapter>
+
+      {/* 05 · DEMO — the demo IS the visual artifact (real chat surface) */}
+      <Chapter
+        id="demo"
+        number="05"
+        name="Demo"
+        title={<>Watch an agent book Airbnb without a browser.</>}
+        lede="One agent browses Airbnb. Every agent on the network can now search listings, check availability, and book."
+      >
+        <div className="space-y-16">
+          <ChatDemo />
+          <div>
+            <div className="mb-6 flex items-baseline justify-between gap-4 flex-wrap">
+              <h3 className="font-display text-2xl sm:text-3xl text-text-primary" style={{ letterSpacing: "-0.022em" }}>
+                Resolve against the live marketplace
+              </h3>
+              <p className="text-sm text-text-muted">
+                Anonymous, no signup. <code className="font-mono">POST /v1/search</code>.
+              </p>
+            </div>
+            <UnbrowseChatLive />
+          </div>
+        </div>
+      </Chapter>
+
+      {/* PROOF BAND — testimonial / quote shape from main, between demo and FAQ */}
+      <section id="proof" className="editions-shell" style={{ paddingBlock: "clamp(4rem, 8vw, 7rem)" }}>
+        <UniversalProofBand />
+      </section>
+
+      {/* 06 · FAQ — restraint: the answers ARE the artifact */}
+      <Chapter
+        id="faq"
+        number="06"
+        name="FAQ"
+        title={<>The objections developers actually have.</>}
+        lede="Real questions from real shipped agents. Honest answers, not marketing."
+      >
+        <ObjectionFaq />
+      </Chapter>
+
+      {/* CLOSING — inverse dark CTA band */}
+      <Chapter
+        id="start"
+        inverse
+        name="Get started"
+        title={<>Stop maintaining per-site MCP servers.</>}
+        lede="One install. Any website. Free to run locally; pay only when you reuse paid routes."
+      >
+        <div className="flex flex-wrap gap-4 items-center mt-4">
+          <Link href="/install" className="cta-primary cta-accent">
+            Install Unbrowse
+          </Link>
+          <Link href="/playground" className="cta-link" style={{ color: "var(--text-inverse)" }}>
+            Try the playground
+          </Link>
+          <Link href="/papers" className="cta-link" style={{ color: "var(--text-inverse)" }}>
+            Read the paper
+          </Link>
+        </div>
+      </Chapter>
     </>
   );
 }
