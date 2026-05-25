@@ -1,60 +1,83 @@
 "use client";
 
 /**
- * Optional Privy provider.
+ * Optional Privy provider — route-gated, dynamic-imported.
  *
- * Wraps children with @privy-io/react-auth's PrivyProvider ONLY when
- * `NEXT_PUBLIC_PRIVY_APP_ID` is set on the build. When the env is unset
- * (the default in dev, in CI builds without the secret, and on any
- * deployment that hasn't been migrated yet), this is a transparent
- * pass-through — children render unchanged and no Privy code paths
- * load at runtime.
+ * Banger Wave 3 (2026-05-26): code-split @privy-io/react-auth (~324 KB)
+ * off the root layout. Previously this file synchronously imported
+ * `PrivyProvider` so the SDK shipped on EVERY route — landing, blog,
+ * papers, install — none of which use Privy. The bundle blocked the
+ * landing's LCP at 4288 ms POOR.
+ *
+ * After: the SDK is wrapped in `next/dynamic({ ssr: false })` and gated
+ * by `usePathname()`. Pages not in PRIVY_PATH_ALLOWLIST never trigger
+ * the chunk load. Pages that ARE in the allowlist load the chunk on
+ * client hydration (after first paint), so the route still works.
+ *
+ * Mount point unchanged: wraps `AuthProvider` (magic-link state) in
+ * `app/layout.tsx`. The wrapper itself is now near-zero KB on routes
+ * that don't need Privy.
  *
  * Why opt-in rather than always-on:
- *   - Magic-link auth (Resend-backed) is the production login today and
- *     stays the production login. Privy is additive, gated, reversible.
- *     A misconfig or outage on Privy must not break /account.
- *   - The Privy SDK loads ~80 KB of JS at the route boundary. For
- *     deployments that don't use it, no point paying that cost.
+ *   - Magic-link auth (Resend-backed) is the production login today.
+ *     Privy is additive, gated by NEXT_PUBLIC_PRIVY_APP_ID.
+ *   - The Privy SDK loads ~324 KB minified + ~1.5 MB WalletConnect tree.
+ *     Routes that don't render the login button MUST NOT pay that cost.
  *   - CLAUDE.md "no dramatic behavior under the hood" — if you didn't
  *     set the env, you didn't ship Privy.
  *
- * Mount point: inside `AuthProvider` (which owns the magic-link state)
- * so a logged-in magic-link user keeps their session even if they later
- * connect a Privy wallet, and vice versa. The two auth surfaces live
- * side by side; lobster.cash continues to own the payout wallet.
- *
- * Cloudflare Pages note: the upstream PrivyProvider is a "use client"
- * component that mounts on hydration. It never touches the Node `fs`
- * or `crypto` modules in a way that would break the edge runtime; the
- * server bundle for /account stays trivially renderable because
- * everything Privy does happens after the page is in the browser.
+ * Cloudflare Pages note: PrivyProvider is "use client" + dynamic with
+ * ssr:false, so the server bundle is trivially renderable. The Privy
+ * code never reaches the edge runtime.
  */
 
 import { useMemo, type ReactNode } from "react";
-import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
+import type { PrivyClientConfig } from "@privy-io/react-auth";
+
+/**
+ * Paths that may render the Privy login surface. Anything outside this
+ * list renders children pass-through and pays zero Privy bytes.
+ *
+ * Matching is prefix-based (e.g. `/account` matches `/account/cookies`).
+ * Keep this list in sync with components that consume `usePrivy()` /
+ * `<PrivyLoginButtonOptional />`.
+ */
+export const PRIVY_PATH_ALLOWLIST: readonly string[] = [
+  "/account",
+  // Future Privy consumers go here. /login, /billing, /dashboard, /claim
+  // currently use the magic-link AuthProvider only, no Privy.
+];
+
+/**
+ * Inner provider — only imported when a Privy-eligible path is active.
+ * `ssr: false` is critical: it prevents the Privy SDK from being
+ * pulled into the server bundle AND from blocking first paint.
+ */
+const PrivyProviderDynamic = dynamic(
+  () => import("@privy-io/react-auth").then((m) => ({ default: m.PrivyProvider })),
+  { ssr: false, loading: () => null },
+);
 
 const DEFAULT_CONFIG: PrivyClientConfig = {
-  // Match the dark theme the rest of the site uses (CLAUDE.md design
-  // laws — pick a physical scene, don't combine pure black with pure
-  // white). Privy honors a small subset of theme tokens; the rest of
-  // its modal styling is fine out of the box.
   appearance: {
     theme: "dark",
     accentColor: "#5b8aff",
   },
-  // Wallet-creation policy: only create a Privy-embedded wallet for
-  // users who don't already have one. Existing wallets (lobster, any
-  // other Solana signer) stay the source of truth.
   embeddedWallets: {
     ethereum: { createOnLogin: "users-without-wallets" },
   },
-  // Login methods: email + google + external wallet. Wallet covers
-  // anyone arriving from lobster.cash who already has a Solana
-  // signer; email keeps parity with the existing magic-link path so
-  // no current /account user is surprised.
   loginMethods: ["email", "google", "wallet"],
 };
+
+function pathMatchesAllowlist(pathname: string | null): boolean {
+  if (!pathname) return false;
+  for (const prefix of PRIVY_PATH_ALLOWLIST) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return true;
+  }
+  return false;
+}
 
 export function PrivyOptionalProvider({
   children,
@@ -67,26 +90,36 @@ export function PrivyOptionalProvider({
   /** Override the default PrivyClientConfig (used in tests). */
   config?: PrivyClientConfig;
 }) {
+  const pathname = usePathname();
   const resolvedAppId = appId ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const resolvedConfig = useMemo<PrivyClientConfig>(
     () => config ?? DEFAULT_CONFIG,
     [config],
   );
+
+  // Two gates, either short-circuits to pass-through:
+  //   1) Privy feature flag (env) is off.
+  //   2) Current path is not in the allowlist.
+  // Pass-through means: no dynamic import, no SDK chunk, no Privy cost.
   if (!resolvedAppId || resolvedAppId.trim().length === 0) {
-    // Feature flag OFF: render children unchanged.
     return <>{children}</>;
   }
+  if (!pathMatchesAllowlist(pathname)) {
+    return <>{children}</>;
+  }
+
   return (
-    <PrivyProvider appId={resolvedAppId} config={resolvedConfig}>
+    <PrivyProviderDynamic appId={resolvedAppId} config={resolvedConfig}>
       {children}
-    </PrivyProvider>
+    </PrivyProviderDynamic>
   );
 }
 
 /**
  * Boolean the rest of the app reads to decide whether to render the
  * Privy login button. Centralized so a future env-name change touches
- * one place.
+ * one place. Note: this is the FLAG check only; route-gating is done
+ * separately in PrivyOptionalProvider above.
  */
 export function isPrivyEnabled(): boolean {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
