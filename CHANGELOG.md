@@ -1,6 +1,23 @@
 # Changelog
 
 ## Unreleased
+
+## v7.0.0 (2026-05-25)
+
+Major version bump consolidating the v6.18.x line. No content changes vs the v6.18.0 cut — this release exists to:
+
+- Get the CLI substrate (`unbrowse` binary) onto npm via the new github-hosted release pipeline (the v6.18.0 release queued forever against offline self-hosted runners).
+- Realign main with prod: prior to PR #784, main was on `6.17.0-preview.6` while prod was on `6.18.0` from `fix/blog-contract-organ`. The merge in #784 caught main up; this release tags the consolidated truth as v7.
+- Reset to a clean major after the prolonged `6.17.x-preview.N` series.
+
+All v6.18.0 content rides forward verbatim. Notable substrate work in this line:
+
+- **CI hosting**: `.github/workflows/release.yml` runs on `ubuntu-latest` (was: offline self-hosted). `mlugg/setup-zig@v2` installs zig where the kuri cross-compile path needs it. `workflow_dispatch` added so future tag-rerun is one `gh` call.
+- **x402 substrate**: 12 wallet adapters via `generic-x402-adapter.ts` (Coinbase, OKX, Circle, Venice, Moonpay, Bankr, AgentCash, Corbits, Ruflo, Stellar, Privy embedded, pay.sh).
+- **Stateless-stdio Layer-1**: `src/contract-fetch.ts` — ephemeral curl_cffi subprocess per call; 0.1pp concurrency divergence at conc=35.
+- **Bench harness**: `harness/agent-xp/` reshaped as a contract DAG (no shell scripts).
+- **Docs**: `docs/internal/BENCH.md` documents the 10-axis bench from the codebase.
+
 ### Editions rebuild Wave-2A — chapters 01-05 + cream footer (2026-05-25)
 
 **feat(frontend)**: ported five chapters onto the cream `#dcdcd0` editions
