@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
@@ -23,11 +23,183 @@ import {
   INTENT_TTL_SECONDS,
   PAID_INTENT_TTL_SECONDS,
 } from "../services/crypto-sub.js";
+import { getAgent } from "../services/agents.js";
+import { x402UseTestnet } from "../middleware/x402-gate.js";
+import { checkFlexOnboarding } from "../middleware/flex-onboarding-required.js";
 
 type BillingEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 export const billingRoutes = new Hono<BillingEnv>();
 
 billingRoutes.use("/billing/*", rateLimit({ limit: 30, window: 60, prefix: "billing" }));
+
+type RoadblockKind =
+  | "flex_onboarding_required"
+  | "mainnet_facilitator_unavailable"
+  | "wallet_balance_low";
+
+interface TopupNeededBody {
+  requested_network?: string;
+  min_balance_uc?: number | string;
+  wallet_balance_uc?: number | string;
+  amount_usd?: number | string;
+  return_url?: string;
+}
+
+function parseNonNegativeInteger(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+}
+
+function parsePositiveUsd(value: unknown): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseFloat(value)
+        : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+}
+
+function wantsMainnet(value: string | undefined): boolean {
+  const raw = value?.trim().toLowerCase();
+  return raw === "mainnet" || raw === "solana-mainnet" || raw === "solana:mainnet";
+}
+
+function providerCommand(provider: string | null, amountUsd: number): string {
+  switch (provider) {
+    case "pay_sh":
+      return `pay topup --amount ${amountUsd}`;
+    case "lobster_cash":
+    case "lobster.cash":
+      return `lobstercash topup --amount ${amountUsd}`;
+    default:
+      return `/contract topup --amount ${amountUsd}`;
+  }
+}
+
+function buildRoadblockResponse(opts: {
+  agentId: string;
+  provider: string | null;
+  kind: RoadblockKind | null;
+  amountUsd: number;
+  requestedNetwork: string;
+  currentNetwork: "solana-mainnet" | "solana-testnet";
+  minBalanceUc: number | null;
+  walletBalanceUc: number | null;
+  returnUrl?: string;
+}) {
+  const setupUrl = "https://lobster.cash/install";
+  const checkoutUrl = opts.returnUrl?.trim() || "https://lobster.cash/login";
+  const command = opts.kind === "flex_onboarding_required"
+    ? "unbrowse setup"
+    : providerCommand(opts.provider, opts.amountUsd);
+  const renderHints = [
+    {
+      client: "telegram",
+      kind: "button",
+      label: opts.kind === "flex_onboarding_required" ? "Set up wallet" : "Top up",
+      url: opts.kind === "flex_onboarding_required" ? setupUrl : checkoutUrl,
+    },
+    {
+      client: "web",
+      kind: "checkout_url",
+      url: opts.kind === "flex_onboarding_required" ? setupUrl : checkoutUrl,
+      provider: "lobster.cash",
+    },
+    {
+      client: "terminal",
+      kind: "command",
+      command,
+    },
+  ];
+
+  return {
+    roadblock_required: opts.kind !== null,
+    roadblock: opts.kind,
+    agent_id: opts.agentId,
+    payment_provider: opts.provider,
+    requested_network: opts.requestedNetwork,
+    current_network: opts.currentNetwork,
+    min_balance_uc: opts.minBalanceUc,
+    wallet_balance_uc: opts.walletBalanceUc,
+    amount_usd: opts.amountUsd,
+    next_step: opts.kind
+      ? command
+      : "No payment roadblock detected from the supplied network and balance signals.",
+    requirement_block: opts.kind
+      ? {
+          kind: "ROADBLOCK REQUIRED",
+          reason: opts.kind,
+          render_hints: renderHints,
+        }
+      : null,
+    render_hints: renderHints,
+  };
+}
+
+async function readTopupNeededInput(c: Context<BillingEnv>): Promise<TopupNeededBody> {
+  const query = c.req.query() as Record<string, string>;
+  if (c.req.method.toUpperCase() !== "POST") return query;
+  const body = await c.req.json<TopupNeededBody>().catch(() => ({}));
+  return { ...query, ...body };
+}
+
+async function handleTopupNeeded(c: Context<BillingEnv>): Promise<Response> {
+  const agentId = c.get("agent_id");
+  if (!agentId) return c.json({ error: "agent_required" }, 401);
+
+  const input = await readTopupNeededInput(c);
+  const profile = agentId === "__admin__" ? null : await getAgent(c.env, agentId).catch(() => null);
+  const provider = profile?.wallet_provider?.trim() || null;
+  const requestedNetwork = input.requested_network?.trim() || "solana-mainnet";
+  const currentNetwork = x402UseTestnet(c.env) ? "solana-testnet" : "solana-mainnet";
+  const minBalanceUc = parseNonNegativeInteger(input.min_balance_uc);
+  const walletBalanceUc = parseNonNegativeInteger(input.wallet_balance_uc);
+  const amountUsd = parsePositiveUsd(
+    input.amount_usd ?? (minBalanceUc == null ? undefined : String(minBalanceUc / 1_000_000)),
+  );
+
+  let kind: RoadblockKind | null = null;
+  if (profile) {
+    const onboarding = checkFlexOnboarding(profile);
+    if (!onboarding.ready) kind = "flex_onboarding_required";
+  }
+  if (!kind && wantsMainnet(requestedNetwork) && currentNetwork !== "solana-mainnet") {
+    kind = "mainnet_facilitator_unavailable";
+  }
+  if (!kind && minBalanceUc != null && walletBalanceUc != null && walletBalanceUc < minBalanceUc) {
+    kind = "wallet_balance_low";
+  }
+
+  const body = buildRoadblockResponse({
+    agentId,
+    provider,
+    kind,
+    amountUsd,
+    requestedNetwork,
+    currentNetwork,
+    minBalanceUc,
+    walletBalanceUc,
+    returnUrl: input.return_url,
+  });
+
+  if (!kind) return c.json(body);
+  return c.json(body, 402, {
+    "X-Roadblock-Required": "1",
+    "X-Roadblock-Reason": kind,
+  });
+}
+
+// GET/POST /v1/billing/topup-needed — structured ROADBLOCK REQUIRED surface.
+billingRoutes.get("/billing/topup-needed", bearerAuth, handleTopupNeeded);
+billingRoutes.post("/billing/topup-needed", bearerAuth, handleTopupNeeded);
 
 // POST /v1/billing/checkout — returns { url } to Stripe Checkout
 billingRoutes.post("/billing/checkout", bearerAuth, async (c) => {

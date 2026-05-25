@@ -18,6 +18,11 @@ const READING_PATH = [
     note: "How those hidden routes are found from normal browsing.",
   },
   {
+    slug: "contract-organ-explained",
+    step: "Workflow",
+    note: "How one page visit becomes a route another agent can call.",
+  },
+  {
     slug: "benchmark-deep-dive",
     step: "Evidence",
     note: "What changed across the 94-domain benchmark.",
@@ -162,7 +167,7 @@ export default async function BlogIndexPage() {
                   id="start-here"
                   className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight"
                 >
-                  A five-step path through the work
+                  A six-step path through the work
                 </h2>
               </div>
               <p className="max-w-xl text-sm font-mono text-text-secondary">
