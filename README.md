@@ -6,7 +6,7 @@ Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK
 
 One agent learns a site once. Every later agent gets the fast path.
 
-On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets.
+On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694).
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
@@ -90,6 +90,25 @@ The installer detects your platform, downloads the matching release tarball, ins
 
 For OpenClaw / `agent-browser` users, the plugin form is also still around — `npx unbrowse-openclaw install --restart` routes every `page.goto()` through Unbrowse — but it is no longer the primary install path.
 
+### Option 4 — Drop-in shim for an existing browser tool
+
+If you already have a codebase on Playwright, Firecrawl, or Browserbase Stagehand, change **one import line**:
+
+```diff
+- import { chromium } from 'playwright';
++ import { chromium } from '@unbrowse/playwright-shim';
+
+- import Firecrawl from '@mendable/firecrawl-js';
++ import Firecrawl from '@unbrowse/firecrawl-shim';
+
+- import { Stagehand } from '@browserbasehq/stagehand';
++ import { Stagehand } from '@unbrowse/stagehand-shim';
+```
+
+Every `goto / scrape / act / extract` short-circuits through the Unbrowse marketplace cache first. Cache hit → free synthesized response. Miss → falls through to the original library (kept as an optional peer dep) so your existing API key still works. **You pay the original vendor only when we miss.**
+
+Side-by-side on each: [/compare/playwright](https://unbrowse.ai/compare/playwright), [/compare/firecrawl](https://unbrowse.ai/compare/firecrawl), [/compare/browserbase](https://unbrowse.ai/compare/browserbase).
+
 ## How payments work
 
 Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route, every `unbrowse_search`, and any priced shortlist returned by `unbrowse_resolve` runs through the canonical [x402](https://www.x402.org) payment flow on Solana mainnet, settled via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview) (v6.16+). The server replies `402 Payment Required` with a Flex-shaped `accepts[]`; the client signs an off-chain Ed25519 authorization with their session key; the response carries the proof.
@@ -97,7 +116,7 @@ Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route
 You have three ways to pay:
 
 1. **Sponsored credit (default).** Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet — so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
-2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Splits live natively in every signed authorization: **50% to the indexer pool when no site owner has DNS-claimed the domain (35% once they do), 50% to the platform, and 15% earmarked for the site owner on claim** — up to 5 recipients per settlement. See [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md) for the canonical split.
+2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
 Payment architecture: [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
