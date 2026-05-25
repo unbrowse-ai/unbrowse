@@ -18,7 +18,7 @@ The seven dimensions:
 
 ## How it composes
 
-`harness/probes/corpus-dimensional.txt` tags each probe with its primary dimension. Lines marked `@class: antibot` are reported separately and do not count against the dimensional totals (their failure mode is a capability gap that the residential proxy fallback closes, not a dimensional one).
+`harness/probes/corpus-dimensional.txt` tags each probe with its primary dimension. Lines marked `@class: antibot` are reported separately and do not count against the dimensional totals (their failure mode is a capability gap that the residential proxy fallback closes, not a dimensional one). Lines marked `@class: auth-gated` are also reported separately because they require the user to have a valid cookie in the local vault; without one, the probe cannot honestly measure product capability and would otherwise inflate the dimensional FAIL count.
 
 `scripts/bench-dimensional-summary.sh` reads the corpus plus `.bench-local/results.jsonl`, joins by URL, and prints the per-axis pass-rate table:
 
