@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release from (e.g. v6.18.0). Used for re-running a release that queued against an offline runner."
+        required: true
+        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -18,12 +24,15 @@ env:
 jobs:
   upload-release-assets:
     name: Upload CLI Release Assets
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
       - name: Setup Bun (use pre-installed if available)
         run: |
           if command -v bun >/dev/null 2>&1; then
@@ -62,8 +71,8 @@ jobs:
       - run: bun install --frozen-lockfile
       # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs from
       # github.com/lekt9/kuri releases (prebuiltAssets URL) — no macos-latest
-      # runner needed. Linux/Windows targets cross-compile via zig from this
-      # self-hosted runner.
+      # runner needed. Linux/Windows targets cross-compile via zig (installed
+      # via mlugg/setup-zig above on github-hosted ubuntu-latest).
       - run: bash scripts/build-binaries.sh --all
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
@@ -91,7 +100,7 @@ jobs:
 
   verify-release-assets:
     name: Verify CLI Release Assets
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: upload-release-assets
     permissions:
       contents: read
@@ -109,7 +118,7 @@ jobs:
 
   publish-cli:
     name: Publish CLI (npm)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [verify-release-assets]
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
@@ -267,7 +276,7 @@ jobs:
 
   publish-sdk:
     name: Publish SDK (npm)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: publish-cli
     permissions:
       contents: read
@@ -365,7 +374,7 @@ jobs:
           exit "$STATUS"
   deploy-backend:
     name: Deploy Backend (CF Worker)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: publish-cli
     defaults:
       run:
@@ -390,7 +399,7 @@ jobs:
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: publish-cli
     defaults:
       run:
