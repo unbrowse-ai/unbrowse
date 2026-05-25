@@ -64,7 +64,7 @@ const faqJsonLd = {
       name: "How does the earnings flow work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Capture and indexing are free. Use Unbrowse normally; every shadow-API route you capture lands in the public marketplace. When the next agent reuses your route the call settles in USDC on Solana via Faremeter Flex, directly to your wallet. The sponsor tier covers an agent's first $1/day so they explore your routes before they spend their own. Set up Crossmint lobster.cash during `npx unbrowse setup` to wire the payout address.",
+        text: "Capture and indexing are free. Use Unbrowse normally; every shadow-API route you capture lands in the public marketplace. When another agent reuses your route, you get paid in USDC — settled on Solana via Faremeter Flex, directly to your wallet. The sponsor tier covers an agent's first $1/day so they explore your routes before they spend their own. Set up Crossmint lobster.cash during `npx unbrowse setup` to wire the payout address.",
       },
     },
     {
