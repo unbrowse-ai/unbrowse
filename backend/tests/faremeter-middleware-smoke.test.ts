@@ -24,6 +24,8 @@ import { describe, test, expect } from "bun:test";
 import { Hono } from "hono";
 import { hono as faremeterHono, common as faremeterCommon } from "@faremeter/middleware";
 
+const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 describe("@faremeter/middleware surface (Wave 2 spike)", () => {
   test("hono subpath exports createMiddleware", () => {
     expect(typeof faremeterHono.createMiddleware).toBe("function");
@@ -52,7 +54,7 @@ describe("@faremeter/middleware surface (Wave 2 spike)", () => {
             scheme: "exact",
             network: "solana-devnet",
             maxAmountRequired: "10000",
-            payTo: "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            payTo: PLATFORM_USDC_ATA,
             asset: "USDC",
             resource: "https://test/resource",
             description: "test",
@@ -94,7 +96,7 @@ describe("@faremeter/middleware surface (Wave 2 spike)", () => {
         {
           amount: "10000",
           asset: "USDC",
-          recipient: "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          recipient: PLATFORM_USDC_ATA,
           network: "solana-devnet",
           description: "Wave 2 spike paid resource",
         },
