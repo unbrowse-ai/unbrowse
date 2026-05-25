@@ -34,10 +34,10 @@ export function EarnSection() {
             </h2>
             <p className="text-sm sm:text-base text-text-secondary mt-4 max-w-2xl leading-relaxed">
               Capture and indexing are free. Use unbrowse normally; every
-              route you cache lands in the public marketplace. When the
-              <em> next</em> agent reuses your route, the call settles in
-              USDC on Solana via Faremeter Flex, directly to your wallet.
-              No API key billing, no Stripe dashboard.
+              route you cache lands in the public marketplace. When another
+              agent reuses your route, you get paid in USDC — settled on
+              Solana via Faremeter Flex, directly to your wallet. No API
+              key billing, no Stripe dashboard.
             </p>
             <p className="text-sm sm:text-base text-text-secondary mt-3 max-w-2xl leading-relaxed">
               The sponsor tier covers an agent&apos;s first <span className="text-orange-500 font-mono font-semibold tabular-nums">$1/day</span>, so
