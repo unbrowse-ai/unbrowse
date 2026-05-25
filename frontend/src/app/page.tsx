@@ -24,8 +24,6 @@ import { BenchmarkTable } from "@/components/benchmark-table";
 import { EarnSection } from "@/components/earn-section";
 import { UniversalProofBand } from "@/components/universal-proof-band";
 import { UseCasesBand } from "@/components/use-cases-band";
-import { AdoptersRail } from "@/components/adopters-rail";
-import { PreFooterCta } from "@/components/pre-footer-cta";
 import { getStatsSummary, type StatsSummary } from "@/lib/api";
 
 export const revalidate = 60;
@@ -198,25 +196,6 @@ export default function LandingPage() {
       />
       </div>
 
-      {/* HERO DEMO — ChatDemo promoted to centerpiece immediately after the
-          hero. Unicorn-landing pattern #4 ("Product in the hero"): show the
-          actual product, not an illustration. The full demo chapter
-          (id="demo") below keeps the deeper UnbrowseChatLive surface so
-          /playground keeps working. */}
-      <section
-        id="hero-demo"
-        aria-label="Live agent demo"
-        className="editions-shell"
-        style={{ paddingBlock: "clamp(2.5rem, 5vw, 4.5rem)" }}
-      >
-        <ChatDemo />
-      </section>
-
-      {/* ADOPTERS RAIL — social proof through scale, unicorn-landing
-          pattern #5. Real public adopters only; honesty rule lives in
-          adopters-rail.tsx. */}
-      <AdoptersRail />
-
       {/* 01 · THESIS — visual artifact is the ShadowFlow diagram */}
       <Chapter
         id="thesis"
@@ -299,21 +278,27 @@ export default function LandingPage() {
         </div>
       </Chapter>
 
-      {/* 05 · DEMO — live marketplace surface. The scripted ChatDemo lives
-          above the fold (id="hero-demo"); this chapter is the
-          anonymous-no-signup live resolve+execute against the real backend
-          so visitors can prove the claim themselves. */}
+      {/* 05 · DEMO — the demo IS the visual artifact (real chat surface) */}
       <Chapter
         id="demo"
         number="05"
         name="Demo"
-        title={<>Resolve against the live marketplace.</>}
-        lede="Type any URL. Watch the agent pick the right captured endpoint and execute. Anonymous, no signup."
+        title={<>Watch an agent book Airbnb without a browser.</>}
+        lede="One agent browses Airbnb. Every agent on the network can now search listings, check availability, and book."
       >
-        <UnbrowseChatLive />
-        <div className="mt-8 text-sm text-text-muted">
-          <code className="font-mono">POST /v1/search</code> against the real
-          backend. See the scripted Airbnb sequence at the top of the page.
+        <div className="space-y-16">
+          <ChatDemo />
+          <div>
+            <div className="mb-6 flex items-baseline justify-between gap-4 flex-wrap">
+              <h3 className="font-display text-2xl sm:text-3xl text-text-primary" style={{ letterSpacing: "-0.022em" }}>
+                Resolve against the live marketplace
+              </h3>
+              <p className="text-sm text-text-muted">
+                Anonymous, no signup. <code className="font-mono">POST /v1/search</code>.
+              </p>
+            </div>
+            <UnbrowseChatLive />
+          </div>
         </div>
       </Chapter>
 
@@ -332,10 +317,6 @@ export default function LandingPage() {
       >
         <ObjectionFaq />
       </Chapter>
-
-      {/* PRE-FOOTER CTA — unicorn-landing zero-friction second CTA right
-          before the inverse closing band. */}
-      <PreFooterCta />
 
       {/* CLOSING — inverse dark CTA band */}
       <Chapter

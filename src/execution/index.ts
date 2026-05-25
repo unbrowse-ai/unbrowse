@@ -5934,6 +5934,27 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // Meta/support/promo/config path patterns — not primary data
   const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding|public\/active|remoteConfig|banner\/metadata|embedded-wallets|glow\/get-rendered)/i;
 
+  // HOMEPAGE_INTENT — agent asked for the front/landing page of a site as a
+  // content surface (homepage, home, landing, frontpage). Distinct from
+  // LIST_INTENT (which encodes "search/list/find this kind of item"): the
+  // homepage intent is "show me the editorial front page" — articles,
+  // stories, news, posts, the things a human visiting the root URL would
+  // see. Not the admin/subscription/audience-management surfaces that
+  // happen to share the same domain.
+  const HOMEPAGE_INTENT = /\b(homepage|home page|home|landing|frontpage|front page|main page)\b/i;
+
+  // HOMEPAGE_META_PATHS — admin/subscription/management endpoints that
+  // sometimes rank above the real article/story/post endpoints on the same
+  // site because they have rich response schemas (audience CRUD, newsletter
+  // subscriptions, integration management). For HOMEPAGE_INTENT these are
+  // never what the agent asked for: the agent wants the editorial content,
+  // not the publisher's CRM. Demote unconditionally when intent is homepage.
+  // Triggered by axios.com probe: /api/audiences/newsletters (full audience
+  // CRUD shape) ranked above /articles and /stories for "axios homepage".
+  // Generic across publisher CMSs (Substack, Beehiiv, ConvertKit, Mailchimp,
+  // Ghost) — no per-host arm.
+  const HOMEPAGE_META_PATHS = /\/(audiences?|newsletters?|subscriptions?|subscribers?|webhooks?|integrations?|admin|management|members?\/manage|account\/(?:settings|billing|profile)|api\/v\d+\/(?:auth|login|signup|register|verify|invite)|forms?\/(?:edit|create|delete))\b/i;
+
   // Data format indicators
   const DATA_INDICATORS = /\.(json|xml|csv)(\?|$)|\/api\//i;
 
@@ -6469,6 +6490,16 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === Penalties ===
     if (META_PATHS.test(pathname)) score -= 15;
     if (DISCORD_META_PATHS.test(pathname)) score -= 35;
+    // HOMEPAGE_INTENT demotion: when the agent asked for the homepage /
+    // front page / landing content surface, admin/CRM/subscription paths
+    // are NEVER the answer. Demote hard enough to beat the structural
+    // bonuses an admin endpoint accumulates (rich response_schema → +20,
+    // /api/ prefix → +5, API subdomain + schema → +40). -200 puts it
+    // unambiguously below any /articles or /stories or /posts endpoint.
+    // Generic across publisher stacks — no per-host arm.
+    if (intent && HOMEPAGE_INTENT.test(intent) && HOMEPAGE_META_PATHS.test(pathname)) {
+      score -= 200;
+    }
     if (SESSION_PLUMBING.test(pathname) || SESSION_PLUMBING.test(ep.url_template)) score -= 30;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 40;
 
