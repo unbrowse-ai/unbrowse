@@ -84,6 +84,37 @@ export interface ContractEventRow {
   /** Optional budget — wave cap signal for sequence stages. */
   budget?: number;
 
+  /**
+   * Visibility class — controls who can READ this row via /v1/contract/status.
+   *
+   *   "lineage"    (default) — only callers carrying a wallet_identity whose
+   *                pubkey appears in this row's parent_signature lineage chain
+   *                can read. Outside the chain, /v1/contract/status returns
+   *                a synthetic empty {rows: []} (security-through-obscurity).
+   *   "public"     — anyone can read. Use for clearly-public truth claims
+   *                (audit probes, shared infrastructure, posted demos).
+   *   "marketplace" — listed in /v1/contract/plan-for-intent, callable from
+   *                any agent, but only after replication payment per
+   *                replicated_from_contract_id / replication_payment_scheme.
+   *
+   * Reality parallel: synaptic specificity. A neuron's content is not
+   * broadcast; only synaptic partners (typed edges) can receive. Outside the
+   * graph, the neuron's state is genuinely invisible — not encrypted, just
+   * not broadcast.
+   */
+  visibility?: "lineage" | "public" | "marketplace";
+
+  /**
+   * Ed25519 pubkey of the wallet that signed this declare. When set,
+   * subsequent /v1/contract/status reads from a caller carrying the same
+   * pubkey (or a descendant pubkey via parent_signature chain) succeed.
+   * Empty = anonymous declare (auto-coerced to visibility="public").
+   */
+  wallet_identity?: string;
+
+  /** Ed25519 signature over the canonical declare body, signed by wallet_identity. */
+  declare_signature?: string;
+
   // iterated-event fields
   /** Monotonic wave counter — increments per iterate. */
   wave?: number;
@@ -156,6 +187,48 @@ export interface ContractLedger extends ContractLedgerAppender, ContractLedgerRe
  * line 305-330. Exported for tests and for downstream consumers that
  * receive raw event arrays.
  */
+/**
+ * Lineage visibility check — given the declared row of a contract and the
+ * caller's wallet pubkey, can the caller READ this row?
+ *
+ *   - visibility="public"     → always yes
+ *   - visibility="marketplace" → yes (read is free; replication is paid separately)
+ *   - visibility="lineage" (default) → yes iff caller_pubkey appears on the
+ *     row's wallet_identity OR on any ancestor's wallet_identity reachable
+ *     via parent_id walk. Self-declared (wallet_identity unset / empty) rows
+ *     are treated as anonymous-public to preserve pre-visibility-field
+ *     backwards compat.
+ *
+ * Reality parallel: a neuron's content is visible to its presynaptic +
+ * postsynaptic partners; outside the synapse graph, the neuron is dark.
+ */
+export function isCallerInLineage(
+  declaredRow: ContractEventRow,
+  callerPubkey: string | null | undefined,
+  walkParent: (parentId: string) => ContractEventRow | null,
+): boolean {
+  const visibility = declaredRow.visibility ?? "lineage";
+  if (visibility === "public" || visibility === "marketplace") return true;
+  // Lineage mode. Pre-visibility rows with no wallet_identity are anonymous
+  // — treat as public to preserve back-compat. New rows carrying a wallet
+  // require the caller to match the chain.
+  const rowOwner = declaredRow.wallet_identity;
+  if (!rowOwner) return true;
+  if (!callerPubkey) return false;
+  if (rowOwner === callerPubkey) return true;
+  // Walk parent_id chain, checking each ancestor's wallet_identity.
+  let cursor: string | undefined = declaredRow.parent_id;
+  const seen = new Set<string>();
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const parent = walkParent(cursor);
+    if (!parent) break;
+    if (parent.wallet_identity === callerPubkey) return true;
+    cursor = parent.parent_id;
+  }
+  return false;
+}
+
 export function projectStatus(rows: ContractEventRow[]): "pending" | "active" | "satisfied" | "merged" {
   const hasMerged = rows.some((r) => r.event === "merged");
   if (hasMerged) return "merged";

@@ -96,3 +96,107 @@ describe("/v1/contract/* — wired Hono router", () => {
     expect((json as { error: string }).error).toContain("intent");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Lineage visibility — default-hidden outside the synapse graph (#32).
+// Tests are written against handleStatus directly so a shared ledger can
+// persist the declared row across the declare + status calls (the wired
+// route uses ephemeralLedger() — per-request reset — by design today).
+// ---------------------------------------------------------------------------
+import { handleDeclare, handleStatus } from "../src/routes/contract";
+import type { ContractLedger, ContractEventRow } from "../src/services/contract-ledger";
+
+function memLedger(): ContractLedger {
+  const rows: ContractEventRow[] = [];
+  return {
+    async append(row) {
+      const stamped = { ...row, ts: row.ts || new Date().toISOString() };
+      rows.push(stamped);
+      return stamped;
+    },
+    async get(id) {
+      const hit = rows.filter((r) => r.id === id);
+      return hit.length ? hit : null;
+    },
+    async listAll() {
+      return rows.slice();
+    },
+    async listChildren(parentId) {
+      return rows.filter((r) => r.parent_id === parentId);
+    },
+  };
+}
+
+describe("lineage visibility — #32", () => {
+  test("anonymous declare (no wallet) is auto-public — readable by anyone", async () => {
+    const ledger = memLedger();
+    const { id, row } = await handleDeclare(
+      { plan: "anonymous probe", action: "neuron" },
+      ledger,
+    );
+    expect(row.visibility).toBe("public");
+    // Caller without a pubkey can still read it
+    const res = await handleStatus(id, ledger);
+    expect(res.rows.length).toBeGreaterThan(0);
+    expect(res.rows[0]?.plan).toBe("anonymous probe");
+  });
+
+  test("wallet-bound declare defaults to lineage — hidden from outsiders", async () => {
+    const ledger = memLedger();
+    const ownerPubkey = "owner1234567890abcdef";
+    const { id, row } = await handleDeclare(
+      { plan: "secret plan", action: "neuron", wallet_identity: ownerPubkey },
+      ledger,
+    );
+    expect(row.visibility).toBe("lineage");
+    // Outsider sees synthetic empty (status: pending, rows: [])
+    const outsider = await handleStatus(id, ledger, { caller_pubkey: "stranger" });
+    expect(outsider.status).toBe("pending");
+    expect(outsider.rows).toEqual([]);
+    // Owner sees the real row
+    const owner = await handleStatus(id, ledger, { caller_pubkey: ownerPubkey });
+    expect(owner.rows.length).toBeGreaterThan(0);
+    expect(owner.rows[0]?.plan).toBe("secret plan");
+  });
+
+  test("explicit visibility=public is readable without a pubkey", async () => {
+    const ledger = memLedger();
+    const { id } = await handleDeclare(
+      {
+        plan: "deliberate broadcast",
+        action: "neuron",
+        wallet_identity: "owner",
+        visibility: "public",
+      },
+      ledger,
+    );
+    const res = await handleStatus(id, ledger);
+    expect(res.rows.length).toBeGreaterThan(0);
+    expect(res.rows[0]?.plan).toBe("deliberate broadcast");
+  });
+
+  test("descendant inherits visibility via parent_id walk", async () => {
+    const ledger = memLedger();
+    const parentPubkey = "parent-owner";
+    const { id: parentId } = await handleDeclare(
+      { plan: "parent organ", action: "funnel", wallet_identity: parentPubkey },
+      ledger,
+    );
+    const { id: childId, row: childRow } = await handleDeclare(
+      {
+        plan: "child cell",
+        action: "neuron",
+        parent_id: parentId,
+        wallet_identity: "child-owner",
+      },
+      ledger,
+    );
+    expect(childRow.visibility).toBe("lineage");
+    // Parent-owner can read child via lineage walk
+    const asParent = await handleStatus(childId, ledger, { caller_pubkey: parentPubkey });
+    expect(asParent.rows.length).toBeGreaterThan(0);
+    // Stranger cannot
+    const stranger = await handleStatus(childId, ledger, { caller_pubkey: "rando" });
+    expect(stranger.rows).toEqual([]);
+  });
+});
