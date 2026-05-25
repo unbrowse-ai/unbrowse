@@ -42,20 +42,34 @@ When the user sets `UNBROWSE_KURI_PROXY=auto` but the credentials are missing:
 
 This is the honest mode of the bridge: it tells the user the toggle was on but the credentials were missing, instead of silently routing direct.
 
-## How managed Chrome is forced (and the auth caveat)
+## How managed Chrome is forced
 
-CDP cannot retrofit a proxy onto a Chrome process that was already launched without one. When the bridge wires a proxy, it tries to set `KURI_DISABLE_CDP_ATTACH=1` so the Unbrowse launcher starts a new managed Chrome that actually receives the `--proxy-server` flag.
+CDP cannot retrofit a proxy onto a Chrome process that was already launched without one. The bridge sets `KURI_DISABLE_CDP_ATTACH=1` automatically when it wires a proxy, so the Unbrowse launcher starts a new managed Chrome instead of attaching to whatever Chrome the user already has open.
 
-There is one honest exception. Chrome's `--proxy-server` flag does not accept inline credentials (`user:pass@host:port`); a URL in that shape returns `ERR_NO_SUPPORTED_PROXIES` on every navigation. When the bridge detects inline credentials in the proxy URL, it does not force managed Chrome. It logs the limitation to stderr so the operator knows the wire-up is partial:
+## How auth proxies work (the local forwarder)
+
+Chrome's `--proxy-server` flag rejects URLs with inline credentials (`user:pass@host:port`) with `ERR_NO_SUPPORTED_PROXIES`. Because most residential pools (including IPRoyal) require auth, the bridge bridges Chrome to the authenticated upstream through a local TCP forwarder.
+
+The mechanics:
+
+1. Bridge detects the proxy URL has inline credentials.
+2. Bridge spawns `scripts/local-proxy-auth-forwarder.py` with the upstream URL as an argument and a `--ready-file` pointer.
+3. The forwarder listens on a kernel-picked localhost port, writes `port=<N>\n` to the ready file, then accepts unauthenticated connections.
+4. Bridge polls the ready file (up to 3s), reads the port, sets `KURI_PROXY=http://127.0.0.1:<port>`, and forces managed Chrome.
+5. Chrome accepts the localhost URL (no inline auth), connects to the forwarder. On every outbound, the forwarder injects `Proxy-Authorization: Basic <base64>` and forwards to the upstream.
+6. Upstream returns residential traffic to Chrome.
+
+The forwarder is detached from the parent process, so it survives the bridge's own exit; it cleans up when the standard `pkill` set runs (or when its parent kuri broker shuts down).
 
 ```
-[kuri-proxy] proxy has inline credentials; Chrome --proxy-server rejects auth-in-URL.
-Not forcing managed Chrome (proxy applies only when kuri launches its own browser for other reasons).
+[kuri-proxy] auth-forwarder bridged: Chrome connects to http://127.0.0.1:51284 (unauth),
+forwarder injects Proxy-Authorization to upstream. Chrome accepts the unauth localhost
+URL where it rejected inline-auth.
 ```
 
-In this state, the bridge still sets `KURI_PROXY`. When kuri launches managed Chrome for other reasons (no user Chrome to attach to, or `KURI_DISABLE_CDP_ATTACH=1` already in env), the proxy is passed through. When kuri attaches to user Chrome, the proxy is not applied for that session.
+Credentials never appear in the Chrome launch arguments or in the `KURI_PROXY` env that kuri's Zig binary sees. They live only inside the forwarder's memory and in the Proxy-Authorization header on outbound TCP.
 
-The proper fix is a future `KURI_PROXY_USERNAME` / `KURI_PROXY_PASSWORD` env that kuri injects via a PAC script or basic-auth extension, so credentials never travel in the URL. Until that ships, an unauthenticated proxy URL gives the bridge full effect, and an authenticated one gives partial effect with an honest stderr line.
+The forwarder is the L0 wedge. The longer-term path is a Zig-native HTTP/2 stack with auth-aware proxy support baked directly into the kuri binary (`DEFERRED-KURI-FORK-FIRST-PRINCIPLES`); when that ships, the forwarder becomes obsolete.
 
 ## What this rules out
 
