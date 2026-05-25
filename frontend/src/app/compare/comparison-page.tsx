@@ -86,7 +86,7 @@ export function ComparisonPage({ slug }: { slug: string }) {
         name: `What is the difference between Unbrowse and ${competitor.name}?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `${competitor.what} Unbrowse takes a fundamentally different approach: it reverse-engineers the internal APIs websites already use and lets AI agents call them directly. In benchmarks across 94 domains, Unbrowse is 3.6x faster (mean) and uses 40x fewer tokens than browser automation.`,
+          text: `${competitor.what} Unbrowse takes a fundamentally different approach: it learns reusable route metadata from websites and lets AI agents call those routes directly. In benchmarks across 94 domains, Unbrowse is 3.6x faster (mean) and uses 40x fewer tokens than browser automation.`,
         },
       },
       {
@@ -259,8 +259,8 @@ export function ComparisonPage({ slug }: { slug: string }) {
               out the translation entirely.
             </p>
             <p>
-              Unbrowse captures those internal endpoints from one real browsing
-              session, reverse-engineers their schemas and auth, and stores them
+              Unbrowse learns those internal endpoints from one real browsing
+              session, extracts reusable route metadata, and stores them
               as reusable skills in a shared marketplace of 600+ domains and
               18,000+ endpoints. The next call from any agent skips discovery
               and runs as a direct HTTP request, returning JSON in roughly 200

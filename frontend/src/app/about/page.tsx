@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const CANONICAL = "https://www.unbrowse.ai/about";
-const TITLE = "About Unbrowse — the team building the agentic-internet substrate";
+const TITLE = "About Unbrowse — the team building the agentic web route graph";
 const DESCRIPTION =
   "Unbrowse AI Pte. Ltd. is a Singapore company building an open-source protocol that lets AI agents call any website's internal APIs directly. Co-authored research with the NUS School of Computing. NVIDIA Inception member.";
 
@@ -30,7 +30,7 @@ const AUTHORS = [
   {
     name: "Lewis Tham",
     role: "Founder · Unbrowse AI",
-    bio: "Building the substrate that lets agents call internal APIs directly. Co-author of \"Internal APIs Are All You Need\" (arXiv:2604.00694). Singapore-based.",
+    bio: "Building the route graph that lets agents call internal APIs directly. Co-author of \"Internal APIs Are All You Need\" (arXiv:2604.00694). Singapore-based.",
     sameAs: ["https://x.com/lekt8_", "https://github.com/lekt9"],
     image: "https://www.unbrowse.ai/lewis.png",
   },
@@ -103,7 +103,7 @@ export default function AboutPage() {
 
       <h1 className="text-4xl font-bold tracking-tight mb-3 animate-fade-up">About Unbrowse</h1>
       <p className="text-text-secondary text-lg mb-10 leading-relaxed animate-fade-up stagger-1">
-        Unbrowse is the substrate AI agents use to call internal APIs directly — replacing brittle headless
+        Unbrowse is the route layer AI agents use to call internal APIs directly — replacing brittle headless
         browsers with shared, reusable skills. Built by{" "}
         <strong className="text-text-primary">Unbrowse AI Pte. Ltd.</strong> in Singapore, with research
         co-authored at the National University of Singapore School of Computing.

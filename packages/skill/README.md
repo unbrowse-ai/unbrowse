@@ -1,6 +1,6 @@
 # Unbrowse
 
-> Skill, MCP server, SDK, CLI — four surfaces on one substrate. `SKILL.md` is back in this package; the MCP block below still works as the canonical agent path. Pick what your host supports.
+> Skill, MCP server, SDK, CLI — four ways to use the same local runtime. `SKILL.md` is back in this package; the MCP block below still works as the canonical agent path. Pick what your host supports.
 >
 > ```json
 > {
@@ -17,13 +17,13 @@
 
 This package installs the `unbrowse` CLI.
 
-Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns any website into a reusable API interface for agents. It captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
+Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns websites into reusable API routes for agents. It learns callable routes from explicit browsing sessions, keeps credentials local, and shares only sanitized route metadata when you publish.
 
 One agent learns a site once. Every later agent gets the fast path.
 
 Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned routes are published to the shared marketplace only after an explicit publish checkpoint.
 ## MCP server
 
 Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
@@ -63,12 +63,12 @@ curl -fsSL https://unbrowse.ai/install.sh | sh
 That installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
 
 ```bash
-# Deterministic setup from a repo clone
-git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
-cd ~/unbrowse && ./setup --host off
+# Deterministic npm setup
+npm install -g unbrowse
+unbrowse setup
 ```
 
-`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and wallet detection when present.
+`unbrowse setup` runs the first-time bootstrap: ToS acceptance, agent registration + API-key caching, and wallet detection when present.
 
 If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
@@ -89,8 +89,7 @@ On supported platforms, install now fails fast if the matching GitHub release as
 For generic MCP hosts:
 
 ```bash
-git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
-cd ~/unbrowse && ./setup --host mcp
+npx unbrowse setup --mcp
 ```
 
 That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
@@ -98,7 +97,7 @@ That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.jso
 If your agent host uses skills:
 
 ```bash
-npx skills add unbrowse-ai/unbrowse
+npm install -g unbrowse
 ```
 
 ## Upgrading
@@ -179,7 +178,7 @@ The dependency graph is not just API-to-API. On JS-heavy checkout flows it also 
 
 - First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.
 - For website tasks, keep the agent on Unbrowse instead of letting it drift into generic web search or ad hoc `curl`.
-- Reddit is still a harder target than most sites because of anti-bot protections. Prefer canonical `.json` routes when available.
+- Some sites are harder targets than others. Prefer documented JSON routes when a site offers them.
 
 ## Help shape the next eval
 
@@ -189,20 +188,20 @@ If you tried Unbrowse on a site or API and could not get it to work, add it to [
 
 The synced skill repo also carries the public docs set:
 
-- [Quickstart](./docs/guides/quickstart.md)
-- [API reference](./docs/api.md)
-- [Deployment guide](./docs/deployment.md)
-- [Release checklist](./docs/RELEASING.md)
+- [Quickstart](https://docs.unbrowse.ai/guides/quickstart)
+- [Agent workflow](https://docs.unbrowse.ai/for-agents/how-an-agent-uses-unbrowse)
+- [Integration surfaces](https://docs.unbrowse.ai/for-developers/integration-surfaces)
+- [Payment model](https://docs.unbrowse.ai/HOW_UNBROWSE_PAYS)
 
 Whitepaper companion docs:
 
-- [Whitepaper companion index](./docs/whitepaper/README.md)
-- [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
-- [For Investors](./docs/whitepaper/for-investors.md)
+- [Whitepaper companion index](https://docs.unbrowse.ai/whitepaper/)
+- [For Technical Readers](https://docs.unbrowse.ai/whitepaper/for-technical-readers)
+- [For Investors](https://docs.unbrowse.ai/whitepaper/for-investors)
 
 ## How it works
 
-When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.
+When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse can open a local browser session, learn reusable route metadata, and publish it only after the configured checkpoint.
 
 Every learned skill becomes discoverable by every future agent. Reliability scoring, feedback, schema drift, and verification keep the good paths hot and the broken ones out of the way.
 
@@ -212,7 +211,7 @@ When you call `POST /v1/intent/resolve`, the orchestrator follows this priority 
 
 1. **Route cache** (5-min TTL) — instant hit if the same intent was recently resolved
 2. **Marketplace search** — semantic vector search ranked by composite score: 40% embedding similarity + 30% reliability + 15% freshness + 15% verification status
-3. **Live capture** — headless browser records network traffic, reverse-engineers API endpoints, publishes a new skill
+3. **Local browser session** — the runtime observes allowed requests, indexes reusable route metadata, and can publish a new skill after review
 4. **DOM fallback** — if no API endpoints are found (static/SSR sites), structured data is extracted from rendered HTML
 
 Skills published by live capture become available to all agents on the network.
@@ -239,15 +238,15 @@ A background verification loop runs every 6 hours, executing safe (GET) endpoint
 
 ## Authentication for gated sites
 
-For most sites, auth is automatic. If you're logged into a site in Chrome or Firefox, Unbrowse reads your cookies directly from the browser's SQLite database — no extra steps needed. Cookies are resolved fresh on every call, so sessions stay current. For Chromium-family apps and Electron shells, `/v1/auth/steal` also accepts a custom cookie DB path or user-data dir plus an optional macOS Safe Storage service name.
+For most sites, sign-in works from your existing local browser session or from an interactive login window. Sessions stay on your machine and are reused only by your local runtime.
 
 | Strategy            | How it works                                       | When to use                                          |
 | ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
-| Auto cookie resolve | Reads cookie DBs from Chrome/Firefox automatically | Default — works if you're logged in via your browser |
+| Local session reuse | Uses your existing local browser session | Default — works if you're logged in via your browser |
 | Yolo mode           | Opens Chrome with your real profile                | Sites with complex auth (OAuth popups, 2FA)          |
 | Interactive login   | Opens a headed browser for manual login            | Fallback when auto-resolve has no cookies            |
 
-Auth headers (CSRF tokens, API keys, authorization headers) are captured during browsing and stored in an encrypted vault (`~/.unbrowse/vault/`). Server-side fetches replay these headers automatically — no browser launch needed. Cross-domain auth (e.g. lu.ma cookies working on api2.luma.com) is handled transparently. Stale credentials (401/403 responses) are auto-deleted.
+Authentication material stays local, is stored encrypted, and is automatically refreshed or discarded when a site rejects it. The marketplace receives route metadata, not your private session.
 
 ## Mutation safety
 
@@ -268,7 +267,7 @@ See the public API reference below for endpoints, search, feedback, auth, and is
 | POST   | `/v1/intent/resolve`     | Search marketplace, capture if needed, execute |
 | POST   | `/v1/skills/:id/execute` | Execute a specific skill                       |
 | POST   | `/v1/auth/login`         | Interactive browser login                      |
-| POST   | `/v1/auth/steal`         | Import cookies from browser/Electron storage   |
+| POST   | `/v1/auth/import`        | Import a local browser session                 |
 | POST   | `/v1/search`             | Semantic search across all domains             |
 | POST   | `/v1/search/domain`      | Semantic search scoped to a domain             |
 | POST   | `/v1/feedback`           | Submit feedback (affects reliability scores)   |
@@ -282,11 +281,10 @@ See the public API reference below for endpoints, search, feedback, auth, and is
 
 The standalone skill repo also carries the core repo docs:
 
-- [Quickstart guide](./docs/guides/quickstart.md)
-- [API notes](./docs/api.md)
-- [Codex eval harness](./docs/codex-eval-harness.md)
-- [Deployment notes](./docs/deployment.md)
-- [Release checklist](./docs/RELEASING.md)
+- [Quickstart guide](https://docs.unbrowse.ai/guides/quickstart)
+- [Agent workflow](https://docs.unbrowse.ai/for-agents/how-an-agent-uses-unbrowse)
+- [Integration surfaces](https://docs.unbrowse.ai/for-developers/integration-surfaces)
+- [Payment model](https://docs.unbrowse.ai/HOW_UNBROWSE_PAYS)
 
 ## Configuration
 
@@ -294,8 +292,7 @@ The standalone skill repo also carries the core repo docs:
 
 ```
 ~/.unbrowse/config.json                # API key, agent ID, registration
-~/.unbrowse/vault/credentials.enc      # Encrypted credential store
-~/.unbrowse/vault/.key                 # Encryption key (mode 0o600)
+~/.unbrowse/vault/                     # Encrypted local credential store
 ~/.unbrowse/skill-cache/               # Local skill manifest cache
 ~/.unbrowse/profiles/<domain>/         # Per-domain Chrome profiles
 ~/.unbrowse/logs/unbrowse-YYYY-MM-DD.log  # Daily logs
@@ -321,13 +318,13 @@ src/
 ├── api/routes.ts         # HTTP route definitions
 ├── orchestrator/         # Intent resolution pipeline
 ├── execution/            # Skill/endpoint execution + retry logic
-├── capture/              # Headless browser traffic recording
-├── reverse-engineer/     # HAR parsing → endpoint extraction
+├── capture/              # Local browser session recording
+├── route-indexing/       # Captured requests → reusable route metadata
 ├── extraction/           # DOM structured data extraction
 ├── marketplace/          # Backend API client (beta-api.unbrowse.ai)
 ├── client/               # Agent registration & config management
-├── auth/                 # Interactive login + cookie extraction
-├── vault/                # Encrypted credential storage (AES-256-CBC)
+├── auth/                 # Interactive login + local session reuse
+├── vault/                # Encrypted credential storage
 ├── transform/            # Field projection + schema drift detection
 ├── verification/         # Periodic endpoint health checks
 ├── ratelimit/            # Request throttling

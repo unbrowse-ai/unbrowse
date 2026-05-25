@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+### Public docs and SDK metadata audit (2026-05-25)
+
+**docs**: cleaned stale public SDK/version/install copy across README, SDK docs,
+frontend pages, llms.txt, and npm package metadata. Added
+`scripts/audit-public-docs.sh` to catch stale SDK version pins, legacy install
+commands, broken public README links, and internal implementation/moat wording
+before those surfaces drift again.
+
 ### Blog index gains a guided reading path (2026-05-25)
 
 **fix(frontend)**: `/blog` now surfaces a six-step "Start here" path over the

@@ -179,7 +179,7 @@ Once you've built something on Unbrowse, where does it ship?
 
 1. **As an npm package** that depends on `@unbrowse/sdk`. Standard.
 2. **As an MCP server** so any Claude Code / Cursor / etc. user can mount your wrapper. The Unbrowse runtime already speaks MCP via `unbrowse mcp`; you can layer your own MCP server on top.
-3. **As an OpenClaw plugin** so the agent's default browser auto-routes through your wrapper. See `openclaw` metadata in [SKILL.md](../../packages/skill/SKILL.md).
+3. **As an OpenClaw plugin** so the agent's default browser auto-routes through your wrapper. See `openclaw` metadata in [the packaged skill manifest](../../packages/skill/SKILL.md).
 4. **As a hosted endpoint** (your service runs Unbrowse, exposes a thin API to your customers). The SDK runs server-side fine.
 
 ## See also
