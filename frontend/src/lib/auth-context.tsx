@@ -27,6 +27,7 @@ interface AuthContextValue extends AuthState {
   }) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  hydrated?: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

@@ -693,6 +693,42 @@ export async function getAccountPreferences(): Promise<AccountPreferences | null
   return authRequestOrAccountRequired<AccountPreferences>("/v1/account/preferences");
 }
 
+// ─── Telemetry recent failures (ops/funnel-failures dashboard) ───────
+// Pre-existing import surface used by the admin ops dashboard. Stubbed
+// here in the Wave-1 editions rebuild so the build proceeds; backend
+// route /v1/ops/telemetry/recent-failures may not yet exist.
+export type TelemetryFailureRow = {
+  session_id?: string;
+  received_at: string;
+  intent?: string;
+  url?: string;
+  last_tool?: string;
+  error_class?: string;
+  platform?: string;
+  mcp_version?: string;
+  [key: string]: unknown;
+};
+
+export async function getTelemetryRecentFailures(opts: {
+  limit?: number;
+  sinceIsoUtc?: string;
+} = {}): Promise<{ failures: TelemetryFailureRow[] }> {
+  const apiKey = readStoredAuth()?.apiKey ?? null;
+  const headers: Record<string, string> = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const qs = new URLSearchParams();
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  if (opts.sinceIsoUtc) qs.set("since", opts.sinceIsoUtc);
+  const res = await fetch(
+    `${API_URL}/v1/ops/telemetry/recent-failures?${qs}`,
+    { headers, signal: AbortSignal.timeout(12000) },
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as
+    | { failures?: TelemetryFailureRow[]; rows?: TelemetryFailureRow[] };
+  return { failures: data.failures ?? data.rows ?? [] };
+}
+
 export async function updateAccountPreferences(
   patch: Partial<AccountPreferences>,
 ): Promise<AccountPreferences> {
