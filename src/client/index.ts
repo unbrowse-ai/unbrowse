@@ -712,7 +712,12 @@ async function apiRequest<T = unknown>(
         provider === "circle_usdc" ||
         provider === "venice_x402" ||
         provider === "moonpay_x402" ||
-        provider === "bankr_sdk"
+        provider === "bankr_sdk" ||
+        provider === "agentcash_dev" ||
+        provider === "corbits_onramp" ||
+        provider === "ruflo_agentic" ||
+        provider === "stellar_agentic" ||
+        provider === "coinbase_monetize"
       ) {
         // Generic x402 adapter dispatch — per contract f5d491b1
         // (WALLET-ADAPTER-EXPANSION-FANOUT). One factory handles 7
