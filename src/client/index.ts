@@ -689,13 +689,40 @@ async function apiRequest<T = unknown>(
         }
       } else if (provider === "privy_embedded") {
         // Per contract fc998ae9 (PRIVY-SECOND-FOR-EMBEDDED-WALLET-AGENTS):
-        // when user has explicitly chosen Privy embedded wallet, route x402
-        // settlement through the Privy adapter (backend holds the app
-        // secret + the user's embedded Solana PDA signer).
         const { isPrivyAvailable, payAndRetryPrivy } = await import("../payments/privy-pay.js");
         if (isPrivyAvailable()) {
           const fullUrl = `${API_URL}${path}`;
           const paidResult = await payAndRetryPrivy<T>(fullUrl, {
+            body,
+            headers: {
+              "Content-Type": "application/json",
+              "Accept-Encoding": "gzip, deflate",
+              ...releaseAttestationHeaders,
+              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            },
+          });
+          if (paidResult) {
+            return { data: paidResult.data, headers: new Headers() };
+          }
+        }
+      } else if (
+        provider === "fluxa_agent" ||
+        provider === "coinbase_agentic" ||
+        provider === "okx_onchainos" ||
+        provider === "circle_usdc" ||
+        provider === "venice_x402" ||
+        provider === "moonpay_x402" ||
+        provider === "bankr_sdk"
+      ) {
+        // Generic x402 adapter dispatch — per contract f5d491b1
+        // (WALLET-ADAPTER-EXPANSION-FANOUT). One factory handles 7
+        // providers via PROVIDER_REGISTRY; backend endpoints marked TBD
+        // per c0c089e2 — adapters fall through to next provider on 404.
+        const { adapterByName } = await import("../payments/generic-x402-adapter.js");
+        const adapter = adapterByName(provider);
+        if (adapter && adapter.isAvailable()) {
+          const fullUrl = `${API_URL}${path}`;
+          const paidResult = await adapter.payAndRetry<T>(fullUrl, {
             body,
             headers: {
               "Content-Type": "application/json",
