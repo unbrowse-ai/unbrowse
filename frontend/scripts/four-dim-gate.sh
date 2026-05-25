@@ -312,9 +312,18 @@ from urllib.parse import urljoin
 
 cand_url, base_url, bench = sys.argv[1], sys.argv[2], sys.argv[3]
 
-# Load-bearing phrases that MUST appear in candidate landing HTML
+# Load-bearing phrases that MUST appear in candidate landing HTML.
+# Updated 2026-05-26 (Banger Wave 1): the locked H1 "Direct access to
+# anything on the web. Without setting up another MCP." was replaced by
+# the unicorn-landing-audit-driven category claim "The API layer for AI
+# agents." The audit lives at .editions-evidence/UNICORN-AUDIT.md and
+# the change is explicitly NOT a regression — it's a category-defining
+# headline per the 11-unicorn-pattern rubric. The numbers, settlement
+# chain, install command, and github pointer remain the load-bearing
+# substrate; those still gate.
 REQUIRED = [
-    "Direct access to anything on the web",
+    "The API layer for AI agents",
+    "shadow API",
     "3.6x",
     "5.4x",
     "Solana via Faremeter Flex",
