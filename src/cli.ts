@@ -34,7 +34,7 @@ import {
 } from "./client/index.js";
 import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } from "./impact-log.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
-import { checkServerVersion, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
+import { checkServerVersion, ensureLocalServer, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
 import { getInProcessApp } from "./runtime/in-process-app.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
@@ -65,6 +65,15 @@ const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
 const FRONTEND_URL = (process.env.UNBROWSE_FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL || "https://www.unbrowse.ai").replace(/\/+$/, "");
 let walletNudgeShown = false;
+
+function baseUrlIsLocalhost(): boolean {
+  try {
+    const host = new URL(BASE_URL).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Background-queue sweep (opportunistic) + hidden __drain-queue verb
@@ -1510,6 +1519,26 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
       "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
     );
+
+    if (
+      result?.error === "Skill not found"
+      && typeof flags.url === "string"
+      && typeof (flags.intent ?? flags.task) === "string"
+    ) {
+      const fallbackBody: Record<string, unknown> = {
+        intent: flags.intent ?? flags.task,
+        params: {
+          ...(body.params as Record<string, unknown>),
+          url: flags.url,
+        },
+        context: { url: flags.url },
+        projection: { raw: true },
+      };
+      result = await withPendingNotice(
+        api("POST", "/v1/intent/resolve", fallbackBody) as Promise<Record<string, unknown>>,
+        "Still working. Re-resolving this marketplace skill against the supplied URL context.",
+      );
+    }
 
     if (isResolveSuccessResult(result)) {
       await recordFunnelTelemetryEvent("resolve_completed", {
@@ -4502,7 +4531,11 @@ async function main(): Promise<void> {
   if (!KNOWN_COMMANDS.has(command)) {
     const pack = findSitePack(command);
     if (pack) {
-      if (!process.env.UNBROWSE_URL) await getInProcessApp();
+      if (process.env.UNBROWSE_URL && baseUrlIsLocalhost()) {
+        await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      } else if (!process.env.UNBROWSE_URL) {
+        await getInProcessApp();
+      }
       const taskName = args[0];
       if (!taskName || taskName === "help") {
         return cmdSiteHelp(pack, flags);
@@ -4518,7 +4551,11 @@ async function main(): Promise<void> {
     }
   }
 
-  if (!process.env.UNBROWSE_URL) await getInProcessApp();
+  if (process.env.UNBROWSE_URL && baseUrlIsLocalhost()) {
+    await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+  } else if (!process.env.UNBROWSE_URL) {
+    await getInProcessApp();
+  }
 
   switch (command) {
     case "health": return cmdHealth(flags);
@@ -4640,15 +4677,19 @@ if (isMainModule(import.meta.url)) {
   // Drains run on best-effort terms. A stalled background job MUST NOT
   // hang CLI exit — same bug class as the previously-fixed inline
   // telemetry await (project_cli_resolve_exit_hang). Both drains race
-  // against a hard 8s timeout; if a drain doesn't settle, the CLI
-  // exits anyway and the pending work resumes in the next invocation.
+  // against a short timeout; if a drain doesn't settle, the CLI exits
+  // anyway and the pending work resumes in the next invocation.
+  const exitDrainBudgetMs = Math.max(
+    250,
+    Number.parseInt(process.env.UNBROWSE_EXIT_DRAIN_BUDGET_MS ?? "1500", 10) || 1500,
+  );
   const drainWithTimeout = (label: string, p: Promise<void>): Promise<void> =>
     Promise.race([
       p,
       new Promise<void>((resolve) => setTimeout(() => {
-        process.stderr.write(`[exit] ${label} drain exceeded 8s budget — exiting anyway\n`);
+        process.stderr.write(`[exit] ${label} drain exceeded ${exitDrainBudgetMs}ms budget — exiting anyway\n`);
         resolve();
-      }, 8000)),
+      }, exitDrainBudgetMs)),
     ]);
 
   main()

@@ -99,6 +99,9 @@ function isCitationLike(pathPart: string): boolean {
   // Reject the .well-known prefix and `_unbrowse-claim.<domain>` patterns
   // which match the regex but are DNS/spec references.
   if (pathPart.startsWith(".well-known")) return false;
+  // Private local agent references are allowed in internal planning docs but
+  // are not portable repo artifacts in CI.
+  if (pathPart.startsWith(".claude/")) return false;
   if (pathPart.startsWith("_unbrowse-claim.")) return false;
   return true;
 }

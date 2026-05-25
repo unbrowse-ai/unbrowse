@@ -9,13 +9,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@unbrowse/extraction-core": "workspace:*",
     "@faremeter/flex-solana": "^0.2.1",
     "@faremeter/middleware": "^0.21.0",
     "@faremeter/payment-solana": "^0.21.0",
     "@faremeter/types": "^0.21.0",
     "@logtape/logtape": "^2.0.7",
     "@neondatabase/serverless": "^1.0.2",
+    "@unbrowse/extraction-core": "workspace:*",
     "@solana-program/token": "^0.13.0",
     "@solana/kit": "^6.7.0",
     "@x402/core": "^2.12.0",

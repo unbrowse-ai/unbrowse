@@ -277,9 +277,9 @@ describe("flex-facilitator — Day 5 createFlexFacilitator", () => {
 describe("flex-facilitator — Day 3 helpers preserved", () => {
   test("platformRecipientUsdcAta returns trimmed ATA", () => {
     const env = makeEnv({
-      FLEX_PLATFORM_RECIPIENT_USDC_ATA: "  PlatformAta22222222222222222222222222222222  ",
+      FLEX_PLATFORM_RECIPIENT_USDC_ATA: "  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  ",
     });
-    expect(platformRecipientUsdcAta(env)).toBe("PlatformAta22222222222222222222222222222222");
+    expect(platformRecipientUsdcAta(env)).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
   });
 
   test("platformRecipientUsdcAta throws on empty", () => {
