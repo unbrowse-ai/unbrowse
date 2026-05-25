@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+### Billing roadblocks become machine-readable (2026-05-25)
+
+**feat(backend)**: added `/v1/billing/topup-needed` as an authenticated
+ROADBLOCK REQUIRED surface for payment blockers. It returns structured render
+hints for Telegram, web, and terminal clients when Flex onboarding is missing,
+the worker is on testnet while a mainnet endpoint is requested, or a
+caller-supplied wallet balance is below threshold.
+
 ### Faremeter Flex three-recipient `createUptoHandler` wiring (2026-05-25)
 
 **feat(flex)**: ship `backend/src/services/flex-upto-handler.ts` —
