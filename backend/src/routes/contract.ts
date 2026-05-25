@@ -23,7 +23,7 @@ import type {
   ContractPointerType,
   SatisfiedCellMatch,
 } from "../services/contract-ledger";
-import { projectStatus, searchSatisfiedCells } from "../services/contract-ledger";
+import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
 
 // ---------------------------------------------------------------------------
 // Request / response shapes — the wire contract between thin client and cloud.
@@ -39,6 +39,20 @@ export interface DeclareRequest {
   parent_id?: string;
   agent?: string;
   learning?: string;
+  /**
+   * Visibility class — see ContractEventRow.visibility. Default = "lineage"
+   * (only lineage-chain callers can read via /v1/contract/status). Public
+   * surfaces explicitly set "public" or "marketplace".
+   *
+   * Backwards compat: when the caller omits both wallet_identity AND
+   * visibility, the row is treated as anonymous-public so unsigned writes
+   * (pre-#33-signed-declare) don't lock themselves out.
+   */
+  visibility?: "lineage" | "public" | "marketplace";
+  /** Ed25519 pubkey (hex) — binds this declare to a callable identity. */
+  wallet_identity?: string;
+  /** Ed25519 signature over the canonical declare body, signed by wallet_identity. */
+  declare_signature?: string;
 }
 export interface DeclareResponse {
   id: string;
@@ -166,6 +180,12 @@ export async function handleDeclare(
     throw new Error("DeclareRequest requires both plan and action");
   }
   const id = generateContractId();
+  // Visibility coercion: anonymous declares (no wallet_identity) are
+  // auto-public so the writer doesn't lock themselves out of reading their
+  // own row. Wallet-bound declares default to "lineage" (default-hidden,
+  // synaptic-specificity model). Explicit visibility wins over both.
+  const visibility: "lineage" | "public" | "marketplace" =
+    req.visibility ?? (req.wallet_identity ? "lineage" : "public");
   const row: ContractEventRow = {
     event: "declared",
     id,
@@ -176,6 +196,9 @@ export async function handleDeclare(
     parent_id: req.parent_id,
     agent: req.agent,
     learning: req.learning,
+    visibility,
+    wallet_identity: req.wallet_identity,
+    declare_signature: req.declare_signature,
   };
   const persisted = await ledger.append(row);
   return { id, row: persisted };
@@ -229,8 +252,47 @@ export async function handleIterate(
 export async function handleStatus(
   id: string,
   ledger: ContractLedger,
+  opts: { caller_pubkey?: string | null } = {},
 ): Promise<StatusResponse> {
   const rows = (await ledger.get(id)) ?? [];
+  if (rows.length === 0) {
+    return { id, status: projectStatus(rows), rows };
+  }
+  // Pre-visibility-field rows (older than this PR) have no wallet_identity;
+  // isCallerInLineage treats them as public to preserve back-compat. Newer
+  // rows declared with wallet_identity bind to that pubkey.
+  const declared = rows.find((r) => r.event === "declared") ?? rows[0];
+
+  // Build parent walker — uses the same ledger reader so chained ancestry
+  // checks against EmergentDB consistently. Cheap because lineage chains
+  // are typically depth ≤ 5; uncached is fine.
+  const parentCache = new Map<string, ContractEventRow | null>();
+  const walkParent = (parentId: string): ContractEventRow | null => {
+    if (parentCache.has(parentId)) return parentCache.get(parentId) ?? null;
+    // Ledger.get returns rows for that id; we want the declared event row.
+    // Sync API mismatch — we eagerly drain via Promise.resolve in the loop;
+    // the walker stays sync via a pre-warm pass below.
+    const cached = parentCache.get(parentId);
+    return cached ?? null;
+  };
+
+  // Pre-warm the parent chain so the sync walker has data. Depth ≤ 8 hops.
+  let cursor: string | undefined = declared.parent_id;
+  let depth = 0;
+  while (cursor && depth < 8 && !parentCache.has(cursor)) {
+    const parentRows = (await ledger.get(cursor)) ?? [];
+    const parentDeclared = parentRows.find((r) => r.event === "declared") ?? parentRows[0] ?? null;
+    parentCache.set(cursor, parentDeclared);
+    cursor = parentDeclared?.parent_id;
+    depth++;
+  }
+
+  const visible = isCallerInLineage(declared, opts.caller_pubkey ?? null, walkParent);
+  if (!visible) {
+    // Synthetic empty — security-through-obscurity. Don't leak "exists but
+    // forbidden" vs "doesn't exist". Mirrors npm's 404-on-no-publish-scope.
+    return { id, status: "pending", rows: [] };
+  }
   return { id, status: projectStatus(rows), rows };
 }
 
@@ -454,7 +516,16 @@ contractRoutes.get("/contract/status", async (c) => {
   const id = c.req.query("id");
   if (!id) return c.json({ error: "?id query param required" }, 400);
   try {
-    const result = await handleStatus(id, ephemeralLedger());
+    // Caller pubkey for lineage check — reads X-Wallet-Pubkey OR derives
+    // from X-Aiko-Signature pubkey (when signed declares ship in #33). For
+    // now, header-bearing callers identify themselves; unauthenticated
+    // GET still works but only returns visibility=public/marketplace rows
+    // and any pre-visibility-field rows where wallet_identity is unset.
+    const callerPubkey =
+      c.req.header("X-Wallet-Pubkey") ||
+      c.req.header("x-wallet-pubkey") ||
+      null;
+    const result = await handleStatus(id, ephemeralLedger(), { caller_pubkey: callerPubkey });
     return c.json(result);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
