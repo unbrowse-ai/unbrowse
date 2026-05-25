@@ -29,9 +29,15 @@ INDEX|search openlibrary books|https://openlibrary.org/search?q=dune
 INDEX|search pubmed papers|https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning
 INDEX|get package info|https://www.npmjs.com/package/openai
 
-# AUTH — auth-gated routes (user must have a cookie or token in vault)
+# AUTH — auth-gated routes (user must have a cookie or token in vault).
+# Each AUTH probe is also tagged @class: auth-gated so the dimensional
+# aggregator reports it separately and excludes it from the dimensional
+# totals when no fresh cookie is present (mirrors the antibot class).
+@class: auth-gated
 AUTH|get linkedin feed posts|https://www.linkedin.com/feed/
+@class: auth-gated
 AUTH|get home timeline|https://x.com/home
+@class: auth-gated
 AUTH|get gmail inbox|https://mail.google.com/mail/u/0/
 
 # CSRF — sites requiring CSRF token discovery

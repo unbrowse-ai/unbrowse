@@ -48,6 +48,7 @@ DIMS = ["INDEX", "AUTH", "CSRF", "SEARCH", "RETR", "EXEC", "META"]
 dim_probes: dict[str, list[tuple[str, str]]] = {d: [] for d in DIMS}
 url_to_dim: dict[str, str] = {}
 antibot_urls: set[str] = set()
+auth_gated_urls: set[str] = set()
 class_tag: str | None = None
 
 with open(corpus_path) as f:
@@ -68,7 +69,9 @@ with open(corpus_path) as f:
         url_to_dim[url] = dim
         if class_tag == "antibot":
             antibot_urls.add(url)
-            class_tag = None
+        elif class_tag == "auth-gated":
+            auth_gated_urls.add(url)
+        class_tag = None
 
 results_by_url: dict[str, dict] = {}
 with open(results_path) as f:
@@ -99,7 +102,7 @@ for dim in DIMS:
     measured = 0
     passed = 0
     for _intent, url in probes:
-        if url in antibot_urls:
+        if url in antibot_urls or url in auth_gated_urls:
             continue
         row = results_by_url.get(url)
         if row is None:
@@ -124,11 +127,22 @@ for url in antibot_urls:
     if row is None:
         continue
     ab_measured += 1
-    if row.get("verdict", "").startswith("PASS"):
+    if row.get("verdict", "") == "PASS":
         ab_passed += 1
 total_antibot = ab_measured
 
-unmeasured_urls = [url for url in url_to_dim if url not in results_by_url and url not in antibot_urls]
+ag_measured = 0
+ag_passed = 0
+for url in auth_gated_urls:
+    row = results_by_url.get(url)
+    if row is None:
+        continue
+    ag_measured += 1
+    if row.get("verdict", "") == "PASS":
+        ag_passed += 1
+
+excluded = antibot_urls | auth_gated_urls
+unmeasured_urls = [url for url in url_to_dim if url not in results_by_url and url not in excluded]
 total_unmeasured = len(unmeasured_urls)
 
 print("-" * 50)
@@ -136,6 +150,7 @@ overall = f"{(100 * total_pass / total_judged):>5.1f}%" if total_judged else "  
 print(f"{'TOTAL':<8} {sum(len(p) for p in dim_probes.values()):>7} {total_judged:>9} {total_pass:>5} {total_judged - total_pass:>5} {overall:>10}")
 print()
 print(f"antibot class:    {ab_passed}/{ab_measured} passed (excluded from dimensional totals)")
+print(f"auth-gated class: {ag_passed}/{ag_measured} passed (excluded; reflects user-credential gap, not product capability)")
 print(f"unmeasured rows:  {total_unmeasured} (probes in corpus but no result row yet)")
 if total_unmeasured:
     print(f"  hint: run bash scripts/bench-local.sh --corpus-file {corpus_path}")
@@ -143,7 +158,7 @@ if total_unmeasured:
 print()
 print("agent: read the table; judge KEY 2 on whether the deploy gate's")
 print("STAGE-2-BENCH-100 child is satisfied (100% across all 7 axes,")
-print("antibot class excluded but separately reported).")
+print("antibot + auth-gated classes excluded but separately reported).")
 PY
 
 # Substrate-faithful exit. The agent renders the verdict.
