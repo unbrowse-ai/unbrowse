@@ -6,6 +6,34 @@ const CANONICAL = "https://www.unbrowse.ai/blog";
 const DESCRIPTION =
   "Articles on shadow APIs, browser automation, agent economics, and the agentic web from the Unbrowse team. Topics: how AI agents call website APIs directly, MCP server architecture, proof-of-indexing, and benchmarks vs Playwright.";
 
+const READING_PATH = [
+  {
+    slug: "internal-apis-are-all-you-need",
+    step: "Thesis",
+    note: "Why agents should call the routes websites already use.",
+  },
+  {
+    slug: "shadow-apis-explained",
+    step: "Mechanism",
+    note: "How those hidden routes are found from normal browsing.",
+  },
+  {
+    slug: "benchmark-deep-dive",
+    step: "Evidence",
+    note: "What changed across the 94-domain benchmark.",
+  },
+  {
+    slug: "mcp-is-now-the-default",
+    step: "Agent Surface",
+    note: "How agent clients use resolve, choose, then execute.",
+  },
+  {
+    slug: "mine-the-internet",
+    step: "Contributor Loop",
+    note: "How new routes are contributed and reused.",
+  },
+] as const;
+
 export const metadata: Metadata = {
   title: "Blog | Unbrowse",
   description: DESCRIPTION,
@@ -27,6 +55,10 @@ export const metadata: Metadata = {
 
 export default async function BlogIndexPage() {
   const posts = await listAllBlogPosts();
+  const readingPathPosts = READING_PATH.flatMap((entry) => {
+    const post = posts.find((candidate) => candidate.slug === entry.slug);
+    return post ? [{ ...entry, post }] : [];
+  });
 
   // Build a deduplicated category list ordered by first-seen so the
   // category strip matches the visible order of posts below.
@@ -60,6 +92,16 @@ export default async function BlogIndexPage() {
       ...(post.author ? { author: { "@type": "Person", name: post.author } } : {}),
       ...(post.description ? { description: post.description } : {}),
     })),
+    hasPart: {
+      "@type": "ItemList",
+      name: "Unbrowse Blog Start Here Path",
+      itemListElement: readingPathPosts.map((entry, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: entry.post.title,
+        url: `https://www.unbrowse.ai${entry.post.href}`,
+      })),
+    },
   };
 
   return (
@@ -105,6 +147,59 @@ export default async function BlogIndexPage() {
             </nav>
           )}
         </header>
+
+        {readingPathPosts.length > 0 && (
+          <section
+            aria-labelledby="start-here"
+            className="mb-12 border border-border bg-surface-raised p-5 sm:p-6"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-mono font-medium uppercase tracking-[0.24em] text-orange-500/90">
+                  Start here
+                </p>
+                <h2
+                  id="start-here"
+                  className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight"
+                >
+                  A five-step path through the work
+                </h2>
+              </div>
+              <p className="max-w-xl text-sm font-mono text-text-secondary">
+                Read these first if you want the argument, the mechanism,
+                the evidence, and the contributor model in order.
+              </p>
+            </div>
+
+            <ol className="mt-6 grid gap-3">
+              {readingPathPosts.map((entry, index) => (
+                <li key={entry.slug}>
+                  <Link
+                    href={entry.post.href}
+                    className="grid gap-3 border border-border bg-background p-4 transition-colors hover:border-orange-500/40 sm:grid-cols-[4.5rem_1fr]"
+                  >
+                    <div>
+                      <span className="block text-xs font-mono uppercase tracking-[0.2em] text-text-muted">
+                        Step {index + 1}
+                      </span>
+                      <span className="mt-1 block text-sm font-medium text-orange-500">
+                        {entry.step}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-semibold tracking-tight">
+                        {entry.post.title}
+                      </h3>
+                      <p className="mt-1 text-sm font-mono text-text-secondary">
+                        {entry.note}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {posts.length === 0 ? (
           <p className="text-text-secondary font-mono text-sm">
