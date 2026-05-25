@@ -6,7 +6,8 @@
     "backend",
     "frontend",
     "packages/playwright-shim",
-    "packages/firecrawl-shim"
+    "packages/firecrawl-shim",
+    "packages/stagehand-shim"
   ],
   "scripts": {
     "prepare": "husky",
