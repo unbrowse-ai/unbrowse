@@ -1,53 +1,20 @@
-import { Suspense } from "react";
-import Link from "next/link";
-import { InstallInstructions } from "@/components/install-instructions";
-import { ScrollToButton } from "@/components/full-page-scroll";
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
+ * macrostructure: Long Document · genre: modern-minimal
+ * theme: studied-DNA (source: shopify.com/editions/winter2026)
+ * paper: orange-on-near-black (--hl-paper #070503) · accent: orange (--hl-accent #FF5200, ≤5%)
+ * display: Fonetika (var(--hl-font-display)) · body: Google Sans italic (var(--hl-font-body))
+ * nav: N5 Floating pill (chapter rail) · footer: Ft5 Statement
+ * mobile: pass (36, 59, 61–65) · contrast: pass (46–50) · honest: pass (56) · tokens: pass (58)
+ */
+
 import { FlowingDotField } from "@/components/flowing-dot-field";
-import { HeroHands } from "@/components/hero-hands";
-import { HeroTerminalGated } from "@/components/hero-terminal-gated";
-import { AudienceToggle } from "@/components/audience-toggle";
-import { AgentWireTerminal } from "@/components/agent-wire-terminal";
-import {
-  HeroSubhead,
-  HeroPrimaryCtaLabel,
-  HeroHeadlineInner,
-  HeroSpeedProofStrip,
-} from "@/components/hero-copy";
-import { InstallFigure } from "@/components/install-figure";
-// PERF: heavy below-fold components — dynamic-imported with ssr:false in
-// a client-component wrapper so this server-component page stays async-
-// capable while first-load JS drops by ~250 KB and CLS stays 0.
-import {
-  ChatDemo,
-  ThreePanelVisual,
-  RegistryShowcase,
-  DemoParallax,
-} from "@/components/heavy-clients";
 import { MobileNav } from "@/components/mobile-nav";
-import { UniversalProofBand } from "@/components/universal-proof-band";
-import { UseCasesBand } from "@/components/use-cases-band";
-import { ZeroSetupBand } from "@/components/zero-setup-band";
-import { BenchmarkTable } from "@/components/benchmark-table";
-import { EarnSection } from "@/components/earn-section";
-import { AntiIcpBlock } from "@/components/anti-icp-block";
-import { ObjectionFaq } from "@/components/objection-faq";
-import { Github } from "lucide-react";
-import {
-  getStatsSummary,
-  listPopularSkills,
-  type StatsSummary,
-  type PopularSkillSummary,
-} from "@/lib/api";
-import { IconArrow, IconChevron } from "@/components/archival-icons";
+import { ChapterSpine } from "@/components/hallmark/chapter-spine";
 
 export const revalidate = 60;
 
-// FAQ JSON-LD aligned with the H1 frame. The H1 itself shifted in
-// Banger W1 ("The API layer for AI agents.") but the FAQ questions
-// stay generic — they cover the per-site-MCP-fragmentation pain, the
-// shadow-API mechanism, the 3.6x number, and the Solana / Faremeter
-// Flex settlement. Do NOT re-introduce Song et al.'s +24% number as
-// ours. Do NOT claim Base settlement.
+// FAQ JSON-LD aligned with the masthead H1 frame. Numbers traced to honest
+// inventory (paper §7, /v1/stats/summary). No invented metrics (gate 56).
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -119,117 +86,6 @@ const faqJsonLd = {
   ],
 };
 
-async function HeroStats() {
-  let summary: StatsSummary | null = null;
-  try {
-    summary = await getStatsSummary();
-  } catch {
-    summary = null;
-  }
-  const domains = summary?.domains ?? 600;
-  const executions = summary?.executions ?? 1_000_000;
-  const skills = summary?.skills ?? 18_000;
-
-  const fmt = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-    return String(n);
-  };
-
-  return (
-    <section
-      id="hero-stats"
-      aria-label="Live unbrowse marketplace stats"
-      className="relative py-14 sm:py-16"
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-6 text-center">
-          ##  Live, cumulative, public
-        </p>
-        {/* Banger W1: bumped numeric weight — tabular-nums Fonetika at
-            clamp(2.5rem, 5vw, 4.5rem), orange-400 to pop against the
-            near-black surface. Hairlines between cells stay at 1px so
-            the row reads as a single ledger row. */}
-        <div className="grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.22)] border border-[rgba(255,122,32,0.28)] text-center font-mono">
-          {[
-            { label: "domains in registry", value: fmt(domains) },
-            { label: "agent calls", value: fmt(executions) },
-            { label: "shadow endpoints captured", value: fmt(skills) },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-[#070503] py-8 px-3 sm:py-9"
-            >
-              <div
-                className="text-orange-400 tracking-[-0.04em] font-display tabular-nums leading-none"
-                style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
-              >
-                {s.value}
-              </div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-text-muted mt-4">
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-async function PopularSkillsGrid() {
-  let skills: PopularSkillSummary[] = [];
-  try {
-    skills = await listPopularSkills();
-  } catch {
-    skills = [];
-  }
-  if (!skills.length) return null;
-
-  return (
-    <section
-      id="popular-skills"
-      aria-label="Top routes already in the marketplace"
-      className="relative py-14 sm:py-16"
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-end justify-between gap-4 mb-5">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-1">
-              ##  Top routes already cached
-            </p>
-            <h3 className="text-xl sm:text-2xl font-display tracking-tight text-text-primary">
-              Twelve domains your agent can skip the browser on.
-            </h3>
-          </div>
-          <Link
-            href="/search"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-[rgba(255,176,96,0.85)] hover:text-orange-500 transition-colors whitespace-nowrap shrink-0"
-          >
-            All routes <IconArrow size={11} />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-[rgba(255,122,32,0.14)] border border-[rgba(255,122,32,0.2)] font-mono text-xs">
-          {skills.slice(0, 12).map((s) => (
-            <Link
-              key={s.skill_id}
-              href={`/${s.domain}`}
-              className="bg-[#070503] px-3 py-4 hover:bg-[rgba(255,122,32,0.06)] transition-colors text-center group"
-            >
-              <div className="text-[rgba(255,176,96,0.95)] truncate group-hover:text-orange-400 transition-colors">
-                {s.domain}
-              </div>
-              <div className="text-text-muted mt-1.5 text-[10px] tabular-nums tracking-[0.05em]">
-                {(s.total_executions ?? 0).toLocaleString()} calls
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function Home() {
   return (
     <>
@@ -240,7 +96,10 @@ export default function Home() {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
         />
-        {/* ═══ Agent-Readable Instructions ═══ */}
+
+        {/* === Agent-readable instructions (sr-only) — preserved verbatim
+            from the prior landing because removing it would tank the
+            llms.txt + AI-search citation surface. */}
         <section
           id="agent-instructions"
           aria-label="Instructions for AI agents"
@@ -249,23 +108,22 @@ export default function Home() {
         >
           <h2>Unbrowse: direct access to anything on the web, without setting up another MCP</h2>
           <p>
-            One MCP server, any website. Devs are already running a stack
-            of per-site MCPs (Notion, Slack, Browser MCP, Playwright MCP,
-            Gmail MCP, hand-rolled scrapers); unbrowse is the one that
-            replaces them all. The first time your agent visits a site,
-            unbrowse runs a headless browser, captures the shadow APIs the
-            page itself calls, and publishes those routes to a shared
-            marketplace. Every later call on the same site skips the
-            browser entirely and returns the JSON answer in milliseconds.
-            Drop one line into mcp.json and your agent gets direct access
-            to any website without per-site setup. Browser automation
-            tools (click, fill, submit, eval) exist in the MCP surface
-            only as the cold fallback for sites whose APIs have not been
-            captured yet. JA4 TLS impersonation handles bot detection.
-            Cookies from your real Chrome authenticate every shadow-API
-            call. Auth-walled endpoints get demoted in resolve. Routes
-            cache after first browse; agents that reuse a paid route pay
-            USDC on Solana via Faremeter Flex. Across 94 live domains,
+            One MCP server, any website. Devs are already running a stack of
+            per-site MCPs (Notion, Slack, Browser MCP, Playwright MCP, Gmail
+            MCP, hand-rolled scrapers); unbrowse is the one that replaces them
+            all. The first time your agent visits a site, unbrowse runs a
+            headless browser, captures the shadow APIs the page itself calls,
+            and publishes those routes to a shared marketplace. Every later
+            call on the same site skips the browser entirely and returns the
+            JSON answer in milliseconds. Drop one line into mcp.json and your
+            agent gets direct access to any website without per-site setup.
+            Browser automation tools (click, fill, submit, eval) exist in the
+            MCP surface only as the cold fallback for sites whose APIs have
+            not been captured yet. JA4 TLS impersonation handles bot
+            detection. Cookies from your real Chrome authenticate every
+            shadow-API call. Auth-walled endpoints get demoted in resolve.
+            Routes cache after first browse; agents that reuse a paid route
+            pay USDC on Solana via Faremeter Flex. Across 94 live domains,
             3.6x mean (5.4x median) speedup vs Playwright.
           </p>
           <p>MCP setup: npx unbrowse setup --mcp</p>
@@ -274,289 +132,8 @@ export default function Home() {
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
         </section>
 
-        {/* ═══ Hero (Banger W1 H1: "The API layer for AI agents.") ═══
-            Word budget: eyebrow (6) + h1 (7) + subhead (14) ≈ 27.
-            Tertiary "read the paper" demoted to ch4 Numbers band.
-            HeroWhyItMatters lifted out of hero — now mid-page only. */}
-        <section
-          className="relative flex flex-col justify-start overflow-hidden"
-          style={{ minHeight: "92vh" }}
-        >
-          <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[12vh] pb-8 text-center flex flex-col items-center min-w-0">
-            <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
-              <a
-                href="https://github.com/unbrowse-ai/unbrowse"
-                target="_blank"
-                rel="noopener"
-                className="group inline-flex items-center gap-2.5
-                           text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
-                           border-b border-[rgba(255,122,32,0.3)] pb-1.5
-                           hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
-              >
-                <Github className="w-3.5 h-3.5" />
-                <span>Free, open source, runs locally</span>
-              </a>
-              <Suspense fallback={<div className="h-7" />}>
-                <AudienceToggle />
-              </Suspense>
-            </div>
-
-            {/* Suspense fallback matches the resolved HeroSpeedProofStrip's
-                3-pill layout so the height never changes when client-side
-                useAudienceMode resolves (was a major CLS source). The
-                content is the dev-mode default; if useAudienceMode swaps
-                to "everyone", individual pill text changes but pill count
-                + height stay constant. */}
-            <Suspense
-              fallback={
-                <div className="animate-fade-up stagger-1 mb-2 flex flex-wrap items-stretch justify-center gap-x-1.5 gap-y-2 font-mono">
-                  {[
-                    { v: "1 MCP",   l: "for any site" },
-                    { v: "0 setup", l: "per new site" },
-                    { v: "3.6x",    l: "mean vs Playwright (n=94)" },
-                  ].map((s) => (
-                    <span
-                      key={s.l}
-                      className="inline-flex items-baseline gap-2 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
-                    >
-                      <span className="text-orange-500 font-semibold tabular-nums tracking-tight">{s.v}</span>
-                      <span className="text-text-muted text-[10px] uppercase tracking-[0.18em]">{s.l}</span>
-                    </span>
-                  ))}
-                </div>
-              }
-            >
-              <HeroSpeedProofStrip />
-            </Suspense>
-
-            <h1
-              data-hero-h1
-              className="animate-fade-up stagger-1 max-w-full text-[2.5rem] sm:text-7xl lg:text-[6.5rem] leading-[1.04] sm:leading-[1.0] tracking-[-0.03em] text-balance text-text-primary font-display"
-            >
-              <Suspense
-                fallback={
-                  <>
-                    The API layer{" "}
-                    <br className="hidden sm:block" />
-                    <span className="text-orange-500">for AI agents.</span>
-                  </>
-                }
-              >
-                <HeroHeadlineInner />
-              </Suspense>
-            </h1>
-
-            <Suspense
-              fallback={
-                <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                  One MCP server, any site. Your agent calls the shadow
-                  API, not the browser.
-                </p>
-              }
-            >
-              <HeroSubhead />
-            </Suspense>
-
-            <div className="animate-fade-up stagger-3 flex flex-col items-center gap-4 mt-10">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <ScrollToButton
-                  sectionId="install"
-                  className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
-                             text-[#1a0d00] font-mono font-semibold text-sm w-full sm:w-auto
-                             hover:bg-orange-600 hover:text-[#1a0d00] active:translate-y-px transition-all cursor-pointer"
-                >
-                  <Suspense
-                    fallback={<span>[ npx unbrowse setup → ]</span>}
-                  >
-                    <HeroPrimaryCtaLabel />
-                  </Suspense>
-                  <IconArrow
-                    size={14}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
-                </ScrollToButton>
-                <ScrollToButton
-                  sectionId="use-cases"
-                  className="flex items-center justify-center gap-2 px-7 py-2.5
-                             bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto
-                             hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
-                >
-                  [ See what your agent can do ]
-                </ScrollToButton>
-              </div>
-            </div>
-
-            {/* Banger W1: Below-the-CTA product-in-hero.
-                Desktop (≥lg): grid 2-col — the gated speed chart (or
-                the HeroTerminal in agent mode) sits on the LEFT,
-                AgentWireTerminal on the RIGHT.
-                Mobile: stack — AgentWireTerminal first (it IS the
-                product), HeroTerminalGated below as supporting proof.
-                Height reservation prevents CLS on hydration. */}
-            <div className="mt-12 w-full grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
-              <div className="order-2 lg:order-1">
-                <Suspense
-                  fallback={
-                    <div
-                      className="w-full"
-                      aria-hidden
-                      style={{ minHeight: 380, contain: "layout" }}
-                    />
-                  }
-                >
-                  <HeroTerminalGated />
-                </Suspense>
-              </div>
-              <div className="order-1 lg:order-2">
-                <AgentWireTerminal />
-              </div>
-            </div>
-          </div>
-
-          <HeroHands />
-        </section>
-
-        {/* ═══ Live counters — Banger W1 promoted above install so the
-            social-proof scale lands before the install ask. ═══ */}
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 200 }} />}>
-          <HeroStats />
-        </Suspense>
-
-        {/* ═══ Install ═══ */}
-        <section
-          id="install"
-          className="relative py-20 sm:py-28 flex flex-col items-center px-4 sm:px-6"
-        >
-          <div className="relative w-full max-w-4xl">
-            <div className="relative w-full border border-[rgba(255,122,32,0.45)] bg-[#060402] overflow-hidden rounded-sm shadow-2xl shadow-black/40">
-              <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">
-                      ##  MCP Install
-                    </p>
-                    <h2
-                      className="mt-1 text-xl sm:text-2xl font-mono tracking-tight text-[#FFB060]"
-                      style={{ textShadow: "0 0 20px rgba(255,176,96,0.4)" }}
-                    >
-                      $ unbrowse setup --mcp
-                    </h2>
-                  </div>
-                  <p className="max-w-sm text-sm leading-relaxed text-[rgba(255,122,32,0.55)] font-mono">
-                    Wires the Unbrowse MCP server into your agent host. One
-                    command per client.
-                  </p>
-                </div>
-              </div>
-              <div className="p-4 sm:p-6">
-                <InstallInstructions />
-              </div>
-            </div>
-
-            <InstallFigure />
-          </div>
-
-          <div className="w-full max-w-4xl mt-6 max-sm:flex max-sm:justify-center sm:flex">
-            <div
-              className="inline-flex flex-col gap-3 px-6 py-4 rounded-sm max-sm:items-center"
-              style={{
-                background: "rgba(6,4,2,0.82)",
-                border: "1px solid rgba(255,122,32,0.18)",
-              }}
-            >
-              <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">
-                Plugs into the agent stack you already use
-              </p>
-              <div className="flex flex-wrap max-sm:justify-center items-center gap-x-5 gap-y-2 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
-                <span className="text-sm font-mono tracking-tight">Claude Code</span>
-                <span className="text-sm font-mono tracking-tight">Claude Desktop</span>
-                <span className="text-sm font-mono tracking-tight">Cursor</span>
-                <span className="text-sm font-mono tracking-tight">Codex</span>
-                <span className="text-sm font-mono tracking-tight">Windsurf</span>
-                <span className="text-sm font-mono tracking-tight">OpenClaw</span>
-                <span className="text-sm font-mono tracking-tight">Any MCP framework</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <UniversalProofBand />
-        <UseCasesBand />
-        <ZeroSetupBand />
-        <BenchmarkTable />
-
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 220 }} />}>
-          <PopularSkillsGrid />
-        </Suspense>
-
-        <EarnSection />
-
-        <section
-          id="demo"
-          className="relative py-16 sm:py-24 flex flex-col justify-center"
-        >
-          <DemoParallax />
-          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 w-full">
-            <div className="text-center mb-5">
-              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
-                ##  See it in action
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2 text-balance text-text-primary">
-                Example: <span className="text-orange-500">airbnb.com</span>
-              </h2>
-              <p className="text-text-secondary text-sm max-w-xl mx-auto leading-relaxed">
-                One agent browses Airbnb. Every agent on the network can now
-                search listings, check availability, and book, instantly, no
-                browser.
-              </p>
-            </div>
-            <ChatDemo />
-          </div>
-        </section>
-
-        <RegistryShowcase />
-        <ThreePanelVisual />
-        <ObjectionFaq />
-        <AntiIcpBlock />
-
-        <footer
-          className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/90 backdrop-blur-sm"
-          style={{ borderTop: "1px solid rgba(255,122,32,0.2)" }}
-        >
-          <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between gap-4">
-            <span className="text-xs text-[rgba(255,122,32,0.4)] font-mono">
-              $ &copy; {new Date().getFullYear()} Unbrowse AI Pte. Ltd.
-            </span>
-            <div className="hidden sm:flex items-center gap-5 text-xs text-[rgba(255,122,32,0.55)] font-mono">
-              <a
-                href="https://github.com/unbrowse-ai/unbrowse"
-                target="_blank"
-                rel="noopener"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                GitHub
-              </a>
-              <Link
-                href="/faq"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                FAQ
-              </Link>
-              <Link
-                href="/terms"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="hover:text-[rgba(255,176,96,0.9)] transition-colors"
-              >
-                Privacy
-              </Link>
-            </div>
-          </div>
-        </footer>
+        {/* === The Hallmark chapter spine — Long Document, archival-editorial */}
+        <ChapterSpine />
       </div>
     </>
   );
