@@ -551,6 +551,108 @@ export function hasApiShapedBody(urls: Iterable<string>): boolean {
   return false;
 }
 
+export type HydrationProbeSnapshot = {
+  textLength: number;
+  meaningfulElementCount: number;
+  mutationCount: number;
+  resourceCount: number;
+  hasSpaMarker: boolean;
+};
+
+export function isNonShellHydratedDom(snapshot: Pick<HydrationProbeSnapshot, "textLength" | "meaningfulElementCount">): boolean {
+  return snapshot.textLength >= 200 || snapshot.meaningfulElementCount >= 3;
+}
+
+export function shouldStopHydrationWait(
+  previous: HydrationProbeSnapshot | null,
+  current: HydrationProbeSnapshot,
+  quietMs: number,
+): boolean {
+  if (isNonShellHydratedDom(current)) return true;
+  if (!previous) return false;
+  const progressed =
+    current.textLength > previous.textLength ||
+    current.meaningfulElementCount > previous.meaningfulElementCount ||
+    current.mutationCount > previous.mutationCount ||
+    current.resourceCount > previous.resourceCount;
+  if (progressed) return false;
+  return quietMs >= 100 && (current.mutationCount > 0 || current.resourceCount > 0);
+}
+
+async function readHydrationProbeSnapshot(tabId: string, responseBodies?: Map<string, string>): Promise<HydrationProbeSnapshot | null> {
+  try {
+    const raw = await kuri.evaluate(tabId, `JSON.stringify((function(){
+      var body = document.body;
+      var text = body && body.innerText ? body.innerText.replace(/\\s+/g, " ").trim() : "";
+      var meaningful = document.querySelectorAll("main article, main section, [role='main'] article, [role='main'] section, [data-testid], [data-test-id]").length;
+      var hasSpaMarker = !!(
+        document.querySelector("#__NEXT_DATA__, #___gatsby, #root, #app, [data-reactroot], [data-server-rendered]") ||
+        Array.prototype.some.call(document.scripts || [], function(s) {
+          var t = (s.id || "") + " " + (s.type || "") + " " + (s.textContent || "").slice(0, 2000);
+          return /__NUXT__|self\\.__next_f|dehydratedState|__APOLLO_STATE__|__INITIAL_STATE__|application\\/json/i.test(t);
+        })
+      );
+      return {
+        textLength: text.length,
+        meaningfulElementCount: meaningful,
+        mutationCount: Number(window.__unbrowseHydrationMutations || 0),
+        resourceCount: performance && performance.getEntriesByType ? performance.getEntriesByType("resource").length : 0,
+        hasSpaMarker: hasSpaMarker
+      };
+    })())`);
+    const parsed = JSON.parse(String(raw)) as HydrationProbeSnapshot;
+    parsed.resourceCount += responseBodies?.size ?? 0;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function waitForGenericSpaHydration(
+  tabId: string,
+  responseBodies?: Map<string, string>,
+  timeoutMs = 2500,
+): Promise<void> {
+  const first = await readHydrationProbeSnapshot(tabId, responseBodies);
+  if (!first || isNonShellHydratedDom(first) || !first.hasSpaMarker) return;
+
+  try {
+    await kuri.evaluate(tabId, `(function(){
+      if (window.__unbrowseHydrationObserverInstalled) return;
+      window.__unbrowseHydrationObserverInstalled = true;
+      window.__unbrowseHydrationMutations = Number(window.__unbrowseHydrationMutations || 0);
+      var target = document.documentElement || document;
+      new MutationObserver(function(){
+        window.__unbrowseHydrationMutations = Number(window.__unbrowseHydrationMutations || 0) + 1;
+      }).observe(target, { childList: true, subtree: true, characterData: true });
+    })()`);
+  } catch {
+    return;
+  }
+
+  let previous: HydrationProbeSnapshot | null = first;
+  let lastProgressAt = Date.now();
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 100));
+    const intercepted = await collectInterceptedRequests(tabId).catch(() => []);
+    for (const entry of intercepted) {
+      if (entry.response_body && !entry.is_js) responseBodies?.set(entry.url, entry.response_body);
+    }
+    const current = await readHydrationProbeSnapshot(tabId, responseBodies);
+    if (!current) return;
+    const progressed =
+      !previous ||
+      current.textLength > previous.textLength ||
+      current.meaningfulElementCount > previous.meaningfulElementCount ||
+      current.mutationCount > previous.mutationCount ||
+      current.resourceCount > previous.resourceCount;
+    if (progressed) lastProgressAt = Date.now();
+    if (shouldStopHydrationWait(previous, current, Date.now() - lastProgressAt)) return;
+    previous = current;
+  }
+}
+
 
 async function maybeProbeIntentApis(
   tabId: string,
@@ -1291,6 +1393,12 @@ async function waitForContentReady(
 
   // Phase 3: Wait for document ready state (replaces networkidle)
   await waitForReadyState(tabId, 5000);
+
+  // Phase 3b: Generic SPA hydration wait. Shell-like Next/Nuxt/React pages
+  // often report readyState=complete before their first useful DOM mutation or
+  // lazy XHR. Wait until the DOM is no longer shell-only, or until mutations /
+  // resource counts have been quiet for one poll tick.
+  await waitForGenericSpaHydration(tabId, responseBodies);
 
   // Early exit: check again after readyState — SPAs often fire API calls during hydration
   if (responseBodies) {
