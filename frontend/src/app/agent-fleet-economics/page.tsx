@@ -189,9 +189,9 @@ export default function AgentFleetEconomicsPage() {
               </p>
             </div>
             <div className="rounded-xl border border-border p-4 sm:p-5">
-              <div className="font-semibold text-text-primary mb-1">2. Routes are reverse-engineered</div>
+              <div className="font-semibold text-text-primary mb-1">2. Routes are indexed</div>
               <p className="text-sm text-text-secondary">
-                On session close, captured traffic goes through the enrichment pipeline: endpoint extraction, auth header detection, credential storage, schema inference, and LLM-augmented semantic descriptions. The result is a complete, executable API skill.
+                On session close, observed requests are converted into sanitized route metadata. The result is a complete, executable API skill without publishing private session material.
               </p>
             </div>
             <div className="rounded-xl border border-border p-4 sm:p-5">

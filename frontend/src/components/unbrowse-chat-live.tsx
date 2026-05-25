@@ -262,7 +262,7 @@ function EmptyHint({ host }: { host: string }) {
         That is the whole point of Unbrowse: install locally, browse once, the route gets indexed, every agent on the network can call it next time.
       </p>
       <code className="text-[11px] block px-2 py-1.5 rounded-sm" style={{ background: "#0a0a0a", color: O, border: `1px solid ${O_DIM}` }}>
-        $ npx @unbrowse/sdk@latest
+        $ npx unbrowse setup
       </code>
     </div>
   );

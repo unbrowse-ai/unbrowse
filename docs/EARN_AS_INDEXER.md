@@ -21,7 +21,7 @@ Settlement is on-chain. Your share lands in the same Faremeter Flex transaction 
    ```
    npm i @unbrowse/sdk
    ```
-   The SDK spawns the local binary itself; no global install required. CLI users can `npx @unbrowse/sdk` or `unbrowse setup` for the interactive bootstrap.
+   The SDK spawns the local binary itself; no global install required. CLI users can run `npx unbrowse setup` or `unbrowse setup` for the interactive bootstrap.
 
 2. Provision a payout wallet.
    ```

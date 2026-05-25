@@ -77,7 +77,7 @@ const sections: { title: string; body: string[] }[] = [
     title: "What proof of indexing actually is",
     body: [
       "Proof of work secures Bitcoin by making miners spend energy to validate blocks. Proof of indexing secures the agentic web by making contributors spend browsing effort to discover routes. But unlike proof of work, the effort is not wasted — every unit of work produces a real, reusable API route that makes agents faster and cheaper.",
-      "Here is how it works. You install Unbrowse and browse the web. As you visit sites, Unbrowse passively captures the network traffic flowing between your browser and the server. It identifies the internal API calls — the fetch and XHR requests that power every modern website — reverse-engineers their schemas, authentication patterns, and parameters, and publishes them to a shared route graph. That is a mining event. Every route you contribute is cryptographically attributed to your wallet and timestamped on-chain.",
+      "Here is how it works. You install Unbrowse and browse sites you are allowed to use. As you visit sites, Unbrowse observes the requests needed for that workflow, extracts reusable route metadata, and publishes the reviewed route shape to a shared route graph. That is a mining event. Every route you contribute is cryptographically attributed to your wallet and timestamped on-chain.",
       "When an AI agent later resolves a task using one of your routes, you earn a micropayment. No staking. No GPUs. No specialized hardware. Just the browsing you already do.",
     ],
   },

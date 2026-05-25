@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+### Public docs and SDK metadata audit (2026-05-25)
+
+**docs**: cleaned stale public SDK/version/install copy across README, SDK docs,
+frontend pages, llms.txt, and npm package metadata. Added
+`scripts/audit-public-docs.sh` to catch stale SDK version pins, legacy install
+commands, broken public README links, and internal implementation/moat wording
+before those surfaces drift again.
+
 ### Semantic search returns results again — defensive metadata + BM25 global fallback (2026-05-23)
 
 **fix(search)**: `/v1/search` had been returning `{"results":[]}` for every query
