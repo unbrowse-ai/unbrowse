@@ -12,6 +12,8 @@ import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
+import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
+import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
@@ -4458,7 +4460,7 @@ export async function resolveAndExecute(
               // existing browser ladder still runs as the final fallback.
               if (directDocument.reason === "interstitial_detected") {
                 try {
-                  const { tryCurlImpersonateFetch } = await import("../capture/curl-impersonate-fallback.js");
+                  // tryCurlImpersonateFetch hoisted to module-top static import
                   const proxy = process.env.UNBROWSE_PROXY_URL
                     || (process.env.IPROYAL_USER && process.env.IPROYAL_PASS
                         ? `http://${encodeURIComponent(process.env.IPROYAL_USER)}:${encodeURIComponent(process.env.IPROYAL_PASS)}@${process.env.IPROYAL_HOST || "geo.iproyal.com"}:${process.env.IPROYAL_PORT || "12321"}`
@@ -5043,7 +5045,7 @@ export async function resolveAndExecute(
         capturedBlockSignals.some((s: unknown) => typeof s === "string" && s.startsWith("vendor:"));
       if (hasVendorBlockSignal) {
         try {
-          const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+          // trySsrFastPathOnBlock hoisted to module-top static import
           const ssr = await trySsrFastPathOnBlock({
             url: context.url,
             timeoutMs: 15_000,

@@ -45,6 +45,8 @@ function stableEndpointId(method: string, urlTemplate: string): string {
 }
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
+import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
+import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -1698,7 +1700,7 @@ async function executeBrowserCapture(
     // no captured.* state to splice into.
     if (err.code === "no_progress_bail") {
       try {
-        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
         const ssr = await trySsrFastPathOnBlock({
           url, seedCookies: cookies, timeoutMs: 15_000,
           proxy: process.env.UNBROWSE_PROXY_URL,
@@ -1726,7 +1728,7 @@ async function executeBrowserCapture(
         // sites (proven 2026-05-25: youtube class returns 1.05MB real content).
         // Skips JS-challenge interstitial class cleanly (returns null).
         try {
-          const { tryCurlImpersonateFetch } = await import("../capture/curl-impersonate-fallback.js");
+          // tryCurlImpersonateFetch hoisted to module-top static import (Β9)
           const cffi = await tryCurlImpersonateFetch({ url, proxy: resolveAntibotProxy(), timeoutMs: 30_000 });
           if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
             const cffiArtifact = buildPageArtifactCapture(url, intent, cffi.html, false);
@@ -1800,7 +1802,7 @@ async function executeBrowserCapture(
     );
     if (hasVendorChallenge) {
       try {
-        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
         const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr?.html && ssr.html.length > 1024) {
           const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
@@ -2057,7 +2059,7 @@ async function executeBrowserCapture(
   // fallback — this is the 2nd caller. Plan-v9 Phase A.
   if (cleanEndpoints.length === 0 && (!domArtifactEndpoint || !domArtifactResult || pageArtifact.quality_note)) {
     try {
-      const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+      // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
       const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
       if (ssr?.html && ssr.html.length > 1024) {
         const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
@@ -3343,7 +3345,6 @@ export async function executeEndpoint(
         // HTML response + DOM extraction recipe — run the extractor in-process
         // and return the structured records the recipe was captured against.
         try {
-          const { extractFromDOM } = await import("../extraction/index.js");
           const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
@@ -3359,7 +3360,6 @@ export async function executeEndpoint(
         // before declaring format mismatch. Many SSR pages serve the data on the rendered HTML.
         log("exec", `content-type mismatch: expected application/json, got ${contentType} from ${replayUrl.substring(0, 100)} — trying DOM extraction fallback`);
         try {
-          const { extractFromDOM } = await import("../extraction/index.js");
           const extracted = extractFromDOM(text, skill.intent_signature ?? "", replayUrl);
           if (extracted && extracted.data != null && (Array.isArray(extracted.data) ? extracted.data.length > 0 : Object.keys(extracted.data as Record<string, unknown>).length > 0)) {
             data = extracted.data;
@@ -4035,7 +4035,7 @@ export async function executeEndpoint(
           decisionTrace.push({ step: "5xx_ssr_fastpath_fallback_kuri_unavailable", target_kuri: sandboxBase });
           throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
         }
-        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
         const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
@@ -4084,7 +4084,7 @@ export async function executeEndpoint(
           decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_kuri_unavailable", target_kuri: sandboxBase });
           throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
         }
-        const { trySsrFastPathOnBlock } = await import("../capture/ssr-fastpath.js");
+        // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
         const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
         if (ssr) {
           log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
