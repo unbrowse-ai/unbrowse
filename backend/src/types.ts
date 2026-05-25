@@ -249,6 +249,20 @@ export interface Env {
   FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
   FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
   /**
+   * Global-hold USDC ATA — the wallet that accumulates the
+   * domain-owner lane of every paid execute when the domain has NOT
+   * been DNS-claimed (primitive doc
+   * `docs/public/primitives/07-fair-split-and-claim.md`). When a
+   * domain owner later verifies via routes/claim.ts, the backend
+   * sweeps the accumulated balance from this wallet to the bound
+   * domain wallet. MUST be the USDC associated token account of the
+   * holding wallet (NOT the wallet base pubkey). When unset AND the
+   * domain is unclaimed, `resolveThreeRecipientSplits` throws —
+   * paid execute MUST NOT route the domain lane to platform on a
+   * misconfigured deploy.
+   */
+  FLEX_GLOBAL_HOLD_USDC_ATA?: string;         // public binding
+  /**
    * PayAI facilitator integration (v6.16+) — Solana feePayer pubkey used
    * when emitting the exact-scheme accept entry that delegates verify+settle
    * to `https://facilitator.payai.network`. Defaults to PayAI's published
