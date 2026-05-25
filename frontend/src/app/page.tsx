@@ -6,10 +6,10 @@ import { FlowingDotField } from "@/components/flowing-dot-field";
 import { HeroHands } from "@/components/hero-hands";
 import { HeroTerminalGated } from "@/components/hero-terminal-gated";
 import { AudienceToggle } from "@/components/audience-toggle";
+import { AgentWireTerminal } from "@/components/agent-wire-terminal";
 import {
   HeroSubhead,
   HeroPrimaryCtaLabel,
-  HeroWhyItMatters,
   HeroHeadlineInner,
   HeroSpeedProofStrip,
 } from "@/components/hero-copy";
@@ -42,13 +42,12 @@ import { IconArrow, IconChevron } from "@/components/archival-icons";
 
 export const revalidate = 60;
 
-const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
-
-// FAQ JSON-LD aligned with the locked H1: "Direct access to anything on
-// the web. Without setting up another MCP." First question carries the
-// pain frame; numbers verified against the paper + codebase. Do NOT
-// re-introduce Song et al.'s +24% number as ours. Do NOT claim Base
-// settlement (Solana via Faremeter Flex).
+// FAQ JSON-LD aligned with the H1 frame. The H1 itself shifted in
+// Banger W1 ("The API layer for AI agents.") but the FAQ questions
+// stay generic — they cover the per-site-MCP-fragmentation pain, the
+// shadow-API mechanism, the 3.6x number, and the Solana / Faremeter
+// Flex settlement. Do NOT re-introduce Song et al.'s +24% number as
+// ours. Do NOT claim Base settlement.
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -141,26 +140,33 @@ async function HeroStats() {
     <section
       id="hero-stats"
       aria-label="Live unbrowse marketplace stats"
-      className="relative py-12 sm:py-14"
+      className="relative py-14 sm:py-16"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-5 text-center">
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-6 text-center">
           ##  Live, cumulative, public
         </p>
-        <div className="grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.18)] border border-[rgba(255,122,32,0.24)] text-center font-mono">
+        {/* Banger W1: bumped numeric weight — tabular-nums Fonetika at
+            clamp(2.5rem, 5vw, 4.5rem), orange-400 to pop against the
+            near-black surface. Hairlines between cells stay at 1px so
+            the row reads as a single ledger row. */}
+        <div className="grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.22)] border border-[rgba(255,122,32,0.28)] text-center font-mono">
           {[
             { label: "domains in registry", value: fmt(domains) },
-            { label: "agent visits", value: fmt(executions) },
-            { label: "shadow API endpoints", value: fmt(skills) },
+            { label: "agent calls", value: fmt(executions) },
+            { label: "shadow endpoints captured", value: fmt(skills) },
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-[#070503] py-6 px-3 sm:py-7"
+              className="bg-[#070503] py-8 px-3 sm:py-9"
             >
-              <div className="text-4xl sm:text-5xl lg:text-6xl text-orange-500 tracking-[-0.04em] font-display tabular-nums leading-none">
+              <div
+                className="text-orange-400 tracking-[-0.04em] font-display tabular-nums leading-none"
+                style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
+              >
                 {s.value}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-text-muted mt-3">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-text-muted mt-4">
                 {s.label}
               </div>
             </div>
@@ -268,12 +274,15 @@ export default function Home() {
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
         </section>
 
-        {/* ═══ Hero (h1: "Direct access to anything on the web. Without setting up another MCP.") ═══ */}
+        {/* ═══ Hero (Banger W1 H1: "The API layer for AI agents.") ═══
+            Word budget: eyebrow (6) + h1 (7) + subhead (14) ≈ 27.
+            Tertiary "read the paper" demoted to ch4 Numbers band.
+            HeroWhyItMatters lifted out of hero — now mid-page only. */}
         <section
           className="relative flex flex-col justify-start overflow-hidden"
-          style={{ minHeight: "90vh" }}
+          style={{ minHeight: "92vh" }}
         >
-          <div className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center min-w-0">
+          <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-[12vh] pb-8 text-center flex flex-col items-center min-w-0">
             <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
               <a
                 href="https://github.com/unbrowse-ai/unbrowse"
@@ -286,14 +295,6 @@ export default function Home() {
               >
                 <Github className="w-3.5 h-3.5" />
                 <span>Free, open source, runs locally</span>
-                <span className="text-[rgba(255,122,32,0.4)]">·</span>
-                <span className="flex items-center gap-1">
-                  Star on GitHub{" "}
-                  <IconChevron
-                    size={11}
-                    className="group-hover:translate-x-0.5 transition-transform"
-                  />
-                </span>
               </a>
               <Suspense fallback={<div className="h-7" />}>
                 <AudienceToggle />
@@ -330,14 +331,14 @@ export default function Home() {
 
             <h1
               data-hero-h1
-              className="animate-fade-up stagger-1 max-w-full text-[2rem] sm:text-6xl lg:text-[5.5rem] leading-[1.08] sm:leading-[1.04] tracking-[-0.025em] text-balance text-text-primary font-display"
+              className="animate-fade-up stagger-1 max-w-full text-[2.5rem] sm:text-7xl lg:text-[6.5rem] leading-[1.04] sm:leading-[1.0] tracking-[-0.03em] text-balance text-text-primary font-display"
             >
               <Suspense
                 fallback={
                   <>
-                    Direct access to anything on the web.{" "}
+                    The API layer{" "}
                     <br className="hidden sm:block" />
-                    <span className="text-orange-500">Without setting up another MCP.</span>
+                    <span className="text-orange-500">for AI agents.</span>
                   </>
                 }
               >
@@ -348,9 +349,8 @@ export default function Home() {
             <Suspense
               fallback={
                 <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                  One MCP server, any site. First visit captures the site&apos;s
-                  shadow APIs; your agent calls them directly forever after,
-                  signed in with your cookies.
+                  One MCP server, any site. Your agent calls the shadow
+                  API, not the browser.
                 </p>
               }
             >
@@ -384,46 +384,43 @@ export default function Home() {
                   [ See what your agent can do ]
                 </ScrollToButton>
               </div>
-              <div className="flex items-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
-                <a
-                  href={WHITEPAPER_URL}
-                  target="_blank"
-                  rel="noopener"
-                  className="hover:text-[rgba(255,176,96,1)] transition-colors"
-                >
-                  read the paper
-                </a>
-              </div>
             </div>
 
-            {/* PERF: HeroWhyItMatters renders only in everyone mode,
-                so a 0-height fallback is fine — the reserve happens
-                inside the component when it actually mounts. */}
-            <Suspense fallback={null}>
-              <HeroWhyItMatters />
-            </Suspense>
-
-            {/* PERF: HeroTerminalGated SSR-renders to ~360px (dev mode
-                HeroTerminal). fallback={null} caused a 278px layout
-                shift when content popped in, pushing HeroHands down
-                (CLS 0.30 root cause). Reserve ~380px so the swap is
-                pure paint. min-height matches the rendered terminal's
-                worst case on mobile. */}
-            <Suspense
-              fallback={
-                <div
-                  className="mt-12 w-full max-w-2xl"
-                  aria-hidden
-                  style={{ minHeight: 380, contain: "layout" }}
-                />
-              }
-            >
-              <HeroTerminalGated />
-            </Suspense>
+            {/* Banger W1: Below-the-CTA product-in-hero.
+                Desktop (≥lg): grid 2-col — the gated speed chart (or
+                the HeroTerminal in agent mode) sits on the LEFT,
+                AgentWireTerminal on the RIGHT.
+                Mobile: stack — AgentWireTerminal first (it IS the
+                product), HeroTerminalGated below as supporting proof.
+                Height reservation prevents CLS on hydration. */}
+            <div className="mt-12 w-full grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
+              <div className="order-2 lg:order-1">
+                <Suspense
+                  fallback={
+                    <div
+                      className="w-full"
+                      aria-hidden
+                      style={{ minHeight: 380, contain: "layout" }}
+                    />
+                  }
+                >
+                  <HeroTerminalGated />
+                </Suspense>
+              </div>
+              <div className="order-1 lg:order-2">
+                <AgentWireTerminal />
+              </div>
+            </div>
           </div>
 
           <HeroHands />
         </section>
+
+        {/* ═══ Live counters — Banger W1 promoted above install so the
+            social-proof scale lands before the install ask. ═══ */}
+        <Suspense fallback={<div aria-hidden style={{ minHeight: 200 }} />}>
+          <HeroStats />
+        </Suspense>
 
         {/* ═══ Install ═══ */}
         <section
@@ -488,9 +485,6 @@ export default function Home() {
         <ZeroSetupBand />
         <BenchmarkTable />
 
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 90 }} />}>
-          <HeroStats />
-        </Suspense>
         <Suspense fallback={<div aria-hidden style={{ minHeight: 220 }} />}>
           <PopularSkillsGrid />
         </Suspense>

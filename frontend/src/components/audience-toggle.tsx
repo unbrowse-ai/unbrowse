@@ -4,51 +4,57 @@ import { useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
- * Audience-mode pill: dev (default) vs everyone.
+ * Audience-mode pill.
  *
- * Reads ?mode=everyone from the URL. Default render is "dev" so the static
- * prerender bakes the technical copy. Toggle navigates with shallow update.
+ * Banger Wave 1 (2026-05-26): renamed dev/everyone → agent/publisher to
+ * surface the marketplace flywheel. The two real ICPs:
+ *   - agent (default): the agent builder calling Unbrowse to skip the
+ *     browser tax on every site. Buys the speed + 1-MCP story.
+ *   - publisher: the developer whose captured route becomes the moat —
+ *     earns USDC on Solana via Faremeter Flex every time the next
+ *     agent calls it.
  *
- * Used in the hero eyebrow row to swap surrounding copy via the
- * useAudienceMode hook in companion components.
+ * URL param: ?mode=publisher (no value means agent / default).
+ * Hook return: "agent" | "publisher".
+ *
+ * Audit trail: see .editions-evidence/UNICORN-AUDIT.md (Banger W1).
  */
+export type AudienceMode = "agent" | "publisher";
+
 export function AudienceToggle() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const mode = (params.get("mode") === "everyone" ? "everyone" : "dev") as "dev" | "everyone";
+  const mode: AudienceMode = params.get("mode") === "publisher" ? "publisher" : "agent";
 
-  const setMode = (next: "dev" | "everyone") => {
+  const setMode = (next: AudienceMode) => {
     const sp = new URLSearchParams(params.toString());
-    if (next === "dev") sp.delete("mode");
+    if (next === "agent") sp.delete("mode");
     else sp.set("mode", next);
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const devRef = useRef<HTMLButtonElement>(null);
-  const everyRef = useRef<HTMLButtonElement>(null);
+  const agentRef = useRef<HTMLButtonElement>(null);
+  const pubRef = useRef<HTMLButtonElement>(null);
 
   const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
-      const next = mode === "dev" ? "everyone" : "dev";
+      const next: AudienceMode = mode === "agent" ? "publisher" : "agent";
       setMode(next);
-      (next === "dev" ? devRef : everyRef).current?.focus();
+      (next === "agent" ? agentRef : pubRef).current?.focus();
     } else if (e.key === "Home") {
       e.preventDefault();
-      setMode("dev");
-      devRef.current?.focus();
+      setMode("agent");
+      agentRef.current?.focus();
     } else if (e.key === "End") {
       e.preventDefault();
-      setMode("everyone");
-      everyRef.current?.focus();
+      setMode("publisher");
+      pubRef.current?.focus();
     }
   };
 
-  // Roving tabindex — only the active tab is in the tab order.
-  // Inactive-tab text color bumped from rgba(255,156,64,0.6) (FAIL 3.4:1)
-  // to rgba(255,176,96,0.85) (PASS 5.5:1) on the near-black hero surface.
   const baseCls =
     "px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] cursor-pointer transition-colors";
 
@@ -59,37 +65,37 @@ export function AudienceToggle() {
       aria-label="Audience mode"
     >
       <button
-        ref={devRef}
+        ref={agentRef}
         type="button"
         role="tab"
-        aria-selected={mode === "dev"}
-        tabIndex={mode === "dev" ? 0 : -1}
+        aria-selected={mode === "agent"}
+        tabIndex={mode === "agent" ? 0 : -1}
         onKeyDown={onKey}
-        onClick={() => setMode("dev")}
+        onClick={() => setMode("agent")}
         className={`${baseCls} ${
-          mode === "dev"
+          mode === "agent"
             ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
             : "text-[rgba(255,176,96,0.85)] hover:text-[rgba(255,176,96,1)]"
         }`}
       >
-        for devs
+        agent-builder
       </button>
       <span className="w-px self-stretch bg-[rgba(255,122,32,0.3)]" aria-hidden />
       <button
-        ref={everyRef}
+        ref={pubRef}
         type="button"
         role="tab"
-        aria-selected={mode === "everyone"}
-        tabIndex={mode === "everyone" ? 0 : -1}
+        aria-selected={mode === "publisher"}
+        tabIndex={mode === "publisher" ? 0 : -1}
         onKeyDown={onKey}
-        onClick={() => setMode("everyone")}
+        onClick={() => setMode("publisher")}
         className={`${baseCls} ${
-          mode === "everyone"
+          mode === "publisher"
             ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
             : "text-[rgba(255,176,96,0.85)] hover:text-[rgba(255,176,96,1)]"
         }`}
       >
-        for everyone
+        route-publisher
       </button>
     </div>
   );
@@ -99,7 +105,7 @@ export function AudienceToggle() {
  * Read-only helper: returns the current mode from the URL.
  * Use inside client components that need to swap copy.
  */
-export function useAudienceMode(): "dev" | "everyone" {
+export function useAudienceMode(): AudienceMode {
   const params = useSearchParams();
-  return params.get("mode") === "everyone" ? "everyone" : "dev";
+  return params.get("mode") === "publisher" ? "publisher" : "agent";
 }
