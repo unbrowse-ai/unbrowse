@@ -309,28 +309,32 @@ h1, h2, .font-display {
   font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
-/* ═══ Hero H1 height lock (PERF: CLS 0.246 → near-zero)
-   The hero H1's font swap (system → Google Sans Display) reflows from
-   ~4 lines to ~3 lines on mobile / from ~2 lines to ~1.5 lines on
-   wider screens. Locking min-height to the WORST-CASE (pre-font) line
-   count means the box never shrinks when fonts arrive — the swap is
-   pure paint, not layout. Values are tuned to the actual measured
-   heights at each breakpoint.
+/* ═══ Hero H1 height lock (PERF: CLS 0.307 → near-zero)
+   The hero H1's font swap (system → Google Sans Display) grows the box
+   from the system-stack render to the Display render. Locking min-height
+   to the POST-font (LARGER) rendered height means the box never grows
+   on swap — the swap is pure paint, not layout.
+
+   Measured at each breakpoint via scripts/measure-h1.mjs after font load:
+     375x812   →  148px (was 148 — fine)
+     1440x900  →  366px (was 200 — too short, caused CLS 0.307)
+     1024px    →  ~366px (4 lines of 88px / lh 1.04 → 366)
+     640px     →  ~210px (text-6xl=60px / lh 1.04 → 3 lines × ~62 ≈ 186-210)
 
    The hero H1 carries the data-hero-h1 attribute so this rule is
    targeted (no global side-effects).
 */
 [data-hero-h1] {
-  min-height: 148px;
+  min-height: 168px;
 }
 @media (min-width: 640px) {
   [data-hero-h1] {
-    min-height: 140px;
+    min-height: 220px;
   }
 }
 @media (min-width: 1024px) {
   [data-hero-h1] {
-    min-height: 200px;
+    min-height: 380px;
   }
 }
 

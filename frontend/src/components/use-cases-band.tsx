@@ -107,7 +107,7 @@ export function UseCasesBand() {
 
   return (
     <section id="use-cases" className="relative py-16 sm:py-24 flex flex-col justify-center">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="text-center mb-8 flex flex-col items-center">
           <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
             ##  Not just reading. Doing.
@@ -129,21 +129,21 @@ export function UseCasesBand() {
           </p>
         </div>
 
-        {/* Inline three-path latency strip */}
-        <div className="mb-8 grid grid-cols-3 gap-2 sm:gap-3 max-w-3xl mx-auto font-mono text-xs">
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
-            <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">&lt;200ms</div>
-            <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">route cache</div>
+        {/* Inline three-path latency strip — anchored as a single sheet */}
+        <div className="mb-10 grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.18)] border border-[rgba(255,122,32,0.24)] max-w-3xl mx-auto font-mono text-xs">
+          <div className="bg-[#070503] px-3 py-4 text-center">
+            <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">&lt;200ms</div>
+            <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">route cache</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">already on your machine</div>
           </div>
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
-            <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">~1s</div>
-            <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">marketplace</div>
+          <div className="bg-[#070503] px-3 py-4 text-center">
+            <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">~1s</div>
+            <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">marketplace</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">someone else already captured it</div>
           </div>
-          <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm px-3 py-3 text-center">
-            <div className="text-orange-500 text-base sm:text-lg font-display tracking-tight">20-80s</div>
-            <div className="text-text-muted text-[10px] uppercase tracking-[0.2em] mt-1">first-pass browser</div>
+          <div className="bg-[#070503] px-3 py-4 text-center">
+            <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">20-80s</div>
+            <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">first-pass browser</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">unbrowse visits for you, captures the API</div>
           </div>
         </div>
@@ -165,9 +165,10 @@ export function UseCasesBand() {
                 {c.headline}
               </h3>
 
-              <div className="bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 mb-3 rounded-sm font-mono text-xs leading-relaxed">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-1.5">Agent intent</div>
-                <div className="text-[rgba(255,176,96,0.95)]">{c.intent}</div>
+              <div className="relative bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 pl-4 mb-3 rounded-sm font-mono leading-relaxed">
+                <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] bg-orange-500/70" />
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[rgba(255,122,32,0.55)] mb-1.5">Agent intent</div>
+                <div className="text-[rgba(255,200,140,1)] text-[13px] sm:text-sm leading-[1.45]">{c.intent}</div>
               </div>
 
               <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">

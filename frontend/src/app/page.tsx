@@ -273,7 +273,7 @@ export default function Home() {
           className="relative flex flex-col justify-start overflow-hidden"
           style={{ minHeight: "90vh" }}
         >
-          <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center">
+          <div className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center min-w-0">
             <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
               <a
                 href="https://github.com/unbrowse-ai/unbrowse"
@@ -300,13 +300,28 @@ export default function Home() {
               </Suspense>
             </div>
 
+            {/* Suspense fallback matches the resolved HeroSpeedProofStrip's
+                3-pill layout so the height never changes when client-side
+                useAudienceMode resolves (was a major CLS source). The
+                content is the dev-mode default; if useAudienceMode swaps
+                to "everyone", individual pill text changes but pill count
+                + height stay constant. */}
             <Suspense
               fallback={
-                <div className="animate-fade-up stagger-1 mb-2 flex flex-wrap items-center justify-center gap-2 font-mono text-xs">
-                  <span className="px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm">
-                    <span className="text-orange-500 font-medium">1 MCP</span>{" "}
-                    <span className="text-text-muted">for any site</span>
-                  </span>
+                <div className="animate-fade-up stagger-1 mb-2 flex flex-wrap items-stretch justify-center gap-x-1.5 gap-y-2 font-mono">
+                  {[
+                    { v: "1 MCP",   l: "for any site" },
+                    { v: "0 setup", l: "per new site" },
+                    { v: "3.6x",    l: "mean vs Playwright (n=94)" },
+                  ].map((s) => (
+                    <span
+                      key={s.l}
+                      className="inline-flex items-baseline gap-2 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
+                    >
+                      <span className="text-orange-500 font-semibold tabular-nums tracking-tight">{s.v}</span>
+                      <span className="text-text-muted text-[10px] uppercase tracking-[0.18em]">{s.l}</span>
+                    </span>
+                  ))}
                 </div>
               }
             >
@@ -315,7 +330,7 @@ export default function Home() {
 
             <h1
               data-hero-h1
-              className="animate-fade-up stagger-1 text-[2rem] sm:text-6xl lg:text-[5.5rem] leading-[1.08] sm:leading-[1.04] tracking-[-0.025em] text-balance text-text-primary font-display"
+              className="animate-fade-up stagger-1 max-w-full text-[2rem] sm:text-6xl lg:text-[5.5rem] leading-[1.08] sm:leading-[1.04] tracking-[-0.025em] text-balance text-text-primary font-display"
             >
               <Suspense
                 fallback={
@@ -381,11 +396,28 @@ export default function Home() {
               </div>
             </div>
 
+            {/* PERF: HeroWhyItMatters renders only in everyone mode,
+                so a 0-height fallback is fine — the reserve happens
+                inside the component when it actually mounts. */}
             <Suspense fallback={null}>
               <HeroWhyItMatters />
             </Suspense>
 
-            <Suspense fallback={null}>
+            {/* PERF: HeroTerminalGated SSR-renders to ~360px (dev mode
+                HeroTerminal). fallback={null} caused a 278px layout
+                shift when content popped in, pushing HeroHands down
+                (CLS 0.30 root cause). Reserve ~380px so the swap is
+                pure paint. min-height matches the rendered terminal's
+                worst case on mobile. */}
+            <Suspense
+              fallback={
+                <div
+                  className="mt-12 w-full max-w-2xl"
+                  aria-hidden
+                  style={{ minHeight: 380, contain: "layout" }}
+                />
+              }
+            >
               <HeroTerminalGated />
             </Suspense>
           </div>

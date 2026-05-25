@@ -89,10 +89,18 @@ export default function RootLayout({
           rel="preconnect"
           href="https://cloud.umami.is"
         />
+        {/* PERF: load the LCP-critical display family with high priority
+            so the hero H1's font swap fires inside the first paint
+            window instead of at ~5.6s post-load. Still display:swap so
+            we never block paint, but fetchpriority high pushes the
+            request out of the queue immediately. */}
         <link
           key="google-fonts"
           href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap`}
           rel="stylesheet"
+          // @ts-expect-error - fetchpriority is a valid HTML hint;
+          // React types haven't caught up.
+          fetchpriority="high"
         />
         <style>{`
           :root {

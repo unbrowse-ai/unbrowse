@@ -83,15 +83,30 @@ export function HeroHands() {
         </defs>
       </svg>
 
-      {/* Human hand — left, reaching right */}
+      {/* Human hand — left, reaching right.
+          PERF: priority + sizes so the optimizer picks the right
+          breakpoint and the LCP candidate (hero text behind) doesn't
+          wait on a default-sized request. `contain: layout` keeps the
+          internal absolute fill from leaking reflow into the hero
+          section.
+
+          CLS lock: heights/widths are viewport-relative (vh/vw), NOT
+          parent-relative (%). Parent-relative sizes shifted when the
+          hero section's height stabilized post-font-load (CLS 0.30 at
+          823ms). Viewport-relative pin removes the dependency.
+          */}
       <div
-        className="absolute left-0 bottom-0 w-[50%] h-[58%] max-sm:w-[63%] max-sm:h-[55%] pointer-events-none select-none"
-        style={{ transform: `translateX(-${tx}%) translateY(${isMobile ? '-2%' : '20%'})` }}
+        className="absolute left-0 bottom-0 w-[50vw] h-[52vh] max-sm:w-[63vw] max-sm:h-[46vh] pointer-events-none select-none"
+        style={{
+          transform: `translateX(-${tx}%) translateY(${isMobile ? '-2%' : '20%'})`,
+          contain: 'layout paint',
+        }}
       >
         <Image
           src="/images/human-hand-nobg.png"
           alt=""
           fill
+          sizes="(max-width: 640px) 63vw, 50vw"
           className="object-cover object-right-center max-sm:object-contain max-sm:object-bottom"
           style={{ opacity: 0.85, filter: 'url(#crt-hand)' }}
         />
@@ -99,13 +114,17 @@ export function HeroHands() {
 
       {/* Android hand — right, reaching left */}
       <div
-        className="absolute right-0 bottom-0 w-[50%] h-[58%] max-sm:w-[55%] max-sm:h-[48%] pointer-events-none select-none"
-        style={{ transform: `translateX(${tx}%) translateY(${isMobile ? '1%' : '20%'})` }}
+        className="absolute right-0 bottom-0 w-[50vw] h-[52vh] max-sm:w-[55vw] max-sm:h-[40vh] pointer-events-none select-none"
+        style={{
+          transform: `translateX(${tx}%) translateY(${isMobile ? '1%' : '20%'})`,
+          contain: 'layout paint',
+        }}
       >
         <Image
           src="/images/android-hand-nobg.png"
           alt=""
           fill
+          sizes="(max-width: 640px) 55vw, 50vw"
           className="object-cover object-left-center max-sm:object-contain max-sm:object-bottom"
           style={{ opacity: 0.85, filter: 'url(#crt-hand)' }}
         />

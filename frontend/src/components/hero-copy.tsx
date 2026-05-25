@@ -126,18 +126,15 @@ export function HeroSpeedProofStrip() {
 
   return (
     <div className="animate-fade-up stagger-1 mb-2 flex flex-wrap items-stretch justify-center gap-x-1.5 gap-y-2 font-mono">
-      {stats.map((s, i) => (
+      {stats.map((s) => (
         <span
           key={s.l}
-          className="inline-flex items-baseline gap-1.5 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
+          className="inline-flex items-baseline gap-2 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
         >
-          <span className="text-orange-500 font-medium">{s.v}</span>
-          <span className="text-text-muted text-[10px] uppercase tracking-[0.15em]">
+          <span className="text-orange-500 font-semibold tabular-nums tracking-tight">{s.v}</span>
+          <span className="text-text-muted text-[10px] uppercase tracking-[0.18em]">
             {s.l}
           </span>
-          {i < stats.length - 1 && (
-            <span className="hidden sm:inline text-[rgba(255,122,32,0.3)] -mr-1.5">·</span>
-          )}
         </span>
       ))}
     </div>

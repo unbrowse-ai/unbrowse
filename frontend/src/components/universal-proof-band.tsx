@@ -21,7 +21,7 @@ import { IconCompass, IconDiamondCheck, IconArrow } from "./archival-icons";
 export function UniversalProofBand() {
   return (
     <section id="universal" className="relative py-16 sm:py-24 flex flex-col justify-center">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="text-center mb-8 flex flex-col items-center">
           <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
             ##  What &quot;universal&quot; means here
@@ -51,11 +51,11 @@ export function UniversalProofBand() {
               captured shadow API, not driving Chromium. Falls through to the
               real browser only when the route is not yet known.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 mt-auto rounded-sm font-mono text-xs leading-relaxed">
-              <div className="text-text-muted line-through mb-1">
+            <div className="bg-[#060402] border border-[rgba(255,122,32,0.22)] p-3.5 mt-auto rounded-sm font-mono text-xs leading-[1.6]">
+              <div className="text-[rgba(120,108,96,0.85)] line-through mb-1.5">
                 import {"{"} chromium {"}"} from &quot;playwright&quot;;
               </div>
-              <div className="text-orange-500">
+              <div className="text-orange-500 font-medium">
                 import {"{"} Browser {"}"} from &quot;@unbrowse/sdk&quot;;
               </div>
             </div>
@@ -93,10 +93,14 @@ export function UniversalProofBand() {
               <IconCompass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Coverage</span>
             </div>
-            <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">94 live domains in the open bench.</h3>
+            <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">
+              <span className="font-display text-2xl sm:text-3xl text-orange-500 tabular-nums tracking-[-0.03em]">94</span>{" "}
+              live domains in the open bench.
+            </h3>
             <p className="text-text-secondary text-sm leading-relaxed mb-4">
-              The paper measures 3.6x mean speedup (5.4x median) over
-              Playwright across 94 live domains. 18 of those domains complete
+              The paper measures <span className="text-orange-300 font-medium tabular-nums">3.6x</span> mean speedup
+              (<span className="text-orange-300 font-medium tabular-nums">5.4x</span> median) over
+              Playwright across 94 live domains. <span className="text-orange-300 font-medium tabular-nums">18</span> of those domains complete
               in under 100ms from the cache. The corpus is at{" "}
               <code className="text-xs font-mono">harness/probes/corpus.txt</code>; rerun the bench yourself.
             </p>
