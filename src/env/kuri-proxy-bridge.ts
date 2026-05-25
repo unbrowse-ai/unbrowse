@@ -49,6 +49,7 @@ export type KuriProxyBridgeOutcome =
   | { wired: false; reason: "opt_out" }
   | { wired: false; reason: "already_set"; existing: string }
   | { wired: false; reason: "creds_missing" }
+  | { wired: false; reason: "chrome_incompatible_proxy_format"; redacted: string }
   | { wired: false; reason: "invalid_toggle"; value: string }
   | { wired: true; source: "explicit_url" | "auto"; redacted: string };
 
@@ -56,42 +57,55 @@ function redactProxyUrl(url: string): string {
   return url.replace(/\/\/[^@]+@/, "//***@");
 }
 
+// Whether the proxy URL has inline credentials (user:pass@host).
+// Chrome's --proxy-server flag REJECTS such URLs with
+// ERR_NO_SUPPORTED_PROXIES on every navigation — empirically verified
+// in bench-2026-05-25 where 5 probes returned chrome-error://chromewebdata
+// because kuri passed the auth-in-URL proxy through to Chrome. We must
+// NOT set KURI_PROXY in that case; the proxy stays available to the
+// fetch / curl_cffi paths via UNBROWSE_PROXY_URL which DO support
+// auth-in-URL.
+function hasInlineAuth(proxyUrl: string): boolean {
+  return /^\w+:\/\/[^/@]+@/.test(proxyUrl);
+}
+
 // Forces Kuri to launch managed Chrome instead of attaching to user's
 // existing Chrome. Kuri's attach-vs-managed decision lives in
 // src/kuri/client.ts:resolveKuriLaunchConfig — it reads
 // KURI_DISABLE_CDP_ATTACH (opt-OUT) which trumps the opt-IN
-// KURI_ATTACH_EXISTING_CHROME.
-//
-// Caveat that bit us in bench-2026-05-25: Chrome's --proxy-server flag
-// does NOT accept inline auth (user:pass@host:port). Chrome rejects
-// the URL with ERR_NO_SUPPORTED_PROXIES and every navigation returns
-// the chrome-error://chromewebdata error page. Forcing managed Chrome
-// with an auth-in-URL proxy is therefore worse than no proxy — every
-// site fails instead of just the JS-challenge ones.
-//
-// We only force managed Chrome when the proxy URL does NOT have inline
-// auth. Future: support a separate KURI_PROXY_USERNAME / KURI_PROXY_PASSWORD
-// env that kuri injects via PAC script or basic-auth extension; until
-// then, an auth-in-URL proxy stays unforced.
-function forceManagedChrome(env: NodeJS.ProcessEnv, proxyUrl: string): void {
-  const hasInlineAuth = /^\w+:\/\/[^/@]+@/.test(proxyUrl);
-  if (hasInlineAuth) {
-    process.stderr.write(
-      "[kuri-proxy] proxy has inline credentials; Chrome --proxy-server rejects auth-in-URL. " +
-      "Not forcing managed Chrome (proxy applies only when kuri launches its own browser for other reasons).\n",
-    );
-    return;
-  }
+// KURI_ATTACH_EXISTING_CHROME. Only called when the proxy URL is
+// Chrome-compatible (no inline auth).
+function forceManagedChrome(env: NodeJS.ProcessEnv): void {
   if (!env.KURI_DISABLE_CDP_ATTACH) {
     env.KURI_DISABLE_CDP_ATTACH = "1";
   }
+}
+
+// Apply the proxy to kuri's environment. Returns true iff KURI_PROXY
+// was actually set (Chrome-compatible URL). When auth-in-URL is present,
+// emits an honest stderr line and leaves KURI_PROXY unset so kuri's
+// Chrome runs direct rather than receiving a broken --proxy-server flag.
+function applyKuriProxy(env: NodeJS.ProcessEnv, proxyUrl: string): boolean {
+  if (hasInlineAuth(proxyUrl)) {
+    process.stderr.write(
+      "[kuri-proxy] proxy has inline credentials (user:pass@host). " +
+      "Chrome --proxy-server rejects this shape with ERR_NO_SUPPORTED_PROXIES; " +
+      "leaving KURI_PROXY unset. Fetch/curl_cffi paths still use UNBROWSE_PROXY_URL. " +
+      "Future fix: KURI_PROXY_USERNAME / KURI_PROXY_PASSWORD env via PAC or basic-auth extension.\n",
+    );
+    return false;
+  }
+  env.KURI_PROXY = proxyUrl;
+  forceManagedChrome(env);
+  return true;
 }
 
 export function bridgeKuriProxyEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): KuriProxyBridgeOutcome {
   if (env.KURI_PROXY) {
-    forceManagedChrome(env, env.KURI_PROXY);
+    // Pre-existing KURI_PROXY is respected as-is (don't overwrite, don't
+    // force managed Chrome — the caller knows what they're doing).
     return { wired: false, reason: "already_set", existing: redactProxyUrl(env.KURI_PROXY) };
   }
 
@@ -101,8 +115,8 @@ export function bridgeKuriProxyEnv(
   }
 
   if (/^(?:https?|socks5):\/\//.test(toggle)) {
-    env.KURI_PROXY = toggle;
-    forceManagedChrome(env, toggle);
+    const applied = applyKuriProxy(env, toggle);
+    if (!applied) return { wired: false, reason: "chrome_incompatible_proxy_format", redacted: redactProxyUrl(toggle) };
     return { wired: true, source: "explicit_url", redacted: redactProxyUrl(toggle) };
   }
 
@@ -110,8 +124,8 @@ export function bridgeKuriProxyEnv(
     const fromUrl = env.UNBROWSE_PROXY_URL?.trim();
     const proxy = fromUrl || resolveProxyUrl(env);
     if (!proxy) return { wired: false, reason: "creds_missing" };
-    env.KURI_PROXY = proxy;
-    forceManagedChrome(env, proxy);
+    const applied = applyKuriProxy(env, proxy);
+    if (!applied) return { wired: false, reason: "chrome_incompatible_proxy_format", redacted: redactProxyUrl(proxy) };
     return { wired: true, source: "auto", redacted: redactProxyUrl(proxy) };
   }
 
