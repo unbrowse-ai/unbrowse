@@ -9,6 +9,15 @@ hints for Telegram, web, and terminal clients when Flex onboarding is missing,
 the worker is on testnet while a mainnet endpoint is requested, or a
 caller-supplied wallet balance is below threshold.
 
+### Ranker and capture gap closures (2026-05-25)
+
+**fix(ranker,capture)**: capture now waits for shell-like SPA pages to reach a
+real DOM mutation or quiet resource window before indexing, so Next/Nuxt/React
+hydration has a chance to expose lazy XHRs. Ranker follow-ups keep data-rich
+page artifacts above off-surface API siblings, demote same-brand non-shared
+subdomains harder, and avoid labeling profile pages as search-form artifacts
+just because the global header includes a search box.
+
 ### Semantic search returns results again — defensive metadata + BM25 global fallback (2026-05-23)
 
 **fix(search)**: `/v1/search` had been returning `{"results":[]}` for every query
