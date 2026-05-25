@@ -8,17 +8,18 @@ metadata:
 
 # Unbrowse
 
-Unbrowse turns websites into reusable API routes for agents. Teach a route once, store sanitized metadata, replay it on later calls. Typical run is 30× faster and 90× cheaper than a fresh browser session.
+Unbrowse turns websites into reusable API routes for agents. Teach a route once, store sanitized metadata, replay it on later calls. Typical run is 30× faster and 90× cheaper than a fresh browser session — peer-reviewed benchmark across 94 live domains: 3.6× mean speedup, 5.4× median, 40× fewer tokens ([arXiv:2604.00694](https://arxiv.org/abs/2604.00694)).
 
-Three surfaces, one runtime:
+Four surfaces, one runtime:
 
 | Surface | When to reach for it |
 |---|---|
 | **MCP server** | An MCP-host agent (Claude Desktop, Cursor, Codex, Claude Code). Tool calls like `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_go` appear in the host. |
 | **CLI** (`unbrowse`) | A shell session or a bash-script that wants the same surface as the MCP server, without an MCP host. |
 | **SDK** (`@unbrowse/sdk`) | A TypeScript program that wants to embed Unbrowse. `npm i @unbrowse/sdk` is enough; the SDK spawns its own local binary. |
+| **Drop-in shims** | One-line replace for existing tools: `@unbrowse/playwright-shim`, `@unbrowse/firecrawl-shim`, `@unbrowse/stagehand-shim`. Cache hit → free; miss → fall through to the original library. |
 
-All three resolve to the same runtime workflow underneath:
+All four resolve to the same runtime workflow underneath:
 - **resolve** asks "is there an indexed route for this intent + URL?" — returns a shortlist or a hard handoff.
 - **execute** picks one endpoint from the shortlist and runs it — returns the real data.
 - **browse-session** opens a managed browser when the API is too dynamic to predict; local capture indexes route metadata.
