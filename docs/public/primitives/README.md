@@ -19,7 +19,9 @@ The intent is auditable transparency. Anyone reading this folder can verify, wit
 11. [release-on-boost](./11-release-on-boost.md) — a release is recommended when dimensional-bench coverage rises by ≥10 percentage points above the last shipped release; recommendation is surfaced, never auto-fired.
 12. [preload-link-extraction](./12-preload-link-extraction.md) — when a page declares its data API as <link rel="preload" as="fetch"> or <link rel="prefetch">, the capture pipeline fetches it directly via in-page XHR so cookies + headers replay correctly.
 13. [x402-facilitator-choice](./13-x402-facilitator-choice.md) — x402 facilitator is operator-pluggable via UNBROWSE_X402_FACILITATOR. PayAI (default), x402.rs (free mainnet, smart-wallet ready), Coinbase CDP (KYC + free tier), Thirdweb Solana, or self-hosted. Cascade Splits handles multi-recipient revenue routing on top.
+14. [stripe-x402-bridge](./14-stripe-x402-bridge.md) — sellers accept x402 via Stripe PaymentIntent (Stripe captures USDC, settles fiat to their Stripe account; no wallet); buyers pay x402 via Stripe Link Agents (card → Stripe converts to USDC; no wallet). The protocol stays x402; Stripe is the fiat/crypto bridge at both ends.
 13. [x402-facilitator-choice](./13-x402-facilitator-choice.md) — x402 facilitator is operator-pluggable via UNBROWSE_X402_FACILITATOR. PayAI (default), x402.rs (free mainnet, smart-wallet ready), Coinbase CDP (KYC + free tier), Thirdweb Solana, or self-hosted. Cascade Splits handles multi-recipient revenue routing on top.
+14. [stripe-x402-bridge](./14-stripe-x402-bridge.md) — sellers accept x402 via Stripe PaymentIntent (Stripe captures USDC, settles fiat to their Stripe account; no wallet); buyers pay x402 via Stripe Link Agents (card → Stripe converts to USDC; no wallet). The protocol stays x402; Stripe is the fiat/crypto bridge at both ends.
 
 ## What this folder is not
 

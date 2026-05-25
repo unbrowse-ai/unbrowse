@@ -29,7 +29,8 @@ export interface DirectDocumentRejection {
     | "too_small"
     | "challenge_html"
     | "interstitial_detected"
-    | "intent_mismatch";
+    | "intent_mismatch"
+    | "spa_hydration_required";
   // Optional evidence the agent reads in-thread when judging the rejection.
   // Populated for intent_mismatch / interstitial_detected so the orchestrator's
   // decision_trace can surface WHY direct-document handed off to the browser
@@ -39,6 +40,8 @@ export interface DirectDocumentRejection {
     response_token_hits?: string[];
     response_token_hit_rate?: number;
     interstitial_signal?: string;
+    spa_markers?: string[];
+    body_text_chars?: number;
     html_bytes?: number;
   };
 }
@@ -72,6 +75,26 @@ const INTERSTITIAL_RE =
 // MIN_DIRECT_DOCUMENT_HTML_BYTES already gates raw HTML at 5KB, but the EXTRACTED
 // text inside a 5KB SPA shell can collapse to <500 chars. Apply this on text.
 const MIN_DIRECT_DOCUMENT_BODY_TEXT = 500;
+
+// SPA hydration markers — Next.js / Nuxt / Redux / generic React SSR shells emit
+// these inline-script anchors when the page hydrates client-side. The body text
+// scraped from the pre-hydration HTML is thin chrome (header/footer/loading
+// skeleton); the agent's content lives in the data blob the SPA later renders
+// via fetch + render. When direct-document sees these markers AND the extracted
+// body text is below a hydration floor, the right next step is the browser
+// ladder (with a hydration wait), NOT returning the empty meta envelope.
+//
+// Triggered by civitai-class probes (next.js SPA returning a 50KB shell with
+// <500 chars of visible text — only the `<title>` and `<meta>` survive the
+// strip; the search results render after window.__NEXT_DATA__ is consumed).
+// Generic across stacks; no per-host arm.
+const SPA_HYDRATION_RE =
+  /\b(__NEXT_DATA__|_next\/static|window\.__NUXT__|window\.__INITIAL_STATE__|__APOLLO_STATE__|window\.__PRELOADED_STATE__|window\.__INITIAL_PROPS__|_nuxt\/static)\b/i;
+// Body text floor below which an SPA shell is considered un-hydrated.
+// A real direct-document page (wikipedia article, stackoverflow question)
+// has >2000 chars of visible text after script/style strip; SPA shells
+// pre-hydration collapse to <2000 (often <1000).
+const SPA_HYDRATION_BODY_TEXT_FLOOR = 2_000;
 
 // Stopwords pulled from a generic English list; verbs that signal an intent
 // action are stripped because they are unlikely to appear verbatim in a result
