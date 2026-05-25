@@ -9,6 +9,34 @@ article at `/blog/contract-organ-explained`, so visitors and crawlers can
 follow the thesis → mechanism → workflow → evidence → agent surface →
 contributor loop without relying on the flat article list.
 
+### Billing roadblocks become machine-readable (2026-05-25)
+
+**feat(backend)**: added `/v1/billing/topup-needed` as an authenticated
+ROADBLOCK REQUIRED surface for payment blockers. It returns structured render
+hints for Telegram, web, and terminal clients when Flex onboarding is missing,
+the worker is on testnet while a mainnet endpoint is requested, or a
+caller-supplied wallet balance is below threshold.
+
+### Faremeter Flex three-recipient `createUptoHandler` wiring (2026-05-25)
+
+**feat(flex)**: ship `backend/src/services/flex-upto-handler.ts` —
+`createUptoHandlerForSkill(env, opts)` returns a Hono Handler produced
+by `@faremeter/payment-solana/flex/hono#createUptoHandler` whose
+`accepts[].payTo` is the indexer's USDC ATA and whose returned
+`split.defaultSplits` array carries the three-recipient
+[indexer, domain-or-globalhold, platform] cut per primitive doc
+`docs/public/primitives/07-fair-split-and-claim.md`. Bps derive from
+on-ledger metrics via the existing `computeFlexSplits` (default 35/15/50;
+indexer absorbs `markup_bps` deltas inside [500, 8000] bps). Domain
+recipient resolves through `lookupDomainWallet` → `domain-wallet:<host>`
+binding in statsKV; falls back to `FLEX_GLOBAL_HOLD_USDC_ATA` when
+unclaimed; respects `domain-optout:<host>`. New env binding
+`FLEX_GLOBAL_HOLD_USDC_ATA` declared on `backend/src/types.ts`. 23
+new unit tests at `backend/tests/flex-upto-handler.test.ts` cover every
+branch (claimed / unclaimed / opted-out / no contributor / no domain /
+markup override / dedup collision). Closes contract `1a80cffd`
+(DEFERRED-FAREMETER-FLEX-SPLITS-IMPL).
+
 ### Ranker and capture gap closures (2026-05-25)
 
 **fix(ranker,capture)**: capture now waits for shell-like SPA pages to reach a
