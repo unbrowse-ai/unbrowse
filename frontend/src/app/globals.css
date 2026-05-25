@@ -61,10 +61,13 @@
   --surface-sunken: rgba(5, 4, 3, 0.96);
   --border: rgba(255, 82, 0, 0.18);
   --border-strong: rgba(255, 82, 0, 0.32);
-  /* High-contrast white text */
+  /* High-contrast white text — WCAG AA on #090806 base
+     - primary  #F5F3EF on #090806 = 17.5:1 (AAA)
+     - secondary #B5AC9E on #090806 = 8.3:1 (AAA)  [was #8A8278 = 5.0:1, AA only]
+     - muted    #A89E92 on #090806 = 6.9:1 (AAA)   [was #5A5450 = 3.6:1, FAIL] */
   --text-primary: #F5F3EF;
-  --text-secondary: #8A8278;
-  --text-muted: #5A5450;
+  --text-secondary: #B5AC9E;
+  --text-muted: #A89E92;
   --code-bg: rgba(8, 7, 6, 0.96);
   --glow: rgba(255, 82, 0, 0.45);
   --glow-azure: rgba(34, 211, 238, 0.25);
@@ -106,6 +109,85 @@
 /* ═══ Base ═══ */
 html {
   scroll-behavior: smooth;
+}
+
+/* ═══ A11y: keyboard focus rings ═══
+   Every interactive element gets a visible focus ring on keyboard nav.
+   :focus-visible scopes to keyboard-only — mouse clicks remain ringless.
+   Reset the UA outline first so we don't double-ring. */
+:focus { outline: none; }
+:focus-visible {
+  outline-width: 2px;
+  outline-style: solid;
+  outline-color: #FF8B4A;
+  outline-offset: 2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 139, 74, 0.25);
+}
+[data-theme="dark"] :focus-visible {
+  outline-color: #FF8B4A; /* slightly brighter against near-black bg */
+}
+/* Buttons that override `outline` in their own className (e.g. the
+   orange CTA) still get the ring via box-shadow fallback. */
+
+/* Respect reduced-motion: kill non-essential transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Screen-reader-only utility (already provided by Tailwind's sr-only) —
+   ensure custom layers don't override visibility. */
+
+/* A11y: white-on-orange-500 fails WCAG AA (3.25:1 < 4.5:1).
+   Re-color white text to dark when the parent uses bg-orange-500 / -600.
+   `:is()` keeps specificity low; `:where()` would let any `text-*` override
+   us, which is what we want — a deliberate text color on the same element
+   should still win. */
+.bg-orange-500.text-white,
+.bg-orange-500 .text-white,
+.bg-orange-600.text-white,
+.bg-orange-600 .text-white,
+.hover\:bg-orange-600:hover.text-white,
+.hover\:bg-orange-600:hover .text-white {
+  color: #1a0d00 !important;
+  font-weight: 600;
+}
+
+/* A11y: low-alpha orange literal classes used decoratively across the
+   archival pages render at 2-3.9:1 on near-black backgrounds — below
+   the WCAG AA 4.5:1 floor. Bump them by overriding the literal arbitrary
+   classes when they appear under dark theme. The original values stay
+   in source so light-theme (if re-enabled) still works. */
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.4\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.45\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.5\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.55\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,156\,64\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,156\,64\,0\.7\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.55\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.7\)\] {
+  color: rgba(255, 188, 120, 0.95) !important; /* ≈ #ffbc78 — 7.1:1 on #090806 */
+}
+
+/* zinc-500 (#71717a) on near-black is 4.0:1 — fails AA for normal text.
+   The two chat-demo placeholders use it on small body copy; bump locally. */
+[data-theme="dark"] .text-zinc-500 {
+  color: #b0b0b8 !important; /* 7.3:1 on #090806 */
+}
+
+/* Decorative line-through text used to show "the old way" — keep
+   contrast above AA when not strictly decorative. */
+[data-theme="dark"] .text-\[rgba\(120\,108\,96\,0\.85\)\] {
+  color: rgba(170, 160, 145, 0.92) !important; /* 6.4:1 */
 }
 
 body {
@@ -204,10 +286,52 @@ body {
 .stagger-5 { animation-delay: 0.5s; }
 .stagger-6 { animation-delay: 0.6s; }
 
+/* ═══ Display Font Fallback Calibration ═══
+   The hero H1 is the LCP candidate AND the font swap from system-stack
+   to Google Sans Display caused the largest measured CLS shift
+   (0.246 at t=5664ms in PERF-AUDIT). The fallback @font-face below
+   wraps the local system stack with explicit metric overrides so the
+   system render measures at almost-exactly the cap-height of Google
+   Sans Display. Font swap reflow becomes near-zero. */
+@font-face {
+  font-family: 'Google Sans Display Fallback';
+  src: local('Helvetica Neue'), local('HelveticaNeue'), local('Arial');
+  size-adjust: 99%;
+  ascent-override: 95%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
 /* ═══ Display Font ═══ */
 h1, h2, .font-display {
-  font-family: var(--font-display, 'Google Sans Display'), system-ui, sans-serif;
+  font-family: var(--font-display, 'Google Sans Display'),
+    'Google Sans Display Fallback', system-ui, sans-serif;
   font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+/* ═══ Hero H1 height lock (PERF: CLS 0.246 → near-zero)
+   The hero H1's font swap (system → Google Sans Display) reflows from
+   ~4 lines to ~3 lines on mobile / from ~2 lines to ~1.5 lines on
+   wider screens. Locking min-height to the WORST-CASE (pre-font) line
+   count means the box never shrinks when fonts arrive — the swap is
+   pure paint, not layout. Values are tuned to the actual measured
+   heights at each breakpoint.
+
+   The hero H1 carries the data-hero-h1 attribute so this rule is
+   targeted (no global side-effects).
+*/
+[data-hero-h1] {
+  min-height: 148px;
+}
+@media (min-width: 640px) {
+  [data-hero-h1] {
+    min-height: 140px;
+  }
+}
+@media (min-width: 1024px) {
+  [data-hero-h1] {
+    min-height: 200px;
+  }
 }
 
 /* ═══ Utility ═══ */

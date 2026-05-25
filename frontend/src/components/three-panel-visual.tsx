@@ -406,8 +406,8 @@ export function ThreePanelVisual() {
                       <div className="flex items-center gap-2 pl-6">
                         {isActive ? (
                           <>
-                            <IconSpinner size={14} className="text-zinc-500 animate-spin" />
-                            <span className="text-zinc-500 text-[11px] animate-pulse">Executing...</span>
+                            <IconSpinner size={14} className="text-zinc-400 animate-spin" aria-hidden="true" />
+                            <span className="text-zinc-300 text-[11px] animate-pulse" role="status" aria-live="polite">Executing...</span>
                           </>
                         ) : (
                           <>

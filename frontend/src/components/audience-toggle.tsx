@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
@@ -25,6 +26,29 @@ export function AudienceToggle() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  const devRef = useRef<HTMLButtonElement>(null);
+  const everyRef = useRef<HTMLButtonElement>(null);
+
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const next = mode === "dev" ? "everyone" : "dev";
+      setMode(next);
+      (next === "dev" ? devRef : everyRef).current?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setMode("dev");
+      devRef.current?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setMode("everyone");
+      everyRef.current?.focus();
+    }
+  };
+
+  // Roving tabindex — only the active tab is in the tab order.
+  // Inactive-tab text color bumped from rgba(255,156,64,0.6) (FAIL 3.4:1)
+  // to rgba(255,176,96,0.85) (PASS 5.5:1) on the near-black hero surface.
   const baseCls =
     "px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] cursor-pointer transition-colors";
 
@@ -35,28 +59,34 @@ export function AudienceToggle() {
       aria-label="Audience mode"
     >
       <button
+        ref={devRef}
         type="button"
         role="tab"
         aria-selected={mode === "dev"}
+        tabIndex={mode === "dev" ? 0 : -1}
+        onKeyDown={onKey}
         onClick={() => setMode("dev")}
         className={`${baseCls} ${
           mode === "dev"
             ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
-            : "text-[rgba(255,156,64,0.6)] hover:text-[rgba(255,176,96,0.9)]"
+            : "text-[rgba(255,176,96,0.85)] hover:text-[rgba(255,176,96,1)]"
         }`}
       >
         for devs
       </button>
       <span className="w-px self-stretch bg-[rgba(255,122,32,0.3)]" aria-hidden />
       <button
+        ref={everyRef}
         type="button"
         role="tab"
         aria-selected={mode === "everyone"}
+        tabIndex={mode === "everyone" ? 0 : -1}
+        onKeyDown={onKey}
         onClick={() => setMode("everyone")}
         className={`${baseCls} ${
           mode === "everyone"
             ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
-            : "text-[rgba(255,156,64,0.6)] hover:text-[rgba(255,176,96,0.9)]"
+            : "text-[rgba(255,176,96,0.85)] hover:text-[rgba(255,176,96,1)]"
         }`}
       >
         for everyone

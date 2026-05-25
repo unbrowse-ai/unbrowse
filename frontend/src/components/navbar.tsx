@@ -116,7 +116,10 @@ export function Navbar() {
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="w-9 h-9 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-            aria-label="Toggle menu"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="navbar-mobile-dropdown"
+            type="button"
           >
             {mobileOpen ? (
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -133,7 +136,12 @@ export function Navbar() {
 
       {/* Mobile dropdown */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/8 bg-black/40 backdrop-blur-md">
+        <div
+          id="navbar-mobile-dropdown"
+          role="menu"
+          aria-label="Site navigation"
+          className="md:hidden border-t border-white/8 bg-black/40 backdrop-blur-md"
+        >
           <div className="px-6 py-4 space-y-0.5">
             <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
             <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>

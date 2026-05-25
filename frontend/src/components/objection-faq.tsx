@@ -31,7 +31,7 @@ export function ObjectionFaq() {
     },
     {
       q: "Crypto is sketchy.",
-      a: "USDC on Base L2. Same Coinbase on/off-ramps everyone already uses. You can cash out to a bank.",
+      a: "USDC on Solana via Faremeter Flex. Settlement is gas-light and instant; Crossmint lobster.cash routes payouts straight to a bank account. You never touch the chain unless you want to.",
       cite: "t3_1pe54l3, t3_1s3ozz0",
     },
     {
@@ -67,25 +67,28 @@ export function ObjectionFaq() {
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="border-t border-[rgba(255,122,32,0.18)]">
           {rows.map((r) => (
             <details
               key={r.q}
-              className="group border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm transition-colors hover:border-[rgba(255,122,32,0.3)]"
+              className="group border-b border-[rgba(255,122,32,0.18)] bg-[#070503]/40 transition-colors hover:bg-[#070503]/90"
             >
-              <summary className="cursor-pointer list-none p-4 flex items-start justify-between gap-4">
-                <span className="text-base font-medium text-text-primary leading-snug">
+              <summary className="cursor-pointer list-none p-5 flex items-start justify-between gap-4">
+                <span className="text-base sm:text-lg font-medium text-text-primary leading-snug tracking-tight">
                   {r.q}
                 </span>
-                <span className="text-xs font-mono text-[rgba(255,122,32,0.6)] shrink-0 mt-1 group-open:rotate-45 transition-transform">
+                <span
+                  aria-hidden="true"
+                  className="text-lg font-mono text-[rgba(255,176,96,0.85)] shrink-0 leading-none mt-1 group-open:rotate-45 transition-transform duration-200"
+                >
                   +
                 </span>
               </summary>
-              <div className="px-4 pb-4 -mt-1 space-y-2">
-                <p className="text-sm text-text-secondary leading-relaxed">
+              <div className="px-5 pb-5 -mt-1 space-y-2 max-w-3xl">
+                <p className="text-sm sm:text-base text-text-secondary leading-relaxed">
                   {r.a}
                 </p>
-                <p className="text-[11px] font-mono text-text-muted">
+                <p className="text-[11px] font-mono text-[rgba(255,122,32,0.55)]">
                   cite: {r.cite}
                 </p>
               </div>
