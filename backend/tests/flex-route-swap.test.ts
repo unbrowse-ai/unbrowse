@@ -13,6 +13,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bu
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
 import type { FlexFacilitatorHandler } from "../src/services/flex-facilitator.js";
 
+const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 const facilitatorState: {
   mode: "valid" | "invalid_sig" | "throw" | "settle_fail";
 } = { mode: "valid" };
@@ -53,7 +55,7 @@ mock.module("../src/services/flex-facilitator.js", () => ({
   }),
   resetFlexFacilitatorCacheForTests: () => {},
   platformRecipientUsdcAta: (env: { FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string }) =>
-    env.FLEX_PLATFORM_RECIPIENT_USDC_ATA ?? "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    env.FLEX_PLATFORM_RECIPIENT_USDC_ATA ?? PLATFORM_USDC_ATA,
   flexRefundTimeoutSlots: () => 150n,
 }));
 
@@ -71,7 +73,7 @@ const BASE_ENV: Env = {
   STATS_KV: {} as KVNamespace,
   ENVIRONMENT: "local-dev",
   PAYMENT_RECIPIENT: "0xplatformwallet",
-  FLEX_PLATFORM_RECIPIENT_USDC_ATA: "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
 };
 
@@ -191,21 +193,23 @@ describe("Day 5 — Flex route swap (skills.ts)", () => {
 
     expect(res.status).toBe(402);
     expect(body.x402Version).toBe(2);
-    expect(body.accepts.length).toBe(1);
-    expect(body.accepts[0].scheme).toBe("@faremeter/flex");
-    expect(body.accepts[0].network).toBe("solana-mainnet");
+    expect(body.accepts.length).toBeGreaterThanOrEqual(2);
+    const flex = body.accepts.find((entry) => entry.scheme === "@faremeter/flex");
+    expect(flex).toBeTruthy();
+    if (!flex) throw new Error("missing Flex accept");
+    expect(flex.network).toBe("solana-mainnet");
     // payTo is the agent's escrow PDA, not the contributor wallet.
-    expect(body.accepts[0].payTo).toBe("EscrowPda1111111111111111111111111111111111");
-    // splits sum to 10000 bps, platform present at 1000.
-    const splits = body.accepts[0].extra.splits;
+    expect(flex.payTo).toBe("EscrowPda1111111111111111111111111111111111");
+    // splits sum to 10000 bps, platform present at the current default cut.
+    const splits = flex.extra.splits;
     expect(splits.reduce((s, e) => s + e.bps, 0)).toBe(10000);
-    expect(splits[0].recipient).toBe("PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-    expect(splits[0].bps).toBe(1000);
-    expect(body.accepts[0].extra.flexAuthorizationDraft.escrow).toBe("EscrowPda1111111111111111111111111111111111");
+    expect(splits[0].recipient).toBe(PLATFORM_USDC_ATA);
+    expect(splits[0].bps).toBe(5000);
+    expect(flex.extra.flexAuthorizationDraft.escrow).toBe("EscrowPda1111111111111111111111111111111111");
     // amount is dynamic from computeRoutePrice; just assert it's a positive
     // integer string and matches the embedded maxAmount.
-    expect(Number(body.accepts[0].amount)).toBeGreaterThan(0);
-    expect(body.accepts[0].extra.flexAuthorizationDraft.maxAmount).toBe(body.accepts[0].amount);
+    expect(Number(flex.amount)).toBeGreaterThan(0);
+    expect(flex.extra.flexAuthorizationDraft.maxAmount).toBe(flex.amount);
   });
 
   it("edge: agent missing flex_escrow_address → soft-block 402 with flex_onboarding_incomplete", async () => {

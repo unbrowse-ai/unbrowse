@@ -87,7 +87,7 @@ internal package details — any drop-in compatible facilitator works.
   `defaultSplits`. Open.
 - `3dc7494e` — deploy Faremeter facilitator on Tencent SSH host with
   systemd unit. Open.
-- `f1616303` — wire `pay.sh` and `agentcash.dev` as additional
+- `f1616303` — wire Pay signer and `agentcash.dev` as additional
   `accepts[]` entries in the 402 envelope alongside Flex (rail
   redundancy). Open.
 

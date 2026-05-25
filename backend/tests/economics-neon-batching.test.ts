@@ -6,6 +6,7 @@ import type { Env } from "../src/types.js";
 const env: Env = {
   API_KEY: "admin",
   DATABASE_URL: "postgres://test",
+  USE_PGKV: "1",
   EMERGENTDB_API_KEY: "unused",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
@@ -112,7 +113,8 @@ describe("economics leaderboard Neon query shape", () => {
         }
         if (query.includes("SELECT key, value")) {
           prefixScanCount += 1;
-          return rowsByPrefix.get(String(values[1])) ?? [];
+          const prefix = values.map(String).find((value) => rowsByPrefix.has(value));
+          return prefix ? rowsByPrefix.get(prefix) ?? [] : [];
         }
         if (query.includes("SELECT value")) {
           pointLookupCount += 1;
