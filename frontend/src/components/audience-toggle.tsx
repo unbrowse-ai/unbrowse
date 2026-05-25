@@ -30,7 +30,7 @@ export function AudienceToggle() {
 
   return (
     <div
-      className="inline-flex items-center gap-0 border border-[rgba(255,122,32,0.3)] rounded-sm overflow-hidden"
+      className="inline-flex items-center gap-0 border border-border rounded-sm overflow-hidden"
       role="tablist"
       aria-label="Audience mode"
     >
@@ -41,13 +41,13 @@ export function AudienceToggle() {
         onClick={() => setMode("dev")}
         className={`${baseCls} ${
           mode === "dev"
-            ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
-            : "text-[rgba(255,156,64,0.6)] hover:text-[rgba(255,176,96,0.9)]"
+            ? "bg-orange-50 text-orange-500"
+            : "text-orange-500 hover:text-text-secondary"
         }`}
       >
         for devs
       </button>
-      <span className="w-px self-stretch bg-[rgba(255,122,32,0.3)]" aria-hidden />
+      <span className="w-px self-stretch bg-orange-50" aria-hidden />
       <button
         type="button"
         role="tab"
@@ -55,8 +55,8 @@ export function AudienceToggle() {
         onClick={() => setMode("everyone")}
         className={`${baseCls} ${
           mode === "everyone"
-            ? "bg-[rgba(255,122,32,0.15)] text-[rgba(255,176,96,1)]"
-            : "text-[rgba(255,156,64,0.6)] hover:text-[rgba(255,176,96,0.9)]"
+            ? "bg-orange-50 text-orange-500"
+            : "text-orange-500 hover:text-text-secondary"
         }`}
       >
         for everyone

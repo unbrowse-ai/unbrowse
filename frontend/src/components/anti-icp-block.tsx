@@ -25,8 +25,8 @@ export function AntiIcpBlock() {
   return (
     <section id="anti-icp" className="relative py-12 sm:py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm p-6 sm:p-8">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+        <div className="border border-border bg-surface-ink rounded-sm p-6 sm:p-8">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3">
             ##  Who unbrowse is not for
           </p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-text-primary mb-5">
@@ -37,10 +37,10 @@ export function AntiIcpBlock() {
             {rows.map((r) => (
               <div
                 key={r.scenario}
-                className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 border-b border-[rgba(255,122,32,0.1)] last:border-0 py-2.5"
+                className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 border-b border-border last:border-0 py-2.5"
               >
                 <span className="text-text-secondary flex-1">→ {r.scenario}</span>
-                <span className="text-[rgba(255,176,96,0.85)]">{r.instead}</span>
+                <span className="text-text-secondary">{r.instead}</span>
               </div>
             ))}
           </div>

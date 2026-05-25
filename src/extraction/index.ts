@@ -395,6 +395,38 @@ export function extractSPAData(html: string): SPAExtraction[] {
     } catch { /* malformed __PRELOADED_STATE__ */ }
   }
 
+  // --- Generic SPA-hydration var-assignment scanner ---
+  // Many SPAs assign hydration data via `var X = {...};` instead of
+  // `window.X = {...}` (YouTube ytInitialData, Google services, many
+  // pre-2020 React apps). The named-list above misses these. Generalises
+  // to any CAPS-or-camelCase identifier with `(var|let|const)` prefix
+  // that opens an object literal, brace-balanced like the named pattern.
+  // Per generalise-across-sites doctrine: NO per-name registry; the
+  // shape (var-assignment to object literal inside <script>) IS the rule.
+  const varAssignRe = /(?:^|[\s;{]|<script[^>]*>)\s*(?:var|let|const)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(\{)/g;
+  let varMatch: RegExpExecArray | null;
+  const seenVarNames = new Set<string>();
+  while ((varMatch = varAssignRe.exec(html))) {
+    const varName = varMatch[1];
+    if (seenVarNames.has(varName)) continue;
+    seenVarNames.add(varName);
+    if (seenVarNames.size > 50) break; // budget per page; SPA shells rarely have >50 candidate vars
+    const startIdx = varMatch.index + varMatch[0].length - 1; // position of `{`
+    const body = sliceBalancedObject(html, startIdx);
+    if (!body || body.length < 64) continue; // skip trivial config blobs
+    try {
+      const parsed = JSON.parse(body);
+      if (!parsed || typeof parsed !== "object") continue;
+      const elementCount = countDataElements(parsed);
+      if (elementCount < 5) continue; // skip small config maps; SPA hydration is usually 100s of elements
+      results.push({
+        type: "spa-initial-state",
+        data: parsed,
+        element_count: elementCount,
+      });
+    } catch { /* not JSON — JS expression with functions/refs; skip */ }
+  }
+
   // --- Apollo Client: window.__APOLLO_STATE__ or <script>window.__APOLLO_STATE__={...}<\/script>.
   // Goodreads and many React/GraphQL apps ship their entire Apollo cache
   // here. Keys are cache IDs like "Book:3735293"; values are the real

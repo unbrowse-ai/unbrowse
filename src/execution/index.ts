@@ -1722,6 +1722,34 @@ async function executeBrowserCapture(
         } else {
           log("execution", "no_progress_bail_ssr_fastpath_failed_no_html");
         }
+        // Tertiary fallback: curl_cffi via Python — bypasses TLS-fingerprint-only
+        // sites (proven 2026-05-25: youtube class returns 1.05MB real content).
+        // Skips JS-challenge interstitial class cleanly (returns null).
+        try {
+          const { tryCurlImpersonateFetch } = await import("../capture/curl-impersonate-fallback.js");
+          const cffi = await tryCurlImpersonateFetch({ url, proxy: resolveAntibotProxy(), timeoutMs: 30_000 });
+          if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
+            const cffiArtifact = buildPageArtifactCapture(url, intent, cffi.html, false);
+            if (cffiArtifact.endpoint && cffiArtifact.result) {
+              log("execution", `no_progress_bail_curl_cffi_success: ${cffi.html.length} bytes via Python+curl_cffi proxy=${cffi.proxy_used}`);
+              const trace: ExecutionTrace = stampTrace({
+                trace_id: traceId,
+                skill_id: skill.skill_id,
+                endpoint_id: "browser-capture",
+                started_at: startedAt,
+                completed_at: new Date().toISOString(),
+                success: true,
+                decision_trace: [{ step: "no_progress_bail_curl_cffi_success", html_bytes: cffi.html.length, status: cffi.status, proxy_used: cffi.proxy_used }],
+              });
+              return { trace, result: cffiArtifact.result as Record<string, unknown> };
+            }
+            log("execution", "no_progress_bail_curl_cffi_failed_extraction_quality");
+          } else {
+            log("execution", `no_progress_bail_curl_cffi_failed: ${cffi ? `status=${cffi.status} bytes=${cffi.bytes}` : "no result"}`);
+          }
+        } catch (cffiErr) {
+          log("execution", `no_progress_bail_curl_cffi_error: ${cffiErr instanceof Error ? cffiErr.message : String(cffiErr)}`);
+        }
       } catch (ssrErr) {
         log("execution", `no_progress_bail_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`);
       }

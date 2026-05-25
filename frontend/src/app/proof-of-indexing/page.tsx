@@ -211,7 +211,7 @@ export default function ProofOfIndexingPage() {
           <div className="mt-8 text-sm sm:text-base text-text-secondary">
             <div className="font-semibold text-text-primary">{AUTHOR.name}</div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -323,7 +323,7 @@ export default function ProofOfIndexingPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-secondary/60">
+          <p className="mt-3 text-sm text-text-muted">
             Assumes 100 resolves per agent per day at $0.005 per resolve. Daily
             payout is the 70% contributor share.
           </p>
@@ -340,7 +340,7 @@ export default function ProofOfIndexingPage() {
             work.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-secondary/60 select-none">$ </span>
+            <span className="text-text-muted select-none">$ </span>
             <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

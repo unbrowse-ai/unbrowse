@@ -61,27 +61,27 @@ export async function TrustStrip() {
       className="animate-fade-up stagger-3 mt-8 w-full max-w-3xl"
       aria-label="Trust signals"
     >
-      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 px-4 py-3 rounded-sm border border-[rgba(255,122,32,0.18)] bg-[rgba(6,4,2,0.92)]">
+      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 px-4 py-3 rounded-sm border border-border bg-surface-ink">
         <a
           href="https://arxiv.org/abs/2604.00694"
           target="_blank"
           rel="noopener"
-          className="group inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)] hover:text-orange-400 transition-colors"
+          className="group inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
         >
-          <span className="text-[rgba(255,122,32,0.5)]">arXiv</span>
+          <span className="text-orange-500">arXiv</span>
           <span>2604.00694</span>
           <span className="text-text-muted normal-case tracking-normal opacity-70 group-hover:opacity-100">
             NUS · peer reviewed
           </span>
         </a>
 
-        <span className="text-[rgba(255,122,32,0.25)]" aria-hidden>
+        <span className="text-text-muted" aria-hidden>
           ·
         </span>
 
         <Link
           href="/benchmark-deep-dive"
-          className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)] hover:text-orange-400 transition-colors"
+          className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
         >
           <span className="text-orange-500">n=94</span>
           <span className="text-text-muted normal-case tracking-normal">
@@ -89,7 +89,7 @@ export async function TrustStrip() {
           </span>
         </Link>
 
-        <span className="text-[rgba(255,122,32,0.25)]" aria-hidden>
+        <span className="text-text-muted" aria-hidden>
           ·
         </span>
 
@@ -99,14 +99,14 @@ export async function TrustStrip() {
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)] hover:text-orange-400 transition-colors"
+              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
             >
               <span className="text-orange-500">{fmt(stars)}</span>
               <span className="text-text-muted normal-case tracking-normal">
                 GitHub stars
               </span>
             </a>
-            <span className="text-[rgba(255,122,32,0.25)]" aria-hidden>
+            <span className="text-text-muted" aria-hidden>
               ·
             </span>
           </>
@@ -118,14 +118,14 @@ export async function TrustStrip() {
               href="https://www.npmjs.com/package/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)] hover:text-orange-400 transition-colors"
+              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
             >
               <span className="text-orange-500">{fmt(npmDl)}</span>
               <span className="text-text-muted normal-case tracking-normal">
                 npm/mo
               </span>
             </a>
-            <span className="text-[rgba(255,122,32,0.25)]" aria-hidden>
+            <span className="text-text-muted" aria-hidden>
               ·
             </span>
           </>
@@ -135,7 +135,7 @@ export async function TrustStrip() {
           href="https://github.com/unbrowse-ai/unbrowse/blob/main/LICENSE"
           target="_blank"
           rel="noopener"
-          className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)] hover:text-orange-400 transition-colors"
+          className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
         >
           <span className="text-orange-500">AGPL-3.0</span>
           <span className="text-text-muted normal-case tracking-normal">
@@ -143,7 +143,7 @@ export async function TrustStrip() {
           </span>
         </a>
 
-        <span className="text-[rgba(255,122,32,0.25)]" aria-hidden>
+        <span className="text-text-muted" aria-hidden>
           ·
         </span>
 

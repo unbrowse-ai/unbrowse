@@ -2,7 +2,7 @@
 
 This page explains how money moves through unbrowse on every paid call. The math, the splits, the wallet ownership, and the rails. Every claim cites a file and line in the codebase.
 
-## Web2 subscription path (contract 9474c6ab)
+## Web2 subscription path
 
 For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
 

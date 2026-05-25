@@ -327,7 +327,7 @@ export default function MineTheInternetPage() {
               {AUTHOR.name}
             </div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -390,11 +390,11 @@ export default function MineTheInternetPage() {
           </h2>
           <div className="space-y-3">
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
-              <span className="text-text-secondary/60 select-none">$ </span>
+              <span className="text-text-muted select-none">$ </span>
               <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
             </div>
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
-              <span className="text-text-secondary/60 select-none">$ </span>
+              <span className="text-text-muted select-none">$ </span>
               <span className="text-orange-600">
                 unbrowse resolve &quot;search github for openai&quot;
               </span>
@@ -483,7 +483,7 @@ export default function MineTheInternetPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-secondary/60">
+          <p className="mt-3 text-sm text-text-muted">
             At $0.0025 indexer share per resolve (50% of the $0.005 fee — drops
             to $0.00175 / 35% once the site owner DNS-claims their domain).
             First-mover 2x bonus not included. Actual earnings depend on route
@@ -540,7 +540,7 @@ export default function MineTheInternetPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-secondary/60">
+          <p className="mt-3 text-sm text-text-muted">
             Assumes 100 resolves per agent per day at $0.005 per resolve. Payout
             reflects the 50% indexer share — the dominant case today, before
             site owners DNS-claim their domains. Once claimed, that lane settles
@@ -559,7 +559,7 @@ export default function MineTheInternetPage() {
             useful work.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-secondary/60 select-none">$ </span>
+            <span className="text-text-muted select-none">$ </span>
             <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

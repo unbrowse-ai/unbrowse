@@ -22,7 +22,7 @@ export function ZeroSetupBand() {
     <section id="zero-setup" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="relative text-center mb-6 flex flex-col items-center">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-orange-500 mb-3">
             ##  Zero-setup web access
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary max-w-3xl">
@@ -37,7 +37,7 @@ export function ZeroSetupBand() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
           {/* Card A — JA4 + libcurl-impersonate (corrected from residential-magic) */}
-          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 overflow-hidden transition-colors hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+          <div className="group relative p-5 border border-border bg-surface-ink overflow-hidden transition-colors hover:border-border rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconHourglass size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Bot detection</span>
@@ -49,7 +49,7 @@ export function ZeroSetupBand() {
               Chrome cookies and Turnstile / Datadome / PerimeterX usually
               never fire. Residential-proxy fallback is one env var away.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
+            <div className="bg-surface-ink border border-border p-3 mt-auto rounded-sm">
               <div className="flex justify-between items-center text-xs font-mono mb-2">
                 <span className="text-text-muted">Headless Chrome (default JA4)</span>
                 <span className="text-text-muted">flagged</span>
@@ -62,7 +62,7 @@ export function ZeroSetupBand() {
           </div>
 
           {/* Card B — Auth intelligence (sharpened with stale-endpoint demotion) */}
-          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+          <div className="group relative p-5 border border-border bg-surface-ink transition-all overflow-hidden hover:border-border rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconSeal size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Auth intelligence</span>
@@ -75,7 +75,7 @@ export function ZeroSetupBand() {
               Three login-hint surfaces (Keychain / browser / agent prompt)
               tell you exactly where to reauthenticate.
             </p>
-            <div className="pt-4 border-t border-[rgba(255,122,32,0.12)] space-y-2 mt-auto">
+            <div className="pt-4 border-t border-border space-y-2 mt-auto">
               <div className="flex items-center gap-2 text-sm text-text-secondary">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> Chrome + Firefox cookie jars
               </div>
@@ -89,7 +89,7 @@ export function ZeroSetupBand() {
           </div>
 
           {/* Card C — No injected JS */}
-          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+          <div className="group relative p-5 border border-border bg-surface-ink transition-all overflow-hidden hover:border-border rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconScript size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Extraction</span>
@@ -101,7 +101,7 @@ export function ZeroSetupBand() {
               do not break the agent. Every endpoint gets an LLM-authored
               description at capture time so resolve picks the right one.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
+            <div className="bg-surface-ink border border-border p-3 mt-auto rounded-sm">
               <div className="flex justify-between items-center text-xs font-mono mb-2">
                 <span className="text-text-muted">Framework injected JS</span>
                 <span className="text-text-muted line-through">a11y tree</span>

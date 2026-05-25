@@ -69,7 +69,7 @@ export default async function BlogIndexPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogSchema) }}
       />
       <div className="max-w-4xl mx-auto px-6 py-16 sm:py-24">
-        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+        <header className="mb-12 border-b border-border pb-10">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-orange-500/90 mb-4">
             ##  BLOG
           </p>
@@ -97,7 +97,7 @@ export default async function BlogIndexPage() {
               {categories.map((category) => (
                 <span
                   key={category}
-                  className="inline-flex items-center px-3 py-1 rounded-sm bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] text-xs font-mono uppercase tracking-[0.18em] text-[rgba(255,176,96,0.85)]"
+                  className="inline-flex items-center px-3 py-1 rounded-sm bg-surface-ink border border-border text-xs font-mono uppercase tracking-[0.18em] text-text-secondary"
                 >
                   {category}
                 </span>
@@ -125,7 +125,7 @@ export default async function BlogIndexPage() {
                 <Link
                   key={post.slug}
                   href={post.href}
-                  className="block group rounded-sm border border-[rgba(255,122,32,0.18)] bg-surface-raised p-6 sm:p-8 hover:border-orange-500/40 hover:bg-orange-50/[0.025] transition-colors"
+                  className="block group rounded-sm border border-border bg-surface-raised p-6 sm:p-8 hover:border-orange-500/40 hover:bg-orange-50/[0.025] transition-colors"
                 >
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     {post.category && (

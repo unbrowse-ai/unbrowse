@@ -237,7 +237,7 @@ export default function OpenClawEarnPage() {
             Install in one command
           </h2>
           <div className="bg-surface-sunken rounded-lg p-4 font-mono text-sm sm:text-base overflow-x-auto">
-            <span className="text-text-secondary/60 select-none">$ </span>
+            <span className="text-text-muted select-none">$ </span>
             <code className="text-orange-600">{INSTALL_CMD}</code>
           </div>
           <p className="mt-3 text-sm text-text-secondary">
@@ -411,7 +411,7 @@ export default function OpenClawEarnPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-secondary/60">
+          <p className="mt-3 text-sm text-text-muted">
             Estimates based on typical browsing patterns of 15-20 sites per day.
             Earnings scale with network growth — more agents using the network
             means more route uses and higher earnings for contributors.
@@ -470,7 +470,7 @@ export default function OpenClawEarnPage() {
             first-mover bonuses you claim.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-secondary/60 select-none">$ </span>
+            <span className="text-text-muted select-none">$ </span>
             <span className="text-orange-600">{INSTALL_CMD}</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
