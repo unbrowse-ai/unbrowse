@@ -420,3 +420,427 @@ h1, h2, .font-display {
   border-top: 1px solid var(--border);
   margin: 2rem 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   EDITIONS SURFACE (Shopify Editions Winter 2026 mirror)
+   Cream paper-and-ink palette. Activated by adding `.editions-page`
+   to the page wrapper. Scoped under .editions-surface so it never
+   bleeds into the rest of the dark/orange site.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Editions custom properties (cream surface). */
+.editions-surface,
+.editions-page {
+  --ed-cream: #dcdcd0;
+  --ed-cream-card: #e2e2d9;
+  --ed-cream-warm: #f7f7ee;
+  --ed-ink: #292919;
+  --ed-ink-muted: #5c5c4e;
+  --ed-hairline: #909083;
+  --ed-hairline-faint: rgba(41, 41, 25, 0.10);
+  --ed-accent: #5433eb;
+  --ed-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ed-ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* `.editions-page` flips the body into cream surface for landing only,
+   overriding the global dark theme for this route. */
+body.editions-page {
+  background-color: #dcdcd0 !important;
+  background-image: none !important;
+  color: #292919 !important;
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+/* Kill the dark-theme decorative overlay on editions pages. */
+body.editions-page::after {
+  display: none !important;
+}
+
+/* Kill phosphor glow on headings within editions surface. */
+body.editions-page h1,
+body.editions-page h2,
+body.editions-page h3 {
+  text-shadow: none;
+}
+
+/* Hide the global Navbar and SiteFooter on editions pages.
+   Both files emit unscoped class names so we hook by structural selectors
+   added in navbar.tsx/site-footer.tsx (data-global-chrome). */
+body.editions-page [data-global-chrome="navbar"],
+body.editions-page [data-global-chrome="site-footer"] {
+  display: none !important;
+}
+
+/* Editions surface base. Always wraps editions content. */
+.editions-surface {
+  background-color: var(--ed-cream);
+  color: var(--ed-ink);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+/* ─── Editions keyframes ─── */
+
+/* Per-word hero stagger: opacity-only, NO translate. */
+@keyframes ed-stagger-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Figure / media reveal: opacity-only. */
+@keyframes ed-media-entrance {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Nav pill load: slides down past resting and settles. */
+@keyframes ed-nav-item-in {
+  0% { opacity: 0; transform: translateY(-100%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Editions typography ─── */
+
+.editions-surface .ed-headline-1 {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(7.5rem, 35.7895px + 10.9649vw, 13.75rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+  color: var(--ed-ink);
+}
+
+.editions-surface .ed-headline-2,
+.editions-surface .chapter-title {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(6rem, 75.7895px + 2.63158vw, 7.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+  color: var(--ed-ink);
+  margin: 0;
+}
+
+.editions-surface .ed-narrative-1,
+.editions-surface .chapter-lede {
+  font-family: var(--font-serif-editions), HWCigars, Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+  color: var(--ed-ink);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.editions-surface .chapter-eyebrow {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ed-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.editions-surface .chapter-eyebrow .ed-number {
+  color: var(--ed-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Chapter primitive ─── */
+
+.editions-surface .chapter {
+  border-top: 1px solid var(--ed-hairline);
+  padding: clamp(4rem, 8vw, 10rem) clamp(1rem, 4vw, 6rem);
+  background-color: var(--ed-cream);
+  color: var(--ed-ink);
+}
+
+.editions-surface .chapter:first-of-type,
+.editions-surface .chapter.chapter-first {
+  border-top: 0;
+}
+
+.editions-surface .editions-shell {
+  max-width: 90rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Hairlines */
+.editions-surface .hairline {
+  border: 0;
+  border-top: 1px solid var(--ed-hairline);
+  margin: 0;
+}
+
+.editions-surface .hairline-faint {
+  border: 0;
+  border-top: 1px solid var(--ed-hairline-faint);
+  margin: 0;
+}
+
+/* Feature grid + cards (Wave-1 base; richer skin lands in Wave-2). */
+.editions-surface .feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 2rem);
+}
+
+.editions-surface .feature-grid-3 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+  .editions-surface .feature-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.editions-surface .feature-card {
+  background-color: var(--ed-cream-card);
+  border-radius: 0.75rem;
+  padding: clamp(1.5rem, 2vw, 2.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editions-surface .feature-card h3 {
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.5rem, 2vw, 1.8125rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--ed-ink);
+  margin: 0;
+}
+
+.editions-surface .feature-card p {
+  font-family: var(--font-serif-editions), HWCigars, Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 0.97;
+  letter-spacing: -0.05em;
+  color: var(--ed-ink);
+  margin: 0;
+}
+
+.editions-surface .cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ed-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  font-size: 1rem;
+}
+
+/* ─── Word-split per-word stagger ─── */
+.editions-surface .word-split {
+  display: inline;
+}
+
+.editions-surface .word-split-line {
+  display: inline;
+}
+
+.editions-surface .word-split .word {
+  display: inline-block;
+  opacity: 1; /* SSR visible default */
+}
+
+/* When the reveal flag is set, words start hidden and stagger in. */
+[data-reveal="pending"] .word-split .word,
+[data-reveal="in"] .word-split .word {
+  opacity: 0;
+  animation: ed-stagger-fade-in 0.5s var(--ed-ease) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+[data-reveal="pending"] [data-reveal-child] {
+  opacity: 0;
+}
+
+[data-reveal="in"] [data-reveal-child] {
+  opacity: 0;
+  animation: ed-media-entrance 0.6s var(--ed-ease) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* ─── Sticky chapter nav ─── */
+.editions-page .editions-nav,
+.editions-surface .editions-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 56px;
+  background-color: rgba(220, 220, 208, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ed-hairline);
+  width: 100%;
+}
+
+.editions-surface .editions-nav-inner {
+  max-width: 90rem;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2.5rem);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.editions-surface .editions-nav-chapters {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.editions-surface .editions-nav-chapters::-webkit-scrollbar {
+  display: none;
+}
+
+.editions-surface .editions-nav-chapters a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--ed-ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.18s var(--ed-ease);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+}
+
+.editions-surface .editions-nav-chapters a:hover {
+  color: var(--ed-ink);
+}
+
+.editions-surface .editions-nav-chapters a.is-active {
+  color: var(--ed-ink);
+}
+
+.editions-surface .editions-nav-logo {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.012em;
+  color: var(--ed-ink);
+  text-decoration: none;
+}
+
+.editions-surface .editions-nav-link {
+  font-size: 0.8125rem;
+  color: var(--ed-ink-muted);
+  text-decoration: none;
+}
+
+.editions-surface .editions-nav-link:hover {
+  color: var(--ed-ink);
+}
+
+@media (max-width: 767px) {
+  .editions-surface .editions-nav-chapters {
+    display: none;
+  }
+}
+
+/* Anchor scroll padding for sticky-nav offset (SPEC §4). */
+html.editions-html {
+  scroll-padding-top: 60px;
+}
+
+@media (max-width: 768px) {
+  html.editions-html {
+    scroll-padding-top: 50px;
+  }
+}
+
+/* ─── Editions hero shell ─── */
+.editions-surface .editions-hero {
+  padding: clamp(4rem, 9vw, 8rem) clamp(1rem, 4vw, 6rem);
+  background-color: var(--ed-cream);
+}
+
+.editions-surface .ed-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background-color: var(--ed-ink);
+  color: var(--ed-cream);
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border-radius: 0;
+  transition: background-color 0.18s var(--ed-ease);
+}
+
+.editions-surface .ed-cta-primary:hover {
+  background-color: #1a1a10;
+}
+
+.editions-surface .ed-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ed-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-size: 0.9375rem;
+}
+
+/* Hero speed-proof strip */
+.editions-surface .ed-proof-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  font-family: var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ed-ink-muted);
+}
+
+.editions-surface .ed-proof-strip strong {
+  color: var(--ed-ink);
+  font-weight: 700;
+}
+
+/* ─── Contained dark figure cards ─── */
+.editions-surface .ed-dark-figure {
+  background-color: var(--ed-ink);
+  color: var(--ed-cream-warm);
+  border-radius: 0.75rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  margin: clamp(1rem, 2vw, 1.5rem) 0;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.editions-surface .ed-dark-figure pre {
+  margin: 0;
+  white-space: pre;
+}
+
+.editions-surface .ed-dark-figure .ed-diff-out {
+  color: rgba(247, 247, 238, 0.45);
+  text-decoration: line-through;
+  text-decoration-color: rgba(247, 247, 238, 0.45);
+}
+
+.editions-surface .ed-dark-figure .ed-diff-in {
+  color: var(--ed-cream-warm);
+}
+

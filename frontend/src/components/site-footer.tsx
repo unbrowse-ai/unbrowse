@@ -81,6 +81,7 @@ function FooterColumn({
 export function SiteFooter() {
   return (
     <footer
+      data-global-chrome="site-footer"
       className="relative border-t border-[rgba(255,122,32,0.18)] mt-16 sm:mt-24"
       style={{ background: "rgba(6,4,2,0.92)" }}
     >
