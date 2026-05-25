@@ -9,7 +9,7 @@ import { HeroTerminal } from "./hero-terminal";
  */
 export function HeroTerminalGated() {
   const mode = useAudienceMode();
-  if (mode === "everyone") {
+  if (mode === "publisher") {
     return (
       <div className="animate-fade-up stagger-3 w-full max-w-2xl mt-12">
         <div
