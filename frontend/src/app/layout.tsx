@@ -1,25 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Instrument_Serif } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-
-// Editions display face (NeueMontreal substitute — Bricolage Grotesque
-// is the closest open-source equivalent to NeueMontreal's geometric grotesk).
-const bricolage = Bricolage_Grotesque({
-  weight: ["700"],
-  subsets: ["latin"],
-  variable: "--font-display-editions",
-  display: "swap",
-});
-
-// Editions narrative serif (HWCigars substitute — Instrument Serif carries
-// the same editorial italic + tight letter-fit feel).
-const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-  variable: "--font-serif-editions",
-  display: "swap",
-});
 
 import { AuthProvider } from "@/lib/auth-context";
 import { PrivyOptionalProvider } from "@/lib/privy-provider";
@@ -84,12 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      data-theme="dark"
-      className={`editions-html ${bricolage.variable} ${instrumentSerif.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <link
           key="llms-txt"

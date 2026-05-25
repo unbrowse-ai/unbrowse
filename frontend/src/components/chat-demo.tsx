@@ -481,7 +481,7 @@ export function ChatDemo() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Image src="/logo.png" alt="unbrowse" width={18} height={18} unoptimized style={{ borderRadius: 2, opacity: 0.8 }} />
+            <Image src="/logo-optimized.webp" alt="unbrowse" width={18} height={18} style={{ borderRadius: 2, opacity: 0.8 }} />
             <span style={{ fontFamily: "monospace", fontSize: 10, color: O_DIM, letterSpacing: "0.18em", textTransform: "uppercase" }}>
               {mode === "demo" ? "agent session  //  airbnb.com" : "agent session  //  live mode"}
             </span>

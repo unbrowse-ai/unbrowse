@@ -26,22 +26,31 @@ export function DemoParallax() {
   const matthewY =  100 - progress * 220; // starts 100px below, ends 120px above
 
   return (
-    <div ref={sectionRef} className="absolute inset-0 pointer-events-none">
+    <div ref={sectionRef} className="absolute inset-0 pointer-events-none demo-parallax-root">
       {/* Angel — top right, drifts down */}
       <div
-        className="absolute top-0 right-0 w-[307px] sm:w-96 select-none"
+        className="absolute top-0 right-0 w-[307px] sm:w-96 select-none demo-parallax-layer"
         style={{ filter: 'url(#crt-hand)', transform: `translateY(${angelY}px)`, willChange: 'transform' }}
       >
-        <Image src="/images/angel.webp" alt="" width={320} height={240} className="w-full h-auto object-contain" style={{ opacity: 0.85 }} />
+        <Image src="/images/angel-optimized.webp" alt="" width={320} height={240} className="w-full h-auto object-contain" style={{ opacity: 0.85 }} />
       </div>
 
       {/* Saint Matthew — bottom left, rises up */}
       <div
-        className="absolute bottom-0 left-0 w-[269px] sm:w-[346px] select-none"
+        className="absolute bottom-0 left-0 w-[269px] sm:w-[346px] select-none demo-parallax-layer"
         style={{ filter: 'url(#crt-hand)', transform: `translateY(${matthewY}px)`, willChange: 'transform' }}
       >
-        <Image src="/images/saint-matthew.png" alt="" width={288} height={360} className="w-full h-auto object-contain" style={{ opacity: 0.85 }} />
+        <Image src="/images/saint-matthew-optimized.webp" alt="" width={288} height={360} className="w-full h-auto object-contain" style={{ opacity: 0.85 }} />
       </div>
+      <style>{`
+        /* PERF-AUDIT fix 6: SVG url() filters force off-main-thread
+           compositing per frame on translated layers — brutal on mobile.
+           Disable below 768px and let the layers render plain. Inline
+           style filter is overridden via !important here. */
+        @media (max-width: 768px) {
+          .demo-parallax-layer { filter: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

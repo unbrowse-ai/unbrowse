@@ -17,11 +17,11 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
           <Image
-            src="/logo.png"
+            src="/logo-optimized.webp"
             alt="unbrowse"
             width={28}
             height={28}
-            unoptimized
+            priority
           />
           <span className="font-semibold text-base tracking-tight text-white/90">
             unbrowse
