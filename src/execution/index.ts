@@ -741,7 +741,10 @@ export function buildPageArtifactCapture(
 
   // Detect structured search forms from the captured HTML
   const searchForms = detectSearchForms(html);
-  const validSearchForm = searchForms.find((spec: SearchFormSpec) => isStructuredSearchForm(spec));
+  const searchFormIntent = /\b(search|find|lookup|query|browse|filter)\b/i.test(intent);
+  const validSearchForm = searchFormIntent
+    ? searchForms.find((spec: SearchFormSpec) => isStructuredSearchForm(spec))
+    : undefined;
 
   // SPA-sourced data (Next.js __NEXT_DATA__, Nuxt, __INITIAL_STATE__, etc.)
   // is structurally distinct from DOM repeated-elements scraping: it's the
@@ -5961,6 +5964,28 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const looksLikeApi = looksLikeApiUrl(url);
     return looksLikeApi && !ep.dom_extraction && !/captured (?:search form |page )?artifact/i.test(ep.description ?? "");
   });
+  const contextHostnameForCorpus = (() => {
+    try {
+      return contextUrl ? new URL(contextUrl).hostname.toLowerCase() : "";
+    } catch {
+      return "";
+    }
+  })();
+  const isSameSurfaceOrRootApiForContext = (endpointUrl: string): boolean => {
+    if (!contextHostnameForCorpus) return true;
+    try {
+      const epHost = new URL(endpointUrl).hostname.toLowerCase();
+      const epBare = epHost.replace(/^www\./, "");
+      const ctxBare = contextHostnameForCorpus.replace(/^www\./, "");
+      if (epBare === ctxBare) return true;
+      const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
+      const epRestAfterFirstLabel = epBare.split(".").slice(1).join(".");
+      return /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epBare)
+        && epRestAfterFirstLabel === ctxRegistrable;
+    } catch {
+      return false;
+    }
+  };
   // Stronger sibling signal: a non-page-artifact endpoint that BOTH looks
   // API-shaped AND has a data-rich response schema reachable at any depth
   // (object→properties.features:array, oneOf/anyOf branches, etc.). The
@@ -5976,6 +6001,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.dom_extraction) return false;
     if (/captured (?:search form |page )?artifact/i.test(ep.description ?? "")) return false;
     if (!ep.response_schema) return false;
+    if (!isSameSurfaceOrRootApiForContext(ep.url_template)) return false;
     return schemaContainsArrayAtAnyDepth(ep.response_schema);
   });
   const endpointHasSearchBinding = (ep: EndpointDescriptor): boolean => {
@@ -6349,7 +6375,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const pageArtifactIsDataRich =
       (isCapturedPageArtifact || isStructuralPageArtifact)
       && !!ep.dom_extraction
-      && (ep.dom_extraction.confidence ?? 0) >= 0.5
+      && (
+        (ep.dom_extraction.confidence ?? 0) >= 0.5 ||
+        ((ep.dom_extraction.confidence ?? 0) >= 0.4 && schemaContainsArrayAtAnyDepth(ep.response_schema))
+      )
       // W4: response_schema is OPTIONAL for page-artifacts. The dom_extraction
       // confidence IS the data-shape signal; page-artifacts often have null
       // response_schema. When schema IS present, still require array/object.
@@ -6799,8 +6828,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           const epBare = epHost.replace(/^www\./, "");
           if (ctxBare !== epBare) {
             const epIsSharedApi =
-              /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost) ||
-              looksLikeApiUrl(ep.url_template);
+              /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost);
             const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
             const epRegistrable = epBare.split(".").slice(-2).join(".");
             if (ctxRegistrable !== epRegistrable) {
@@ -6811,7 +6839,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
             } else if (!epIsSharedApi) {
               // A10 — same brand, different subdomain, NOT a shared-API host.
               // music.youtube.com endpoint for www.youtube.com query.
-              score -= 300;
+              score -= 650;
             }
           }
         }
@@ -6937,6 +6965,14 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     if (looksLikeContentRead && (pageArtifactHasEmptyEntityBags || (pageArtifactIsHtmlOnly && siblingHasEmptyEntityBagArtifact))) {
       score = clampToFloor(score, 0, EMPTY_ENTITY_BAG_FLOOR);
+    }
+    if (
+      looksLikeContentRead
+      && pageArtifactIsDataRich
+      && !pageArtifactHasEmptyEntityBags
+      && !hasDataRichJsonSiblingInCorpus
+    ) {
+      score = Math.max(score, 100);
     }
     return { endpoint: ep, score };
   });
