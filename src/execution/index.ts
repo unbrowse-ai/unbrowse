@@ -47,6 +47,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import { resolveProxyUrl } from "./proxy-fetch.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -4140,7 +4141,8 @@ export async function executeEndpoint(
       // Consented: attempt the proxy retry.
       decisionTrace.push({ step: "429_proxy_fallback_attempted", target: targetUrl });
       try {
-        const { proxiedFetchOnce, resolveProxyUrl } = await import("./proxy-fetch.js");
+        // resolveProxyUrl now hoisted to module-top static import (T-antibot-cascade)
+        const { proxiedFetchOnce } = await import("./proxy-fetch.js");
         const proxyUrl = resolveProxyUrl();
         if (!proxyUrl) {
           decisionTrace.push({ step: "429_proxy_fallback_error", reason: "creds_missing" });

@@ -14,6 +14,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import { resolveProxyUrl } from "../execution/proxy-fetch.js";
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
@@ -5043,13 +5044,20 @@ export async function resolveAndExecute(
       const hasVendorBlockSignal =
         Array.isArray(capturedBlockSignals) &&
         capturedBlockSignals.some((s: unknown) => typeof s === "string" && s.startsWith("vendor:"));
+      // resolveProxyUrl reads IPROYAL_USER/IPROYAL_PASS (optionally
+      // IPROYAL_HOST/PORT) and returns the canonical residential-proxy URL.
+      // UNBROWSE_PROXY_URL wins when explicitly set. Same composition used by
+      // the no_progress_bail rescue (src/execution/index.ts:1732) and the
+      // direct-document curl_cffi shortcut (line 4464 above).
+      const antibotProxy = process.env.UNBROWSE_PROXY_URL || resolveProxyUrl();
+
       if (hasVendorBlockSignal) {
         try {
           // trySsrFastPathOnBlock hoisted to module-top static import
           const ssr = await trySsrFastPathOnBlock({
             url: context.url,
             timeoutMs: 15_000,
-            proxy: process.env.UNBROWSE_PROXY_URL,
+            proxy: antibotProxy,
           });
           if (ssr && ssr.html.length > 500) {
             const ssrArtifact = buildPageArtifactCapture(context.url, queryIntent, ssr.html, false);
@@ -5092,6 +5100,137 @@ export async function resolveAndExecute(
         } catch (ssrErr) {
           console.log(
             `[orchestrator] vendor_block_ssr_fastpath_error: ${ssrErr instanceof Error ? ssrErr.message : String(ssrErr)}`,
+          );
+        }
+
+        // Tertiary fallback: curl_cffi via Python helper. trySsrFastPathOnBlock
+        // routes through Kuri's /v1/sandbox/replay — when Kuri is dead (cli
+        // timeout / SIGKILL) or its sandbox doesn't impersonate the failing
+        // vendor's JA4, this direct Python+curl_cffi path can still bypass
+        // TLS-fingerprint-only vendor blocks (datadome, cloudflare TLS class,
+        // captcha-200-but-empty). Same composition as the no_progress_bail
+        // rescue chain at src/execution/index.ts:1732. Skips cleanly when
+        // curl_cffi is not installed or returns an interstitial-shaped body.
+        try {
+          const cffi = await tryCurlImpersonateFetch({
+            url: context.url,
+            proxy: antibotProxy,
+            timeoutMs: 25_000,
+          });
+          if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
+            const cffiArtifact = buildPageArtifactCapture(context.url, queryIntent, cffi.html, false);
+            if (cffiArtifact.endpoint && cffiArtifact.result) {
+              console.log(
+                `[orchestrator] vendor_block_curl_cffi_success: ${cffi.html.length} bytes via curl_cffi proxy=${cffi.proxy_used} (signals: ${capturedBlockSignals.join(", ")})`,
+              );
+              const cffiTrace: import("../types/index.js").ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: cffiArtifact.endpoint.endpoint_id,
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+                decision_trace: [{
+                  step: "vendor_block_curl_cffi_success",
+                  html_bytes: cffi.html.length,
+                  status: cffi.status,
+                  proxy_used: cffi.proxy_used,
+                  vendor_signals: capturedBlockSignals,
+                }],
+              };
+              recordRoutingStep("live-capture", captureSkill, cffiTrace, cffiArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: cffiArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: cffiArtifact.result,
+                trace: cffiTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", cffiArtifact.result, captureSkill!.skill_id, captureSkill, cffiTrace),
+              };
+            }
+            console.log(
+              `[orchestrator] vendor_block_curl_cffi_null: curl_cffi returned ${cffi.html.length} bytes but DOM extraction yielded no usable artifact`,
+            );
+          } else if (cffi) {
+            console.log(
+              `[orchestrator] vendor_block_curl_cffi_null: status=${cffi.status} bytes=${cffi.bytes} proxy=${cffi.proxy_used} — proxy reachable but content not viable`,
+            );
+          } else {
+            console.log(`[orchestrator] vendor_block_curl_cffi_null: helper unavailable or returned no result`);
+          }
+        } catch (cffiErr) {
+          console.log(
+            `[orchestrator] vendor_block_curl_cffi_error: ${cffiErr instanceof Error ? cffiErr.message : String(cffiErr)}`,
+          );
+        }
+      } else {
+        // NO-vendor-signal empty-capture rescue. When the browser failed
+        // without producing any captured_meta (cli_timeout=124 / kuri SIGKILL
+        // pre-capture / no_html_many_apis where getPageHtml returned empty),
+        // there is no vendor:* signal to gate on but the page may still be
+        // reachable via curl_cffi + residential proxy. Skips cleanly when
+        // curl_cffi yields an interstitial-shaped body or the helper is
+        // unavailable. Bounded by the 25s timeout so it cannot push total
+        // wall-clock past the bench budget.
+        try {
+          const cffi = await tryCurlImpersonateFetch({
+            url: context.url,
+            proxy: antibotProxy,
+            timeoutMs: 25_000,
+          });
+          if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
+            const cffiArtifact = buildPageArtifactCapture(context.url, queryIntent, cffi.html, false);
+            if (cffiArtifact.endpoint && cffiArtifact.result) {
+              console.log(
+                `[orchestrator] empty_capture_curl_cffi_success: ${cffi.html.length} bytes via curl_cffi proxy=${cffi.proxy_used} (browser produced no captured_meta)`,
+              );
+              const cffiTrace: import("../types/index.js").ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: cffiArtifact.endpoint.endpoint_id,
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+                decision_trace: [{
+                  step: "empty_capture_curl_cffi_success",
+                  html_bytes: cffi.html.length,
+                  status: cffi.status,
+                  proxy_used: cffi.proxy_used,
+                }],
+              };
+              recordRoutingStep("live-capture", captureSkill, cffiTrace, cffiArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: cffiArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: cffiArtifact.result,
+                trace: cffiTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", cffiArtifact.result, captureSkill!.skill_id, captureSkill, cffiTrace),
+              };
+            }
+            console.log(
+              `[orchestrator] empty_capture_curl_cffi_null: curl_cffi returned ${cffi.html.length} bytes but DOM extraction yielded no usable artifact`,
+            );
+          } else if (cffi) {
+            console.log(
+              `[orchestrator] empty_capture_curl_cffi_null: status=${cffi.status} bytes=${cffi.bytes} proxy=${cffi.proxy_used} — content not viable`,
+            );
+          } else {
+            console.log(`[orchestrator] empty_capture_curl_cffi_null: helper unavailable or returned no result`);
+          }
+        } catch (cffiErr) {
+          console.log(
+            `[orchestrator] empty_capture_curl_cffi_error: ${cffiErr instanceof Error ? cffiErr.message : String(cffiErr)}`,
           );
         }
       }

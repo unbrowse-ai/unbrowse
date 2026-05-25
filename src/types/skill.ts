@@ -595,6 +595,13 @@ export interface ExecutionTrace {
   tokens_saved_pct?: number;
   /** Code version hash + git SHA — tracks which code produced this trace */
   trace_version?: string;
+  /** Ordered decision-step ledger from the executor / orchestrator (see
+   *  CLAUDE.md "Decision-trace step naming convention"). Each entry has a
+   *  `step` string plus arbitrary signal fields the agent reads in-thread.
+   *  Already populated by executeBrowserCapture (no_progress_bail_*,
+   *  recipe_replay, 5xx_ssr_fastpath_*) and the orchestrator vendor-block
+   *  + empty-capture curl_cffi rescues. */
+  decision_trace?: Array<{ step: string } & Record<string, unknown>>;
 }
 
 export interface DiscoveryCandidate {
