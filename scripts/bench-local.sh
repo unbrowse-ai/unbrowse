@@ -376,7 +376,13 @@ def _classify(row):
         return "BROWSER_BLOCK"
     if not src and row.get("trace_success") is None and not has_ops:
         return "BROWSER_BLOCK"
-    if row.get("cli_timeout"):
+    # cli_timeout: only browser-block when there's NO trace_success AND no
+    # captured data. When the agent got real data via trace+result before
+    # the CLI process timed out on its drain (post-main background jobs),
+    # the data is honest and the verdict should follow the data, not the
+    # exit code. Hn.algolia 2026-05-25: cli_timeout=True, trace_success=True,
+    # response_token_hit_rate=1.0 — the agent got what was asked.
+    if row.get("cli_timeout") and not trace_ok and not (has_ops and n_ops_v > 0):
         return "BROWSER_BLOCK"
     if err == "auth_required" or row.get("auth_recommended") is True:
         return "AUTH_GATED"
