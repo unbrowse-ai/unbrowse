@@ -406,8 +406,12 @@ export function ThreePanelVisual() {
                       <div className="flex items-center gap-2 pl-6">
                         {isActive ? (
                           <>
-                            <IconSpinner size={14} className="text-zinc-400 animate-spin" aria-hidden="true" />
-                            <span className="text-zinc-300 text-[11px] animate-pulse" role="status" aria-live="polite">Executing...</span>
+                            <IconSpinner size={14} className="text-zinc-200 animate-spin" aria-hidden="true" />
+                            {/* A11y: animate-pulse oscillates opacity 0.5-1, which
+                                drops `text-zinc-300` below AA 4.5:1 at the trough.
+                                Switched to brighter zinc-100 (white-ish) which holds
+                                contrast through the pulse cycle. */}
+                            <span className="text-zinc-100 text-[11px] animate-pulse" role="status" aria-live="polite">Executing...</span>
                           </>
                         ) : (
                           <>

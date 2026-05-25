@@ -322,8 +322,7 @@ export function ChapterSpine() {
         lede={
           <>
             Every agent indexes; every agent benefits. The marketplace is the
-            shared substrate. Twelve domains already cached &mdash; new ones
-            land every day.
+            shared substrate. New domains land every day.
           </>
         }
       >
