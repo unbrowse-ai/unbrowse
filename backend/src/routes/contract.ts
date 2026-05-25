@@ -24,6 +24,7 @@ import type {
   SatisfiedCellMatch,
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
+import { verifyDeclareSignature, type CanonicalDeclareBody } from "../services/declare-signature";
 
 // ---------------------------------------------------------------------------
 // Request / response shapes — the wire contract between thin client and cloud.
@@ -186,10 +187,13 @@ export async function handleDeclare(
   // synaptic-specificity model). Explicit visibility wins over both.
   const visibility: "lineage" | "public" | "marketplace" =
     req.visibility ?? (req.wallet_identity ? "lineage" : "public");
+  // Caller-supplied ts wins (signed declares need the ts the client signed
+  // over to round-trip exactly); otherwise server stamps now.
+  const callerTs = (req as { ts?: string }).ts;
   const row: ContractEventRow = {
     event: "declared",
     id,
-    ts: new Date().toISOString(),
+    ts: callerTs || new Date().toISOString(),
     plan: req.plan,
     action: req.action,
     pointer_type: req.pointer_type ?? guessPointerType(req.action),
@@ -495,6 +499,52 @@ function ephemeralLedger(): ContractLedger {
 contractRoutes.post("/contract/declare", async (c) => {
   const req = await c.req.json<DeclareRequest>();
   try {
+    // Signed-declare gate (#33). Three paths:
+    //   1) request carries wallet_identity + declare_signature → verify;
+    //      reject 401 if signature invalid; on pass, mark the row trusted.
+    //   2) request carries wallet_identity but no signature → reject 400
+    //      (claiming identity without proof is the leak we're closing).
+    //   3) request omits both → anonymous path, no signature required;
+    //      handleDeclare auto-coerces agent="anonymous" + visibility="public".
+    if (req.wallet_identity) {
+      if (!req.declare_signature) {
+        return c.json(
+          {
+            error:
+              "declare_signature required when wallet_identity is set — sign the canonical body with the matching ed25519 private key",
+          },
+          400,
+        );
+      }
+      // The client signs over the same canonical body the server reconstructs.
+      // Caller MUST include a ts (they pick the timestamp; server only stamps
+      // ts when it's empty). For signed writes, require ts so replay attacks
+      // are bounded by the wallet owner's clock.
+      const ts = (req as { ts?: string }).ts ?? new Date().toISOString();
+      const canonical: CanonicalDeclareBody = {
+        plan: req.plan,
+        action: req.action,
+        parent_id: req.parent_id ?? null,
+        agent: req.agent ?? null,
+        wallet_identity: req.wallet_identity,
+        ts,
+      };
+      const ok = await verifyDeclareSignature(canonical, req.declare_signature);
+      if (!ok) {
+        return c.json({ error: "declare_signature invalid for wallet_identity" }, 401);
+      }
+      // Pass the verified ts through so handleDeclare doesn't restamp it.
+      (req as { ts?: string }).ts = ts;
+    } else if (req.declare_signature) {
+      return c.json(
+        { error: "declare_signature without wallet_identity is meaningless" },
+        400,
+      );
+    } else {
+      // Anonymous write — coerce identity. Prevents spam writes claiming
+      // arbitrary agent names; everything unsigned lands under "anonymous".
+      req.agent = "anonymous";
+    }
     const result = await handleDeclare(req, ephemeralLedger());
     return c.json(result);
   } catch (err) {
