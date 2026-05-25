@@ -687,9 +687,30 @@ async function apiRequest<T = unknown>(
             return { data: paidResult.data, headers: new Headers() };
           }
         }
+      } else if (provider === "privy_embedded") {
+        // Per contract fc998ae9 (PRIVY-SECOND-FOR-EMBEDDED-WALLET-AGENTS):
+        // when user has explicitly chosen Privy embedded wallet, route x402
+        // settlement through the Privy adapter (backend holds the app
+        // secret + the user's embedded Solana PDA signer).
+        const { isPrivyAvailable, payAndRetryPrivy } = await import("../payments/privy-pay.js");
+        if (isPrivyAvailable()) {
+          const fullUrl = `${API_URL}${path}`;
+          const paidResult = await payAndRetryPrivy<T>(fullUrl, {
+            body,
+            headers: {
+              "Content-Type": "application/json",
+              "Accept-Encoding": "gzip, deflate",
+              ...releaseAttestationHeaders,
+              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            },
+          });
+          if (paidResult) {
+            return { data: paidResult.data, headers: new Headers() };
+          }
+        }
       }
     } catch (payErr) {
-      console.warn(`[x402] paysh pay-and-retry failed: ${(payErr as Error).message}`);
+      console.warn(`[x402] provider-routed pay-and-retry failed: ${(payErr as Error).message}`);
     }
     // Try lobster.cash automatic payment before throwing
     try {
