@@ -27,6 +27,21 @@
  *
  * Must be called BEFORE kuri/client first spawns, so the inherited
  * process.env carries KURI_PROXY into the spawned Zig binary.
+ *
+ * Runtime gap (documented 2026-05-25):
+ * The bridge has effect ONLY when kuri launches MANAGED Chrome. When
+ * kuri attaches to a user's pre-existing Chrome via CDP (the default
+ * dev path when Chrome is already running on the user's machine), the
+ * `--proxy-server` flag is never applied — that Chrome was launched
+ * without a proxy and CDP cannot retrofit one. Symptom: bridge logs
+ * `wired KURI_PROXY` correctly but Reddit/Cloudflare still return
+ * datacenter-IP responses.
+ *
+ * Affects local dev with user Chrome running. CI bench probes that
+ * spawn a clean environment with no pre-existing Chrome get the
+ * managed-Chrome path and the proxy DOES take effect. To force the
+ * managed path locally: kill user Chrome (or close all Chrome windows)
+ * before invoking unbrowse, OR set KURI_ATTACH_TO_EXISTING_CHROME=0.
  */
 
 import { resolveProxyUrl } from "../execution/proxy-fetch.js";
