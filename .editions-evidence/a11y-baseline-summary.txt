@@ -1,0 +1,16 @@
+[31m[1mError: session not created: This version of ChromeDriver only supports Chrome version 149
+Current browser version is 148.0.7778.179 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome[22m[39m
+
+Please use browser-driver-manager to install matching versions of Chrome and ChromeDriver:
+        
+        $ npx browser-driver-manager install chrome
+        
+        This will install the latest synced versions. You may install specific synced versions using 
+        
+        $ npx browser-driver-manager install chrome@<version>
+
+        where <version> is a specific version, e.g. 123.45.67, or a channel, e.g. canary.
+
+        You may also pass the `--chromedriver-path` option to axe:
+
+        $ axe --chromedriver-path <path/to/chromedriver-executable>

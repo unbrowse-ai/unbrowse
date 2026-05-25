@@ -204,17 +204,40 @@ export function InstallInstructions() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div role="tablist" aria-label="MCP host" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {TABS.map((t) => (
             <button
               key={t.id}
+              type="button"
+              role="tab"
+              id={`install-tab-${t.id}`}
+              aria-selected={active === t.id}
+              aria-controls={`install-panel-${t.id}`}
+              tabIndex={active === t.id ? 0 : -1}
               onClick={() => setActive(t.id)}
+              onKeyDown={(e) => {
+                const ids: string[] = TABS.map((x) => x.id);
+                const idx = ids.indexOf(active);
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setActive(ids[(idx + 1) % ids.length]);
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActive(ids[(idx - 1 + ids.length) % ids.length]);
+                } else if (e.key === "Home") {
+                  e.preventDefault();
+                  setActive(ids[0]);
+                } else if (e.key === "End") {
+                  e.preventDefault();
+                  setActive(ids[ids.length - 1]);
+                }
+              }}
               style={{
                 fontFamily: "monospace", fontSize: 10, letterSpacing: "0.12em",
                 padding: "2px 10px",
                 border: `1px solid ${active === t.id ? "rgba(100,45,5,0.5)" : "rgba(100,55,10,0.2)"}`,
                 background: active === t.id ? "rgba(139,56,0,0.12)" : "transparent",
-                color: active === t.id ? O_HI : O_DIM,
+                color: active === t.id ? O_HI : O,
                 borderRadius: 2, cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
@@ -223,15 +246,18 @@ export function InstallInstructions() {
           ))}
         </div>
 
-        {/* Copy */}
+        {/* Copy — explicit label so SR users don't hear "[ COPY ]" tokens */}
         <button
+          type="button"
           onClick={handleCopy}
+          aria-label={copied ? "Command copied to clipboard" : "Copy install command to clipboard"}
+          aria-live="polite"
           style={{
             fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em",
             padding: "2px 10px",
             border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
             background: copied ? "#FF7A20" : "#FF7A20",
-            color: copied ? "#fff" : "#fff",
+            color: "#1a0d00", fontWeight: 700,
             borderRadius: 2, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
           }}
         >
@@ -291,8 +317,11 @@ export function InstallInstructions() {
         )}
       </div>
 
-      {/* ── Output ── */}
+      {/* ── Output (tabpanel) ── */}
       <div
+        role="tabpanel"
+        id={`install-panel-${tab.id}`}
+        aria-labelledby={`install-tab-${tab.id}`}
         style={{
           padding: "14px 18px 18px",
           fontFamily: "'Courier New', 'Lucida Console', monospace",

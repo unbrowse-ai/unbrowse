@@ -141,10 +141,13 @@ async function HeroStats() {
     <section
       id="hero-stats"
       aria-label="Live unbrowse marketplace stats"
-      className="relative py-10"
+      className="relative py-12 sm:py-14"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center font-mono">
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-5 text-center">
+          ##  Live, cumulative, public
+        </p>
+        <div className="grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.18)] border border-[rgba(255,122,32,0.24)] text-center font-mono">
           {[
             { label: "domains in registry", value: fmt(domains) },
             { label: "agent visits", value: fmt(executions) },
@@ -152,12 +155,12 @@ async function HeroStats() {
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-[#070503]/90 border border-[rgba(255,122,32,0.18)] rounded-sm py-5 px-3"
+              className="bg-[#070503] py-6 px-3 sm:py-7"
             >
-              <div className="text-3xl sm:text-4xl text-orange-500 tracking-tighter font-display">
+              <div className="text-4xl sm:text-5xl lg:text-6xl text-orange-500 tracking-[-0.04em] font-display tabular-nums leading-none">
                 {s.value}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mt-2">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-text-muted mt-3">
                 {s.label}
               </div>
             </div>
@@ -181,24 +184,37 @@ async function PopularSkillsGrid() {
     <section
       id="popular-skills"
       aria-label="Top routes already in the marketplace"
-      className="relative py-12"
+      className="relative py-14 sm:py-16"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4 text-center">
-          ##  Top routes already cached
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
+        <div className="flex items-end justify-between gap-4 mb-5">
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-1">
+              ##  Top routes already cached
+            </p>
+            <h3 className="text-xl sm:text-2xl font-display tracking-tight text-text-primary">
+              Twelve domains your agent can skip the browser on.
+            </h3>
+          </div>
+          <Link
+            href="/search"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-[rgba(255,176,96,0.85)] hover:text-orange-500 transition-colors whitespace-nowrap shrink-0"
+          >
+            All routes <IconArrow size={11} />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-[rgba(255,122,32,0.14)] border border-[rgba(255,122,32,0.2)] font-mono text-xs">
           {skills.slice(0, 12).map((s) => (
             <Link
               key={s.skill_id}
               href={`/${s.domain}`}
-              className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-3 py-3 hover:border-[rgba(255,122,32,0.4)] transition-colors text-center"
+              className="bg-[#070503] px-3 py-4 hover:bg-[rgba(255,122,32,0.06)] transition-colors text-center group"
             >
-              <div className="text-[rgba(255,176,96,0.9)] truncate">
+              <div className="text-[rgba(255,176,96,0.95)] truncate group-hover:text-orange-400 transition-colors">
                 {s.domain}
               </div>
-              <div className="text-text-muted mt-1 text-[10px]">
-                {s.total_executions ?? 0} calls
+              <div className="text-text-muted mt-1.5 text-[10px] tabular-nums tracking-[0.05em]">
+                {(s.total_executions ?? 0).toLocaleString()} calls
               </div>
             </Link>
           ))}
@@ -297,7 +313,10 @@ export default function Home() {
               <HeroSpeedProofStrip />
             </Suspense>
 
-            <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
+            <h1
+              data-hero-h1
+              className="animate-fade-up stagger-1 text-[2rem] sm:text-6xl lg:text-[5.5rem] leading-[1.08] sm:leading-[1.04] tracking-[-0.025em] text-balance text-text-primary font-display"
+            >
               <Suspense
                 fallback={
                   <>
@@ -328,8 +347,8 @@ export default function Home() {
                 <ScrollToButton
                   sectionId="install"
                   className="group flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500
-                             text-white font-mono font-medium text-sm w-full sm:w-auto
-                             hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
+                             text-[#1a0d00] font-mono font-semibold text-sm w-full sm:w-auto
+                             hover:bg-orange-600 hover:text-[#1a0d00] active:translate-y-px transition-all cursor-pointer"
                 >
                   <Suspense
                     fallback={<span>[ npx unbrowse setup → ]</span>}

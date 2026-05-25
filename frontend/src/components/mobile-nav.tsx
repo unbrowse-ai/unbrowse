@@ -1,10 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
+
+  // Esc closes the menu — keyboard parity with the backdrop click.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   return (
     <>
@@ -12,7 +22,11 @@ export function MobileNav() {
       <button
         onClick={() => setOpen(o => !o)}
         className="sm:hidden fixed top-3 right-4 z-50 flex flex-col justify-center items-center w-9 h-9 gap-1.5 cursor-pointer"
-        aria-label="Menu"
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        aria-controls="mobile-nav-dropdown"
+        aria-haspopup="menu"
+        type="button"
         style={{ background: 'rgba(6,4,2,0.85)', border: '1px solid rgba(255,122,32,0.3)', borderRadius: '2px' }}
       >
         <span className="block w-4 h-px transition-all duration-200"
@@ -28,6 +42,9 @@ export function MobileNav() {
       {/* Dropdown */}
       {open && (
         <div
+          id="mobile-nav-dropdown"
+          role="menu"
+          aria-label="Mobile navigation"
           className="sm:hidden fixed top-14 right-4 z-50 flex flex-col font-mono text-xs"
           style={{ background: 'rgba(6,4,2,0.96)', border: '1px solid rgba(255,122,32,0.28)', borderRadius: '2px', minWidth: '140px' }}
         >
@@ -48,9 +65,15 @@ export function MobileNav() {
         </div>
       )}
 
-      {/* Backdrop to close menu */}
+      {/* Backdrop to close menu — button so keyboard users can dismiss too */}
       {open && (
-        <div className="sm:hidden fixed inset-0 z-40" onClick={() => setOpen(false)} />
+        <button
+          type="button"
+          aria-label="Close menu"
+          tabIndex={-1}
+          onClick={() => setOpen(false)}
+          className="sm:hidden fixed inset-0 z-40 cursor-default bg-transparent"
+        />
       )}
     </>
   );
