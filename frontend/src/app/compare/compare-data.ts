@@ -107,6 +107,56 @@ export const competitors: Record<string, Competitor> = {
       "structured data from websites",
     ],
   },
+  firecrawl: {
+    slug: "firecrawl",
+    name: "Firecrawl",
+    tagline: "Unbrowse vs Firecrawl",
+    description:
+      "Firecrawl charges 1 credit per page scraped. Unbrowse charges $0 on cache hits — and our @unbrowse/firecrawl-shim lets you swap their SDK with one import line, falling back to your existing Firecrawl key only when we miss.",
+    what: "Firecrawl is a managed scraping API that converts websites into LLM-ready markdown via scrape/crawl/map/extract/search endpoints. Plans run $16-$599/mo for 5k-1M credits; 1 credit per page, 2 credits per browser-minute.",
+    limitations: [
+      "Pay per page even when the same URL has been scraped by another customer minutes ago",
+      "No marketplace — every customer's scraped routes are siloed, no shared cache",
+      "Recursive crawl + map require predictable billable units; no usage forecasting",
+      "Browser-based render path costs 2 credits/min on Interact",
+      "Standard plan caps at 100k credits; over-cap teams jump to $333/mo Growth tier",
+    ],
+    keywords: [
+      "Firecrawl alternative",
+      "Firecrawl alternative for AI agents",
+      "Firecrawl vs Unbrowse",
+      "cheaper than Firecrawl",
+      "Firecrawl drop-in replacement",
+      "@unbrowse/firecrawl-shim",
+      "scrape API alternative",
+      "Firecrawl pricing",
+    ],
+  },
+  browserbase: {
+    slug: "browserbase",
+    name: "Browserbase",
+    tagline: "Unbrowse vs Browserbase + Stagehand",
+    description:
+      "Browserbase charges $0.10-$0.12 per browser-hour and Stagehand spins one for every act/extract call. Unbrowse resolves the URL+intent against a cached marketplace endpoint first — and our @unbrowse/stagehand-shim is a one-line drop-in that pays Browserbase only on cache miss.",
+    what: "Browserbase is a managed Chrome runtime for AI agents (Stagehand is their high-level act/extract/observe SDK). Free 1hr/mo → Dev $20/mo for 100hr → Startup $99/mo for 500hr; $0.10-$0.12/browser-hour after included tier; residential proxies $10-$12/GB.",
+    limitations: [
+      "Every act/extract/observe spins up a billed browser session even if the data was cacheable",
+      "Browser-hour pricing punishes long-tail and idle sessions",
+      "Proxy bandwidth is charged separately at $10-$12/GB",
+      "Stagehand's vision/DOM loop still calls an LLM per action — token cost compounds",
+      "Self-hosted fallback is real Playwright + your own infra — no marketplace cache",
+    ],
+    keywords: [
+      "Browserbase alternative",
+      "Stagehand alternative",
+      "Browserbase vs Unbrowse",
+      "Stagehand drop-in replacement",
+      "@unbrowse/stagehand-shim",
+      "cheaper than Browserbase",
+      "Browserbase pricing",
+      "AI browser agent alternative",
+    ],
+  },
 };
 
 export interface ComparisonRow {
