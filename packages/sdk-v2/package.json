@@ -2,7 +2,7 @@
   "name": "@unbrowse/client",
   "version": "7.0.0-preview.1",
   "description": "Thin HTTP-first SDK for the Unbrowse API. Browser + Node 18+. Zero runtime deps.",
-  "directoryRenameIntent": "packages/sdk-v2/ → packages/client/ (matches the npm name @unbrowse/client). The sdk-v2 folder name is a historical accident from the parallel-v6/v7 transition. The rename touches root package.json workspace globs + .release-it.json bumper 'out' field + any internal links — declared here as a single-source-of-truth marker pending a focused rename PR. Tracked under contract organ f8b37381 stage 2 (ada6a1aa).",
+  "directoryRenameIntent": "packages/sdk-v2/ → packages/client/ (matches the npm name @unbrowse/client). The sdk-v2 folder name is historical from the parallel v6/v7 transition; keep public docs pointing at the npm package name, not the folder name.",
   "type": "module",
   "license": "MIT",
   "exports": {

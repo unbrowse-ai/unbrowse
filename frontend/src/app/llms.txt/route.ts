@@ -18,7 +18,7 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
+> Unbrowse gives AI agents reusable API routes for websites. A first explicit browsing session can teach a route; later agents resolve and execute that route directly with local credentials, cutting repeated browser work from seconds to sub-second responses.
 
 ## Getting Started
 
@@ -61,7 +61,7 @@ export async function GET() {
 ## GitHub
 
 - [Source Code (unbrowse-ai/unbrowse)](https://github.com/unbrowse-ai/unbrowse): Full source, issue tracker, and contribution guidelines (AGPL-3.0)
-- [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native CDP broker powering Unbrowse -- 464KB binary, ~3ms cold start, 80+ HTTP endpoints
+- [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native browser runtime used by Unbrowse -- 464KB binary, ~3ms cold start
 
 ## Key Facts
 
@@ -70,9 +70,9 @@ export async function GET() {
 - Kuri browser engine: 464KB Zig binary, ~3ms cold start, full CDP surface
 - Three execution paths: skill cache (<200ms), shared route graph (sub-second), Kuri browser fallback (20-80s)
 - x402 micropayments in USDC on Solana mainnet, settled via Faremeter Flex -- capture and indexing are free, agents pay only when reusing a paid route or paid marketplace lookup
-- Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
+- Cache-first resolution: local cache, marketplace search, then browser only when a route has not been learned yet
 - Drop-in Playwright replacement: \`import { Browser } from "unbrowse"\` -- \`page.goto()\` resolves from skill cache first
-- Agents earn by mining routes: browse sites, Unbrowse learns APIs, set up Crossmint lobster.cash, earn when other agents install discovered routes
+- Agents earn by contributing useful routes: browse sites you are allowed to use, publish sanitized route metadata, and earn when other agents reuse it
 
 ## Optional
 

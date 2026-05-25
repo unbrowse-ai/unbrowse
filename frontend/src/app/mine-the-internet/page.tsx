@@ -78,7 +78,7 @@ const sections: { title: string; body: string[] }[] = [
     title: "What is web mining?",
     body: [
       "Every website you use runs on internal APIs. When you search GitHub, your browser calls a JSON endpoint. When you scroll Reddit, fetch requests pull post data from a backend service. When you check a price on Amazon, an XHR call returns structured product information. These internal APIs are the real interface layer of the web. Humans never see them. AI agents need them.",
-      "Web mining is the act of discovering these internal APIs and contributing them to a shared index. With Unbrowse, mining is not a separate activity. It is what happens automatically when you browse. Visit a site, and Unbrowse captures the network traffic between your browser and the server. It identifies every fetch and XHR call, reverse-engineers the schema, authentication pattern, and parameters, and publishes the route to a shared graph.",
+      "Web mining is the act of discovering these internal APIs and contributing them to a shared index. With Unbrowse, mining is not a separate activity. It is what happens when you browse sites you are allowed to use. Visit a site, and Unbrowse observes the requests needed for that workflow, extracts reusable route metadata, and publishes only the reviewed route shape to a shared graph.",
       "That is a mining event. You just indexed a piece of the internet that AI agents can now use directly instead of launching a headless browser, rendering JavaScript, and scraping pixels. Every route you contribute is attributed to your wallet. Every time an agent uses that route, you earn.",
     ],
   },

@@ -1,6 +1,6 @@
 ---
 name: unbrowse
-description: Capture once, replay everywhere — Unbrowse reverse-engineers the real APIs underneath any website and replays them as a fast, cheap, indexed route. Brings back the skill surface alongside the MCP server + SDK + CLI.
+description: Capture once, replay everywhere — Unbrowse learns reusable route metadata from allowed browsing sessions and replays it as a fast, cheap, indexed route. Brings back the skill surface alongside the MCP server + SDK + CLI.
 metadata:
   type: integration
   origin: unbrowse-ai/unbrowse
@@ -8,9 +8,9 @@ metadata:
 
 # Unbrowse
 
-Unbrowse turns any website into a reusable API surface for agents. Capture the network traffic once, store the routes, replay them on every later call. Typical run is 30× faster and 90× cheaper than a fresh browser session.
+Unbrowse turns websites into reusable API routes for agents. Teach a route once, store sanitized metadata, replay it on later calls. Typical run is 30× faster and 90× cheaper than a fresh browser session.
 
-Three surfaces, one substrate:
+Three surfaces, one runtime:
 
 | Surface | When to reach for it |
 |---|---|
@@ -18,12 +18,12 @@ Three surfaces, one substrate:
 | **CLI** (`unbrowse`) | A shell session or a bash-script that wants the same surface as the MCP server, without an MCP host. |
 | **SDK** (`@unbrowse/sdk`) | A TypeScript program that wants to embed Unbrowse. `npm i @unbrowse/sdk` is enough; the SDK spawns its own local binary. |
 
-All three resolve to the same /contract-shaped substrate underneath:
+All three resolve to the same runtime workflow underneath:
 - **resolve** asks "is there an indexed route for this intent + URL?" — returns a shortlist or a hard handoff.
 - **execute** picks one endpoint from the shortlist and runs it — returns the real data.
-- **browse-session** opens a managed browser when the API is too dynamic to predict; passive capture indexes every request.
+- **browse-session** opens a managed browser when the API is too dynamic to predict; local capture indexes route metadata.
 
-The two-tool contract (resolve + execute) is the agent UX north star: never one call, never three. The shortlist is structured so the calling LLM picks; the execute is paid via x402 and gated by the deploy substrate.
+The two-tool flow (resolve + execute) is the agent UX north star: never one call, never three. The shortlist is structured so the calling LLM picks; execute is paid via x402 when the route is priced.
 
 ## Quickstart
 
