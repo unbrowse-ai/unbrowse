@@ -817,11 +817,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const tmpl = String(endpoint.url_template ?? endpoint.url ?? "").replace(/\/+$/, "");
       const norm = url.replace(/\/+$/, "");
       if (tmpl !== norm) return false;
+      // dom_extraction:true is the structural marker on available_endpoints —
+      // the capture already extracted the page; re-fetching is redundant and,
+      // on antibot-gated sites, returns the challenge interstitial body.
+      if (endpoint.dom_extraction === true) return true;
       const rk = String(endpoint.resource_kind ?? "").toLowerCase();
       if (["message", "form", "resource", "page", "artifact"].includes(rk)) return true;
       const desc = String(endpoint.description ?? endpoint.description_out ?? "").toLowerCase();
       if (/captured (?:search )?(?:form|page) artifact/.test(desc)) return true;
       if (/^searches .* with /.test(desc) || /^returns .* details with /.test(desc)) return true;
+      // Auto-generated "Returns the rendered HTML for ..." description is
+      // the synthetic page-artifact marker for SPA captures (Reddit, etc.)
+      if (/returns the rendered html for/i.test(desc)) return true;
       return false;
     }
 

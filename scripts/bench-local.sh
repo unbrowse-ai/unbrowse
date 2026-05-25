@@ -21,6 +21,13 @@ export PATH="$HOME/.npm-global/bin:/opt/nanobrew/prefix/bin:/usr/local/bin:/opt/
 : "${UNBROWSE_API_TIMEOUT_MS:=75000}"
 export UNBROWSE_API_TIMEOUT_MS
 
+# When IProyal residential proxy creds are present in env, opt the kuri-proxy
+# bridge in. This unblocks the JS-challenge class (Reddit, etc.) without
+# baking site lists into the bench.
+if [ -n "${IPROYAL_USER:-}" ] && [ -n "${IPROYAL_PASS:-}" ] && [ -z "${UNBROWSE_KURI_PROXY:-}" ]; then
+  export UNBROWSE_KURI_PROXY=auto
+fi
+
 CORPUS="scripts/corpus/benchmark-baseline.txt"
 OFFSET=0
 SIZE=0
