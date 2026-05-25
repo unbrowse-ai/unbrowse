@@ -20,6 +20,8 @@ import { searchRoutes } from "../src/routes/search.js";
 import { clearKVCacheForTests } from "../src/services/kv.js";
 import type { Env } from "../src/types.js";
 
+const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 const BASE_ENV: Env = {
   API_KEY: "test-api-key",
   EMERGENTDB_API_KEY: "test-emergent",
@@ -27,7 +29,7 @@ const BASE_ENV: Env = {
   STATS_KV: {} as KVNamespace,
   ENVIRONMENT: "local-dev",
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
-  FLEX_PLATFORM_RECIPIENT_USDC_ATA: "PlatformATAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
 };
 

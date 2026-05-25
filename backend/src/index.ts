@@ -30,6 +30,7 @@ import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
 import { proxyRoutes } from "./routes/proxy.js";
 import { contractRoutes } from "./routes/contract.js";
+import { extractRoutes } from "./routes/extract.js";
 import {
   mountFaremeterTestRoute,
   stubFaremeterHandlers,
@@ -83,6 +84,7 @@ app.route("/v1", attributionRoutes);
 app.route("/v1", publicDashboardRoutes);
 app.route("/v1", publicMinerRoutes);
 app.route("/v1", contractRoutes);
+app.route("/v1", extractRoutes);
 app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);
