@@ -312,14 +312,19 @@ jobs:
       - name: Resolve npm token
         id: npm-auth
         env:
+          # SDK gets its own granular access token (NPM_TOKEN_SDK is scoped to
+          # @unbrowse/sdk only; NPM_TOKEN is the CLI-scoped one and would 403
+          # on @unbrowse/sdk publish). Falls back to NPM_TOKEN if SDK-specific
+          # secret isn't configured (older workflow shape).
+          NPM_TOKEN_SDK: ${{ secrets.NPM_TOKEN_SDK }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
           NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
         run: |
-          TOKEN="${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}"
+          TOKEN="${NPM_TOKEN_SDK:-${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}}"
           if [ -z "$TOKEN" ]; then
             if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
-              echo "::error::Missing npm publish secret. Set NPM_TOKEN or NPM_PUBLISH_TOKEN."
+              echo "::error::Missing npm publish secret. Set NPM_TOKEN_SDK, NPM_TOKEN, or NPM_PUBLISH_TOKEN."
               exit 1
             fi
             echo "::notice::Skipping @unbrowse/sdk publish; no npm token configured for $GITHUB_REPOSITORY."
