@@ -1,6 +1,14 @@
 # Per-contract turbobox VM bound by lineage
 
-**Status**: design, not deployed. Awaits Lewis approval before any provisioning.
+**Status**: ⚠️ **SUPERSEDED by [`runpod-bound-contract-vm.md`](./runpod-bound-contract-vm.md).**
+
+The shape proposed below is correct in intent but split from the clock
+question into a separate doc. The canonical replacement collapses both
+(time-as-substrate-event AND per-contract-VM) into one design: every
+contract that needs a body OR a clock gets a Runpod pod whose own
+`sleep()` IS the clock. Kept here for provenance.
+
+---
 
 ## Why this exists (Lewis 2026-05-25)
 
