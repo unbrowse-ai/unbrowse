@@ -1,0 +1,213 @@
+{
+  "reports": [
+    {
+      "suffix": "1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 1
+      },
+      "horiz": "ok",
+      "chapters": [
+        {
+          "id": "ch-shadow",
+          "present": true,
+          "h": 1218
+        },
+        {
+          "id": "ch-install",
+          "present": true,
+          "h": 1018
+        },
+        {
+          "id": "ch-numbers",
+          "present": true,
+          "h": 1120
+        },
+        {
+          "id": "ch-earn",
+          "present": true,
+          "h": 1347
+        },
+        {
+          "id": "ch-market",
+          "present": true,
+          "h": 2697
+        },
+        {
+          "id": "ch-answers",
+          "present": true,
+          "h": 2025
+        }
+      ]
+    },
+    {
+      "suffix": "768",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "horiz": "ok",
+      "chapters": [
+        {
+          "id": "ch-shadow",
+          "present": true,
+          "h": 1019
+        },
+        {
+          "id": "ch-install",
+          "present": true,
+          "h": 878
+        },
+        {
+          "id": "ch-numbers",
+          "present": true,
+          "h": 941
+        },
+        {
+          "id": "ch-earn",
+          "present": true,
+          "h": 1398
+        },
+        {
+          "id": "ch-market",
+          "present": true,
+          "h": 2806
+        },
+        {
+          "id": "ch-answers",
+          "present": true,
+          "h": 1886
+        }
+      ]
+    },
+    {
+      "suffix": "414",
+      "viewport": {
+        "width": 414,
+        "height": 896,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "horiz": "ok",
+      "chapters": [
+        {
+          "id": "ch-shadow",
+          "present": true,
+          "h": 1182
+        },
+        {
+          "id": "ch-install",
+          "present": true,
+          "h": 1019
+        },
+        {
+          "id": "ch-numbers",
+          "present": true,
+          "h": 1065
+        },
+        {
+          "id": "ch-earn",
+          "present": true,
+          "h": 1653
+        },
+        {
+          "id": "ch-market",
+          "present": true,
+          "h": 3251
+        },
+        {
+          "id": "ch-answers",
+          "present": true,
+          "h": 2093
+        }
+      ]
+    },
+    {
+      "suffix": "375",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "horiz": "ok",
+      "chapters": [
+        {
+          "id": "ch-shadow",
+          "present": true,
+          "h": 1243
+        },
+        {
+          "id": "ch-install",
+          "present": true,
+          "h": 1103
+        },
+        {
+          "id": "ch-numbers",
+          "present": true,
+          "h": 1081
+        },
+        {
+          "id": "ch-earn",
+          "present": true,
+          "h": 1760
+        },
+        {
+          "id": "ch-market",
+          "present": true,
+          "h": 3454
+        },
+        {
+          "id": "ch-answers",
+          "present": true,
+          "h": 2137
+        }
+      ]
+    },
+    {
+      "suffix": "320",
+      "viewport": {
+        "width": 320,
+        "height": 568,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "horiz": "ok",
+      "chapters": [
+        {
+          "id": "ch-shadow",
+          "present": true,
+          "h": 1337
+        },
+        {
+          "id": "ch-install",
+          "present": true,
+          "h": 1182
+        },
+        {
+          "id": "ch-numbers",
+          "present": true,
+          "h": 1143
+        },
+        {
+          "id": "ch-earn",
+          "present": true,
+          "h": 1996
+        },
+        {
+          "id": "ch-market",
+          "present": true,
+          "h": 3240
+        },
+        {
+          "id": "ch-answers",
+          "present": true,
+          "h": 2350
+        }
+      ]
+    }
+  ]
+}
