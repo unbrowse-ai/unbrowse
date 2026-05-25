@@ -32,6 +32,7 @@
   "hooks": {
     "before:init": [
       "bash scripts/check-deploy-gate.sh",
+      "bash scripts/check-release-on-boost.sh",
       "bun run test:issue-regressions",
       "bun test tests/path-params.test.ts tests/utils.test.ts",
       "bash scripts/bench-gate-prerelease.sh"
@@ -39,7 +40,8 @@
     "after:bump": [
       "bun scripts/generate-release-notes.ts --version ${version}",
       "bun scripts/append-coverage-to-notes.ts",
-      "bun scripts/release-announce.ts --write"
+      "bun scripts/release-announce.ts --write",
+      "python3 -c \"import json; r=open('.bench-local/results.jsonl').readlines() if __import__('os').path.exists('.bench-local/results.jsonl') else []; t=len(r); p=sum(1 for ln in r if json.loads(ln).get('verdict')=='PASS') if t else 0; open('.release-coverage-baseline','w').write(f'{p/t if t else 0:.4f}\\n')\""
     ]
   }
 }
