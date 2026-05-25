@@ -8,14 +8,14 @@
  *
  *   - OpenClaw — public plugin (`openclaw-unbrowse-plugin` submodule v0.8.0
  *     pinned in this repo, 344K-star ecosystem per docs/built-on-unbrowse).
- *   - Claude Code — `npx @unbrowse/sdk setup` writes the MCP entry into
+ *   - Claude Code — `npx unbrowse setup --mcp` writes the MCP entry into
  *     `~/.claude/mcp.json` (see src/app/mcp.json + install-instructions).
  *   - Codex — same setup writes `~/.codex/mcp.json`.
  *   - Cursor, Windsurf, Claude Desktop — MCP-host installers documented at
  *     /install.
  *   - Crossmint — payout-rail partner (lobster.cash CLI is the recommended
  *     wallet path; see src/app/account/wallet/page.tsx Option 1).
- *   - Faremeter — payment substrate (`@faremeter/flex-solana` optional
+ *   - Faremeter — payment rail (`@faremeter/flex-solana` optional
  *     dep in packages/sdk/package.json).
  *
  * If a row stops being true (a partner deprecates, a host stops shipping
@@ -35,7 +35,7 @@ const ADOPTERS: Adopter[] = [
   { name: "Cursor", href: "https://cursor.com", surface: "MCP host" },
   { name: "Claude Desktop", href: "https://claude.ai/desktop", surface: "MCP host" },
   { name: "Crossmint", href: "https://crossmint.com", surface: "Payout rail" },
-  { name: "Faremeter", href: "https://faremeter.xyz", surface: "Payment substrate" },
+  { name: "Faremeter", href: "https://faremeter.xyz", surface: "Payment rail" },
 ];
 
 export function AdoptersRail() {

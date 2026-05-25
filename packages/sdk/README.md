@@ -99,7 +99,7 @@ Brand-new agents get a daily allowance of platform-sponsored execute calls befor
 
 When the daily allowance is exhausted you get `SponsorExhaustedError` — pair a wallet and switch to `payAndRetryFlex`. Opt out per-request by passing `{ headers: { "X-No-Sponsor": "1" } }` if you'd rather pay yourself from the first call.
 
-Full payment docs and worked examples: [`docs/payments/`](./docs/payments/). Wallet + escrow + session-key setup: [`../../docs/wallets.md`](../../docs/wallets.md). Upgrading from v6.15's `exact`-scheme integration: [`../../docs/x402-flex-migration.md`](../../docs/x402-flex-migration.md).
+Full payment docs and worked examples: [`docs/payments/`](./docs/payments/). Wallet + escrow + session-key setup: [`../../docs/wallets.md`](../../docs/wallets.md).
 ### Choosing a payment provider
 
 The SDK persists your wallet provider so subsequent settles route through it without per-call configuration. Four providers ship as of v6.16:

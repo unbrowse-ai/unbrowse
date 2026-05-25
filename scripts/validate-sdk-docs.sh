@@ -20,7 +20,7 @@ RED=$'\033[31m'; GREEN=$'\033[32m'; YEL=$'\033[33m'; RESET=$'\033[0m'
 
 DOCS=(
   README.md
-  SKILL.md
+  packages/skill/SKILL.md
   docs/README.md
   docs/archive/README.md
   docs/OPEN-SOURCE-NOTICE.md

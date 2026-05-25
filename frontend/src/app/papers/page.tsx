@@ -18,7 +18,7 @@ const papers = [
     arxiv: "arXiv:2604.00694",
     authors: "Tham, Mac Gregor Garcia, Hahn",
     description:
-      "The Unbrowse paper arguing that the internal APIs already powering modern websites are the machine-native substrate for autonomous agents, and that a shared route graph turns repeated browser rediscovery into collective memory.",
+      "The Unbrowse paper arguing that the internal APIs already powering modern websites are the machine-native interface for autonomous agents, and that a shared route graph turns repeated browser rediscovery into collective memory.",
   },
 ];
 

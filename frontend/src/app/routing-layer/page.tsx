@@ -196,7 +196,7 @@ export default function RoutingLayerPage() {
           <p className="mt-6 text-base sm:text-lg leading-8 text-text-secondary">
             Worse, every agent pays this tax independently. If a thousand agents
             need Airbnb pricing data today, a thousand agents will each spend 30
-            seconds reverse-engineering the same page structure, finding the same
+            seconds rediscovering the same page structure, finding the same
             API endpoints, and parsing the same response formats. The collective
             waste is staggering. Millions of redundant browser sessions. Billions
             of wasted tokens. All because there is no shared memory of what was
@@ -270,7 +270,7 @@ export default function RoutingLayerPage() {
                   </td>
                   <td className="py-3 pr-6">Crawling public HTML</td>
                   <td className="py-3">
-                    Passive traffic capture from real usage
+                    Route learning from allowed usage
                   </td>
                 </tr>
                 <tr>
@@ -315,8 +315,7 @@ export default function RoutingLayerPage() {
               passive observation of real agent traffic
             </strong>
             . When any agent browses a website through Unbrowse, the network
-            traffic is captured, the API endpoints are reverse-engineered, their
-            schemas are extracted, and the routes are published to a shared
+            traffic is observed, reusable route metadata is extracted, and the routes are published to a shared
             graph. The agent that discovered the route gets credit. Every agent
             that uses the route afterward pays a micro-fee that flows back to the
             discoverer.

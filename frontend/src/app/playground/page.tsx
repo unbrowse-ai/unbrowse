@@ -90,7 +90,7 @@ export default function PlaygroundPage() {
             <UnbrowseChatLive />
             <p className="text-[11px] font-mono leading-relaxed" style={{ color: "rgba(255,122,32,0.55)" }}>
               Marketplace is sparse for newer sites. Empty result = the route hasn&apos;t been mined yet —
-              install the CLI locally to capture it: <span style={{ color: "#FFB060" }}>npx @unbrowse/sdk@latest</span>
+              install the CLI locally to teach it: <span style={{ color: "#FFB060" }}>npx unbrowse setup</span>
             </p>
           </div>
 

@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     "fetch interception",
     "XHR interception",
     "HAR recording",
-    "reverse engineering APIs",
+    "reusable API routes",
   ],
 };
 

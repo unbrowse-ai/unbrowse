@@ -28,7 +28,7 @@ const PAPER_AUTHORS = [
   },
 ];
 
-const abstract = `Autonomous web agents repeatedly pay a discovery tax: opening sites, inspecting DOMs, and reverse-engineering callable routes. We argue that the internal APIs already powering those websites are the machine-native substrate agents should target, and that browser-first architectures are the wrong default. We introduce Unbrowse, a shared route graph that converts browser-based route discovery into a collectively maintained, usage-priced index of callable web interfaces. Routes are learned passively from real browsing traffic and reused as cached API calls. Across 94 live domains, warmed-cache execution averaged 950 ms versus 3,404 ms for Playwright browser automation (3.6x mean, 5.4x median speedup) with 90 to 96 percent per-task cost reduction.`;
+const abstract = `Autonomous web agents repeatedly pay a discovery tax: opening sites, inspecting DOMs, and rediscovering callable routes. We argue that the internal APIs already powering those websites are the machine-native interface agents should target, and that browser-first architectures are the wrong default. We introduce Unbrowse, a shared route graph that converts browser-based route discovery into a collectively maintained, usage-priced index of callable web interfaces. Routes are learned from allowed browsing traffic and reused as cached API calls. Across 94 live domains, warmed-cache execution averaged 950 ms versus 3,404 ms for Playwright browser automation (3.6x mean, 5.4x median speedup) with 90 to 96 percent per-task cost reduction.`;
 
 const highlights = [
   "Names the discovery tax as the core inefficiency in autonomous web agents",
@@ -42,7 +42,7 @@ const highlights = [
 const sections = [
   {
     title: "Why this paper matters",
-    body: "Most agent stacks waste compute reopening the same websites and re-parsing the same pages, instead of calling the routes those pages already use. Every login, scroll, and click in a modern app fires JSON requests against internal endpoints; an agent that drives a browser pays for that work twice while ignoring the API underneath. Treating those internal endpoints as the real interface lets one agent's discovery become another agent's cached call, so the expensive reverse engineering happens once per route rather than once per task. The paper reframes agent web access around that shared substrate rather than around the browser session.",
+    body: "Most agent stacks waste compute reopening the same websites and re-parsing the same pages, instead of calling the routes those pages already use. Every login, scroll, and click in a modern app fires JSON requests against internal endpoints; an agent that drives a browser pays for that work twice while ignoring the API underneath. Treating those internal endpoints as the real interface lets one agent's discovery become another agent's cached call, so the expensive route discovery happens once per route rather than once per task. The paper reframes agent web access around shared route memory rather than around the browser session.",
   },
   {
     title: "Core claim",
@@ -50,7 +50,7 @@ const sections = [
   },
   {
     title: "What Unbrowse adds",
-    body: "Unbrowse turns one-off route reverse engineering into a usage-priced public good with a voluntary opt-in. Routes captured during real browsing are normalised into a shared graph; agents query it, pay a small per-call fee, and keep execution local inside their own process. Because the fee is set against the expected cost of rediscovery, agents only adopt the graph when it is cheaper than reopening the site themselves, which keeps prices honest and supply self-correcting. Adoption is driven by economics, not by mandate.",
+    body: "Unbrowse turns one-off route discovery into a usage-priced public good with a voluntary opt-in. Routes captured during real browsing are normalised into a shared graph; agents query it, pay a small per-call fee, and keep execution local inside their own process. Because the fee is set against the expected cost of rediscovery, agents only adopt the graph when it is cheaper than reopening the site themselves, which keeps prices honest and supply self-correcting. Adoption is driven by economics, not by mandate.",
   },
   {
     title: "Main empirical result",

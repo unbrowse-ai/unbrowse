@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: "What websites does Unbrowse support?",
-    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
+    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a reusable route cannot be learned, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
   },
   {
     q: "Is Unbrowse secure? Do my credentials leave my machine?",
@@ -42,7 +42,7 @@ const faqs = [
   },
   {
     q: "What is the skill registry?",
-    a: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, the result is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
+    a: "The skill registry is a shared marketplace of reusable API skills. When one agent discovers how to interact with a website's API, the reviewed route metadata is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
   },
 ];
 
