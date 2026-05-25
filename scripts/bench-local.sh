@@ -446,6 +446,13 @@ while IFS= read -r line; do
     strategy=$(printf '%s' "$line"  | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//')
     goal=$(printf '%s' "$line"      | awk -F'|' '{print $5}' | sed 's/^ *//;s/ *$//')
     url=$(printf '%s' "$line"       | awk -F'|' '{print $6}' | sed 's/^ *//;s/ *$//')
+  elif [ "$pipe_count" = "2" ]; then
+    lane=$(printf '%s' "$line"      | awk -F'|' '{print $1}' | sed 's/^ *//;s/ *$//')
+    auth="none"
+    difficulty=""
+    strategy=""
+    goal=$(printf '%s' "$line"      | awk -F'|' '{print $2}' | sed 's/^ *//;s/ *$//')
+    url=$(printf '%s' "$line"       | awk -F'|' '{print $3}' | sed 's/^ *//;s/ *$//')
   else
     lane=""
     auth="none"
