@@ -1958,6 +1958,58 @@ export async function captureSession(
       log("capture", `embedded SSR data: ${embeddedDataCount} synthetic endpoints injected`);
     }
 
+    // --- HTML preload/prefetch link extraction ---
+    // Many SPAs (NUSMods, Next.js, SvelteKit) declare the data API as
+    //   <link rel="preload"  as="fetch" href="https://api.example.com/data.json">
+    //   <link rel="prefetch" href="https://api.example.com/data.json">
+    // The browser fetches these eagerly, but if Kuri's close races the preload
+    // we lose them. Read the head directly and fetch any API-shaped href via
+    // an in-page XHR so cookies + headers replay correctly.
+    try {
+      const preloadRaw = await phase("preload-links", () => kuri.evaluate(tabId, `(function(){
+        try {
+          var out = [];
+          var links = document.querySelectorAll('link[rel="preload"][as="fetch"][href], link[rel="prefetch"][href]');
+          for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href');
+            if (!href) continue;
+            try { href = new URL(href, document.baseURI).href; } catch (e) { continue; }
+            if (!/^https?:/.test(href)) continue;
+            out.push(href);
+          }
+          return JSON.stringify(out);
+        } catch (e) { return '[]'; }
+      })()`));
+      if (typeof preloadRaw === "string" && preloadRaw.startsWith("[")) {
+        const hrefs: string[] = JSON.parse(preloadRaw);
+        const apiShaped = hrefs.filter((h) => {
+          if (responseBodies.has(h)) return false;
+          return /\.json($|\?)|\/(api|v\d|graphql|rest|gql)\//i.test(h);
+        }).slice(0, 10);
+        let preloadFetchCount = 0;
+        await Promise.allSettled(apiShaped.map(async (href) => {
+          try {
+            const body = await kuri.evaluate(
+              tabId,
+              `(function(){var x=new XMLHttpRequest();x.open('GET','${href.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`,
+            );
+            if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
+              responseBodies.set(href, body);
+              harEntries.push({
+                startedDateTime: new Date().toISOString(),
+                request: { method: "GET", url: href, headers: [] },
+                response: { status: 200, headers: [{ name: "content-type", value: body.trim().startsWith("{") || body.trim().startsWith("[") ? "application/json" : "text/plain" }], content: { text: body, mimeType: "application/json" } },
+              } as any);
+              preloadFetchCount++;
+            }
+          } catch { /* non-fatal */ }
+        }));
+        if (preloadFetchCount > 0) {
+          log("capture", `preload-link extraction: ${preloadFetchCount} of ${apiShaped.length} API-shaped preloads fetched`);
+        }
+      }
+    } catch { /* non-fatal */ }
+
     // Merge all passive capture sources into unified request list
     const requests: RawRequest[] = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies, performanceUrls);
     log("capture", `tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
