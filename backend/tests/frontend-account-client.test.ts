@@ -140,8 +140,8 @@ describe("frontend account-client", () => {
     }
     expect(thrown).toBeInstanceOf(Error);
     const msg = (thrown as Error).message;
-    expect(msg).toContain("403");
     expect(msg).toContain("account_required");
+    expect((thrown as AccountClientError).status).toBe(403);
   });
 
   test("2xx returns parsed JSON exactly", async () => {
@@ -163,7 +163,7 @@ describe("frontend account-client", () => {
     // The client returns whatever JSON shape the server sends; verify the
     // empty-case doesn't crash and returns the parsed object/array.
     const got = await fetchKeys("k");
-    expect(got).toEqual({ keys: [] } as never);
+    expect(got).toEqual([]);
   });
 
   test("fetchSkills: empty array returns []", async () => {
