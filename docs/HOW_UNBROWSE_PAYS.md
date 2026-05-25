@@ -63,11 +63,11 @@ The skill must also carry `owner_compensation_opt_in === true` (`backend/src/typ
 
 See `docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
 
-## Payment provider choice (pay.sh / lobster.cash / Privy / external)
+## Payment provider choice (Pay signer / lobster.cash / Privy / external)
 
 The substrate never holds private keys; you bind a signer at `unbrowse setup`. As of 2026-05-21 there are four supported providers selectable from the CLI prompt and the `/account` web page (`POST /v1/account/payment-provider` persists the choice; `backend/src/services/flex.ts` honours it on dispatch).
 
-- **pay.sh** -- TouchID-backed signer, USDC settlement via x402 MPP / search_catalog. The thinnest path for laptop agents; the wallet lives in the macOS keychain. The CLI bridge is `src/payments/paysh-pay.ts` (shells to `pay curl <url>` on each settle).
+- **Pay signer** -- TouchID-backed signer, USDC settlement via x402 MPP / search_catalog. The thinnest path for laptop agents; the wallet lives in the macOS keychain. The CLI bridge is `src/payments/paysh-pay.ts` (shells to `pay curl <url>` on each settle).
 - **lobster.cash** -- Crossmint-backed credit-card -> virtual-card -> Solana funnel. The recommended path for non-technical users; subscription billing tops up the wallet automatically. `npx @crossmint/lobster-cli setup` provisions the account.
 - **Privy embedded** -- Solana wallet provisioned in-browser via Privy. Bound to the user's `agent.wallet_address` after `verifyPrivyAuthToken` succeeds (`backend/src/services/privy.ts`). The right answer when the agent runs as a web app and the user signs in with email or OAuth instead of installing a CLI.
 - **External wallet** -- bring your own Solana signer. The substrate emits an x402 envelope; any wallet that can sign a Faremeter Flex authorization works.

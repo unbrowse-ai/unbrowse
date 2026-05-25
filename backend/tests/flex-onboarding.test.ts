@@ -30,7 +30,7 @@ describe("flex-splits — Day 3 seeds", () => {
     const splits = computeFlexSplits({ contributors: [] }, "PlatformATA");
     expect(splits).toEqual([]);
   });
-  test("computeFlexSplits single contributor: platform 1000 + contributor 9000 = 10000 bps", () => {
+  test("computeFlexSplits single contributor: platform half + contributor half = 10000 bps", () => {
     const splits = computeFlexSplits(
       { contributors: [{ agent_id: "a1", wallet_address: "W1", cumulative_delta: 1.0 } as any] },
       "PlatformATA",
@@ -40,7 +40,7 @@ describe("flex-splits — Day 3 seeds", () => {
     expect(sum).toBe(10000);
     expect(splits[0].recipient).toBe("PlatformATA");
     expect(splits[0].bps).toBe(PLATFORM_BPS);
-    expect(splits[1].bps).toBe(9000);
+    expect(splits[1].bps).toBe(10000 - PLATFORM_BPS);
   });
   test("computeFlexSplits caps at 5 entries (platform + 4 contributors)", () => {
     const contributors = Array.from({ length: 10 }, (_, i) => ({
