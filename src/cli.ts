@@ -1241,8 +1241,16 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     const status = (result.result as Record<string, unknown> | undefined)?.status as string | undefined
       ?? result.status as string | undefined;
     if (error === "auth_required" || status === "auth_required") return false;
-    if (error) return ["no_match", "no_cached_match", "not_found"].includes(error);
-    if (status) return ["no_match", "no_cached_match", "not_found"].includes(status);
+    // payment_required is a paywall on the marketplace search itself (not on
+    // the destination site) — the agent never asked to pay for marketplace
+    // search, so fall through to capture+index just like a cache miss. Per
+    // contract b3b148b7: marketplace 402 must auto-fallthrough; without
+    // this, every bench probe whose intent didn't already cache-hit would
+    // terminate at the 402 envelope instead of trying the live capture
+    // ladder (observed at conc=8 in conductor wave-5: 13 of 35 probes
+    // stopped at marketplace 402).
+    if (error) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(error);
+    if (status) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(status);
     return !isResolveSuccessResult(result);
   }
 
@@ -1344,6 +1352,58 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
       session_id: browse.session_id ?? null,
       auth_required: browse.auth_required === true,
     };
+
+    // When the browse path lands directly on a content-bearing surface (e.g.
+    // a plain JSON API where api.coingecko.com returns `{"bitcoin":{"usd":...}}`
+    // as the rendered "page.text", or a server-rendered HTML page), the bench
+    // and downstream callers should see this as a real success — not a
+    // "needs more interaction" envelope. Without this, probes that hit
+    // payment_required → capture → browse (with the 402-fallthrough fix from
+    // contract b3b148b7) get useful data in `browse.page.text` but still
+    // surface as `status: "browse_required"` and the manifest classifier
+    // records them as empty-source FAIL. Treat browse-direct as a first-class
+    // source when the page text is non-trivial AND no interactive auth is
+    // required.
+    const browsePage = (browse.page as Record<string, unknown> | undefined) ?? {};
+    const browsePageText = typeof browsePage.text === "string" ? browsePage.text : "";
+    const browseAuthRequired = browse.auth_required === true;
+    const browseErrored = browse.error === true || typeof browse.error === "string";
+    const looksLikeRealContent =
+      !browseErrored &&
+      !browseAuthRequired &&
+      browsePageText.length >= 200 &&
+      !/please (wait|verify|enable|complete)|access denied|just a moment|attention required|cf-chl|datadome|captcha/i.test(browsePageText.slice(0, 2048));
+
+    if (looksLikeRealContent) {
+      output(decorate({
+        status: "ok",
+        source: "browse-direct",
+        url,
+        intent,
+        capture,
+        resolve_result: result,
+        browse,
+        // Hoist the page text + structured_data to the top-level result
+        // shape so callers (and bench manifest classifiers) can read it
+        // without diving into browse.page.
+        result: {
+          status: "ok",
+          source: "browse-direct",
+          page_text: browsePageText,
+          structured_data: browsePage.structured_data ?? null,
+          final_url: typeof browse.url === "string" ? browse.url : url,
+        },
+        trace: {
+          trace_id: typeof browse.session_id === "string" ? browse.session_id : undefined,
+          skill_id: "browse-direct",
+          endpoint_id: "browse-direct",
+          success: true,
+          status_code: 200,
+        },
+      }), !!flags.pretty);
+      return;
+    }
+
     output(decorate({
       status: "browse_required",
       capture,

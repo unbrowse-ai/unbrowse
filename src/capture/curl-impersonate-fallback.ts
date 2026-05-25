@@ -41,6 +41,10 @@ export interface CurlCffiOptions {
   impersonate?: string;
   timeoutMs?: number;
   scriptPath?: string;
+  /** Force direct connection even if IPROYAL_* env is set — the subprocess
+   *  gets UNBROWSE_NO_PROXY=1 in its env to suppress auto-detect. Used by
+   *  the contract-fetch graceful-degrade path when the proxy fails. */
+  forceDirect?: boolean;
 }
 
 /**
@@ -59,7 +63,10 @@ export async function tryCurlImpersonateFetch(opts: CurlCffiOptions): Promise<Cu
 
   return await new Promise<CurlCffiResult | null>((resolveP) => {
     let killed = false;
-    const child = spawn("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const childEnv = opts.forceDirect
+      ? { ...process.env, UNBROWSE_NO_PROXY: "1" }
+      : process.env;
+    const child = spawn("python3", args, { stdio: ["ignore", "pipe", "pipe"], env: childEnv });
     let stdout = "";
     const timer = setTimeout(() => {
       killed = true;

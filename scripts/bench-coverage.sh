@@ -20,14 +20,20 @@ TIMEOUT=35
 DRY_RUN=0
 OUT_DIR=".bench-local"
 STAGING=0
+CONCURRENCY=0   # 0 = unbounded (legacy behavior: all probes parallel)
+USE_CONTRACT_FETCH=0   # 1 = call bun src/contract-fetch.ts (stateless-stdio Layer-1 primitive)
+                       # instead of bun src/cli.ts run for each probe — validates the
+                       # contract-fetch wedge against the full bench corpus
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --corpus-file)  CORPUS_FILE="$2"; shift 2 ;;
-    --timeout)      TIMEOUT="$2";     shift 2 ;;
-    --out-dir)      OUT_DIR="$2";     shift 2 ;;
-    --staging)      STAGING=1;        shift   ;;
-    --dry-run)      DRY_RUN=1;        shift   ;;
+    --corpus-file)         CORPUS_FILE="$2"; shift 2 ;;
+    --timeout)             TIMEOUT="$2";     shift 2 ;;
+    --out-dir)             OUT_DIR="$2";     shift 2 ;;
+    --concurrency)         CONCURRENCY="$2"; shift 2 ;;
+    --use-contract-fetch)  USE_CONTRACT_FETCH=1; shift ;;
+    --staging)             STAGING=1;        shift   ;;
+    --dry-run)             DRY_RUN=1;        shift   ;;
     *) echo "[bench-coverage] unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -105,17 +111,43 @@ while IFS='|' read -r intent url || [[ -n "${intent:-}" ]]; do
 
   PROBE_OUT="$OUT_DIR/probes/${IDX}.json"
 
-  (
-    timeout "$TIMEOUT" bun src/cli.ts run "$url" "$intent" \
-      > "$PROBE_OUT" 2>/dev/null
-    echo $? > "$TMP_DIR/exit-${IDX}.txt"
-  ) &
+  if [[ "$USE_CONTRACT_FETCH" -eq 1 ]]; then
+    # Stateless-stdio Layer-1 primitive. Single ephemeral subprocess per
+    # call (curl_cffi). Zero shared state. Validates the contract-fetch
+    # wedge against the full corpus at chosen concurrency.
+    (
+      echo "{\"url\":\"$url\",\"intent\":\"$intent\"}" \
+        | timeout "$TIMEOUT" bun src/contract-fetch.ts \
+        > "$PROBE_OUT" 2>/dev/null
+      echo $? > "$TMP_DIR/exit-${IDX}.txt"
+    ) &
+  else
+    (
+      timeout "$TIMEOUT" bun src/cli.ts run "$url" "$intent" \
+        > "$PROBE_OUT" 2>/dev/null
+      echo $? > "$TMP_DIR/exit-${IDX}.txt"
+    ) &
+  fi
+
+  # Batch concurrency control. When --concurrency N is set (N>0), wait for
+  # the running pool to drop below N before spawning the next probe. This
+  # trades wallclock for measurement honesty: the bench measures product
+  # capability at a chosen concurrency level instead of system saturation.
+  if [[ "$CONCURRENCY" -gt 0 ]]; then
+    while (( $(jobs -rp | wc -l) >= CONCURRENCY )); do
+      wait -n 2>/dev/null || sleep 0.5
+    done
+  fi
 
   IDX=$(( IDX + 1 ))
 done < "$CORPUS_FILE"
 
 TOTAL=$IDX
-echo "[bench-coverage] $TOTAL probes running in parallel (timeout=${TIMEOUT}s each)..." >&2
+if [[ "$CONCURRENCY" -gt 0 ]]; then
+  echo "[bench-coverage] $TOTAL probes batched at concurrency=$CONCURRENCY (timeout=${TIMEOUT}s each)..." >&2
+else
+  echo "[bench-coverage] $TOTAL probes running in parallel (timeout=${TIMEOUT}s each)..." >&2
+fi
 wait
 
 # Phase 2: build manifest — extract raw signals, no verdict
