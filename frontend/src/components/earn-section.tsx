@@ -23,7 +23,7 @@ import { IconDiamondCheck, IconArrow } from "./archival-icons";
 export function EarnSection() {
   return (
     <section id="earn" className="relative py-16 sm:py-24 flex flex-col justify-center">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
           <div className="lg:col-span-3">
             <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
@@ -40,7 +40,7 @@ export function EarnSection() {
               No API key billing, no Stripe dashboard.
             </p>
             <p className="text-sm sm:text-base text-text-secondary mt-3 max-w-2xl leading-relaxed">
-              The sponsor tier covers an agent&apos;s first <span className="text-orange-500 font-mono">$1/day</span>, so
+              The sponsor tier covers an agent&apos;s first <span className="text-orange-500 font-mono font-semibold tabular-nums">$1/day</span>, so
               they explore your routes before they spend their own wallet.
               Discovery is the marketplace&apos;s job, not yours.
             </p>
@@ -66,11 +66,12 @@ export function EarnSection() {
             </p>
           </div>
 
-          <div className="lg:col-span-2 bg-[#060402] border border-[rgba(255,122,32,0.25)] rounded-sm p-5">
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-4">
+          <div className="halftone-overlay lg:col-span-2 bg-[#060402] border border-[rgba(255,122,32,0.3)] rounded-sm p-5 relative">
+            <p className="relative z-10 text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.65)] mb-4 flex items-center gap-2">
+              <span className="inline-block w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" />
               Receipt strip
             </p>
-            <div className="space-y-3 text-sm">
+            <div className="relative z-10 space-y-3 text-sm">
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />
                 <span>x402-style flow, settled in USDC on Solana via Faremeter Flex.</span>
@@ -92,7 +93,7 @@ export function EarnSection() {
                 <span>Public ledger at <Link href="/leaderboard" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]">/leaderboard</Link> shows real routes, real wallets, real USDC.</span>
               </div>
             </div>
-            <div className="mt-5 pt-4 border-t border-[rgba(255,122,32,0.15)] text-[11px] font-mono text-text-muted">
+            <div className="relative z-10 mt-5 pt-4 border-t border-[rgba(255,122,32,0.15)] text-[11px] font-mono text-text-muted">
               Asked for repeatedly on r/AI_Agents, r/SaaS, r/CryptoCurrency, r/ethdev. Trace in /docs/POSITIONING.md.
             </div>
           </div>

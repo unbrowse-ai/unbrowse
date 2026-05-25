@@ -63,7 +63,7 @@ export function BenchmarkTable() {
 
   return (
     <section id="benchmark" className="relative py-16 sm:py-24 flex flex-col justify-center">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="text-center mb-8">
           <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
             ##  Same intent, three tools
@@ -85,45 +85,45 @@ export function BenchmarkTable() {
           </p>
         </div>
 
-        <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm overflow-x-auto">
-          <table className="w-full text-sm font-mono">
-            <thead className="bg-[rgba(0,0,0,0.35)] border-b border-[rgba(255,122,32,0.2)]">
-              <tr className="text-[11px] uppercase tracking-[0.2em] text-text-muted">
-                <th className="text-left px-4 py-3">Tool</th>
-                <th className="text-right px-4 py-3">Tokens / call</th>
-                <th className="text-right px-4 py-3">Cold</th>
-                <th className="text-right px-4 py-3">Cached</th>
-                <th className="text-right px-4 py-3">Cost / call</th>
+        <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm overflow-x-auto min-w-0 max-w-full">
+          <table className="w-full text-sm font-mono tabular-nums">
+            <thead className="bg-[rgba(0,0,0,0.45)] border-b border-[rgba(255,122,32,0.28)]">
+              <tr className="text-[10px] uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)]">
+                <th className="text-left px-4 py-3.5 font-medium">Tool</th>
+                <th className="text-right px-4 py-3.5 font-medium">Tokens / call</th>
+                <th className="text-right px-4 py-3.5 font-medium">Cold</th>
+                <th className="text-right px-4 py-3.5 font-medium">Cached</th>
+                <th className="text-right px-4 py-3.5 font-medium">Cost / call</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr
                   key={r.tool}
-                  className={`border-b border-[rgba(255,122,32,0.12)] last:border-0 ${r.highlight ? "bg-[rgba(255,122,32,0.04)]" : ""}`}
+                  className={`border-b border-[rgba(255,122,32,0.12)] last:border-0 ${r.highlight ? "bg-[rgba(255,122,32,0.06)]" : ""}`}
                 >
-                  <td className={`px-4 py-3 ${r.highlight ? "text-orange-500 font-medium" : "text-text-primary"}`}>{r.tool}</td>
-                  <td className="text-right px-4 py-3 text-text-secondary">{r.tokens}</td>
-                  <td className="text-right px-4 py-3 text-text-secondary">{r.cold}</td>
-                  <td className="text-right px-4 py-3 text-text-secondary">{r.cached}</td>
-                  <td className={`text-right px-4 py-3 ${r.highlight ? "text-orange-500" : "text-text-secondary"}`}>{r.cost}</td>
+                  <td className={`px-4 py-3.5 ${r.highlight ? "text-orange-500 font-semibold tracking-tight" : "text-text-primary"}`}>{r.tool}</td>
+                  <td className="text-right px-4 py-3.5 text-text-secondary">{r.tokens}</td>
+                  <td className="text-right px-4 py-3.5 text-text-secondary">{r.cold}</td>
+                  <td className="text-right px-4 py-3.5 text-text-secondary">{r.cached}</td>
+                  <td className={`text-right px-4 py-3.5 ${r.highlight ? "text-orange-500 font-medium" : "text-text-secondary"}`}>{r.cost}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Across-the-corpus headline number */}
-        <div className="mt-5 border border-[rgba(255,122,32,0.18)] bg-[#070503]/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+        {/* Across-the-corpus headline number — halftone-anchored */}
+        <div className="halftone-overlay mt-5 border border-[rgba(255,122,32,0.3)] bg-[#070503]/80 rounded-sm p-6 sm:p-7 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
+          <div className="relative z-10">
+            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.65)] mb-3">
               Across 94 live domains
             </p>
-            <p className="text-text-primary text-base sm:text-lg leading-snug">
-              <span className="font-display text-3xl text-orange-500 tracking-tight">3.6x</span>{" "}
-              mean speedup over Playwright. <span className="text-text-secondary">5.4x median.</span>
+            <p className="text-text-primary text-base sm:text-lg leading-snug font-mono">
+              <span className="font-display text-5xl sm:text-6xl text-orange-500 tracking-[-0.04em] tabular-nums">3.6x</span>{" "}
+              <span className="text-text-secondary">mean speedup over Playwright. <span className="text-orange-300 font-medium">5.4x median.</span></span>
             </p>
-            <p className="text-xs text-text-muted mt-2 leading-relaxed max-w-xl">
+            <p className="text-xs text-text-muted mt-3 leading-relaxed max-w-xl tabular-nums">
               Measured in the public agent-experience harness. 18 of the 94
               domains complete in sub-100ms from cached skill routes.
             </p>

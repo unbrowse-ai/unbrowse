@@ -33,14 +33,17 @@ export function AntiIcpBlock() {
             Three jobs we do not optimize for.
           </h2>
 
-          <div className="space-y-2 font-mono text-sm">
+          <div className="font-mono text-sm">
             {rows.map((r) => (
               <div
                 key={r.scenario}
-                className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 border-b border-[rgba(255,122,32,0.1)] last:border-0 py-2.5"
+                className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 border-t border-[rgba(255,122,32,0.12)] py-3.5 first:border-t-0"
               >
-                <span className="text-text-secondary flex-1">→ {r.scenario}</span>
-                <span className="text-[rgba(255,176,96,0.85)]">{r.instead}</span>
+                <span className="text-text-secondary flex-1 flex items-baseline gap-2">
+                  <span aria-hidden className="text-[rgba(255,122,32,0.5)] text-xs">→</span>
+                  {r.scenario}
+                </span>
+                <span className="text-[rgba(255,176,96,0.95)] font-medium tracking-tight">{r.instead}</span>
               </div>
             ))}
           </div>

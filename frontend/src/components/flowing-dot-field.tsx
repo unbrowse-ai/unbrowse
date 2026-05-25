@@ -68,7 +68,14 @@ export function FlowingDotField() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // PERF: defer canvas init until the browser is idle so it doesn't
+    // compete with hero paint / LCP. Falls back to a 1500ms timer for
+    // browsers without requestIdleCallback. No layout impact (canvas
+    // is position:fixed) — pure paint deferral.
     let raf: number;
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let started = false;
     let frame = 0;
     let imgData: ImageData | null = null;
 
@@ -166,17 +173,40 @@ export function FlowingDotField() {
     const onMove  = (e: MouseEvent) => { mouseRef.current = { x: e.clientX, y: e.clientY }; };
     const onLeave = ()               => { mouseRef.current = { x: -9999, y: -9999 }; };
 
-    resize();
-    window.addEventListener('resize',      resize);
-    window.addEventListener('mousemove',   onMove,  { passive: true });
-    document.addEventListener('mouseleave', onLeave);
-    draw();
+    const start = () => {
+      if (started) return;
+      started = true;
+      resize();
+      window.addEventListener('resize',      resize);
+      window.addEventListener('mousemove',   onMove,  { passive: true });
+      document.addEventListener('mouseleave', onLeave);
+      draw();
+    };
+
+    // Defer until after the browser hits idle (after LCP/FCP).
+    // requestIdleCallback is widely supported in Chromium/Firefox; Safari
+    // fallback uses a 1500ms timer which still keeps us out of the LCP
+    // window.
+    const ric = (window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (h: number) => void;
+    }).requestIdleCallback;
+    if (typeof ric === 'function') {
+      idleHandle = ric(start, { timeout: 2500 });
+    } else {
+      timeoutHandle = setTimeout(start, 1500);
+    }
 
     return () => {
+      const cic = (window as Window & {
+        cancelIdleCallback?: (h: number) => void;
+      }).cancelIdleCallback;
+      if (idleHandle != null && typeof cic === 'function') cic(idleHandle);
+      if (timeoutHandle != null) clearTimeout(timeoutHandle);
       window.removeEventListener('resize',      resize);
       window.removeEventListener('mousemove',   onMove);
       document.removeEventListener('mouseleave', onLeave);
-      cancelAnimationFrame(raf);
+      if (started) cancelAnimationFrame(raf);
     };
   }, []);
 

@@ -20,7 +20,7 @@ import { IconHourglass, IconSeal, IconScript, IconDiamondCheck } from "./archiva
 export function ZeroSetupBand() {
   return (
     <section id="zero-setup" className="relative py-16 sm:py-24 flex flex-col justify-center">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="relative text-center mb-6 flex flex-col items-center">
           <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
             ##  Zero-setup web access
@@ -49,14 +49,14 @@ export function ZeroSetupBand() {
               Chrome cookies and Turnstile / Datadome / PerimeterX usually
               never fire. Residential-proxy fallback is one env var away.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
-              <div className="flex justify-between items-center text-xs font-mono mb-2">
+            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm font-mono tabular-nums">
+              <div className="flex justify-between items-center text-xs mb-2 pb-2 border-b border-[rgba(255,122,32,0.08)]">
                 <span className="text-text-muted">Headless Chrome (default JA4)</span>
-                <span className="text-text-muted">flagged</span>
+                <span className="text-text-muted line-through">flagged</span>
               </div>
-              <div className="flex justify-between items-center text-xs font-mono">
+              <div className="flex justify-between items-center text-xs">
                 <span className="text-text-primary font-medium">unbrowse JA4 + your cookies</span>
-                <span className="text-orange-500 font-medium">200 OK</span>
+                <span className="text-orange-500 font-semibold">200 OK</span>
               </div>
             </div>
           </div>
@@ -101,14 +101,14 @@ export function ZeroSetupBand() {
               do not break the agent. Every endpoint gets an LLM-authored
               description at capture time so resolve picks the right one.
             </p>
-            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
-              <div className="flex justify-between items-center text-xs font-mono mb-2">
+            <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm font-mono">
+              <div className="flex justify-between items-center text-xs mb-2 pb-2 border-b border-[rgba(255,122,32,0.08)]">
                 <span className="text-text-muted">Framework injected JS</span>
                 <span className="text-text-muted line-through">a11y tree</span>
               </div>
-              <div className="flex justify-between items-center text-xs font-mono">
+              <div className="flex justify-between items-center text-xs">
                 <span className="text-text-primary font-medium">unbrowse</span>
-                <span className="text-orange-500 font-medium">JSON answer</span>
+                <span className="text-orange-500 font-semibold">JSON answer</span>
               </div>
             </div>
           </div>
