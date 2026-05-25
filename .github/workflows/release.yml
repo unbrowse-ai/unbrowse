@@ -397,10 +397,26 @@ jobs:
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
-      - run: bun run deploy:ci
+      - name: Deploy worker with version vars
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: |
+          # /v1/version returns the deployed artifact identity. Without these
+          # --var flags the worker sees the keys as undefined and the endpoint
+          # serves nulls (regressed v7.0.0 deploy; same gap as memory a9c61025).
+          # Tag-triggered runs get GITHUB_REF_NAME=v*; manual workflow_dispatch
+          # falls back to the package.json version.
+          VERSION=$(node -p 'require("../version.json").version')
+          BUILD_SHA="${GITHUB_SHA:0:8}"
+          DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "[deploy-backend] version=$VERSION build_sha=$BUILD_SHA deployed_at=$DEPLOYED_AT"
+          bunx wrangler deploy \
+            --config wrangler.ci.toml \
+            --var "UNBROWSE_VERSION:$VERSION" \
+            --var "UNBROWSE_BUILD_SHA:$BUILD_SHA" \
+            --var "UNBROWSE_DEPLOYED_AT:$DEPLOYED_AT"
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
