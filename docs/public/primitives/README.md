@@ -13,6 +13,7 @@ The intent is auditable transparency. Anyone reading this folder can verify, wit
 5. [user-response-never-contains](./05-user-response-never-contains.md) — the explicit list of fields that never appear in any user-facing response, with the audit gate that enforces it.
 6. [domain-opt-out](./06-domain-opt-out.md) — how a site verifies ownership of a domain and triggers removal from our index.
 7. [fair-split-and-claim](./07-fair-split-and-claim.md) — paid resolves split among indexer, domain owner, and Unbrowse; unclaimed domain shares accrue in a global holding wallet; Privy-tied claim transfers the balance.
+8. [deploy-gate](./08-deploy-gate.md) — production deploys mechanically refuse until every named impl is satisfied and the bench is 100% across all seven capability dimensions.
 
 ## What this folder is not
 
