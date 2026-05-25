@@ -433,8 +433,7 @@ Omit empty sections. No emojis. No file paths or function names.
 - Only create PRs and issues — do not push directly to main
 - Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`
 
-- **`src/kuri/client.ts` is now extended by Unbrowse** — auth profile methods, `HEADLESS=false`, cookie injection. Coordinate with Kuri submodule on `adding-extensions` branch when updating.
-- **Never edit `src/kuri/client.ts`** unless explicitly asked. Kuri is a separately maintained Zig binary; its Node client wrapper is fragile and tightly coupled.
+- **`src/kuri/client.ts` is unrestricted (2026-05-25)** — Lewis lifted the prior "never edit unless asked" guardrail in service of the stateless-kuri contract `8120be81` (Layer-3 browser-runtime ephemerality requires editing this wrapper). The wrapper is still fragile and tightly coupled to the Zig broker; touch with care and coordinate non-trivial changes with the Kuri submodule on `adding-extensions` branch. Earlier extensions (auth profile methods, `HEADLESS=false`, cookie injection) remain load-bearing.
 - **Always kill the running unbrowse server** after `npm i -g` before testing. The old process keeps serving stale code. Run the NARROWED kill set below. Broad `pkill -9 -f 'unbrowse|kuri'` matches any process whose cmdline merely contains "unbrowse" (e.g. bench scaffolds running under `/Users/.../unbrowse/...`) and was responsible for cross-session bench races (PR #662 root cause):
   ```bash
   # Long-lived servers (the real footgun): match exact CLI invocations, not paths-that-contain-unbrowse

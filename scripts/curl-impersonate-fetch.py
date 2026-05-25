@@ -50,9 +50,10 @@ def main() -> int:
         return 1
 
     proxies = None
-    if args.proxy:
+    disable_proxy = os.environ.get("UNBROWSE_NO_PROXY", "") in ("1", "true", "yes")
+    if args.proxy and not disable_proxy:
         proxies = {"http": args.proxy, "https": args.proxy}
-    elif os.environ.get("IPROYAL_USER") and os.environ.get("IPROYAL_PASS"):
+    elif not disable_proxy and os.environ.get("IPROYAL_USER") and os.environ.get("IPROYAL_PASS"):
         from urllib.parse import quote
         u = quote(os.environ["IPROYAL_USER"], safe="")
         pw = quote(os.environ["IPROYAL_PASS"], safe="")
