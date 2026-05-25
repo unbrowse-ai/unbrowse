@@ -4,15 +4,6 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "FAQ — Unbrowse",
   description: "Frequently asked questions about Unbrowse — the API-native browser for AI agents.",
-  alternates: {
-    canonical: "https://www.unbrowse.ai/faq",
-  },
-  openGraph: {
-    title: "FAQ — Unbrowse",
-    description: "Frequently asked questions about Unbrowse — the API-native browser for AI agents.",
-    url: "https://www.unbrowse.ai/faq",
-    type: "article",
-  },
 };
 
 const faqs = [
@@ -30,7 +21,7 @@ const faqs = [
   },
   {
     q: "What websites does Unbrowse support?",
-    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a reusable route cannot be learned, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
+    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
   },
   {
     q: "Is Unbrowse secure? Do my credentials leave my machine?",
@@ -38,57 +29,17 @@ const faqs = [
   },
   {
     q: "How do I install Unbrowse?",
-    a: "Run npx unbrowse setup --mcp for a one-command installation that wires Unbrowse up as an MCP server in Claude Code, Cursor, Windsurf, Claude Desktop, Codex, OpenClaw, or any MCP-aware host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup --mcp. For Claude Code specifically you can also use claude mcp add unbrowse -- npx -y unbrowse mcp. Restart the host once and unbrowse:// resources show up automatically.",
+    a: "Run npx unbrowse setup for a one-command installation that wires up the local runtime and configures your agent host. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse. One install covers Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and any other MCP-aware framework.",
   },
   {
     q: "What is the skill registry?",
-    a: "The skill registry is a shared marketplace of reusable API skills. When one agent discovers how to interact with a website's API, the reviewed route metadata is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
+    a: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, the result is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
   },
 ];
-
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((f) => ({
-    "@type": "Question",
-    name: f.q,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: f.a,
-    },
-  })),
-};
-
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Home",
-      item: "https://www.unbrowse.ai",
-    },
-    {
-      "@type": "ListItem",
-      position: 2,
-      name: "FAQ",
-      item: "https://www.unbrowse.ai/faq",
-    },
-  ],
-};
 
 export default function FAQPage() {
   return (
     <div className="min-h-screen bg-surface">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-28 pb-20">
         <div className="mb-12">
           <Link href="/" className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors">

@@ -55,13 +55,14 @@ export function ScrollReveal({
       return;
     }
 
-    // If the element is already in viewport at mount, reveal immediately
-    // (skips the pending flash for above-the-fold chapters).
+    // If the element is already in viewport at mount, keep state undefined
+    // so the SSR-visible default (no data-reveal attribute) persists. The
+    // earlier setState("in") here caused the H1 + word-split to flash
+    // invisible while the entry animation re-ran client-side.
     const rect = node.getBoundingClientRect();
     const alreadyInView =
       rect.top < window.innerHeight * (1 - threshold * 0.5) && rect.bottom > 0;
     if (alreadyInView) {
-      setState("in");
       return;
     }
 

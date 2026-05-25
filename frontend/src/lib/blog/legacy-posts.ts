@@ -49,16 +49,6 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     category: "Technical",
   },
   {
-    slug: "contract-organ-explained",
-    title: "How Unbrowse Turns One Browse Into a Reusable Route",
-    description:
-      "A short walkthrough of how a page visit becomes a ranked route, an executable call, and a reusable entry for the next agent.",
-    canonicalPath: "/blog/contract-organ-explained",
-    published_at: "2026-05-25",
-    author: "Lewis Tham",
-    category: "Guide",
-  },
-  {
     slug: "benchmark-deep-dive",
     title: "94 Domains, 100% Win Rate: The Full Benchmark",
     description:

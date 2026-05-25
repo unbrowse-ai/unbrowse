@@ -13,33 +13,33 @@ export function HeroTerminal() {
   return (
     <div className="animate-fade-up stagger-3 w-full max-w-2xl mt-12">
       <div
-        className="relative w-full border border-border bg-surface-ink overflow-hidden rounded-sm shadow-xl shadow-black/30"
+        className="relative w-full border border-[rgba(255,122,32,0.35)] bg-[#060402] overflow-hidden rounded-sm shadow-xl shadow-black/30"
         style={{ boxShadow: "0 0 60px -20px rgba(255,122,32,0.25)" }}
       >
-        <div className="border-b border-border bg-[rgba(0,0,0,0.4)] px-4 py-2 flex items-center justify-between">
-          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-orange-500">
+        <div className="border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] px-4 py-2 flex items-center justify-between">
+          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[rgba(255,122,32,0.55)]">
             ##  decision_trace
           </span>
-          <span className="text-[10px] font-mono text-text-muted">
+          <span className="text-[10px] font-mono text-[rgba(255,122,32,0.4)]">
             487ms
           </span>
         </div>
         <pre
-          className="px-4 py-3 sm:px-5 sm:py-4 text-[11px] sm:text-xs font-mono leading-relaxed text-left text-text-secondary overflow-x-auto"
+          className="px-4 py-3 sm:px-5 sm:py-4 text-[11px] sm:text-xs font-mono leading-relaxed text-left text-[rgba(255,176,96,0.85)] overflow-x-auto"
           style={{ fontVariantLigatures: "none" }}
         >
-{`$ `}<span className="text-orange-500">unbrowse resolve</span>{` --intent `}<span className="text-[rgba(255,200,150,0.95)]">{`"user tweets"`}</span>{` \\
+{`$ `}<span className="text-[rgba(255,176,96,1)]">unbrowse resolve</span>{` --intent `}<span className="text-[rgba(255,200,150,0.95)]">{`"user tweets"`}</span>{` \\
     --url `}<span className="text-[rgba(255,200,150,0.95)]">{`https://x.com/lekt8_`}</span>{`
 
-`}<span className="text-orange-500">{`{`}</span>{`
-  `}<span className="text-text-secondary">{`"trace"`}</span>{`:    `}<span className="text-orange-500">{`{`}</span>{` `}<span className="text-text-secondary">{`"skill_id"`}</span>{`: `}<span className="text-[rgba(255,200,150,0.95)]">{`"x.com"`}</span>{`, `}<span className="text-text-secondary">{`"endpoint_id"`}</span>{`: `}<span className="text-[rgba(255,200,150,0.95)]">{`"UserTweets"`}</span>{` `}<span className="text-orange-500">{`}`}</span>{`,
-  `}<span className="text-text-secondary">{`"result"`}</span>{`:   `}<span className="text-orange-500">{`{`}</span>{` `}<span className="text-text-secondary">{`"available_operations"`}</span>{`: `}<span className="text-orange-500">{`[ 89 tweets ]`}</span>{` `}<span className="text-orange-500">{`}`}</span>{`,
-  `}<span className="text-text-secondary">{`"ms"`}</span>{`:       `}<span className="text-orange-400">{`487`}</span>{`,
-  `}<span className="text-text-secondary">{`"source"`}</span>{`:   `}<span className="text-[rgba(255,200,150,0.95)]">{`"marketplace"`}</span>{`
-`}<span className="text-orange-500">{`}`}</span>
+`}<span className="text-[rgba(255,122,32,0.65)]">{`{`}</span>{`
+  `}<span className="text-[rgba(255,176,96,0.55)]">{`"trace"`}</span>{`:    `}<span className="text-[rgba(255,122,32,0.65)]">{`{`}</span>{` `}<span className="text-[rgba(255,176,96,0.55)]">{`"skill_id"`}</span>{`: `}<span className="text-[rgba(255,200,150,0.95)]">{`"x.com"`}</span>{`, `}<span className="text-[rgba(255,176,96,0.55)]">{`"endpoint_id"`}</span>{`: `}<span className="text-[rgba(255,200,150,0.95)]">{`"UserTweets"`}</span>{` `}<span className="text-[rgba(255,122,32,0.65)]">{`}`}</span>{`,
+  `}<span className="text-[rgba(255,176,96,0.55)]">{`"result"`}</span>{`:   `}<span className="text-[rgba(255,122,32,0.65)]">{`{`}</span>{` `}<span className="text-[rgba(255,176,96,0.55)]">{`"available_operations"`}</span>{`: `}<span className="text-[rgba(255,176,96,1)]">{`[ 89 tweets ]`}</span>{` `}<span className="text-[rgba(255,122,32,0.65)]">{`}`}</span>{`,
+  `}<span className="text-[rgba(255,176,96,0.55)]">{`"ms"`}</span>{`:       `}<span className="text-orange-400">{`487`}</span>{`,
+  `}<span className="text-[rgba(255,176,96,0.55)]">{`"source"`}</span>{`:   `}<span className="text-[rgba(255,200,150,0.95)]">{`"marketplace"`}</span>{`
+`}<span className="text-[rgba(255,122,32,0.65)]">{`}`}</span>
         </pre>
       </div>
-      <p className="mt-3 text-center text-[10px] font-mono uppercase tracking-[0.25em] text-text-muted">
+      <p className="mt-3 text-center text-[10px] font-mono uppercase tracking-[0.25em] text-[rgba(255,122,32,0.45)]">
         Same call, headless browser equivalent: ~30,000ms.
       </p>
     </div>

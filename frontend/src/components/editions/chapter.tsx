@@ -2,13 +2,16 @@ import type { ReactNode } from "react";
 import { ScrollReveal } from "./scroll-reveal";
 
 /**
- * Chapter — top-level editions section. Hairline rule above, generous
- * vertical rhythm, scroll-triggered reveal on the inner content.
+ * Chapter — Shopify-Editions-style chapter section on the cream surface.
  *
- * Motion: the inner shell is wrapped in <ScrollReveal>, so the eyebrow,
- * title, lede, and children fade-up together once ~18% of the section
- * crosses the viewport. Children that opt in with the `data-reveal-child`
- * attribute and a CSS `--i` index get a stagger.
+ * Layout invariants (SPEC §3):
+ *   border-top: 1px solid #909083 (the hairline; static, NOT animated)
+ *   first chapter has no top border (handled by .chapter-first or :first-of-type)
+ *   number is a plain numeral like [01], NOT a circular badge
+ *   lede is HWCigars serif (mapped to --font-serif-editions in our build)
+ *
+ * Motion: inner shell wraps in ScrollReveal so child opacity-fades stagger
+ * via the `--i` index. Hairline itself is NOT animated (per §7).
  */
 export function Chapter({
   id,
@@ -16,7 +19,7 @@ export function Chapter({
   name,
   title,
   lede,
-  inverse,
+  first,
   reveal = true,
   children,
 }: {
@@ -25,39 +28,53 @@ export function Chapter({
   name?: string;
   title?: ReactNode;
   lede?: ReactNode;
-  inverse?: boolean;
+  first?: boolean;
   reveal?: boolean;
   children?: ReactNode;
 }) {
   const inner = (
     <div className="editions-shell">
-      {/* Animated hairline rule that paints across the chapter top on reveal.
-          Mirrors shopify.com/editions/winter2026's chapter-divider motion;
-          uses the line-fade keyframe with origin-left scaleX 0→1. */}
-      <div className="chapter-rule" data-reveal-child aria-hidden style={{ ["--i" as string]: -1 } as React.CSSProperties} />
       {(number || name) && (
-        <div className="chapter-eyebrow" data-reveal-child style={{ ["--i" as string]: 0 } as React.CSSProperties}>
-          {number && <span>{number}</span>}
+        <div
+          className="chapter-eyebrow"
+          data-reveal-child
+          style={{ ["--i" as string]: 0 } as React.CSSProperties}
+        >
+          {number && <span className="ed-number">{number}</span>}
           {name && <span>{name}</span>}
         </div>
       )}
       {title && (
-        <h2 className="chapter-title" data-reveal-child style={{ ["--i" as string]: 1 } as React.CSSProperties}>
+        <h2
+          className="chapter-title mt-8"
+          data-reveal-child
+          style={{ ["--i" as string]: 1 } as React.CSSProperties}
+        >
           {title}
         </h2>
       )}
       {lede && (
-        <p className="chapter-lede" data-reveal-child style={{ ["--i" as string]: 2 } as React.CSSProperties}>
+        <p
+          className="chapter-lede mt-8 max-w-[34ch]"
+          data-reveal-child
+          style={{ ["--i" as string]: 2 } as React.CSSProperties}
+        >
           {lede}
         </p>
       )}
-      <div data-reveal-child style={{ ["--i" as string]: 3 } as React.CSSProperties}>
-        {children}
-      </div>
+      {children !== undefined && (
+        <div
+          className="mt-12"
+          data-reveal-child
+          style={{ ["--i" as string]: 3 } as React.CSSProperties}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 
-  const cls = inverse ? "chapter chapter-inverse" : "chapter";
+  const cls = first ? "chapter chapter-first" : "chapter";
   if (!reveal) {
     return (
       <section id={id} data-chapter={id} className={cls}>
@@ -73,8 +90,8 @@ export function Chapter({
 }
 
 /**
- * FeatureCard — title + 1-line description + optional CTA link.
- * Hover bounces 2px on the editions ease-bounce-out curve.
+ * FeatureCard — title + description + optional CTA link, sitting on
+ * a contained cream-card surface. Used for sub-feature rows.
  */
 export function FeatureCard({
   title,
@@ -118,7 +135,7 @@ export function FeatureGrid({
 }
 
 /**
- * CtaLink — underline-with-arrow link, Shopify-editions style.
+ * CtaLink — underline link with the editions wordmark style.
  */
 export function CtaLink({
   href,
@@ -155,24 +172,41 @@ export function Stat({
   return (
     <div className="flex flex-col gap-1">
       <div
-        className="font-display tabular-nums text-text-primary"
+        className="tabular-nums"
         style={{
+          fontFamily: "var(--font-display-editions), NeueMontreal, Helvetica, Arial, sans-serif",
+          fontWeight: 700,
           fontSize: "clamp(2.25rem, 4vw, 3.5rem)",
           lineHeight: 1,
           letterSpacing: "-0.028em",
+          color: "var(--ed-ink)",
         }}
       >
         {value}
       </div>
-      <div className="stamp-label">{label}</div>
-      {sub && <div className="text-sm text-text-muted">{sub}</div>}
+      <div
+        style={{
+          fontSize: "0.75rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.2em",
+          color: "var(--ed-ink-muted)",
+        }}
+      >
+        {label}
+      </div>
+      {sub && (
+        <div style={{ fontSize: "0.875rem", color: "var(--ed-ink-muted)" }}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
 
 /**
- * Hairline — single hairline divider. Animates its width on reveal.
+ * Hairline — 1px static solid divider (#909083). Per SPEC §7, hairlines
+ * are NEVER animated. They are full-bleed, 1px, solid.
  */
-export function Hairline({ strong }: { strong?: boolean }) {
-  return <hr className={`${strong ? "hairline-strong" : "hairline"} animate-line-fade`} />;
+export function Hairline({ faint }: { faint?: boolean }) {
+  return <hr className={faint ? "hairline-faint" : "hairline"} />;
 }

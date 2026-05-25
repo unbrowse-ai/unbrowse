@@ -199,12 +199,12 @@ export default function TermsPage() {
             If you have questions about these Terms, contact us
             at{" "}
             <a
-              href="https://x.com/unbrowse"
+              href="https://x.com/getFoundry"
               target="_blank"
               rel="noopener"
               className="text-orange-500 hover:underline"
             >
-              @unbrowse
+              @getFoundry
             </a>{" "}
             or open an issue on{" "}
             <a

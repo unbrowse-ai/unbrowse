@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     "fetch interception",
     "XHR interception",
     "HAR recording",
-    "reusable API routes",
+    "reverse engineering APIs",
   ],
 };
 

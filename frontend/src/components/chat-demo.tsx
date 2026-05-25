@@ -97,8 +97,8 @@ const demoSequence: ChatMessage[] = [
             className="flex items-center justify-between pb-2 mb-1"
             style={{ borderBottom: "1px solid rgba(255,122,32,0.15)" }}
           >
-            <span className="uppercase tracking-widest text-[10px] font-medium" style={{ color: O_DIM }}>Cached replay</span>
-            <span className="text-[10px] font-medium" style={{ color: G }}>200 OK · 180ms</span>
+            <span className="uppercase tracking-widest text-[10px] font-medium" style={{ color: O_DIM }}>Executed</span>
+            <span className="text-[10px] font-medium" style={{ color: G }}>200 OK · 0.4s</span>
           </div>
           {[
             { label: "listings found", value: "243 results" },
@@ -114,7 +114,7 @@ const demoSequence: ChatMessage[] = [
           ))}
         </div>
         <span className="block text-xs font-mono font-medium mt-2" style={{ color: G }}>
-          ✓ 243 listings returned in ~5K tokens (vs ~114K via Playwright)
+          ✓ 243 listings found — $89–$420/night range
         </span>
       </>
     ),
@@ -696,7 +696,7 @@ export function ChatDemo() {
                     border: "none",
                     outline: "none",
                   }}
-                  className="placeholder:text-text-muted"
+                  className="placeholder:text-[rgba(255,122,32,0.4)]"
                 />
                 <button
                   type="submit"

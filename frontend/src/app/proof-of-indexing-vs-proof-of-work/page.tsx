@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -316,7 +316,7 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
           <div className="mt-8 text-sm sm:text-base text-text-secondary">
             <div className="font-semibold text-text-primary">{AUTHOR.name}</div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -334,7 +334,7 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-base sm:text-lg">
             <div>
-              <div className="text-sm font-mono font-medium uppercase tracking-wider text-text-muted mb-2">
+              <div className="text-sm font-mono font-medium uppercase tracking-wider text-text-secondary/60 mb-2">
                 Proof of Work
               </div>
               <div className="text-text-primary font-medium">
@@ -476,7 +476,7 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
             the routes you discover.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-muted select-none">$ </span>
+            <span className="text-text-secondary/60 select-none">$ </span>
             <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

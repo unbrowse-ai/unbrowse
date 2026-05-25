@@ -549,7 +549,7 @@ const OPS_STYLES = `
     height: 100%; background: linear-gradient(90deg, var(--ops-accent), #FF8F33);
     border-radius: 2px; transition: width 1s cubic-bezier(0.22, 1, 0.36, 1); position: relative;
   }
-  .ops-bar-fill::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: oklch(0.97 0.008 55); opacity: 0.6; border-radius: 1px; }
+  .ops-bar-fill::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: #fff; opacity: 0.6; border-radius: 1px; }
   .ops-bar-value { font-size: 11px; color: var(--ops-muted); text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Donut */
