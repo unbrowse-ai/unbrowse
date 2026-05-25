@@ -5,7 +5,6 @@ import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ContributorDashboard } from "@/components/contributor-dashboard";
-import { InstallInstructions } from "@/components/install-instructions";
 import {
   getAccountMe,
   getAccountPreferences,
@@ -91,20 +90,6 @@ export default function DashboardPage() {
         <p className="mt-3 text-sm text-text-secondary leading-relaxed">
           Sign in to see your private account, or open a public wallet ledger.
         </p>
-        <div className="mt-6 border border-[rgba(255,122,32,0.22)] bg-[rgba(255,122,32,0.04)] p-5 rounded-sm">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.7)]">
-            ##  You are already earning
-          </p>
-          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-            If you ran <span className="font-mono text-[rgba(255,176,96,0.95)]">npx unbrowse setup --mcp</span> and your agent has resolved any URL, every shadow-API route it captured is live in the marketplace. When another agent reuses one, x402 pays USDC to the wallet on this account. Sign in to see captures, reuse counts, and earnings per route.
-          </p>
-          <Link
-            href="/miners"
-            className="mt-4 inline-flex items-center gap-1 text-xs font-mono text-[rgba(255,176,96,0.95)] hover:text-orange-400 transition-colors"
-          >
-            <span>[ See the contributor graph → ]</span>
-          </Link>
-        </div>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/login"
@@ -113,10 +98,10 @@ export default function DashboardPage() {
             <span>[ Sign in with email ]</span>
           </Link>
           <Link
-            href="/install"
+            href="/#get-started"
             className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
           >
-            <span>[ Install the MCP ]</span>
+            <span>[ Get CLI key ]</span>
           </Link>
         </div>
         <form onSubmit={openWallet} className="mt-10 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
@@ -221,16 +206,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Install your MCP — bakes the user's API key into the copy-able
-          command. Renders on the authed dashboard so a user who just signed
-          in gets the install in zero extra clicks. The same widget renders
-          on /install and on the landing page. */}
-      <div className="mx-auto mt-6 max-w-6xl px-6">
-        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
-          ##  Install the MCP
-        </p>
-        <InstallInstructions />
-      </div>
       {dashboard && (
         <ContributorDashboard
           dashboard={dashboard}

@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
-import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 type SubState =
   | { status: "none" }
@@ -26,34 +24,17 @@ export default function BillingPage() {
   const { apiKey, isAuthenticated } = useAuth();
   const [sub, setSub] = useState<SubState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`${API_URL}/v1/billing/me`, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (await checkAuthInvalidResponse(r)) {
-          if (!cancelled) setSub({ error: "Your API key was rotated. Sign in to mint a new one." });
-          return;
-        }
-        const data = (await r.json()) as SubState;
-        if (!cancelled) setSub(data);
-      } catch (err) {
-        if (!cancelled) setSub({ error: String(err) });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    fetch(`${API_URL}/v1/billing/me`, { headers: { Authorization: `Bearer ${apiKey}` } })
+      .then((r) => r.json() as Promise<SubState>)
+      .then(setSub)
+      .catch((err) => setSub({ error: String(err) }));
   }, [apiKey]);
 
   async function startCheckout() {
     if (!apiKey) return;
     setLoading(true);
-    setActionError(null);
     try {
       const r = await fetch(`${API_URL}/v1/billing/checkout`, {
         method: "POST",
@@ -63,18 +44,9 @@ export default function BillingPage() {
         },
         body: JSON.stringify({ return_url: `${window.location.origin}/billing/success` }),
       });
-      if (await checkAuthInvalidResponse(r)) {
-        setActionError("Your API key was rotated. Sign in to mint a new one.");
-        return;
-      }
       const body = (await r.json()) as { url?: string; error?: string };
-      if (body.url) {
-        window.location.href = body.url;
-        return;
-      }
-      setActionError(body.error ?? "Failed to start checkout. Please try again.");
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to start checkout.");
+      if (body.url) window.location.href = body.url;
+      else alert(body.error ?? "Failed to start checkout");
     } finally {
       setLoading(false);
     }
@@ -83,27 +55,13 @@ export default function BillingPage() {
   async function openPortal() {
     if (!apiKey) return;
     setLoading(true);
-    setActionError(null);
     try {
       const r = await fetch(`${API_URL}/v1/billing/portal`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
-      if (await checkAuthInvalidResponse(r)) {
-        setActionError("Your API key was rotated. Sign in to mint a new one.");
-        return;
-      }
       const body = (await r.json()) as { url?: string; error?: string };
-      if (body.url) {
-        window.location.href = body.url;
-        return;
-      }
-      // "No customer record yet" is a normal state, not an error worth alerting on.
-      // For any other server message, surface it inline so the user can copy + retry.
-      if (body.error && !/no customer record/i.test(body.error)) {
-        setActionError(body.error);
-      }
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to open billing portal.");
+      if (body.url) window.location.href = body.url;
+      else alert(body.error ?? "No customer record yet");
     } finally {
       setLoading(false);
     }
@@ -123,31 +81,8 @@ export default function BillingPage() {
       </p>
 
       {!isAuthenticated && (
-        <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary space-y-4">
-          <p>No API key found. Sign in or generate one on the home page.</p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/#install"
-              className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-all"
-            >
-              Generate a key
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {actionError && (
-        <div className="mb-6 rounded-2xl border border-border bg-surface-sunken p-4 text-sm text-text-primary">
-          <div className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted mb-1">
-            Couldn&apos;t complete that action
-          </div>
-          <div className="text-text-secondary">{actionError}</div>
+        <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary">
+          No API key found. Generate one on the home page first.
         </div>
       )}
 

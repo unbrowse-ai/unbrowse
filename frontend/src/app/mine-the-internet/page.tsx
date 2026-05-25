@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: `${TITLE} — Earn From Web Indexing for AI Agents`,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -78,17 +78,17 @@ const sections: { title: string; body: string[] }[] = [
     title: "What is web mining?",
     body: [
       "Every website you use runs on internal APIs. When you search GitHub, your browser calls a JSON endpoint. When you scroll Reddit, fetch requests pull post data from a backend service. When you check a price on Amazon, an XHR call returns structured product information. These internal APIs are the real interface layer of the web. Humans never see them. AI agents need them.",
-      "Web mining is the act of discovering these internal APIs and contributing them to a shared index. With Unbrowse, mining is not a separate activity. It is what happens when you browse sites you are allowed to use. Visit a site, and Unbrowse observes the requests needed for that workflow, extracts reusable route metadata, and publishes only the reviewed route shape to a shared graph.",
+      "Web mining is the act of discovering these internal APIs and contributing them to a shared index. With Unbrowse, mining is not a separate activity. It is what happens automatically when you browse. Visit a site, and Unbrowse captures the network traffic between your browser and the server. It identifies every fetch and XHR call, reverse-engineers the schema, authentication pattern, and parameters, and publishes the route to a shared graph.",
       "That is a mining event. You just indexed a piece of the internet that AI agents can now use directly instead of launching a headless browser, rendering JavaScript, and scraping pixels. Every route you contribute is attributed to your wallet. Every time an agent uses that route, you earn.",
     ],
   },
   {
     title: "How the economics work",
     body: [
-      "When an AI agent resolves a task through the shared route graph, it pays $0.005 per cached route. That fee splits three ways: 50% to the route creator who indexed the endpoint, 50% to the platform for infrastructure and settlement, and a separate 15% earmarked for the site owner once they DNS-claim their domain (at which point the indexer share settles at 35% and the site owner takes 15%).",
+      "When an AI agent resolves a task through the shared route graph, it pays $0.005 per cached route. That fee splits three ways: 70% to the route creator, 20% to the platform for infrastructure and quality verification, and 10% reserved for future site-owner royalties.",
       "Compare that to the alternative. A fresh browser-based resolve — launching headless Chrome, rendering the page, navigating the DOM, extracting data — costs $0.53 on average. That is a 106x cost difference. Agents are economically rational. Given a choice between $0.53 and $0.005 for the same result, they will choose the cached route every single time.",
       "This means demand is automatic. The moment your route exists in the graph, any agent that needs it will prefer it over browser automation. You do not need to market your routes or find buyers. The cost advantage does the selling for you.",
-      "Your 50% indexer share means you earn $0.0025 per resolve. One route on a popular domain, used 1,000 times per day, earns $2.50 daily. That is $75 per month from a single endpoint you discovered by browsing a website you were already going to visit.",
+      "Your 70% share means you earn $0.0035 per resolve. One route on a popular domain, used 1,000 times per day, earns $3.50 daily. That is $105 per month from a single endpoint you discovered by browsing a website you were already going to visit.",
     ],
   },
   {
@@ -103,9 +103,9 @@ const sections: { title: string; body: string[] }[] = [
   {
     title: "First-mover advantage: 2x for 30 days",
     body: [
-      "The first person to index a domain earns a 2x reward multiplier on all routes from that domain for 30 days. If you are the first to index Stripe's dashboard APIs, you earn $0.005 per resolve instead of $0.0025 for the first month. On a high-traffic domain, that bonus compounds fast.",
+      "The first person to index a domain earns a 2x reward multiplier on all routes from that domain for 30 days. If you are the first to index Stripe's dashboard APIs, you earn $0.007 per resolve instead of $0.0035 for the first month. On a high-traffic domain, that bonus compounds fast.",
       "This creates a land-rush dynamic anchored to real utility. Your 2x bonus only matters if agents actually use the routes. Indexing a dead domain nobody queries earns nothing regardless of the multiplier. The incentive rewards useful work on high-value targets, not speculative squatting.",
-      "The 30-day window also solves the cold-start problem. Early contributors take the most risk — they are indexing domains before agent traffic has fully materialized. The 2x multiplier compensates that risk. As the network matures and agent volume grows, the base 50% indexer share becomes the dominant earning driver.",
+      "The 30-day window also solves the cold-start problem. Early contributors take the most risk — they are indexing domains before agent traffic has fully materialized. The 2x multiplier compensates that risk. As the network matures and agent volume grows, the base 70% share becomes the dominant earning driver.",
       "After 30 days, the bonus expires and the domain enters open competition. Anyone can index better routes and capture traffic. First-movers keep earning on their routes as long as those routes remain the highest-quality version in the graph. Quality, not timing, determines long-term earnings.",
     ],
   },
@@ -131,7 +131,7 @@ const sections: { title: string; body: string[] }[] = [
     title: "The network effect",
     body: [
       "Web mining has a self-reinforcing flywheel. More contributors discover more routes. More routes mean faster, cheaper resolves for agents. Faster, cheaper resolves attract more agents to the network. More agents mean more resolve volume. More resolve volume means more earnings for contributors. More earnings attract more contributors.",
-      "This is the same flywheel that made Google Search dominant, but with one critical difference: the value flows to contributors, not to a single corporation. Google's crawlers built the index and Google captured all the ad revenue. In the Unbrowse network, the contributors who build the index earn 50% of every transaction it generates (35% once the site owner DNS-claims the domain, with 15% going to the operator who provides the actual API).",
+      "This is the same flywheel that made Google Search dominant, but with one critical difference: the value flows to contributors, not to a single corporation. Google's crawlers built the index and Google captured all the ad revenue. In the Unbrowse network, the contributors who build the index earn 70% of every transaction it generates.",
       "The flywheel also creates a quality ratchet. When two contributors index the same domain, the route graph serves the higher-quality version. Low-reliability routes get less traffic. High-reliability routes get more. Contributors are incentivized to maintain and improve their routes over time because stale routes lose traffic to better alternatives. The network self-improves.",
       "At critical mass, the shared route graph becomes the default way agents interact with the web. Every website effectively gets a machine-readable API layer maintained by the community that uses it. That is the endgame: a collectively built, usage-priced index of the entire callable web.",
     ],
@@ -140,9 +140,9 @@ const sections: { title: string; body: string[] }[] = [
     title: "Earnings calculator",
     body: [
       "The math is transparent. Take any domain you want to mine, estimate the agent traffic it receives, and multiply.",
-      "Conservative scenario: you index 50 routes on 2 popular domains (100 total routes). Each route averages 20 resolves per day. At $0.0025 per resolve, that is $5 per day, $150 per month, $1,800 per year. With the first-mover 2x bonus on one domain, the first month jumps to $225.",
-      "Moderate scenario: you index 100 routes across 5 high-traffic domains. Each route averages 50 resolves per day. That is $12.50 per day, $375 per month, $4,500 per year.",
-      "Power contributor scenario: you systematically index 500 routes across 20 domains, focusing on the highest-traffic sites. Each route averages 100 resolves per day. That is $125 per day, $3,750 per month, $45,000 per year.",
+      "Conservative scenario: you index 50 routes on 2 popular domains (100 total routes). Each route averages 20 resolves per day. At $0.0035 per resolve, that is $7 per day, $210 per month, $2,520 per year. With the first-mover 2x bonus on one domain, the first month jumps to $315.",
+      "Moderate scenario: you index 100 routes across 5 high-traffic domains. Each route averages 50 resolves per day. That is $17.50 per day, $525 per month, $6,300 per year.",
+      "Power contributor scenario: you systematically index 500 routes across 20 domains, focusing on the highest-traffic sites. Each route averages 100 resolves per day. That is $175 per day, $5,250 per month, $63,000 per year.",
       "These are not speculative projections based on token appreciation. They are arithmetic based on usage volume and a fixed fee. If agent traffic grows — and it is growing exponentially as Claude Code, Cursor, Windsurf, and other frameworks gain adoption — every number above scales proportionally.",
     ],
   },
@@ -159,7 +159,7 @@ const sections: { title: string; body: string[] }[] = [
     title: "x402: how the money moves",
     body: [
       "Payments use the x402 protocol — HTTP-native micropayments settled in USDC on Solana and Base. When an agent resolves a route, the payment happens inline with the HTTP request. No invoices. No billing cycles. No payment minimums. The agent's wallet signs the payment, the route serves the data, and the contributor's wallet receives the fee. One round trip.",
-      "Solana and Base were chosen for fast finality and low gas costs. A $0.005 micropayment cannot work if the transaction fee is $2. On Solana, the settlement cost is a fraction of a cent. The full $0.0025 indexer share arrives in your wallet, not eaten by gas.",
+      "Solana and Base were chosen for fast finality and low gas costs. A $0.005 micropayment cannot work if the transaction fee is $2. On Solana, the settlement cost is a fraction of a cent. The full $0.0035 contributor share arrives in your wallet, not eaten by gas.",
       "Contributors can withdraw earnings to any wallet, swap to fiat through standard off-ramps, or let them accumulate. There is no lockup period, no vesting schedule, no minimum withdrawal. Your earnings are yours the moment agents use your routes.",
     ],
   },
@@ -235,7 +235,7 @@ export default function MineTheInternetPage() {
       {
         "@type": "HowToStep",
         name: "Earn when agents use your routes",
-        text: "Every time an AI agent resolves a task using a route you discovered, you earn $0.0025 in USDC.",
+        text: "Every time an AI agent resolves a task using a route you discovered, you earn $0.0035 in USDC.",
       },
     ],
   };
@@ -257,7 +257,7 @@ export default function MineTheInternetPage() {
         name: "How much can I earn mining the internet?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "You earn $0.0025 per route resolve (50% of the $0.005 fee — drops to 35% / $0.00175 once the site owner DNS-claims their domain). A single popular route used 1,000 times per day earns $2.50 daily or $75 monthly. With 100 routes across popular domains averaging 50 resolves each, that is $375 per month. First-movers on new domains earn 2x for 30 days.",
+          text: "You earn $0.0035 per route resolve (70% of the $0.005 fee). A single popular route used 1,000 times per day earns $3.50 daily or $105 monthly. With 100 routes across popular domains averaging 50 resolves each, that is $525 per month. First-movers on new domains earn 2x for 30 days.",
         },
       },
       {
@@ -327,7 +327,7 @@ export default function MineTheInternetPage() {
               {AUTHOR.name}
             </div>
             <div>{AUTHOR.affiliation}</div>
-            <div className="mt-2 text-text-muted">{PUBLISHED_AT}</div>
+            <div className="mt-2 text-text-secondary/60">{PUBLISHED_AT}</div>
           </div>
         </header>
 
@@ -345,9 +345,9 @@ export default function MineTheInternetPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-base sm:text-lg">
             <div>
-              <div className="text-3xl font-bold text-orange-600">50%</div>
+              <div className="text-3xl font-bold text-orange-600">70%</div>
               <div className="text-text-secondary mt-1">
-                Revenue share to route creators (35% once the site owner DNS-claims the domain; the missing 15% goes to them)
+                Revenue share to route creators
               </div>
             </div>
             <div>
@@ -390,11 +390,11 @@ export default function MineTheInternetPage() {
           </h2>
           <div className="space-y-3">
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
-              <span className="text-text-muted select-none">$ </span>
+              <span className="text-text-secondary/60 select-none">$ </span>
               <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
             </div>
             <div className="rounded-lg bg-surface border border-border p-4 font-mono text-sm sm:text-base">
-              <span className="text-text-muted select-none">$ </span>
+              <span className="text-text-secondary/60 select-none">$ </span>
               <span className="text-orange-600">
                 unbrowse resolve &quot;search github for openai&quot;
               </span>
@@ -457,37 +457,36 @@ export default function MineTheInternetPage() {
                 <td className="py-3 pr-4">Casual</td>
                 <td className="py-3 pr-4">100</td>
                 <td className="py-3 pr-4">20</td>
-                <td className="py-3 pr-4">$150</td>
-                <td className="py-3">$1,800</td>
+                <td className="py-3 pr-4">$210</td>
+                <td className="py-3">$2,520</td>
               </tr>
               <tr className="border-b border-border/50">
                 <td className="py-3 pr-4">Focused</td>
                 <td className="py-3 pr-4">250</td>
                 <td className="py-3 pr-4">50</td>
-                <td className="py-3 pr-4">$937</td>
-                <td className="py-3">$11,250</td>
+                <td className="py-3 pr-4">$1,312</td>
+                <td className="py-3">$15,750</td>
               </tr>
               <tr className="border-b border-border/50">
                 <td className="py-3 pr-4">Power contributor</td>
                 <td className="py-3 pr-4">500</td>
                 <td className="py-3 pr-4">100</td>
-                <td className="py-3 pr-4">$3,750</td>
-                <td className="py-3">$45,000</td>
+                <td className="py-3 pr-4">$5,250</td>
+                <td className="py-3">$63,000</td>
               </tr>
               <tr>
                 <td className="py-3 pr-4">Network operator</td>
                 <td className="py-3 pr-4">2,000</td>
                 <td className="py-3 pr-4">200</td>
-                <td className="py-3 pr-4">$30,000</td>
-                <td className="py-3">$360,000</td>
+                <td className="py-3 pr-4">$42,000</td>
+                <td className="py-3">$504,000</td>
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-muted">
-            At $0.0025 indexer share per resolve (50% of the $0.005 fee — drops
-            to $0.00175 / 35% once the site owner DNS-claims their domain).
-            First-mover 2x bonus not included. Actual earnings depend on route
-            quality and domain traffic.
+          <p className="mt-3 text-sm text-text-secondary/60">
+            At $0.0035 contributor share per resolve. First-mover 2x bonus not
+            included. Actual earnings depend on route quality and domain
+            traffic.
           </p>
         </section>
 
@@ -517,34 +516,32 @@ export default function MineTheInternetPage() {
               <tr className="border-b border-border/50">
                 <td className="py-3 pr-4">1,000</td>
                 <td className="py-3 pr-4">100,000</td>
-                <td className="py-3 pr-4">$250</td>
-                <td className="py-3">$91,250</td>
+                <td className="py-3 pr-4">$350</td>
+                <td className="py-3">$127,750</td>
               </tr>
               <tr className="border-b border-border/50">
                 <td className="py-3 pr-4">10,000</td>
                 <td className="py-3 pr-4">1,000,000</td>
-                <td className="py-3 pr-4">$2,500</td>
-                <td className="py-3">$912,500</td>
+                <td className="py-3 pr-4">$3,500</td>
+                <td className="py-3">$1,277,500</td>
               </tr>
               <tr className="border-b border-border/50">
                 <td className="py-3 pr-4">100,000</td>
                 <td className="py-3 pr-4">10,000,000</td>
-                <td className="py-3 pr-4">$25,000</td>
-                <td className="py-3">$9,125,000</td>
+                <td className="py-3 pr-4">$35,000</td>
+                <td className="py-3">$12,775,000</td>
               </tr>
               <tr>
                 <td className="py-3 pr-4">1,000,000</td>
                 <td className="py-3 pr-4">100,000,000</td>
-                <td className="py-3 pr-4">$250,000</td>
-                <td className="py-3">$91,250,000</td>
+                <td className="py-3 pr-4">$350,000</td>
+                <td className="py-3">$127,750,000</td>
               </tr>
             </tbody>
           </table>
-          <p className="mt-3 text-sm text-text-muted">
+          <p className="mt-3 text-sm text-text-secondary/60">
             Assumes 100 resolves per agent per day at $0.005 per resolve. Payout
-            reflects the 50% indexer share — the dominant case today, before
-            site owners DNS-claim their domains. Once claimed, that lane settles
-            at 35% indexer / 15% site owner / 50% platform.
+            reflects the 70% contributor share.
           </p>
         </section>
 
@@ -559,7 +556,7 @@ export default function MineTheInternetPage() {
             useful work.
           </p>
           <div className="rounded-lg bg-surface-sunken border border-border p-4 font-mono text-sm sm:text-base mb-6">
-            <span className="text-text-muted select-none">$ </span>
+            <span className="text-text-secondary/60 select-none">$ </span>
             <span className="text-orange-600">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: `https://www.unbrowse.ai${CANONICAL_PATH}`,
   },
-  authors: [{ name: "Lewis Tham", url: "https://x.com/unbrowse" }],
+  authors: [{ name: "Lewis Tham", url: "https://x.com/getFoundry" }],
   openGraph: {
     title: TITLE,
     description,
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -63,7 +63,7 @@ export default function BrowserAutomationIsDeadPage() {
     author: {
       "@type": "Person",
       name: "Lewis Tham",
-      url: "https://x.com/unbrowse",
+      url: "https://x.com/getFoundry",
     },
     publisher: {
       "@type": "Organization",
@@ -326,7 +326,7 @@ export default function BrowserAutomationIsDeadPage() {
             <div className="rounded-xl border border-border p-4 sm:p-5">
               <div className="font-semibold text-text-primary mb-1">3. Browser fallback (cold path)</div>
               <p className="text-sm text-text-secondary">
-                No cached route exists. Unbrowse opens a real browser, observes allowed requests, extracts reusable route metadata, then publishes the reviewed route shape to the shared graph. Discovery averages 12.4 seconds and amortizes within 3-5 reuses.
+                No cached route exists. Unbrowse opens a real browser, captures network traffic, reverse-engineers the API endpoints, learns schemas and auth patterns, then publishes to the shared graph. Discovery averages 12.4 seconds and amortizes within 3-5 reuses.
               </p>
             </div>
           </div>

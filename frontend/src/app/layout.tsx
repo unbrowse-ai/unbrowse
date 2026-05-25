@@ -7,18 +7,12 @@ import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
-import { AuthInvalidGlobalBanner } from "@/components/auth-invalid-global-banner";
-import {
-  INSTALL_CMD_MCP,
-  VERIFY_CMD,
-  FIRST_TASK_CMD,
-} from "@/lib/install-command";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
+  title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
   description:
-    "One MCP server replaces Notion MCP, Browser MCP, Playwright MCP, and per-site scrapers. First visit captures the site's shadow APIs; your agent calls them directly forever after, signed in with your cookies. 3.6x mean speedup vs Playwright across 94 domains.",
+    "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -31,9 +25,9 @@ export const metadata: Metadata = {
     canonical: "https://www.unbrowse.ai",
   },
   openGraph: {
-    title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
+    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
-      "One MCP server, any site. First visit captures the site's shadow APIs; your agent calls them directly forever after, signed in with your cookies. No per-site MCP to install.",
+      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     url: "https://www.unbrowse.ai",
     siteName: "Unbrowse",
     type: "website",
@@ -43,7 +37,7 @@ export const metadata: Metadata = {
         url: "https://www.unbrowse.ai/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Unbrowse, one MCP for any website. Direct access for AI agents.",
+        alt: "Unbrowse — The API layer for AI agents",
       },
       {
         url: "https://www.unbrowse.ai/nvidia-inception.png",
@@ -54,10 +48,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@getFoundry",
-    creator: "@lekt8_",
-    title: "Unbrowse, one MCP for any website. Direct access for AI agents.",
+    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
     description:
-      "One MCP server, any site. First visit captures the shadow APIs; your agent calls them directly thereafter, signed in with your cookies. No per-site MCP needed.",
+      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
@@ -71,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <link
           key="llms-txt"
@@ -98,11 +91,12 @@ export default function RootLayout({
         />
         <link
           key="google-fonts"
-          href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&display=swap`}
+          href={`https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap`}
           rel="stylesheet"
         />
         <style>{`
           :root {
+            --font-jetbrains-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
             --font-google-sans: 'Google Sans', 'Google Sans Display', system-ui, sans-serif;
             --font-fonetika: 'Fonetika', 'Google Sans', system-ui, sans-serif;
           }
@@ -118,16 +112,12 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
-                "One MCP server for any website. Unbrowse captures a site's shadow APIs on first visit so AI agents call them directly thereafter, signed in with your cookies. Replaces per-site MCPs and Playwright scripts.",
+                "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
-                "https://github.com/justrach/kuri",
                 "https://x.com/getFoundry",
-                "https://x.com/lekt8_",
                 "https://www.npmjs.com/package/unbrowse",
-                "https://arxiv.org/abs/2604.00694",
-                "https://discord.gg/VWugEeFNsG",
               ],
             }),
           }}
@@ -140,11 +130,11 @@ export default function RootLayout({
               "@type": "SoftwareApplication",
               name: "Unbrowse",
               description:
-                "One MCP for any website. Unbrowse captures a site's shadow APIs on first visit so AI agents call them directly forever after, signed in with the user's cookies. Replaces per-site MCPs (Notion, Slack, Gmail, Browser MCP, Playwright MCP) with one install.",
+                "Reverse-engineer any website into reusable API skills for AI agents. Auto-discovers undocumented website APIs and converts them to clean, direct API calls.",
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
-              softwareVersion: "6.17.0",
+              softwareVersion: "6.5.2",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,
@@ -160,9 +150,8 @@ export default function RootLayout({
               },
               featureList: [
                 "Auto-discovers undocumented website APIs",
-                "3.6x mean (5.4x median) speedup over Playwright across 94 live domains (arXiv:2604.00694)",
-                "Up to 100x faster on cached marketplace routes (50-200ms vs 5-30s)",
-                "~200 tokens per action vs ~8000 for full HTML scrape",
+                "100x faster than headless browsers (50-200ms vs 5-30s)",
+                "40x fewer tokens (200 vs 8000 per page)",
                 "Shared marketplace of captured endpoints across 600+ domains",
                 "Plugs into OpenClaw, Claude Desktop, Cursor, Codex, and any MCP-aware framework",
                 "Self-hosted Postgres backend with pgvector (provider-agnostic)",
@@ -191,87 +180,6 @@ export default function RootLayout({
             }),
           }}
         />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebPage",
-              url: "https://www.unbrowse.ai",
-              name: "Unbrowse",
-              description:
-                "Direct access to anything on the web, without setting up another MCP. Unbrowse captures website shadow APIs once and lets agents call them directly thereafter.",
-              speakable: {
-                "@type": "SpeakableSpecification",
-                cssSelector: [
-                  "#agent-instructions",
-                  "h1",
-                  "#objections h2",
-                ],
-              },
-              isPartOf: {
-                "@type": "WebSite",
-                url: "https://www.unbrowse.ai",
-                name: "Unbrowse",
-              },
-            }),
-          }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "HowTo",
-              name: "Install Unbrowse and wire it into an MCP-aware agent",
-              description:
-                "Clone the Unbrowse repo, run setup for your agent host, verify the install, and execute the first resolve. End-to-end in under two minutes on macOS or Linux.",
-              totalTime: "PT2M",
-              supply: [
-                {
-                  "@type": "HowToSupply",
-                  name: "Node.js 18+ and git on the local machine",
-                },
-                {
-                  "@type": "HowToSupply",
-                  name: "An MCP-aware agent host (Claude Desktop, Cursor, Codex, OpenClaw, or another MCP client)",
-                },
-              ],
-              tool: [
-                {
-                  "@type": "HowToTool",
-                  name: "Unbrowse CLI",
-                  url: "https://www.npmjs.com/package/unbrowse",
-                },
-              ],
-              step: [
-                {
-                  "@type": "HowToStep",
-                  position: 1,
-                  name: "Install the Unbrowse MCP server",
-                  text: INSTALL_CMD_MCP,
-                  url: "https://www.unbrowse.ai/#install",
-                },
-                {
-                  "@type": "HowToStep",
-                  position: 2,
-                  name: "Verify the install",
-                  text: VERIFY_CMD,
-                  url: "https://www.unbrowse.ai/#install",
-                },
-                {
-                  "@type": "HowToStep",
-                  position: 3,
-                  name: "Run the first resolve",
-                  text: FIRST_TASK_CMD,
-                  url: "https://www.unbrowse.ai/#install",
-                },
-              ],
-              inLanguage: "en-US",
-              isAccessibleForFree: true,
-            }),
-          }}
-        />
         <script defer src="https://cloud.umami.is/script.js" data-website-id="66d811d2-a320-4b38-87b9-b15a60022313"></script>
       </head>
       <body className="antialiased overflow-x-hidden">
@@ -279,12 +187,8 @@ export default function RootLayout({
           <PrivyOptionalProvider>
             <AuthProvider>
               <ContentPageTracker />
-              <AuthInvalidGlobalBanner />
-              <a href="#main-content" className="skip-link">
-                Skip to main content
-              </a>
               <Navbar />
-              <main id="main-content" className="min-h-[100dvh]">
+              <main className="min-h-screen">
                 {children}
               </main>
               <SiteFooter />

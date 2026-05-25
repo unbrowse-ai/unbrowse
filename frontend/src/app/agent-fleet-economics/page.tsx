@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: `https://www.unbrowse.ai${CANONICAL_PATH}`,
   },
-  authors: [{ name: "Lewis Tham", url: "https://x.com/unbrowse" }],
+  authors: [{ name: "Lewis Tham", url: "https://x.com/getFoundry" }],
   openGraph: {
     title: TITLE,
     description,
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@unbrowse",
+    site: "@getFoundry",
     title: TITLE,
     description,
     images: ["https://www.unbrowse.ai/og-image.png"],
@@ -64,7 +64,7 @@ export default function AgentFleetEconomicsPage() {
     author: {
       "@type": "Person",
       name: "Lewis Tham",
-      url: "https://x.com/unbrowse",
+      url: "https://x.com/getFoundry",
     },
     publisher: {
       "@type": "Organization",
@@ -189,9 +189,9 @@ export default function AgentFleetEconomicsPage() {
               </p>
             </div>
             <div className="rounded-xl border border-border p-4 sm:p-5">
-              <div className="font-semibold text-text-primary mb-1">2. Routes are indexed</div>
+              <div className="font-semibold text-text-primary mb-1">2. Routes are reverse-engineered</div>
               <p className="text-sm text-text-secondary">
-                On session close, observed requests are converted into sanitized route metadata. The result is a complete, executable API skill without publishing private session material.
+                On session close, captured traffic goes through the enrichment pipeline: endpoint extraction, auth header detection, credential storage, schema inference, and LLM-augmented semantic descriptions. The result is a complete, executable API skill.
               </p>
             </div>
             <div className="rounded-xl border border-border p-4 sm:p-5">
