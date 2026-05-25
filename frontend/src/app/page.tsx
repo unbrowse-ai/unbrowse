@@ -10,6 +10,11 @@ import { Ch02Problem } from "@/components/editions/chapters/ch02-problem";
 import { Ch03Mechanism } from "@/components/editions/chapters/ch03-mechanism";
 import { Ch04Numbers } from "@/components/editions/chapters/ch04-numbers";
 import { Ch05Install } from "@/components/editions/chapters/ch05-install";
+import { Ch06Marketplace } from "@/components/editions/chapters/ch06-marketplace";
+import { Ch07Demo } from "@/components/editions/chapters/ch07-demo";
+import { Ch08Economics } from "@/components/editions/chapters/ch08-economics";
+import { Ch09Objections } from "@/components/editions/chapters/ch09-objections";
+import { Ch10AntiIcp } from "@/components/editions/chapters/ch10-anti-icp";
 import { EditionsPageBodyClass } from "@/components/editions-page-body-class";
 
 export const revalidate = 60;
@@ -52,6 +57,11 @@ const chapters: EditionsChapter[] = [
   { id: "mechanism", label: "Mechanism" },
   { id: "numbers", label: "Numbers" },
   { id: "install", label: "Install" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "demo", label: "Demo" },
+  { id: "economics", label: "Economics" },
+  { id: "objections", label: "Objections" },
+  { id: "anti-icp", label: "Anti-ICP" },
 ];
 
 export default function Home() {
@@ -118,6 +128,11 @@ export default function Home() {
           <Ch03Mechanism />
           <Ch04Numbers />
           <Ch05Install />
+          <Ch06Marketplace />
+          <Ch07Demo />
+          <Ch08Economics />
+          <Ch09Objections />
+          <Ch10AntiIcp />
 
           {/* ─── Editions footer (cream) ─── */}
           <EditionsFooter />
