@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
 	turbopack: {
 		root: workspaceRoot,
 	},
+	async redirects() {
+		// /vs/<slug> is the shorthand naming Lewis prefers. Canonical pages live
+		// at /compare/<slug> (existing SEO, OG tags, etc). Redirect /vs/* → /compare/*
+		// so both work without duplicating content.
+		return [
+			{ source: "/vs/:slug", destination: "/compare/:slug", permanent: true },
+		];
+	},
 };
 
 export default nextConfig;
