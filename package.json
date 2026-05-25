@@ -4,7 +4,8 @@
   "workspaces": [
     "packages/*",
     "backend",
-    "frontend"
+    "frontend",
+    "packages/playwright-shim"
   ],
   "scripts": {
     "prepare": "husky",
