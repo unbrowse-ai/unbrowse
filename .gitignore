@@ -202,3 +202,8 @@ frontend/.safe-sync/
 scripts/bench-contract-scan.py
 scripts/bench-probe-verify.sh
 .bench-served-surface/
+
+# Session local artifacts
+.agent-xp/
+.conductor/
+harness/.agent-xp/

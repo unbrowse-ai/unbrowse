@@ -35,6 +35,23 @@ export type PaymentProvider =
   | "lobster_cash"
   | "external_solana"
   | "privy_embedded"
+  // Adapter-expansion children under contract f5d491b1 / c0c089e2.
+  // Backend x402-payment endpoints for these providers are TBD per
+  // peer coordination — adapters fall through to next provider on
+  // 404 until backend wires the canonical surface.
+  | "fluxa_agent"
+  | "coinbase_agentic"
+  | "okx_onchainos"
+  | "circle_usdc"
+  | "venice_x402"
+  | "moonpay_x402"
+  | "bankr_sdk"
+  // Wave-32 expansion (wallets + facilitator).
+  | "agentcash_dev"
+  | "corbits_onramp"
+  | "ruflo_agentic"
+  | "stellar_agentic"
+  | "coinbase_monetize"
   | "skip";
 
 export interface PaymentProviderConfig {
