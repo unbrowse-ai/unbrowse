@@ -94,16 +94,23 @@ export async function payAndRetryPrivy<T = unknown>(
   const backendUrl = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
   const sessionPath = join(process.env.HOME || homedir(), ".privy", "session.json");
 
-  // Session token loading is backend-bound (Privy app secret lives only on
-  // the worker per reference_privy_app_creds.md). This adapter forwards the
-  // invoice to backend /v1/auth/privy/x402-pay which mints the signature.
-  // Local CLI carries only a session-id pointer; never the app secret.
+  // Endpoint coordination note (per contract c0c089e2):
+  // The wave-27 implementation forwarded to `/v1/auth/privy/x402-pay` which
+  // does NOT exist server-side. The real Privy surface today is
+  // `/v1/auth/privy/start` (login) at backend/src/routes/auth.ts:279 plus
+  // the existing `subscriptionAdmits` helper for quota bumps. The
+  // canonical x402-payment-via-Privy endpoint is still under coordination
+  // with the peer backend wave. Until reconciled, this adapter returns
+  // null and the client falls through to lobster.cash or paysh.
+  // TODO: wait for peer to declare the canonical endpoint; update this URL.
+  const PRIVY_X402_ENDPOINT_TBD = "/v1/auth/privy/x402-pay";
+  void sessionPath; // keep reference for future session-token read
 
   const timeout = options?.timeoutMs ?? PRIVY_PAY_TIMEOUT_MS;
   // Stubbed transport — POST { invoiceUrl } to backend /v1/auth/privy/x402-pay
   // which holds the app secret and the user's embedded wallet pointer.
   try {
-    const res = await fetch(`${backendUrl}/v1/auth/privy/x402-pay`, {
+    const res = await fetch(`${backendUrl}${PRIVY_X402_ENDPOINT_TBD}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
