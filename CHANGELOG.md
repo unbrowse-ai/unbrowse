@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v7.0.1 (2026-05-25)
+
+**fix(deploy-backend)**: pass `UNBROWSE_VERSION/BUILD_SHA/DEPLOYED_AT` vars to wrangler. v7.0.0 deployed but `/v1/version` returned nulls because the worker saw the keys as undefined. PR #788 — explicit `bunx wrangler deploy --var KEY:VALUE` call replaces the bare `bun run deploy:ci`. Closes the plumbing gap from memory `a9c61025`.
+
+
 ## v7.0.0 (2026-05-25)
 
 Major version bump consolidating the v6.18.x line. No content changes vs the v6.18.0 cut — this release exists to:
