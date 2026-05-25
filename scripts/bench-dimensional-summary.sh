@@ -106,7 +106,10 @@ for dim in DIMS:
             continue
         measured += 1
         verdict = row.get("verdict", "")
-        if verdict.startswith("PASS"):
+        # Strict PASS only — PASS_WEAK (structural-only, no real data) does not
+        # count toward 100%. The "100% across dimensions" claim must mean the
+        # agent actually got the data, not that resolve completed structurally.
+        if verdict == "PASS":
             passed += 1
     failed = measured - passed
     rate = f"{(100 * passed / measured):>5.1f}%" if measured else "  n/a"
