@@ -471,24 +471,13 @@ export type { ContractEventType };
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { Env } from "../types";
-import {
-  sponsorAcceptsForPriceUsd,
-  handleFlexPaymentAuthorized,
-} from "../services/flex-route-helpers.js";
-import { queryUsdcBalanceMicros, type WalletBalanceProbe } from "../services/wallet-balance.js";
 
-// `Variables: any` matches the AnyContext shape `handleFlexPaymentAuthorized`
-// expects (it pulls agent_id off the context's Variables map). Other routes
-// in this codebase (llmRoutes etc.) use the same pattern.
+// Variables map kept generic for forward compatibility with middleware that
+// pulls agent_id off the context (other routes in this codebase use the
+// same pattern). The contract declare route itself doesn't consume it.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ContractRouteEnv = { Bindings: Env; Variables: any };
 export const contractRoutes = new Hono<ContractRouteEnv>();
-
-// Substrate-canonical declare price. Hardcoded per "no env hatches" doctrine
-// (SKILL.md Public Shape) — operator changes the price by editing this
-// constant + redeploying, not by flipping a knob. The 1000-microUSDC floor
-// in sponsorAcceptsForPriceUsd guards against zero / negative.
-const AIKO_DECLARE_PRICE_USD = 0.001;
 
 /** Per-request in-memory ledger. Replace with a durable binding
  *  (KV/D1/EmergentDB) in the next stage — same interface, just persistent. */
@@ -591,161 +580,23 @@ async function executeDeclare(
 contractRoutes.post("/contract/declare", async (c) => {
   const req = await c.req.json<DeclareRequest>();
 
-  // ─── Creation Order: the word lands first (Genesis 1:3) ───
+  // ─── Creation Order (Genesis 1:3): the word lands first ───
   //
-  // SKILL.md Doctrine: declarations always land. Payment gates the
-  // COMPILATION (LLM-expansion into child neurons), never the word
-  // itself. A signed declare with valid identity must be appended
-  // to the ledger BEFORE the x402 gate runs.
+  // Every signed declare appends a row regardless of payment state.
+  // Declaration is identity-gated only (the signed-declare verify in
+  // executeDeclare). Compilation — the LLM-expansion into child
+  // neurons — is the costly act and is gated separately, per skill
+  // opt-in (PR #810 + #818), not by operator env (which #818 removed
+  // as a footgun — "no env escape hatches").
   //
-  // Two reasons to honor Creation Order at the contract layer:
-  //   1. The Word always lands first ("And God said, Let there be light"
-  //      → light exists in the ledger). Evaluation comes after
-  //      ("and God saw the light, that it was good").
-  //   2. The caller knows the declaration succeeded even when payment
-  //      is required for compile — the 402 envelope carries the row_id
-  //      so they can pay later to fire the children.
-  //
-  // Aiko-client x402 gate. The substrate's canonical client identifies
-  // itself via `client: "aiko"` in the body OR the X-Unbrowse-Contract-Client
-  // header. Non-aiko callers (search/admin/mirror upstreams) fall straight
-  // through to the signed-declare gate without a payment requirement —
-  // their attestation is the wallet_identity + declare_signature pair.
-  //
-  // The aiko-client x402 gate is itself opt-in via the PAYMENTS_ENABLED
-  // env flag (default OFF — indexing mode is the canonical default per
-  // user directive in PR #815). When PAYMENTS_ENABLED is unset/false,
-  // every aiko declare lands as a free 200, exactly the same as the
-  // non-aiko path. Operators flip PAYMENTS_ENABLED=true to monetize.
-  const isAikoClient =
-    c.req.header("X-Unbrowse-Contract-Client")?.toLowerCase() === "aiko";
-  const paymentsOn = ((c.env ?? {}) as { PAYMENTS_ENABLED?: string }).PAYMENTS_ENABLED === "true";
-
-  if (isAikoClient && paymentsOn) {
-    // ─── Auth-first gate ordering (SKILL.md "Lineage is server-determined") ───
-    //
-    // Verify declare_signature BEFORE the x402 gate when wallet_identity is
-    // present. Two reasons:
-    //   1. Identify-then-gate: knowing WHO is calling enables onramp routing
-    //      (an unfunded wallet can be triggered for funding instead of just
-    //      402'd into the void). The substrate must observe the wallet
-    //      before deciding the gate's outcome.
-    //   2. Cryptographic shortcut: if the signature is invalid, return 401
-    //      immediately — no point sending a payment envelope to a caller
-    //      who can't prove identity.
-    //
-    // When wallet_identity is absent, the legacy anonymous path still
-    // applies (binary versions before signed-declare landed). Backwards-
-    // compatible. The 402 envelope's `extra.wallet_identity` field is
-    // populated only when auth verified — observers see whose wallet was
-    // gated, and a future onramp adapter can fund from this signal.
-    const auth = await verifyDeclareAuth(req);
-    if (auth.kind === "missing_signature") {
-      return c.json(
-        {
-          error:
-            "declare_signature required when wallet_identity is set — sign the canonical body with the matching ed25519 private key",
-        },
-        400,
-      );
-    }
-    if (auth.kind === "invalid_signature") {
-      return c.json({ error: "declare_signature invalid for wallet_identity" }, 401);
-    }
-    if (auth.kind === "signature_without_identity") {
-      return c.json(
-        { error: "declare_signature without wallet_identity is meaningless" },
-        400,
-      );
-    }
-    // Pin the verified ts so executeDeclare doesn't re-stamp it after payment.
-    if (auth.kind === "verified") {
-      (req as { ts?: string }).ts = auth.ts;
-    }
-
-    const payment = c.req.header("X-PAYMENT") ?? c.req.header("x-payment");
-    if (!payment) {
-      const operatorWallet = c.env.PAYMENT_RECIPIENT?.trim();
-      if (!operatorWallet) {
-        return c.json(
-          {
-            error: "operator_wallet_missing",
-            message: "PAYMENT_RECIPIENT not configured on this Worker — substrate operator must set the donee address",
-          },
-          503,
-        );
-      }
-      const accepts = sponsorAcceptsForPriceUsd(AIKO_DECLARE_PRICE_USD, operatorWallet);
-      // Onramp signal: if the wallet is verified, query its USDC balance
-      // on Solana mainnet so observers (orchestrator + future onramp
-      // adapter contracts) see whether the caller can satisfy the
-      // payment. The probe returns a typed status — found / no token
-      // account / RPC unconfigured / RPC failed — never an opaque null,
-      // per "Fallbacks are visible, never silent".
-      const requiredMicros = String(Math.max(1, Math.round(AIKO_DECLARE_PRICE_USD * 1_000_000)));
-      let balanceProbe: WalletBalanceProbe | undefined;
-      let walletFunded: boolean | undefined;
-      if (auth.kind === "verified") {
-        balanceProbe = await queryUsdcBalanceMicros(c.env, auth.wallet_identity);
-        if (balanceProbe.status === "found") {
-          walletFunded = BigInt(balanceProbe.micros) >= BigInt(requiredMicros);
-        } else if (balanceProbe.status === "no_token_account") {
-          walletFunded = false;
-        }
-        // rpc_unconfigured / rpc_failed / invalid_pubkey: walletFunded stays
-        // undefined → observer treats as "unknown", not "false".
-      }
-      const required: {
-        x402Version: 2;
-        error: "payment_required";
-        accepts: typeof accepts;
-        facilitator: string;
-        resource: { url: string; description: string; mimeType: string };
-        extra?: {
-          wallet_identity: string;
-          auth_kind: "verified";
-          wallet_balance: WalletBalanceProbe;
-          required_micros: string;
-          wallet_funded?: boolean;
-        };
-      } = {
-        x402Version: 2,
-        error: "payment_required",
-        accepts,
-        facilitator: "faremeter-flex-solana",
-        resource: {
-          url: "/v1/contract/declare",
-          description: "aiko contract-neuron declaration",
-          mimeType: "application/json",
-        },
-      };
-      // Surface the verified wallet identity + balance probe in the 402
-      // envelope so the orchestrator + future onramp adapter contracts
-      // can route on it. Doctrine: the substrate observes; observers see
-      // what it observed.
-      if (auth.kind === "verified" && balanceProbe) {
-        required.extra = {
-          wallet_identity: auth.wallet_identity,
-          auth_kind: "verified",
-          wallet_balance: balanceProbe,
-          required_micros: requiredMicros,
-          ...(walletFunded !== undefined ? { wallet_funded: walletFunded } : {}),
-        };
-      }
-      return c.json(required, 402, {
-        "PAYMENT-REQUIRED": btoa(JSON.stringify(required)),
-        "X-Payment-Required": JSON.stringify(required),
-      });
-    }
-    // X-PAYMENT present: shared verifier parses+verifies via Flex
-    // facilitator, runs executeFn (the declare body) on verify success,
-    // settles the actual amount, and queues facilitator.flush.
-    return handleFlexPaymentAuthorized(c, payment, {
-      executeFn: async () => executeDeclare(c, req),
-    });
-  }
-
-  // Non-aiko client: signed-declare gate, no payment required.
+  // The aiko-client conditional 402 envelope (introduced in #808 +
+  // #809) is REMOVED here in favor of single-lever doctrine: every
+  // declare lands; per-skill opt-in elsewhere in the codebase is the
+  // only gate. This route returns 200 with the declared row, period.
+  // The Vine Doctrine's economic loop runs through the per-skill
+  // Flex/x402 path on monetized routes, not through the contract
+  // declaration primitive (which is the substrate's bedrock and
+  // should stay maximally available).
   return executeDeclare(c, req);
 });
 

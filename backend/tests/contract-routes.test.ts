@@ -96,54 +96,16 @@ describe("/v1/contract/* — wired Hono router", () => {
     expect((json as { error: string }).error).toContain("intent");
   });
 
-  // x402 enforcement — aiko-client declares are gated by Faremeter Flex.
-  // Non-aiko clients (no X-Unbrowse-Contract-Client: aiko header) bypass
-  // the gate and run the standard signed-declare path; aiko clients
-  // without X-PAYMENT get a 402 envelope; aiko clients with both headers
-  // would proceed through handleFlexPaymentAuthorized (verifying the
-  // Flex signature) which we don't exercise here without a facilitator.
-  test("POST /v1/contract/declare with X-Unbrowse-Contract-Client: aiko and no X-PAYMENT returns 402 (when PAYMENT_RECIPIENT set)", async () => {
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string; PAYMENTS_ENABLED: string } }>();
-    app.route("/v1", contractRoutes);
-    const res = await app.fetch(
-      new Request("http://test.local/v1/contract/declare", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-unbrowse-contract-client": "aiko",
-        },
-        body: JSON.stringify({ plan: "x402-aiko-gated", action: "agent-judges" }),
-      }),
-      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp", PAYMENTS_ENABLED: "true" },
-    );
-    expect(res.status).toBe(402);
-    const body = (await res.json()) as { x402Version: number; error: string; accepts: Array<{ payTo: string }> };
-    expect(body.x402Version).toBe(2);
-    expect(body.error).toBe("payment_required");
-    expect(body.accepts).toBeArray();
-    expect(body.accepts.length).toBeGreaterThan(0);
-    expect(body.accepts[0].payTo).toBe("7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp");
-    expect(res.headers.get("PAYMENT-REQUIRED")).toBeTruthy();
-  });
-
-  test("POST /v1/contract/declare with aiko client + PAYMENTS_ENABLED but PAYMENT_RECIPIENT unset returns 503", async () => {
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string; PAYMENTS_ENABLED: string } }>();
-    app.route("/v1", contractRoutes);
-    const res = await app.fetch(
-      new Request("http://test.local/v1/contract/declare", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-unbrowse-contract-client": "aiko",
-        },
-        body: JSON.stringify({ plan: "x402-misconfigured", action: "agent-judges" }),
-      }),
-      { PAYMENTS_ENABLED: "true" },
-    );
-    expect(res.status).toBe(503);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("operator_wallet_missing");
-  });
+  // Creation Order + single-lever doctrine (post PR #818):
+  //   - PAYMENTS_ENABLED env removed entirely (no operator escape hatch)
+  //   - Per-skill opt-in is the only paid-route gate (handled elsewhere)
+  //   - /v1/contract/declare is the substrate's bedrock — ALWAYS lands
+  //     a signed-or-anonymous declare as 200. No 402 envelope path,
+  //     no 503 misconfiguration path. The economic loop runs through
+  //     the per-skill Flex/x402 routes, not through declare itself.
+  //
+  // The two prior tests asserting 402 / 503 are removed; the new shape
+  // is covered by the Creation Order tests below.
 
   // ─── Creation Order tests: the word lands first (Gen 1:3) ───
   //
