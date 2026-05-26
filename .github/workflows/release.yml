@@ -89,6 +89,7 @@ jobs:
             "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
             "dist/unbrowse-v${VERSION}-linux-arm64.tar.gz"
             "dist/unbrowse-v${VERSION}-linux-x64.tar.gz"
+            "dist/unbrowse-v${VERSION}-win-x64.tar.gz"
             "dist/release-manifest.json"
             "dist/release-manifest.sig"
           )

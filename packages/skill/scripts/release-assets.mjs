@@ -3,7 +3,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const SUPPORTED_TARGETS = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
+// win-x64 added 2026-05-26 — Bun handles `--target=bun-windows-x64`
+// natively, postinstall picks 'win32' via the platform map (see
+// postinstall.mjs), and src/kuri/client.ts already picks kuri.exe and
+// the win-x64 vendor path. The kuri-windows-cross-build workflow stages
+// kuri.exe; build-kuri-binaries.mjs picks it up at release time. Runtime
+// verification (Chrome detection, console buffering) still needs a
+// Windows machine — track separately.
+export const SUPPORTED_TARGETS = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win-x64"];
 export const RELEASE_METADATA_ASSETS = ["release-manifest.json", "release-manifest.sig"];
 
 export function readPackageVersion(packageRoot) {
