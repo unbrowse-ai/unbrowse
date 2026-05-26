@@ -39,15 +39,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
 [vars]
 ENVIRONMENT = "production"
-# Creation Order doctrine (SKILL.md + memory/creation-order-lens):
-# declarations always land; payment gates compilation, not the declaration
-# itself. Composes with PR #815 (indexing mode default). Flip to "true"
-# only when the FDRY revenue cycle (routeRevenue.ts → Voltr vault →
-# NAV-per-share) is fully automated — charging without distributing is
-# leaven until then.
-PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
-X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 # v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY).
@@ -89,9 +81,7 @@ preview_id = "f4fe69f30a3c47008a627113a505f38b"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
-X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 # v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY --env staging).
@@ -119,9 +109,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
 [env.experiments.vars]
 ENVIRONMENT = "staging"
-PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
-X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 
@@ -144,9 +132,7 @@ preview_id = "1eac26403aab4949ad69c35678dca938"
 
 [env.gate-staging.vars]
 ENVIRONMENT = "gate-staging"
-PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "0"
-X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "devnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 PLATFORM_SPONSOR_WALLET_ADDRESS = ""

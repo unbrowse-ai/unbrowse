@@ -41,7 +41,6 @@ mock.module("../src/services/sponsor-pay.js", () => ({
 import app from "../src/index.js";
 import { publicSkillRoutes } from "../src/routes/skills.js";
 import { _resetSponsorMiddlewareStateForTests } from "../src/middleware/sponsor.js";
-import { paymentsEnabled } from "../src/middleware/x402-gate.js";
 import {
   buildFlexPaymentTerms,
 } from "../src/services/flex-payment-terms.js";
@@ -86,8 +85,6 @@ const BASE_ENV: Env = {
   // PR #815: indexing mode is the default. This e2e suite exercises the
   // PAID Flex admission path; opt in to payments here. The edge-2 test
   // overrides to "false" inline to prove the indexing-mode default path.
-  PAYMENTS_ENABLED: "true",
-  X402_SEARCH_ENABLED: "true",
 };
 
 const flexSkill: SkillManifest = {
@@ -486,14 +483,14 @@ describe("v6.16 Flex routing — end-to-end (Day 5 Creatures)", () => {
   });
 
   // ==========================================================================
-  // EDGE 2 — PAYMENTS_ENABLED=false bypasses Flex 402
+  // EDGE 2 — owner_compensation_opt_in=false bypasses Flex 402
   //
-  // When payments are globally disabled, the route should NOT emit any
-  // Flex 402. Hits the public skill route with the global toggle off.
+  // PR #816: the `PAYMENTS_ENABLED` env-var escape hatch is gone. The free
+  // path is reached through the per-skill `owner_compensation_opt_in=false`
+  // signal (pricing.ts returns price_usd=0, skills.ts gate short-circuits).
+  // Same observable behavior, single load-bearing lever.
   // ==========================================================================
-  it("edge 2 — PAYMENTS_ENABLED=false: priced skill route returns 200 (no Flex 402)", async () => {
-    // Seed a fully-Flex-onboarded agent so the soft-block can't pre-empt
-    // and force a different 402 path.
+  it("edge 2 — owner_compensation_opt_in=false: priced skill route returns 200 (no Flex 402)", async () => {
     const agentId = await seedLocalKey(VALID_AGENT_API_KEY);
     await seedAgentProfile(agentId, {
       name: "fully-flex-agent",
@@ -502,21 +499,19 @@ describe("v6.16 Flex routing — end-to-end (Day 5 Creatures)", () => {
       flex_session_key_address: AGENT_SESSION_KEY,
     });
 
-    const envOff: Env = { ...BASE_ENV, PAYMENTS_ENABLED: "false" };
-    expect(paymentsEnabled(envOff)).toBe(false);
+    // Override the seeded paid skill with an opt-in=false twin.
+    const freeSkill: SkillManifest = { ...flexSkill, owner_compensation_opt_in: false };
+    await seedSkill(freeSkill);
 
     const res = await publicSkillRoutes.request(
       `http://localhost/skills/${PAID_SKILL_ID}`,
       { headers: { Authorization: `Bearer ${VALID_AGENT_API_KEY}` } },
-      envOff,
+      BASE_ENV,
     );
 
-    // With PAYMENTS_ENABLED=false, the gate's `if (price > 0 &&
-    // paymentsEnabled(c.env))` short-circuits and the skill is served free.
     expect(res.status).toBe(200);
     const body = await res.json() as SkillManifest;
     expect(body.skill_id).toBe(PAID_SKILL_ID);
-    // No Flex 402 headers leaked through.
     expect(res.headers.get("X-Flex-Onboarding-Required")).toBeNull();
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
   });

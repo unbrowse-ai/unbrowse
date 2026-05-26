@@ -1,19 +1,15 @@
 /**
- * Search route x402 gating — Flex envelope (v6.16, Day-5).
+ * Search route — always free indexing (PR #816).
  *
- * v6.16 swap: search routes now emit `scheme: @faremeter/flex` for the 402
- * envelope when an authenticated agent has full Flex onboarding. The route
- * is fronted by `requireSignedClient` which only admits the admin key (or
- * agents that pass a signed release manifest) — so non-admin paths require
- * full manifest-header plumbing the original tests never exercised.
+ * Previously this test asserted env-var-controlled paid/free admission via
+ * `PAYMENTS_ENABLED` / `X402_SEARCH_ENABLED`. PR #816 removed both env
+ * escape hatches: search is now ALWAYS free indexing, period. There is no
+ * operator-side knob that can flip it into paid mode.
  *
- * The admin path bypasses `requireSignedClient` but admin has no agent
- * profile, so `respondWithFlexTerms` returns `flex_escrow_required` rather
- * than a Flex envelope — which is the right behaviour (admin runs without
- * a paired wallet).
- *
- * Free-mode (PAYMENTS_ENABLED=false or X402_SEARCH_ENABLED=false) bypasses
- * payment entirely — unchanged.
+ * What we still test:
+ *   - Authenticated admin path → 200 with the search payload (no 402).
+ *   - Anonymous/un-signed callers still hit `requireSignedClient`, separate
+ *     auth concern from payment; covered by other tests.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { searchRoutes } from "../src/routes/search.js";
@@ -34,11 +30,9 @@ const BASE_ENV: Env = {
   // PR #815: indexing mode is the default. This suite specifically tests the
   // PAID search admission path; opt in here. The "search free when payments
   // disabled" test below overrides to "false" inline.
-  PAYMENTS_ENABLED: "true",
-  X402_SEARCH_ENABLED: "true",
 };
 
-describe("search route x402 gating — Flex envelope (v6.16)", () => {
+describe("search route — always free indexing (PR #816)", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
@@ -59,47 +53,21 @@ describe("search route x402 gating — Flex envelope (v6.16)", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("admin path: returns flex_escrow_required since admin has no agent profile", async () => {
-    // Admin key bypasses bearerAuth + requireSignedClient. respondWithFlexTerms
-    // checks agentId !== "__admin__" before doing the agent-profile lookup, so
-    // admin falls through to the defensive guard which emits
-    // `flex_escrow_required` (no escrow PDA to build an authorization against).
+  it("admin path is always free — no Flex envelope, no payment headers", async () => {
+    // PR #816: search is indexing — admin (or any) caller gets 200 free.
+    // No more `flex_escrow_required` path on search since there is no
+    // payment gate to short-circuit.
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
     }, BASE_ENV);
 
-    const body = await res.json() as { error: string };
-    expect(res.status).toBe(402);
-    expect(body.error).toBe("flex_escrow_required");
-    expect(res.headers.get("X-Flex-Onboarding-Required")).toBe("1");
-  });
-
-  it("keeps search free when payments are disabled (PAYMENTS_ENABLED=false)", async () => {
-    const res = await searchRoutes.request("http://localhost/search", {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
-      body: JSON.stringify({ intent: "search packages", k: 5 }),
-    }, { ...BASE_ENV, PAYMENTS_ENABLED: "false" });
-
-    const body = await res.json() as { results: unknown[] };
-    expect(res.status).toBe(200);
-    expect(body.results).toEqual([]);
-    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
-  });
-
-  it("keeps discovery free when X402_SEARCH_ENABLED=false", async () => {
-    const res = await searchRoutes.request("http://localhost/search", {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
-      body: JSON.stringify({ intent: "search packages", k: 5 }),
-    }, { ...BASE_ENV, X402_SEARCH_ENABLED: "false" });
-
     const body = await res.json() as { results: unknown[] };
     expect(res.status).toBe(200);
     expect(body.results).toEqual([]);
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
+    expect(res.headers.get("X-Flex-Onboarding-Required")).toBeNull();
     expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
   });
 });

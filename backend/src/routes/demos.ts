@@ -9,7 +9,6 @@ import {
   type DemoRequest,
   type DemoJob,
 } from "../services/demo-pipeline.js";
-import { paymentsEnabled } from "../middleware/x402-gate.js";
 import {
   respondWithFlexTerms,
   sponsorAcceptsForPriceUsd,
@@ -66,11 +65,14 @@ demoRoutes.post("/demos/generate", async (c) => {
     return c.json({ error: "tier must be one of: basic, standard, premium" }, 400);
   }
 
-  // ── x402 payment gate (optional — skipped when PAYMENTS_ENABLED is falsy) ──
+  // ── x402 payment gate — fires only when the tier has a nonzero price ──
+  // PR #816: env-var escape hatches removed. The gate is now purely a
+  // per-tier price check; if a tier carries a positive USD price, it's
+  // a paid demo by intent, not by env-var mood.
   const tier = body.tier ?? "basic";
   const priceUsd = TIER_PRICES[tier] ?? TIER_PRICES.basic;
 
-  if (paymentsEnabled(c.env) && priceUsd > 0) {
+  if (priceUsd > 0) {
     // Subscription admission lane (parallel to x402). If the caller's bearer
     // key resolves to a user with an active subscription, admit. F1: no user /
     // no sub falls through to x402 below.

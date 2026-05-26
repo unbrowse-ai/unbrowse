@@ -10,7 +10,6 @@ import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/age
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
-import { paymentsEnabled } from "../middleware/x402-gate.js";
 import {
   respondWithFlexTerms,
   sponsorAcceptsForPriceUsd,
@@ -281,8 +280,12 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
   );
   const priceResult = computeRoutePrice(skill, statsArr);
 
-  // Free skills (price=0 or below floor) skip the gate
-  if (priceResult.price_usd > 0 && paymentsEnabled(c.env)) {
+  // Indexing-mode-by-default: 402 fires ONLY when the skill owner has
+  // explicitly opted in via DNS claim + wallet binding (PR #810). The
+  // `priceResult.price_usd > 0` check IS the gate — pricing.ts returns 0
+  // unless `owner_compensation_opt_in` is true. No operator-side env-var
+  // override (PR #816 removed `PAYMENTS_ENABLED` to eliminate footguns).
+  if (priceResult.price_usd > 0) {
     // Subscription admission lane (parallel to x402). If the caller presents a
     // bearer key resolving to an authenticated user with an active subscription,
     // admit without firing x402. F1: when no key or no sub, fall through.

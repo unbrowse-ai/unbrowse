@@ -1,6 +1,5 @@
 /**
- * x402 payment gating middleware — kill-switches + shared types for the Flex
- * facilitator path.
+ * x402 payment gating middleware — shared types for the Flex facilitator path.
  *
  * The legacy Corbits facilitator codepath (verify/settle/supported probes,
  * PAYMENT-SIGNATURE / X-Payment-Proof envelopes, the `exact`-scheme dual-chain
@@ -9,10 +8,29 @@
  * `services/flex-route-helpers.ts` (`respondWithFlexTerms` /
  * `handleFlexPaymentAuthorized`) backed by the Flex facilitator.
  *
+ * 2026-05-26 — env-var escape hatches REMOVED. The user directive: "shouldn't
+ * have envs that could break — no escape hatches". The old `paymentsEnabled` /
+ * `searchPaymentsEnabled` functions read `PAYMENTS_ENABLED` and
+ * `X402_SEARCH_ENABLED` from `c.env`. Any stale wrangler.toml entry could
+ * accidentally flip the substrate between paid and free modes. That is a
+ * footgun.
+ *
+ * Replacement doctrine (composes with PR #810):
+ *   - Indexing is always free. Every user-facing route runs the free path
+ *     unless the skill manifest declares `owner_compensation_opt_in = true`
+ *     via DNS claim + wallet binding.
+ *   - The ONLY lever is per-skill. There is no operator-level env-var that
+ *     can be set / unset / typo'd to change the substrate's behavior.
+ *   - `priceResult.price_usd > 0` (from `services/pricing.ts`) IS the gate.
+ *     If price is zero (default), the route returns 200 free. If price is
+ *     nonzero (owner explicitly opted in), the route emits a 402 Flex envelope.
+ *
  * What remains here:
- *   - `paymentsEnabled` / `searchPaymentsEnabled` — env-var kill-switches the
- *     routes still consult before pricing/charging.
- *   - `x402UseTestnet` — generic mainnet/testnet selector used by Flex routes.
+ *   - `x402UseTestnet` — generic mainnet/testnet selector used by Flex routes
+ *     when building accepts[] entries. NOT a payment gate; selects which
+ *     network the on-wire `accepts[].network` field references. Default is
+ *     mainnet in production, testnet elsewhere — derived from
+ *     `ENVIRONMENT`, not from a payments toggle.
  *   - `X402PaymentRequirementV2` — on-the-wire accepts[] entry shape consumed
  *     by the sponsor middleware and Flex helpers.
  */
@@ -27,38 +45,6 @@ export interface X402PaymentRequirementV2 {
   payTo: string;
   maxTimeoutSeconds: number;
   extra?: Record<string, unknown>;
-}
-
-// 2026-05-26: indexing-mode is the DEFAULT.
-//
-// Doctrine: unbrowse must work with AND without x402. By default, every
-// user-facing route (resolve, search, skill read, execute) runs in
-// indexing mode — no payment header required, no 402 emitted. Payment
-// is an opt-in feature for operators who explicitly want to charge,
-// gated by PAYMENTS_ENABLED=true in the operator's Worker env.
-//
-// Production wrangler.toml has PAYMENTS_ENABLED="true" explicitly set,
-// so prod behavior is unchanged. Self-hosted operators, staging, dev,
-// and any environment where the env var is unset get the free-by-default
-// indexing path — exactly what the user types `npx unbrowse` for.
-//
-// Truthy values that explicitly enable payments: "true", "1", "on", "enabled", "yes"
-// Anything else (including unset / empty) = indexing mode.
-const PAYMENTS_ENABLED_TRUTHY = ["1", "true", "on", "enabled", "yes"];
-
-export function paymentsEnabled(env: Pick<Env, "PAYMENTS_ENABLED">): boolean {
-  const raw = env.PAYMENTS_ENABLED?.trim().toLowerCase();
-  if (!raw) return false; // default: indexing mode, no x402 ever fires
-  return PAYMENTS_ENABLED_TRUTHY.includes(raw);
-}
-
-export function searchPaymentsEnabled(
-  env: Pick<Env, "PAYMENTS_ENABLED" | "X402_SEARCH_ENABLED">,
-): boolean {
-  if (!paymentsEnabled(env)) return false;
-  const raw = env.X402_SEARCH_ENABLED?.trim().toLowerCase();
-  if (!raw) return false; // search payment also opt-in even when global payments enabled
-  return PAYMENTS_ENABLED_TRUTHY.includes(raw);
 }
 
 export function x402UseTestnet(

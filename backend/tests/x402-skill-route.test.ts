@@ -37,8 +37,6 @@ const BASE_ENV: Env = {
   // payments here. Tests that exercise the indexing-mode path override
   // back to "false" inline. Production wrangler.toml sets these "true"
   // explicitly, so prod parity holds.
-  PAYMENTS_ENABLED: "true",
-  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {
@@ -218,30 +216,24 @@ describe("public skill x402 route — Flex envelope (v6.16)", () => {
     expect(res.headers.get("X-Flex-Onboarding-Required")).toBe("1");
   });
 
-  it("disables skill payments entirely when PAYMENTS_ENABLED=false", async () => {
+  it("disables skill payments when owner_compensation_opt_in=false (the only lever)", async () => {
+    // PR #816: env-var escape hatches are gone. The per-skill opt-in IS
+    // the only switch; re-seed the skill with opt-in=false to verify the
+    // skills.ts gate short-circuits on price_usd=0.
+    const freeSkill: SkillManifest = { ...paidSkill, owner_compensation_opt_in: false };
+    const skillsKv = new LocalKV("skills-v2");
+    await skillsKv.put(`skill:${PAID_SKILL_ID}`, JSON.stringify(freeSkill));
+
     const res = await publicSkillRoutes.request(
       `http://localhost/skills/${PAID_SKILL_ID}`,
       {},
-      { ...BASE_ENV, PAYMENTS_ENABLED: "false" },
+      BASE_ENV,
     );
     const body = await res.json() as SkillManifest;
 
     expect(res.status).toBe(200);
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
     expect(body.skill_id).toBe(PAID_SKILL_ID);
-  });
-
-  it("keeps paid skill detail gated when X402_SEARCH_ENABLED=false (skill price overrides search flag)", async () => {
-    const res = await publicSkillRoutes.request(
-      `http://localhost/skills/${PAID_SKILL_ID}`,
-      {},
-      { ...BASE_ENV, X402_SEARCH_ENABLED: "false" },
-    );
-
-    expect(res.status).toBe(402);
-    // Anonymous → flex_escrow_required (not Flex envelope).
-    const body = await res.json() as { error: string };
-    expect(body.error).toBe("flex_escrow_required");
   });
 });
 

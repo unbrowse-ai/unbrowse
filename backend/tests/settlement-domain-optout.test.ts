@@ -49,7 +49,6 @@ function makeEnv(): Env {
     R2_BUCKET: {} as R2Bucket,
     STATS_KV: {} as KVNamespace,
     ENVIRONMENT: "local-dev",
-    PAYMENTS_ENABLED: "true",
     ADMIN_KEY,
     FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   };
