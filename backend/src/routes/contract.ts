@@ -513,25 +513,52 @@ function ephemeralLedger(): ContractLedger {
 }
 
 /**
- * Run the signed-declare gate + handleDeclare. Extracted from the route
- * handler so both the aiko-client x402-authorized path and the non-aiko
- * path share one body. Returns the Response the route returns.
- *
- * Signed-declare gate (#33). Three paths:
- *   1) request carries wallet_identity + declare_signature → verify;
- *      reject 401 if signature invalid; on pass, mark the row trusted.
- *   2) request carries wallet_identity but no signature → reject 400
- *      (claiming identity without proof is the leak we're closing).
- *   3) request omits both → anonymous path, no signature required;
- *      handleDeclare auto-coerces agent="anonymous" + visibility="public".
+ * Pure declare-auth result. Doesn't touch HTTP — the route handler maps
+ * each kind to a Response. Extracted so the same auth verdict can be
+ * consulted BEFORE the x402 gate (for onramp routing on identified
+ * wallets) AND inside executeDeclare (for the actual write).
+ */
+type DeclareAuthResult =
+  | { kind: "anonymous" }                                            // no wallet, no signature → coerce agent="anonymous"
+  | { kind: "verified"; wallet_identity: string; ts: string }        // wallet+sig OK
+  | { kind: "missing_signature" }                                    // wallet present, sig absent → 400
+  | { kind: "invalid_signature" }                                    // wallet+sig present, sig didn't verify → 401
+  | { kind: "signature_without_identity" };                          // sig present, wallet absent → 400
+
+async function verifyDeclareAuth(req: DeclareRequest): Promise<DeclareAuthResult> {
+  if (req.wallet_identity) {
+    if (!req.declare_signature) return { kind: "missing_signature" };
+    const ts = (req as { ts?: string }).ts ?? new Date().toISOString();
+    const canonical: CanonicalDeclareBody = {
+      plan: req.plan,
+      action: req.action,
+      parent_id: req.parent_id ?? null,
+      agent: req.agent ?? null,
+      wallet_identity: req.wallet_identity,
+      ts,
+    };
+    const ok = await verifyDeclareSignature(canonical, req.declare_signature);
+    if (!ok) return { kind: "invalid_signature" };
+    return { kind: "verified", wallet_identity: req.wallet_identity, ts };
+  }
+  if (req.declare_signature) return { kind: "signature_without_identity" };
+  return { kind: "anonymous" };
+}
+
+/**
+ * Run the signed-declare gate + handleDeclare. Auth check is now factored
+ * out into verifyDeclareAuth (above) so the route handler can pre-verify
+ * and surface the wallet identity to the x402 gate. This function honors
+ * a pre-verified ts when set and otherwise re-runs the auth check.
  */
 async function executeDeclare(
   c: Context<ContractRouteEnv>,
   req: DeclareRequest,
 ): Promise<Response> {
   try {
-    if (req.wallet_identity) {
-      if (!req.declare_signature) {
+    const auth = await verifyDeclareAuth(req);
+    switch (auth.kind) {
+      case "missing_signature":
         return c.json(
           {
             error:
@@ -539,28 +566,19 @@ async function executeDeclare(
           },
           400,
         );
-      }
-      const ts = (req as { ts?: string }).ts ?? new Date().toISOString();
-      const canonical: CanonicalDeclareBody = {
-        plan: req.plan,
-        action: req.action,
-        parent_id: req.parent_id ?? null,
-        agent: req.agent ?? null,
-        wallet_identity: req.wallet_identity,
-        ts,
-      };
-      const ok = await verifyDeclareSignature(canonical, req.declare_signature);
-      if (!ok) {
+      case "invalid_signature":
         return c.json({ error: "declare_signature invalid for wallet_identity" }, 401);
-      }
-      (req as { ts?: string }).ts = ts;
-    } else if (req.declare_signature) {
-      return c.json(
-        { error: "declare_signature without wallet_identity is meaningless" },
-        400,
-      );
-    } else {
-      req.agent = "anonymous";
+      case "signature_without_identity":
+        return c.json(
+          { error: "declare_signature without wallet_identity is meaningless" },
+          400,
+        );
+      case "verified":
+        (req as { ts?: string }).ts = auth.ts;
+        break;
+      case "anonymous":
+        req.agent = "anonymous";
+        break;
     }
     const result = await handleDeclare(req, ephemeralLedger());
     return c.json(result);
@@ -586,6 +604,47 @@ contractRoutes.post("/contract/declare", async (c) => {
     c.req.header("X-Unbrowse-Contract-Client")?.toLowerCase() === "aiko";
 
   if (isAikoClient) {
+    // ─── Auth-first gate ordering (SKILL.md "Lineage is server-determined") ───
+    //
+    // Verify declare_signature BEFORE the x402 gate when wallet_identity is
+    // present. Two reasons:
+    //   1. Identify-then-gate: knowing WHO is calling enables onramp routing
+    //      (an unfunded wallet can be triggered for funding instead of just
+    //      402'd into the void). The substrate must observe the wallet
+    //      before deciding the gate's outcome.
+    //   2. Cryptographic shortcut: if the signature is invalid, return 401
+    //      immediately — no point sending a payment envelope to a caller
+    //      who can't prove identity.
+    //
+    // When wallet_identity is absent, the legacy anonymous path still
+    // applies (binary versions before signed-declare landed). Backwards-
+    // compatible. The 402 envelope's `extra.wallet_identity` field is
+    // populated only when auth verified — observers see whose wallet was
+    // gated, and a future onramp adapter can fund from this signal.
+    const auth = await verifyDeclareAuth(req);
+    if (auth.kind === "missing_signature") {
+      return c.json(
+        {
+          error:
+            "declare_signature required when wallet_identity is set — sign the canonical body with the matching ed25519 private key",
+        },
+        400,
+      );
+    }
+    if (auth.kind === "invalid_signature") {
+      return c.json({ error: "declare_signature invalid for wallet_identity" }, 401);
+    }
+    if (auth.kind === "signature_without_identity") {
+      return c.json(
+        { error: "declare_signature without wallet_identity is meaningless" },
+        400,
+      );
+    }
+    // Pin the verified ts so executeDeclare doesn't re-stamp it after payment.
+    if (auth.kind === "verified") {
+      (req as { ts?: string }).ts = auth.ts;
+    }
+
     const payment = c.req.header("X-PAYMENT") ?? c.req.header("x-payment");
     if (!payment) {
       const operatorWallet = c.env.PAYMENT_RECIPIENT?.trim();
@@ -599,7 +658,14 @@ contractRoutes.post("/contract/declare", async (c) => {
         );
       }
       const accepts = sponsorAcceptsForPriceUsd(AIKO_DECLARE_PRICE_USD, operatorWallet);
-      const required = {
+      const required: {
+        x402Version: 2;
+        error: "payment_required";
+        accepts: typeof accepts;
+        facilitator: string;
+        resource: { url: string; description: string; mimeType: string };
+        extra?: { wallet_identity: string; auth_kind: "verified" };
+      } = {
         x402Version: 2,
         error: "payment_required",
         accepts,
@@ -610,6 +676,12 @@ contractRoutes.post("/contract/declare", async (c) => {
           mimeType: "application/json",
         },
       };
+      // Surface the verified wallet identity in the 402 envelope so the
+      // orchestrator + future onramp adapter contracts can route on it.
+      // Doctrine: the substrate observes; observers see what it observed.
+      if (auth.kind === "verified") {
+        required.extra = { wallet_identity: auth.wallet_identity, auth_kind: "verified" };
+      }
       return c.json(required, 402, {
         "PAYMENT-REQUIRED": btoa(JSON.stringify(required)),
         "X-Payment-Required": JSON.stringify(required),
