@@ -105,12 +105,30 @@ export function computeRoutePrice(
   const price_usd = Math.max(MIN_PRICE_USD, Math.min(MAX_PRICE_USD, rawPrice));
 
   const optIn = manifest.owner_compensation_opt_in ?? false;
-  const site_owner_share_usd = optIn ? price_usd * SITE_OWNER_SHARE_PCT : 0;
+
+  // 2026-05-26: execution is FREE BY DEFAULT. The toll only fires when the
+  // domain owner has explicitly opted in via DNS claim + wallet binding
+  // (claim.ts stamps owner_compensation_opt_in + owner_wallet_address +
+  // owner_wallet_usdc_ata + owner_wallet_verified_at). Without that
+  // opt-in, the marketplace still indexes the route, but execution is
+  // free — unbrowse becomes part of the network without imposing a toll
+  // on routes whose owners haven't elected to monetize them.
+  //
+  // The full price (`base × demand × reliability`) is preserved in the
+  // breakdown for telemetry / future-state surfacing, but the
+  // top-level `price_usd` is zero unless opt-in is true. Every consumer
+  // (skill routes, demos, search, sponsor middleware) already checks
+  // `if (priceResult.price_usd > 0)` before gating, so this single change
+  // cascades cleanly to make all paid surfaces free-by-default.
+  const effective_price_usd = optIn ? price_usd : 0;
+  const site_owner_share_usd = optIn ? effective_price_usd * SITE_OWNER_SHARE_PCT : 0;
 
   return {
     skill_id: manifest.skill_id,
-    price_usd,
-    price_display: `$${price_usd.toFixed(6)}`,
+    price_usd: effective_price_usd,
+    price_display: optIn
+      ? `$${effective_price_usd.toFixed(6)}`
+      : `$0 (free; site owner has not opted in via DNS claim + wallet binding)`,
     breakdown: {
       base_price_usd: base,
       demand_multiplier: demandMultiplier,
