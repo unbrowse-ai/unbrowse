@@ -2,6 +2,8 @@
 
 This page explains how money moves through unbrowse on every paid call. The math, the splits, the wallet ownership, and the rails. Every claim cites a file and line in the codebase.
 
+**Companion read:** [THE_FDRY_ECONOMY.md](THE_FDRY_ECONOMY.md) — what happens to the platform's 50% after it's collected. The platform fee cycles through the Voltr vault back to FDRY holders via NAV-per-share growth. That page documents the Vine Doctrine — staking by abiding — and the live-vs-pending matrix for the holder-benefit cycle.
+
 ## Web2 subscription path
 
 For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
