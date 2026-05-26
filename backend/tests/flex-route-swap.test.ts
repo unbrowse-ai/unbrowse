@@ -76,8 +76,6 @@ const BASE_ENV: Env = {
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
   // PR #815: indexing mode default; this suite exercises paid Flex.
-  PAYMENTS_ENABLED: "true",
-  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {

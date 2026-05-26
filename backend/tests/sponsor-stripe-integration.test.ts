@@ -55,7 +55,6 @@ function makeEnv(opts: {
     R2_BUCKET: {} as R2Bucket,
     STATS_KV: makeMemoryKv(),
     ENVIRONMENT: "local-dev",
-    PAYMENTS_ENABLED: "true",
     PLATFORM_SPONSOR_WALLET_ADDRESS: opts.withWallet
       ? "So1PlatformWallet1111111111111111111111111111"
       : undefined,

@@ -38,7 +38,6 @@ function makeEnv(opts?: { withAdminKey?: boolean }): Env {
     R2_BUCKET: {} as R2Bucket,
     STATS_KV: {} as KVNamespace,
     ENVIRONMENT: "local-dev",
-    PAYMENTS_ENABLED: "true",
     ADMIN_KEY: opts?.withAdminKey === false ? undefined : ADMIN_KEY,
   };
 }

@@ -42,9 +42,12 @@ export interface Env {
   UNBROWSE_DEPLOYED_AT?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
-  PAYMENTS_ENABLED?: string;
+  // PAYMENTS_ENABLED / X402_SEARCH_ENABLED removed 2026-05-26: per-skill
+  // owner_compensation_opt_in is the ONLY lever now. No operator-side
+  // env-var escape hatch — the substrate cannot be accidentally turned
+  // on or off by a stale wrangler.toml entry. Indexing is always free;
+  // payment is opt-in per skill via DNS claim + wallet binding.
   CREDITS_ENABLED?: string;
-  X402_SEARCH_ENABLED?: string;
   X402_NETWORK_MODE?: string;
   /**
    * When set to "1"/"true", x402 verification falls back to allow-on-failure

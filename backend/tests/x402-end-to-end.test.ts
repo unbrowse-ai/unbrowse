@@ -60,8 +60,6 @@ const BASE_ENV: Env = {
   ENVIRONMENT: "local-dev",
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
   // PR #815: indexing mode is the default; the paid admission tests opt in.
-  PAYMENTS_ENABLED: "true",
-  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {

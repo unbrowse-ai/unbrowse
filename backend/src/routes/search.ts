@@ -4,7 +4,6 @@ import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoint
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
-import { searchPaymentsEnabled } from "../middleware/x402-gate.js";
 import {
   respondWithFlexTerms,
   sponsorAcceptsForPriceUsd,
@@ -41,8 +40,14 @@ function chargeSearchFee(env: Env, agentId: string): void {
   recordGraphFee(env, agentId, "search").catch(() => {});
 }
 
-function shouldRequireSearchPayment(env: Env): boolean {
-  return searchPaymentsEnabled(env);
+function shouldRequireSearchPayment(_env: Env): boolean {
+  // PR #816: search is ALWAYS free indexing. The previous env-var
+  // escape hatches (`PAYMENTS_ENABLED` + `X402_SEARCH_ENABLED`) are
+  // gone — no operator-side knob can flip search into paid mode. The
+  // function is kept (rather than inlined to `false`) so the cache /
+  // payment-fee call sites still read meaningfully and future per-query
+  // pricing (if ever revisited as a per-skill opt-in) has a single hook.
+  return false;
 }
 
 function normalizeSearchText(value: string | undefined): string {
