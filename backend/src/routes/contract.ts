@@ -469,9 +469,25 @@ export type { ContractEventType };
 // ---------------------------------------------------------------------------
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { Env } from "../types";
+import {
+  sponsorAcceptsForPriceUsd,
+  handleFlexPaymentAuthorized,
+} from "../services/flex-route-helpers.js";
 
-export const contractRoutes = new Hono<{ Bindings: Env }>();
+// `Variables: any` matches the AnyContext shape `handleFlexPaymentAuthorized`
+// expects (it pulls agent_id off the context's Variables map). Other routes
+// in this codebase (llmRoutes etc.) use the same pattern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ContractRouteEnv = { Bindings: Env; Variables: any };
+export const contractRoutes = new Hono<ContractRouteEnv>();
+
+// Substrate-canonical declare price. Hardcoded per "no env hatches" doctrine
+// (SKILL.md Public Shape) — operator changes the price by editing this
+// constant + redeploying, not by flipping a knob. The 1000-microUSDC floor
+// in sponsorAcceptsForPriceUsd guards against zero / negative.
+const AIKO_DECLARE_PRICE_USD = 0.001;
 
 /** Per-request in-memory ledger. Replace with a durable binding
  *  (KV/D1/EmergentDB) in the next stage — same interface, just persistent. */
@@ -496,16 +512,24 @@ function ephemeralLedger(): ContractLedger {
   };
 }
 
-contractRoutes.post("/contract/declare", async (c) => {
-  const req = await c.req.json<DeclareRequest>();
+/**
+ * Run the signed-declare gate + handleDeclare. Extracted from the route
+ * handler so both the aiko-client x402-authorized path and the non-aiko
+ * path share one body. Returns the Response the route returns.
+ *
+ * Signed-declare gate (#33). Three paths:
+ *   1) request carries wallet_identity + declare_signature → verify;
+ *      reject 401 if signature invalid; on pass, mark the row trusted.
+ *   2) request carries wallet_identity but no signature → reject 400
+ *      (claiming identity without proof is the leak we're closing).
+ *   3) request omits both → anonymous path, no signature required;
+ *      handleDeclare auto-coerces agent="anonymous" + visibility="public".
+ */
+async function executeDeclare(
+  c: Context<ContractRouteEnv>,
+  req: DeclareRequest,
+): Promise<Response> {
   try {
-    // Signed-declare gate (#33). Three paths:
-    //   1) request carries wallet_identity + declare_signature → verify;
-    //      reject 401 if signature invalid; on pass, mark the row trusted.
-    //   2) request carries wallet_identity but no signature → reject 400
-    //      (claiming identity without proof is the leak we're closing).
-    //   3) request omits both → anonymous path, no signature required;
-    //      handleDeclare auto-coerces agent="anonymous" + visibility="public".
     if (req.wallet_identity) {
       if (!req.declare_signature) {
         return c.json(
@@ -516,10 +540,6 @@ contractRoutes.post("/contract/declare", async (c) => {
           400,
         );
       }
-      // The client signs over the same canonical body the server reconstructs.
-      // Caller MUST include a ts (they pick the timestamp; server only stamps
-      // ts when it's empty). For signed writes, require ts so replay attacks
-      // are bounded by the wallet owner's clock.
       const ts = (req as { ts?: string }).ts ?? new Date().toISOString();
       const canonical: CanonicalDeclareBody = {
         plan: req.plan,
@@ -533,7 +553,6 @@ contractRoutes.post("/contract/declare", async (c) => {
       if (!ok) {
         return c.json({ error: "declare_signature invalid for wallet_identity" }, 401);
       }
-      // Pass the verified ts through so handleDeclare doesn't restamp it.
       (req as { ts?: string }).ts = ts;
     } else if (req.declare_signature) {
       return c.json(
@@ -541,8 +560,6 @@ contractRoutes.post("/contract/declare", async (c) => {
         400,
       );
     } else {
-      // Anonymous write — coerce identity. Prevents spam writes claiming
-      // arbitrary agent names; everything unsigned lands under "anonymous".
       req.agent = "anonymous";
     }
     const result = await handleDeclare(req, ephemeralLedger());
@@ -550,6 +567,64 @@ contractRoutes.post("/contract/declare", async (c) => {
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
+}
+
+contractRoutes.post("/contract/declare", async (c) => {
+  const req = await c.req.json<DeclareRequest>();
+
+  // Aiko-client x402 gate. The substrate's canonical client identifies
+  // itself via `client: "aiko"` in the body OR the X-Unbrowse-Contract-Client
+  // header. Non-aiko callers (search/admin/mirror upstreams) fall straight
+  // through to the signed-declare gate without a payment requirement —
+  // their attestation is the wallet_identity + declare_signature pair.
+  //
+  // Aiko clients always pay: SKILL.md Public Shape says Faremeter Flex
+  // payment is satisfied by the wallet derived from the binary's deployer
+  // keypair. No admin bypass, no env override of the gate. The donee
+  // address is read from PAYMENT_RECIPIENT (single env source-of-truth).
+  const isAikoClient =
+    c.req.header("X-Unbrowse-Contract-Client")?.toLowerCase() === "aiko";
+
+  if (isAikoClient) {
+    const payment = c.req.header("X-PAYMENT") ?? c.req.header("x-payment");
+    if (!payment) {
+      const operatorWallet = c.env.PAYMENT_RECIPIENT?.trim();
+      if (!operatorWallet) {
+        return c.json(
+          {
+            error: "operator_wallet_missing",
+            message: "PAYMENT_RECIPIENT not configured on this Worker — substrate operator must set the donee address",
+          },
+          503,
+        );
+      }
+      const accepts = sponsorAcceptsForPriceUsd(AIKO_DECLARE_PRICE_USD, operatorWallet);
+      const required = {
+        x402Version: 2,
+        error: "payment_required",
+        accepts,
+        facilitator: "faremeter-flex-solana",
+        resource: {
+          url: "/v1/contract/declare",
+          description: "aiko contract-neuron declaration",
+          mimeType: "application/json",
+        },
+      };
+      return c.json(required, 402, {
+        "PAYMENT-REQUIRED": btoa(JSON.stringify(required)),
+        "X-Payment-Required": JSON.stringify(required),
+      });
+    }
+    // X-PAYMENT present: shared verifier parses+verifies via Flex
+    // facilitator, runs executeFn (the declare body) on verify success,
+    // settles the actual amount, and queues facilitator.flush.
+    return handleFlexPaymentAuthorized(c, payment, {
+      executeFn: async () => executeDeclare(c, req),
+    });
+  }
+
+  // Non-aiko client: signed-declare gate, no payment required.
+  return executeDeclare(c, req);
 });
 
 contractRoutes.post("/contract/iterate", async (c) => {
