@@ -142,6 +142,17 @@ export interface ContractEventRow {
   memory_path?: string;
   /** URL of the Outline document the learning was crystallized into. */
   outline_url?: string;
+
+  /**
+   * Attestation gate verdict — wave 2b of the substrate-server refactor.
+   *   "attested"          — the request carried `x-aiko-spawn-signature` +
+   *                         `x-aiko-lineage-chain`, both verified against
+   *                         the hardcoded deployer pubkey.
+   *   "legacy-anonymous"  — no attestation headers; admitted under the
+   *                         30-day legacy window per design doc § 7.
+   * Set on the parent `declared` row only (children inherit by lineage).
+   */
+  admission?: "attested" | "legacy-anonymous";
 }
 
 /**

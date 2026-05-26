@@ -312,6 +312,22 @@ export interface Env {
    * the cheap-model bearer used; soft-fails if unset.
    */
   UNBROWSE_AI_SCRUB_MODEL?: string;
+  /**
+   * Server-side aiko-compile LLM bearer (used by
+   * `backend/src/services/unbrowse-llm.ts:compileAikoPromptToTree`).
+   * Wave 2b: now load-bearing on `/v1/contract/declare` — when unset, the
+   * route still admits the parent row but skips child-neuron compilation
+   * and surfaces an honest evidence line.
+   */
+  UNBROWSE_LLM_API_KEY?: string;
+  /**
+   * Optional override for the unbrowse-llm chat URL (used by the
+   * lightweight `getUnbrowseLlmBinding` helper). The three-tier
+   * tokenfactory chain in `compileAikoPromptToTree` is hardcoded and
+   * does NOT read this — it's only used by callers that build their
+   * own request directly.
+   */
+  UNBROWSE_LLM_CHAT_URL?: string;
 }
 // --- Agent identity ---
 
