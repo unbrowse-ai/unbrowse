@@ -20,59 +20,48 @@ Windows hardware, both of which exceeded the autonomous session's reach.
 | `kuri-windows-cross-build.yml` workflow checkout | ✅ (PR #805 — was failing on missing `skills/foundry` submodule) |
 | `submodules/kuri` `agent_main.zig` fork→spawnDetached | ✅ (kuri commit `352db65` on `windows-target`, pushed to lekt9/kuri) |
 
-## What's left — ONE blocker
+## Original blocker — CLOSED (kuri commit `88fb333` on windows-target)
 
-**`submodules/kuri/src/cdp/websocket.zig:38`** — direct `std.c.socket()` call returns `c_int` but `std.posix.fd_t` on Windows is `*anyopaque` (Windows HANDLE / SOCKET). The same file calls `std.posix.setsockopt`, `std.posix.SO.RCVTIMEO`, and a `c_connect` extern that all assume POSIX socket semantics. On Windows the equivalents are `WSASocketW`, `WSAConnect`, `closesocket`, and the SO_* constants are different.
+The `websocket.zig:38` ABI mismatch is fixed. WebSocketClient now wraps
+`compat.TcpStream` instead of holding a raw `std.posix.fd_t`. `compat.zig`
+gained `setRecvTimeoutSec(stream, secs)` gated by `if (comptime is_windows)`
+so the dead branch never elaborates `std.posix.SO.RCVTIMEO`. `client.zig`'s
+`drainWsEvents` was updated to match.
 
-Exact zig errors on `-Dtarget=x86_64-windows-gnu`:
+**Result**: `kuri-agent` COMPILES on `x86_64-windows-gnu` (was: 1 error
+in `agent_main.zig:302` — closed earlier via fork→spawnDetached). The
+other build targets (`kuri-fetch`, `kuri-browse`, `merjs-e2e`) all link.
 
+## Three new blockers surfaced (not in websocket scope)
+
+These were hidden behind the websocket error; visible now that the
+websocket layer compiles:
+
+| Site | Error | Shape of fix |
+|---|---|---|
+| `src/main.zig:67` (transitive via `server.discoverTabs`) | `std/posix.zig:402` unsupported OS | Refactor discoverTabs networking to compat.TcpStream OR std.Io.net |
+| `src/server/router.zig:1402` | `std.posix.read(stream.socket.handle, ...)` — std.Io migration needed | Switch to compat.TcpStream.read or migrate the std.net.Stream uses to std.Io |
+| `src/storage/auth_profiles.zig:126` | `std.c.opendir/readdir/closedir` — mingw libc lacks them | Add Windows arm using FindFirstFileW / FindNextFileW / FindClose |
+
+Build summary on windows-target tip `88fb333`:
 ```
-src/cdp/websocket.zig:38:36: error: expected type '*anyopaque', found 'c_int'
-.../std/posix.zig:402:32: error: unsupported OS    (std.posix.SO.RCVTIMEO on Windows)
-.../std/posix.zig:1075:9: error: use std.Io instead
++- install kuri               ← 3 errors (sites above)
++- install kuri-agent         ← COMPILES ✅
++- install kuri-fetch         ← LINKS  ✅
++- install kuri-browse        ← LINKS  ✅
++- install merjs-e2e          ← LINKS  ✅
 ```
 
-## What the fix looks like
+## Why the websocket fix is honest progress, not "Windows green"
 
-Two PRs against `lekt9/kuri:windows-target`:
-
-### PR 1 — add socket primitives to `src/compat.zig`
-
-Mirror the existing `spawnDetached / waitProc / killProc` pattern. Add:
-
-```zig
-pub const Socket = if (is_windows) win.SOCKET else std.posix.socket_t;
-
-pub fn socketTcp4() !Socket
-pub fn socketConnect(sock: Socket, ip: u32, port: u16) !void
-pub fn socketSetRecvTimeout(sock: Socket, secs: i32) !void
-pub fn socketRead(sock: Socket, buf: []u8) !usize
-pub fn socketWrite(sock: Socket, buf: []const u8) !usize
-pub fn socketClose(sock: Socket) void
-```
-
-Windows branch uses `WSAStartup` (one-time init), `WSASocketW`, `connect`,
-`recv`, `send`, `closesocket`. POSIX branch shells out to `std.c.socket` /
-`std.posix.setsockopt` / `std.posix.read` / `std.posix.write` / `std.c.close`.
-
-### PR 2 — `src/cdp/websocket.zig` calls the compat layer
-
-Replace direct `std.c.socket(...)`, `c_connect(...)`, `std.posix.setsockopt(...)`
-with `compat.socketTcp4()`, `compat.socketConnect(...)`, `compat.socketSetRecvTimeout(...)`,
-etc. `WebSocketClient.fd` becomes `compat.Socket`.
-
-Pure mechanical refactor once PR 1's primitives exist.
-
-## Why this didn't ship tonight
-
-- The Windows socket API differs from POSIX in non-trivial ways (init,
-  handle type, close function name, sockopt constants). Getting it
-  wrong silently breaks at runtime, not at compile time.
-- The change cannot be verified from a Mac. C-G06 (verify the served
-  surface, not the source) is binding here: a Zig cross-compile that
-  passes `zig build` does NOT prove the resulting binary actually
-  connects to Chrome's CDP on Windows. Without a Windows machine, we'd
-  be claiming green without evidence.
+- C-G06 binding: compile-time green ≠ runtime verified. The websocket
+  refactor is correct at compile time; whether the resulting websocket
+  actually shakes hands with Chrome's CDP on a real Windows machine
+  needs Win11 hardware to verify.
+- The metric "websocket.zig:38 compiles on Windows" is satisfied.
+- The metric "kuri.exe ships on Windows" is NOT satisfied (3 sites remain).
+- Three more PRs against `lekt9/kuri:windows-target` close kuri.exe;
+  none in scope of this commit chain.
 
 ## Two paths to close it
 
@@ -91,7 +80,10 @@ verification cost across every future Windows-touching PR.
 | Pre-2026-05-26 | `kuri-windows-cross-build.yml` failed at checkout (`skills/foundry` submodule missing). 4-second failure. No real attempt. |
 | 2026-05-26 02:38 | Checkout fixed (PR #805). Cross-build runs zig. Fails on agent_main.zig:302 (fork) + websocket.zig:38 (socket). |
 | 2026-05-26 02:50 | agent_main.zig fix shipped (kuri `352db65` on windows-target, pushed to lekt9/kuri). |
-| Now | One remaining error: websocket.zig:38. Documented above with exact API surface needed. |
+| 2026-05-26 03:05 | websocket.zig + client.zig refactor to compat.TcpStream (kuri `88fb333`). `kuri-agent` + 3 other exes now COMPILE on Windows. `kuri` still fails on 3 distinct sites listed above. |
+| Now | submodules/kuri SHA bumped on unbrowse-dev main; cross-build workflow re-fired. |
 
-The unbrowse-dev pipeline is READY. The remaining blocker is one
-compat-layer extension in the kuri submodule.
+The unbrowse-dev pipeline is READY. Three remaining sites in kuri are
+distinct Windows-port work, scoped for separate PRs (router → compat
+or std.Io; auth_profiles → Win32 directory enumeration; main.zig
+transitive via discoverTabs).
