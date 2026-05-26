@@ -55,10 +55,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout (with submodules)
+      - name: Checkout (root only — submodules pulled selectively)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # submodules: recursive — DISABLED 2026-05-26. The
+          # `skills/foundry` submodule points at unbrowse-ai/foundry which
+          # is private/missing for the CI token and aborts the entire
+          # recursive checkout. We only need submodules/kuri for this
+          # workflow, so do a selective init below.
+          submodules: false
+
+      - name: Init submodules/kuri only
+        run: |
+          git submodule init submodules/kuri
+          git submodule update --init --depth=1 submodules/kuri
 
       - name: Optionally switch kuri ref
         if: github.event.inputs.kuri_ref != ''
