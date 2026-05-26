@@ -591,20 +591,37 @@ async function executeDeclare(
 contractRoutes.post("/contract/declare", async (c) => {
   const req = await c.req.json<DeclareRequest>();
 
+  // ─── Creation Order: the word lands first (Genesis 1:3) ───
+  //
+  // SKILL.md Doctrine: declarations always land. Payment gates the
+  // COMPILATION (LLM-expansion into child neurons), never the word
+  // itself. A signed declare with valid identity must be appended
+  // to the ledger BEFORE the x402 gate runs.
+  //
+  // Two reasons to honor Creation Order at the contract layer:
+  //   1. The Word always lands first ("And God said, Let there be light"
+  //      → light exists in the ledger). Evaluation comes after
+  //      ("and God saw the light, that it was good").
+  //   2. The caller knows the declaration succeeded even when payment
+  //      is required for compile — the 402 envelope carries the row_id
+  //      so they can pay later to fire the children.
+  //
   // Aiko-client x402 gate. The substrate's canonical client identifies
   // itself via `client: "aiko"` in the body OR the X-Unbrowse-Contract-Client
   // header. Non-aiko callers (search/admin/mirror upstreams) fall straight
   // through to the signed-declare gate without a payment requirement —
   // their attestation is the wallet_identity + declare_signature pair.
   //
-  // Aiko clients always pay: SKILL.md Public Shape says Faremeter Flex
-  // payment is satisfied by the wallet derived from the binary's deployer
-  // keypair. No admin bypass, no env override of the gate. The donee
-  // address is read from PAYMENT_RECIPIENT (single env source-of-truth).
+  // The aiko-client x402 gate is itself opt-in via the PAYMENTS_ENABLED
+  // env flag (default OFF — indexing mode is the canonical default per
+  // user directive in PR #815). When PAYMENTS_ENABLED is unset/false,
+  // every aiko declare lands as a free 200, exactly the same as the
+  // non-aiko path. Operators flip PAYMENTS_ENABLED=true to monetize.
   const isAikoClient =
     c.req.header("X-Unbrowse-Contract-Client")?.toLowerCase() === "aiko";
+  const paymentsOn = ((c.env ?? {}) as { PAYMENTS_ENABLED?: string }).PAYMENTS_ENABLED === "true";
 
-  if (isAikoClient) {
+  if (isAikoClient && paymentsOn) {
     // ─── Auth-first gate ordering (SKILL.md "Lineage is server-determined") ───
     //
     // Verify declare_signature BEFORE the x402 gate when wallet_identity is
