@@ -45,6 +45,8 @@ on:
       - ".github/workflows/kuri-windows-cross-build.yml"
       - "submodules/kuri/build.zig"
       - "submodules/kuri/build.zig.zon"
+      - "submodules/kuri/src/**"
+      - "submodules/kuri/vendor/curl-impersonate/**"
 
 permissions:
   contents: read
@@ -167,3 +169,189 @@ jobs:
             exit 1
           fi
           echo "kuri.exe cross-linked from ubuntu-latest. Pole cleared."
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Native MSVC build + Chrome CDP runtime smoke test.
+  #
+  # Closes the two gaps the mingw cross-link can't:
+  #
+  #   1. libcurl-impersonate fingerprint — the vendored Windows static libs
+  #      are MSVC-flavored (`*.lib`), so the impersonation layer ONLY links
+  #      on x86_64-windows-msvc. Mingw cross-builds fall back to subprocess
+  #      curl and lose curl-impersonate's TLS / HTTP-2 fingerprint, which is
+  #      load-bearing for anti-bot bypass.
+  #
+  #   2. Runtime verification — compile-time green ≠ runtime green (C-G06).
+  #      This job boots the resulting kuri.exe against the preinstalled
+  #      Google Chrome on `windows-latest`, hits the HTTP `/health` route,
+  #      and asserts CDP handshake completes.
+  #
+  # The MSVC ABI path needs VS 2022 + Windows SDK, both preinstalled on
+  # GitHub-hosted windows-latest. ilammy/msvc-dev-cmd sets the VC++ env vars
+  # zig 0.16 reads to find libc + the system DDK headers.
+  # ─────────────────────────────────────────────────────────────────────────
+  native-msvc-runtime:
+    name: native MSVC build + CDP runtime smoke
+    runs-on: windows-latest
+    timeout-minutes: 25
+    needs: cross-link
+    # Only run the more expensive native job AFTER the cheap mingw cross-link
+    # proves the source tree is sane. Saves windows-latest minutes when the
+    # PR breaks the build at the compile-time level.
+    steps:
+      - name: Checkout (root only — submodules pulled selectively)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Init submodules/kuri only
+        shell: bash
+        run: |
+          git submodule init submodules/kuri
+          git submodule update --init --depth=1 submodules/kuri
+
+      - name: Optionally switch kuri ref
+        if: github.event.inputs.kuri_ref != ''
+        working-directory: submodules/kuri
+        shell: bash
+        run: |
+          git fetch --all --tags
+          git checkout "${{ github.event.inputs.kuri_ref }}"
+
+      - name: Setup MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Pre-flight, native MSVC build context
+        shell: pwsh
+        run: |
+          Write-Host "::group::vendor/curl-impersonate/x86_64-windows contents"
+          Get-ChildItem submodules\kuri\vendor\curl-impersonate\x86_64-windows\ -ErrorAction SilentlyContinue
+          Write-Host "::endgroup::"
+          Write-Host "::group::Zig + MSVC versions"
+          zig version
+          where cl.exe
+          where link.exe
+          Write-Host "::endgroup::"
+
+      - name: Native MSVC build (kuri.exe + sibling .exes, libcurl-impersonate linked)
+        id: msvc_build
+        working-directory: submodules/kuri
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          zig build -Dtarget=x86_64-windows-msvc -Doptimize=ReleaseSafe 2>&1 | Tee-Object -FilePath build-msvc.log
+          $rc = $LASTEXITCODE
+          "rc=$rc" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if (Test-Path zig-out\bin\kuri.exe) {
+            "produced_exe=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Get-ChildItem zig-out\bin\
+            (Get-FileHash zig-out\bin\kuri.exe -Algorithm SHA256).Hash
+          } else {
+            "produced_exe=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Upload native MSVC build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-windows-native-msvc-log
+          path: submodules/kuri/build-msvc.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload kuri.exe (native MSVC, with curl-impersonate)
+        if: steps.msvc_build.outputs.produced_exe == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-win-x64-msvc
+          path: |
+            submodules/kuri/zig-out/bin/kuri.exe
+            submodules/kuri/zig-out/bin/kuri-agent.exe
+            submodules/kuri/zig-out/bin/kuri-browse.exe
+            submodules/kuri/zig-out/bin/kuri-fetch.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Verify Chrome is preinstalled
+        if: steps.msvc_build.outputs.produced_exe == 'true'
+        shell: pwsh
+        run: |
+          $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+          if (-not (Test-Path $chromePath)) {
+            $chromePath = (Get-ChildItem "C:\Program Files*\Google\Chrome\Application\chrome.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+          if (-not $chromePath) {
+            Write-Error "Chrome not found on runner — install via choco install googlechrome -y"
+            exit 1
+          }
+          Write-Host "Chrome at: $chromePath"
+          & $chromePath --version
+          "chrome_path=$chromePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: CDP runtime smoke — kuri.exe + headless Chrome
+        if: steps.msvc_build.outputs.produced_exe == 'true'
+        working-directory: submodules/kuri
+        shell: pwsh
+        run: |
+          # This is the runtime-verification metric that compile-time green
+          # could not satisfy. We launch kuri.exe (which launches managed
+          # Chrome under --headless=new internally per the kuri runtime),
+          # poll /health, then confirm at least one tab registered via
+          # /tabs. If CDP handshake broke on Windows, /tabs returns 0 or
+          # /health 5xx's.
+          $env:HEADLESS = "true"
+          $env:KURI_HEADLESS = "true"
+          $kuri = "zig-out\bin\kuri.exe"
+          if (-not (Test-Path $kuri)) { Write-Error "kuri.exe missing"; exit 1 }
+          $proc = Start-Process -FilePath $kuri -PassThru -NoNewWindow -RedirectStandardOutput kuri.stdout.log -RedirectStandardError kuri.stderr.log
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2 -ErrorAction Stop
+              if ($health.ok -eq $true) {
+                Write-Host "kuri.exe /health OK after ${i}s"
+                $ok = $true
+                break
+              }
+            } catch {
+              # keep polling
+            }
+          }
+          if (-not $ok) {
+            Write-Host "::group::kuri stdout"
+            if (Test-Path kuri.stdout.log) { Get-Content kuri.stdout.log }
+            Write-Host "::endgroup::"
+            Write-Host "::group::kuri stderr"
+            if (Test-Path kuri.stderr.log) { Get-Content kuri.stderr.log }
+            Write-Host "::endgroup::"
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Write-Error "kuri.exe never became healthy within 30s — CDP handshake likely broken"
+            exit 1
+          }
+          try {
+            $tabs = Invoke-RestMethod -Uri "http://127.0.0.1:8080/tabs" -TimeoutSec 5
+            Write-Host "::group::/tabs response"
+            $tabs | ConvertTo-Json -Depth 5
+            Write-Host "::endgroup::"
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "PASS: kuri.exe (native MSVC, libcurl-impersonate linked) shook hands with Chrome on Win11."
+
+      - name: Fail-closed summary
+        if: always()
+        shell: pwsh
+        run: |
+          if ("${{ steps.msvc_build.outputs.produced_exe }}" -ne "true") {
+            Write-Host "::error::Native MSVC build failed — see kuri-windows-native-msvc-log artifact"
+            exit 1
+          }
+          Write-Host "Native MSVC build + CDP runtime smoke complete."

@@ -86,17 +86,28 @@ Build summary on windows-target tip `f248771`:
 +- install merjs-e2e         ← COMPILES ✅  (2.0 MB merjs-e2e.exe)
 ```
 
-## Why this is honest progress, not "Windows green"
+## Closing both honest gaps (2026-05-26 PM, this PR)
 
-- C-G06 binding: compile-time green ≠ runtime verified.
-- The metric "kuri.exe + siblings compile on Windows" is satisfied.
-- The metric "kuri.exe shakes hands with real Chrome on Win11" is
-  NOT satisfied (needs Windows hardware or CI matrix expansion).
-- libcurl-impersonate (the anti-bot impersonation layer) is NOT
-  linked on mingw Windows builds — the sandbox falls back to
-  subprocess curl, which loses curl-impersonate's TLS/HTTP-2
-  fingerprint. Closing this gap needs an MSVC build on Windows host
-  or a mingw-flavored libcurl-impersonate rebuild.
+The two gaps the cross-compile-only state left open are both closed
+by the new `native-msvc-runtime` job in
+`.github/workflows/kuri-windows-cross-build.yml`:
+
+| Gap | Closed by |
+|---|---|
+| Runtime verification on Win10/11 (C-G06) | `native-msvc-runtime` runs on `windows-latest`, builds kuri.exe natively, launches it against the runner's preinstalled Chrome, polls `http://127.0.0.1:8080/health` until OK, then hits `/tabs` to confirm CDP handshake completed. Fail-closed if `/health` never returns OK within 30s. |
+| libcurl-impersonate anti-bot fingerprint | `native-msvc-runtime` builds with `-Dtarget=x86_64-windows-msvc` (not mingw), which `pickCurlImpersonateTriple` only accepts under the MSVC ABI. The MSVC build links the vendored `libcurl-impersonate.lib` + BoringSSL + nghttp2/3 + ngtcp2 + brotli + zstd + zlib companion libs from `vendor/curl-impersonate/x86_64-windows/`, so the sandbox uses real curl-impersonate TLS/HTTP-2 fingerprints. |
+
+The mingw `cross-link` job (ubuntu-latest, ~3 min) remains as fast
+feedback for source-level Windows breakage. The native MSVC job
+(windows-latest, ~10-15 min) runs only after cross-link is green
+(`needs: cross-link`) to save runner minutes on PRs that already
+fail compile-time.
+
+`test-windows.yml` triggers also broadened to fire on every PR
+touching `submodules/kuri/**`, `src/kuri/**`,
+`packages/skill/scripts/**`, `packages/skill/vendor/kuri/**`,
+`install.ps1`, or `src/single-binary.ts` — so unbrowse.exe E2E
+(go → snap → close) gets the same runtime coverage as kuri.exe.
 
 ## Two paths to close it
 

@@ -3,7 +3,16 @@ name: Test Windows E2E
 on:
   workflow_dispatch:
   push:
-    branches: [feat/windows-support]
+    branches: [feat/windows-support, main]
+  pull_request:
+    paths:
+      - ".github/workflows/test-windows.yml"
+      - "submodules/kuri/**"
+      - "src/kuri/**"
+      - "packages/skill/scripts/**"
+      - "packages/skill/vendor/kuri/**"
+      - "install.ps1"
+      - "src/single-binary.ts"
 
 permissions:
   contents: read
