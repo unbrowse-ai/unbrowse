@@ -39,7 +39,13 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
 [vars]
 ENVIRONMENT = "production"
-PAYMENTS_ENABLED = "true"
+# Creation Order doctrine (SKILL.md + memory/creation-order-lens):
+# declarations always land; payment gates compilation, not the declaration
+# itself. Composes with PR #815 (indexing mode default). Flip to "true"
+# only when the FDRY revenue cycle (routeRevenue.ts → Voltr vault →
+# NAV-per-share) is fully automated — charging without distributing is
+# leaven until then.
+PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
@@ -83,7 +89,7 @@ preview_id = "f4fe69f30a3c47008a627113a505f38b"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-PAYMENTS_ENABLED = "true"
+PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "true"
 X402_NETWORK_MODE = "mainnet"
@@ -113,7 +119,7 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
 [env.experiments.vars]
 ENVIRONMENT = "staging"
-PAYMENTS_ENABLED = "true"
+PAYMENTS_ENABLED = "false"
 CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
