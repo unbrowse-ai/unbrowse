@@ -1,9 +1,30 @@
-# Windows port — exact state and remaining blocker
+# Windows port — exact state
 
-This doc captures the precise state of the Windows port as of 2026-05-26
-after a drill session that closed 3 of 4 blockers. One blocker remains;
-it requires Zig+Windows socket-API work and verification on actual
-Windows hardware, both of which exceeded the autonomous session's reach.
+This doc captures the precise state of the Windows port. As of kuri
+windows-target commit `f248771` (2026-05-26 PM), every source-level
+Windows blocker is CLOSED. `kuri.exe` plus 4 sibling `.exe`s
+(kuri-agent, kuri-browse, kuri-fetch, merjs-e2e) compile and link clean
+for `x86_64-windows-gnu` cross-compile from a macOS host. The only
+remaining gap is runtime verification on actual Windows hardware (or a
+`windows-latest` CI matrix runner that boots Chrome and exercises CDP).
+
+## Compile-time state (verified)
+
+`zig build -Dtarget=x86_64-windows-gnu` from macOS Sonoma + Zig 0.16.0
+produces:
+
+```
+zig-out/bin/kuri.exe          5.1 MB
+zig-out/bin/kuri-agent.exe    2.5 MB
+zig-out/bin/kuri-browse.exe   5.3 MB
+zig-out/bin/kuri-fetch.exe    6.5 MB
+zig-out/bin/merjs-e2e.exe     2.0 MB
+```
+
+The only build warning is the expected `no vendored libcurl-impersonate
+for x86_64-windows; sandbox will fall back to subprocess curl` — the
+vendor lib drop is MSVC-flavored and cannot link via mingw on a POSIX
+host. The sandbox subprocess-curl fallback is unchanged.
 
 ## What works
 
@@ -32,36 +53,50 @@ so the dead branch never elaborates `std.posix.SO.RCVTIMEO`. `client.zig`'s
 in `agent_main.zig:302` — closed earlier via fork→spawnDetached). The
 other build targets (`kuri-fetch`, `kuri-browse`, `merjs-e2e`) all link.
 
-## Three new blockers surfaced (not in websocket scope)
+## Three new blockers — ALL CLOSED in kuri commit `f248771`
 
-These were hidden behind the websocket error; visible now that the
-websocket layer compiles:
+These were hidden behind the websocket error; visible after the websocket
+layer compiled; closed in one commit on `lekt9/kuri:windows-target`:
 
-| Site | Error | Shape of fix |
+| Site | Original error | Fix in `f248771` |
 |---|---|---|
-| `src/main.zig:67` (transitive via `server.discoverTabs`) | `std/posix.zig:402` unsupported OS | Refactor discoverTabs networking to compat.TcpStream OR std.Io.net |
-| `src/server/router.zig:1402` | `std.posix.read(stream.socket.handle, ...)` — std.Io migration needed | Switch to compat.TcpStream.read or migrate the std.net.Stream uses to std.Io |
-| `src/storage/auth_profiles.zig:126` | `std.c.opendir/readdir/closedir` — mingw libc lacks them | Add Windows arm using FindFirstFileW / FindNextFileW / FindClose |
+| `src/storage/auth_profiles.zig:126` | `std.c.opendir/readdir/closedir` — mingw libc lacks them | New `compat.listDirNames` primitive: POSIX arm keeps std.c; Windows arm uses `FindFirstFileW` / `FindNextFileW` / `FindClose` over `WIN32_FIND_DATAW` with UTF-16LE → UTF-8 conversion |
+| `src/server/router.zig:1402` | `std.posix.read(stream.socket.handle, ...)` + `std.net.IpAddress.connect` | `discoverTabs` migrated to `compat.tcpConnectToHost` + `stream.writeAll` + `stream.read` + `compat.setRecvTimeoutSec`; error set drops `CannotResolveChromeAddress` |
+| `src/main.zig:67` (transitive via `server.discoverTabs`) | `std/posix.zig:402` unsupported OS | Closed automatically by the router.zig migration above |
 
-Build summary on windows-target tip `88fb333`:
+Plus the libcurl-impersonate Windows wiring (`build.zig` + `src/sandbox/curl_lib.zig`):
+
+- `pickCurlImpersonateTriple` now returns the Windows triples, but
+  only for the MSVC ABI — the vendor `.lib` drop is MSVC-built and
+  cannot link via mingw on a POSIX host.
+- mingw cross-compile falls through to the existing
+  "no vendored libcurl-impersonate, sandbox falls back to subprocess
+  curl" warn-and-skip path the build.zig already had.
+- `src/sandbox/curl_lib.zig` adds a `comptime have_curl` guard that
+  swaps the FFI surface for a stub namespace on mingw, so the link
+  completes; `perform()` returns `error.CurlInitFailed` and the caller
+  routes to subprocess-curl, matching the build warning's promise.
+
+Build summary on windows-target tip `f248771`:
 ```
-+- install kuri               ← 3 errors (sites above)
-+- install kuri-agent         ← COMPILES ✅
-+- install kuri-fetch         ← LINKS  ✅
-+- install kuri-browse        ← LINKS  ✅
-+- install merjs-e2e          ← LINKS  ✅
++- install kuri              ← COMPILES ✅  (5.1 MB kuri.exe)
++- install kuri-agent        ← COMPILES ✅  (2.5 MB kuri-agent.exe)
++- install kuri-fetch        ← COMPILES ✅  (6.5 MB kuri-fetch.exe)
++- install kuri-browse       ← COMPILES ✅  (5.3 MB kuri-browse.exe)
++- install merjs-e2e         ← COMPILES ✅  (2.0 MB merjs-e2e.exe)
 ```
 
-## Why the websocket fix is honest progress, not "Windows green"
+## Why this is honest progress, not "Windows green"
 
-- C-G06 binding: compile-time green ≠ runtime verified. The websocket
-  refactor is correct at compile time; whether the resulting websocket
-  actually shakes hands with Chrome's CDP on a real Windows machine
-  needs Win11 hardware to verify.
-- The metric "websocket.zig:38 compiles on Windows" is satisfied.
-- The metric "kuri.exe ships on Windows" is NOT satisfied (3 sites remain).
-- Three more PRs against `lekt9/kuri:windows-target` close kuri.exe;
-  none in scope of this commit chain.
+- C-G06 binding: compile-time green ≠ runtime verified.
+- The metric "kuri.exe + siblings compile on Windows" is satisfied.
+- The metric "kuri.exe shakes hands with real Chrome on Win11" is
+  NOT satisfied (needs Windows hardware or CI matrix expansion).
+- libcurl-impersonate (the anti-bot impersonation layer) is NOT
+  linked on mingw Windows builds — the sandbox falls back to
+  subprocess curl, which loses curl-impersonate's TLS/HTTP-2
+  fingerprint. Closing this gap needs an MSVC build on Windows host
+  or a mingw-flavored libcurl-impersonate rebuild.
 
 ## Two paths to close it
 
@@ -81,9 +116,12 @@ verification cost across every future Windows-touching PR.
 | 2026-05-26 02:38 | Checkout fixed (PR #805). Cross-build runs zig. Fails on agent_main.zig:302 (fork) + websocket.zig:38 (socket). |
 | 2026-05-26 02:50 | agent_main.zig fix shipped (kuri `352db65` on windows-target, pushed to lekt9/kuri). |
 | 2026-05-26 03:05 | websocket.zig + client.zig refactor to compat.TcpStream (kuri `88fb333`). `kuri-agent` + 3 other exes now COMPILE on Windows. `kuri` still fails on 3 distinct sites listed above. |
-| Now | submodules/kuri SHA bumped on unbrowse-dev main; cross-build workflow re-fired. |
+| 2026-05-26 11:27 | All 3 remaining sites CLOSED in kuri `f248771`: auth_profiles via `compat.listDirNames`, router via `compat.TcpStream`, main.zig transitively. Plus libcurl-impersonate Windows wiring with mingw stub fallback. `kuri.exe` + 4 sibling .exe's all compile clean on `x86_64-windows-gnu`. |
+| Now | submodules/kuri SHA bumped to `f248771`; cross-build workflow ready to re-fire. |
 
-The unbrowse-dev pipeline is READY. Three remaining sites in kuri are
-distinct Windows-port work, scoped for separate PRs (router → compat
-or std.Io; auth_profiles → Win32 directory enumeration; main.zig
-transitive via discoverTabs).
+The unbrowse-dev pipeline is READY. Source-level Windows port is
+COMPLETE; runtime verification on actual Windows hardware (or a
+`windows-latest` CI matrix runner that boots Chrome) is the remaining
+gap. Recommended next move: extend `.github/workflows/kuri-windows-cross-build.yml`
+to also run `kuri.exe` against a headless Chrome on a `windows-latest`
+runner so future Windows-touching PRs get automated coverage.
