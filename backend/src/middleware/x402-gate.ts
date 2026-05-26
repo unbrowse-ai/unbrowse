@@ -29,10 +29,27 @@ export interface X402PaymentRequirementV2 {
   extra?: Record<string, unknown>;
 }
 
+// 2026-05-26: indexing-mode is the DEFAULT.
+//
+// Doctrine: unbrowse must work with AND without x402. By default, every
+// user-facing route (resolve, search, skill read, execute) runs in
+// indexing mode — no payment header required, no 402 emitted. Payment
+// is an opt-in feature for operators who explicitly want to charge,
+// gated by PAYMENTS_ENABLED=true in the operator's Worker env.
+//
+// Production wrangler.toml has PAYMENTS_ENABLED="true" explicitly set,
+// so prod behavior is unchanged. Self-hosted operators, staging, dev,
+// and any environment where the env var is unset get the free-by-default
+// indexing path — exactly what the user types `npx unbrowse` for.
+//
+// Truthy values that explicitly enable payments: "true", "1", "on", "enabled", "yes"
+// Anything else (including unset / empty) = indexing mode.
+const PAYMENTS_ENABLED_TRUTHY = ["1", "true", "on", "enabled", "yes"];
+
 export function paymentsEnabled(env: Pick<Env, "PAYMENTS_ENABLED">): boolean {
   const raw = env.PAYMENTS_ENABLED?.trim().toLowerCase();
-  if (!raw) return true;
-  return !["0", "false", "off", "disabled", "no"].includes(raw);
+  if (!raw) return false; // default: indexing mode, no x402 ever fires
+  return PAYMENTS_ENABLED_TRUTHY.includes(raw);
 }
 
 export function searchPaymentsEnabled(
@@ -40,8 +57,8 @@ export function searchPaymentsEnabled(
 ): boolean {
   if (!paymentsEnabled(env)) return false;
   const raw = env.X402_SEARCH_ENABLED?.trim().toLowerCase();
-  if (!raw) return true;
-  return !["0", "false", "off", "disabled", "no"].includes(raw);
+  if (!raw) return false; // search payment also opt-in even when global payments enabled
+  return PAYMENTS_ENABLED_TRUTHY.includes(raw);
 }
 
 export function x402UseTestnet(

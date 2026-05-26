@@ -83,6 +83,11 @@ const BASE_ENV: Env = {
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
+  // PR #815: indexing mode is the default. This e2e suite exercises the
+  // PAID Flex admission path; opt in to payments here. The edge-2 test
+  // overrides to "false" inline to prove the indexing-mode default path.
+  PAYMENTS_ENABLED: "true",
+  X402_SEARCH_ENABLED: "true",
 };
 
 const flexSkill: SkillManifest = {
@@ -108,6 +113,10 @@ const flexSkill: SkillManifest = {
   ],
   lifecycle: "active",
   base_price_usd: 0.002,
+  // PR #810 doctrine: pricing returns $0 unless owner_compensation_opt_in
+  // is set true (DNS claim + wallet binding). This fixture IS the paid
+  // admission path under test, so opt-in is set true here.
+  owner_compensation_opt_in: true,
   contributors: [
     {
       agent_id: "agent-alpha",

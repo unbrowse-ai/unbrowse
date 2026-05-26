@@ -75,6 +75,9 @@ const BASE_ENV: Env = {
   PAYMENT_RECIPIENT: "0xplatformwallet",
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
+  // PR #815: indexing mode default; this suite exercises paid Flex.
+  PAYMENTS_ENABLED: "true",
+  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {
@@ -98,6 +101,8 @@ const paidSkill: SkillManifest = {
   }],
   lifecycle: "active",
   base_price_usd: 0.01,
+  // PR #810: pricing returns $0 unless owner_compensation_opt_in. Paid path under test.
+  owner_compensation_opt_in: true,
   contributors: [{
     agent_id: "agent-alpha",
     wallet_address: "WalletContrib1111111111111111111111111111111",
