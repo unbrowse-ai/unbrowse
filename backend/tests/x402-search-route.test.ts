@@ -31,6 +31,11 @@ const BASE_ENV: Env = {
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
+  // PR #815: indexing mode is the default. This suite specifically tests the
+  // PAID search admission path; opt in here. The "search free when payments
+  // disabled" test below overrides to "false" inline.
+  PAYMENTS_ENABLED: "true",
+  X402_SEARCH_ENABLED: "true",
 };
 
 describe("search route x402 gating — Flex envelope (v6.16)", () => {

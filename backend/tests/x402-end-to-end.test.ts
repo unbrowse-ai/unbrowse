@@ -59,6 +59,9 @@ const BASE_ENV: Env = {
   STATS_KV: {} as KVNamespace,
   ENVIRONMENT: "local-dev",
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
+  // PR #815: indexing mode is the default; the paid admission tests opt in.
+  PAYMENTS_ENABLED: "true",
+  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {
@@ -84,6 +87,8 @@ const paidSkill: SkillManifest = {
   ],
   lifecycle: "active",
   base_price_usd: 0.002,
+  // PR #810: pricing returns $0 unless owner_compensation_opt_in. Paid path under test.
+  owner_compensation_opt_in: true,
   contributors: [
     {
       agent_id: "agent-alpha",

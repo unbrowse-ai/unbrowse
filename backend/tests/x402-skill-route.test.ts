@@ -32,6 +32,13 @@ const BASE_ENV: Env = {
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
+  // Indexing-mode default is OFF (PR #815 doctrine). The x402-skill-route
+  // suite explicitly tests the PAID admission path, so it must opt in to
+  // payments here. Tests that exercise the indexing-mode path override
+  // back to "false" inline. Production wrangler.toml sets these "true"
+  // explicitly, so prod parity holds.
+  PAYMENTS_ENABLED: "true",
+  X402_SEARCH_ENABLED: "true",
 };
 
 const paidSkill: SkillManifest = {
@@ -57,6 +64,11 @@ const paidSkill: SkillManifest = {
   ],
   lifecycle: "active",
   base_price_usd: 0.002,
+  // PR #810 doctrine: execute is free by default; the toll only fires
+  // when the site owner has explicitly opted in via DNS claim + wallet
+  // binding. This fixture IS the paid-skill admission path under test,
+  // so opt-in is set true here.
+  owner_compensation_opt_in: true,
   contributors: [
     {
       agent_id: "agent-alpha",
