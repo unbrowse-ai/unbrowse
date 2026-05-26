@@ -145,6 +145,59 @@ describe("/v1/contract/* — wired Hono router", () => {
     expect(body.error).toBe("operator_wallet_missing");
   });
 
+  test("aiko-client with wallet_identity + missing signature → 400 BEFORE 402 (auth-first gate)", async () => {
+    // The substrate identifies WHO is calling before deciding the payment
+    // gate's outcome. A wallet_identity without a signature is a leak —
+    // the request claims an identity it cannot prove. Reject 400 rather
+    // than 402, surfacing the auth failure to the caller.
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({
+          plan: "auth-first-probe",
+          action: "agent-judges",
+          wallet_identity: "0a59801ade098947b9362af60d77439e7cb17e179ca606bf08bcbeabe9c42296",
+          // declare_signature intentionally omitted — auth gate must catch this
+        }),
+      }),
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("declare_signature required");
+  });
+
+  test("aiko-client with wallet_identity + bad signature → 401 BEFORE 402 (auth-first gate)", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({
+          plan: "auth-first-bad-sig",
+          action: "agent-judges",
+          wallet_identity: "0a59801ade098947b9362af60d77439e7cb17e179ca606bf08bcbeabe9c42296",
+          declare_signature: "00".repeat(64), // 128 hex chars, definitely invalid
+          ts: "2026-05-26T03:00:00.000Z",
+        }),
+      }),
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+    );
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("invalid");
+  });
+
   test("POST /v1/contract/declare WITHOUT aiko client header is NOT 402-gated", async () => {
     // Same body as the gated test, but missing the X-Unbrowse-Contract-Client
     // header. Should fall through to the signed-declare gate (anonymous-ok)
