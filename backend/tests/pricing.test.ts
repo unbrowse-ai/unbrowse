@@ -98,11 +98,16 @@ describe("computeReliabilityMultiplier", () => {
 
 // ─── computeRoutePrice tests ──────────────────────────────────────────────────
 
-describe("computeRoutePrice — price bounds", () => {
+describe("computeRoutePrice — price bounds (opted-in skills)", () => {
+  // 2026-05-26: execution is FREE BY DEFAULT. The pricing-math tests
+  // below exercise the opted-in path (owner_compensation_opt_in: true)
+  // since the math only applies when the owner has opted in. The
+  // free-by-default behavior is tested in the "free-by-default" describe
+  // block immediately below.
   const baseManifest = {
     skill_id: "test-skill",
     endpoints: [VERIFIED_ENDPOINT],
-    owner_compensation_opt_in: false as const,
+    owner_compensation_opt_in: true as const,
   };
 
   it("price is always >= MIN_PRICE_USD", () => {
@@ -140,6 +145,54 @@ describe("computeRoutePrice — price bounds", () => {
     const custom = computeRoutePrice({ ...baseManifest, base_price_usd: 0.005 }, [makeStats(0, 0)]);
     const def    = computeRoutePrice(baseManifest, [makeStats(0, 0)]);
     expect(custom.price_usd).toBeGreaterThan(def.price_usd);
+  });
+});
+
+describe("computeRoutePrice — FREE BY DEFAULT (no opt-in)", () => {
+  // The doctrine change: execute is free by default. The marketplace
+  // indexes every route, but the toll only fires when the site owner
+  // has explicitly opted in via DNS claim + wallet binding. The 5
+  // pricing-math tests above exercise the opted-in path; these test
+  // the default free path.
+  const notOptedIn = {
+    skill_id: "free-default-skill",
+    endpoints: [VERIFIED_ENDPOINT],
+    owner_compensation_opt_in: false as const,
+  };
+
+  it("price_usd is 0 when owner_compensation_opt_in is false", () => {
+    const result = computeRoutePrice(notOptedIn, [makeStats(0, 0)]);
+    expect(result.price_usd).toBe(0);
+  });
+
+  it("price_usd is 0 even on a high-traffic high-reliability route without opt-in", () => {
+    const result = computeRoutePrice(notOptedIn, [makeStats(10_000, 9_500)]);
+    expect(result.price_usd).toBe(0);
+  });
+
+  it("site_owner_share_usd is 0 when opt-in is false (no share to pay)", () => {
+    const result = computeRoutePrice(notOptedIn, [makeStats(10_000, 9_500)]);
+    expect(result.site_owner_share_usd).toBe(0);
+  });
+
+  it("breakdown still reflects what the price WOULD be if opt-in were true", () => {
+    // Telemetry: surfaces the multipliers even on free routes so future
+    // claim onboarding can show "you'd be earning $X if you opted in".
+    const result = computeRoutePrice(notOptedIn, [makeStats(10_000, 9_500)]);
+    expect(result.breakdown.demand_multiplier).toBeGreaterThan(1);
+    expect(result.breakdown.reliability_multiplier).toBeGreaterThan(0.9);
+  });
+
+  it("price_display message names the unblock path for site owners", () => {
+    const result = computeRoutePrice(notOptedIn, [makeStats(0, 0)]);
+    expect(result.price_display).toMatch(/free.*opted in|DNS claim/i);
+  });
+
+  it("opt-in flips price_usd from 0 to the computed price", () => {
+    const free = computeRoutePrice(notOptedIn, [makeStats(100, 95)]);
+    const paid = computeRoutePrice({ ...notOptedIn, owner_compensation_opt_in: true }, [makeStats(100, 95)]);
+    expect(free.price_usd).toBe(0);
+    expect(paid.price_usd).toBeGreaterThan(0);
   });
 });
 
