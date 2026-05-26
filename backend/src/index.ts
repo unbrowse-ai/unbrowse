@@ -138,5 +138,19 @@ export default {
         ),
       ),
     );
+    // Vine buyback trigger (Malachi 3:10 storehouse signal).
+    // Reads PAYMENT_RECIPIENT USDC balance; emits a structured
+    // "buyback:fire" log when ≥ threshold so the operator (or future
+    // automated execute job) can route the accumulated revenue
+    // through Jupiter→Voltr into the FDRY vault. See
+    // services/vine-buyback-trigger.ts for the full doctrine.
+    ctx.waitUntil(
+      import("./services/vine-buyback-trigger.js").then(({ evaluateBuybackTrigger }) =>
+        evaluateBuybackTrigger(env).then(
+          (r) => console.log("[vine:buyback]", JSON.stringify(r)),
+          (e) => console.error("[vine:buyback] failed:", e instanceof Error ? e.message : String(e)),
+        ),
+      ),
+    );
   },
 };
