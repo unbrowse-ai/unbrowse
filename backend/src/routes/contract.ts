@@ -475,6 +475,7 @@ import {
   sponsorAcceptsForPriceUsd,
   handleFlexPaymentAuthorized,
 } from "../services/flex-route-helpers.js";
+import { queryUsdcBalanceMicros, type WalletBalanceProbe } from "../services/wallet-balance.js";
 
 // `Variables: any` matches the AnyContext shape `handleFlexPaymentAuthorized`
 // expects (it pulls agent_id off the context's Variables map). Other routes
@@ -658,13 +659,38 @@ contractRoutes.post("/contract/declare", async (c) => {
         );
       }
       const accepts = sponsorAcceptsForPriceUsd(AIKO_DECLARE_PRICE_USD, operatorWallet);
+      // Onramp signal: if the wallet is verified, query its USDC balance
+      // on Solana mainnet so observers (orchestrator + future onramp
+      // adapter contracts) see whether the caller can satisfy the
+      // payment. The probe returns a typed status — found / no token
+      // account / RPC unconfigured / RPC failed — never an opaque null,
+      // per "Fallbacks are visible, never silent".
+      const requiredMicros = String(Math.max(1, Math.round(AIKO_DECLARE_PRICE_USD * 1_000_000)));
+      let balanceProbe: WalletBalanceProbe | undefined;
+      let walletFunded: boolean | undefined;
+      if (auth.kind === "verified") {
+        balanceProbe = await queryUsdcBalanceMicros(c.env, auth.wallet_identity);
+        if (balanceProbe.status === "found") {
+          walletFunded = BigInt(balanceProbe.micros) >= BigInt(requiredMicros);
+        } else if (balanceProbe.status === "no_token_account") {
+          walletFunded = false;
+        }
+        // rpc_unconfigured / rpc_failed / invalid_pubkey: walletFunded stays
+        // undefined → observer treats as "unknown", not "false".
+      }
       const required: {
         x402Version: 2;
         error: "payment_required";
         accepts: typeof accepts;
         facilitator: string;
         resource: { url: string; description: string; mimeType: string };
-        extra?: { wallet_identity: string; auth_kind: "verified" };
+        extra?: {
+          wallet_identity: string;
+          auth_kind: "verified";
+          wallet_balance: WalletBalanceProbe;
+          required_micros: string;
+          wallet_funded?: boolean;
+        };
       } = {
         x402Version: 2,
         error: "payment_required",
@@ -676,11 +702,18 @@ contractRoutes.post("/contract/declare", async (c) => {
           mimeType: "application/json",
         },
       };
-      // Surface the verified wallet identity in the 402 envelope so the
-      // orchestrator + future onramp adapter contracts can route on it.
-      // Doctrine: the substrate observes; observers see what it observed.
-      if (auth.kind === "verified") {
-        required.extra = { wallet_identity: auth.wallet_identity, auth_kind: "verified" };
+      // Surface the verified wallet identity + balance probe in the 402
+      // envelope so the orchestrator + future onramp adapter contracts
+      // can route on it. Doctrine: the substrate observes; observers see
+      // what it observed.
+      if (auth.kind === "verified" && balanceProbe) {
+        required.extra = {
+          wallet_identity: auth.wallet_identity,
+          auth_kind: "verified",
+          wallet_balance: balanceProbe,
+          required_micros: requiredMicros,
+          ...(walletFunded !== undefined ? { wallet_funded: walletFunded } : {}),
+        };
       }
       return c.json(required, 402, {
         "PAYMENT-REQUIRED": btoa(JSON.stringify(required)),
