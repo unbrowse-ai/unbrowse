@@ -25,6 +25,16 @@ import type {
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
 import { verifyDeclareSignature, type CanonicalDeclareBody } from "../services/declare-signature";
+import { kvLedger } from "../services/contract-ledger-kv";
+import {
+  compileAikoPromptToTreeWithTimeout,
+  CompileTimeoutError,
+  type AikoCompiledContract,
+} from "../services/unbrowse-llm";
+import {
+  verifySpawnAttestation,
+  LEGACY_WINDOW_ENDS,
+} from "../lib/attestation";
 
 // ---------------------------------------------------------------------------
 // Request / response shapes — the wire contract between thin client and cloud.
@@ -58,6 +68,33 @@ export interface DeclareRequest {
 export interface DeclareResponse {
   id: string;
   row: ContractEventRow;
+  /**
+   * Wave-2b additions (substrate-server doctrine):
+   *
+   *   child_rows         — rows emitted by the LLM-compile fan-out. Empty
+   *                        when UNBROWSE_LLM_API_KEY is unset, when the
+   *                        budget timed out, or when the compiler returned
+   *                        no children. Each entry is a `declared` row
+   *                        whose parent_id = the top-level id.
+   *   bible_chain        — verse-pointer ids scoring the goal against the
+   *                        bible corpus. EMPTY today — honest gap. The
+   *                        scorer (`compile-bible-chain`) lands in wave-3.
+   *   doctrine_chain     — SKILL.md section-pointer ids. EMPTY today.
+   *   memory_chain       — session memory pointer ids. EMPTY today.
+   *   admission_evidence — evidence line surfacing the attestation gate
+   *                        verdict ("attested" / "legacy-anonymous").
+   *                        Surfaced to the client for transparency per
+   *                        "fallbacks-are-visible-never-silent".
+   *   compile_evidence   — optional honest-gap message when compile was
+   *                        skipped (no API key, timeout, error). Absent
+   *                        when compile fired successfully.
+   */
+  child_rows: ContractEventRow[];
+  bible_chain: string[];
+  doctrine_chain: string[];
+  memory_chain: string[];
+  admission_evidence: string;
+  compile_evidence?: string;
 }
 
 /** POST /v1/contract/iterate — record an iterate wave + return next-step plan. */
@@ -172,10 +209,18 @@ export interface PlanForIntentResponse {
 
 /**
  * POST /v1/contract/declare — write one `declared` row.
+ *
+ * Wave 2b: response envelope grew (`child_rows`, `bible_chain`,
+ * `doctrine_chain`, `memory_chain`, `admission_evidence`). The
+ * substrate-server-side LLM compile fan-out + attestation gate live on
+ * the route handler (`executeDeclare` below) — `handleDeclare` itself
+ * stays a pure ledger-write so unit tests can drive it against any
+ * `ContractLedger` impl without an Env.
  */
 export async function handleDeclare(
   req: DeclareRequest,
   ledger: ContractLedger,
+  opts: { admission?: "attested" | "legacy-anonymous"; admission_evidence?: string } = {},
 ): Promise<DeclareResponse> {
   if (!req.plan || !req.action) {
     throw new Error("DeclareRequest requires both plan and action");
@@ -203,9 +248,22 @@ export async function handleDeclare(
     visibility,
     wallet_identity: req.wallet_identity,
     declare_signature: req.declare_signature,
+    admission: opts.admission,
   };
   const persisted = await ledger.append(row);
-  return { id, row: persisted };
+  return {
+    id,
+    row: persisted,
+    child_rows: [],
+    bible_chain: [],
+    doctrine_chain: [],
+    memory_chain: [],
+    admission_evidence:
+      opts.admission_evidence ??
+      (opts.admission === "attested"
+        ? "admission=attested"
+        : `admission=legacy-anonymous; window-ends=${LEGACY_WINDOW_ENDS}`),
+  };
 }
 
 /**
@@ -479,8 +537,68 @@ import type { Env } from "../types";
 type ContractRouteEnv = { Bindings: Env; Variables: any };
 export const contractRoutes = new Hono<ContractRouteEnv>();
 
-/** Per-request in-memory ledger. Replace with a durable binding
- *  (KV/D1/EmergentDB) in the next stage — same interface, just persistent. */
+/**
+ * Process-scoped fallback ledger — survives across requests within a
+ * single Worker isolate. Used when `env` is missing KV bindings
+ * (unit-test app.fetch() with no env arg). The canonical path goes
+ * through `kvLedger(env)` (durable, cross-isolate via statsKV).
+ *
+ * The fallback is necessary for back-compat with existing tests that
+ * mount the router with no env; without it, every `app.fetch()` call
+ * would crash inside `statsKV()` ("EMERGENTDB_API_KEY is required").
+ * In prod, `env.STATS_KV` + `EMERGENTDB_API_KEY` are always set, so
+ * this branch is never taken.
+ */
+const _processFallbackRows: ContractEventRow[] = [];
+function processFallbackLedger(): ContractLedger {
+  return {
+    async append(row) {
+      const stamped = { ...row, ts: row.ts || new Date().toISOString() };
+      _processFallbackRows.push(stamped);
+      return stamped;
+    },
+    async get(id) {
+      const hit = _processFallbackRows.filter((r) => r.id === id);
+      return hit.length ? hit : null;
+    },
+    async listAll(opts) {
+      const all = _processFallbackRows.slice();
+      if (opts?.showMerged === false) {
+        const merged = new Set(all.filter((r) => r.event === "merged").map((r) => r.id));
+        return all.filter((r) => !merged.has(r.id));
+      }
+      return all;
+    },
+    async listChildren(parentId) {
+      return _processFallbackRows.filter((r) => r.parent_id === parentId);
+    },
+  };
+}
+
+/**
+ * Pick the ledger for this request. Canonical path: KV-backed via
+ * `statsKV(env)` (LocalKV under `ENVIRONMENT=local-dev`, EdbKV / PgKV
+ * in prod). Fallback: process-scoped in-memory when env is absent or
+ * lacks the KV bindings.
+ */
+function ledgerForRequest(env: Env | undefined): ContractLedger {
+  if (!env) return processFallbackLedger();
+  const wide = env as Env & { USE_PGKV?: string };
+  const hasLocalDev = wide.ENVIRONMENT === "local-dev";
+  const hasEdb = !!wide.EMERGENTDB_API_KEY?.trim();
+  const hasPgkv = !!wide.DATABASE_URL?.trim() && !!wide.USE_PGKV;
+  if (hasLocalDev || hasEdb || hasPgkv) {
+    return kvLedger(wide);
+  }
+  return processFallbackLedger();
+}
+
+/**
+ * @deprecated — kept for any out-of-tree caller that imported it; new
+ * code uses `ledgerForRequest(env)`. Returns a fresh per-request
+ * in-memory ledger (drops on return) so legacy semantics are preserved
+ * exactly.
+ */
 function ephemeralLedger(): ContractLedger {
   const rows: ContractEventRow[] = [];
   return {
@@ -536,15 +654,25 @@ async function verifyDeclareAuth(req: DeclareRequest): Promise<DeclareAuthResult
 }
 
 /**
- * Run the signed-declare gate + handleDeclare. Auth check is now factored
- * out into verifyDeclareAuth (above) so the route handler can pre-verify
- * and surface the wallet identity to the x402 gate. This function honors
- * a pre-verified ts when set and otherwise re-runs the auth check.
+ * Run the signed-declare gate + handleDeclare + (Wave 2b) attestation
+ * gate + LLM-compile fan-out. The gate ordering is:
+ *
+ *   1. Signed-declare ed25519 verify (the WRITER's per-row identity).
+ *   2. Attestation header gate (the SPAWNER's deployer-root lineage —
+ *      currently optional under the 30-day legacy window).
+ *   3. handleDeclare → KV-backed canonical ledger write.
+ *   4. compileAikoPromptToTreeWithTimeout → child neurons appended to
+ *      the same ledger as additional `declared` rows whose parent_id
+ *      is the top-level id.
+ *   5. Response envelope carries the parent row + children + the three
+ *      doctrine chains (empty today — honest gap) + admission_evidence.
  */
 async function executeDeclare(
   c: Context<ContractRouteEnv>,
   req: DeclareRequest,
+  rawBodyBytes: Uint8Array,
 ): Promise<Response> {
+  const requestStart = Date.now();
   try {
     const auth = await verifyDeclareAuth(req);
     switch (auth.kind) {
@@ -570,40 +698,156 @@ async function executeDeclare(
         req.agent = "anonymous";
         break;
     }
-    const result = await handleDeclare(req, ephemeralLedger());
+
+    // ─── Wave 2b: attestation gate ────────────────────────────────
+    //
+    // Headers present + verified → admission=attested.
+    // Headers absent              → admission=legacy-anonymous (30-day window).
+    // Headers present + invalid   → 401 (no legacy fallback when caller
+    //                                opted-in to attestation).
+    const lineageHeader = c.req.header("x-aiko-lineage-chain");
+    const sigHeader = c.req.header("x-aiko-spawn-signature");
+    const nonceHeader = c.req.header("x-aiko-spawn-nonce") ?? null;
+    let admission: "attested" | "legacy-anonymous" = "legacy-anonymous";
+    let admissionEvidence =
+      `admission=legacy-anonymous; window-ends=${LEGACY_WINDOW_ENDS}; sigHeader missing or unverified`;
+
+    if (sigHeader && lineageHeader) {
+      const verdict = await verifySpawnAttestation({
+        lineageChainHeader: lineageHeader,
+        signatureHeader: sigHeader,
+        nonceHeader,
+        bodyBytes: rawBodyBytes,
+      });
+      if (!verdict.ok) {
+        return c.json(
+          {
+            error: "attestation_failed",
+            detail: verdict.reason,
+          },
+          401,
+        );
+      }
+      admission = "attested";
+      admissionEvidence = `admission=attested; leaf=${verdict.leafPubkey}; root=${verdict.rootPubkey}`;
+    }
+
+    const env = c.env as Env | undefined;
+    const ledger = ledgerForRequest(env);
+    const result = await handleDeclare(req, ledger, {
+      admission,
+      admission_evidence: admissionEvidence,
+    });
+
+    // ─── Wave 2b: LLM-compile fan-out ─────────────────────────────
+    //
+    // The substrate's "the word lands first" rule means the parent row
+    // is admitted regardless of compile outcome. The compile is a
+    // best-effort fan-out — when API key is unset, the budget times
+    // out, or the upstream three-tier chain fails entirely, the parent
+    // row is still written and the response surfaces a `compile_evidence`
+    // string. No silent gap.
+    //
+    // CF Worker 30s budget: reserve ~5s for KV writes + response. So the
+    // compile budget is `25_000 - elapsed`. If less than 1s remains,
+    // skip the compile entirely.
+    if (env?.UNBROWSE_LLM_API_KEY?.trim()) {
+      const budgetMs = Math.max(0, 25_000 - (Date.now() - requestStart));
+      if (budgetMs < 1_000) {
+        result.compile_evidence = "compile_skipped_budget_exhausted";
+      } else {
+        try {
+          const tree = await compileAikoPromptToTreeWithTimeout(env, req.plan, budgetMs);
+          const childRows = await persistCompiledChildren(tree, result.id, ledger);
+          result.child_rows = childRows;
+          if (childRows.length === 0 && tree) {
+            result.compile_evidence = "compile_returned_no_children";
+          }
+        } catch (e) {
+          if (e instanceof CompileTimeoutError) {
+            result.compile_evidence = `compile_timeout_${e.budgetMs}ms_deferred`;
+          } else {
+            result.compile_evidence = `compile_error: ${e instanceof Error ? e.message : String(e)}`;
+          }
+        }
+      }
+    } else {
+      result.compile_evidence = "compile_skipped_no_api_key";
+    }
+
     return c.json(result);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
 }
 
+/**
+ * Recursively project an AikoCompiledContract tree onto `declared` rows
+ * + persist them to the ledger. Each node becomes one row whose
+ * parent_id chains to the root. Evaluator nodes are flattened into
+ * their parent (we declare the evaluator's `prompt` as a child row
+ * with action="agent-judges"). Depth is bounded by the tree the LLM
+ * returned — typically ≤3 layers.
+ */
+async function persistCompiledChildren(
+  tree: AikoCompiledContract | null,
+  parentId: string,
+  ledger: ContractLedger,
+): Promise<ContractEventRow[]> {
+  if (!tree || !Array.isArray(tree.children)) return [];
+  const rows: ContractEventRow[] = [];
+  for (const child of tree.children) {
+    if (!child?.prompt) continue;
+    const childId = generateContractId();
+    const childRow: ContractEventRow = {
+      event: "declared",
+      id: childId,
+      ts: new Date().toISOString(),
+      plan: child.prompt,
+      action: "agent-judges",
+      pointer_type: "agent-judges",
+      parent_id: parentId,
+      wallet_identity: child.wallet_identity,
+      visibility: "lineage",
+    };
+    const persisted = await ledger.append(childRow);
+    rows.push(persisted);
+    // Recurse — grandchildren under this child.
+    const grand = await persistCompiledChildren(child, childId, ledger);
+    rows.push(...grand);
+  }
+  return rows;
+}
+
 contractRoutes.post("/contract/declare", async (c) => {
-  const req = await c.req.json<DeclareRequest>();
+  // Read the raw body BEFORE parsing JSON — the attestation gate signs
+  // over the canonical byte sequence the caller actually sent. Re-
+  // serializing post-parse would shift whitespace and break verification.
+  const rawText = await c.req.text();
+  const rawBodyBytes = new TextEncoder().encode(rawText);
+  let req: DeclareRequest;
+  try {
+    req = JSON.parse(rawText) as DeclareRequest;
+  } catch {
+    return c.json({ error: "request body must be valid JSON" }, 400);
+  }
 
   // ─── Creation Order (Genesis 1:3): the word lands first ───
   //
   // Every signed declare appends a row regardless of payment state.
   // Declaration is identity-gated only (the signed-declare verify in
   // executeDeclare). Compilation — the LLM-expansion into child
-  // neurons — is the costly act and is gated separately, per skill
-  // opt-in (PR #810 + #818), not by operator env (which #818 removed
-  // as a footgun — "no env escape hatches").
-  //
-  // The aiko-client conditional 402 envelope (introduced in #808 +
-  // #809) is REMOVED here in favor of single-lever doctrine: every
-  // declare lands; per-skill opt-in elsewhere in the codebase is the
-  // only gate. This route returns 200 with the declared row, period.
-  // The Vine Doctrine's economic loop runs through the per-skill
-  // Flex/x402 path on monetized routes, not through the contract
-  // declaration primitive (which is the substrate's bedrock and
-  // should stay maximally available).
-  return executeDeclare(c, req);
+  // neurons — is gated by UNBROWSE_LLM_API_KEY availability + the
+  // attestation gate (wave 2b). Per "the word lands first", the parent
+  // row is admitted even when compile is skipped or fails.
+  return executeDeclare(c, req, rawBodyBytes);
 });
 
 contractRoutes.post("/contract/iterate", async (c) => {
   const req = await c.req.json<IterateRequest>();
   try {
-    const result = await handleIterate(req, ephemeralLedger());
+    const ledger = ledgerForRequest(c.env as Env | undefined);
+    const result = await handleIterate(req, ledger);
     return c.json(result);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -623,7 +867,8 @@ contractRoutes.get("/contract/status", async (c) => {
       c.req.header("X-Wallet-Pubkey") ||
       c.req.header("x-wallet-pubkey") ||
       null;
-    const result = await handleStatus(id, ephemeralLedger(), { caller_pubkey: callerPubkey });
+    const ledger = ledgerForRequest(c.env as Env | undefined);
+    const result = await handleStatus(id, ledger, { caller_pubkey: callerPubkey });
     return c.json(result);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -633,7 +878,8 @@ contractRoutes.get("/contract/status", async (c) => {
 contractRoutes.post("/contract/plan-for-intent", async (c) => {
   const req = await c.req.json<PlanForIntentRequest>();
   try {
-    const result = await handlePlanForIntent(req, ephemeralLedger());
+    const ledger = ledgerForRequest(c.env as Env | undefined);
+    const result = await handlePlanForIntent(req, ledger);
     return c.json(result);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -760,6 +1006,9 @@ contractRoutes.get("/contract/tools", (c) => {
     ],
     local_capabilities: ["kuri", "cookies", "vault", "browser", "fs"],
     persistence_note:
-      "this stage is per-request in-memory; durable ledger binding lands in organ ddff0c96 stage D",
+      "wave-2b: KV-backed canonical ledger via statsKV(env). LocalKV under ENVIRONMENT=local-dev; EdbKV/PgKV in prod. Falls back to process-scoped memory when env is absent (unit-test path only).",
+    admission_gate:
+      "x-aiko-spawn-signature + x-aiko-lineage-chain headers verified against hardcoded LEWIS_DEPLOYER_PUBKEY_v1; legacy-anonymous admission honored until " +
+      LEGACY_WINDOW_ENDS,
   });
 });
