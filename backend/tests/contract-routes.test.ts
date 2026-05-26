@@ -95,6 +95,67 @@ describe("/v1/contract/* — wired Hono router", () => {
     expect(status).toBe(400);
     expect((json as { error: string }).error).toContain("intent");
   });
+
+  // x402 enforcement — aiko-client declares are gated by Faremeter Flex.
+  // Non-aiko clients (no X-Unbrowse-Contract-Client: aiko header) bypass
+  // the gate and run the standard signed-declare path; aiko clients
+  // without X-PAYMENT get a 402 envelope; aiko clients with both headers
+  // would proceed through handleFlexPaymentAuthorized (verifying the
+  // Flex signature) which we don't exercise here without a facilitator.
+  test("POST /v1/contract/declare with X-Unbrowse-Contract-Client: aiko and no X-PAYMENT returns 402 (when PAYMENT_RECIPIENT set)", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({ plan: "x402-aiko-gated", action: "agent-judges" }),
+      }),
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+    );
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { x402Version: number; error: string; accepts: Array<{ payTo: string }> };
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("payment_required");
+    expect(body.accepts).toBeArray();
+    expect(body.accepts.length).toBeGreaterThan(0);
+    expect(body.accepts[0].payTo).toBe("7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp");
+    expect(res.headers.get("PAYMENT-REQUIRED")).toBeTruthy();
+  });
+
+  test("POST /v1/contract/declare with aiko client but PAYMENT_RECIPIENT unset returns 503", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({ plan: "x402-misconfigured", action: "agent-judges" }),
+      }),
+      {},
+    );
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("operator_wallet_missing");
+  });
+
+  test("POST /v1/contract/declare WITHOUT aiko client header is NOT 402-gated", async () => {
+    // Same body as the gated test, but missing the X-Unbrowse-Contract-Client
+    // header. Should fall through to the signed-declare gate (anonymous-ok)
+    // and return 200, proving the gate is aiko-scoped, not universal.
+    const app = mountApp();
+    const { status } = await postJson(app, "/v1/contract/declare", {
+      plan: "non-aiko-passthrough",
+      action: "agent-judges",
+    });
+    expect(status).toBe(200);
+  });
 });
 
 // ---------------------------------------------------------------------------
