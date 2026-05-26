@@ -3745,6 +3745,37 @@ export async function resolveAndExecute(
       } catch {
         // Exa fallback is best-effort. X402 / network errors fall through.
       }
+      // Quality-gate exa hits (bench-honesty fix, contract:82b55200): zero-score
+      // candidates whose highlights don't contain intent tokens are useless to
+      // the caller and were masking 16/26 dimensional-bench probes as fake-green.
+      // CLAUDE.md action-verification rubric: response_token_hit_rate < 0.34 for
+      // get_data/list_or_search intents → MANUAL_REVIEW → not a winning result.
+      // When quality fails on all three signals (max_score, hit_rate, rich_highlights),
+      // discard the exa hits so the resolver falls through to the post-race serial
+      // path (direct-document at L4530+, XHR-prioritised live capture).
+      if (exaHits.length > 0) {
+        const intentTokens = (queryIntent || "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+        const stop = new Set(["get","the","for","from","with","and","any","all","new","top","top1","top10"]);
+        const intentTokenSet = new Set(intentTokens.filter((t) => !stop.has(t)));
+        const bestHitRate = (() => {
+          if (intentTokenSet.size === 0) return 1; // can't judge, don't drop
+          let best = 0;
+          for (const h of exaHits) {
+            const text = ((h.highlights ?? []).join(" ") + " " + (h.title ?? "") + " " + (h.url ?? "")).toLowerCase();
+            const hits = [...intentTokenSet].filter((t) => text.includes(t)).length;
+            const rate = hits / intentTokenSet.size;
+            if (rate > best) best = rate;
+          }
+          return best;
+        })();
+        const maxScore = exaHits.reduce((m, h) => Math.max(m, h.score ?? 0), 0);
+        const hasRichHit = exaHits.some((r) => (r.highlights ?? []).join(" ").length >= 150);
+        const exaPassesQualityGate = maxScore > 0 || bestHitRate >= 0.34 || hasRichHit;
+        if (!exaPassesQualityGate) {
+          console.log(`[exa] probe-fallback discarded — quality gate failed (max_score=${maxScore}, hit_rate=${bestHitRate.toFixed(2)}, rich=${hasRichHit}); falling through to serial path`);
+          exaHits = [];
+        }
+      }
       if (exaHits.length > 0) {
         const richHit = exaHits.find((r) => (r.highlights ?? []).join(" ").length >= 150) ?? null;
         const candidates = exaHits.map((hit) => ({
