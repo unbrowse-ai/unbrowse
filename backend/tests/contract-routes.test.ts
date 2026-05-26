@@ -103,7 +103,7 @@ describe("/v1/contract/* — wired Hono router", () => {
   // would proceed through handleFlexPaymentAuthorized (verifying the
   // Flex signature) which we don't exercise here without a facilitator.
   test("POST /v1/contract/declare with X-Unbrowse-Contract-Client: aiko and no X-PAYMENT returns 402 (when PAYMENT_RECIPIENT set)", async () => {
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string; PAYMENTS_ENABLED: string } }>();
     app.route("/v1", contractRoutes);
     const res = await app.fetch(
       new Request("http://test.local/v1/contract/declare", {
@@ -114,7 +114,7 @@ describe("/v1/contract/* — wired Hono router", () => {
         },
         body: JSON.stringify({ plan: "x402-aiko-gated", action: "agent-judges" }),
       }),
-      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp", PAYMENTS_ENABLED: "true" },
     );
     expect(res.status).toBe(402);
     const body = (await res.json()) as { x402Version: number; error: string; accepts: Array<{ payTo: string }> };
@@ -126,8 +126,8 @@ describe("/v1/contract/* — wired Hono router", () => {
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeTruthy();
   });
 
-  test("POST /v1/contract/declare with aiko client but PAYMENT_RECIPIENT unset returns 503", async () => {
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string } }>();
+  test("POST /v1/contract/declare with aiko client + PAYMENTS_ENABLED but PAYMENT_RECIPIENT unset returns 503", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string; PAYMENTS_ENABLED: string } }>();
     app.route("/v1", contractRoutes);
     const res = await app.fetch(
       new Request("http://test.local/v1/contract/declare", {
@@ -138,11 +138,55 @@ describe("/v1/contract/* — wired Hono router", () => {
         },
         body: JSON.stringify({ plan: "x402-misconfigured", action: "agent-judges" }),
       }),
-      {},
+      { PAYMENTS_ENABLED: "true" },
     );
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("operator_wallet_missing");
+  });
+
+  // ─── Creation Order tests: the word lands first (Gen 1:3) ───
+  //
+  // The new default is PAYMENTS_ENABLED unset → indexing mode → aiko declares
+  // land as 200 just like non-aiko declares. Payment gates COMPILATION
+  // (LLM-expansion into child neurons), never the word itself.
+
+  test("Creation Order: aiko-client + PAYMENTS_ENABLED unset → 200 (word lands, no gate)", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({ plan: "creation-order-default-on", action: "agent-judges" }),
+      }),
+      {},
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; row: { event: string; plan: string } };
+    expect(body.id).toMatch(/^[0-9a-f]{8}$/);
+    expect(body.row.event).toBe("declared");
+    expect(body.row.plan).toBe("creation-order-default-on");
+  });
+
+  test("Creation Order: aiko-client + PAYMENTS_ENABLED=false → 200 (still indexing mode)", async () => {
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT?: string; PAYMENTS_ENABLED: string } }>();
+    app.route("/v1", contractRoutes);
+    const res = await app.fetch(
+      new Request("http://test.local/v1/contract/declare", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-unbrowse-contract-client": "aiko",
+        },
+        body: JSON.stringify({ plan: "creation-order-explicit-off", action: "agent-judges" }),
+      }),
+      { PAYMENTS_ENABLED: "false" },
+    );
+    expect(res.status).toBe(200);
   });
 
   test("aiko-client with wallet_identity + missing signature → 400 BEFORE 402 (auth-first gate)", async () => {
@@ -150,7 +194,7 @@ describe("/v1/contract/* — wired Hono router", () => {
     // gate's outcome. A wallet_identity without a signature is a leak —
     // the request claims an identity it cannot prove. Reject 400 rather
     // than 402, surfacing the auth failure to the caller.
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string; PAYMENTS_ENABLED: string } }>();
     app.route("/v1", contractRoutes);
     const res = await app.fetch(
       new Request("http://test.local/v1/contract/declare", {
@@ -166,7 +210,7 @@ describe("/v1/contract/* — wired Hono router", () => {
           // declare_signature intentionally omitted — auth gate must catch this
         }),
       }),
-      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp", PAYMENTS_ENABLED: "true" },
     );
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
@@ -174,7 +218,7 @@ describe("/v1/contract/* — wired Hono router", () => {
   });
 
   test("aiko-client with wallet_identity + bad signature → 401 BEFORE 402 (auth-first gate)", async () => {
-    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string } }>();
+    const app = new Hono<{ Bindings: { PAYMENT_RECIPIENT: string; PAYMENTS_ENABLED: string } }>();
     app.route("/v1", contractRoutes);
     const res = await app.fetch(
       new Request("http://test.local/v1/contract/declare", {
@@ -191,7 +235,7 @@ describe("/v1/contract/* — wired Hono router", () => {
           ts: "2026-05-26T03:00:00.000Z",
         }),
       }),
-      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp" },
+      { PAYMENT_RECIPIENT: "7gKDinaGLd2qzHKHfAc8aZQwbw52msXBZHVNbkEC5FCp", PAYMENTS_ENABLED: "true" },
     );
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
