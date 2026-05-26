@@ -11,6 +11,7 @@ import { StatementFooter } from "./statement-footer";
 import { ScrollToButton } from "@/components/full-page-scroll";
 import { HeroHands } from "@/components/hero-hands";
 import { AgentWireTerminal } from "@/components/agent-wire-terminal";
+import { MCPWireDiagram } from "@/components/mcp-wire-diagram";
 import { InstallInstructions } from "@/components/install-instructions";
 import {
   ChatDemo,
@@ -237,6 +238,12 @@ export function ChapterSpine() {
           </>
         }
       >
+        {/* Live MCP wire diagram — the resolve ladder as a picture. Click a
+            lane to re-fire its dot. Lives ABOVE the ChatDemo because the
+            picture explains the mechanism the demo then enacts. */}
+        <div style={{ marginBottom: "clamp(2rem, 4vw, 3rem)" }}>
+          <MCPWireDiagram />
+        </div>
         <Suspense fallback={<div aria-hidden style={{ minHeight: 420 }} />}>
           <ChatDemo />
         </Suspense>
