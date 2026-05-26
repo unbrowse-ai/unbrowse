@@ -87,12 +87,16 @@ if (process.env.CI && (process.env.GITHUB_ACTIONS || process.env.UNBROWSE_SKIP_B
   process.exit(0);
 }
 
-const platform = process.platform; // darwin, linux
+// `process.platform` returns 'win32' on Windows but our SUPPORTED_TARGETS
+// names use 'win' (e.g. 'win-x64'). Normalize before composing the target
+// key. 'darwin' and 'linux' pass through unchanged.
+const platformRaw = process.platform; // darwin | linux | win32 | ...
+const platform = platformRaw === "win32" ? "win" : platformRaw;
 const arch = process.arch; // arm64, x64
 const target = `${platform}-${arch}`;
 
 if (!SUPPORTED_TARGETS.includes(target)) {
-  console.warn(`[unbrowse] No prebuilt binary for ${target}.`);
+  console.warn(`[unbrowse] No prebuilt binary for ${target} (platform=${platformRaw}, arch=${arch}).`);
   console.warn("[unbrowse] Falling back to source mode.");
   process.exit(0);
 }

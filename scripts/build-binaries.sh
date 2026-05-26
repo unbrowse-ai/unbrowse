@@ -64,10 +64,12 @@ if [ "${1:-}" = "--all" ]; then
   build_target "darwin-x64"
   build_target "linux-arm64"
   build_target "linux-x64"
-  # win-x64 intentionally skipped — not in packages/skill/scripts/release-assets.mjs
-  # SUPPORTED_TARGETS, install.mjs never resolves it, verify-release-assets.mjs
-  # never checks it. Building+uploading saves ~95MB / release. Re-add when Windows
-  # is added to SUPPORTED_TARGETS.
+  # win-x64 added 2026-05-26 — Bun's `--target=bun-windows-x64` cross-
+  # compiles the JS bundle on any host. SUPPORTED_TARGETS in
+  # release-assets.mjs now includes win-x64; install.mjs resolves it;
+  # verify-release-assets.mjs checks it. Kuri.exe is staged separately
+  # by the kuri-windows-cross-build workflow + build-kuri-binaries.mjs.
+  build_target "win-x64"
   echo "[build] all platforms built:"
   ls -lh "$DIST_DIR"/unbrowse-*
 else
