@@ -90,10 +90,19 @@ bash scripts/precommit-doc-delta.sh || true
 # CLI and MCP transports agree. Exits 0 even if all probes miss (no cached skill)
 # as long as both transports agree. Exits 1 only on divergence.
 if has_match '^src/'; then
-  echo "[pre-commit] src/ changed — running bench-targeted parity check"
-  if ! bash scripts/bench-targeted.sh --corpus-file scripts/corpus/bench-on-change.txt 2>&1; then
-    echo "[pre-commit] FAIL: CLI/MCP parity divergence detected. Fix before committing." >&2
-    exit 1
+  # The bench-targeted.sh CLI/MCP parity gate was deleted as part of the
+  # benches-as-contracts migration (2026-05-26). Surface the gap honestly
+  # per the fallbacks-visible rule instead of failing the commit on a
+  # missing script. When the substrate-side bench executor adapter lands,
+  # re-wire this gate to invoke it.
+  if [ -x scripts/bench-targeted.sh ]; then
+    echo "[pre-commit] src/ changed — running bench-targeted parity check"
+    if ! bash scripts/bench-targeted.sh --corpus-file scripts/corpus/bench-on-change.txt 2>&1; then
+      echo "[pre-commit] FAIL: CLI/MCP parity divergence detected. Fix before committing." >&2
+      exit 1
+    fi
+  else
+    echo "[pre-commit] src/ changed — bench-targeted parity gate unavailable (script deleted in benches-as-contracts migration); skipping" >&2
   fi
 fi
 echo "[pre-commit] fast checks passed"
