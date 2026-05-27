@@ -12,6 +12,7 @@ const sections = [
   { href: "/docs/api", label: "API reference" },
   { href: "/docs/proxy", label: "Worker proxy + IProyal" },
   { href: "/docs/errors", label: "Errors" },
+  { href: "/docs/benchmarks", label: "Benchmarks" },
 ];
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
