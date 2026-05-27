@@ -57,7 +57,7 @@ You ask unbrowse to read a Hacker News post. Nobody has indexed `news.ycombinato
 1. Agent calls `unbrowse_resolve --intent "read HN post" --url https://news.ycombinator.com/item?id=...`.
 2. Resolve has no cached match. unbrowse opens a browse session, navigates, captures the underlying API (the `/item` JSON endpoint or the SSR page extraction).
 3. Agent calls `unbrowse_execute` against the discovered endpoint. The execute succeeds; the skill is published with `indexer_id = <your agent_id>` and a `SkillContributor` row for your wallet.
-4. A week later, another agent calls the same skill to read a different HN item. x402 fires. Flex settles with the splits:
+4. A week later, another agent calls the same skill to read a different HN item. The agent's wallet pays inline. Flex settles with the splits:
    - 5000 bps to the platform USDC ATA.
    - 1500 bps to the site owner if `news.ycombinator.com` has DNS-claimed a wallet, else 0.
    - The remaining 3500 or 5000 bps to your wallet (and any later contributors).
