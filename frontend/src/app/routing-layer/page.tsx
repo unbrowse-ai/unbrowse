@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     "Unbrowse",
     "machine-readable web",
     "agent-native browser",
-    "x402",
+    "agent micropayments",
     "network effects",
   ],
 };
@@ -382,9 +382,9 @@ export default function RoutingLayerPage() {
             There is no ambiguity about the value delivered.
           </p>
           <p className="mt-6 text-base sm:text-lg leading-8 text-text-secondary">
-            Route fees are settled via x402 micropayments &mdash; HTTP-native
-            payments where the cost of a route is embedded in the protocol
-            itself. An agent evaluates whether the route fee is lower than the
+            Route fees are settled with HTTP-native micropayments &mdash; the
+            cost of a route is embedded in the request itself, paid from the
+            agent's wallet. An agent evaluates whether the route fee is lower than the
             expected cost of rediscovery. If yes, it pays the fee and gets
             instant structured data. If no, it falls back to browser-based
             discovery. The market is self-correcting: overpriced routes get
@@ -426,9 +426,9 @@ export default function RoutingLayerPage() {
                 2. Micropayments became protocol-native
               </h3>
               <p className="text-base sm:text-lg leading-8 text-text-secondary">
-                x402 enables HTTP-level payments &mdash; a server can price a
-                route, and a client can pay for it, in the same request-response
-                cycle. No subscriptions. No API keys. No billing dashboards.
+                HTTP-level micropayments now let a server price a route and a
+                client pay for it in the same request-response cycle, signed by
+                the agent's wallet. No subscriptions. No API keys. No billing dashboards.
                 This makes per-route pricing viable at scale, which is what
                 allows the contribution incentive to work.
               </p>

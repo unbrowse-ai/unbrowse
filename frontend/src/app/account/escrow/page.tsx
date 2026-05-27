@@ -143,7 +143,7 @@ export default function EscrowPage() {
             Fund your Flex escrow
           </h1>
           <p className="text-sm text-text-secondary">
-            Sign in first to fund a Flex escrow for x402 settlement.
+            Sign in with Privy first to fund a Flex escrow for paid-route settlement.
           </p>
         </header>
         <Link

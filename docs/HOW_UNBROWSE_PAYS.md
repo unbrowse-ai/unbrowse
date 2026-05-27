@@ -6,17 +6,17 @@ This page explains how money moves through unbrowse on every paid call. The math
 
 ## Web2 subscription path
 
-For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides x402 entirely:
+For users who never want to touch crypto, unbrowse exposes a Stripe-backed subscription that hides the on-chain settlement rail entirely:
 
 1. The user opens the URL returned by `POST /v1/account/billing-subscribe-url` (`backend/src/routes/account.ts`), pays with a card via Stripe Checkout, and lands back on the configured success URL.
 2. Stripe's webhook (`POST /v1/billing/webhook`) drives `syncStripeDataToUserKV` (`backend/src/services/stripe.ts:226`), which writes the canonical `STRIPE_SUB_CACHE` to `stripe:customer:<customer_id>` in KV.
-3. On every paid `execute`, when the worker is started with `UNBROWSE_BILLING_ENABLED=1` the sponsor middleware (`backend/src/middleware/sponsor.ts:maybeSponsor`) consults `subscriptionAdmits` BEFORE the x402 platform-sponsor wallet check. A subscribed user with quota is admitted; usage is recorded against the Stripe-tracked balance via `recordUsage`; a sponsor-ledger row tagged `payment_method: "stripe"` is written for audit. The agent never sees a 402.
+3. On every paid `execute`, when the worker is started with `UNBROWSE_BILLING_ENABLED=1` the sponsor middleware (`backend/src/middleware/sponsor.ts:maybeSponsor`) consults `subscriptionAdmits` BEFORE the wallet-pay platform-sponsor check. A subscribed user with quota is admitted; usage is recorded against the Stripe-tracked balance via `recordUsage`; a sponsor-ledger row tagged `payment_method: "stripe"` is written for audit. The agent never sees a 402.
 4. Status is observable via `GET /v1/account/billing-status` — `{ subscription_active, plan_name, monthly_limit_usd, consumed_usd, remaining_usd, renewal_date, payment_method_present, auto_refill_enabled }`. The absent-subscription case returns `{ subscription_active: false, ...nulls }`, never 404.
 5. The user manages cards, invoices, and cancellation via the Stripe customer-portal URL from `POST /v1/account/billing-portal-url`.
 
-The gate is reversible: `UNBROWSE_BILLING_ENABLED` unset → the Stripe lane is a no-op and every paid call rides the x402 path documented below. On a worker where `STRIPE_SECRET_KEY` is also unset, the three account routes soft-fail with `503 billing_not_configured` rather than crash.
+The gate is reversible: `UNBROWSE_BILLING_ENABLED` unset → the Stripe lane is a no-op and every paid call rides the wallet path documented below. On a worker where `STRIPE_SECRET_KEY` is also unset, the three account routes soft-fail with `503 billing_not_configured` rather than crash.
 
-Non-subscribers (or subscribers over quota with no auto-refill) continue to use the x402 / Flex / sponsor rails described next.
+Non-subscribers (or subscribers over quota with no auto-refill) continue to use the wallet + Flex + sponsor rails described next.
 
 
 ## The 50/35/15 split
@@ -69,20 +69,20 @@ See `docs/CLAIM_YOUR_DOMAIN.md` for the step-by-step.
 
 The substrate never holds private keys; you bind a signer at `unbrowse setup`. As of 2026-05-21 there are four supported providers selectable from the CLI prompt and the `/account` web page (`POST /v1/account/payment-provider` persists the choice; `backend/src/services/flex.ts` honours it on dispatch).
 
-- **Pay signer** -- TouchID-backed signer, USDC settlement via x402 MPP / search_catalog. The thinnest path for laptop agents; the wallet lives in the macOS keychain. The CLI bridge is `src/payments/paysh-pay.ts` (shells to `pay curl <url>` on each settle).
+- **Pay signer** -- TouchID-backed signer, USDC settlement via the wallet-pay rail / search_catalog. The thinnest path for laptop agents; the wallet lives in the macOS keychain. The CLI bridge is `src/payments/paysh-pay.ts` (shells to `pay curl <url>` on each settle).
 - **lobster.cash** -- Crossmint-backed credit-card -> virtual-card -> Solana funnel. The recommended path for non-technical users; subscription billing tops up the wallet automatically. `npx @crossmint/lobster-cli setup` provisions the account.
 - **Privy embedded** -- Solana wallet provisioned in-browser via Privy. Bound to the user's `agent.wallet_address` after `verifyPrivyAuthToken` succeeds (`backend/src/services/privy.ts`). The right answer when the agent runs as a web app and the user signs in with email or OAuth instead of installing a CLI.
-- **External wallet** -- bring your own Solana signer. The substrate emits an x402 envelope; any wallet that can sign a Faremeter Flex authorization works.
+- **External wallet** -- bring your own Solana signer. The substrate emits a payment envelope; any wallet that can sign a Faremeter Flex authorization works.
 
 The choice is reversible: `unbrowse setup` re-runs the prompt, or POST a new provider to `/v1/account/payment-provider`. The selected provider gates the runtime dispatch path; the on-chain split math (above) is identical across providers.
 
 ## Wallets stay with lobster.cash
 
-The substrate never holds private keys. The frontend recommends lobster.cash as the payout wallet (the live `/how-unbrowse-pays` page renders from `docs/HOW_UNBROWSE_PAYS.md` via `frontend/src/lib/docs-renderer.ts`): `npx @crossmint/lobster-cli setup` provisions a Solana account, lobster signs, unbrowse only declares intent, amount, recipient, and memo. If you want a different signer, the payment terms are plain x402; any wallet that can sign a Faremeter Flex authorization works.
+The substrate never holds private keys. The frontend recommends lobster.cash as the payout wallet (the live `/how-unbrowse-pays` page renders from `docs/HOW_UNBROWSE_PAYS.md` via `frontend/src/lib/docs-renderer.ts`): `npx @crossmint/lobster-cli setup` provisions a Solana account, lobster signs, unbrowse only declares intent, amount, recipient, and memo. If you want a different signer, any wallet that can sign a Faremeter Flex authorization works.
 
-## x402 is the main rail
+## Wallet payments are the main rail
 
-Settlement runs on the x402 standard. unbrowse rotates between two facilitators per request:
+Settlement runs on HTTP-native micropayments (the canonical [x402](https://www.x402.org) protocol — see appendix for implementers). unbrowse rotates between two facilitators per request:
 
 - **Flex** (default). Self-hosted Faremeter facilitator with native splits. The 50/35/15 math above runs on Flex. Selection logic at `backend/src/services/rail-rotation.ts`.
 - **PayAI exact** (rotation fallback). Single-recipient. Does NOT carry splits, so when PayAI wins the rotation the contributor and owner pools settle off-rail (deferred until a Flex-rail transaction). `PAYAI_ROTATION_BPS` env (default 5000) controls the weight; the hash of `agent_id` decides which rail's accept entry comes first in the 402 envelope.
@@ -91,7 +91,7 @@ Stripe optionally wraps either rail for fiat-billed customers, but the underlyin
 
 ## No account required to pay
 
-Agents pay per call. The x402 response carries the price, recipient, and memo. The caller signs and the facilitator settles. There is no signup, no API key gate on the pay path.
+Agents pay per call. The 402 response carries the price, recipient, and memo. The caller signs and the facilitator settles. There is no signup, no API key gate on the pay path.
 
 Accounts exist for one reason: to accumulate and read earnings. The magic-link flow at `backend/src/routes/auth.ts:53-172` issues an API key and an agent_id; the agent_id is what we attribute contributions to. You can use unbrowse without ever creating one; you just can't see a balance until you do.
 

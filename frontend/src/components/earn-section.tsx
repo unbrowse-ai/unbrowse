@@ -74,7 +74,7 @@ export function EarnSection() {
             <div className="relative z-10 space-y-3 text-sm">
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />
-                <span>x402-style flow, settled in USDC on Solana via Faremeter Flex.</span>
+                <span>Privy wallet flow, settled in USDC on Solana via Faremeter Flex.</span>
               </div>
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />

@@ -201,8 +201,8 @@ function FundingControl({
   if (k.funding) {
     const label =
       k.funding.kind === "credit"
-        ? `x402: $${(k.funding.budget_uc / 1_000_000).toFixed(2)} credit budget`
-        : `x402: wallet ${k.funding.wallet.slice(0, 10)}...`;
+        ? `Credits: $${(k.funding.budget_uc / 1_000_000).toFixed(2)} budget`
+        : `Wallet: ${k.funding.wallet.slice(0, 10)}...`;
     return (
       <div className="flex items-center gap-2">
         <span className="text-text-muted text-xs">{label}</span>
@@ -238,7 +238,7 @@ function FundingControl({
           className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
           title="Bind a prepaid credit budget so this key auto-pays paid skills"
         >
-          {busy ? "..." : "Bind x402"}
+          {busy ? "..." : "Bind credits"}
         </button>
       </div>
       {err && <span className="text-xs text-red-400">{err}</span>}
@@ -1079,17 +1079,17 @@ function X402Panel({
 
   if (error) {
     return (
-      <SectionCard title="x402 payments">
+      <SectionCard title="Privy wallet & credits">
         <ErrorChip message={error} />
       </SectionCard>
     );
   }
 
   return (
-    <SectionCard title="x402 payments">
+    <SectionCard title="Privy wallet & credits">
       <p className="text-xs text-text-muted">
         Live numbers, no estimates. Sponsor tier covers your first $/day before
-        x402 falls through to your own wallet or a bound credit budget.
+        your Privy wallet or a bound credit budget settles the rest.
       </p>
       {!sponsor ? (
         <div className="text-sm text-text-muted">Loading...</div>
@@ -1407,7 +1407,7 @@ export default function AccountPage() {
           Your account
         </h1>
         <p className="text-sm text-text-secondary">
-          Profile, API keys, skill visibility, cookie vault, x402 payments.
+          Profile, API keys, skill visibility, cookie vault, Privy wallet & credits.
         </p>
       </header>
 

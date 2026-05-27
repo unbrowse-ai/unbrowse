@@ -50,8 +50,8 @@ export const metadata: Metadata = {
     "earn from web indexing",
     "web mining for AI",
     "agentic web",
-    "x402",
-    "micropayments",
+    "agent micropayments",
+    "HTTP micropayments",
     "agent economy",
     "Unbrowse",
     "USDC",
@@ -156,9 +156,9 @@ const sections: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "x402: how the money moves",
+    title: "Micropayments: how the money moves",
     body: [
-      "Payments use the x402 protocol — HTTP-native micropayments settled in USDC on Solana and Base. When an agent resolves a route, the payment happens inline with the HTTP request. No invoices. No billing cycles. No payment minimums. The agent's wallet signs the payment, the route serves the data, and the contributor's wallet receives the fee. One round trip.",
+      "Payments are HTTP-native micropayments settled in USDC on Solana and Base. When an agent resolves a route, the payment happens inline with the HTTP request. No invoices. No billing cycles. No payment minimums. The agent's wallet signs the payment, the route serves the data, and the contributor's wallet receives the fee. One round trip.",
       "Solana and Base were chosen for fast finality and low gas costs. A $0.005 micropayment cannot work if the transaction fee is $2. On Solana, the settlement cost is a fraction of a cent. The full $0.0035 contributor share arrives in your wallet, not eaten by gas.",
       "Contributors can withdraw earnings to any wallet, swap to fiat through standard off-ramps, or let them accumulate. There is no lockup period, no vesting schedule, no minimum withdrawal. Your earnings are yours the moment agents use your routes.",
     ],
@@ -273,7 +273,7 @@ export default function MineTheInternetPage() {
         name: "How do I get paid for web mining?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Payments use the x402 protocol — HTTP-native micropayments settled in USDC on Solana and Base. When an AI agent uses your route, the payment happens inline with the HTTP request. No invoices, no billing cycles. Earnings arrive in your wallet in real time.",
+          text: "Payments are HTTP-native micropayments settled in USDC on Solana and Base. When an AI agent uses your route, the payment happens inline with the HTTP request. No invoices, no billing cycles. Earnings arrive in your wallet in real time.",
         },
       },
       {
