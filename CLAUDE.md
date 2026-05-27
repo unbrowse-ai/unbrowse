@@ -645,10 +645,14 @@ When Lewis asks about GTM, growth, marketing, or content — run these checks an
 - Content Factory remote agent drafts to `.content-queue/`, then blog-publisher publishes
 
 ### Traction Dashboard (always check first)
-1. Hit `https://launch.unbrowse.ai/api/traction` for: stars, npm downloads, WAU, keys, verifications, retention
+1. ~~Hit `https://launch.unbrowse.ai/api/traction`~~ — DOWN since 2026-05-27 (Vercel
+   DEPLOYMENT_DISABLED, HTTP 402). Source = unbrowse-dashboard repo. Migration
+   plan in `~/.outbox/2026-05-27-launch-unbrowse-ai-down.md`. Falls back to:
 2. Hit `https://beta-api.unbrowse.ai/v1/stats/summary` for: marketplace endpoints, executions, agents, hit rate
-3. Compare against sprint targets in memory `project_20x_sprint.md`
-4. Report delta since last check
+3. Hit `https://api.github.com/repos/unbrowse-ai/unbrowse` for: stars, forks, watchers
+4. Hit `https://api.npmjs.org/downloads/range/last-week/unbrowse` for: npm weekly downloads
+5. Compare against sprint targets in memory `project_20x_sprint.md`
+6. Report delta since last check
 
 ### Remote Agents (auto-running, check their output)
 1. **Daily Traction Snapshot** — commits `DAILY_TRACTION.md` at 9am SGT
