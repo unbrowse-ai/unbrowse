@@ -373,7 +373,8 @@ const ENDPOINTS = {
   perf:     'https://beta-api.unbrowse.ai/v1/stats/perf',
   github:   'https://api.github.com/repos/unbrowse-ai/unbrowse',
   npm:      'https://api.npmjs.org/downloads/point/last-month/unbrowse',
-  traction: 'https://launch.unbrowse.ai/api/traction',
+  // traction endpoint removed 2026-05-27 — launch.unbrowse.ai Vercel deployment
+  // disabled (HTTP 402). Dashboard now falls back to beta-api stats only.
 };
 
 // ============================================================
@@ -417,13 +418,13 @@ async function safeFetch(url) {
 }
 
 async function fetchAll() {
-  const [summary, perf, github, npm, traction] = await Promise.allSettled([
+  const [summary, perf, github, npm] = await Promise.allSettled([
     safeFetch(ENDPOINTS.summary),
     safeFetch(ENDPOINTS.perf),
     safeFetch(ENDPOINTS.github),
     safeFetch(ENDPOINTS.npm),
-    safeFetch(ENDPOINTS.traction),
   ]);
+  const traction = { value: null };
 
   let errors = [];
 
