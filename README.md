@@ -6,7 +6,7 @@ Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK
 
 One agent learns a site once. Every later agent gets the fast path.
 
-On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694).
+On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694). For the release-coverage methodology (corpus shape, rubric, current numbers), see [docs/benchmarks.md](./docs/benchmarks.md).
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
