@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     "proof of indexing",
     "web mining",
     "agentic web",
-    "x402",
-    "micropayments",
+    "agent micropayments",
+    "HTTP micropayments",
     "agent economy",
     "Unbrowse",
     "web3",
@@ -106,9 +106,9 @@ const sections: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "x402 micropayments: how the money moves",
+    title: "Micropayments: how the money moves",
     body: [
-      "Payments use the x402 protocol — HTTP-native micropayments settled in USDC on Solana and Base. When an agent resolves a route, the payment happens inline with the HTTP request. No invoices, no billing cycles, no payment negotiations. The agent's wallet signs the payment, the route serves the data, and the contributor's wallet receives the fee. All in one round trip.",
+      "Payments are HTTP-native micropayments settled in USDC on Solana and Base. When an agent resolves a route, the payment happens inline with the HTTP request. No invoices, no billing cycles, no payment negotiations. The agent's wallet signs the payment, the route serves the data, and the contributor's wallet receives the fee. All in one round trip.",
       "USDC was chosen deliberately. Contributors earn in a stable currency, not a volatile token. There is no Unbrowse token. There is no speculative asset to pump or dump. The economics are simple: agents pay for routes, contributors earn for indexing them. Stablecoins keep both sides honest.",
       "Solana and Base provide the settlement layer — fast finality, low gas costs, and mature wallet infrastructure. Contributors can withdraw earnings to any wallet, swap to fiat through standard off-ramps, or reinvest in the ecosystem. The settlement chain is an implementation detail, not a value proposition.",
     ],

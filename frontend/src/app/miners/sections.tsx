@@ -82,7 +82,7 @@ export function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] })
             <h2 className="mt-5 truncate text-2xl font-semibold">{entry.name}</h2>
             <p className="gradient-text mt-2 text-4xl font-bold">{entry.contribution_score.toFixed(4)}</p>
             <div className="mt-5 space-y-3">
-              <BoardMetric label="x402 Earned" value={`$${entry.total_earned_usd.toFixed(6)}`} />
+              <BoardMetric label="USDC Earned" value={`$${entry.total_earned_usd.toFixed(6)}`} />
               <BoardMetric label="Executions" value={String(entry.executions)} />
               <BoardMetric label="Routes Discovered" value={String(entry.skills_discovered)} />
               <BoardMetric
@@ -124,7 +124,7 @@ export function LeaderboardSection({ entries }: { entries: LeaderboardEntry[] })
                 <th className="px-3 py-3">Rank</th>
                 <th className="px-3 py-3">Contributor</th>
                 <th className="px-3 py-3">Score</th>
-                <th className="px-3 py-3">x402 Earned</th>
+                <th className="px-3 py-3">USDC Earned</th>
                 <th className="px-3 py-3">Executions</th>
                 <th className="px-3 py-3">Routes</th>
                 <th className="px-3 py-3">Share</th>

@@ -77,7 +77,7 @@ export default function BillingPage() {
       </h1>
       <p className="text-sm text-text-secondary mb-8 max-w-[70ch]">
         Pay for skill execution with a subscription. Your API key authorizes calls
-        without the x402 wallet step.
+        without the Privy wallet step.
       </p>
 
       {!isAuthenticated && (
@@ -99,7 +99,7 @@ export default function BillingPage() {
       {sub && "status" in sub && sub.status === "none" && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-surface-sunken p-5 text-sm text-text-secondary">
-            Plan: none. Subscribe to skip the x402 wallet flow.
+            Plan: none. Subscribe to skip the Privy wallet flow.
           </div>
           <button
             onClick={startCheckout}

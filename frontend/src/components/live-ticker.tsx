@@ -2,19 +2,16 @@
 
 /**
  * LiveTicker — sticky archival-orange footer-bar. Polls /v1/stats/summary
- * every 30s and shows the deltas as a "constant motion" infrastructure
+ * every 30s and shows real deltas as a "constant motion" infrastructure
  * signal, in the Wise/Stripe live-ticker style.
  *
  * Endpoint:
  *   /v1/stats/summary → { skills, endpoints, domains, executions, agents }
  *
- * The "calls in the last 60s" counter the brief asked for does not exist
- * server-side yet (no /v1/stats/recent route in backend/src/routes/stats.ts).
- * Until that endpoint ships, the ticker shows:
- *   - cumulative agent calls (executions) — real
- *   - delta over the last poll window — real
- *   - the "60s window" counter is held as a TODO placeholder "—"
- *     so the bar reads truthful instead of fabricated.
+ * The ticker only renders metrics the backend actually exposes:
+ *   - cumulative agent calls (executions)
+ *   - delta over the last 30s poll window
+ *   - total endpoints + domains in the shared route graph
  *
  * Stays sticky at viewport bottom. When the page bottom is reached, the
  * SiteFooter scrolls in beneath naturally. Respects prefers-reduced-motion:
@@ -191,15 +188,6 @@ export function LiveTicker() {
           }}
         >
           live
-        </span>
-
-        {/* Calls in last 60s — TODO: needs /v1/stats/recent server-side */}
-        <span style={{ tabularNums: true } as React.CSSProperties}>
-          <span style={{ color: 'rgba(255,176,96,0.95)', fontVariantNumeric: 'tabular-nums' }}>
-            {/* TODO: /v1/stats/recent endpoint would supply 60s window counter */}
-            —
-          </span>{' '}
-          <span style={{ color: 'rgba(255,194,140,0.88)' }}>calls / 60s</span>
         </span>
 
         {/* Cumulative executions — real */}

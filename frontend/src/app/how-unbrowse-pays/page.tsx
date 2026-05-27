@@ -5,9 +5,9 @@ import { notFound } from "next/navigation";
 import { loadDocMarkdown } from "@/lib/docs-renderer";
 
 export const metadata: Metadata = {
-	title: "How Unbrowse pays, x402 first, API keys optional, indexers earn",
+	title: "How Unbrowse pays — Privy wallet first, API keys optional, indexers earn",
 	description:
-		"Every Unbrowse call settles on-chain via Faremeter Flex by default. API keys are an optional billing layer for users who want subscription tiers. Indexers earn 50% of revenue from skills they discovered.",
+		"Every Unbrowse call settles on-chain via Faremeter Flex by default. Sign in with Privy to bind a wallet; API keys are an optional subscription layer. Indexers earn 50% of revenue from skills they discovered.",
 };
 
 // Source of truth: unbrowse/docs/HOW_UNBROWSE_PAYS.md. Read at build time.
