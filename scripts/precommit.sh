@@ -79,6 +79,13 @@ if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\
   echo "[pre-commit] leak-guard: scanning public-reachable paths for alpha"
   bash scripts/leak-guard.sh
 fi
+# Kuri vendor freshness gate: when the staged diff bumps the
+# submodules/kuri gitlink, the packaged vendor manifest source_sha must
+# match the new SHA. Prevents Day-5 W5's lost-sheep scenario (7 Windows-
+# port submodule bumps shipped with a stale manifest). Self-skips when
+# no kuri change is staged. Pattern at scripts/precommit-kuri-vendor.sh.
+bash scripts/precommit-kuri-vendor.sh
+
 # Doc-delta probe: when the staged diff carries shipping-surface signals
 # (new workspace member, [[bin]], deploy target, new top-level dir, new
 # manifest below root) AND no canonical doc (README / architecture /
