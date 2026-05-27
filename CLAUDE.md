@@ -153,7 +153,7 @@ local/cloud thin-client split (organ `b9c8a64d` → `ddff0c96`).
 
 ## bench-local (fastest iteration loop)
 
-Primary loop when investigating coverage regressions: `bash scripts/bench-local.sh --use-source --corpus-file F --timeout 90`. Uses `bun src/cli.ts` inline (no package reinstall, no server spawn, no CI flakiness). Writes `.bench-local/{results.jsonl,evidence.csv,*.out}` + prints the rubric tally on stderr.
+Primary loop when investigating coverage regressions: `~/.claude/skills/contract/scripts/aiko "bench-local --use-source --corpus-file F --timeout 90"`. Bench is a /contract, not a script — the .sh files were deleted 2026-05-26 ("benches should never be scripts"); the canonical entry is `aiko "bench-local ..."`. The substrate is responsible for spawning the probe loop and writing `.bench-local/{results.jsonl,evidence.csv,*.out}`. Until a substrate-side bench executor adapter exists, the declaration HOLDs.
 
 ### Evidence fields the agent reads
 
@@ -188,7 +188,7 @@ Apply in order (first match wins):
 
 Coverage metric: **`PASS / (PASS + PRODUCT_FAIL + SPARSE_REVIEW + ANTIBOT_BLOCK)`**. AUTH_GATED and SKIPPED_NO_FRESH_COOKIES are excluded because the agent cannot proceed without user credentials (cookie injection, magic link, OAuth grant) and that's a SETUP gap, not a runtime product gap. Everything else counts toward the denominator. The stop hook's "100% coverage" claim now means: 100% of probes the agent could possibly resolve given valid credentials, with no antibot-as-excuse exclusion.
 
-Auth-gated and auth-cookies probes only run when the local machine has a fresh cookie for the target domain. Without a cookie, the bench cannot honestly measure whether Unbrowse's XHR + cookie-injection ladder would have worked. Skipping is honest; running and 401-ing is noise. The check inspects metadata (existence + non-expired `expires_utc`) only; cookie values are never decrypted. SQLite lock on the cookie DB (Chrome running with exclusive lock) is treated as `source=locked` and the probe still runs; only `source in (chrome, firefox, none)` with `fresh=false` triggers a skip. The check lives at `scripts/check_cookie_freshness.py` and is invoked from `scripts/bench-local.sh` and `scripts/bench-gate-probe-worker.sh`.
+Auth-gated and auth-cookies probes only run when the local machine has a fresh cookie for the target domain. Without a cookie, the bench cannot honestly measure whether Unbrowse's XHR + cookie-injection ladder would have worked. Skipping is honest; running and 401-ing is noise. The check inspects metadata (existence + non-expired `expires_utc`) only; cookie values are never decrypted. SQLite lock on the cookie DB (Chrome running with exclusive lock) is treated as `source=locked` and the probe still runs; only `source in (chrome, firefox, none)` with `fresh=false` triggers a skip. The check lives at `scripts/check_cookie_freshness.py` and was invoked from `scripts/bench-local.sh` and `scripts/bench-gate-probe-worker.sh` before those were deleted (2026-05-26); the freshness probe now belongs in whatever substrate-side bench-executor adapter the contract substrate ships.
 
 Antibot bypass is a PRODUCT capability gap, not "not our bug." Saying we have 100% coverage "except for the blocked sites" is dishonest: the blocked sites are exactly where Unbrowse needs to differentiate (libcurl-impersonate, residential proxy fallback per `UNBROWSE_PROXY_URL`, JA4 spoof, cookie injection from real Chrome/Firefox profiles, headful fallback). Counting them as PRODUCT_FAIL (renamed ANTIBOT_BLOCK so the failure mode is visible in the tally) makes the bench tell the truth and pushes the team toward the right wedge.
 
@@ -444,6 +444,17 @@ Omit empty sections. No emojis. No file paths or function names.
   # Kuri broker: only the binary at known install paths, not any cmdline containing "kuri"
   pkill -9 -f '/\.unbrowse/bin/kuri( |$)' 2>/dev/null
   pkill -9 -f '/\.kuri/bin/kuri( |$)' 2>/dev/null
+  # contract-bridge daemons (Day-5 W1): both the node wrapper and the bun child.
+  # Match the exact `unbrowse contract-bridge` / `contract-bridge-serve` subcommand suffix,
+  # NOT any cmdline containing the substring "contract" (would kill /tmp/contract-* scaffolds).
+  pkill -9 -f 'unbrowse contract-bridge(-serve)?( |$)' 2>/dev/null
+  # mcp-hot-proxy: only the dev daemon at the canonical scripts path. Do NOT broaden to
+  # any 'bun run' (kills bench scaffolds) or any path containing "mcp-hot-proxy".
+  pkill -9 -f 'bun run .*/scripts/mcp-hot-proxy\.ts( |$)' 2>/dev/null
+  # Headless Chrome on Kuri CDP ports 9222/9223 (Day-5 W2 found these survive cli_timeout).
+  # Match ONLY chrome processes that BOTH (a) carry --headless=new AND (b) bind 9222 or 9223.
+  # Plain `9222` substring would match unrelated processes (e.g. a bench port lookup).
+  pkill -9 -f 'Google Chrome.*--headless=new.*--remote-debugging-port=922[23]\b' 2>/dev/null
   sleep 2
   ```
   Bench scaffolds in `.claude/worktrees/*/...` or `/tmp/*` paths now survive this kill set even though their working dir contains the substring "unbrowse".
@@ -799,9 +810,12 @@ Right pattern (already memorialised in
    triage order, NOT a verdict. The verdict is the agent's in-thread
    judgment after opening the artifact.
 
-Reference: `scripts/bench-two-phase.sh` collects per-URL capture.out +
-execute.out + runs.jsonl rows. The `combined_verdict` column is a
-sort-key only; agent judges by opening artifacts.
+Reference: bench-two-phase was a script that collected per-URL capture.out +
+execute.out + runs.jsonl rows; deleted 2026-05-26 as part of the benches-are-
+contracts migration. Whatever substrate-side bench executor lands next must
+preserve the same per-URL artifact shape so the agent can still judge by
+opening artifacts. The `combined_verdict` column was a sort-key only; agent
+judges by opening artifacts.
 
 This rule applies to ANY bench that produces a per-URL outcome:
 bench-two-phase, bench-hard, bench-local, agent-experience harness,

@@ -1,0 +1,11 @@
+# exa-probe-fallback-gate — scope of files this audit walks
+# Lines starting with # are comments. Globs are relative to repo root.
+# Each matched file is read by verify.sh; tilde resolves to $HOME.
+
+src/cli.ts
+src/execution/index.ts
+src/orchestrator/index.ts
+src/orchestrator/resolve-race.ts
+src/resolve/**/*.ts
+src/exa/**/*.ts
+src/types/skill.ts

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **docs(claude.md)**: narrowed pkill set extended to cover `contract-bridge`/`contract-bridge-serve` daemons, `mcp-hot-proxy.ts`, and headless Chrome bound to Kuri CDP ports 9222/9223. Each pattern is anchored to its exact cmdline shape so concurrent bench scaffolds in `/tmp/*` and `.claude/worktrees/*` survive the kill (PR #662 cross-session race remains closed).
+- **audit(exa-probe-fallback-gate)**: codified the Day-5 W3 fake-green regression as `.audits/exa-probe-fallback-gate/{README.md, scope.txt, verify.sh, fix.sh}` per the `audits-directory-convention` memory. `verify.sh` reports 2 honest violations today; will go green when Worker-1's `AUTH_GATED_HOSTS` const + `auth_required` re-route lands at `src/cli.ts` + `src/execution/index.ts`.
+
 ## v7.0.2 (2026-05-25)
 
 **fix(prod-deploy)**: force-roll #796 (lineage visibility) + #797 (signed declare) onto prod. Earlier deploy.yml runs got cancelled by concurrent merge-deploys; this tag fires release.yml end-to-end so the protections actually land. No code changes vs main HEAD.
