@@ -19,7 +19,7 @@ env:
 jobs:
   deploy-backend:
     name: Deploy Backend (CF Worker)
-    runs-on: [self-hosted, Linux, unbrowse-ci]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
@@ -95,7 +95,7 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
     needs: [deploy-backend]
-    runs-on: [self-hosted, Linux, unbrowse-ci]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
@@ -156,7 +156,7 @@ jobs:
 
   publish-preview-cli:
     name: Publish Preview CLI (npm)
-    runs-on: [self-hosted, Linux, unbrowse-ci]
+    runs-on: ubuntu-latest
     if: github.ref_name == 'lewis/experiments'
     permissions:
       contents: read
