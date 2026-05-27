@@ -61,6 +61,44 @@ REQUIRE_DOMAIN_VERIFICATION = "1"
 # See backend/src/services/ai-scrub.ts. NEBIUS_API_KEY (a secret) is the bearer.
 UNBROWSE_AI_SCRUB_MODEL = "moonshotai/Kimi-K2.5"
 
+# --- Production environment ---
+# Deploy: wrangler deploy --env production
+# Secrets: wrangler secret put EMERGENTDB_API_KEY --env production (etc.)
+#
+# Mirrors the top-level [vars] / [[kv_namespaces]] blocks above so that
+# `wrangler deploy --env production` is an EXPLICIT, declared path —
+# satisfies global principle 20260521T194246Z-7ad798e3 (staging-then-prod
+# with signed release manifest), which requires production to be its own
+# named env so `wrangler deploy` without `--env` stops being the silent-
+# default deploy path. The top-level blocks are KEPT for back-compat with
+# the current CI (deploy.yml uses `wrangler deploy` without --env); the
+# next wave migrates CI to `--env production` and removes the silent
+# top-level fallback.
+[env.production]
+name = "unbrowse-backend"
+workers_dev = false
+routes = [
+  { pattern = "beta-api.unbrowse.ai/*", zone_name = "unbrowse.ai" },
+]
+
+[[env.production.kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+CREDITS_ENABLED = "1"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+# v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY --env production).
+PLATFORM_SPONSOR_WALLET_ADDRESS = ""
+SPONSOR_CAP_DAILY_USD = "1.0"
+SPONSOR_GLOBAL_DAILY_USD = "50.0"
+PRIVY_APP_ID = "cmpalnem701z00cjmncqve4q0"
+REQUIRE_DOMAIN_VERIFICATION = "1"
+UNBROWSE_AI_SCRUB_MODEL = "moonshotai/Kimi-K2.5"
+
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
 # Secrets: wrangler secret put EMERGENTDB_API_KEY --env staging (etc.)
