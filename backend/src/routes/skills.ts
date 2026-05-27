@@ -20,6 +20,12 @@ import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSki
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+import {
+  withCache,
+  marketplaceCacheKey,
+  buildCacheHeaders,
+  safeExecutionCtx,
+} from "../services/kv-cache.js";
 import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
 import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
 import { aiScrubEndpoints } from "../services/ai-scrub.js";
@@ -87,21 +93,60 @@ publicSkillRoutes.get("/skills/by-domain/:domain/skill.md", async (c) => {
   if (!domain || !/^[a-z0-9.-]+$/i.test(domain) || !domain.includes(".")) {
     return c.json({ error: "invalid domain" }, 400);
   }
-  const cacheKey = `skillmd:domain:${domain}`;
-  const cached = await getEdgeCacheJson<{ md: string; indexed: boolean }>(cacheKey);
-  if (cached) {
+
+  // W17 marketplace cache wrap. Key = cache:marketplace:<domain> per the
+  // spec's namespace convention. TTL=300s with SWR ON — marketplace
+  // entries for a domain change on every publish/patch, but publishes
+  // are rare relative to lookups; SWR keeps p99 latency low while
+  // background-refreshing on the first read after staleness threshold.
+  // Domain is a public identifier (lowercased hostname) — no private
+  // identifier in the key. Response is the rendered SKILL.md (already
+  // public via /v1/skills/by-domain/:domain/skill.md). Matt 6:34.
+  //
+  // Note: the existing edge-cache (Worker Cache API) layer still fires
+  // first; the KV layer is a SECOND tier when edge cache misses (e.g.
+  // cold colo, edge cache evicted). Together they form a two-tier
+  // discipline: edge-cache for sub-ms hits, RESPONSE_CACHE for
+  // cross-colo persistence.
+  const edgeCacheKey = `skillmd:domain:${domain}`;
+  const edgeCached = await getEdgeCacheJson<{ md: string; indexed: boolean; etag?: string }>(edgeCacheKey);
+  if (edgeCached) {
     c.header("Content-Type", "text/markdown; charset=utf-8");
     c.header("Cache-Control", buildCacheControl(120));
-    c.header("X-Unbrowse-Indexed", cached.indexed ? "1" : "0");
-    return c.body(cached.md);
+    c.header("X-Unbrowse-Indexed", edgeCached.indexed ? "1" : "0");
+    c.header("X-Cache", "HIT");
+    if (edgeCached.etag) c.header("ETag", `"${edgeCached.etag}"`);
+    return c.body(edgeCached.md);
   }
-  const skill = await getSkillByDomain(c.env, domain);
-  const md = skill ? renderSkillMd(skill) : renderEmptyDomainMarkdown(domain);
-  schedule(c, putEdgeCacheJson(cacheKey, { md, indexed: !!skill }, 120));
+
+  type SkillMdPayload = { md: string; indexed: boolean };
+  const cacheResult = await withCache<SkillMdPayload>(
+    c.env,
+    marketplaceCacheKey(domain),
+    300,
+    { staleWhileRevalidate: true, ctx: safeExecutionCtx(c) },
+    async () => {
+      const skill = await getSkillByDomain(c.env, domain);
+      const md = skill ? renderSkillMd(skill) : renderEmptyDomainMarkdown(domain);
+      return { md, indexed: !!skill };
+    },
+  );
+
+  schedule(
+    c,
+    putEdgeCacheJson(
+      edgeCacheKey,
+      { ...cacheResult.value, etag: cacheResult.etag },
+      120,
+    ),
+  );
+
+  const cacheHeaders = buildCacheHeaders(cacheResult);
+  for (const [k, v] of Object.entries(cacheHeaders)) c.header(k, v);
   c.header("Content-Type", "text/markdown; charset=utf-8");
   c.header("Cache-Control", buildCacheControl(120));
-  c.header("X-Unbrowse-Indexed", skill ? "1" : "0");
-  return c.body(md);
+  c.header("X-Unbrowse-Indexed", cacheResult.value.indexed ? "1" : "0");
+  return c.body(cacheResult.value.md);
 });
 
 // GET /v1/skills/popular -- list top skills by observed executions

@@ -373,44 +373,78 @@ accountRoutes.get("/account/sponsor-status", async (c) => {
   const { sponsorWalletReady, sponsorCapDailyUsd, sponsorGlobalCapDailyUsd } =
     await import("../middleware/sponsor.js");
   const { statsKV } = await import("../services/kv.js");
+  const { withCache, sponsorCacheKey, buildCacheHeaders, safeExecutionCtx } = await import(
+    "../services/kv-cache.js"
+  );
 
   const agentId = c.get("agent_id");
-  const enabled = sponsorWalletReady(c.env);
-  const capDailyUsd = sponsorCapDailyUsd(c.env);
-  const globalCapDailyUsd = sponsorGlobalCapDailyUsd(c.env);
-
   // Same date bucket the middleware uses (UTC YYYY-MM-DD).
   const dateStr = new Date().toISOString().slice(0, 10);
-  const agentKey = `sponsor:agent:${agentId}:${dateStr}`;
-  const globalKey = `sponsor:global:${dateStr}`;
 
-  let agentSpentUc = 0;
-  let globalSpentUc = 0;
-  try {
-    const kv = statsKV(c.env);
-    const [agentRaw, globalRaw] = await Promise.all([
-      kv.get(agentKey) as Promise<string | null>,
-      kv.get(globalKey) as Promise<string | null>,
-    ]);
-    const ap = agentRaw ? Number.parseInt(agentRaw, 10) : 0;
-    const gp = globalRaw ? Number.parseInt(globalRaw, 10) : 0;
-    if (Number.isFinite(ap) && ap >= 0) agentSpentUc = ap;
-    if (Number.isFinite(gp) && gp >= 0) globalSpentUc = gp;
-  } catch {
-    // Best-effort: missing KV (test env without seeded data) reads as zero.
-  }
+  // W17 cache wrap. Key = cache:sponsor:<agentId>:<UTC-date>. agentId is
+  // the hash of the bearer key (already used as a public identifier in
+  // the splits/ledger surface — same kind of public ID used by
+  // `routes/agents.ts`), NOT the bearer key itself, NOT the wallet
+  // pubkey. UTC-date in the key shape rolls the cache at midnight UTC,
+  // matching the middleware's bucket boundary so we never serve a
+  // yesterday-balance into today. Short 30s TTL because per-agent
+  // spend changes every paid call; SWR DISABLED — staleness here would
+  // mean the agent sees a wrong "remaining" number and could over-
+  // request, defeating the sponsor cap. Heb 6:18 — the seal must match
+  // the truth; the witness must be fresh.
+  const noCacheHdr = c.req.header("cache-control")?.toLowerCase().includes("no-cache") ?? false;
+  type SponsorPayload = {
+    enabled: boolean;
+    cap_daily_usd: number;
+    spent_today_usd: number;
+    remaining_today_usd: number;
+    global_cap_daily_usd: number;
+    global_spent_today_usd: number;
+  };
+  const cacheResult = await withCache<SponsorPayload>(
+    c.env,
+    sponsorCacheKey(agentId, dateStr),
+    30,
+    { bypass: noCacheHdr, staleWhileRevalidate: false, ctx: safeExecutionCtx(c) },
+    async () => {
+      const enabled = sponsorWalletReady(c.env);
+      const capDailyUsd = sponsorCapDailyUsd(c.env);
+      const globalCapDailyUsd = sponsorGlobalCapDailyUsd(c.env);
+      const agentKey = `sponsor:agent:${agentId}:${dateStr}`;
+      const globalKey = `sponsor:global:${dateStr}`;
 
-  const spentTodayUsd = agentSpentUc / 1_000_000;
-  const remainingTodayUsd = Math.max(0, capDailyUsd - spentTodayUsd);
+      let agentSpentUc = 0;
+      let globalSpentUc = 0;
+      try {
+        const kv = statsKV(c.env);
+        const [agentRaw, globalRaw] = await Promise.all([
+          kv.get(agentKey) as Promise<string | null>,
+          kv.get(globalKey) as Promise<string | null>,
+        ]);
+        const ap = agentRaw ? Number.parseInt(agentRaw, 10) : 0;
+        const gp = globalRaw ? Number.parseInt(globalRaw, 10) : 0;
+        if (Number.isFinite(ap) && ap >= 0) agentSpentUc = ap;
+        if (Number.isFinite(gp) && gp >= 0) globalSpentUc = gp;
+      } catch {
+        // Best-effort: missing KV (test env without seeded data) reads as zero.
+      }
 
-  return c.json({
-    enabled,
-    cap_daily_usd: capDailyUsd,
-    spent_today_usd: spentTodayUsd,
-    remaining_today_usd: remainingTodayUsd,
-    global_cap_daily_usd: globalCapDailyUsd,
-    global_spent_today_usd: globalSpentUc / 1_000_000,
-  });
+      const spentTodayUsd = agentSpentUc / 1_000_000;
+      const remainingTodayUsd = Math.max(0, capDailyUsd - spentTodayUsd);
+      return {
+        enabled,
+        cap_daily_usd: capDailyUsd,
+        spent_today_usd: spentTodayUsd,
+        remaining_today_usd: remainingTodayUsd,
+        global_cap_daily_usd: globalCapDailyUsd,
+        global_spent_today_usd: globalSpentUc / 1_000_000,
+      };
+    },
+  );
+
+  const headers = buildCacheHeaders(cacheResult);
+  for (const [k, v] of Object.entries(headers)) c.header(k, v);
+  return c.json(cacheResult.value);
 });
 
 /**
