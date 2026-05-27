@@ -33,6 +33,7 @@ import { contractRoutes } from "./routes/contract.js";
 import { provisionPodRoutes } from "./routes/provision-pod.js";
 import { openaiToolsRoutes } from "./routes/openai-tools.js";
 import { extractRoutes } from "./routes/extract.js";
+import { auditRoutes } from "./routes/audit.js";
 import {
   mountFaremeterTestRoute,
   stubFaremeterHandlers,
@@ -89,6 +90,11 @@ app.route("/v1", contractRoutes);
 app.route("/v1", provisionPodRoutes);
 app.route("/v1", openaiToolsRoutes);
 app.route("/v1", extractRoutes);
+// v7.0 audit-log surface — pointer-only fill receipts (Ed25519 sig-shape
+// today, Groth16 SNARK in v7.3 behind the same wire). See routes/audit.ts
+// and services/audit.ts. Storage path is inert in v7.0 scaffold (returns
+// 501 with the KV key the real impl will touch); verify path is REAL.
+app.route("/", auditRoutes);
 app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);

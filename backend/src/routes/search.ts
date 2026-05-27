@@ -13,6 +13,13 @@ import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { rankEndpointsServer, type RankRequest } from "../services/rank.js";
+import {
+  withCache,
+  resolveCacheKey,
+  buildCacheHeaders,
+  CacheNotModified,
+  safeExecutionCtx,
+} from "../services/kv-cache.js";
 
 /**
  * Public discovery: the website's anonymous skill search must work without an
@@ -276,21 +283,59 @@ searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) 
     const gate = await requireSearchPayment(c, "search-resolve");
     if (gate) return gate;
     const agentId = c.get("agent_id") ?? "anonymous";
-    const cacheTtlSeconds = 30;
-    const results = shouldCacheSearch(c)
-      ? await getCachedSearchPayload(
-        c,
-        `search:resolve:${domain?.toLowerCase() ?? "all"}:${normalizeSearchText(intent)}:${domain_k ?? 5}:${global_k ?? 10}`,
+    const cacheTtlSeconds = 60;
+
+    // W17 cache wrap. The resolve endpoint is the highest-volume hot path;
+    // a single resolve walks marketplace + cache + first-pass capture, all
+    // of which are expensive. Cache key is sha256(intent + ":" +
+    // normalized URL surrogate) — neither intent nor URL leaks at the
+    // key layer (hash-only). domain + k caps fold into the URL surrogate
+    // so different shortlist sizes don't collide. TTL=60s with SWR ON
+    // — resolve responses are stable for tens of seconds on the same
+    // intent (the marketplace doesn't churn that fast), so SWR drives
+    // the hit-rate up. Matt 6:34 — sufficient unto the day.
+    //
+    // SECURITY: the resolve response carries ONLY endpoint metadata
+    // (URL templates, methods, schemas, agent-augmented descriptions) —
+    // already public on /v1/skills/* anyway. NO bearer key, NO wallet
+    // pubkey, NO session token enters the response or the key.
+    const noCacheHdr = c.req.header("cache-control")?.toLowerCase().includes("no-cache") ?? false;
+    const ifNoneMatch = c.req.header("if-none-match")?.replace(/^"|"$/g, "") ?? undefined;
+    const surrogateUrl = `${domain?.toLowerCase() ?? "all"}?dk=${domain_k ?? 5}&gk=${global_k ?? 10}`;
+    const key = await resolveCacheKey(normalizeSearchText(intent), surrogateUrl);
+
+    let cacheResult;
+    try {
+      cacheResult = await withCache(
+        c.env,
+        key,
         cacheTtlSeconds,
-        async () => searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10),
-      )
-      : await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
+        {
+          bypass: noCacheHdr,
+          staleWhileRevalidate: true,
+          ctx: safeExecutionCtx(c),
+          honorIfNoneMatch: ifNoneMatch,
+        },
+        async () =>
+          searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10),
+      );
+    } catch (cacheErr) {
+      if (cacheErr instanceof CacheNotModified) {
+        c.header("ETag", `"${cacheErr.etag}"`);
+        c.header("X-Cache", "HIT");
+        return c.body(null, 304);
+      }
+      throw cacheErr;
+    }
+
+    const headers = buildCacheHeaders(cacheResult);
+    for (const [k, v] of Object.entries(headers)) c.header(k, v);
     if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
     if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
-    return c.json(results);
+    return c.json(cacheResult.value);
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);
     return c.json({ domain_results: [], global_results: [], skipped_global: false });
