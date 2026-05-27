@@ -62,12 +62,6 @@ export type AgentSemanticAugmentOptions = {
    * `${API_URL}${AUGMENT_PATH}`.
    */
   fetchImpl?: typeof fetch;
-  /**
-   * @deprecated Prompt + model orchestration moved server-side. This
-   * field is retained for source/back-compat only and is ignored. Pass
-   * `fetchImpl` to stub the backend response in tests instead.
-   */
-  provider?: unknown;
 };
 
 function compact(value: unknown, depth = 0): unknown {
