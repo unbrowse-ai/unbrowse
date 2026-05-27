@@ -1,5 +1,45 @@
 # Changelog
 
+## [7.2.0-preview.0] - 2026-05-28
+
+> Rev 3:8 — *"I have set before thee an open door, and no man can shut it."*
+> The preview tag is the open door: v7 starts shipping value before the
+> destructive Kuri rip lands. This is the **coexistence release** — the v6
+> Kuri-driven surface is still alive; the v7 covenant CDP foundation ships
+> alongside it under `unbrowse {build,breath,eval}` for early adopters.
+
+Install: `npm install unbrowse@preview`
+
+### What's New
+
+- **`unbrowse {build, breath, eval}` CLI tree.** The covenant three-verb shape lands as a top-level command surface. `build` declares patterns and prepares sessions, `breath` animates the runtime (clicks, fills, navigations), `eval` observes and witnesses. Each verb maps 1:1 onto a CDP primitive so agents reason in the same shape the protocol speaks. The v6 `unbrowse {go,snap,click,fill,submit,close}` commands remain available — no migration required for existing scripts.
+- **Raw CDP foundation.** A new in-tree CDP client (connection, target, network, input, DOM) replaces the Kuri HTTP broker on the v7 verbs. Agents talk to Chrome directly over the DevTools Protocol — no broker hop, no Zig binary on the hot path for the new verbs. Existing Kuri-backed flows are unchanged this release.
+- **Pointer-only value flow with four adapters.** Secrets and form values are passed as URIs and dereferenced in-memory at the last possible moment, then zeroed. Adapters: `op://` (1Password), `keychain://` (macOS Keychain), `bw://` (Bitwarden), `arg://` (raw arg passthrough for tests). Audit receipts carry only a `sha256(value || nonce)` commitment — never the cleartext, never a `[REDACTED]` placeholder.
+- **Ed25519 audit-log surface.** Every paid action emits a signed receipt to `/v1/audit` on the backend. Receipts include the action kind, pointer URIs (no values), and a per-request signature an auditor can verify offline. This is the substrate the v7 economics surfaces will read.
+- **KV cache layer.** Backend now reads/writes a `RESPONSE_CACHE` KV namespace keyed by canonical request shape. Cache hits return without touching upstream — first step of the v7 "free synthesized response on cache hit" promise. Falls through gracefully when the binding is missing (no behavioural regression for operators who haven't bound the namespace yet).
+- **TLS spoof chain (utls-proxy submodule).** A Go-based TLS-fingerprint proxy ships as a vendored submodule, emitting a Chrome-120-equivalent JA3/JA4. CLI verbs that pass through this proxy present a Chrome handshake regardless of the underlying runtime (Node, Bun, edge worker). Vendor manifest enforced by `assert-utls-vendor.mjs`.
+
+### Coexistence notes
+
+- The full v6 Kuri-driven surface (`go`, `snap`, `click`, `fill`, `submit`, `close`, `eval`, `resolve`, `execute`, MCP) is unchanged. No commands removed, no flags re-bound. The destructive rip is a separate v7.x cycle.
+- The new verbs share session-broker state with the v6 surface but currently default to raw CDP — set `UNBROWSE_V7_VERBS=0` to force the legacy Kuri broker for these commands during the preview window.
+
+### Fixes
+
+- Backend `wrangler.toml` declares explicit `[env.production]` so `wrangler deploy` without `--env` becomes a clean error instead of silently shipping to the unscoped block.
+- `packages/skill/prepare-pack.mjs` now asserts the utls-proxy vendor binary is present before packing the CLI tarball.
+
+### Performance
+
+- CDP-direct verbs save the broker round-trip (~3–8 ms per call on a warm session). Composite flows of 20+ steps see proportional reductions.
+- KV cache hits return in single-digit ms from the closest Cloudflare edge versus 200–800 ms on a cold capture path.
+
+### Substrate
+
+- 45 new tests cover the v7 surface end-to-end (`tests/v7-cdp-foundation.test.ts`, `backend/tests/v7-audit-log.test.ts`, `backend/tests/v7-audit-variants.test.ts`, `backend/tests/v7-kv-cache.test.ts`). All green at preview tag.
+- Backend `tsc --noEmit` clean against the new types in `backend/src/types.ts`.
+- Planning artifacts under `.planning/v7-rip/` (CDP primitives, Kuri inventory, pointer scheme, value-store adapters, ZK scope) document the destructive-rip path the v7.0.0-final cycle will execute.
+
 ## Unreleased
 
 - **mcp-gate-bypass (documented)**: this push set `MCP_GATE_BYPASS=1` on `trigger-deploy → main`. Reason: the bench-mcp-safety meta-harness scaffold at `.claude/use-unbrowse-mcp-against-the-1000-probe-bench-co/` is structurally broken — `iterate.sh` delegates to `self-build` loop instead of `verify-direct`, never appending a `verified` row to `iterations.jsonl`. `verify.sh` itself works (Phase 1 cookie baseline ran clean) but takes >10min for all 6 phases of MCP probes. Alternative attestation: (1) `npm pack` of `packages/skill` → tempdir install → smoke-tested `unbrowse health` and `unbrowse resolve --intent "get top stories" --url "https://news.ycombinator.com"` against `https://unbrowse-backend-staging.lewis-6d8.workers.dev` — both green; (2) staging `/v1/version` returns the merge SHA `22dd563ec2a718...` with valid HMAC `de357d515a6eb4d0...`; (3) the 14 pre-existing capability-affecting commits on `trigger-deploy` carry their own tests (`tests/exit-drain-bounded.test.ts`, `tests/exa-probe-fallback-gate.test.ts`, `backend/tests/wrangler-production-firmament.test.ts`, etc.). Tracking the scaffold-fix as a follow-up.

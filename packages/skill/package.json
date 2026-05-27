@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "7.0.2",
+  "version": "7.2.0-preview.0",
   "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
   "type": "module",
   "bin": {
@@ -9,6 +9,7 @@
   "files": [
     "bin",
     "vendor/kuri",
+    "vendor/utls-proxy",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
     "scripts/postinstall-ping.mjs",
@@ -19,7 +20,7 @@
   ],
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "prepack": "node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs",
+    "prepack": "node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"
