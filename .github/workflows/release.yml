@@ -68,7 +68,7 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
-      - run: bun install --frozen-lockfile
+      - run: bun install --no-frozen-lockfile
       # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs from
       # github.com/lekt9/kuri releases (prebuiltAssets URL) — no macos-latest
       # runner needed. Linux/Windows targets cross-compile via zig (installed
@@ -148,7 +148,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --frozen-lockfile
+      - run: bun install --no-frozen-lockfile
       # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs
       # from the lekt9/kuri prebuilt URL — no macos-latest artifact needed.
       - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
@@ -296,7 +296,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --frozen-lockfile
+      - run: bun install --no-frozen-lockfile
 
       - name: Read SDK package metadata
         id: pkg
@@ -397,7 +397,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --frozen-lockfile
+      - run: bun install --no-frozen-lockfile
       - name: Deploy worker with version vars
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -438,7 +438,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --frozen-lockfile
+      - run: bun install --no-frozen-lockfile
       - run: bun run deploy:ci
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
