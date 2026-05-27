@@ -5,16 +5,24 @@ import { notFound } from "next/navigation";
 import { loadDocMarkdown } from "@/lib/docs-renderer";
 
 export const metadata: Metadata = {
-	title: "How Unbrowse pays, x402 first, API keys optional, indexers earn",
+	title: "How Unbrowse pays — Privy wallet first, API keys optional, indexers earn",
 	description:
-		"Every Unbrowse call settles on-chain via Faremeter Flex by default. API keys are an optional billing layer for users who want subscription tiers. Indexers earn 50% of revenue from skills they discovered.",
+		"Every Unbrowse call settles on-chain via Faremeter Flex by default. Sign in with Privy to bind a wallet; API keys are an optional subscription layer. Indexers earn 50% of revenue from skills they discovered.",
 };
 
 // Source of truth: unbrowse/docs/HOW_UNBROWSE_PAYS.md. Read at build time.
 const DOC_SLUG = "HOW_UNBROWSE_PAYS";
 
+// Read + render at module load (build time on Cloudflare Pages) so the rendered
+// HTML is bundled into the page and no fs IO happens at request time. Without
+// this, the page invokes loadDocMarkdown per request → fs.readFileSync inside
+// the worker → ENOENT → notFound() → 404 in prod (observed 2026-05-27 on v7.0.2).
+const PRERENDERED = loadDocMarkdown(DOC_SLUG);
+
+export const dynamic = "force-static";
+
 export default function HowUnbrowsePays() {
-	const doc = loadDocMarkdown(DOC_SLUG);
+	const doc = PRERENDERED;
 	if (!doc.found) notFound();
 
 	return (

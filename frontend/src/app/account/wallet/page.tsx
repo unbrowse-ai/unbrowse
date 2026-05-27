@@ -126,7 +126,7 @@ export default function WalletPage() {
             Pair your wallet
           </h1>
           <p className="text-sm text-text-secondary">
-            Sign in first to pair a Solana wallet for Flex/x402 settlement.
+            Sign in with Privy first to pair a Solana wallet for Flex settlement.
           </p>
         </header>
         <Link

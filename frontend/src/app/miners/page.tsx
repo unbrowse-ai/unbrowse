@@ -85,7 +85,7 @@ export default function MinersPage() {
           <StatCard label="Domains Covered" value={data?.domains.length ?? 0} icon={<Target className="h-4 w-4" />} />
           <StatCard label="Marketplace Hit Rate" value={`${data?.network.marketplace_hit_rate ?? 0}%`} icon={<TrendingUp className="h-4 w-4" />} />
           <StatCard label="Total Resolves" value={data?.network.total_resolves ?? 0} icon={<Zap className="h-4 w-4" />} />
-          <StatCard label="x402 Paid Out" value={`$${(data?.network.total_earned_usd ?? 0).toFixed(4)}`} icon={<Trophy className="h-4 w-4" />} />
+          <StatCard label="USDC Paid Out" value={`$${(data?.network.total_earned_usd ?? 0).toFixed(4)}`} icon={<Trophy className="h-4 w-4" />} />
         </section>
 
         <div className="animate-fade-up stagger-2 mt-8 flex gap-2 overflow-x-auto scrollbar-hide">

@@ -542,7 +542,7 @@ function SubmitOfficialSection() {
           Submit your official API
         </h2>
         <p className="text-sm text-text-secondary">
-          If your domain ships canonical endpoints (especially x402-priced
+          If your domain ships canonical endpoints (especially paid
           ones) we will promote them above captured shadow routes in resolve.
           Submit them here, or email the team if you prefer.
         </p>
@@ -670,7 +670,7 @@ function SubmitOfficialSection() {
                     updateEndpoint(idx, { x402_supported: e.target.checked })
                   }
                 />
-                x402 priced (returns HTTP 402 with a Faremeter accept envelope)
+                Paid route (returns HTTP 402 with a Faremeter accept envelope)
               </label>
             </div>
           ))}

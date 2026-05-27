@@ -29,7 +29,7 @@ The core insight is that every modern website is a thin UI layer over internal A
 
 Agents use Unbrowse as a drop-in replacement for Playwright or Puppeteer. Under the hood, \`page.goto()\` checks the skill cache first -- if a cached internal API route exists, it returns structured JSON data in under 200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background and indexes it for future reuse.
 
-The whitepaper "Internal APIs Are All You Need" (Tham, Garcia & Hahn, 2026) formalizes the three-path execution model, the shared route graph, and the x402 micropayment protocol. Available at https://arxiv.org/abs/2604.00694.
+The whitepaper "Internal APIs Are All You Need" (Tham, Garcia & Hahn, 2026) formalizes the three-path execution model, the shared route graph, and the HTTP-native micropayment protocol (x402). Available at https://arxiv.org/abs/2604.00694.
 
 ## Architecture Overview
 
@@ -65,7 +65,7 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 5. **Endpoint graph** -- endpoints are connected in a dependency graph with typed edges: parent/child (list to detail), pagination (cursor chains), and auth dependencies.
 
-6. **Marketplace and payments** -- every learned skill is published to the shared marketplace. Skills are discoverable by semantic vector search. x402 micropayments handle paid routes.
+6. **Marketplace and payments** -- every learned skill is published to the shared marketplace. Skills are discoverable by semantic vector search. HTTP-native micropayments handle paid routes.
 
 ### System Components
 
@@ -288,7 +288,7 @@ Capture, indexing, and reverse-engineering are free. Agents pay per execution wh
 | Search / resolve over the shared marketplace | When the shortlist comes from the cloud marketplace | Per-query fee, USDC on Solana |
 | Sponsored mode | New agents without a wallet, brand-new domains | Platform covers the first calls up to a daily allowance per agent and a platform-wide daily ceiling |
 
-Payment uses the [x402 protocol](https://www.x402.org) settled via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview). The server replies 402 with payment terms; the client signs an off-chain Ed25519 authorization with a session key registered against their prepaid USDC escrow; the response carries the proof. EVM support is on Faremeter's roadmap; Unbrowse stays Solana-only for paid execute until then.
+Payment is HTTP-native and inline: the server replies 402 with payment terms (the canonical [x402](https://www.x402.org) shape, kept as the developer-implementation appendix here); the client signs an off-chain Ed25519 authorization with a session key registered against their prepaid USDC escrow on [Faremeter Flex](https://docs.faremeter.xyz/flex/overview); the response carries the proof. EVM support is on Faremeter's roadmap; Unbrowse stays Solana-only for paid execute until then.
 
 Wallet operations are delegated to lobster.cash or any Solana-mainnet signer. Onboarding requires three artifacts on Solana mainnet: a wallet, a Flex escrow funded with USDC, and a registered session key. \`unbrowse setup\` walks through all three.
 
