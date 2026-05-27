@@ -55,8 +55,15 @@ loadEnv({ path: ".env.runtime", quiet: true });
     console.error(`[kuri-proxy] wired KURI_PROXY (source=${outcome.source}, url=${outcome.redacted})`);
   } else if (outcome.reason === "already_set") {
     console.error(`[kuri-proxy] respected pre-existing KURI_PROXY (${outcome.existing})`);
+  } else if (outcome.reason === "opt_out") {
+    // UNBROWSE_DIRECT_EGRESS=1 or UNBROWSE_KURI_PROXY=0/false — explicit
+    // opt-out from the residential-proxy-default policy.
+    console.error("[kuri-proxy] direct egress (opt-out); kuri runs without --proxy-server");
   } else if (outcome.reason === "creds_missing") {
-    console.error("[kuri-proxy] UNBROWSE_KURI_PROXY=auto but IPROYAL_USER/PASS + UNBROWSE_PROXY_URL both unset — kuri runs direct");
+    // Unreachable under the new default — resolveEgressProxy always
+    // returns ProxyKingdom when nothing else is configured. Keep the
+    // branch for safety in case the override env yields "".
+    console.error("[kuri-proxy] no egress proxy resolved (UNBROWSE_PROXYKINGDOM_URL empty?) — kuri runs direct");
   } else if (outcome.reason === "invalid_toggle") {
     console.error(`[kuri-proxy] UNBROWSE_KURI_PROXY="${outcome.value}" not recognized — expected auto|1|true|0|false or explicit http://|socks5:// URL`);
   }
@@ -1540,9 +1547,24 @@ function schemaOf(value: unknown, depth = 4): unknown {
   return typeof value;
 }
 
+// Skill IDs emitted by resolve that are synthesized in-orchestrator and never
+// persisted to the marketplace. `execute --skill <id>` against these returns
+// "Skill not found" from the backend, which is a confusing UX — the resolve
+// response carries the correct `next_step` (e.g. `unbrowse fetch --url ...`)
+// but agents naturally try `execute --skill X` first. Guard early and point
+// them at the right command. Emission site: src/orchestrator/index.ts ~L3879.
+const SYNTHETIC_SKILL_IDS = new Set<string>(["exa-web-search"]);
+
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = (flags.skill ?? flags["skill-id"]) as string;
   if (!skillId) die("--skill is required. List skills: unbrowse skills. Or run unbrowse resolve --intent '...' first to get a skill_id.");
+  if (SYNTHETIC_SKILL_IDS.has(skillId)) {
+    die(
+      `'${skillId}' is a synthetic skill from a fallback path — it is not persisted and cannot be executed directly. ` +
+        `Re-run resolve and follow next_step.fetch / next_step.capture_current: ` +
+        `unbrowse resolve --intent '<your intent>' --raw  (the response carries suggested_commands and exa_candidates URLs you can pass to \`unbrowse fetch --url <url>\`).`,
+    );
+  }
   const endpointId = (flags.endpoint ?? flags["endpoint-id"]) as string | undefined;
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -2850,7 +2872,7 @@ export const CLI_REFERENCE = {
     // ── Identity & policy ─────────────────────────────────────────────────
     { name: "account", usage: "[--register] [--email user@example.com] [--reset-key] [--json]", desc: "Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command)." },
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace)." },
-    { name: "payment-provider", usage: "", desc: "Re-prompt for payment provider: pay.sh / lobster.cash / external Solana / Privy embedded / skip. Controls which rail settles paid x402 calls." },
+    { name: "payment-provider", usage: "", desc: "Re-prompt for payment provider: pay.sh / lobster.cash / external Solana / Privy embedded / skip. Controls which wallet rail settles paid calls." },
     { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
     { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy (per-domain allow/block lists)." },
 
@@ -4775,6 +4797,14 @@ if (isMainModule(import.meta.url)) {
       drainWithTimeout("index-jobs", drainPendingIndexJobs()),
       drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
     ]))
+    .then(() => {
+      // Drain promises resolve when budget elapses, but underlying async
+      // work (sockets, timers, kept-alive connections) can keep the event
+      // loop alive past the budget. The comment above says "exits anyway"
+      // — make that literally true. Bench probes were SIGKILLed at 90s
+      // because this exit never fired.
+      process.exit(0);
+    })
     .catch((err) => {
       die((err as Error).message);
     });

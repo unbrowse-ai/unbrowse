@@ -13,8 +13,16 @@ export const metadata: Metadata = {
 // Source of truth: unbrowse/docs/HOW_UNBROWSE_PAYS.md. Read at build time.
 const DOC_SLUG = "HOW_UNBROWSE_PAYS";
 
+// Read + render at module load (build time on Cloudflare Pages) so the rendered
+// HTML is bundled into the page and no fs IO happens at request time. Without
+// this, the page invokes loadDocMarkdown per request → fs.readFileSync inside
+// the worker → ENOENT → notFound() → 404 in prod (observed 2026-05-27 on v7.0.2).
+const PRERENDERED = loadDocMarkdown(DOC_SLUG);
+
+export const dynamic = "force-static";
+
 export default function HowUnbrowsePays() {
-	const doc = loadDocMarkdown(DOC_SLUG);
+	const doc = PRERENDERED;
 	if (!doc.found) notFound();
 
 	return (
