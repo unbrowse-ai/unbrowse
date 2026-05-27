@@ -626,9 +626,20 @@ export async function drainPendingIndexJobs(): Promise<void> {
   // Disk mode: detached worker drains the queue. Wait briefly for it to
   // finish, but yield once we see proof of life (fresh heartbeat or
   // strictly-decreasing pending count). The worker keeps going after we exit.
+  //
+  // Hard cap: UNBROWSE_DRAIN_HARD_MS (default 500ms). The cap keeps CLI exit
+  // fast (D5 north-star p50 ≤2s). The detached worker is the authoritative
+  // drainer; this poll is courtesy only. UNBROWSE_DRAIN_HARD_MS=30000 in test
+  // env restores the old long-wait behavior for drain-worker-alive tests.
+  // Each setTimeout in the poll is `.unref()`'d so we never hold the event
+  // loop open past the hard cap even if the FS poll is mid-flight.
   const queueDir = getQueueDir();
   const deadDir = join(queueDir, "dead");
-  const timeoutAt = Date.now() + 30_000;
+  const hardMs = Math.max(
+    50,
+    Number.parseInt(process.env.UNBROWSE_DRAIN_HARD_MS ?? "200", 10) || 200,
+  );
+  const timeoutAt = Date.now() + hardMs;
   let lastDeadCount = -1;
   let deadStableSince = Date.now();
   let initialJobCount = -1;
@@ -661,15 +672,22 @@ export async function drainPendingIndexJobs(): Promise<void> {
         if (Number.isFinite(hbAge) && hbAge < 2000) workerAlive = true;
       } catch { /* heartbeat missing — assume no worker */ }
       const makingProgress = initialJobCount > jobs.length;
-      if (workerAlive || makingProgress) {
+      if (workerAlive || makingProgress || hardMs <= 5_000) {
+        // Short-cap mode (CLI default): always yield once the cap fires;
+        // the detached worker owns drain correctness, not this process.
         console.error(
-          `[capture-pipeline] drain budget exhausted but worker is active (pending=${jobs.length}, started=${initialJobCount}, dead=${deadCount}); returning to caller — worker continues in background`,
+          `[capture-pipeline] drain cap ${hardMs}ms reached (pending=${jobs.length}, started=${initialJobCount}, dead=${deadCount}); returning — worker continues in background`,
         );
         return;
       }
-      throw new Error(`drainPendingIndexJobs: queue not drained after 30s (pending=${jobs.length}, dead=${deadCount})`);
+      throw new Error(`drainPendingIndexJobs: queue not drained after ${hardMs}ms (pending=${jobs.length}, dead=${deadCount})`);
     }
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise<void>(resolve => {
+      const t = setTimeout(resolve, 50);
+      // Don't pin the event loop on the poll tick — if everything else has
+      // released, we want the process to exit even mid-poll.
+      if (typeof t.unref === "function") t.unref();
+    });
   }
 }
 

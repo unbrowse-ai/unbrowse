@@ -182,13 +182,43 @@ export function queuePassiveSkillPublish(
   return job;
 }
 
-/** Await all in-flight passive publish jobs. Call before process exit. */
+/** Await all in-flight passive publish jobs. Call before process exit.
+ *
+ * Hard-capped via UNBROWSE_DRAIN_HARD_MS (default 500ms). The cap timer is
+ * `.unref()`'d so it never holds the event loop open by itself — if the
+ * drain hits the cap and the in-flight promises are still pending, they
+ * release their own event-loop refs (HTTP keepalive sockets, etc.) and the
+ * process exits cleanly. The publish work is best-effort by design; the
+ * canonical path is the marketplace publish-on-execute, and any in-flight
+ * passive publish that doesn't settle here resumes on the next invocation
+ * via the queue. CLI exit speed (D5 north-star: p50 ≤2s) wins over
+ * waiting for a network publish to round-trip.
+ */
 export async function drainPendingPassivePublishes(): Promise<void> {
   const pending = [...passivePublishInFlight.values()];
   if (pending.length === 0) return;
-  console.log(`[publish] draining ${pending.length} pending passive publish(es)...`);
-  await Promise.allSettled(pending);
-  console.log(`[publish] all passive publishes drained`);
+  const hardMs = Math.max(
+    50,
+    Number.parseInt(process.env.UNBROWSE_DRAIN_HARD_MS ?? "200", 10) || 200,
+  );
+  console.log(`[publish] draining ${pending.length} pending passive publish(es) (cap=${hardMs}ms)...`);
+  let capTimer: ReturnType<typeof setTimeout> | undefined;
+  const capPromise = new Promise<"timeout">((resolve) => {
+    capTimer = setTimeout(() => resolve("timeout"), hardMs);
+    // Critical: do NOT hold the event loop open just for this cap timer.
+    // If everything else has released, the process should exit.
+    if (typeof capTimer.unref === "function") capTimer.unref();
+  });
+  const outcome = await Promise.race([
+    Promise.allSettled(pending).then(() => "drained" as const),
+    capPromise,
+  ]);
+  if (capTimer) clearTimeout(capTimer);
+  if (outcome === "timeout") {
+    console.log(`[publish] passive publish drain hit ${hardMs}ms cap — pending work continues in background`);
+  } else {
+    console.log(`[publish] all passive publishes drained`);
+  }
 }
 
 export function resetPassivePublishQueueForTests(): void {
