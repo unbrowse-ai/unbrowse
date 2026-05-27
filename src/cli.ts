@@ -36,6 +36,7 @@ import { appendImpact, getImpactLogPath, impactFromResult, readImpactSummary } f
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { checkServerVersion, ensureLocalServer, stopServer, restartServer, stopManagedServer } from "./runtime/local-server.js";
 import { getInProcessApp } from "./runtime/in-process-app.js";
+import { getLastVendorBlock } from "./capture/process-vendor-signal.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
@@ -306,6 +307,23 @@ async function api(method: string, path: string, body?: unknown, opts?: { timeou
         ])
       : await injectP;
   if (res === null) {
+    // Day-6 W1 (concern C): when the in-process API times out AND a
+    // capture-side vendor block was tagged within the timeout window,
+    // surface an actionable browse_session_open envelope instead of a
+    // bare cli_timeout. Honest data: if NO vendor signal fired we
+    // return the original cli_timeout (do NOT fabricate vendor:*).
+    const vendor = getLastVendorBlock(timeoutMs ? timeoutMs + 5_000 : 60_000);
+    if (vendor) {
+      return {
+        error: "cli_timeout",
+        status: "browse_session_open",
+        message: `In-process API exceeded ${timeoutMs}ms while ${vendor.vendor} challenge was active on ${vendor.host}.`,
+        browser_block_signals: [`vendor:${vendor.vendor}`],
+        next_step: "open_browse_session",
+        suggested_commands: [`unbrowse go https://${vendor.host}`],
+        vendor_detected: { vendor: vendor.vendor, host: vendor.host, detected_at_ms: vendor.detected_at },
+      };
+    }
     return { error: "cli_timeout", message: `In-process API exceeded ${timeoutMs}ms.` };
   }
 

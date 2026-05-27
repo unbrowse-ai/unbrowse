@@ -4,6 +4,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
 import { extractAuthHeaders, extractGraphQLOperationName, isReplayCriticalHeader, isSensitiveHeader } from "../reverse-engineer/index.js";
 import { storeCredential } from "../vault/index.js";
+import { setLastVendorBlock } from "./process-vendor-signal.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
 import { DEFAULT_BROWSER_ACCESS } from "../runtime/browser-access.js";
 
@@ -1382,6 +1383,16 @@ async function waitForContentReady(
     const hasCf = await kuri.hasCloudflareChallenge(tabId);
     if (hasCf) {
       log("capture", "Cloudflare challenge detected, waiting for clearance...");
+      // Day-6 W1: record vendor signal for cli_timeout envelope path.
+      // If we time out before clearance, the CLI surfaces this as a
+      // browser_block_signals:["vendor:cloudflare"] envelope instead
+      // of a bare cli_timeout error.
+      try {
+        const host = captureUrl ? new URL(captureUrl).hostname : tabId;
+        setLastVendorBlock("cloudflare", host);
+      } catch {
+        setLastVendorBlock("cloudflare", tabId);
+      }
       const cleared = await kuri.waitForCloudflare(tabId, 15000);
       if (cleared) {
         log("capture", "Cloudflare cleared");

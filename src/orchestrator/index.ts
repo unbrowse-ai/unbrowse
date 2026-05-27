@@ -56,6 +56,7 @@ import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies, authRuntime } from "../auth/runtime.js";
+import { decidePreResolveAuthGate } from "../auth/pre-resolve-gate.js";
 import { getCredential } from "../vault/index.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 import {
@@ -3635,6 +3636,58 @@ export async function resolveAndExecute(
   const budgetMs = Math.max(50, Math.floor(options?.budget_ms ?? 8000));
   if (context?.url && !forceCapture && !agentChoseEndpoint) {
     const raceContextUrl = context.url;
+
+    // Pre-budget-race auth gate (Day-6 W1). When the intent contains
+    // a personal pronoun, the host is in the known-auth-gated set,
+    // AND the local browser cookie store has no fresh cookie for it,
+    // short-circuit to auth_required BEFORE the race fires. Without
+    // this, the probe-only winner triggers an Exa synthesis that
+    // ships GitHub Docs (or the equivalent) masquerading as the
+    // user's own data — D15 fake-green violation.
+    //
+    // Structural primitive: the host set lives as a const array in
+    // pre-resolve-gate.ts; the check is `.includes()` against that
+    // array. Audit grep `host === "<lit>"` MUST stay at zero hits.
+    const preGate = decidePreResolveAuthGate(queryIntent, raceContextUrl);
+    if (preGate.gate === "auth_required") {
+      const gateTrace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "",
+        endpoint_id: "",
+        started_at: new Date(t0).toISOString(),
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: "auth_required",
+      };
+      decisionTrace.pre_resolve_auth_gate = {
+        host: preGate.host,
+        cookie_source: preGate.cookie_source,
+        reason: preGate.reason,
+      };
+      console.log(`[pre-resolve-gate] short-circuit auth_required for ${preGate.host} (${preGate.reason})`);
+      return {
+        result: {
+          status: "auth_required",
+          auth: "required",
+          auth_required: true,
+          auth_hint: `Sign in to ${preGate.host} via a browser tab so local cookies are fresh, then retry.`,
+          intent: queryIntent,
+          url: raceContextUrl,
+          domain: preGate.host,
+          next_step: "unbrowse_auth_capture",
+          suggested_commands: [
+            `unbrowse auth-capture --url ${JSON.stringify(`https://${preGate.host}`)}`,
+          ],
+          gate_reason: preGate.reason,
+          decision_trace: decisionTrace,
+        },
+        trace: gateTrace,
+        source: "marketplace",
+        skill: undefined as any,
+        timing: finalize("marketplace", null, undefined, undefined, gateTrace),
+      };
+    }
+
     const localSnapshot = (() => {
       try {
         const dom = new URL(raceContextUrl).hostname;
@@ -3817,10 +3870,20 @@ export async function resolveAndExecute(
               : { exa_answer: false }),
             exa_candidates: candidates,
             probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length, ...(w.method_used ? { method_used: w.method_used } : {}) },
-            next_step: {
-              hint: "Pick a URL from exa_candidates, then `unbrowse go` to capture+index, or `unbrowse fetch` for the raw contents. Capturing publishes a skill so the next caller hits a real endpoint.",
+            // Day-6 W1: the synthesized `exa-web-search` skill is preview-only.
+            // It is NOT round-trippable via `unbrowse execute --skill exa-web-search`
+            // (the skill isn't persisted in the marketplace, and `execute` will
+            // return "Skill not found"). The agent MUST follow next_step.fetch
+            // for the actual contents, or next_step.capture_current to index
+            // properly so the next caller hits a real persisted skill.
+            synthetic_skill: true,
+            exec_unsupported: true,
+            next_step: "use unbrowse fetch for synthetic Exa results",
+            next_step_detail: {
+              hint: "exa-web-search is a preview-only synthesized skill, NOT round-trippable via execute. Pick a URL from exa_candidates, then `unbrowse fetch` for the raw contents, or `unbrowse go` to capture+index so the next caller hits a real persisted skill.",
               capture_current: `unbrowse capture --url ${JSON.stringify(raceContextUrl)} --intent ${JSON.stringify(intent)}`,
             },
+            suggested_commands: candidates.slice(0, 3).map((c) => `unbrowse fetch --url ${JSON.stringify(c.url)}`),
             decision_trace: decisionTrace,
           },
           trace: exaTrace,
@@ -4653,6 +4716,14 @@ export async function resolveAndExecute(
             source_url: richHit.url,
             source_title: richHit.title,
             exa_answer: true,
+            // Day-6 W1: same round-trippability hint as the probe-fallback
+            // path. exa-web-search is preview-only; execute will fail with
+            // "Skill not found". Agents should call unbrowse_fetch on
+            // source_url for the actual contents.
+            synthetic_skill: true,
+            exec_unsupported: true,
+            next_step: "use unbrowse fetch for synthetic Exa results",
+            suggested_commands: [`unbrowse fetch --url ${JSON.stringify(richHit.url)}`],
           },
           trace: exaTrace,
           source: "exa" as const,
