@@ -41,6 +41,32 @@ export interface Env {
   UNBROWSE_BUILD_SHA?: string;
   UNBROWSE_DEPLOYED_AT?: string;
   STATS_KV: KVNamespace;
+  /**
+   * v7.0 audit log — pointer-only fill receipts (Ed25519 sig-shape today,
+   * Groth16 SNARK in v7.3 behind the same wire surface). See
+   * `services/audit.ts` for the KV schema and `routes/audit.ts` for the
+   * REST surface. Binding optional in v7.0 scaffold because the storage
+   * path is inert (throws NotImplementedError); deploys without the
+   * namespace declared still serve the verify path with a 501 hint.
+   * Wrangler declares the binding stanza; `wrangler kv:namespace create
+   * AUDIT_LOG` produces the id the operator pastes into the TODO slot.
+   */
+  AUDIT_LOG?: KVNamespace;
+  /**
+   * v7.x KV response cache (W17 wave, 2026-05-28). Dedicated namespace —
+   * NOT shared with STATS_KV (analytics writes) or AUDIT_LOG (signed
+   * receipts) so wholesale cache invalidation doesn't disturb adjacent
+   * state. See `services/kv-cache.ts` for the helper. Binding optional:
+   * when absent the helper gracefully falls through to compute (no
+   * throw, single per-isolate warn log). Operator provisions via:
+   *   bunx wrangler kv:namespace create RESPONSE_CACHE
+   *   bunx wrangler kv:namespace create RESPONSE_CACHE --preview
+   * then pastes the ids into wrangler.toml's RESPONSE_CACHE stanza in
+   * place of the `TODO_create_via_wrangler_kv_namespace_create*` slots.
+   * Matt 6:34 — sufficient unto the day; what was computed need not be
+   * recomputed.
+   */
+  RESPONSE_CACHE?: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   // PAYMENTS_ENABLED / X402_SEARCH_ENABLED removed 2026-05-26: per-skill
   // owner_compensation_opt_in is the ONLY lever now. No operator-side

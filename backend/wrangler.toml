@@ -23,6 +23,38 @@ binding = "STATS_KV"
 id = "1d315d7cda1742b785cf5d23c892c5d7"
 preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
+# AUDIT_LOG — v7.0 pointer-only fill-receipt audit log. Stores Ed25519-signed
+# receipts (sig-shape v7.0; Groth16 SNARK v7.3 behind same wire). See
+# backend/src/services/audit.ts for the KV schema; routes/audit.ts for the
+# REST surface. Storage path is INERT in v7.0 scaffold — routes return 501
+# with the KV key the real impl will touch. Operator must provision the
+# namespace before deploying the wave that wires the real storage:
+#   wrangler kv namespace create AUDIT_LOG
+#   wrangler kv namespace create AUDIT_LOG --preview
+# Then paste the returned ids into the TODO slots below.
+[[kv_namespaces]]
+binding = "AUDIT_LOG"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+
+# RESPONSE_CACHE — W17 KV-backed response cache for hot Worker paths
+# (resolve, marketplace lookup, sponsor-status, audit-verify). Dedicated
+# namespace — NOT shared with STATS_KV (analytics) or AUDIT_LOG (signed
+# receipts). See backend/src/services/kv-cache.ts for the helper and
+# security constraints (no wallet-bound secrets, no private-identifier
+# keys). When absent the helper gracefully falls through to compute so
+# the hot path NEVER 500s on a missing binding. Operator provisioning:
+#   bunx wrangler kv:namespace create RESPONSE_CACHE
+#   bunx wrangler kv:namespace create RESPONSE_CACHE --preview
+# Then paste the returned ids into the slots below (top-level + every
+# named env stanza — production / staging / experiments / gate-staging).
+# Matt 6:34 — sufficient unto the day; what was computed need not be
+# recomputed.
+[[kv_namespaces]]
+binding = "RESPONSE_CACHE"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+
 # Secrets (set via `wrangler secret put`):
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
 #   RESEND_API_KEY, CASCADE_SIGNER_SECRET_KEY, CLOUDFLARE_API_TOKEN
@@ -86,6 +118,14 @@ binding = "STATS_KV"
 id = "1d315d7cda1742b785cf5d23c892c5d7"
 preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
+# RESPONSE_CACHE — see top-level stanza for doctrine. Per-env slot lets
+# prod, staging, and gate-staging hold ISOLATED caches so a bench-time
+# invalidation never spills into prod hot paths.
+[[env.production.kv_namespaces]]
+binding = "RESPONSE_CACHE"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+
 [env.production.vars]
 ENVIRONMENT = "production"
 CREDITS_ENABLED = "1"
@@ -117,6 +157,13 @@ binding = "STATS_KV"
 id = "195ca099811f4f6fbdae268d72ce2034"
 preview_id = "f4fe69f30a3c47008a627113a505f38b"
 
+# RESPONSE_CACHE — see top-level stanza. Dedicated staging cache so
+# bench-gate runs can purge without touching prod.
+[[env.staging.kv_namespaces]]
+binding = "RESPONSE_CACHE"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
 CREDITS_ENABLED = "1"
@@ -145,6 +192,12 @@ binding = "STATS_KV"
 id = "1d315d7cda1742b785cf5d23c892c5d7"
 preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
+# RESPONSE_CACHE — see top-level stanza.
+[[env.experiments.kv_namespaces]]
+binding = "RESPONSE_CACHE"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+
 [env.experiments.vars]
 ENVIRONMENT = "staging"
 CREDITS_ENABLED = "1"
@@ -167,6 +220,14 @@ routes = []
 binding = "STATS_KV"
 id = "930ed4fa3d1c4febafcafb6905365dc8"
 preview_id = "1eac26403aab4949ad69c35678dca938"
+
+# RESPONSE_CACHE — see top-level stanza. Bench-gate harness uses this
+# namespace to assert cache HIT/MISS behavior in-thread without touching
+# prod or staging caches.
+[[env.gate-staging.kv_namespaces]]
+binding = "RESPONSE_CACHE"
+id = "TODO_create_via_wrangler_kv_namespace_create"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
 
 [env.gate-staging.vars]
 ENVIRONMENT = "gate-staging"
