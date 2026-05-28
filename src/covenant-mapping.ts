@@ -119,6 +119,20 @@ export const COVENANT_MAP: Record<string, CovenantShape> = {
 		witness: "Revelation 20:12",
 		essence: "the ledger of indexed domains",
 	},
+	unbrowse_auth_inventory: {
+		name: "unbrowse_auth_inventory",
+		verb: "eval",
+		day: 7,
+		witness: "Luke 16:2",
+		essence: "give an account of the stewardship — inventory captured auth",
+	},
+	unbrowse_spec: {
+		name: "unbrowse_spec",
+		verb: "eval",
+		day: 7,
+		witness: "Exodus 25:9",
+		essence: "show the pattern — the endpoint blueprint to read",
+	},
 	unbrowse_earnings: {
 		name: "unbrowse_earnings",
 		verb: "eval",
@@ -356,46 +370,8 @@ export const COVENANT_MAP: Record<string, CovenantShape> = {
 	},
 };
 
-/** Return the covenant shape for a given tool name, or undefined. */
-export function covenantShape(name: string): CovenantShape | undefined {
-	return COVENANT_MAP[name];
-}
-
-/** Every covenant-mapped tool name. */
-export function covenantToolNames(): string[] {
-	return Object.keys(COVENANT_MAP).sort();
-}
-
-/**
- * Project a single tool's MCP-style schema into a /covenant KindSpec shape.
- * The result is the canonical record other emitters consume.
- */
-export interface ProjectedKindSpec {
-	name: string;
-	verb: CovenantVerb;
-	day_ordinal: GenesisDay;
-	default_witness: string;
-	essence: string;
-	/** Pointer back to the canonical schema declaration. */
-	schema_pointer: { source: "src/mcp.ts"; tool: string };
-}
-
-export function projectKindSpec(name: string): ProjectedKindSpec | undefined {
-	const s = COVENANT_MAP[name];
-	if (!s) return undefined;
-	return {
-		name: s.name,
-		verb: s.verb,
-		day_ordinal: s.day,
-		default_witness: s.witness,
-		essence: s.essence,
-		schema_pointer: { source: "src/mcp.ts", tool: s.name },
-	};
-}
-
-/** All projected KindSpecs, alphabetical. */
-export function allProjectedKindSpecs(): ProjectedKindSpec[] {
-	return covenantToolNames()
-		.map(projectKindSpec)
-		.filter((s): s is ProjectedKindSpec => s !== undefined);
-}
+// Konmari: covenantShape / covenantToolNames / ProjectedKindSpec / projectKindSpec
+// / allProjectedKindSpecs were future-bridge scaffolding with zero callers (each
+// verified by grep before removal) — let go. COVENANT_MAP (read via
+// COVENANT_MAP[name] or Object.keys) is the one load-bearing surface; its
+// consumer is src/covenant-seed.ts.
