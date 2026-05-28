@@ -53,6 +53,13 @@ const KEYCHAIN_SERVICE = "unbrowse-x402-wallet";
 const KEYCHAIN_ACCOUNT = "default";
 const FILE_FALLBACK_DIR = join(homedir(), ".unbrowse");
 const FILE_FALLBACK_PATH = join(FILE_FALLBACK_DIR, "wallet.enc");
+// Scope security(1) calls to the user's login keychain explicitly. Without
+// this, a spawn whose security-session has no default keychain bound (some
+// MCP-server / launchd-launched node contexts) triggers the system
+// "Keychain Not Found — Reset to Defaults" dialog. Passing the keychain as
+// the final positional makes the call addressable and never falls back to
+// "find a keychain to store this in".
+const LOGIN_KEYCHAIN_PATH = join(homedir(), "Library", "Keychains", "login.keychain-db");
 
 // Cache the pubkey for the lifetime of the process so getWalletPubkey() is
 // O(1) after the first call. The PRIVKEY is NEVER cached — every sign()
@@ -66,37 +73,66 @@ function isDarwin(): boolean {
   return platform() === "darwin";
 }
 
+// Within one process, once the keychain has refused us (item missing, ACL
+// prompt cancelled, no keychain bound to session), don't keep trying — that
+// causes a cascade of system dialogs. The file fallback handles us instead.
+let keychainDisabledThisProcess = false;
+
 function readFromKeychain(): Uint8Array | null {
-  if (!isDarwin()) return null;
+  if (!isDarwin() || keychainDisabledThisProcess) return null;
+  if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+    keychainDisabledThisProcess = true;
+    return null;
+  }
   const r = spawnSync(
     "/usr/bin/security",
-    ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", KEYCHAIN_ACCOUNT, "-w"],
+    [
+      "find-generic-password",
+      "-s", KEYCHAIN_SERVICE,
+      "-a", KEYCHAIN_ACCOUNT,
+      "-w",
+      LOGIN_KEYCHAIN_PATH,
+    ],
     { encoding: "utf8" },
   );
-  if (r.status !== 0) return null;
+  if (r.status !== 0) {
+    keychainDisabledThisProcess = true;
+    return null;
+  }
   const hex = (r.stdout ?? "").trim();
   if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length === 0) return null;
   return hexToBytes(hex);
 }
 
 function writeToKeychain(privkey: Uint8Array): boolean {
-  if (!isDarwin()) return false;
+  if (!isDarwin() || keychainDisabledThisProcess) return false;
+  if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+    keychainDisabledThisProcess = true;
+    return false;
+  }
   const hex = bytesToHex(privkey);
+  // `-A` allows any application to read the new item without a per-binary
+  // ACL prompt. Combined with the explicit keychain path, this prevents
+  // the "Keychain Not Found" dialog the next time a sibling unbrowse spawn
+  // (bun / nanobrew node / npm exec) tries to read it.
   const r = spawnSync(
     "/usr/bin/security",
     [
       "add-generic-password",
-      "-s",
-      KEYCHAIN_SERVICE,
-      "-a",
-      KEYCHAIN_ACCOUNT,
-      "-w",
-      hex,
+      "-s", KEYCHAIN_SERVICE,
+      "-a", KEYCHAIN_ACCOUNT,
+      "-w", hex,
       "-U", // upsert: replace if exists
+      "-A", // allow access from any application (no ACL prompts)
+      LOGIN_KEYCHAIN_PATH,
     ],
     { encoding: "utf8" },
   );
-  return r.status === 0;
+  if (r.status !== 0) {
+    keychainDisabledThisProcess = true;
+    return false;
+  }
+  return true;
 }
 
 function deriveFileKey(): Buffer {
@@ -307,6 +343,37 @@ export async function sign(
   } finally {
     // Heb 4:13 — nothing hid; the privkey is zeroed before the function
     // returns even on the happy path.
+    safeZero(seed);
+  }
+}
+
+/**
+ * v7.2 generic signer — Ed25519 over arbitrary message bytes under the
+ * same x402-wallet-bound key as `sign()`.
+ *
+ * Use cases:
+ *   - W23 session-park: sign canonical body of /v1/session/park (not the
+ *     fill-fragment shape — a different canonical JSON).
+ *   - W23 session-restore challenge: sign `<sessionId> || ":" || timestamp`.
+ *
+ * Same security posture as `sign()`: privkey is loaded into a single
+ * scope-local buffer, used once, zeroed in finally. Returns the same
+ * (signature, walletPubkey) shape so callers can hex-encode uniformly.
+ *
+ * Mt 6:6 — secret behind closed doors; the key never leaves keychain
+ * scope longer than one call.
+ */
+export async function signBytes(message: Uint8Array): Promise<Signature> {
+  const seed = ensureWalletKey();
+  try {
+    const pkcs8 = seedToPkcs8(seed);
+    const privKeyObject = createPrivateKey({ key: pkcs8, format: "der", type: "pkcs8" });
+    const sigBuf = nodeSign(null, message, privKeyObject);
+    const signature = new Uint8Array(sigBuf);
+    const walletPubkey = privkeyToPubkey(seed);
+    pubkeyCache = walletPubkey;
+    return { signature, walletPubkey };
+  } finally {
     safeZero(seed);
   }
 }
