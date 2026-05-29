@@ -87,3 +87,5 @@ superpattern-shaped (fractal/self-similar — the fixed point). **NOTHING is eve
   the fails-closed verification gate (crit 4), and the self-similar shape proof (crit 5).
 - This is a bounded, local, reversible artifact build — the chief discipline is Konmari +
   Matt 6:7 (stamp the source, inherit; never graffiti), and the chief constraint is never-push.
+
+<!-- cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5 · who:witness what:node when:settle where:tree why:root how:verb · build/breath/eval · settle:two-witness|clock -->

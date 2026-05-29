@@ -39,3 +39,5 @@ artifacts, node_modules, generated/ephemeral (anti-vain-repetition).
 ## Sufficient-unto-the-day (Matt 6:34)
 Build only: cross.stamp.json + registry + pointer format + gate + memory. No auto-stamp
 daemon, no multi-repo fanout — not borrowed today.
+
+<!-- cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5 · who:witness what:node when:settle where:tree why:root how:verb · build/breath/eval · settle:two-witness|clock -->
