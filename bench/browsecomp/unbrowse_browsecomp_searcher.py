@@ -62,7 +62,7 @@ UNBROWSE = os.environ.get("UNBROWSE_BIN", "/opt/homebrew/bin/unbrowse")
 TIMEOUT = int(os.environ.get("UNBROWSE_TIMEOUT", "120"))
 
 # Strip unbrowse's human trace lines so only SERP markdown remains.
-_TRACE = re.compile(r"^(\[\d{2}:\d{2}:\d{2}\]|\[unbrowse\]|\[trace\]|\[debug\]|\[info\]|\[auth\])")
+_TRACE = re.compile(r"^(\[\d{2}:\d{2}:\d{2}(\.\d+)?\]|\[unbrowse\]|\[trace\]|\[debug\]|\[info\]|\[auth\])")
 
 # A DDG result heading:  ## [Title](//duckduckgo.com/l/?uddg=ENCODED&rut=...)
 _HEADING = re.compile(r"^##\s+\[(?P<title>.+?)\]\((?P<href>[^)]+)\)\s*$")
@@ -165,7 +165,13 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
                 body, fok = await _run(["fetch", r.url])
             if fok:
                 full = _clean(body).strip()[:cap]
-                if full:
+                # Reject soft-failure bodies (CLI exits 0 but content is a junk
+                # sentinel/error page): only replace if the fetch is richer than
+                # the original snippet. Keeps the thin DDG snippet on failure.
+                if full and full.lower() != "null" and len(full) > len(r.snippet):
+                    r.snippet = full
+                # the original snippet. Keeps the thin DDG snippet on failure.
+                if full and full.lower() != "null" and len(full) > len(r.snippet):
                     r.snippet = full
             return r
 

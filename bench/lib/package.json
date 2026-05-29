@@ -1,0 +1,9 @@
+{
+  "name": "@unbrowse/embed-substrate",
+  "private": true,
+  "type": "module",
+  "description": "Shared Qwen3-Embedding-0.6B substrate (TS side, transformers.js ONNX). Parity-verified against bench/lib/embed_qwen.py.",
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0"
+  }
+}
