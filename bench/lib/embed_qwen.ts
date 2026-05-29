@@ -9,7 +9,9 @@
  * exported to ONNX). dtype fp32 -> onnx/model.onnx, full precision, to match the
  * Python sentence-transformers fp32 reference for parity.
  *
- * Qwen3-Embedding is last-token pooled. transformers.js >=3 exposes
+// transformers.js needs an ONNX-published repo; the base Qwen/Qwen3-Embedding-0.6B
+// ships no ONNX (404). onnx-community mirrors it with ONNX weights for the web runtime.
+const MODEL_ID = "onnx-community/Qwen3-Embedding-0.6B-ONNX";
  * `pooling: 'last_token'` on the feature-extraction pipeline; we pair it with
  * `normalize: true` to match the Python L2-normalized output.
  *
@@ -35,12 +37,21 @@ const QUERY_INSTRUCT =
 
 let _pipe: Promise<FeatureExtractionPipeline> | null = null;
 
+// dtype is configurable via EMBED_QWEN_DTYPE (fp32|fp16|q8|q4). Default fp32 —
+// it is the only dtype verified at cosine 1.0000 against the Python fp32 torch
+// reference (parity_test.py). Lighter dtypes load faster / use less memory but
+// drift from the fp32 reference; measure before trusting them for the gate.
+const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
+  | "fp32"
+  | "fp16"
+  | "q8"
+  | "q4";
+
 function getPipe(): Promise<FeatureExtractionPipeline> {
   if (_pipe === null) {
-    // fp32 keeps the ONNX weights full-precision for the best parity with the
-    // torch reference. Apple has no CoreML EP here, so this runs on CPU.
+    // Apple has no CoreML EP here, so this runs on CPU.
     _pipe = pipeline("feature-extraction", MODEL_ID, {
-      dtype: "fp32",
+      dtype: DTYPE,
     }) as Promise<FeatureExtractionPipeline>;
   }
   return _pipe;
