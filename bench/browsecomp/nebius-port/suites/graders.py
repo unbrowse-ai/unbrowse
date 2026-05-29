@@ -100,7 +100,16 @@ Just return the letters "A", "B", or "C", with no text around it.
 
 class SimpleQAGrader(AsyncBaseGrader):
     def __init__(self) -> None:
-        self.client = AsyncOpenAI()
+        # GRADER_BACKEND=nebius routes through Nebius chat-completions (Kimi),
+        # same A/B/C rubric and prompt — only the judge model + protocol change.
+        self.backend = os.environ.get("GRADER_BACKEND", "openai").lower()
+        if self.backend == "nebius":
+            from search_evals.agents.llms.nebius import nebius_client
+
+            self.client = nebius_client()
+            self.grader_model = os.environ.get("GRADER_MODEL", "moonshotai/Kimi-K2.6")
+        else:
+            self.client = AsyncOpenAI()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def __call__(self, datum: Datum, convo: Conversation) -> GraderResult:
@@ -110,16 +119,24 @@ class SimpleQAGrader(AsyncBaseGrader):
             question=datum.problem, target=datum.answer, predicted_answer=agent_response
         )
 
-        grader_convo = OpenAIConversation()
-        grader_convo.add_user(prompt)
+        if self.backend == "nebius":
+            resp = await self.client.chat.completions.create(
+                model=self.grader_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=int(os.environ.get("NEBIUS_MAX_TOKENS", "8192")),
+            )
+            grade_text = (resp.choices[0].message.content if resp.choices else "") or ""
+        else:
+            response = await self.client.responses.create(
+                model="openai/gpt-4.1",  # OpenRouter provider-prefixed id
+                input=OpenAIConversation().add_user(prompt).to_api_format(),
+            )
+            grade_text = response.output_text
 
-        response = await self.client.responses.create(
-            model="openai/gpt-4.1",  # OpenRouter provider-prefixed id
-            input=grader_convo.to_api_format(),
-        )
-
-        match = re.search(r"(A|B|C)", response.output_text)
-        grade = match.group(0) if match else "C"
+        # The rubric asks for a bare A/B/C. Kimi may prepend reasoning, so take
+        # the LAST standalone A/B/C letter rather than the first char of prose.
+        matches = re.findall(r"\b([ABC])\b", grade_text)
+        grade = matches[-1] if matches else "C"
         grade_type = {"A": GradeType.CORRECT, "B": GradeType.INCORRECT, "C": GradeType.NOT_ATTEMPTED}.get(
             grade, GradeType.NOT_ATTEMPTED
         )
@@ -129,7 +146,7 @@ class SimpleQAGrader(AsyncBaseGrader):
             problem=datum.problem,
             answer=datum.answer,
             response=agent_response,
-            grade_text=response.output_text,
+            grade_text=grade_text,
         )
 
 
