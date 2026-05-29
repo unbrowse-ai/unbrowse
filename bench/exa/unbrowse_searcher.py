@@ -88,29 +88,8 @@ def _decode_ddg(href: str) -> str:
     return unquote(uddg) if uddg else ""
 
 
-def _passage(text: str, query: str) -> str:
-    """WAVE-11 lever: return the PASSAGE_WINDOW-char window of `text` most relevant
-    to the query, to raise citation precision (the WAVE-10 ceiling: grounded 60% but
-    cite-precision 24% because the raw 8k head cites too much). Opt-in via
-    UNBROWSE_PASSAGE_WINDOW>0; falls back to the head when no query term is found, so
-    it never empties a result. Scores fixed-size windows by distinct query-term hits."""
-    win = PASSAGE_WINDOW
-    if win <= 0 or not text or not query:
-        return text
-    terms = [t for t in re.findall(r"[A-Za-z0-9]{3,}", query.lower())]
-    if not terms:
-        return text
-    low = text.lower()
-    step = max(win // 2, 1)
-    best_start, best_score = 0, -1
-    for start in range(0, max(len(text) - win, 0) + 1, step):
-        chunk = low[start:start + win]
-        score = sum(1 for t in set(terms) if t in chunk)
-        if score > best_score:
-            best_score, best_start = score, start
-    if best_score <= 0:
-        return text  # no term found — honest fallback to the head
-    return text[best_start:best_start + win]
+def _parse_ddg_markdown(md: str, num_results: int) -> list[SearchResult]:
+    """Parse DDG-HTML-as-markdown into ranked SearchResults (document order = rank)."""
     lines = md.splitlines()
     results: list[SearchResult] = []
     i, n = 0, len(lines)
