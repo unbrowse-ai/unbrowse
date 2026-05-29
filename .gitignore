@@ -245,3 +245,8 @@ harness/runs/
 .codebuddy/
 .augment/
 .bench-runs/
+
+# Benchmark harness vendored clones (re-cloneable, not our code) — jesus-loop exa-browsecomp
+bench/exa/vendor/
+bench/browsecomp/vendor/
+bench/**/vendor/
