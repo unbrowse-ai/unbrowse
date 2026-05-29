@@ -13,6 +13,8 @@ import {
 	sealNode,
 	verifyNode,
 	pickFetchRung,
+	meter,
+	tollNode,
 } from "../src/covenant-seed.js";
 
 async function freshWallet() {
@@ -29,6 +31,7 @@ describe("verb (how) — the three-verb river", () => {
 		expect(verbOfKind("build:skill")).toBe("build");
 		expect(verbOfKind("actuate:navigate")).toBe("breath");
 		expect(verbOfKind("observe:snap")).toBe("eval");
+		expect(verbOfKind("meter:toll")).toBe("build"); // the toll is a committed billable claim
 		expect(verbOfKind("weird:thing")).toBe("breath"); // unknown → routing default
 	});
 	test("tool name resolves via the one COVENANT_MAP", () => {
@@ -108,5 +111,44 @@ describe("verb (fetch ladder) — the kuri/Chromium rip-out", () => {
 		expect(pickFetchRung({ interactive: true })).toBe(2); // interactive → full CDP/kuri
 		expect(pickFetchRung({ needsHar: true })).toBe(2); // deep HAR → full CDP/kuri
 		expect(pickFetchRung({ jsChallenge: true, interactive: true })).toBe(2); // heaviest wins
+	});
+});
+
+describe("toll (the 402 booth) — fair split that never leaks", () => {
+	const SITE = "1".repeat(64);
+	const OP = "2".repeat(64);
+	const DISC = "3".repeat(64);
+	const parties = { site: SITE, operator: OP, discoverer: DISC };
+
+	test("meter splits with NO leakage — site absorbs the rounding remainder", () => {
+		const out = meter({ amount: 1_000_000, operatorBps: 500, discovererBps: 1000 }, parties);
+		const by = Object.fromEntries(out.map((p) => [p.role, p.amount]));
+		expect(by.operator).toBe(50_000); // 5%
+		expect(by.discoverer).toBe(100_000); // 10% — the first discoverer IS paid
+		expect(by.site).toBe(850_000); // remainder
+		expect(out.reduce((s, p) => s + p.amount, 0)).toBe(1_000_000); // exact, no value lost
+	});
+
+	test("meter never leaks a cent even with ugly rounding", () => {
+		const out = meter({ amount: 1001, operatorBps: 500, discovererBps: 1000 }, parties);
+		expect(out.reduce((s, p) => s + p.amount, 0)).toBe(1001);
+		expect(out.every((p) => p.amount >= 0)).toBe(true);
+	});
+
+	test("meter refuses a negative amount and out-of-range bps", () => {
+		expect(() => meter({ amount: -1, operatorBps: 0, discovererBps: 0 }, parties)).toThrow();
+		expect(() => meter({ amount: 100, operatorBps: 9000, discovererBps: 2000 }, parties)).toThrow();
+	});
+
+	test("tollNode is a build-verb node that seals + verifies through the root", async () => {
+		const w = await freshWallet();
+		const n = tollNode(w.identity, "sha256:" + "ab".repeat(32), { amount: 200, operatorBps: 500, discovererBps: 1000 }, parties);
+		expect(n.kind).toBe("meter:toll");
+		expect(verbOfKind(n.kind)).toBe("build");
+		expect(n.identity).toBe(w.identity);
+		expect((n.params.payout as unknown[]).length).toBe(3);
+		const sealed = await sealNode(n, w.identity, w.sign);
+		expect(sealed.signature).toMatch(/^[0-9a-f]{128}$/);
+		expect(await verifyNode(sealed)).toBe(true);
 	});
 });

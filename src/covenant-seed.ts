@@ -14,6 +14,7 @@
  *   seal   → sealNode / verifyNode (Ed25519 through the root + cross-wallet guard)
  *   cache  → receiptPtr (content-addressed memoize) + stateKey (identity-keyed tree)
  *   verb (fetch ladder) → pickFetchRung (curl-impersonate first, kuri last — the rip-out)
+ *   toll   → meter / tollNode (the 402 event: fair split that never leaks at the booth)
  *
  * walk/resolve + discovery already live in src/execution + backend discovery; the
  * seed points to them, it does not duplicate them (Konmari).
@@ -41,6 +42,7 @@ export interface CovenantNode {
 // ─── verb (how): the three-verb river — classify, never branch on tool name ──
 const VERB_BY_BASE: Record<string, CovenantVerb> = {
 	build: "build", // declare / commit a persistent claim (Father)
+	meter: "build", // toll: commit a billable claim — the 402 event (Father)
 	actuate: "breath", // route / act on the web (Spirit)
 	observe: "eval", // read-only query (Son)
 };
@@ -176,4 +178,66 @@ export function pickFetchRung(s: CaptureSignal): FetchRung {
 	if (s.interactive || s.needsHar) return 2;
 	if (s.jsChallenge || s.turnstile) return 1;
 	return 0;
+}
+
+// ─── toll (the 402 booth): meter a settled request, pay the first discoverer ──
+// The 402 event as one covenant node of kind `meter:toll`, sealable through the
+// root (sealNode) so the charge is non-repudiable. Fair game theory: the agent
+// pays once; the split is fixed in basis points and the SITE absorbs the rounding
+// remainder, so payouts sum EXACTLY to the amount — no value leaks at the booth.
+export interface TollSplit {
+	/** what the paying agent owes for this settled request, in atomic units (e.g. USDC 1e-6). */
+	amount: number;
+	/** the toll booth's operating cut, in basis points of amount (0–10000). */
+	operatorBps: number;
+	/** the first-discoverer reward, in basis points — the reuser pays the shortcut. */
+	discovererBps: number;
+}
+
+export interface TollParty {
+	identity: string;
+	amount: number;
+	role: "site" | "operator" | "discoverer";
+}
+
+/**
+ * meter — split one settled request fairly. operator + discoverer take their
+ * basis-point cuts (floored); the SITE takes the remainder, so `sum(payouts) ===
+ * amount` exactly with zero rounding leak. Throws on a bad amount or bps.
+ */
+export function meter(
+	split: TollSplit,
+	parties: { site: string; operator: string; discoverer: string },
+): TollParty[] {
+	const { amount, operatorBps, discovererBps } = split;
+	if (!Number.isInteger(amount) || amount < 0) throw new Error(`toll amount must be a non-negative integer: ${amount}`);
+	if (operatorBps < 0 || discovererBps < 0 || operatorBps + discovererBps > 10_000)
+		throw new Error(`toll bps out of range: operator=${operatorBps} discoverer=${discovererBps}`);
+	const operatorCut = Math.floor((amount * operatorBps) / 10_000);
+	const discovererCut = Math.floor((amount * discovererBps) / 10_000);
+	const siteCut = amount - operatorCut - discovererCut; // remainder → site, never lost
+	return [
+		{ identity: parties.site, amount: siteCut, role: "site" },
+		{ identity: parties.operator, amount: operatorCut, role: "operator" },
+		{ identity: parties.discoverer, amount: discovererCut, role: "discoverer" },
+	];
+}
+
+/**
+ * tollNode — the 402 event as a sealable covenant node. `who` = the paying agent;
+ * params carry the route receipt pointer it settles against and the resolved fair
+ * payout. Seal it through the root (sealNode) to make the charge non-repudiable.
+ */
+export function tollNode(
+	agent: string,
+	routePtr: string,
+	split: TollSplit,
+	parties: { site: string; operator: string; discoverer: string },
+): CovenantNode {
+	return {
+		kind: "meter:toll",
+		params: { routePtr, split, payout: meter(split, parties) },
+		identity: agent,
+		witness: "Luke 10:7 — the laborer is worthy of his wages",
+	};
 }
