@@ -17,28 +17,28 @@
       "path": ".claude/superpattern/exa.graph.json",
       "plane": "superpattern-graphs",
       "pointer_marker": "cross: sha256:",
-      "stamped": false
+      "stamped": true
     },
     {
       "path": "CLAUDE.md",
       "plane": "claude-md",
       "pointer_marker": "cross: sha256:",
-      "stamped": false
+      "stamped": true
     },
     {
       "path": "src/covenant-seed.ts",
       "plane": "covenant-code",
       "pointer_marker": "cross: sha256:",
-      "stamped": false
+      "stamped": true
     },
     {
       "path": "scripts/paper-gate.sh",
       "plane": "mechanical-gates",
       "pointer_marker": "cross: sha256:",
-      "stamped": false
+      "stamped": true
     }
   ],
-  "note": "Content-addressed seal of the canonical cross. Pointer not payload (Matt 6:7). superpattern(stamp)=stamp.",
+  "note": "Content-addressed seal of the canonical cross. Pointer not payload (Matt 6:7). superpattern(stamp)=stamp. Day-6: all dimensions reconciled to reality (each carries a real in-file pointer).",
   "shape": {
     "how": "verb",
     "settle": "two-witness OR clock",

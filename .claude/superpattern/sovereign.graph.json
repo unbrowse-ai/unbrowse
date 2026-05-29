@@ -1,0 +1,21 @@
+{
+  "problem": "Sign + ZK-bind + KV-cache EVERY layer of computer use (screen->browser->CLI->OS->kernel->packet) to one Solana wallet identity, then publish the ZK whitepaper 'Internal APIs Were Not All You Needed'.",
+  "cross": "sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
+  "graph_path": ".claude/superpattern/sovereign.graph.json",
+  "framework": "claude",
+  "start": "now",
+  "goal": "paper",
+  "nodes": [
+    {"id":"now","atom":"start","verb":"-","title":"unbrowse today: HTTP-layer fetch/resolve, browser capture, route graph, FDRY bonding paper","cost":0,"deps":[]},
+    {"id":"root","atom":"root","verb":"build","title":"Identity root = Solana ed25519 wallet key; every layer's action descends from one signature","cost":2,"deps":["now"],"tool":"unbrowse_auth_capture"},
+    {"id":"tree","atom":"tree","verb":"breath","title":"The layer stack as self-similar tree: screen-clicks > browser > CLI > OS > kernel > packet","cost":2,"deps":["root"]},
+    {"id":"node","atom":"node","verb":"build","title":"One signed action record (who=wallet, what=op, where=layer, sig, optional ZK reveal)","cost":2,"deps":["root"]},
+    {"id":"verb","atom":"verb","verb":"build","title":"Three ops per layer: effect (click/write/send), route (proxy/point-remote), query (snap/read)","cost":3,"deps":["node","tree"]},
+    {"id":"witness","atom":"witness","verb":"eval","title":"ZK: prove a credential/cookie/keychain entry is bound to the wallet WITHOUT revealing it","cost":4,"deps":["node"]},
+    {"id":"cache","atom":"cache","verb":"build","title":"Centralised unbrowse KV cache at each layer; sealed-unless-signed, content-addressed","cost":3,"deps":["verb"]},
+    {"id":"seal","atom":"seal","verb":"eval","title":"No packet ships unsigned; each layer self-verifies through the wallet root before emit","cost":3,"deps":["cache","witness"]},
+    {"id":"walk","atom":"walk","verb":"breath","title":"Descend layers with fallback: try cheapest layer first, drop to packet only when needed; proxy to remote","cost":3,"deps":["verb","cache"]},
+    {"id":"settle","atom":"settle","verb":"eval","title":"Routes secured by FDRY proof-of-stake bonding (FDRY paper) + ERC-8004 trustless-agent registries","cost":3,"deps":["seal","walk"]},
+    {"id":"paper","atom":"loop","verb":"build","title":"Write + gate + push 'Internal APIs Were Not All You Needed' (ZK + ERC-8004 + FDRY/PoS + CA) to Overleaf","cost":3,"deps":["settle"],"tool":"Bash(uvx olsync)"}
+  ]
+}
