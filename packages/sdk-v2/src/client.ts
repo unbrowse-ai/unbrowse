@@ -208,14 +208,14 @@ class ProxyResource {
   // POST /v1/proxy — worker fetches the target URL on behalf of the agent.
   // Use this when the SDK runs in a browser/edge where direct outbound fetches
   // would expose the user IP, get geo-fenced, or hit anti-bot. Pass
-  // proxy:"residential" to tunnel the worker's outbound fetch through IProyal.
+  // proxy:"residential" to tunnel the worker's outbound fetch through a residential proxy.
   fetch(req: WorkerProxyRequest, opts: RequestOptions = {}): Promise<WorkerProxyResponse> {
     return this.client.request<WorkerProxyResponse>("POST", "/v1/proxy", req, opts);
   }
 
   // GET /v1/proxy — capability check. Use to decide whether to request
   // proxy:"residential" before committing to the call. Reports whether
-  // IPROYAL_USER/IPROYAL_PASS are configured on the worker.
+  // the worker's residential proxy credentials are configured.
   capabilities(opts: RequestOptions = {}): Promise<WorkerProxyCapabilities> {
     return this.client.request<WorkerProxyCapabilities>("GET", "/v1/proxy", undefined, opts);
   }

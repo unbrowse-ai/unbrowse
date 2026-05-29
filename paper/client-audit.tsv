@@ -1,0 +1,40 @@
+# Gate-5 audit map: @unbrowse/client (packages/sdk-v2) public surface -> whitepaper/doc anchor -> moat-safe reason.
+# Mirror of paper/anchors.tsv but CLIENT-SURFACE-FIRST: proves the auditable OSS client maps to the whitepaper and leaks zero moat.
+# Enforced by scripts/client-audit-gate.sh: (1) every public export in src/index.ts must have a row here (completeness);
+# (2) the client source must carry none of the moat terms (no-leak). The whitepaper/doc anchor column is the human-audit pointer.
+# columns: export <TAB> kind <TAB> whitepaper/doc anchor <TAB> moat-safe reason
+Unbrowse	class	internal-apis.tex: intent -> ranked endpoint shortlist -> execute	HTTP-first client; every method is a fetch() to backend /v1/*; carries no capture/RE/zk code
+UnbrowseError	error	error contract	plain Error subclass; no moat state
+UnbrowseAPIError	error	HTTP error base	carries HTTP status_code only
+UnbrowseAuthenticationError	error	401 auth contract	auth + zk verified server-side; client only observes 401
+UnbrowsePaymentRequiredError	error	internal-apis.tex: unpaid execute gets HTTP 402 (x402)	surfaces the 402 payment hint; no pricing constants
+UnbrowsePermissionError	error	403 contract	status only
+UnbrowseNotFoundError	error	404 contract	status only
+UnbrowseBadRequestError	error	400 contract	status only
+UnbrowseRateLimitError	error	429 contract	exposes retry_after_ms only
+UnbrowseServerError	error	5xx contract	status only
+UnbrowseConnectionError	error	network-failure contract	transport-level only
+UnbrowseTimeoutError	error	timeout contract	transport-level only
+AccountMe	type	internal-apis.tex: account/me	public profile fields only
+AccountCredits	type	internal-apis.tex: credit balance	balance_usd/used_usd/granted_usd; no ledger internals
+ApiKey	type	API key management (auth surface)	key metadata; secret never present in this type
+ApiKeyCreateInput	type	create key	name only
+ApiKeyCreateResponse	type	create key	plaintext key returned once (standard key-issue pattern)
+ApiKeyFunding	type	wallet-bound key budget	wallet_address + credit budget; no signer or private key
+ApiKeyListResponse	type	list keys	metadata list only
+ApiKeyRevokeResponse	type	revoke key	acknowledgement only
+AvailableEndpoint	type	internal-apis.tex: ranked endpoint shortlist	marketplace endpoint descriptor; requires/yields are PUBLIC route-graph edges, not inference internals
+ExecuteInput	type	internal-apis.tex: realizes the chosen endpoint call	request params; no capture configuration
+ExecuteResponse	type	execute result	data + trace ids; no engine internals
+HealthResponse	type	health	status/version/uptime
+RequestOptions	type	transport options	timeout/retry/idempotency/headers
+ResolveInput	type	internal-apis.tex: route resolve	intent + context url; no inference internals
+ResolveResponse	type	resolve result	ranked operations; public
+SearchHit	type	semantic search hit	endpoint_id + score + snippet
+SearchInput	type	semantic search	intent + domain
+SearchResponse	type	search result	hits list
+SponsorStatus	type	internal-apis.tex: sponsor cap	cap/remaining usd at request time; no economic constants baked in
+UnbrowseClientOptions	type	client configuration	baseURL/apiKey/fetch/logLevel
+WorkerProxyCapabilities	type	worker-side proxy capabilities	modes/limits; no proxy credentials (server-held)
+WorkerProxyRequest	type	worker-side fetch	url + headers; proxy selector is opaque, no residential creds
+WorkerProxyResponse	type	worker-side fetch result	status + body + egress_ip; no residential credentials
