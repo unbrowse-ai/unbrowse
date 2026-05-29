@@ -31,3 +31,13 @@ always-on adapter change back to the committed opt-in `_enrich` (safer for concu
 - Gate 1 (beat Exa RAG): 60% vs 79.4, two witnesses — confirmed climb, NOT met.
 - Gate 2 (BrowseComp > 0.336): 0.200 complete; enriched blocked on credits.
 - Gates 3/4/5/6: green. Embedding substrate (task #6): build failed, retry pending.
+
+## CORRECTION (appended) — embedding build did NOT fail
+WAVE-13's "build FAILED, no deliverable" was WRONG (I globbed too early/badly). Truth:
+`bench/lib/embed_qwen.py` exists and RUNS — Qwen3-Embedding-0.6B via sentence-transformers,
+verified live: 1024-dim vector, RC=0. Committed a3f9c2e81. What's actually still missing:
+the TypeScript side (`packages/sdk-v2/src/embed.ts`) + the Python↔TS parity test. So task
+#6 is HALF done (Python ✓), not failed. Retry covers TS + parity only.
+Process lesson (again): verify a deliverable's ABSENCE by running a real find, not a fast
+glob — I nearly discarded working code twice this session (this, and the reverted
+browsecomp hardening, both recovered).
