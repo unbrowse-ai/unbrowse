@@ -1,0 +1,34 @@
+{
+  "problem": "Emerge the covenant CDP: fully build it, eval+benchmark the whitepaper to spec, remove old guardrails no longer needed and away the '10 commandments' (superseded by the 10-atom covenant seed), ship to prod via npm AND via a GitHub open-source client that reveals no moat/logic yet is auditable to match the whitepaper. Keep ZK as moat+auth; toll-booth every dimension in a fair game-theory manner.",
+  "cross": "sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
+  "graph_path": ".claude/superpattern/covenant.graph.json",
+  "framework": "claude",
+  "start": "now",
+  "goal": "emerge",
+  "completion_promise": "when",
+  "nodes": [
+    {"id":"now","atom":"start","verb":"-","title":"unbrowse v7.2.0-preview.0 on feat/v7-covenant-cdp: covenant CDP foundation alongside v6, 10-atom seed landed (src/covenant-seed.ts @ 5c1e5bfc7), TOLL thesis emerged (toll.emergence.md), SOVEREIGN ZK graph drafted","cost":0,"deps":[],"status":"settled"},
+
+    {"id":"root","atom":"why","verb":"eval","title":"Pin the SPEC = the whitepaper. Enumerate every [shipped]/\\impl claim and bind each to a real code anchor (paper/anchors.tsv). The paper is the axiom we measure code against.","cost":2,"deps":["now"],"tool":"Bash(scripts/paper-gate.sh)","status":"open"},
+
+    {"id":"node","atom":"what","verb":"build","title":"Land the TOLL primitive into code: the toll/meter/pay-discoverer record (extend src/covenant-seed.ts) so 'toll booth everything' is a real buildable, not just an emerged thesis (closes toll.emergence honest-gap).","cost":3,"deps":["root"],"tool":"muonry_edit","status":"open"},
+
+    {"id":"verb","atom":"how","verb":"build","title":"Wire the meter into the request path: every resolve/execute emits a signed, billable event; x402 settlement clears agent->site; first-discoverer-PAID + reuser-pays-shortcut ledger (fair game theory).","cost":4,"deps":["node"],"tool":"muonry_edit","status":"open"},
+
+    {"id":"witness","atom":"who","verb":"eval","title":"ZK-bind auth as the MOAT: prove a credential/cookie/keychain entry is bound to the wallet identity WITHOUT revealing it (SOVEREIGN witness node). ZK + auth stay closed-source.","cost":4,"deps":["node"],"tool":"muonry_edit","status":"open"},
+
+    {"id":"cache","atom":"where","verb":"build","title":"Route graph + KV cache remain the closed moat: content-addressed, sealed-unless-signed. The graph is the data moat; never shipped in the open client.","cost":2,"deps":["verb"],"tool":"muonry_edit","status":"partial"},
+
+    {"id":"konmari","atom":"when","verb":"breath","title":"Away the old guardrails + the '10 commandments': retire stale guardrail scripts/rules superseded by the 10-atom covenant (bench-*.sh already deleted; audit the rest). Keep only load-bearing gates (leak-guard, paper-gate).","cost":2,"deps":["now"],"tool":"muonry_search+Bash","status":"partial"},
+
+    {"id":"walk","atom":"what","verb":"breath","title":"Build the OPEN-SOURCE auditable client: a thin transport (CLI/MCP/SDK) that calls the closed substrate. Auditable to match the whitepaper's WHAT; reveals none of the HOW (no capture/RE engine, no economic constants, no route graph). Boundary = docs/OPEN-SOURCE-NOTICE.md.","cost":4,"deps":["verb"],"tool":"muonry_create","status":"open"},
+
+    {"id":"seal","atom":"why","verb":"eval","title":"GATE all of it: scripts/leak-guard.sh (no moat leak) + scripts/paper-gate.sh (paper reflects code) + covenant-seed tests + toll-economics tests + benchmark-to-spec, all RC=0. No fabricated green.","cost":3,"deps":["walk","konmari","witness","cache"],"tool":"Bash","status":"open"},
+
+    {"id":"emerge_npm","atom":"how","verb":"build","title":"Emerge to prod via npm: `bun run release:preview` -> tag -> CI publish (never direct npm publish). IRREVERSIBLE OUTWARD ACTION — gated on Lewis authorization.","cost":3,"deps":["seal"],"tool":"Bash(release:preview)","status":"blocked-auth"},
+
+    {"id":"emerge_oss","atom":"where","verb":"build","title":"Emerge the open-source client to public GitHub, auditable, no moat leak. IRREVERSIBLE OUTWARD ACTION and in TENSION with the standing 'public repo frozen by design' security decision — gated on explicit Lewis authorization.","cost":3,"deps":["seal","walk"],"tool":"Bash(gh)","status":"blocked-auth"},
+
+    {"id":"emerge","atom":"settle","verb":"eval","title":"TWO WITNESSES: (1) the open client, run against the prod npm release, reproduces the whitepaper-described behavior; (2) leak-guard + paper-gate + toll-economics + benchmark gates all green. Toll-booth fair, ZK moat intact. Only then is the promise 'when' true.","cost":1,"deps":["emerge_npm","emerge_oss"],"tool":"Bash+Agent","status":"open"}
+  ]
+}

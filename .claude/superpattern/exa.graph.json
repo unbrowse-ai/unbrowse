@@ -1,0 +1,121 @@
+{
+  "problem": "redo unbrowse to beat every reproducible benchmark Exa published strong results on.",
+  "cross": "sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
+  "graph_path": ".claude/superpattern/exa.graph.json",
+  "start": "now",
+  "goal": "goal",
+  "nodes": [
+    {
+      "id": "now",
+      "atom": "start",
+      "verb": "-",
+      "title": "current unbrowse (resolve/execute/browse, runtime DAG, MCP)",
+      "cost": 0,
+      "deps": []
+    },
+    {
+      "id": "root",
+      "atom": "root",
+      "verb": "eval",
+      "title": "Pin the reproducible Exa benchmark set + exact target metrics (the axiom we measure against)",
+      "cost": 2,
+      "deps": [
+        "now"
+      ],
+      "tool": "Agent(WebSearch/WebFetch)"
+    },
+    {
+      "id": "node",
+      "atom": "node",
+      "verb": "build",
+      "title": "Define the scored retrieval-result record (query -> ranked passages + attribution)",
+      "cost": 1,
+      "deps": [
+        "root"
+      ],
+      "tool": "muonry_create"
+    },
+    {
+      "id": "verb",
+      "atom": "verb",
+      "verb": "build",
+      "title": "Wire resolve -> execute -> read pipeline to each benchmark task type",
+      "cost": 3,
+      "deps": [
+        "node"
+      ],
+      "tool": "muonry_edit"
+    },
+    {
+      "id": "walk",
+      "atom": "walk",
+      "verb": "breath",
+      "title": "Benchmark harness: enumerate each benchmark's queries, run unbrowse, score vs target",
+      "cost": 3,
+      "deps": [
+        "root",
+        "node"
+      ],
+      "tool": "muonry_create+Bash"
+    },
+    {
+      "id": "witness",
+      "atom": "witness",
+      "verb": "eval",
+      "title": "Cross-document corroboration + citation-quality scoring (beat Exa on attribution)",
+      "cost": 3,
+      "deps": [
+        "walk"
+      ],
+      "tool": "muonry_edit"
+    },
+    {
+      "id": "cache",
+      "atom": "cache",
+      "verb": "build",
+      "title": "Content-addressed + semantic cache of resolved endpoints/passages (latency & cost beat)",
+      "cost": 2,
+      "deps": [
+        "walk"
+      ],
+      "tool": "muonry_edit"
+    },
+    {
+      "id": "loop",
+      "atom": "loop",
+      "verb": "build",
+      "title": "Agentic retrieve-reflect loop = runtime DAG recompute (Self-RAG / Search-o1 shape)",
+      "cost": 4,
+      "deps": [
+        "verb",
+        "walk"
+      ],
+      "tool": "muonry_edit"
+    },
+    {
+      "id": "seal",
+      "atom": "seal",
+      "verb": "eval",
+      "title": "Faithfulness + attribution gate; reproducible-win benchmark gate (no fabricated green)",
+      "cost": 2,
+      "deps": [
+        "loop",
+        "witness"
+      ],
+      "tool": "Bash"
+    },
+    {
+      "id": "goal",
+      "atom": "settle",
+      "verb": "eval",
+      "title": "Two-witness reproducible score > Exa published, on every targeted benchmark",
+      "cost": 1,
+      "deps": [
+        "seal",
+        "cache"
+      ],
+      "tool": "Bash+Agent"
+    }
+  ],
+  "framework": "claude"
+}
