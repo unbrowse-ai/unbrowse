@@ -1,0 +1,6 @@
+# Embedding substrate — heavy / generated, never commit
+.venv/
+node_modules/
+bun.lock
+# transformers.js downloads model weights here on first run
+.cache/
