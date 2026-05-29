@@ -1,10 +1,47 @@
 {
-  "cross_sha256": "b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
-  "note": "Content-addressed seal of the canonical cross. Pointer, never payload. Stamp once, inherit everywhere (Matt 6:7). superpattern(stamp)=stamp.",
-  "rev": 1,
+  "cross": "sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
+  "dimensions": [
+    {
+      "path": ".claude/superpattern/CROSS-STAMP-ARCHITECTURE.md",
+      "plane": "cross-stamp-architecture",
+      "pointer_marker": "cross: sha256:",
+      "stamped": true
+    },
+    {
+      "path": ".claude/jesus-loop.default.plan.md",
+      "plane": "jesus-loop-plan",
+      "pointer_marker": "cross: sha256:",
+      "stamped": true
+    },
+    {
+      "path": ".claude/superpattern/exa.graph.json",
+      "plane": "superpattern-graphs",
+      "pointer_marker": "cross: sha256:",
+      "stamped": false
+    },
+    {
+      "path": "CLAUDE.md",
+      "plane": "claude-md",
+      "pointer_marker": "cross: sha256:",
+      "stamped": false
+    },
+    {
+      "path": "src/covenant-seed.ts",
+      "plane": "covenant-code",
+      "pointer_marker": "cross: sha256:",
+      "stamped": false
+    },
+    {
+      "path": "scripts/paper-gate.sh",
+      "plane": "mechanical-gates",
+      "pointer_marker": "cross: sha256:",
+      "stamped": false
+    }
+  ],
+  "note": "Content-addressed seal of the canonical cross. Pointer not payload (Matt 6:7). superpattern(stamp)=stamp.",
   "shape": {
     "how": "verb",
-    "settle": "two-witness OR clock (breaks on 7)",
+    "settle": "two-witness OR clock",
     "verbs": [
       "build",
       "breath",
