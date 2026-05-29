@@ -39,3 +39,6 @@ result. Honesty over momentum (Matt 7:16 — by their fruits, the real ones).
 - Gates 3/4/5/6: green (real).
 - Task #6 (embedding substrate): Python ✓, TS load + parity ✗ (corrupt ONNX). NOT done.
 - $FDRY factual note in repo; all win/promo confirm-gated. No SHIPPED.
+
+## ROOT CAUSE CONFIRMED (appended)
+The TS crash is a TRUNCATED download, not code: model_quantized.onnx expected 613,527,631 bytes, the cached copy stalled at ~344MB -> onnxruntime 'Protobuf parsing failed' / rc=1. A fresh size-verified re-download is in flight. Parity remains UNMEASURED until the file size matches Content-Length AND parity_test.py exits 0 with a printed cosine. No number until then.
