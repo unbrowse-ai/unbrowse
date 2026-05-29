@@ -147,6 +147,31 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         # api_key arg accepted for registry symmetry; unbrowse needs no key here.
         self._sem = asyncio.Semaphore(int(os.environ.get("UNBROWSE_SERP_CONCURRENCY", "4")))
 
+    async def _enrich(self, results: list[SearchResult]) -> list[SearchResult]:
+        """WAVE-09 lever (two-witness): replace thin DDG snippets with full page
+        markdown for the top-k ranked results, so the deep-research agent can grind
+        multi-hop chains instead of bailing. OPT-IN (UNBROWSE_ENRICH_TOP_K>0, default
+        OFF so concurrent runs are unaffected); bounded by the SERP semaphore; honest
+        fallback keeps the original snippet on fetch failure."""
+        top_k = int(os.environ.get("UNBROWSE_ENRICH_TOP_K", "0"))
+        if top_k <= 0:
+            return results
+        cap = int(os.environ.get("UNBROWSE_ENRICH_CHARS", "8000"))
+
+        async def _one(r: SearchResult) -> SearchResult:
+            if not r.url:
+                return r
+            async with self._sem:
+                body, fok = await _run(["fetch", r.url])
+            if fok:
+                full = _clean(body).strip()[:cap]
+                if full:
+                    r.snippet = full
+            return r
+
+        head = await asyncio.gather(*[_one(r) for r in results[:top_k]])
+        return list(head) + results[top_k:]
+
     async def __call__(self, query: str, num_results: int) -> list[SearchResult]:
         from urllib.parse import quote_plus
         serp_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
@@ -156,7 +181,8 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
             # Honest empty result on failure — the agent will see no results.
             return []
         md = _clean(stdout)
-        return parse_ddg_markdown(md, num_results)
+        results = parse_ddg_markdown(md, num_results)
+        return await self._enrich(results)
 
 
 def build_unbrowse_search_engine(**kwargs) -> "UnbrowseSearchEngine":
