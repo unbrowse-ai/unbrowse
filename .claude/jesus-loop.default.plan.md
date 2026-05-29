@@ -1,57 +1,66 @@
-# Jesus Loop — Step 0 plan (session: default)
+# Plan — beat Exa + BrowseComp, ship auditable, toll-booth everything (jesus-loop default)
 
-Task: keep getting better at Exa's benchmark + BrowseComp in parallel; the
-covenant CDP fully built; whitepaper evaled + benchmarked to spec; old
-guardrails no longer needed gone; the "10 commandments" awayed (superseded by
-the 10-atom covenant); code emerges to prod via npm AND via a GitHub open-source
-client that reveals no moat/logic yet is auditable to match the whitepaper; ZK
-stays moat+auth; toll-booth every dimension in a fair game-theory manner.
-
-This plan is superpattern-shaped (CLAUDE.md). The authoritative tickable ledger
-is `.claude/superpattern/covenant.walk.md`; the graph is
-`.claude/superpattern/covenant.graph.json`. This file is the loop's contract.
+Branch `jl/exa-browsecomp` (in-place). Co-runs with the `.codex` exa-browsecomp
+orchestrator + its background benchmark agents — same branch, one body of work.
+Walk `.claude/superpattern/exa.graph.json`; settle each node Plan→Build→Test→Judge.
 
 ## GOAL (north star)
+Two-witness, reproducible, agent-judged: **unbrowse beats Exa's published numbers on
+every targeted reproducible Exa benchmark AND reproduces BrowseComp accuracy > 0.336**,
+with the whitepaper evaled + benchmark-backed, obsolete guardrails gone, the
+10-commandments seal honored (no fake-green), the code shipped to prod via npm AND an
+**auditable open-source GitHub client that matches the whitepaper without revealing the
+moat** (capture/RE/economic engine + zk kept as moat & auth), and **every value flow
+toll-boothed via a fair game-theoretic x402 split**.
 
-The 7-truth covenant promise `when` is genuinely TRUE: the toll-booth'd covenant
-CDP is built and tested, the whitepaper reflects the code, stale guardrails are
-gone, and the open auditable client + npm release reproduce the whitepaper's
-WHAT — with ZK/auth/route-graph moat intact and the booth split fair (no leak).
-Output `<promise>SHIPPED</promise>` ONLY when all 7 acceptance gates are green
-AND Lewis has authorized the two irreversible emerge nodes.
+## ACCEPTANCE CRITERIA (each ticks only on a REAL, agent-judged number — two witnesses)
+1. **Beat Exa (reproducible suites).** unbrowse > Exa published on every targeted
+   reproducible suite: WebCode RAG groundedness > 79.4; Highlights > 94.8/93.2;
+   plus the Tier-2 public suites where applicable (SimpleQA > 0.874, FRAMES > 0.881).
+   Run against the cloned real harness (`exa-labs/benchmarks`, `perplexityai/search_evals`),
+   not a toy corpus. Contents (82.8) is explicitly NON-reproducible — not chased.
+2. **BrowseComp > 0.336**, reproduced on the real `perplexityai/search_evals`
+   suite=browsecomp with the OpenAI grader, full published set (not the 2-row seed).
+3. **Whitepaper evaled + benchmark-backed.** `paper-gate.sh` + `leak-guard.sh` exit 0
+   (reflects code, no moat leak) AND every `[shipped]` performance claim cites a real
+   benchmark number from criteria 1–2.
+4. **Obsolete guardrails gone + 10-commandments seal.** Dead bench scripts/guardrails
+   removed; the precommit seal (leak-guard + contract-leak + paper-gate) passes; no
+   fake-green markers (xfail painted green, status-code-as-verdict) survive a mutation check.
+5. **Auditable OSS client.** The public `@unbrowse/client` surface maps claim-by-claim
+   to the whitepaper, is independently auditable, and leaks zero moat (capture/RE/economic
+   engine, covenant mechanism internals). zk stays as moat & auth.
+6. **Toll-booth everything (fair game theory).** Every value flow priced through a fair
+   x402 split (operator cut + first-discoverer reward + site absorbs rounding, sums
+   exactly, no leak), wired in code with passing tests.
 
 ## NON-GOALS
-
-- Not a rewrite of v6 — covenant CDP lands alongside it (feat/v7-covenant-cdp).
-- Not open-sourcing the capture/RE engine, route graph, or economic constants.
-- Not unfreezing the public `unbrowse-ai/unbrowse` repo (frozen by design).
-- Not a one-shot benchmark headline — reproducible, two-witness, agent-judged.
-
-## ACCEPTANCE CRITERIA (each a runnable gate — no fabricated green)
-
-1. **Built** — `bun test tests/covenant-seed.test.ts tests/covenant-toll-ledger.test.ts` all pass; toll/meter/first-discoverer primitive real in `src/covenant-seed.ts` + `src/covenant-toll-ledger.ts`. *(verb core: DONE @ 72ee4d63b, 6/6 + 11/11)*
-2. **Verb wired** — every settled resolve/execute emits a signed, never-throws toll event on the request path (additive call-site in `src/cli-v7/breath/execute.ts`); a test asserts the emission. *(open)*
-3. **Speced** — `bash scripts/paper-gate.sh paper/internal-apis.tex` RC=0 (every shipped claim anchored) AND the whitepaper's benchmarked claims trace to a real bench run. *(paper-gate green; benchmark-to-spec open)*
-4. **Pruned + Awayed** — stale guardrails audited and retired; load-bearing gates (leak-guard, paper-gate) kept; the "10 commandments" superseded by the 10-atom covenant, recorded. Careful: 214-file dirty tree → audit-before-delete. *(partial)*
-5. **Bench** — Exa-published benchmark + BrowseComp both scored reproducibly, two-witness, agent-judged, vs target. A win widens; honest loss is reported, not hidden. *(open)*
-6. **OSS auditable client** — thin transport (`@unbrowse/client`/sdk-v2) auditable to the whitepaper WHAT; `bash scripts/leak-guard.sh` RC=0 over its surface; reveals no HOW. *(leak-guard green; client-audit open)*
-7. **Fair toll + ZK moat** — split sums exactly to amount (zero leak, tested); ZK credential↔wallet bind proven WITHOUT reveal (witness node, closed-source). *(split: DONE; ZK witness: open)*
+- Chasing marketing-only Exa numbers with no public harness (Fast/Instant latency,
+  exa-code, Websets 320x, Deep/Deep-Max) — counter-position only, never claim a win.
+- Chasing WebCode Contents 82.8 (golden markdown licensing-excluded → non-comparable).
+- Shipping search() SERP wins before search() is a real ranker (fabricated green).
 
 ## RISKS
+- **search() is not a real SERP ranker** (the load-bearing blocker): resolve returns API
+  endpoints, not ranked content URLs from a cold query. Every search benchmark gated on
+  building the browse-layer query→ranked-URLs engine (node-7 agentic loop). Mitigation:
+  dedicated build task #3.
+- **Branch/HEAD races + Stop-hook hijacks** from concurrent default-named loops (already
+  bit us once; peer parked). Mitigation: one canonical branch, trust git not sidecars.
+- **Paid grader cost** per wave. Mitigation: small `--limit` slices until a path proves out.
+- **Moat leak** in the OSS client / whitepaper. Mitigation: leak-guard + paper-gate gate every commit.
+- **Fake-green**: ticking a box on a TOY corpus or a status code. Mitigation: agent judges
+  the raw real number; no box without it.
 
-- Editing the 291-line execute handler rushed → break the request path. Mitigate: additive, never-throws, mirror `emitExecuteReplayTrace`; test the call-site.
-- Aggressive konmari in a 214-file dirty tree → lose load-bearing code. Mitigate: grep-before-delete, per-deletion verify.
-- Benchmark fake-green (numbers before the scorer runs). Mitigate: agent-judged raw artifacts, two witnesses, reproducible corpus.
-- Peer codex loop on `default` hijacks git HEAD. Mitigate: `ps` check each iteration; in-thread only.
+## OUT-OF-SCOPE
+- Irreversible release actions (npm publish, github push of the OSS client, prod deploy)
+  are CONFIRM-GATED — the loop builds & verifies to the edge, the human fires the release.
 
-## OUT-OF-SCOPE for autonomous walk — REQUIRES EXPLICIT LEWIS AUTHORIZATION
-
-The two `emerge` nodes are irreversible + outward and the loop must NOT trigger
-them autonomously:
-
-- **emerge_npm** — `bun run release:preview` → tag → CI publish. Standing rule: never direct npm publish; all via CI; Lewis triggers.
-- **emerge_oss** — public-GitHub auditable client. In tension with "public repo frozen by design." Lewis's new args resolve the DESIGN (separate thin client, whitepaper-WHAT only, no moat leak, ZK stays moat) but the outward push still needs Lewis's go.
-
-The loop walks every reversible node to `seal` autonomously, then STOPS at this
-fork. `SHIPPED` is forbidden until both (a) all 7 gates green AND (b) Lewis
-authorizes the emerge nodes. Until then: do not lie, do not emit the promise.
+## HONEST CURRENT STATE (start of loop)
+- Gate 3: paper-gate PASS (25 anchors, 0 leaks) + leak-guard clean — STRUCTURAL green;
+  benchmark-backing pending criteria 1–2.
+- Gate 4: 21 obsolete `bench-*.sh` removed (konmari); precommit seal passing.
+- Gate 6: **SETTLED, two witnesses** — x402-gate+flex+pricing+e2e 51/51 + covenant-toll-emit 3/3.
+- Gates 1, 2: background agents standing up the real harnesses for first real numbers.
+- Gate 5: not started.
+- Bench history: WAVE-01..04 in `bench/exa/`; WAVE-05 will record the first real numbers.
