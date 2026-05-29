@@ -1,3 +1,0 @@
-{"url": "https://example.com", "must": ["Example Domain", "documentation examples without needing permission", "Learn more"]}
-{"url": "https://www.iana.org/help/example-domains", "must": ["example.com", "RFC 2606", "documentation"]}
-{"url": "https://httpbin.org/html", "must": ["Herman Melville", "Moby"]}
