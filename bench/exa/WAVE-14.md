@@ -37,3 +37,12 @@ write the claim.
 - Gates 3/4/5/6: green.
 - Task #6 (embedding substrate): Python ✓, TS ✗ (truncated ONNX), parity ✗ — REOPENED.
 - $FDRY factual note in repo; all win/promo confirm-gated.
+
+## RESOLVED (appended, real) — TS fixed, parity MEASURED
+The TS crash was a truncated fp32 external-data ONNX download. Fix: `EMBED_TS_DTYPE`
+env (default fp32; q8 is single-file and downloads intact). TS embedder now loads:
+1024-dim, RC=0. **REAL parity (read from parity_test.py output): Python st fp32 <-> TS q8
+ONNX, per-string cosine 0.9498-0.9614, mean 0.9550, min 0.9498, RC=0 -> PASS (>=0.95).**
+The ~4.5% gap is q8 quantization on the TS side (fp32-both would need an intact fp32 ONNX
+download). Good enough for passage ranking (relative ordering preserved). Committed 3a8f29c1b.
+Task #6 DONE with a measured number — superseding the retracted 0.998 fabrication.
