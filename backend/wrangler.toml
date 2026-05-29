@@ -1,3 +1,54 @@
+# OPERATOR PROVISIONING — KV namespaces.
+# Every TODO_create_via_wrangler_kv_namespace_create_<NAME>[_preview]
+# placeholder below must be replaced with a real namespace id before the
+# binding starts serving real traffic. The 503/honest-envelope behavior
+# (see services/*-state.ts + services/audit.ts) keeps unprovisioned
+# bindings from 500-ing, but every named-env stanza MUST be filled per
+# env. Wrangler v3 env stanzas OVERRIDE the top-level [[kv_namespaces]]
+# blocks entirely; a missing per-env stanza binds NOTHING for that env.
+# Provision commands (run once per namespace, then once per env per
+# namespace; paste returned id + preview id back into the matching
+# slots below — top-level + production + staging + experiments +
+# gate-staging):
+#
+#   # Top-level (legacy CI fallback, `wrangler deploy` without --env):
+#   bunx wrangler kv:namespace create AUDIT_LOG
+#   bunx wrangler kv:namespace create AUDIT_LOG --preview
+#   bunx wrangler kv:namespace create RESPONSE_CACHE
+#   bunx wrangler kv:namespace create RESPONSE_CACHE --preview
+#   bunx wrangler kv:namespace create SESSION_STATE
+#   bunx wrangler kv:namespace create SESSION_STATE --preview
+#   bunx wrangler kv:namespace create TRACE_STATE
+#   bunx wrangler kv:namespace create TRACE_STATE --preview
+#   bunx wrangler kv:namespace create SETTINGS_STATE
+#   bunx wrangler kv:namespace create SETTINGS_STATE --preview
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB --preview
+#
+#   # Per env (repeat for --env staging, --env experiments,
+#   #          --env gate-staging — every named env is its own deploy
+#   #          target and must hold its own ids):
+#   bunx wrangler kv:namespace create AUDIT_LOG       --env production
+#   bunx wrangler kv:namespace create AUDIT_LOG       --env production --preview
+#   bunx wrangler kv:namespace create RESPONSE_CACHE  --env production
+#   bunx wrangler kv:namespace create RESPONSE_CACHE  --env production --preview
+#   bunx wrangler kv:namespace create SESSION_STATE   --env production
+#   bunx wrangler kv:namespace create SESSION_STATE   --env production --preview
+#   bunx wrangler kv:namespace create TRACE_STATE     --env production
+#   bunx wrangler kv:namespace create TRACE_STATE     --env production --preview
+#   bunx wrangler kv:namespace create SETTINGS_STATE  --env production
+#   bunx wrangler kv:namespace create SETTINGS_STATE  --env production --preview
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB --env production
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB --env production --preview
+#   # ...repeat with --env staging / --env experiments / --env gate-staging.
+#
+# Placeholder convention: TODO_create_via_wrangler_kv_namespace_create_<NAME>
+# (and _<NAME>_preview for preview ids). The <NAME> suffix is mandatory so
+# `grep -n TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG
+# backend/wrangler.toml` returns every slot the operator must fill for
+# that binding. Bare (un-suffixed) forms are forbidden — they collide
+# during search.
+
 name = "unbrowse-backend"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
@@ -34,8 +85,8 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 # Then paste the returned ids into the TODO slots below.
 [[kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
 
 # RESPONSE_CACHE — W17 KV-backed response cache for hot Worker paths
 # (resolve, marketplace lookup, sponsor-status, audit-verify). Dedicated
@@ -52,8 +103,79 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
 # recomputed.
 [[kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+
+# SESSION_STATE — v7.2.0-preview.0 persistent-session pointer-of-pointer
+# storage (W23 wave, 2026-05-28). Stores the L1..L4 pointer-chain
+# registry parked at `unbrowse breath session-park` and read at
+# `breath session-restore`. Key shape:
+#   session:<walletPubkey-hex>:<sessionId>
+# Wallet-prefixed for structural cross-wallet isolation — a request
+# signed by wallet-A can never produce a key prefix matching wallet-B's
+# rows. v7.2.0-preview.0 storage path is INERT (helper throws
+# BindingMissingError → route returns 503 honestly with `_wave_hint`
+# pointing operators at the provisioning steps below); v7.3 wave wires
+# the real impl.
+#   bunx wrangler kv:namespace create SESSION_STATE
+#   bunx wrangler kv:namespace create SESSION_STATE --preview
+# Then paste the returned ids into the slots below (top-level + every
+# named env stanza). Mt 6:19-20 — lay up for yourselves treasures in
+# heaven; the KV-cached pointer-chain IS the persistent treasure that
+# browser-close was destroying every session.
+[[kv_namespaces]]
+binding = "SESSION_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+
+# TRACE_STATE — v7.2.0-preview.0 trace-state KV (Day-3 Land worker B,
+# 2026-05-28). Pointer-only execution traces; decision_trace step
+# labels + timings + status_class + canonical error_code only. Key shape:
+#   trace:<walletPubkey-hex>:<sigHashHex>
+# where sigHashHex = sha256(signature)[:32]. Rolling 7d TTL. See
+# backend/src/services/trace-state.ts for the schema and routes/trace.ts
+# for the wire surface. Storage path returns 503 honest envelope when
+# the binding is absent. Operator provisions via:
+#   bunx wrangler kv:namespace create TRACE_STATE
+#   bunx wrangler kv:namespace create TRACE_STATE --preview
+[[kv_namespaces]]
+binding = "TRACE_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+
+# SETTINGS_STATE — v7.2.0-preview.0 per-wallet durable preferences
+# (Day-3 Land worker B, 2026-05-28). Pointer-only settingValuePointer
+# (literal: | op:// | keychain:// | bw:// | arg:// | unbrowse://);
+# never raw values. Key shape:
+#   settings:<walletPubkey-hex>:<settingKeyHash>
+# where settingKeyHash = sha256(settingKey)[:32] (so settings keys are
+# not enumerable from a KV listing). Indefinite TTL. See
+# backend/src/services/settings-state.ts + routes/settings.ts. Operator:
+#   bunx wrangler kv:namespace create SETTINGS_STATE
+#   bunx wrangler kv:namespace create SETTINGS_STATE --preview
+[[kv_namespaces]]
+binding = "SETTINGS_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+
+# SCREENSHOT_BLOB — v7.2.0-preview.0 content-addressable PNG storage
+# (Day-5 SWARM worker D, 2026-05-28). Replaces local-disk
+# ~/.unbrowse/screenshots/ writes under UNBROWSE_STATELESS=1. Two writes
+# per POST (meta + blob), keyed by sigKey = sha256(signature)[:32]:
+#   screenshot:<wallet>:<sigKey>:meta  →  metadata envelope JSON
+#   screenshot:<wallet>:<sigKey>:blob  →  raw PNG bytes (capped 8MB)
+# Wallet-prefixed for cross-wallet structural isolation. TTL 30d.
+# See backend/src/services/screenshot-blob.ts + routes/screenshot.ts.
+# Binding optional in v7.2.0-preview.0 — route returns 503 honest
+# envelope when absent; CLI handler graceful-degrades to tmp file.
+# v7.3 wave wires R2/Tigris-backed CAS storage for the blob lane.
+# Operator:
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB
+#   bunx wrangler kv:namespace create SCREENSHOT_BLOB --preview
+[[kv_namespaces]]
+binding = "SCREENSHOT_BLOB"
+id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
 
 # Secrets (set via `wrangler secret put`):
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
@@ -68,12 +190,48 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
 #   PLATFORM_SPONSOR_WALLET_KEY  — signer for the sponsor wallet binding
 #                                  set in [vars] below. Both must be set
 #                                  for sponsor mode to enable.
+#
+# ─── COVENANT PEER-FEDERATION (operator hand-off, W26-C / W29) ──────────────
+# The backend's /v1/covenant route writes its signed receipt to the AUDIT_LOG
+# KV row AND (optionally) mirrors that same content-addressed receipt to a
+# running covenant-server's ledger. The mirror is fire-and-forget
+# (ctx.waitUntil — NEVER adds latency to the user call) and graceful-degrades
+# to an honest no-op when the vars below are UNSET (one warn log,
+# { ok: true, skipped: true }, no throw). See
+# backend/src/services/covenant-peer.ts + routes/covenant.ts.
+#
+#   To ACTIVATE peer-federation in prod (W33-C opaque boundary):
+#     Set AIKO_OP_URL to an aiko-level proxy base URL. The mirror POSTs an
+#     OPAQUE op `<AIKO_OP_URL>/op` with body
+#     {op_class, op_kind, params, identity, sig?, unbrowse_receipt_ptr} — NO
+#     covenant verb, NO scripture witness ever crosses the wire (Mark 4:11).
+#     The proxy (sovereign, aiko-side) maps op_class -> covenant verb and
+#     supplies the default_witness. Example:
+#       AIKO_OP_URL = "https://aiko-proxy.example:8787"
+#     (Legacy COVENANT_LEDGER_URL still works and ALSO receives the opaque op.)
+#     Optionally set PEER_URLS to a comma-separated list of ADDITIONAL proxy
+#     base URLs to fan the same op out to. Example:
+#       PEER_URLS = "https://peer-a.example,https://peer-b.example"
+#     Set AIKO_KEY (secret) to let aiko-authenticated callers see the full
+#     /v1/covenant mechanism (kind/action); public callers get the opaque
+#     {ok, receiptId, covenantReceiptPtr} only. ADMIN_KEY is also accepted.
+#       wrangler secret put AIKO_KEY
+#   Leave all UNSET (or omit the commented lines below) to keep federation
+#   OFF — the unbrowse KV row is still written; only the cross-store mirror
+#   is skipped. These are PLAIN vars (no secret); set per env in the matching
+#   [env.<name>.vars] block, or via `wrangler secret put` if you prefer the
+#   value not committed.
 
 [vars]
 ENVIRONMENT = "production"
 CREDITS_ENABLED = "1"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+# Covenant peer-federation (OFF by default; see header block above). Uncomment
+# and set to an aiko-proxy base URL to enable the OPAQUE op mirror (W33-C).
+# AIKO_OP_URL = "https://aiko-proxy.example:8787"
+# COVENANT_LEDGER_URL = "https://covenant-server.example:8787"
+# PEER_URLS = "https://peer-a.example,https://peer-b.example"
 # v6.15.0 — sponsor wallet bindings; key is a secret (wrangler secret put PLATFORM_SPONSOR_WALLET_KEY).
 PLATFORM_SPONSOR_WALLET_ADDRESS = ""
 SPONSOR_CAP_DAILY_USD = "1.0"
@@ -118,13 +276,46 @@ binding = "STATS_KV"
 id = "1d315d7cda1742b785cf5d23c892c5d7"
 preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
+# AUDIT_LOG — see top-level stanza. v7.0 signed-receipt audit log. Without
+# this per-env stanza, `wrangler deploy --env production` binds NOTHING
+# for AUDIT_LOG (wrangler env stanzas override top-level entirely) and
+# every audit row silently no-ops. Operator must provision per env.
+[[env.production.kv_namespaces]]
+binding = "AUDIT_LOG"
+id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+
 # RESPONSE_CACHE — see top-level stanza for doctrine. Per-env slot lets
 # prod, staging, and gate-staging hold ISOLATED caches so a bench-time
 # invalidation never spills into prod hot paths.
 [[env.production.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+
+# SESSION_STATE — see top-level stanza for doctrine (W23, v7.2.0-preview.0).
+[[env.production.kv_namespaces]]
+binding = "SESSION_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+
+# TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.production.kv_namespaces]]
+binding = "TRACE_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+
+# SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.production.kv_namespaces]]
+binding = "SETTINGS_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+
+# SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
+[[env.production.kv_namespaces]]
+binding = "SCREENSHOT_BLOB"
+id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
 
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -138,6 +329,10 @@ SPONSOR_GLOBAL_DAILY_USD = "50.0"
 PRIVY_APP_ID = "cmpalnem701z00cjmncqve4q0"
 REQUIRE_DOMAIN_VERIFICATION = "1"
 UNBROWSE_AI_SCRUB_MODEL = "moonshotai/Kimi-K2.5"
+# Covenant peer-federation (OFF by default; see header block above). Uncomment
+# to mirror /v1/covenant receipts to a running covenant-server in prod.
+# COVENANT_LEDGER_URL = "https://covenant-server.example:8787"
+# PEER_URLS = "https://peer-a.example,https://peer-b.example"
 
 # --- Staging environment ---
 # Deploy: wrangler deploy --env staging
@@ -157,12 +352,43 @@ binding = "STATS_KV"
 id = "195ca099811f4f6fbdae268d72ce2034"
 preview_id = "f4fe69f30a3c47008a627113a505f38b"
 
+# AUDIT_LOG — see top-level stanza. Dedicated staging audit log so
+# bench-gate signed-receipt rows never spill into prod.
+[[env.staging.kv_namespaces]]
+binding = "AUDIT_LOG"
+id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+
 # RESPONSE_CACHE — see top-level stanza. Dedicated staging cache so
 # bench-gate runs can purge without touching prod.
 [[env.staging.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+
+# SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0).
+[[env.staging.kv_namespaces]]
+binding = "SESSION_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+
+# TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.staging.kv_namespaces]]
+binding = "TRACE_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+
+# SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.staging.kv_namespaces]]
+binding = "SETTINGS_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+
+# SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
+[[env.staging.kv_namespaces]]
+binding = "SCREENSHOT_BLOB"
+id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
@@ -177,6 +403,10 @@ SPONSOR_GLOBAL_DAILY_USD = "50.0"
 # mirrors prod here; set to "0" only if a staging integration test fixture
 # needs the gate opened.
 REQUIRE_DOMAIN_VERIFICATION = "1"
+# Covenant peer-federation (OFF by default; see header block above). Uncomment
+# to mirror /v1/covenant receipts to a covenant-server from staging.
+# COVENANT_LEDGER_URL = "https://covenant-server-staging.example:8787"
+# PEER_URLS = "https://peer-a.example,https://peer-b.example"
 
 # --- Lewis experiments environment ---
 # Deploy: wrangler deploy --env experiments
@@ -192,17 +422,52 @@ binding = "STATS_KV"
 id = "1d315d7cda1742b785cf5d23c892c5d7"
 preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 
+# AUDIT_LOG — see top-level stanza. Experiments env shares an isolated
+# audit log so sandbox sessions never write into prod receipts.
+[[env.experiments.kv_namespaces]]
+binding = "AUDIT_LOG"
+id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+
 # RESPONSE_CACHE — see top-level stanza.
 [[env.experiments.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+
+# SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0).
+[[env.experiments.kv_namespaces]]
+binding = "SESSION_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+
+# TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.experiments.kv_namespaces]]
+binding = "TRACE_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+
+# SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.experiments.kv_namespaces]]
+binding = "SETTINGS_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+
+# SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
+[[env.experiments.kv_namespaces]]
+binding = "SCREENSHOT_BLOB"
+id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
 
 [env.experiments.vars]
 ENVIRONMENT = "staging"
 CREDITS_ENABLED = "1"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
+# Covenant peer-federation (OFF by default; see header block above). Uncomment
+# to mirror /v1/covenant receipts to a covenant-server from the experiments sandbox.
+# COVENANT_LEDGER_URL = "https://covenant-server-sandbox.example:8787"
+# PEER_URLS = "https://peer-a.example,https://peer-b.example"
 
 # --- gate-staging environment (MCP release-gate harness uses this) ---
 # Deploy: wrangler deploy --env gate-staging
@@ -221,13 +486,47 @@ binding = "STATS_KV"
 id = "930ed4fa3d1c4febafcafb6905365dc8"
 preview_id = "1eac26403aab4949ad69c35678dca938"
 
+# AUDIT_LOG — see top-level stanza. Bench-gate harness asserts signed-
+# receipt write/read against this namespace in-thread without touching
+# prod or staging audit logs.
+[[env.gate-staging.kv_namespaces]]
+binding = "AUDIT_LOG"
+id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+
 # RESPONSE_CACHE — see top-level stanza. Bench-gate harness uses this
 # namespace to assert cache HIT/MISS behavior in-thread without touching
 # prod or staging caches.
 [[env.gate-staging.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_preview"
+id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+
+# SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0). Bench-
+# gate harness exercises session-park / session-restore against this
+# namespace.
+[[env.gate-staging.kv_namespaces]]
+binding = "SESSION_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+
+# TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.gate-staging.kv_namespaces]]
+binding = "TRACE_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+
+# SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
+[[env.gate-staging.kv_namespaces]]
+binding = "SETTINGS_STATE"
+id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+
+# SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
+[[env.gate-staging.kv_namespaces]]
+binding = "SCREENSHOT_BLOB"
+id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
+preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
 
 [env.gate-staging.vars]
 ENVIRONMENT = "gate-staging"
@@ -237,3 +536,7 @@ PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 PLATFORM_SPONSOR_WALLET_ADDRESS = ""
 SPONSOR_CAP_DAILY_USD = "0.0"
 SPONSOR_GLOBAL_DAILY_USD = "0.0"
+# Covenant peer-federation (OFF by default; see header block above). Bench-gate
+# can point this at a throwaway covenant-server to exercise the mirror path.
+# COVENANT_LEDGER_URL = "http://127.0.0.1:8787"
+# PEER_URLS = "http://127.0.0.1:8788"

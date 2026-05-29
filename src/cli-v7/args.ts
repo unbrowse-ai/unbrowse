@@ -53,6 +53,7 @@ const VALUE_EXPECTED_FLAGS = new Set([
   "params",
   "argScope",
   "arg-scope",
+  "arg",
 ]);
 
 export function parseV7Args(argv: string[]): ParsedV7Args {

@@ -1,0 +1,10 @@
+[
+  {
+    "page": "install",
+    "error": "req_failed GET https://www.unbrowse.ai/search?_rsc=2h5ia: net::ERR_ABORTED"
+  },
+  {
+    "page": "login",
+    "error": "req_failed GET https://www.unbrowse.ai/search?_rsc=to9i9: net::ERR_ABORTED"
+  }
+]

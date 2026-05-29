@@ -1,0 +1,11 @@
+HTTP/2 200 
+date: Wed, 27 May 2026 11:34:09 GMT
+content-type: application/json
+content-length: 309
+access-control-allow-origin: *
+access-control-expose-headers: PAYMENT-REQUIRED,PAYMENT-RESPONSE,X-Payment-Required
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=wb51plvBpWOSnDmZny%2B%2F2rrBP3zYlV560ahL7RgO5S%2BK07WAgznk70NNkCEf5hppFz%2Ff0CVNQQXvMi6W1KlOMGLy5oUVhCgrM6d53BCczMS12pZgOAK%2FoYQ%2BoxDrj2YI086D21c7"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a024b5769e173fc5-SIN
+

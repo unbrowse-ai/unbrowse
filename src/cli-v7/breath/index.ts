@@ -11,6 +11,7 @@ import type { OutputOptions } from "../output.js";
 
 import { handler as goHandler } from "./go.js";
 import { handler as fillHandler } from "./fill.js";
+import { handler as fillFormHandler } from "./fill-form.js";
 import { handler as typeHandler } from "./type.js";
 import { handler as clickHandler } from "./click.js";
 import { handler as pressHandler } from "./press.js";
@@ -21,10 +22,13 @@ import { handler as executeHandler } from "./execute.js";
 import { handler as authCaptureHandler } from "./auth-capture.js";
 import { handler as proxyRotateHandler } from "./proxy-rotate.js";
 import { handler as closeHandler } from "./close.js";
+import { handler as sessionParkHandler } from "./session-park.js";
+import { handler as sessionRestoreHandler } from "./session-restore.js";
 
 const TABLE: Record<string, VerbHandler> = {
   go: goHandler,
   fill: fillHandler,
+  "fill-form": fillFormHandler,
   type: typeHandler,
   click: clickHandler,
   press: pressHandler,
@@ -35,6 +39,9 @@ const TABLE: Record<string, VerbHandler> = {
   "auth-capture": authCaptureHandler,
   "proxy-rotate": proxyRotateHandler,
   close: closeHandler,
+  // v7.2.0-preview.0 (W23) — close-is-antipattern persistent sessions.
+  "session-park": sessionParkHandler,
+  "session-restore": sessionRestoreHandler,
 };
 
 export const router: VerbRouter = {

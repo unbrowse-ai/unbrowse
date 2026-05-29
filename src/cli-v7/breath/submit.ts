@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath submit"):
  *   CLI subcommand  : breath submit
  *   MCP tool        : unbrowse_submit
- *   Covenant kind   : actuate_submit
+ *   Op kind   : breath:submit
  *   Verb            : breath
  *
  * No value-bearing: this handler NEVER touches src/values/.
@@ -36,6 +36,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 
@@ -131,7 +132,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--wait", description: "Wait for navigation after submit (default: false in v7.0)." },
           { name: "--timeout", description: "Navigation wait timeout in ms.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -151,10 +152,21 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   }
 
   let result: SubmitResult;
+  let currentUrl = "";
   try {
     const conn = await attach(rec.chromeWsUrl);
     const target = await attachToTarget(conn, rec.targetId);
     const targetSessionId = target.sessionId;
+
+    try {
+      const hist = await call<
+        Record<string, never>,
+        { currentIndex: number; entries: Array<{ url: string }> }
+      >(conn, "Page.getNavigationHistory", {}, targetSessionId);
+      currentUrl = hist.entries[hist.currentIndex]?.url ?? "";
+    } catch {
+      currentUrl = "";
+    }
 
     const expr = buildSubmitExpression(selector);
     const res = await call<
@@ -186,7 +198,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "breath submit",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         session_id: rec.sessionId,
         selector: selector ?? null,
         error: result.error ?? "submit_failed",
@@ -197,17 +209,40 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     process.exit(EX_CDP);
   }
 
+  // Day-6 Dominion: emit a sig-keyed breath-act receipt for this
+  // submit. Optional selector is sha256-hashed by the helper. The
+  // form's `action` URL is NOT hashed into the audit — that's a
+  // navigation pointer, not a forensic locator for the submit gesture
+  // itself; the URL the user submitted FROM is the binding.
+  // Binding-missing surfaces as a stderr warning, never blocks the
+  // gesture (A5).
+  const breathAudit = await emitBreathActStateless({
+    sessionId: rec.sessionId,
+    actType: "submit",
+    selector: selector ?? null,
+    currentUrl,
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath submit",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       selector: selector ?? null,
       action: result.action,
       method: result.method,
       element_count: result.element_count,
       how: result.how,
+      audit: {
+        ok: breathAudit.ok,
+        idempotent: breathAudit.idempotent,
+        binding_missing: breathAudit.bindingMissing,
+        receipt_id: breathAudit.receiptId,
+        cache_key: breathAudit.cacheKey,
+        variant: "breath-act",
+        act_type: "submit",
+      },
     },
     opts,
   );

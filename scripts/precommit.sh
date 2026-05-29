@@ -75,8 +75,8 @@ if has_match '^(packages/skill/package\.json|packages/skill/scripts/|scripts/pub
   bun run check:opaque-tarball
 fi
 
-if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\.md|scripts/leak-guard\.sh)$'; then
-  echo "[pre-commit] leak-guard: scanning public-reachable paths for alpha"
+if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\.md|scripts/leak-guard\.sh|src/|packages/|backend/src/)'; then
+  echo "[pre-commit] leak-guard: scanning public surface for alpha + covenant mechanism leaks"
   bash scripts/leak-guard.sh
 fi
 # Kuri vendor freshness gate: when the staged diff bumps the

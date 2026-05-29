@@ -1,12 +1,13 @@
 /**
- * v7 covenant-kind dispatcher — the 1:1:1 translation layer.
+ * v7 op-kind dispatcher — the 1:1:1 translation layer.
  *
- *   Acts 2:6 — "every man heard them speak in his own language"
+ *   Mark 4:11 — "unto them that are without, all these things are done
+ *   in parables."
  *
  * The KIND_MAP (src/cli-v7/kind-map.ts) declares one row per primitive:
- *   subcommand <-> covenant_kind <-> mcp_tool
+ *   subcommand <-> op_kind <-> mcp_tool
  *
- * This module is the translator. It accepts a covenant_kind plus a
+ * This module is the translator. It accepts an op_kind plus a
  * record of typed args (the shape MCP already validates against
  * `inputSchema`), looks up the matching v7 handler, builds the
  * `ParsedV7Args` the handler expects (via mcp-args.ts adapters),
@@ -15,7 +16,7 @@
  *
  * Three callers consume this:
  *   1. The MCP server (src/mcp.ts) — translates MCP tool calls to
- *      covenant_kinds, then to v7 handlers. Falls back to the legacy
+ *      op_kinds, then to v7 handlers. Falls back to the legacy
  *      v6 backend path when dispatch reports the v7 handler is not
  *      ready (not_implemented_yet) or its response shape diverges.
  *   2. The covenant substrate (~/Projects/covenant) — every KindSpec
@@ -29,7 +30,7 @@
  * dispatch is the cost of the handler logic itself, plus a tiny
  * per-call shim install/restore.
  */
-import { KIND_MAP, type V7CovenantKind, type KindMapEntry } from "../kind-map.js";
+import { KIND_MAP, type V7OpKind, type KindMapEntry } from "../kind-map.js";
 import type { ParsedV7Args } from "../args.js";
 import type { OutputOptions } from "../output.js";
 import { buildParsedArgsForKind, type DispatchContext } from "./mcp-args.js";
@@ -43,7 +44,7 @@ export interface DispatchResult {
   readonly stderr: string;
   /** Parsed JSON from stdout (when stdout was a single JSON document). */
   readonly jsonResult?: unknown;
-  readonly covenant_kind: V7CovenantKind | string;
+  readonly op_kind: V7OpKind | string;
   readonly subcommand: string;
   readonly mcp_tool: string | null;
   /**
@@ -61,9 +62,37 @@ export interface DispatchResult {
   readonly dispatch_error?: string;
 }
 
-/** Look up the kind-map row for a covenant_kind. O(N) — N=32 — fine. */
+/**
+ * The public-surface allowlist — the EXACT set of op_kinds the public
+ * dispatcher (CLI / MCP) will route. Derived from `KIND_MAP` (the 37-row
+ * `as const`, the single source of truth — `kind-map.ts`); never a
+ * second hardcoded list.
+ *
+ *   Genesis 1:9 — *"the waters gathered... and the dry land appear."*
+ *   The 37 named internet ops are the dry land (the product surface);
+ *   the mechanism kinds (`revealed_context`, `diffusion_populate`,
+ *   `ebm_route`, `ebm_train`, `canon_witness`, `rules_for_identity`,
+ *   `establishment_query`, `recall_episode`, ...) are the deep — they
+ *   have no row here, so they are unreachable from this public surface
+ *   (`.planning/v7-rip/INTERNET_LAYER_COVENANT_SURFACE.md` §5).
+ *
+ * A mechanism op_kind is NOT in this set → `dispatchByKind` returns a
+ * structured `unknown_op` error and NEVER loads/invokes a handler. The
+ * mechanism is reachable only aiko-side (the sovereign covenant binary +
+ * aiko-proxy), never through unbrowse's public dispatcher.
+ */
+export const PUBLIC_OP_ALLOWLIST: ReadonlySet<string> = new Set(
+  KIND_MAP.map((e) => e.op_kind),
+);
+
+/** Is this op_kind on the public-surface allowlist (one of the 37)? */
+export function isPublicOp(kind: string): boolean {
+  return PUBLIC_OP_ALLOWLIST.has(kind);
+}
+
+/** Look up the kind-map row for an op_kind. O(N) — N=37 — fine. */
 export function findKindEntry(kind: string): KindMapEntry | undefined {
-  return KIND_MAP.find((e) => e.covenant_kind === kind);
+  return KIND_MAP.find((e) => e.op_kind === kind);
 }
 
 /** All registered MCP tool names from the kind-map (non-null). */
@@ -75,9 +104,9 @@ export function listMcpTools(): readonly string[] {
   return tools;
 }
 
-/** All registered covenant kinds. */
-export function listCovenantKinds(): readonly V7CovenantKind[] {
-  return KIND_MAP.map((e) => e.covenant_kind);
+/** All registered op kinds. */
+export function listOpKinds(): readonly V7OpKind[] {
+  return KIND_MAP.map((e) => e.op_kind);
 }
 
 /**
@@ -107,10 +136,10 @@ async function runHandlerCaptured(
       exitCode: 70,
       stdout: "",
       stderr: "",
-      covenant_kind: entry.covenant_kind,
+      op_kind: entry.op_kind,
       subcommand: entry.subcommand,
       mcp_tool: entry.mcp_tool,
-      dispatch_error: `no_handler_for_kind:${entry.covenant_kind}`,
+      dispatch_error: `no_handler_for_kind:${entry.op_kind}`,
     };
   }
 
@@ -222,7 +251,7 @@ async function runHandlerCaptured(
     stdout,
     stderr,
     jsonResult,
-    covenant_kind: entry.covenant_kind,
+    op_kind: entry.op_kind,
     subcommand: entry.subcommand,
     mcp_tool: entry.mcp_tool,
     ...(fallback ? { fallback_to_v6: true as const } : {}),
@@ -331,17 +360,26 @@ export async function dispatchByKind(
   args: Record<string, unknown>,
   ctx: DispatchContext = {},
 ): Promise<DispatchResult> {
-  const entry = findKindEntry(kind);
+  // ─── Public-surface allowlist gate (Genesis 1:9 — the dry land) ────────
+  // An op_kind absent from KIND_MAP's 37 rows is NOT a public internet op.
+  // Mechanism kinds (revealed_context / diffusion_populate / ebm_route /
+  // canon_witness / rules_for_identity / establishment_query / ...) fail
+  // CLOSED here — structured `unknown_op`, no handler load, the covenant
+  // binary is never reached. They are aiko-only.
+  // (`.planning/v7-rip/INTERNET_LAYER_COVENANT_SURFACE.md` §5.)
+  const entry = isPublicOp(kind) ? findKindEntry(kind) : undefined;
   if (!entry) {
     return {
       ok: false,
       exitCode: 70,
       stdout: "",
       stderr: "",
-      covenant_kind: kind as V7CovenantKind,
+      op_kind: kind as V7OpKind,
       subcommand: "",
       mcp_tool: null,
-      dispatch_error: `unknown_kind:${kind}`,
+      // `unknown_op` — the public surface never reveals the 3-verb
+      // vocabulary or the mechanism-kind names (Mark 4:11).
+      dispatch_error: `unknown_op`,
     };
   }
 
@@ -354,7 +392,7 @@ export async function dispatchByKind(
       exitCode: 64,
       stdout: "",
       stderr: err instanceof Error ? err.message : String(err),
-      covenant_kind: entry.covenant_kind,
+      op_kind: entry.op_kind,
       subcommand: entry.subcommand,
       mcp_tool: entry.mcp_tool,
       dispatch_error: "bad_args",

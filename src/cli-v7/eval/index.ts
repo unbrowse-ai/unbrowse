@@ -27,6 +27,8 @@ import { handler as earningsHandler } from "./earnings.js";
 import { handler as settingsHandler } from "./settings.js";
 import { handler as feedbackHandler } from "./feedback.js";
 import { handler as reflectHandler } from "./reflect.js";
+import { handler as authInventoryHandler } from "./auth-inventory.js";
+import { handler as specHandler } from "./spec.js";
 
 const TABLE: Record<string, VerbHandler> = {
   snap: snapHandler,
@@ -46,6 +48,8 @@ const TABLE: Record<string, VerbHandler> = {
   settings: settingsHandler,
   feedback: feedbackHandler,
   reflect: reflectHandler,
+  "auth-inventory": authInventoryHandler,
+  spec: specHandler,
 };
 
 export const router: VerbRouter = {

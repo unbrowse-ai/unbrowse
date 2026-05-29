@@ -17,6 +17,16 @@ import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js
 import { buildGateRefusal } from "./payments/index.js";
 import { drainPendingIndexJobs } from "./indexer/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
+// Acts 2:6 — "every man heard them speak in his own language."
+// The v7 kind-map is the translation layer: one row per primitive,
+// one verb per surface (CLI / MCP / covenant). MCP tool names hit
+// dispatchByKind, which routes by op_kind to the matching v7
+// handler (build/breath/eval) and returns a structured result. When
+// the v7 handler is not yet wired (W3.1+ waves) or its shape diverges
+// from the v6 wire contract, dispatch returns fallback_to_v6 and we
+// fall through to the existing handler below.
+import { dispatchByKind, findKindEntry, listMcpTools } from "./cli-v7/dispatch/index.js";
+import type { DispatchResult } from "./cli-v7/dispatch/index.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -202,6 +212,70 @@ function textResource(uri: string, value: unknown, mimeType = "application/json"
 function isErrorToolResult(result: unknown): boolean {
   if (!result || typeof result !== "object") return false;
   return (result as { isError?: boolean }).isError === true;
+}
+
+/**
+ * MCP tool name -> op_kind lookup. Built once from KIND_MAP at
+ * module load. The 1:1:1 contract: every MCP tool that has a row in
+ * the kind-map can dispatch through dispatchByKind to the v7 handler.
+ */
+import { KIND_MAP as _V7_KIND_MAP } from "./cli-v7/kind-map.js";
+const TOOL_TO_KIND: ReadonlyMap<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const entry of _V7_KIND_MAP) {
+    if (entry.mcp_tool) m.set(entry.mcp_tool, entry.op_kind);
+  }
+  return m;
+})();
+void listMcpTools; void findKindEntry; // export-only consumers (tests use these).
+
+/**
+ * v7-dispatch gating. The default is OFF in v6.x — flip the env var
+ * to opt the call through dispatchByKind. When ON and the dispatched
+ * v7 handler returns a v6-compatible structured result (ok=true OR a
+ * structured ok=false envelope), it's wrapped as a ToolResult and
+ * returned. When the handler reports `fallback_to_v6` (not yet wired,
+ * EX_SOFTWARE), the caller falls through to the v6 handler below.
+ *
+ *   UNBROWSE_MCP_V7_DISPATCH=1   route every tool through dispatch
+ *   UNBROWSE_MCP_V7_DISPATCH=    v6 only (default)
+ *
+ * Per-tool opt-in via comma-separated names is also supported:
+ *   UNBROWSE_MCP_V7_DISPATCH=unbrowse_health,unbrowse_version
+ */
+function v7DispatchEnabledFor(toolName: string): boolean {
+  const v = process.env.UNBROWSE_MCP_V7_DISPATCH;
+  if (!v) return false;
+  if (v === "1" || v.toLowerCase() === "true" || v === "*") return true;
+  return v.split(",").map((s) => s.trim()).includes(toolName);
+}
+
+function dispatchResultToToolResult(r: DispatchResult): ToolResult {
+  // Pointer-not-payload: hand the structured JSON straight through as
+  // structuredContent + a text preview. Mirrors successResult/errorResult
+  // for callers reading either channel.
+  const body = r.jsonResult ?? { ok: r.ok, exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr };
+  if (r.ok) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `[v7 dispatch] ${r.subcommand} -> ${r.op_kind}\n\n${previewValue(body)}`,
+        },
+      ],
+      structuredContent: body,
+    };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: `[v7 dispatch error] ${r.subcommand} -> ${r.op_kind} (exit ${r.exitCode})\n\n${previewValue(body)}\n\n${r.stderr ?? ""}`,
+      },
+    ],
+    structuredContent: body,
+    isError: true,
+  };
 }
 
 function extractDecisionTrace(result: unknown): unknown {
@@ -3369,6 +3443,46 @@ const tools: ToolDefinition[] = [
       }
     },
   } satisfies ToolDefinition] : []),
+  // W24.8 — v7-native tool surfaces. These dispatch directly through the
+  // v7 kind-map (eval auth-inventory / eval spec) regardless of the
+  // UNBROWSE_MCP_V7_DISPATCH gate, because there is no v6 backend route
+  // to fall back to. The 1:1:1 contract (mcp_tool <-> op_kind <->
+  // CLI subcommand) is honored by routing through dispatchByKind.
+  {
+    name: "unbrowse_auth_inventory",
+    description: "Per-domain AST of what the user can already authenticate against, sourced from local browser profile metadata (Chrome + Firefox cookies, history, bookmarks). Read-only; cookie values, history URL paths, and bookmark URLs are NEVER returned — only hostnames, cookie NAMES, integer counts/timestamps, and a likely-logged-in score. Bias the resolve ranker toward logged-in domains BEFORE driving any browser-open path.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        domain: { type: "string", description: "Optional domain filter — return inventory for one hostname only." },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+    handler: async (args: Record<string, unknown>) => {
+      const dispatched = await dispatchByKind("eval:auth_inventory", args, { json: true });
+      return dispatchResultToToolResult(dispatched);
+    },
+  },
+  {
+    name: "unbrowse_spec",
+    description: "Probe spec-publishing endpoints (openapi/swagger/sitemap/robots/graphql) for a target site BEFORE the browse-capture-rank dance. If the site publishes its API surface as openapi.json/swagger.json or its URL graph as sitemap.xml, THAT is the ground-truth AST — skip the capture. Pointer-only output: endpoint METADATA (path, method, summary, parameter NAMES + types, response schema KEY NAMES). 3s budget per probe; cross-domain redirects refused; GraphQL introspection opt-in via --graphql.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        target: { type: "string", description: "Target site — `example.com`, `https://example.com`, or `https://example.com/foo` (path stripped). Required." },
+        budget_ms: { type: "number", description: "Per-probe HTTP budget in milliseconds (default 3000)." },
+        graphql: { type: "boolean", description: "Opt-in to GraphQL introspection probe (default false)." },
+      },
+      required: ["target"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    handler: async (args: Record<string, unknown>) => {
+      const dispatched = await dispatchByKind("eval:spec_discover", args, { json: true });
+      return dispatchResultToToolResult(dispatched);
+    },
+  },
   // Day 5 Phase 0c test-only crash trigger. Registered ONLY when
   // UNBROWSE_TEST_CRASH=1 is set in the env. Throws synchronously so the
   // tools/call catch + the process-level resilience guards can be exercised
@@ -3632,7 +3746,34 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
     const telemetryLogger = getSessionLogger();
     const callId = telemetryLogger.recordToolStart(name, toolArgs);
     try {
-      const result = await traceAsync("mcp", undefined, `tools-call:${name}`, () => tool.handler(toolArgs));
+      // v7 dispatch interceptor — Acts 2:6, every surface speaks its own
+      // language but they all point at the same act. When opt-in is set
+      // for this tool, the dispatch path runs first; on fallback_to_v6
+      // the original handler runs.
+      let result: ToolResult | undefined;
+      const kind = TOOL_TO_KIND.get(name);
+      if (kind && v7DispatchEnabledFor(name)) {
+        try {
+          const dispatched = await traceAsync(
+            "mcp",
+            undefined,
+            `v7-dispatch:${name}`,
+            () => dispatchByKind(kind, toolArgs, { json: true }),
+          );
+          if (!dispatched.fallback_to_v6 && !dispatched.dispatch_error) {
+            result = dispatchResultToToolResult(dispatched);
+          }
+        } catch (dispatchErr) {
+          // Dispatch infrastructure failure (NOT handler failure — handler
+          // failures are captured in DispatchResult.exitCode). Surface as
+          // a v6 fall-through so the wire stays stable.
+          const msg = dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr);
+          writeStderr(`v7 dispatch infra error for ${name}: ${msg}; falling back to v6`);
+        }
+      }
+      if (result === undefined) {
+        result = await traceAsync("mcp", undefined, `tools-call:${name}`, () => tool.handler(toolArgs));
+      }
       // Pull decision_trace out of structured results if the handler
       // produced one (resolve/execute do). Pass through unmodified —
       // it's already structural (step names per the convention).

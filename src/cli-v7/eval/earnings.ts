@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval earnings"):
  *   CLI subcommand  : eval earnings
  *   MCP tool        : unbrowse_earnings
- *   Covenant kind   : observe_earnings
+ *   Op kind   : eval:earnings
  *   Verb            : eval
  *
  * Wraps the v6 backend `GET /v1/transactions/creator/:agentId` (see
@@ -25,7 +25,7 @@
  * Pointer discipline (contract 3c2dd353): no value bytes printed —
  * only price_usd numerics + skill/endpoint identifiers + timestamps.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { ParsedV7Args } from "../args.js";
 import {
@@ -37,7 +37,9 @@ import {
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
-import { getWalletPubkey } from "../../values/signer.js";
+import { getWalletPubkey, signBytes } from "../../values/signer.js";
+import { safeZero } from "../../values/memzero.js";
+import { canonicalizeSignedFragment, postStateless } from "../_stateless.js";
 
 function resolveApiBase(): string {
   return (
@@ -51,6 +53,10 @@ function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
   for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
   return hex;
+}
+
+function bytesToBase64(b: Uint8Array): string {
+  return Buffer.from(b).toString("base64");
 }
 
 /** Mirror backend/src/services/auth.ts agent-id derivation. */
@@ -96,7 +102,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--agent-id", description: "Override the derived agentId (sha256(walletPubkey)).", value_expected: true },
           { name: "--fresh", description: "Bypass CDN / KV cache." },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -117,9 +123,38 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const agentId = agentIdOverride ?? deriveAgentId(walletPubkey);
 
     const base = resolveApiBase();
+    // Backend wire shape (W10-C correction confirmed):
+    //   GET /v1/transactions/creator/:agentId
+    //   where agentId = sha256(walletPubkey_hex)
+    // The v7-preview backend (`backend/src/routes/transactions.ts:82`)
+    // still hosts this exact route — no documented migration. If a
+    // future preview deploy moves it (e.g. to `/v1/account/earnings`),
+    // the handler will surface a 404 with `backend_status` set, which
+    // the calling agent can act on.
     const url = `${base.replace(/\/$/, "")}/v1/transactions/creator/${encodeURIComponent(agentId)}`;
     const headers: Record<string, string> = { accept: "application/json" };
     if (fresh) headers["cache-control"] = "no-cache";
+
+    // A2 — sig-keyed receipt for the read request. Sign the
+    // canonicalized {op, agentId, since, nonce} fragment so backend
+    // can witness `eval_read` on the creator earnings ledger.
+    const nonce = bytesToBase64(new Uint8Array(randomBytes(32)));
+    const fragment = canonicalizeSignedFragment(
+      {
+        op: "get_earnings",
+        agentId,
+        since: sinceFlag ?? null,
+        nonce,
+      },
+      ["op", "agentId", "since", "nonce"],
+    );
+    const signed = await signBytes(new TextEncoder().encode(fragment));
+    const signatureHex = bytesToHex(signed.signature);
+    const cacheKey = createHash("sha256").update(signed.signature).digest("hex").slice(0, 32);
+    safeZero(signed.signature);
+    headers["x-wallet-pubkey"] = walletPubkey;
+    headers["x-stateless-nonce"] = nonce;
+    headers["x-stateless-signature"] = signatureHex;
 
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 10_000);
@@ -189,11 +224,39 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         recorded_at: r.recorded_at ?? r.ts ?? null,
       }));
 
+    // W24.2 — sig-keyed eval-read audit row. readKind=earnings is a
+    // pure backend ledger query — no browse session, no URL. byteCount
+    // is the filtered ledger row count payload size.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "earnings" as const,
+        byteCount: JSON.stringify({ by_domain: byDomainOut, recent }).length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     emit(
       {
         ok: true,
         subcommand: "eval earnings",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         api_base: base,
         agent_id: agentId,
         walletPubkey,
@@ -204,6 +267,9 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         count: filtered.length,
         by_domain: byDomainOut,
         recent,
+        cache_key: cacheKey,
+        audit_kind: "eval_read",
+        audit_emit: auditEmit,
       },
       opts,
     );

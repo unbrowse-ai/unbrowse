@@ -6,7 +6,7 @@
  * 1:1 mapping (kind-map.ts row "breath fill"):
  *   CLI subcommand  : breath fill
  *   MCP tool        : unbrowse_fill
- *   Covenant kind   : actuate_fill
+ *   Op kind   : breath:fill
  *   Verb            : breath
  *
  * Secret-redaction invariants (LOAD-BEARING):
@@ -176,7 +176,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--arg", description: "Single arg-scope key (key=value form).", value_expected: true },
           { name: "--argScope", description: "Full arg-scope object as JSON.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -193,7 +193,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath fill",
         required: ["selector", "pointer"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -375,7 +375,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "breath fill",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "audit_post_failed",
           status: res.status,
           response_excerpt: text.slice(0, 200),
@@ -394,7 +394,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     {
       ok: true,
       subcommand: "breath fill",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       selector,
       pointer: pointerUri, // pointer is the receipt; value is gone

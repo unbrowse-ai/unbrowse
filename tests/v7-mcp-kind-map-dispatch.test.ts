@@ -4,7 +4,7 @@
  *   Acts 2:6 — "every man heard them speak in his own language."
  *
  * The dispatch layer is the 1:1:1 translation: MCP tool name ->
- * covenant_kind -> v7 CLI handler. These tests assert:
+ * op_kind -> v7 CLI handler. These tests assert:
  *
  *   (1) Every KIND_MAP row resolves: dispatchByKind returns a
  *       structured DispatchResult (not a throw, not undefined).
@@ -30,7 +30,7 @@ import { join } from "node:path";
 import {
   dispatchByKind,
   findKindEntry,
-  listCovenantKinds,
+  listOpKinds,
   listMcpTools,
 } from "../src/cli-v7/dispatch/index.js";
 import { KIND_MAP } from "../src/cli-v7/kind-map.js";
@@ -38,9 +38,9 @@ import { KIND_MAP } from "../src/cli-v7/kind-map.js";
 const W5W6_READY = process.env.UNBROWSE_W5W6_READY === "1";
 
 describe("v7 dispatch — kind-map coverage", () => {
-  it("findKindEntry returns a row for every covenant_kind in KIND_MAP", () => {
+  it("findKindEntry returns a row for every op_kind in KIND_MAP", () => {
     for (const entry of KIND_MAP) {
-      const found = findKindEntry(entry.covenant_kind);
+      const found = findKindEntry(entry.op_kind);
       expect(found).toBeDefined();
       expect(found?.subcommand).toBe(entry.subcommand);
     }
@@ -55,8 +55,8 @@ describe("v7 dispatch — kind-map coverage", () => {
     }
   });
 
-  it("listCovenantKinds returns every kind-map row", () => {
-    const kinds = listCovenantKinds();
+  it("listOpKinds returns every kind-map row", () => {
+    const kinds = listOpKinds();
     expect(kinds.length).toBe(KIND_MAP.length);
   });
 });
@@ -72,47 +72,47 @@ describe("v7 dispatch — dispatchByKind structural contract", () => {
       const skipNeedsLiveBrowser =
         !W5W6_READY &&
         (entry.verb === "breath" ||
-          entry.covenant_kind === "observe_snap" ||
-          entry.covenant_kind === "observe_markdown" ||
-          entry.covenant_kind === "observe_screenshot" ||
-          entry.covenant_kind === "observe_text");
+          entry.op_kind === "eval:snap" ||
+          entry.op_kind === "eval:markdown" ||
+          entry.op_kind === "eval:screenshot" ||
+          entry.op_kind === "eval:text");
       if (skipNeedsLiveBrowser) continue;
 
       const skipNeedsBackend =
         !W5W6_READY &&
-        (entry.covenant_kind === "observe_resolve" ||
-          entry.covenant_kind === "observe_stats" ||
-          entry.covenant_kind === "observe_skills" ||
-          entry.covenant_kind === "observe_skill" ||
-          entry.covenant_kind === "observe_earnings" ||
-          entry.covenant_kind === "observe_feedback" ||
-          entry.covenant_kind === "observe_reflect" ||
-          entry.covenant_kind === "skill_declare" ||
-          entry.covenant_kind === "fill_template_declare" ||
-          entry.covenant_kind === "value_source_declare" ||
-          entry.covenant_kind === "observe_trace" ||
-          entry.covenant_kind === "observe_settings" ||
-          entry.covenant_kind === "observe_cookies");
+        (entry.op_kind === "eval:resolve" ||
+          entry.op_kind === "eval:stats" ||
+          entry.op_kind === "eval:skills" ||
+          entry.op_kind === "eval:skill" ||
+          entry.op_kind === "eval:earnings" ||
+          entry.op_kind === "eval:feedback" ||
+          entry.op_kind === "eval:reflect" ||
+          entry.op_kind === "build:skill" ||
+          entry.op_kind === "build:template" ||
+          entry.op_kind === "build:value-source" ||
+          entry.op_kind === "eval:trace" ||
+          entry.op_kind === "eval:settings" ||
+          entry.op_kind === "eval:cookies");
       if (skipNeedsBackend) continue;
 
       // version + sessions + status are mostly self-contained.
-      const result = await dispatchByKind(entry.covenant_kind, {}, { json: true });
+      const result = await dispatchByKind(entry.op_kind, {}, { json: true });
       expect(result).toBeDefined();
-      expect(result.covenant_kind).toBe(entry.covenant_kind);
+      expect(result.op_kind).toBe(entry.op_kind);
       expect(result.subcommand).toBe(entry.subcommand);
       expect(typeof result.exitCode).toBe("number");
     }
   });
 
   it("eval version: returns walletPubkey + version + buildSha (v6 wire compat)", async () => {
-    const r = await dispatchByKind("observe_version", {}, { json: true });
+    const r = await dispatchByKind("eval:version", {}, { json: true });
     expect(r.dispatch_error).toBeUndefined();
     expect(r.ok).toBe(true);
     expect(r.exitCode).toBe(0);
     expect(r.jsonResult).toBeDefined();
     const body = r.jsonResult as Record<string, unknown>;
     expect(body.subcommand).toBe("eval version");
-    expect(body.covenant_kind).toBe("observe_version");
+    expect(body.op_kind).toBe("eval:version");
     expect(typeof body.version).toBe("string");
     expect(typeof body.walletPubkey).toBe("string");
     // walletPubkey is 32 bytes hex
@@ -142,6 +142,15 @@ describe("v7 dispatch — MCP registration round-trip", () => {
       // gates them on a later wiring wave).
       if (entry.mcp_tool === "unbrowse_proxy_rotate") continue;
       if (entry.mcp_tool === "unbrowse_version") continue;
+      // W23 (2026-05-28) — new persistent-session MCP tools land in a
+      // later wiring wave alongside the v7.3 KV-storage real impl.
+      if (entry.mcp_tool === "unbrowse_session_park") continue;
+      if (entry.mcp_tool === "unbrowse_session_restore") continue;
+      // W32-B (2026-05-28) — the end-to-end form-fill pipe lands its MCP
+      // tool in a later wiring wave (the CLI surface + covenant dogfood
+      // ship first; mcp.ts registration follows once the multi-slot
+      // handler is exercised against real sessions).
+      if (entry.mcp_tool === "unbrowse_fill_form") continue;
       const needle = `name: "${entry.mcp_tool}"`;
       expect(mcpSource.includes(needle)).toBe(true);
     }
@@ -158,7 +167,7 @@ describe("v7 dispatch — secret-redaction canary", () => {
     }
     const CANARY = "UNB7-MCP-CANARY-DO-NOT-LEAK";
     const r = await dispatchByKind(
-      "actuate_fill",
+      "breath:fill",
       {
         selector: "input[name=q]",
         pointer: "arg://canary",

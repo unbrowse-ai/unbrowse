@@ -64,10 +64,58 @@
  */
 
 import type { Env } from "../types.js";
+import {
+  // W26-A: shared substrate primitives (Eph 4:4 — one body). The local
+  // hex/canonical/Ed25519/forbidden-field copies are deleted and routed
+  // through covenant-core; byte-compat preserved because covenant-core's
+  // primitives ARE the audit.ts reference impl (W25-shared proved
+  // deriveReceiptId byte-identical).
+  hexToBytes,
+  bytesToHex,
+  canonicalize,
+  deriveReceiptId as deriveReceiptIdFromCanonical,
+  verifyEd25519,
+  assertNoCleartext,
+  walletKey,
+} from "./covenant-core.js";
 
 // ─── Body shape (shared across all three POST variants) ────────────────────
 
-export type AuditVariant = "fill" | "header-inject" | "payload-field";
+export type AuditVariant = "fill" | "header-inject" | "payload-field" | "breath-act";
+
+/**
+ * Discriminator for `breath-act` rows — the non-value-bearing breath
+ * handlers (click, press, scroll, submit, type-literal, select-literal).
+ * Day-6 Dominion worker 1 (2026-05-28) — A2 every act produces a sig-keyed
+ * KV row, even when no value is filled. Gen 1:26 — "let them have
+ * dominion": each act is witnessed at the firmament.
+ *
+ * The set is closed (string-literal union) so the schema gate rejects
+ * unknown actTypes — a typo can't quietly create a phantom forensic
+ * category. Adding a new breath handler means extending this union AND
+ * the matching `breath-act` arm in validateAuditBody (one place to fail
+ * loudly if either side drifts).
+ */
+export type BreathActType =
+  | "click"
+  | "press"
+  | "scroll"
+  | "submit"
+  | "type-literal"
+  | "select-literal"
+  // Day-6 W24.2 extension — A2 coverage closure for the 5 remaining
+  // breath handlers + 3 build handlers that previously emitted NO
+  // sig-keyed row. Each new value is the act-name the handler ships.
+  // Selector is OPTIONAL for all new entries (most carry no DOM target).
+  | "navigate"
+  | "teardown"
+  | "auth-capture-start"
+  | "auth-capture-finish"
+  | "proxy-rotate"
+  | "session-restore"
+  | "build-skill"
+  | "build-template"
+  | "build-value-source";
 
 /**
  * Signature scheme discriminator — forward-compat for the v7.3 SNARK swap.
@@ -123,9 +171,14 @@ export interface AuditFillBody {
   variant: AuditVariant;
   // Optional, variant-dependent forensic correlation. ALL HASHES; NO CLEARTEXT.
   urlHash?: string; // sha256(absolute URL)
-  selectorHash?: string; // variant=fill: sha256(CSS selector)
+  selectorHash?: string; // variant=fill OR breath-act: sha256(CSS selector). breath-act allows empty/absent for no-selector acts (e.g. focus-press).
   headerNameHash?: string; // variant=header-inject: sha256(header-name)
   payloadPath?: string; // variant=payload-field: JSON-path (no values)
+  // variant=breath-act: which non-value act was performed. Closed enum
+  // (BreathActType) — schema gate rejects unknown actTypes so typos can't
+  // quietly create phantom forensic categories. NEVER carries selector
+  // text or any value.
+  actType?: BreathActType;
 }
 
 export interface StoredAuditRow extends AuditFillBody {
@@ -133,31 +186,43 @@ export interface StoredAuditRow extends AuditFillBody {
   verify_ok: boolean;
 }
 
-// ─── Hex / base64 helpers (Web-Crypto-friendly, no Node Buffer) ────────────
+// ─── Hex / regex helpers ───────────────────────────────────────────────────
+//
+// W26-A: hexToBytes/bytesToHex deleted — imported from covenant-core (Eph
+// 4:4). Re-exported so the audit.ts public surface is unchanged for any
+// downstream caller that imported them from here. HEX_RE / BASE64_RE stay
+// local — they're the schema-gate's character-class checks, not crypto
+// primitives (covenant-core gates length+hash, not wire-shape).
+export { hexToBytes, bytesToHex };
 
 const HEX_RE = /^[0-9a-fA-F]+$/;
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 
-export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  if (clean.length % 2 !== 0) throw new Error("hex string must have even length");
-  if (clean.length > 0 && !HEX_RE.test(clean)) throw new Error("hex string contains non-hex chars");
-  const out = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(clean.substring(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
-
-export function bytesToHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, "0");
-  }
-  return hex;
-}
-
 // ─── Canonical JSON + receipt-id derivation ────────────────────────────────
+
+/**
+ * AUDIT_LOG field order — the exact insertion order of the full-body
+ * canonical JSON (byte-compat with the pre-rip `canonicalizeFullBody`
+ * literal). `canonicalize(obj, AUDIT_FIELD_ORDER)` projects onto this order
+ * with absent optionals coerced to null, identical to the old `?? null`
+ * literal. The field SET stays audit-specific; the field-order PROJECTION is
+ * shared via covenant-core.canonicalize.
+ */
+const AUDIT_FIELD_ORDER = [
+  "pointer",
+  "nonce",
+  "contextHash",
+  "commitment",
+  "walletPubkey",
+  "signatureScheme",
+  "signature",
+  "variant",
+  "urlHash",
+  "selectorHash",
+  "headerNameHash",
+  "payloadPath",
+  "actType",
+] as const;
 
 /**
  * Canonical JSON over the SIGNED body fragment {pointer, nonce, contextHash}.
@@ -165,13 +230,18 @@ export function bytesToHex(bytes: Uint8Array): string {
  * This is what the wallet's Ed25519 key signs in v7.0 and what the SNARK
  * predicate commits to in v7.3.
  */
+const AUDIT_SIGNED_FRAGMENT_ORDER = [
+  "pointer",
+  "nonce",
+  "contextHash",
+  "commitment",
+] as const;
+
 export function canonicalizeSignedFragment(body: Pick<AuditFillBody, "pointer" | "nonce" | "contextHash" | "commitment">): string {
-  return JSON.stringify({
-    pointer: body.pointer,
-    nonce: body.nonce,
-    contextHash: body.contextHash,
-    commitment: body.commitment,
-  });
+  // W26-A: order-projection shared via covenant-core.canonicalize. All four
+  // fields are required (never absent) so no null-coercion divergence; bytes
+  // are byte-identical to the old literal.
+  return canonicalize(body as Record<string, unknown>, AUDIT_SIGNED_FRAGMENT_ORDER);
 }
 
 /**
@@ -180,21 +250,58 @@ export function canonicalizeSignedFragment(body: Pick<AuditFillBody, "pointer" |
  * semantically-equal bodies produce the same hash.
  */
 export function canonicalizeFullBody(body: AuditFillBody): string {
-  return JSON.stringify({
-    pointer: body.pointer,
-    nonce: body.nonce,
-    contextHash: body.contextHash,
-    commitment: body.commitment,
-    walletPubkey: body.walletPubkey,
-    signatureScheme: body.signatureScheme ?? "ed25519-v7.0",
-    signature: body.signature,
-    variant: body.variant,
-    urlHash: body.urlHash ?? null,
-    selectorHash: body.selectorHash ?? null,
-    headerNameHash: body.headerNameHash ?? null,
-    payloadPath: body.payloadPath ?? null,
-  });
+  // W26-A: field-order PROJECTION routed through covenant-core.canonicalize
+  // (shared insertion-order stringify); the audit-specific field SET +
+  // signatureScheme default stay local. covenant-core coerces absent
+  // optionals to null — identical to the old `?? null` literal — so the
+  // emitted bytes are byte-for-byte the same. The scheme default
+  // ("ed25519-v7.0") is applied BEFORE projection so it survives the
+  // undefined→null coercion.
+  return canonicalize(
+    {
+      pointer: body.pointer,
+      nonce: body.nonce,
+      contextHash: body.contextHash,
+      commitment: body.commitment,
+      walletPubkey: body.walletPubkey,
+      signatureScheme: body.signatureScheme ?? "ed25519-v7.0",
+      signature: body.signature,
+      variant: body.variant,
+      urlHash: body.urlHash,
+      selectorHash: body.selectorHash,
+      headerNameHash: body.headerNameHash,
+      payloadPath: body.payloadPath,
+      actType: body.actType,
+    },
+    AUDIT_FIELD_ORDER,
+  );
 }
+
+/**
+ * Set of allowed BreathActType values — string set so we can fast-check
+ * in validateAuditBody. Mirrors the BreathActType union; if either drifts
+ * the unit test `validateAuditBody rejects unknown actType` catches it.
+ */
+const BREATH_ACT_TYPES: ReadonlySet<string> = new Set([
+  "click",
+  "press",
+  "scroll",
+  "submit",
+  "type-literal",
+  "select-literal",
+  // W24.2 — breath go/close/auth-capture/proxy-rotate/session-restore +
+  // build skill/template/value-source. Keep ordered to match the union
+  // above so a drift in either side trips the validateAuditBody test.
+  "navigate",
+  "teardown",
+  "auth-capture-start",
+  "auth-capture-finish",
+  "proxy-rotate",
+  "session-restore",
+  "build-skill",
+  "build-template",
+  "build-value-source",
+]);
 
 /**
  * Deterministic receipt id — hex(sha256(canonicalJSON(body))). The CLI can
@@ -202,10 +309,11 @@ export function canonicalizeFullBody(body: AuditFillBody): string {
  * POST with the same body returns the same receiptId, no duplicate row.
  */
 export async function deriveReceiptId(body: AuditFillBody): Promise<string> {
-  const canonical = canonicalizeFullBody(body);
-  const bytes = new TextEncoder().encode(canonical);
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return bytesToHex(new Uint8Array(hash));
+  // W26-A: hash mechanism delegated to covenant-core.deriveReceiptId (the
+  // SAME sha256→hex it always was; W25-shared proved byte-identity). The
+  // audit-specific canonicalizer still produces the canonical input string,
+  // so the derived id is unchanged for every existing audit row.
+  return deriveReceiptIdFromCanonical(canonicalizeFullBody(body));
 }
 
 // ─── Schema validation ─────────────────────────────────────────────────────
@@ -250,8 +358,13 @@ export function validateAuditBody(raw: unknown): ValidationError | null {
   const scheme: SignatureScheme = (rawScheme as SignatureScheme | undefined) ?? "ed25519-v7.0";
 
   const variant = body.variant as string;
-  if (variant !== "fill" && variant !== "header-inject" && variant !== "payload-field") {
-    return { field: "variant", reason: "must be fill | header-inject | payload-field" };
+  if (
+    variant !== "fill" &&
+    variant !== "header-inject" &&
+    variant !== "payload-field" &&
+    variant !== "breath-act"
+  ) {
+    return { field: "variant", reason: "must be fill | header-inject | payload-field | breath-act" };
   }
 
   // Wallet pubkey: 32-byte hex (64 chars, optional 0x prefix).
@@ -354,14 +467,16 @@ export function validateAuditBody(raw: unknown): ValidationError | null {
     }
   }
 
-  // Forbidden fields — anti-stub gate. If any of these slip in, the caller
-  // is leaking cleartext through the audit log. Reject loudly.
-  const forbidden = ["value", "cleartext", "secret", "cookie", "header", "url", "selector", "headerName"];
-  for (const field of forbidden) {
-    if (field in body) {
-      return { field, reason: `forbidden — audit log carries hashes only (no cleartext)` };
-    }
-  }
+  // Forbidden fields — anti-stub gate, delegated to covenant-core's shared
+  // assertNoCleartext (W26-A, Eph 4:4). The audit-local forbidden list was a
+  // subset of DEFAULT_FORBIDDEN_FIELDS, so widening to the shared union is a
+  // tightening (more cleartext-shaped fields rejected), never a loosening —
+  // no previously-valid body is now rejected because none of those fields are
+  // legal in an AuditFillBody. The shared gate matches case-insensitively
+  // (the old `field in body` was case-sensitive), so `CookieValue` etc. now
+  // also trip — strictly safer.
+  const cleartext = assertNoCleartext(body);
+  if (cleartext) return { field: cleartext.field, reason: cleartext.reason };
 
   // ─── Variant-specific required + mutually-exclusive correlation ────────
   //
@@ -375,9 +490,16 @@ export function validateAuditBody(raw: unknown): ValidationError | null {
   // header-inject:  requires headerNameHash; rejects selectorHash / payloadPath
   // payload-field:  requires payloadPath; rejects selectorHash / headerNameHash
   const variantRequirements: Record<AuditVariant, { required: string; forbidden: string[] }> = {
-    "fill":          { required: "selectorHash",   forbidden: ["headerNameHash", "payloadPath"] },
-    "header-inject": { required: "headerNameHash", forbidden: ["selectorHash", "payloadPath"] },
-    "payload-field": { required: "payloadPath",    forbidden: ["selectorHash", "headerNameHash"] },
+    "fill":          { required: "selectorHash",   forbidden: ["headerNameHash", "payloadPath", "actType"] },
+    "header-inject": { required: "headerNameHash", forbidden: ["selectorHash", "payloadPath", "actType"] },
+    "payload-field": { required: "payloadPath",    forbidden: ["selectorHash", "headerNameHash", "actType"] },
+    // breath-act (Day-6 Dominion): non-value-bearing acts — click, press,
+    // scroll, submit, type-literal, select-literal. Required locator is
+    // `actType` (which act); selectorHash is OPTIONAL (focus-bound acts
+    // like keyboard press have no selector). Mutually-exclusive with
+    // headerNameHash/payloadPath (those are network-level witnesses, not
+    // user-input gestures).
+    "breath-act":    { required: "actType",        forbidden: ["headerNameHash", "payloadPath"] },
   };
   const req = variantRequirements[variant as AuditVariant];
   if (!body[req.required]) {
@@ -391,6 +513,21 @@ export function validateAuditBody(raw: unknown): ValidationError | null {
       return {
         field: f,
         reason: `unexpected_field_for_variant: variant='${variant}' must not carry '${f}'`,
+      };
+    }
+  }
+
+  // breath-act: actType must be a known string from the closed enum.
+  // A typo here would create a phantom forensic category (a row with
+  // actType='clikc' would never be queryable by the legitimate query).
+  // Deut 19:15 — the actType IS the second witness alongside the
+  // selectorHash; reject if it isn't a real witness.
+  if (variant === "breath-act") {
+    const actType = body.actType;
+    if (typeof actType !== "string" || !BREATH_ACT_TYPES.has(actType)) {
+      return {
+        field: "actType",
+        reason: `must be one of ${Array.from(BREATH_ACT_TYPES).join("|")} (got '${String(actType)}')`,
       };
     }
   }
@@ -411,24 +548,14 @@ export function validateAuditBody(raw: unknown): ValidationError | null {
  * even when the signature is bad (forensic value).
  */
 export async function verifyAuditSignature(body: AuditFillBody): Promise<boolean> {
-  try {
-    const pubkeyBytes = hexToBytes(body.walletPubkey);
-    if (pubkeyBytes.length !== 32) return false;
-    const sigBytes = hexToBytes(body.signature);
-    if (sigBytes.length !== 64) return false;
-    const canonical = canonicalizeSignedFragment(body);
-    const dataBytes = new TextEncoder().encode(canonical);
-    const key = await crypto.subtle.importKey(
-      "raw",
-      pubkeyBytes,
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    return await crypto.subtle.verify({ name: "Ed25519" }, key, sigBytes, dataBytes);
-  } catch {
-    return false;
-  }
+  // W26-A: Ed25519 import+verify delegated to covenant-core.verifyEd25519
+  // (the ONE copy replacing all 7). It applies the same 32-byte-key /
+  // 64-byte-sig length gates and the same catch-returns-false behavior, so
+  // a malformed key/sig still yields verify_ok:false (forensic value), never
+  // an exception. The audit-specific signed-fragment construction stays here.
+  const canonical = canonicalizeSignedFragment(body);
+  const dataBytes = new TextEncoder().encode(canonical);
+  return verifyEd25519(body.walletPubkey, body.signature, dataBytes);
 }
 
 // ─── KV key derivation (used by both stub + real impl) ─────────────────────
@@ -443,9 +570,13 @@ export function reverseIsoStamp(nowMs: number = Date.now()): string {
 }
 
 export function primaryAuditKey(walletPubkey: string, stamp: string, receiptId: string): string {
-  // Normalize wallet pubkey to lowercase hex so listing is order-stable.
-  const wallet = walletPubkey.toLowerCase().replace(/^0x/, "");
-  return `audit:${wallet}:${stamp}:${receiptId}`;
+  // W26-A: wallet-prefix construction delegated to covenant-core.walletKey
+  // (the shared `<prefix>:<wallet-lc-no-0x>:<suffix>` builder). Byte-identical
+  // to the old inline form: walletKey lowercases + strips 0x exactly as the
+  // old `.toLowerCase().replace(/^0x/, "")` did, and the audit-specific
+  // `<stamp>:<receiptId>` two-segment suffix is the security-boundary key
+  // shape (kept local to audit).
+  return walletKey("audit", walletPubkey, `${stamp}:${receiptId}`);
 }
 
 export function pointerAuditKey(receiptId: string): string {
@@ -587,8 +718,9 @@ export async function listAuditRowsByWallet(
   limit: number,
 ): Promise<StoredAuditRow[]> {
   const kv = requireAuditLog(env);
-  const wallet = walletPubkey.toLowerCase().replace(/^0x/, "");
-  const prefix = `audit:${wallet}:`;
+  // W26-A: list-prefix via covenant-core.walletKey (empty suffix → the
+  // "audit:<wallet>:" list-prefix form). Byte-identical to the old inline.
+  const prefix = walletKey("audit", walletPubkey, "");
 
   const listed = await kv.list({ prefix, limit });
   if (listed.keys.length === 0) return [];

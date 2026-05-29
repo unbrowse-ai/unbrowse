@@ -10,6 +10,22 @@ On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than d
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
+## The internet, covenant-shaped
+
+Every web action an agent takes collapses onto **three verbs** — the same shape the binary speaks internally:
+
+| Verb | What it is | Examples |
+|---|---|---|
+| `build` | **Declare** what you'll reuse — a skill, a fill-template, a value-source. | `build skill`, `build template` |
+| `breath` | **Act** on the internet — navigate, fill, click, type, submit, execute. | `breath go`, `breath fill`, `breath execute` |
+| `eval` | **Observe** state — snapshot, resolve, read, status, earnings. | `eval snap`, `eval resolve`, `eval text` |
+
+Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `breath fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
+
+The signature layer is shipping in stages — Ed25519-signed today, a zero-knowledge proof (same receipt interface, authorization without revealing the wallet) on the roadmap. The pointer-only invariant holds in every stage. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/covenant-internet-layer.md](./docs/covenant-internet-layer.md).
+
+> The three-verb surface (`unbrowse {build,breath,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
+
 ## Install — pick one
 
 ### Option 1 — MCP (drop-in for any MCP host)
@@ -111,13 +127,15 @@ Side-by-side on each: [/compare/playwright](https://unbrowse.ai/compare/playwrig
 
 ## How payments work
 
-Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route, every `unbrowse_search`, and any priced shortlist returned by `unbrowse_resolve` runs through the canonical [x402](https://www.x402.org) payment flow on Solana mainnet, settled via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview) (v6.16+). The server replies `402 Payment Required` with a Flex-shaped `accepts[]`; the client signs an off-chain Ed25519 authorization with their session key; the response carries the proof.
+Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route, every `unbrowse_search`, and any priced shortlist returned by `unbrowse_resolve` settles inline through HTTP-native micropayments on Solana mainnet via [Faremeter Flex](https://docs.faremeter.xyz/flex/overview) (v6.16+). The server replies `402 Payment Required` with a Flex-shaped `accepts[]`; the client signs an off-chain Ed25519 authorization with their session key; the response carries the proof. Protocol-level mechanics in the developer appendix below.
 
 You have three ways to pay:
 
 1. **Sponsored credit (default).** Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet — so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
-2. **Your wallet + Flex escrow (x402).** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs an `X-PAYMENT` header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md).
+2. **Your wallet + Flex escrow.** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs a payment header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
+
+> Protocol appendix (for implementers): the payment flow is the canonical [x402](https://www.x402.org) protocol; payment proofs travel in the `X-PAYMENT` request header. The runtime exposes `payAndRetryFlex` so most agents never touch the protocol directly.
 
 Payment architecture: [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
 
@@ -140,7 +158,7 @@ Core MCP tools:
 Indexed/published workflow MCP resources/prompts:
 
 - `workflow_publish://<skill>` — exported workflow artifact summary
-- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, x402/payment requirements, provenance hints, next-state checks
+- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract: params, enums, prerequisites, payment requirements, provenance hints, next-state checks
 - `workflow_dag://<skill>/<endpoint>` — dependency walk view for one indexed/published edge
 - `plan_workflow_execution` — prompt scaffold for inspecting the contract + DAG before traversal vs explicit replay
 
@@ -238,7 +256,7 @@ Six-layer pipeline:
 3. **Cache-first resolution** — In-memory cache → route cache (24h) → domain skill cache (7d) → local skill snapshots → marketplace semantic search → first-pass browser (8s) → live capture (last resort). Second visits resolve in <200 ms with no browser launch.
 4. **Browser replacement API** — `Browser.launch()` + `page.goto()` from the `unbrowse` import resolves from the skill cache first; cache miss falls through to kuri.
 5. **Endpoint graph** — Typed edges (list→detail, pagination, auth) prefetched in the same round-trip. `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.
-6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See `docs/x402-flywheel.md`.
+6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See `docs/x402-flywheel.md` (developer protocol docs).
 
 ## Authentication
 

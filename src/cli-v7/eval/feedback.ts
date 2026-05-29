@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval feedback"):
  *   CLI subcommand  : eval feedback
  *   MCP tool        : unbrowse_feedback
- *   Covenant kind   : observe_feedback
+ *   Op kind   : eval:feedback
  *   Verb            : eval
  *
  * Schema invariant: the feedback body MUST be commitment-only (see
@@ -32,6 +32,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { postStateless } from "../_stateless.js";
 
 const POINTER_PREFIXES = ["op://", "keychain://", "bw://", "arg://"] as const;
 const SECRET_REGEXES: ReadonlyArray<{ re: RegExp; tag: string }> = [
@@ -89,7 +90,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--note", description: "Free-form note (sanitized — pointers/secrets stripped).", value_expected: true },
           { name: "--session", description: "Session id (for the audit trail).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -108,7 +109,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "eval feedback",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "missing_required",
         required: ["skill-id", "--endpoint", "--rating"],
         got: { skill_id: skillId, endpoint: endpointId, rating: ratingFlag },
@@ -124,7 +125,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "eval feedback",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "bad_rating",
         hint: "rating must be an integer 1..5",
       },
@@ -143,33 +144,46 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   if (sanitizedNote !== undefined) body.note = sanitizedNote;
 
   const apiBase = defaultApiBase();
-  const url = `${apiBase.replace(/\/$/, "")}/v1/stats/feedback`;
-  const apiKey = process.env.UNBROWSE_API_KEY;
 
+  // Route through `postStateless` so the body is wallet-signed + sig-keyed.
+  // The backend `/v1/stats/feedback` route gracefully ignores the extra
+  // {walletPubkey, signature, signatureScheme, nonce} fields — we still
+  // get the existing 200 ack semantics, but the agent now holds a stable
+  // `cacheKey` pointer back to the truth-claim it sealed.
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/stats/feedback",
+      body,
+      signableFields: ["skill_id", "endpoint_id", "rating", "note", "nonce"],
+      apiBaseUrl: apiBase,
     });
-    const respText = await res.text();
-    let respBody: unknown = null;
-    try {
-      respBody = JSON.parse(respText);
-    } catch {
-      respBody = respText;
+    if (post.ok) {
+      emit(
+        {
+          ok: true,
+          subcommand: "eval feedback",
+          op_kind: meta.op_kind,
+          posted: { ...body, note_sanitized: sanitizedNote !== undefined },
+          cacheKey: post.cacheKey,
+          receiptId: post.receiptId ?? null,
+          idempotent: post.idempotent,
+          http_status: post.httpStatus,
+        },
+        opts,
+      );
+      process.exit(0);
     }
-    if (!res.ok) {
+    if (post.bindingMissing) {
       emit(
         {
           ok: false,
           subcommand: "eval feedback",
-          covenant_kind: meta.covenant_kind,
-          error: "backend_non_2xx",
-          status: res.status,
-          response: respBody,
+          op_kind: meta.op_kind,
+          error: "binding_missing",
+          binding_missing: post.bindingMissing,
+          cacheKey: post.cacheKey,
+          http_status: post.httpStatus,
         },
         opts,
       );
@@ -177,30 +191,18 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     }
     emit(
       {
-        ok: true,
-        subcommand: "eval feedback",
-        covenant_kind: meta.covenant_kind,
-        posted: { ...body, note_sanitized: sanitizedNote !== undefined },
-        response: respBody,
-      },
-      opts,
-    );
-    process.exit(0);
-  } catch (err) {
-    // Honest empty-state on network error so the agent sees the gap.
-    const message = err instanceof Error ? err.message : String(err);
-    emit(
-      {
         ok: false,
         subcommand: "eval feedback",
-        covenant_kind: meta.covenant_kind,
-        error: "backend_unreachable",
-        detail: message,
-        api_base: apiBase,
+        op_kind: meta.op_kind,
+        error: post.errorHint ?? `http_${post.httpStatus}`,
+        cacheKey: post.cacheKey,
+        http_status: post.httpStatus,
       },
       opts,
     );
-    void emitErr;
+    process.exit(EX_GENERIC);
+  } catch (err) {
+    emitErr(err, opts);
     process.exit(EX_GENERIC);
   }
 }

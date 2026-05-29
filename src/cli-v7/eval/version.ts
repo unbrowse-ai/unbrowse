@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval version"):
  *   CLI subcommand  : eval version
  *   MCP tool        : unbrowse_version
- *   Covenant kind   : observe_version
+ *   Op kind   : eval:version
  *   Verb            : eval
  *
  * Read-only identity surface. Emits the CLI version (package.json /
@@ -17,6 +17,10 @@
  *   - NEVER emits `walletSecret`, `privateKey`, `seed`
  * The signer module's getWalletPubkey() returns a Uint8Array derived
  * fresh on each call; the seed is zeroed before return (signer.ts).
+ *
+ * W24.6 (2026-05-28): the prior env-gate around the audit emit was
+ * purged — every version read emits a sig-keyed eval_read receipt.
+ * Already pointer-safe — no state crossing the firmament.
  */
 import type { ParsedV7Args } from "../args.js";
 import {
@@ -29,6 +33,7 @@ import {
 import { lookupKindMap } from "../kind-map.js";
 import { PACKAGE_VERSION, RUNTIME_GIT_SHA } from "../../version.js";
 import { getWalletPubkey } from "../../values/signer.js";
+import { postStateless } from "../_stateless.js";
 
 function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
@@ -52,7 +57,7 @@ export async function handler(
           "CLI version + build_sha + walletPubkey (the x402 public key; safe to print).",
         usage: "unbrowse eval version [--json]",
         flags: [],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -63,15 +68,46 @@ export async function handler(
   try {
     const pubkeyBytes = await getWalletPubkey();
     const walletPubkey = bytesToHex(pubkeyBytes);
+
+    // W24.2 — sig-keyed eval-read audit row. readKind=version is the
+    // smallest possible pure identity surface; byteCount is the
+    // pubkey+version envelope size. Forensic value: tracks which
+    // version + which wallet asked "who am I" at time T.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "version" as const,
+        byteCount: PACKAGE_VERSION.length + walletPubkey.length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     emit(
       {
         ok: true,
         subcommand: "eval version",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         version: PACKAGE_VERSION,
         buildSha: RUNTIME_GIT_SHA,
         walletPubkey,
         signatureScheme: "ed25519-v7.0",
+        audit_emit: auditEmit,
       },
       opts,
     );

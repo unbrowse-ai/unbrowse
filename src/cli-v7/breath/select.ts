@@ -5,7 +5,7 @@
  * 1:1 mapping (kind-map.ts row "breath select"):
  *   CLI subcommand  : breath select
  *   MCP tool        : unbrowse_select
- *   Covenant kind   : actuate_select
+ *   Op kind   : breath:select
  *   Verb            : breath
  *
  * VALUE-BEARING when arg is pointer-shaped. The pointer path runs the full
@@ -71,6 +71,7 @@ import {
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
 import { deriveContextHash } from "./fill.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 
@@ -220,7 +221,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--arg", description: "Single arg-scope key (key=value form).", value_expected: true },
           { name: "--argScope", description: "Full arg-scope object as JSON.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -237,7 +238,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath select",
         required: ["selector", "pointer-or-value"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -285,11 +286,22 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       emitErr(err, opts);
       process.exit(EX_CDP);
     }
+    // Day-6 Dominion: the literal-select path emits a breath-act
+    // receipt (variant=breath-act, actType=select-literal). Selector
+    // is sha256-hashed by the helper; the chosen value bytes NEVER
+    // leave this process. Binding-missing surfaces as stderr, never
+    // blocks (A5).
+    const breathAudit = await emitBreathActStateless({
+      sessionId: rec.sessionId,
+      actType: "select-literal",
+      selector,
+      currentUrl,
+    });
     emit(
       {
         ok: true,
         subcommand: "breath select",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         session_id: rec.sessionId,
         selector,
         by,
@@ -297,6 +309,15 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         // with the pointer path which never echoes). Only the fact of the
         // select happened lands on stdout.
         literal: true,
+        audit: {
+          ok: breathAudit.ok,
+          idempotent: breathAudit.idempotent,
+          binding_missing: breathAudit.bindingMissing,
+          receipt_id: breathAudit.receiptId,
+          cache_key: breathAudit.cacheKey,
+          variant: "breath-act",
+          act_type: "select-literal",
+        },
       },
       opts,
     );
@@ -399,7 +420,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "breath select",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "audit_post_failed",
           status: res.status,
           response_excerpt: text.slice(0, 200),
@@ -418,7 +439,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     {
       ok: true,
       subcommand: "breath select",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       selector,
       by,

@@ -1,25 +1,30 @@
 /**
- * `unbrowse eval sessions` — list browse-session records on disk.
+ * `unbrowse eval sessions` — list browse-session records visible to this CLI.
  *
  * 1:1 mapping (kind-map.ts row "eval sessions"):
  *   CLI subcommand  : eval sessions
  *   MCP tool        : unbrowse_sessions
- *   Covenant kind   : observe_sessions
+ *   Op kind   : eval:sessions
  *   Verb            : eval
  *
- * Walks `~/.unbrowse/sessions/*.json` (pointer-only session records, see
- * src/cli-v7/_session.ts), and for each entry probes whether the Chrome
- * pid is still alive AND the chromeWsUrl is reachable. Returns metadata
- * ONLY — no cookies, headers, page bodies (the session record itself
- * holds no payload).
+ * W24.6 (Lewis 2026-05-28 — "stateless is the only path"): the transient
+ * working copies live at `~/.unbrowse/tmp/<sigHash>/<id>.json` and are
+ * walked here. The KV ROW at the backend is the truth (per
+ * `_session.ts`); the tmp file is a bridge between two primitives in
+ * the same conversation.
  *
- * Liveness check is best-effort: `process.kill(pid, 0)` to test pid
- * existence + a fast HEAD probe of the `/json/version` endpoint so we
- * don't lie about a chromePid that's been recycled by the OS.
+ * The canonical wallet-scoped enumeration is `GET /v1/session/
+ * list-by-wallet` (W23 territory). As of v7.2.0-preview.0 that endpoint
+ * DOES NOT EXIST yet — only `POST /v1/session/park` and `GET /v1/
+ * session/restore/:id` are wired. The handler logs the gap as
+ * `_stateless_listing_gap` so the caller knows the listing is
+ * best-effort local-tmp until the wallet-listed KV scan endpoint ships.
+ *
+ * Liveness check is best-effort: `process.kill(pid, 0)` for pid
+ * existence + a fast HEAD probe of `/json/version` so we never lie
+ * about a chromePid that's been recycled by the OS.
  */
-import { readdir, readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readFile, stat } from "node:fs/promises";
 import type { ParsedV7Args } from "../args.js";
 import {
   EX_GENERIC,
@@ -29,7 +34,16 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
-import type { BrowseSessionRecord } from "../_session.js";
+import {
+  type BrowseSessionRecord,
+  // Re-implemented locally — module-private walker semantics
+  // (~/.unbrowse/tmp/<sigHash>/*.json).
+  // eslint-disable-next-line @typescript-eslint/no-restricted-imports
+} from "../_session.js";
+import { readdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { postStateless } from "../_stateless.js";
 
 interface SessionRow {
   readonly sessionId: string;
@@ -56,8 +70,6 @@ function pidAlive(pid: number): boolean {
  */
 async function chromeReachable(chromeWsUrl: string): Promise<boolean> {
   try {
-    // chromeWsUrl is `ws://127.0.0.1:<port>/devtools/browser/<uuid>`.
-    // The HTTP probe url is `http://127.0.0.1:<port>/json/version`.
     const m = chromeWsUrl.match(/^wss?:\/\/([^/]+)/);
     if (!m) return false;
     const httpProbe = `http://${m[1]}/json/version`;
@@ -74,20 +86,44 @@ async function chromeReachable(chromeWsUrl: string): Promise<boolean> {
   }
 }
 
-export async function listSessions(): Promise<SessionRow[]> {
-  const dir = join(homedir(), ".unbrowse", "sessions");
+/**
+ * Walk every session JSON file under `~/.unbrowse/tmp/<sigHash>/*.json`.
+ *
+ * Re-implemented here (rather than importing the private generator from
+ * `_session.ts`) because the generator is module-private; this walk has
+ * the same semantics and is the single read-only surface eval needs.
+ */
+async function* walkVisibleSessionFiles(): AsyncGenerator<string> {
+  const root = join(homedir(), ".unbrowse", "tmp");
   let entries: string[];
   try {
-    entries = await readdir(dir);
+    entries = await readdir(root);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;
   }
-  const rows: SessionRow[] = [];
-  for (const name of entries) {
-    if (!name.endsWith(".json")) continue;
+  // tmp/<sigHash>/<id>.json — walk one level deeper.
+  for (const sub of entries) {
+    const subDir = join(root, sub);
+    let subEntries: string[];
     try {
-      const path = join(dir, name);
+      const st = await stat(subDir);
+      if (!st.isDirectory()) continue;
+      subEntries = await readdir(subDir);
+    } catch {
+      continue;
+    }
+    for (const name of subEntries) {
+      if (!name.endsWith(".json")) continue;
+      yield join(subDir, name);
+    }
+  }
+}
+
+export async function listSessions(): Promise<SessionRow[]> {
+  const rows: SessionRow[] = [];
+  for await (const path of walkVisibleSessionFiles()) {
+    try {
       const st = await stat(path);
       if (!st.isFile()) continue;
       const raw = await readFile(path, "utf8");
@@ -121,7 +157,7 @@ export async function handler(
     helpExit(
       "eval sessions",
       {
-        summary: "List browse-session records on disk with liveness.",
+        summary: "List browse-session records visible to this CLI with liveness.",
         usage: "unbrowse eval sessions [--limit <N>]",
         flags: [
           {
@@ -130,7 +166,7 @@ export async function handler(
             value_expected: true,
           },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -147,16 +183,58 @@ export async function handler(
     if (Number.isFinite(limit) && limit > 0) {
       rows = rows.slice(0, limit);
     }
-    emit(
-      {
-        ok: true,
-        subcommand: "eval sessions",
-        covenant_kind: meta.covenant_kind,
-        count: rows.length,
-        sessions: rows,
+
+    // Day-7 audit material: until /v1/session/list-by-wallet ships
+    // (W23 v7.3 territory), the canonical wallet-listed KV view is
+    // unavailable. The agent sees this gap explicitly.
+    const envelope: Record<string, unknown> = {
+      ok: true,
+      subcommand: "eval sessions",
+      op_kind: meta.op_kind,
+      count: rows.length,
+      sessions: rows,
+      _stateless_listing_gap: {
+        endpoint: "/v1/session/list-by-wallet",
+        status: "not_yet_implemented",
+        wave_hint:
+          "v7.2.0-preview.0 only ships /v1/session/{park,restore/:id}. " +
+          "Wallet-scoped enumeration ships in v7.3 (W23 follow-up). Until " +
+          "then, eval sessions lists local-tmp bridge records " +
+          "(~/.unbrowse/tmp/<sigHash>/*.json) only — these are best-effort " +
+          "working copies; the KV row is the truth.",
+        local_tmp_scan: true,
       },
-      opts,
-    );
+    };
+
+    // W24.2 — sig-keyed eval-read audit row. readKind=sessions is a
+    // local-tmp + KV-list enumeration; no Chrome tab. byteCount is the
+    // row payload size for forensic correlation.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "sessions" as const,
+        byteCount: JSON.stringify(rows).length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    envelope.audit_emit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
+    emit(envelope, opts);
     process.exit(0);
   } catch (err) {
     emitErr(err, opts);

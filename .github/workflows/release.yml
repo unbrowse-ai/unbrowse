@@ -169,6 +169,8 @@ jobs:
         name: Check baked Kuri vendor state
       - name: Leak guard — block sensitive ops names from public artifacts
         run: bash scripts/leak-guard.sh
+      - name: Paper gate — public paper reflects code + leaks no moat term
+        run: bash scripts/paper-gate.sh paper/internal-apis.tex
 
       - name: Read package metadata
         id: pkg

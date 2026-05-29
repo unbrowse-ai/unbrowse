@@ -19,8 +19,10 @@ import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
     console.error(`[kuri-proxy] wired KURI_PROXY (source=${outcome.source}, url=${outcome.redacted})`);
   } else if (outcome.reason === "already_set") {
     console.error(`[kuri-proxy] respected pre-existing KURI_PROXY (${outcome.existing})`);
+  } else if (outcome.reason === "opt_out") {
+    console.error("[kuri-proxy] direct egress (opt-out); kuri runs without --proxy-server");
   } else if (outcome.reason === "creds_missing") {
-    console.error("[kuri-proxy] UNBROWSE_KURI_PROXY=auto but IPROYAL_USER/PASS + UNBROWSE_PROXY_URL both unset — kuri runs direct");
+    console.error("[kuri-proxy] no egress proxy resolved (UNBROWSE_PROXYKINGDOM_URL empty?) — kuri runs direct");
   } else if (outcome.reason === "invalid_toggle") {
     console.error(`[kuri-proxy] UNBROWSE_KURI_PROXY="${outcome.value}" not recognized — expected auto|1|true|0|false or explicit http://|socks5:// URL`);
   }

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { deleteHttpCache, getOrSetHttpCache } from "../services/http-cache.js";
+import { statsKVOr503 } from "../services/stats-kv-guard.js";
 
 export const blogRoutes = new Hono<{ Bindings: Env }>();
 
@@ -98,17 +99,23 @@ blogRoutes.post("/blog/publish", async (c) => {
     published_at: body.published_at || new Date().toISOString(),
   };
 
-  await c.env.STATS_KV.put(
+  // A5 silent-500 guard: surface a typed 503 envelope if STATS_KV is not
+  // provisioned, instead of crashing in `c.env.STATS_KV.put(...)` below.
+  const kvOrRes = statsKVOr503(c, { slug: post.slug });
+  if (kvOrRes instanceof Response) return kvOrRes;
+  const kv = kvOrRes;
+
+  await kv.put(
     `blog:${post.slug}`,
     JSON.stringify(post),
     { metadata: { title: post.title, published_at: post.published_at } }
   );
 
-  const indexRaw = await c.env.STATS_KV.get("blog:_index");
+  const indexRaw = await kv.get("blog:_index");
   const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
   if (!index.includes(post.slug)) {
     index.push(post.slug);
-    await c.env.STATS_KV.put("blog:_index", JSON.stringify(index));
+    await kv.put("blog:_index", JSON.stringify(index));
   }
 
   await Promise.all([
@@ -120,14 +127,20 @@ blogRoutes.post("/blog/publish", async (c) => {
 });
 
 blogRoutes.get("/blog/posts", async (c) => {
+  // A5 silent-500 guard: surface a typed 503 envelope if STATS_KV is not
+  // provisioned, instead of crashing inside the cache callback below.
+  const kvOrRes = statsKVOr503(c);
+  if (kvOrRes instanceof Response) return kvOrRes;
+  const kv = kvOrRes;
+
   const payload = await getOrSetHttpCache(c.env, "blog:posts", 300, async () => {
-    const indexRaw = await c.env.STATS_KV.get("blog:_index");
+    const indexRaw = await kv.get("blog:_index");
     const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
     const posts = (
       await Promise.all(
         index.map(async (slug) => {
-          const raw = await c.env.STATS_KV.get(`blog:${slug}`);
+          const raw = await kv.get(`blog:${slug}`);
           if (!raw) return null;
           const post = JSON.parse(raw) as BlogPost;
           return {
@@ -157,8 +170,14 @@ blogRoutes.get("/blog/posts", async (c) => {
 
 blogRoutes.get("/blog/posts/:slug", async (c) => {
   const slug = c.req.param("slug");
+  // A5 silent-500 guard: surface a typed 503 envelope if STATS_KV is not
+  // provisioned, instead of crashing inside the cache callback below.
+  const kvOrRes = statsKVOr503(c, { slug });
+  if (kvOrRes instanceof Response) return kvOrRes;
+  const kv = kvOrRes;
+
   const payload = await getOrSetHttpCache(c.env, `blog:post:${slug}`, 300, async () => {
-    const raw = await c.env.STATS_KV.get(`blog:${slug}`);
+    const raw = await kv.get(`blog:${slug}`);
     if (!raw) return { error: "not found" as const };
     return { post: JSON.parse(raw) as BlogPost };
   });

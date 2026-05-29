@@ -49,7 +49,7 @@ export function helpExit(
     usage: string;
     positional?: Array<{ name: string; description: string; required?: boolean }>;
     flags?: Array<{ name: string; description: string; value_expected?: boolean }>;
-    covenant_kind: string;
+    op_kind: string;
     mcp_tool: string | null;
     verb: "build" | "breath" | "eval";
     not_implemented_yet?: true;
@@ -76,7 +76,7 @@ export function helpExit(
 export function notImplementedExit(
   subcommand: string,
   detail: {
-    covenant_kind: string;
+    op_kind: string;
     mcp_tool: string | null;
     verb: "build" | "breath" | "eval";
     /** Owning wave / sibling subagent that will land the real impl. */

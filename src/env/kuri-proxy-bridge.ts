@@ -6,23 +6,21 @@
  * submodules/kuri/src/bridge/config.zig:30 and
  * submodules/kuri/src/chrome/launcher.zig:172-174.
  *
- * This module wires Unbrowse's existing residential-proxy env convention
- * (IPROYAL_USER + IPROYAL_PASS, optionally IPROYAL_HOST + IPROYAL_PORT;
- * or a direct UNBROWSE_PROXY_URL) into Kuri WITHOUT editing
- * src/kuri/client.ts (banned per CLAUDE.md).
+ * This module wires Unbrowse's residential-proxy env convention into
+ * Kuri WITHOUT editing src/kuri/client.ts (banned per CLAUDE.md).
  *
- * Opt-in by design — residential proxy is paid + slower. Default behavior
- * (UNBROWSE_KURI_PROXY unset) is unchanged: Kuri's managed Chrome runs
- * direct. Users who hit JS-challenge sites (Reddit, Cloudflare-protected)
- * set:
- *   IPROYAL_USER=...
- *   IPROYAL_PASS=...
- *   UNBROWSE_KURI_PROXY=auto
- * and Kuri's Chrome routes through the residential proxy on next spawn.
+ * As of 2026-05-27 (covenant
+ *   sha256:65714387c8c9f6a151f2e8fec26992e7a289b4924e54fcb184312b7763c028a4):
+ * residential-proxy egress is the DEFAULT, not opt-in. When the toggle is
+ * unset, the bridge behaves as if it were "auto" and routes Kuri's Chrome
+ * through resolveEgressProxy() (which falls through to ProxyKingdom when
+ * no other creds are present). UNBROWSE_DIRECT_EGRESS=1 is the explicit
+ * opt-out for dev / health-check / local-only flows.
  *
  * Toggle semantics:
- *   - unset / "0" / "false" → no-op (default)
- *   - "auto" / "1" / "true" → derive from UNBROWSE_PROXY_URL or IPROYAL_*
+ *   - unset                 → treated as "auto" (the new default)
+ *   - "0" / "false"         → no-op (legacy explicit opt-out for kuri only)
+ *   - "auto" / "1" / "true" → resolveEgressProxy() (UNBROWSE_DIRECT_EGRESS still wins)
  *   - explicit URL (starts with http:// or socks5://) → use verbatim
  *
  * Must be called BEFORE kuri/client first spawns, so the inherited
@@ -43,7 +41,7 @@
  * closing the gap end-to-end.
  */
 
-import { resolveProxyUrl } from "../execution/proxy-fetch.js";
+import { resolveEgressProxy } from "../execution/proxy-fetch.js";
 
 export type KuriProxyBridgeOutcome =
   | { wired: false; reason: "opt_out" }
@@ -193,20 +191,33 @@ export function bridgeKuriProxyEnv(
     return { wired: false, reason: "already_set", existing: redactProxyUrl(env.KURI_PROXY) };
   }
 
-  const toggle = env.UNBROWSE_KURI_PROXY?.trim();
-  if (!toggle || toggle === "0" || toggle === "false") {
+  // UNBROWSE_DIRECT_EGRESS=1 is the canonical kill-switch for the
+  // residential-proxy-default policy (covenant sha256:65714387c8c9f6...).
+  // Honor it before any toggle inspection so dev/health-check flows that
+  // set just UNBROWSE_DIRECT_EGRESS work without also unsetting
+  // UNBROWSE_KURI_PROXY.
+  const directEgress = env.UNBROWSE_DIRECT_EGRESS?.trim().toLowerCase();
+  if (directEgress === "1" || directEgress === "true" || directEgress === "yes") {
     return { wired: false, reason: "opt_out" };
   }
 
-  if (/^(?:https?|socks5):\/\//.test(toggle)) {
+  const toggle = env.UNBROWSE_KURI_PROXY?.trim();
+  // Legacy explicit opt-out still respected.
+  if (toggle === "0" || toggle === "false") {
+    return { wired: false, reason: "opt_out" };
+  }
+
+  if (toggle && /^(?:https?|socks5):\/\//.test(toggle)) {
     const applied = applyKuriProxy(env, toggle);
     if (!applied) return { wired: false, reason: "chrome_incompatible_proxy_format", redacted: redactProxyUrl(toggle) };
     return { wired: true, source: "explicit_url", redacted: redactProxyUrl(toggle) };
   }
 
-  if (toggle === "auto" || toggle === "1" || toggle === "true") {
-    const fromUrl = env.UNBROWSE_PROXY_URL?.trim();
-    const proxy = fromUrl || resolveProxyUrl(env);
+  // Unset OR explicit "auto"/"1"/"true" → resolve via the egress policy.
+  // resolveEgressProxy honors UNBROWSE_PROXY_URL → IPROYAL_* →
+  // ProxyKingdom default in that order.
+  if (!toggle || toggle === "auto" || toggle === "1" || toggle === "true") {
+    const proxy = resolveEgressProxy(env);
     if (!proxy) return { wired: false, reason: "creds_missing" };
     const applied = applyKuriProxy(env, proxy);
     if (!applied) return { wired: false, reason: "chrome_incompatible_proxy_format", redacted: redactProxyUrl(proxy) };

@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval snap"):
  *   CLI subcommand  : eval snap
  *   MCP tool        : unbrowse_snap
- *   Covenant kind   : observe_snap
+ *   Op kind   : eval:snap
  *   Verb            : eval
  *
  * Loads the most-recent (or --session-named) session record from
@@ -16,6 +16,8 @@
  * No AX-tree formatter existed in src/ pre-W7 (the v6 path lives server-side
  * in `/v1/browse/snap`), so this file ships its own minimal renderer.
  */
+import { createHash } from "node:crypto";
+
 import { attach, attachToTarget, call } from "../../cdp/index.js";
 import type { AXNode } from "../../cdp/types.js";
 import type { ParsedV7Args } from "../args.js";
@@ -28,6 +30,27 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { postStateless } from "../_stateless.js";
+
+/** sha256-hex of a string, sliced to 32 chars — the urlHash shape the
+ *  backend's eval-read validator accepts. URL bytes stay in-process. */
+function urlHash32(s: string): string {
+  return createHash("sha256").update(s).digest("hex").slice(0, 32);
+}
+
+async function getCurrentUrlSafe(conn: Awaited<ReturnType<typeof attach>>, sessionId: string): Promise<string> {
+  try {
+    const r = await call<{ expression: string; returnByValue: boolean }, { result?: { value?: unknown } }>(
+      conn,
+      "Runtime.evaluate",
+      { expression: "location.href", returnByValue: true },
+      sessionId,
+    );
+    return typeof r.result?.value === "string" ? r.result.value : "";
+  } catch {
+    return "";
+  }
+}
 
 interface GetFullAXTreeResult {
   nodes: AXNode[];
@@ -92,7 +115,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         flags: [
           { name: "--session", description: "Browse session id (default: most-recent).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -114,15 +137,50 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     );
     const tree = formatAxTree(result.nodes ?? []);
 
+    // A2 — EVERY eval read emits a sig-keyed audit row (metadata-only
+    // — never the tree bytes, never the URL). The post is best-effort:
+    // failure surfaces in the JSON envelope as `audit_emit.ok=false`
+    // but does NOT block the read output. The bytes travel to stdout
+    // exactly as before (pointer-not-payload for the pointer-of-pointer;
+    // the AX tree is the value the agent asked for).
+    const currentUrl = await getCurrentUrlSafe(conn, target.sessionId);
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        sessionId: rec.sessionId,
+        urlHash: urlHash32(currentUrl),
+        readKind: "snap" as const,
+        byteCount: tree.length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     if (opts.json) {
       emit(
         {
           ok: true,
           subcommand: "eval snap",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           session_id: rec.sessionId,
           target_id: rec.targetId,
           tree,
+          audit_emit: auditEmit,
         },
         opts,
       );

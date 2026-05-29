@@ -1,0 +1,1 @@
+{"version":"7.0.2","build_sha":"3eb748e1472e1cc3cc242a89f7dd484921d1a465","deployed_at":"2026-05-27T09:35:05Z","channel":"production","signed_manifest_hash":"266fb1e175df6b6419f61c66a15b3e6329e9f613695eb6da45f5e965e36be9e9","payload_format":"version|build_sha|deployed_at","payload_signed_with":"HMAC-SHA256"}

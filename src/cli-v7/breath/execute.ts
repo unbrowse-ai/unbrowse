@@ -5,7 +5,7 @@
  * 1:1 mapping (kind-map.ts row "breath execute"):
  *   CLI subcommand  : breath execute
  *   MCP tool        : unbrowse_execute
- *   Covenant kind   : actuate_execute
+ *   Op kind   : breath:execute
  *   Verb            : breath
  *
  * Pattern (mirrors fill.ts secret-redaction discipline):
@@ -52,6 +52,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { postStateless } from "../_stateless.js";
 
 const EX_CDP = 65;
 const FIVE_MINUTES_MS = 300_000;
@@ -327,6 +328,97 @@ function spliceParamsAtPath(
   cur[segs[segs.length - 1]] = valueAsString;
 }
 
+/**
+ * Map a numeric HTTP status to the canonical status_class enum the
+ * backend's trace-state schema accepts. Returns undefined for non-1xx-5xx
+ * (e.g., the `-1` we use for network errors in the legacy audit path) so
+ * the field is omitted from the wire body — trace-state validates absent
+ * as legitimate "no class known".
+ */
+function statusToClass(
+  status: number,
+): "2xx" | "3xx" | "4xx" | "5xx" | undefined {
+  if (status >= 200 && status < 300) return "2xx";
+  if (status >= 300 && status < 400) return "3xx";
+  if (status >= 400 && status < 500) return "4xx";
+  if (status >= 500 && status < 600) return "5xx";
+  return undefined;
+}
+
+/**
+ * Extract host-only from a URL. The trace-state schema rejects scheme,
+ * path, query, port, userinfo — so we sanitise here, not at the wire
+ * layer. Returns "" on parse failure; caller should skip the POST.
+ *
+ * Pointer-only: the full URL stays in stdout (data the caller asked for)
+ * and in the audit row's `urlHash` field — only the bare host crosses
+ * the trace-state firmament so per-domain rollups stay coherent
+ * (Day-2 §G #2; trace-state.ts `isValidHostOnly`).
+ */
+function safeHostOnly(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Emit one trace-append row capturing the execute replay as a
+ * `breath_act_execute_replay` step. Carries
+ * pointer-only fields (sessionId, host, status_class, duration_ms) per
+ * the trace-state schema (forbidden: URL, path, query, headers, body).
+ *
+ * NEVER throws — postStateless surfaces failure via the result shape.
+ * The receipt id (cacheKey) lets Day-7 bench-gate replay the trace
+ * without ever needing the original request payload.
+ */
+async function emitExecuteReplayTrace(opts: {
+  sessionId: string;
+  outgoingUrl: string;
+  status: number;
+  durationMs: number;
+  endpointId: string;
+}): Promise<{
+  ok: boolean;
+  cacheKey?: string;
+  bindingMissing?: string;
+  errorHint?: string;
+}> {
+  const domain = safeHostOnly(opts.outgoingUrl);
+  if (!domain) {
+    return { ok: false, errorHint: "url_unparseable_for_host" };
+  }
+  // step name follows the decision-trace convention (CLAUDE.md
+  // §"Decision-trace step naming convention"): `<scope>_<action>` with
+  // the breath-act scope so Day-7 gate can grep this exact label.
+  const traceStep = {
+    step: "breath_act_execute_replay",
+    duration_ms: Math.max(0, Math.floor(opts.durationMs)),
+    status_class: statusToClass(opts.status),
+    // error_code stays absent on success — schema treats undefined as
+    // "no error classification known", which is the honest read for
+    // any status_class we surface.
+  };
+  const result = await postStateless({
+    namespace: "trace",
+    route: "/v1/trace/append",
+    body: {
+      sessionId: opts.sessionId,
+      domain,
+      traces: [traceStep],
+    },
+    signableFields: ["sessionId", "domain", "traces", "nonce"],
+  });
+  return {
+    ok: result.ok,
+    cacheKey: result.cacheKey,
+    bindingMissing: result.bindingMissing,
+    errorHint: result.errorHint,
+  };
+}
+
 export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
   const meta = lookupKindMap("breath", "execute")!;
 
@@ -350,7 +442,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--arg", description: "Single arg-scope key (key=value form).", value_expected: true },
           { name: "--argScope", description: "Full arg-scope object as JSON.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -366,7 +458,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath execute",
         required: ["endpoint-id"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -488,6 +580,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   // ── fetch() the endpoint ─────────────────────────────────────────────────
   let responseText: string;
   let status: number;
+  const fetchStartMs = Date.now();
   try {
     const res = await fetch(outgoingUrl, {
       method,
@@ -541,7 +634,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "breath execute",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "audit_post_failed",
         audit_failures: auditFailures, // pointers only, never values
         endpoint_id: endpointId,
@@ -552,6 +645,32 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     process.exit(EX_GENERIC);
   }
 
+  // ── trace-append (Day-6 W2 — execute_replay receipt) ───────────────────
+  //
+  // The execute act crosses the firmament as a sig-keyed
+  // `breath_act_execute_replay` trace row. Day-7 bench-gate walks these
+  // rows by sessionId+domain to replay the trace WITHOUT ever needing
+  // the original headers/body/response bytes (pointer-only discipline,
+  // per CLAUDE.md "pointers over anything" clause B).
+  //
+  // Failure is honest-surfaced (binding_missing or http error) on the
+  // emit envelope; it does NOT change the exit code — the fetch already
+  // succeeded, and the agent's caller doesn't need a redundant fail
+  // signal when the audit rows above already crossed.
+  //
+  // Response body bytes are NEVER included; only:
+  //   - sessionId (already a witnessed pointer)
+  //   - host-only domain (scheme/path/query stripped by safeHostOnly)
+  //   - status_class enum (2xx|3xx|4xx|5xx — NEVER raw status code)
+  //   - duration_ms
+  const replayReceipt = await emitExecuteReplayTrace({
+    sessionId,
+    outgoingUrl,
+    status,
+    durationMs: Date.now() - fetchStartMs,
+    endpointId,
+  });
+
   // ── Emit response ────────────────────────────────────────────────────────
   const wantRaw = parsed.flags.raw === true;
   const truncated = !wantRaw && responseText.length > RAW_TRUNCATE_BYTES;
@@ -561,7 +680,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     {
       ok: true,
       subcommand: "breath execute",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: sessionId,
       endpoint_id: endpointId,
       url: outgoingUrl, // url is data, not a secret
@@ -579,6 +698,13 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       response_body: responseBodyOut,
       truncated,
       response_bytes: responseText.length,
+      // trace receipt — pointer-only; binding_missing surfaces honestly.
+      replay_receipt: {
+        ok: replayReceipt.ok,
+        cacheKey: replayReceipt.cacheKey,
+        binding_missing: replayReceipt.bindingMissing,
+        error_hint: replayReceipt.errorHint,
+      },
     },
     opts,
   );

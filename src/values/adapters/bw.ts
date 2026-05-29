@@ -27,6 +27,8 @@ import { filterAdapterStderr } from "../stderr-filter.js";
 import {
   AdapterError,
   type AdapterContext,
+  type CandidatePointer,
+  type EnumerateOptions,
   type Pointer,
   type ResolvedValue,
   type ValueAdapter,
@@ -210,6 +212,94 @@ export class BwAdapter implements ValueAdapter {
       );
     }
     this.readyChecked = true;
+  }
+
+  /**
+   * Enumerate Bitwarden items as candidate POINTERS via
+   * `bw list items --search <intent>`. The returned JSON CONTAINS secrets
+   * (login.password etc.) — so we parse ONLY `id`, `name`, and the SET of
+   * field NAMES present, then zero the source buffer. We never read a value.
+   * Pointer = `bw://<item-id>/<field>`. Label = the item name (non-secret).
+   *
+   * Requires BW_SESSION (unlocked). Returns [] (honest skip) if locked or
+   * the CLI is absent.
+   */
+  async enumerate(opts: EnumerateOptions): Promise<CandidatePointer[]> {
+    try {
+      await this.ensureReady();
+    } catch {
+      // Locked or bw absent → honest empty set.
+      return [];
+    }
+    const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const args = ["list", "items"];
+    if (opts.intent && opts.intent.trim().length > 0) {
+      args.push("--search", opts.intent.trim());
+    }
+    let result: { stdout: Uint8Array; stderr: string; exit: number };
+    try {
+      result = await spawnBw(args, timeout);
+    } catch {
+      return [];
+    }
+    if (result.exit !== 0) {
+      // session expired / not logged in → honest empty set
+      try {
+        result.stdout.fill(0);
+      } catch {
+        // ignore
+      }
+      return [];
+    }
+    const out: CandidatePointer[] = [];
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(result.stdout));
+      if (Array.isArray(parsed)) {
+        for (const raw of parsed) {
+          if (!raw || typeof raw !== "object") continue;
+          const item = raw as Record<string, unknown>;
+          const id = typeof item.id === "string" ? item.id : undefined;
+          const name = typeof item.name === "string" ? item.name : id;
+          if (!id || !name) continue;
+          // Determine which field-NAMES exist (NOT their values).
+          const fields: string[] = [];
+          const login = item.login as Record<string, unknown> | undefined;
+          if (login) {
+            if (typeof login.username === "string") fields.push("username");
+            if (typeof login.password === "string") fields.push("password");
+            if (typeof login.totp === "string") fields.push("totp");
+          }
+          if (typeof item.notes === "string") fields.push("notes");
+          const customFields = item.fields as
+            | Array<Record<string, unknown>>
+            | undefined;
+          if (Array.isArray(customFields)) {
+            for (const f of customFields) {
+              if (f && typeof f.name === "string") fields.push(f.name);
+            }
+          }
+          if (fields.length === 0) fields.push("password");
+          for (const field of fields) {
+            out.push({
+              pointer: `bw://${id}/${field}`,
+              label: `${name} (${field})`,
+              scheme: "bw",
+              hint: "Bitwarden vault",
+            });
+          }
+        }
+      }
+    } catch {
+      // non-JSON → empty
+    } finally {
+      // The raw JSON held secrets — zero the source buffer.
+      try {
+        result.stdout.fill(0);
+      } catch {
+        // ignore
+      }
+    }
+    return out;
   }
 
   async resolve(

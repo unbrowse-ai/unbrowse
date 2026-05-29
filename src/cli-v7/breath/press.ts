@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath press"):
  *   CLI subcommand  : breath press
  *   MCP tool        : unbrowse_press
- *   Covenant kind   : actuate_press
+ *   Op kind   : breath:press
  *   Verb            : breath
  *
  * NO value-bearing surface — `press` never touches src/values/, never POSTs
@@ -30,6 +30,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 
@@ -85,7 +86,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         flags: [
           { name: "--session", description: "Browse session id (default: most-recent).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -101,7 +102,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath press",
         required: ["key"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -114,7 +115,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "breath press",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "unknown key",
         key: keyName,
         valid_keys: Object.keys(KEY_TABLE),
@@ -136,10 +137,20 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
 
   let conn;
   let targetSessionId: string;
+  let currentUrl = "";
   try {
     conn = await attach(rec.chromeWsUrl);
     const target = await attachToTarget(conn, rec.targetId);
     targetSessionId = target.sessionId;
+    try {
+      const hist = await call<
+        Record<string, never>,
+        { currentIndex: number; entries: Array<{ url: string }> }
+      >(conn, "Page.getNavigationHistory", {}, targetSessionId);
+      currentUrl = hist.entries[hist.currentIndex]?.url ?? "";
+    } catch {
+      currentUrl = "";
+    }
   } catch (err) {
     emitErr(err, opts);
     process.exit(EX_CDP);
@@ -174,14 +185,34 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     process.exit(EX_CDP);
   }
 
+  // Day-6 Dominion: emit a sig-keyed breath-act receipt for this
+  // keypress. press has no selector (focus-bound); selectorHash is
+  // absent. Binding-missing surfaces as a stderr warning, never
+  // blocks the gesture (A5).
+  const breathAudit = await emitBreathActStateless({
+    sessionId: rec.sessionId,
+    actType: "press",
+    selector: null,
+    currentUrl,
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath press",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       key: desc.key,
       code: desc.code,
+      audit: {
+        ok: breathAudit.ok,
+        idempotent: breathAudit.idempotent,
+        binding_missing: breathAudit.bindingMissing,
+        receipt_id: breathAudit.receiptId,
+        cache_key: breathAudit.cacheKey,
+        variant: "breath-act",
+        act_type: "press",
+      },
     },
     opts,
   );

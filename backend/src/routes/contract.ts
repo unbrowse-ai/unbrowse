@@ -529,6 +529,7 @@ export type { ContractEventType };
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { Env } from "../types";
+import { buildStatsKVMissingEnvelope } from "../services/stats-kv-guard.js";
 
 // Variables map kept generic for forward compatibility with middleware that
 // pulls agent_id off the context (other routes in this codebase use the
@@ -536,6 +537,27 @@ import type { Env } from "../types";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ContractRouteEnv = { Bindings: Env; Variables: any };
 export const contractRoutes = new Hono<ContractRouteEnv>();
+
+/**
+ * A5 silent-500 hazard guard: kvLedger() ultimately rides `statsKV(env)` which
+ * throws "EMERGENTDB_API_KEY is required..." when no storage backend is
+ * provisioned. `ledgerForRequest()` already short-circuits to an in-memory
+ * fallback in that case, but defensive callers (and any downstream EdbKV
+ * runtime fetch error) can still surface a binding-missing condition. When
+ * a thrown error's message names the missing-binding shape, contract route
+ * handlers should map it to a typed 503 envelope rather than the generic 400
+ * the catch arms produced before this wave.
+ */
+function isStatsKVBindingMissingError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const m = err.message;
+  return (
+    m.includes("EMERGENTDB_API_KEY is required") ||
+    m.includes("STATS_KV") ||
+    m.includes("statsKV") ||
+    m.includes("Cannot read properties of undefined")
+  );
+}
 
 /**
  * Process-scoped fallback ledger — survives across requests within a
@@ -777,6 +799,9 @@ async function executeDeclare(
 
     return c.json(result);
   } catch (err) {
+    if (isStatsKVBindingMissingError(err)) {
+      return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/declare" }), 503);
+    }
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
 }
@@ -850,6 +875,9 @@ contractRoutes.post("/contract/iterate", async (c) => {
     const result = await handleIterate(req, ledger);
     return c.json(result);
   } catch (err) {
+    if (isStatsKVBindingMissingError(err)) {
+      return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/iterate" }), 503);
+    }
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
 });
@@ -871,6 +899,9 @@ contractRoutes.get("/contract/status", async (c) => {
     const result = await handleStatus(id, ledger, { caller_pubkey: callerPubkey });
     return c.json(result);
   } catch (err) {
+    if (isStatsKVBindingMissingError(err)) {
+      return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/status", id }), 503);
+    }
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
 });
@@ -882,6 +913,9 @@ contractRoutes.post("/contract/plan-for-intent", async (c) => {
     const result = await handlePlanForIntent(req, ledger);
     return c.json(result);
   } catch (err) {
+    if (isStatsKVBindingMissingError(err)) {
+      return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/plan-for-intent" }), 503);
+    }
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
   }
 });

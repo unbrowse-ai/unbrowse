@@ -1,0 +1,32 @@
+[
+  {
+    "page": "landing",
+    "status": 200,
+    "title": "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    "bodyChars": 28686
+  },
+  {
+    "page": "install",
+    "status": 200,
+    "title": "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    "bodyChars": 1906
+  },
+  {
+    "page": "login",
+    "status": 200,
+    "title": "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    "bodyChars": 738
+  },
+  {
+    "page": "billing",
+    "status": 200,
+    "title": "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    "bodyChars": 750
+  },
+  {
+    "page": "docs",
+    "status": 200,
+    "title": "Quickstart — Unbrowse Docs",
+    "bodyChars": 2071
+  }
+]

@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath scroll"):
  *   CLI subcommand  : breath scroll
  *   MCP tool        : unbrowse_scroll
- *   Covenant kind   : actuate_scroll
+ *   Op kind   : breath:scroll
  *   Verb            : breath
  *
  * NO value-bearing surface — `scroll` never touches src/values/, never POSTs
@@ -35,6 +35,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 
@@ -77,7 +78,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         flags: [
           { name: "--session", description: "Browse session id (default: most-recent).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -98,7 +99,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath scroll",
         required: ["dx,dy"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -116,7 +117,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "breath scroll",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "bad_amount_format",
         got: amountRaw,
         expected: "<dy> or <dx,dy>, signed integers",
@@ -138,10 +139,20 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
 
   let conn;
   let targetSessionId: string;
+  let currentUrl = "";
   try {
     conn = await attach(rec.chromeWsUrl);
     const target = await attachToTarget(conn, rec.targetId);
     targetSessionId = target.sessionId;
+    try {
+      const hist = await call<
+        Record<string, never>,
+        { currentIndex: number; entries: Array<{ url: string }> }
+      >(conn, "Page.getNavigationHistory", {}, targetSessionId);
+      currentUrl = hist.entries[hist.currentIndex]?.url ?? "";
+    } catch {
+      currentUrl = "";
+    }
   } catch (err) {
     emitErr(err, opts);
     process.exit(EX_CDP);
@@ -224,16 +235,36 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     process.exit(EX_CDP);
   }
 
+  // Day-6 Dominion: emit a sig-keyed breath-act receipt for this
+  // scroll. Optional selector is sha256-hashed by the helper.
+  // Binding-missing surfaces as a stderr warning, never blocks the
+  // gesture (A5).
+  const breathAudit = await emitBreathActStateless({
+    sessionId: rec.sessionId,
+    actType: "scroll",
+    selector: selector ?? null,
+    currentUrl,
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath scroll",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       selector: selector ?? null,
       dx: amount.dx,
       dy: amount.dy,
       anchor: { x, y },
+      audit: {
+        ok: breathAudit.ok,
+        idempotent: breathAudit.idempotent,
+        binding_missing: breathAudit.bindingMissing,
+        receipt_id: breathAudit.receiptId,
+        cache_key: breathAudit.cacheKey,
+        variant: "breath-act",
+        act_type: "scroll",
+      },
     },
     opts,
   );

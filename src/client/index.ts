@@ -1192,6 +1192,16 @@ function writeSkillCache(skill: SkillManifest, scopeId?: string): void {
     console.warn(`[skill-cache] refusing to cache skill with unsafe id: ${String(skill.skill_id).slice(0, 32)}`);
     return;
   }
+  // v7 stateless gate (Day-5 worker E): under UNBROWSE_STATELESS=1 the
+  // disk cache at ~/.unbrowse/skill-cache/ is suppressed. The in-memory
+  // recentLocalSkills map IS preserved (process-local; no firmament
+  // crossing), so resolve/execute within the same process still see the
+  // skill. Next process re-fetches from marketplace via W17 cache.
+  // Precedence: STATELESS wins over OFFLINE (Heb 7:18-19).
+  if (process.env.UNBROWSE_STATELESS === "1") {
+    recentLocalSkills.set(scopedSkillKey(skill.skill_id, scopeId), skill);
+    return;
+  }
   try {
     recentLocalSkills.set(scopedSkillKey(skill.skill_id, scopeId), skill);
     const skillCacheDir = getSkillCacheDir();
@@ -1236,11 +1246,17 @@ export function evictCachedEndpoint(skillId: string, endpointId: string, scopeId
     const updated: SkillManifest = { ...skill, endpoints: next };
     recentLocalSkills.set(scopedSkillKey(skillId, scopeId), updated);
     // Persist so a process restart doesn't resurrect the dead endpoint.
-    try {
-      const skillCacheDir = getSkillCacheDir();
-      if (!existsSync(skillCacheDir)) mkdirSync(skillCacheDir, { recursive: true });
-      writeFileSync(skillCachePath(skillId), JSON.stringify(updated), "utf-8");
-    } catch { /* best-effort */ }
+    // v7 stateless gate (Day-5 worker E): skip disk persistence under
+    // UNBROWSE_STATELESS=1 — the in-memory eviction is sufficient for
+    // the process; next process will refetch from marketplace which has
+    // its own eviction-via-deprecate path. Precedence: STATELESS wins.
+    if (process.env.UNBROWSE_STATELESS !== "1") {
+      try {
+        const skillCacheDir = getSkillCacheDir();
+        if (!existsSync(skillCacheDir)) mkdirSync(skillCacheDir, { recursive: true });
+        writeFileSync(skillCachePath(skillId), JSON.stringify(updated), "utf-8");
+      } catch { /* best-effort */ }
+    }
     return true;
   } catch { return false; }
 }

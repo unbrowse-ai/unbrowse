@@ -16,12 +16,19 @@
 import { describe, expect, it } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const CLI_ENTRY = join(import.meta.dir, "..", "src", "cli-v7", "index.ts");
-const SESSIONS_DIR = join(homedir(), ".unbrowse", "sessions");
+const TMP_ROOT = join(homedir(), ".unbrowse", "tmp");
+
+/** Mirror src/cli-v7/_session.ts sessionTmpDir derivation. */
+function sessionTmpDir(sessionId: string): string {
+  const hash = createHash("sha256").update(sessionId).digest("hex").slice(0, 16);
+  return join(TMP_ROOT, hash);
+}
 
 interface RunResult {
   code: number | null;
@@ -73,7 +80,7 @@ describe("v7-cli eval version", () => {
     const out = JSON.parse(res.stdout) as Record<string, unknown>;
     expect(out.ok).toBe(true);
     expect(out.subcommand).toBe("eval version");
-    expect(out.covenant_kind).toBe("observe_version");
+    expect(out.op_kind).toBe("eval:version");
     expect(typeof out.version).toBe("string");
     expect((out.version as string).length).toBeGreaterThan(0);
     expect(typeof out.buildSha).toBe("string");
@@ -90,13 +97,13 @@ describe("v7-cli eval version", () => {
 
 describe("v7-cli eval sessions", () => {
   it("lists session files; shows alive=false when target unreachable", async () => {
-    if (!existsSync(SESSIONS_DIR)) {
-      await mkdir(SESSIONS_DIR, { recursive: true });
-    }
+    // W24.6: session records land in ~/.unbrowse/tmp/<sigHash>/<id>.json.
+    const ghostDir = sessionTmpDir("ghost-w10b");
+    await mkdir(ghostDir, { recursive: true });
+    const ghostPath = join(ghostDir, "ghost-w10b.json");
     // Write a deterministic ghost session — a chromePid that cannot be
     // alive (PID 1 is init/launchd and the OS will block kill(0) for
     // non-owners; we use a huge synthetic pid that will not exist).
-    const ghostPath = join(SESSIONS_DIR, "ghost-w10b.json");
     const ghost = {
       sessionId: "ghost-w10b",
       contextId: "ctx-ghost",
@@ -113,7 +120,7 @@ describe("v7-cli eval sessions", () => {
       const out = JSON.parse(res.stdout) as Record<string, unknown>;
       expect(out.ok).toBe(true);
       expect(out.subcommand).toBe("eval sessions");
-      expect(out.covenant_kind).toBe("observe_sessions");
+      expect(out.op_kind).toBe("eval:sessions");
       expect(Array.isArray(out.sessions)).toBe(true);
       const sessions = out.sessions as Array<Record<string, unknown>>;
       const ghostRow = sessions.find((r) => r.sessionId === "ghost-w10b");
@@ -123,7 +130,7 @@ describe("v7-cli eval sessions", () => {
     } finally {
       // Cleanup
       try {
-        await rm(ghostPath, { force: true });
+        await rm(ghostDir, { recursive: true, force: true });
       } catch {
         /* ignore */
       }
@@ -138,7 +145,7 @@ describe("v7-cli eval status", () => {
     const out = JSON.parse(res.stdout) as Record<string, unknown>;
     expect(out.ok).toBe(true);
     expect(out.subcommand).toBe("eval status");
-    expect(out.covenant_kind).toBe("observe_status");
+    expect(out.op_kind).toBe("eval:status");
     expect(typeof out.version).toBe("string");
     expect(typeof out.buildSha).toBe("string");
     expect(typeof out.walletPubkey).toBe("string");
@@ -161,7 +168,7 @@ describe("v7-cli eval stats", () => {
     // shape on the JSON envelope, not the upstream content.
     const out = JSON.parse(res.stdout) as Record<string, unknown>;
     expect(out.subcommand).toBe("eval stats");
-    expect(out.covenant_kind).toBe("observe_stats");
+    expect(out.op_kind).toBe("eval:stats");
     expect(out.fresh).toBe(true);
     expect(typeof out.api_base).toBe("string");
     expect(typeof out.status_code).toBe("number");

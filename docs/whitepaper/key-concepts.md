@@ -91,6 +91,23 @@ Coming soon:
 - signed attestations
 - TEE or E2B-backed trust proofs
 
+## Covenant Shape
+
+Every Unbrowse op collapses onto one of three verbs — `build` (declare what you'll
+reuse), `breath` (act on the internet), `eval` (observe state). A subcommand is a
+`<verb> <action>` pair (`breath go`, `eval snap`, `build skill`).
+
+Each op produces a **pointer-only, wallet-signed receipt**: it points at values
+(a URL, a value pointer, a content hash) and carries a signature from your key,
+but never carries the secret value itself. Credentials are dereferenced locally
+and never cross the wire.
+
+This three-verb surface ships today (`unbrowse {build,breath,eval}`, v7 preview)
+alongside the unchanged verb-per-command surface. How routes are scored, ranked,
+and value-populated is deliberately out of this public shape — that is the
+substrate, and the receipt exposes none of it. Full public surface:
+[the internet, covenant-shaped](../covenant-internet-layer.md).
+
 ## Eval Truth
 
 The canonical product-truth gates in this repo are:

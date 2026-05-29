@@ -34,6 +34,11 @@ import { provisionPodRoutes } from "./routes/provision-pod.js";
 import { openaiToolsRoutes } from "./routes/openai-tools.js";
 import { extractRoutes } from "./routes/extract.js";
 import { auditRoutes } from "./routes/audit.js";
+import { sessionStateRoutes } from "./routes/session-state.js";
+import { traceRoutes } from "./routes/trace.js";
+import { settingsStateRoutes } from "./routes/settings.js";
+import { screenshotRoutes } from "./routes/screenshot.js";
+import { covenantRoutes } from "./routes/covenant.js";
 import {
   mountFaremeterTestRoute,
   stubFaremeterHandlers,
@@ -95,6 +100,48 @@ app.route("/v1", extractRoutes);
 // and services/audit.ts. Storage path is inert in v7.0 scaffold (returns
 // 501 with the KV key the real impl will touch); verify path is REAL.
 app.route("/", auditRoutes);
+// v7.2.0-preview.0 session-state surface — POST /v1/session/park +
+// GET /v1/session/restore/:id (W23 wave, 2026-05-28). Wallet-signed,
+// wallet-prefixed KV keys. Storage path INERT in v7.2.0-preview.0
+// (returns 503 honest envelope when SESSION_STATE binding absent);
+// v7.3 wave wires the real KV impl. Mt 6:19-20 — lay up for yourselves
+// treasures in heaven (the KV-cached pointer-chain IS the persistent
+// treasure that browser-close was destroying every session).
+app.route("/", sessionStateRoutes);
+// v7.2.0-preview.0 trace-state surface — POST /v1/trace/append + GET
+// /v1/trace/by-receipt/:cacheKey + GET /v1/trace/by-wallet (Day-3 Land
+// worker B, 2026-05-28). Wallet-signed; wallet-prefixed KV keys; rolling
+// 7d TTL. Returns 503 honest envelope when TRACE_STATE binding absent.
+// Dan 7:10 — the books were opened.
+app.route("/", traceRoutes);
+// v7.2.0-preview.0 settings-state surface — POST /v1/settings/set + GET
+// /v1/settings/get/:keyHash (Day-3 Land worker B, 2026-05-28). Wallet-
+// signed; pointer-only settingValuePointer (literal: / op:// / etc.);
+// indefinite TTL. Returns 503 honest envelope when SETTINGS_STATE
+// binding absent. Prov 16:9 — preferences are deliberate.
+app.route("/", settingsStateRoutes);
+// v7.2.0-preview.0 screenshot-blob surface — POST /v1/screenshot/store +
+// GET /v1/screenshot/by-sigkey/:sigKey (Day-5 SWARM worker D,
+// 2026-05-28). Wallet-signed metadata + content-addressable PNG bytes
+// keyed by sigKey = sha256(signature)[:32]. Replaces local-disk
+// ~/.unbrowse/screenshots/ writes under UNBROWSE_STATELESS=1. Returns
+// 503 with `_binding_missing: "SCREENSHOT_BLOB"` when absent — CLI
+// handler graceful-degrades to ~/.unbrowse/tmp/<sigKey>/screenshot.png.
+// Matt 13:31-32 — the mustard seed: smallest namespace, biggest A1
+// payoff (pointer-only screenshots).
+app.route("/", screenshotRoutes);
+// v7 UNIFIED covenant write surface — POST /v1/covenant {kind, params, witness,
+// identity, signature} (W26-C, 2026-05-28). The ONE canonical append endpoint
+// that collapses the 8 per-namespace POST handlers (CONVERGENCE_MAP §2): kind
+// = "actuate:navigate" | "observe:snap" | "build:skill" | ... dispatches by
+// base kind INTO the audit/session/trace/settings services (siblings own the
+// service files; this route only calls into them). After the unbrowse KV write
+// it fire-and-forget mirrors the receipt to the covenant ledger peer(s) via
+// ctx.waitUntil + COVENANT_LEDGER_URL/PEER_URLS (SKILL.md peer federation;
+// graceful no-op when unset). The legacy /v1/{audit,session,trace,settings}/*
+// routes above stay mounted as read-sugar + back-compat aliases. Eph 4:4 —
+// one body, one Spirit. Gen 2:18 — ezer kenegdo, helpers facing each other.
+app.route("/", covenantRoutes);
 app.route("/v1", blogRoutes);
 app.route("/v1", landingRoutes);
 app.route("/v1", webhookRoutes);

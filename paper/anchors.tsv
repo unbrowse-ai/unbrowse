@@ -1,0 +1,26 @@
+# claim-substring (must appear in paper)	repo path or symbol that proves it shipped
+intent $\to$ ranked endpoint shortlist $\to$ execute	src/cli-v7/eval/resolve.ts
+route resolve	src/cli-v7/eval/resolve.ts
+realizes the chosen endpoint call	src/cli-v7/breath/execute.ts
+wallet-signed admission	src/values/signer.ts
+browser-faithful TLS	src/cli.ts
+the route graph already keeps signed	paper/reference/ledger/ledger.py
+content-addressed cache	paper/reference/ledger/cache.py
+settles on-chain through a split	backend/src/services/flex.ts
+splits three ways	backend/src/services/flex.ts
+subscription that hides the chain	backend/src/routes/account.ts
+Privy domain sign-in	docs/public/primitives/07-fair-split-and-claim.md
+public, per-domain-attributed escrow	docs/public/primitives/07-fair-split-and-claim.md
+settles over \textbf{x402}	backend/src/services/flex.ts
+x402 routes USDC to all three	backend/src/services/flex.ts
+three-way live split is shipped	backend/src/services/flex.ts
+live platform-fee collection	backend/src/services/flex.ts
+FDRY launched fair	docs/THE_FDRY_ECONOMY.md
+staking by abiding	docs/THE_FDRY_ECONOMY.md
+unpaid \texttt{execute} gets HTTP 402	backend/src/middleware/sponsor.ts
+leak-guard.sh and	scripts/leak-guard.sh
+\texttt{paper-gate.sh} run in release CI	scripts/paper-gate.sh
+measured $pprox$95$	imes$ mean speedup	paper/reference/bench/bench_reuse.py
+reference/bench/bench_reuse.py	paper/reference/bench/bench_reuse.py
+reference/bench/live-measured-1url.json	paper/reference/bench/live-measured-1url.json
+$pprox$27$	imes$ observed gap	paper/reference/bench/live-measured-1url.json

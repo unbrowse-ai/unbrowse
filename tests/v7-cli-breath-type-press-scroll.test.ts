@@ -122,7 +122,7 @@ describe("v7-cli breath press — pure-argv", () => {
     const out = JSON.parse(res.stdout);
     expect(out.help).toBe(true);
     expect(out.subcommand).toBe("breath press");
-    expect(out.covenant_kind).toBe("actuate_press");
+    expect(out.op_kind).toBe("breath:press");
     expect(out.mcp_tool).toBe("unbrowse_press");
   });
 });
@@ -148,7 +148,7 @@ describe("v7-cli breath scroll — pure-argv", () => {
     expect(res.code).toBe(64);
     const out = JSON.parse(res.stdout);
     expect(out.subcommand).toBe("breath scroll");
-    expect(out.covenant_kind).toBe("actuate_scroll");
+    expect(out.op_kind).toBe("breath:scroll");
     expect(out.mcp_tool).toBe("unbrowse_scroll");
   });
 });
@@ -166,7 +166,7 @@ describe("v7-cli breath type — pure-argv", () => {
     expect(res.code).toBe(64);
     const out = JSON.parse(res.stdout);
     expect(out.subcommand).toBe("breath type");
-    expect(out.covenant_kind).toBe("actuate_type");
+    expect(out.op_kind).toBe("breath:type");
     expect(out.mcp_tool).toBe("unbrowse_type");
     // The help must warn that literal text is non-auditable.
     const positionalDesc = JSON.stringify(out.positional);

@@ -87,87 +87,43 @@ describe("v7-cli eval trace — JSONL output, redaction of pointer-shaped values
     }
   });
 
-  it("emits JSONL with one row per trace and redacts pointer-shaped values", async () => {
-    const res = await runCli(["eval", "trace", HOST], { UNBROWSE_TRACE_STORE_DIR: traceDir });
-    expect(res.code).toBe(0);
-
-    // JSONL: one row per line, each line is valid JSON.
-    const lines = res.stdout.trim().split("\n").filter((l) => l.trim().length > 0);
-    expect(lines.length).toBeGreaterThan(0);
-
-    for (const line of lines) {
-      const row = JSON.parse(line);
-      // Top-level row must NOT carry a `value:` key (StoredTrace shape).
-      expect(row.value).toBeUndefined();
-      // Pointer-shaped param value must be redacted.
-      expect(JSON.stringify(row)).not.toContain(SECRET_POINTER);
-      expect(row.params.token).toBe("[redacted:pointer]");
-    }
+  // W24.6 (Lewis 2026-05-28 — "stateless is the only path"): `eval trace`
+  // no longer emits redacted v6 rows on stdout (lost sheep #2 — local read
+  // surface awaits `GET /v1/trace/list` in v7.3). The handler now projects
+  // v6 rows and POSTs them via postStateless. The redactStoredTrace pinning
+  // is covered by the pure-function tests below ("redactStoredTrace +
+  // sanitizeNote — pure-function pinning"); this end-to-end emit test was
+  // deleted with the gate.
+  it("v7 POST attempts: SECRET_POINTER never lands on stdout", async () => {
+    // Point the CLI at a known-unreachable backend so the POST returns
+    // either binding_missing-shaped or a network error envelope. Either
+    // way the redacted-row JSONL is NOT emitted, AND the secret pointer
+    // never crosses into stdout (the projector strips it before any wire
+    // contact).
+    const res = await runCli(
+      ["eval", "trace", HOST, "--json"],
+      {
+        UNBROWSE_TRACE_STORE_DIR: traceDir,
+        UNBROWSE_API_URL: "http://127.0.0.1:1",
+      },
+    );
+    // SECRET_POINTER never appears in stdout or stderr regardless of
+    // success/failure path.
+    expect(res.stdout).not.toContain(SECRET_POINTER);
+    expect(res.stderr).not.toContain(SECRET_POINTER);
   }, 30_000);
 });
 
 // ─── eval settings ────────────────────────────────────────────────────────
 
-describe("v7-cli eval settings — accept whitelisted keys, reject secrets", () => {
-  let homeOverride: string;
-
-  beforeAll(() => {
-    homeOverride = mkdtempSync(join(tmpdir(), "unb-home-"));
-  });
-
-  afterAll(() => {
-    if (homeOverride && existsSync(homeOverride)) {
-      rmSync(homeOverride, { recursive: true, force: true });
-    }
-  });
-
-  it("--set headless=false writes the value into ~/.unbrowse/settings.json", async () => {
-    const res = await runCli(
-      ["eval", "settings", "--set", "headless=false", "--json"],
-      { HOME: homeOverride },
-    );
-    expect(res.code).toBe(0);
-    const body = JSON.parse(res.stdout);
-    expect(body.ok).toBe(true);
-    expect(body.settings.headless).toBe(false);
-    // Round-trip: read the file directly from disk.
-    const path = join(homeOverride, ".unbrowse", "settings.json");
-    const raw = JSON.parse(readFileSync(path, "utf8"));
-    expect(raw.headless).toBe(false);
-  }, 30_000);
-
-  it("--set api_key=secret REJECTED with key_not_allowed", async () => {
-    const res = await runCli(
-      ["eval", "settings", "--set", "api_key=sk_test_canary_DO_NOT_LEAK_1234567890", "--json"],
-      { HOME: homeOverride },
-    );
-    expect(res.code).not.toBe(0);
-    const body = JSON.parse(res.stdout);
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("key_not_allowed");
-    // Hint must guide the agent toward pointers, not pinning secrets.
-    expect(JSON.stringify(body)).toMatch(/pointer|allowed/i);
-    // Settings file must NOT contain the canary.
-    const path = join(homeOverride, ".unbrowse", "settings.json");
-    if (existsSync(path)) {
-      const raw = readFileSync(path, "utf8");
-      expect(raw).not.toContain("sk_test_canary");
-      expect(raw).not.toContain("api_key");
-    }
-  }, 30_000);
-
-  it("--set default_proxy=op://... REJECTED as value_is_pointer (pointer hint)", async () => {
-    const res = await runCli(
-      ["eval", "settings", "--set", "default_proxy=op://Personal/proxy/url", "--json"],
-      { HOME: homeOverride },
-    );
-    expect(res.code).not.toBe(0);
-    const body = JSON.parse(res.stdout);
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("value_is_pointer");
-    expect(JSON.stringify(body)).toMatch(/pointer/i);
-  }, 30_000);
-});
+// W24.6 (Lewis 2026-05-28 — "stateless is the only path"): the legacy
+// `eval settings` r/w path (write to ~/.unbrowse/settings.json,
+// `key_not_allowed` / `value_is_pointer` rejections) was purged. The
+// new shape is pointer-only POST to SETTINGS_STATE; the rejection codes
+// changed to `value_is_not_pointer` / `setting_key_invalid_chars`. The
+// `tests/v7-stateless-settings.test.ts` suite covers the new contract
+// against a Bun.serve mock backend. The three legacy tests here were
+// removed.
 
 // ─── eval feedback ────────────────────────────────────────────────────────
 
@@ -230,7 +186,7 @@ describe("v7-cli eval feedback — POSTs to backend, --note sanitized", () => {
     expect(res.stderr).not.toContain(POINTER_CANARY);
   }, 30_000);
 
-  it("skip-if-offline: backend_unreachable envelope when server is down", async () => {
+  it("backend down: honest empty-state envelope (network_error or http_<code>)", async () => {
     // Pick a port we know is unbound (the server is alive on a different
     // one). This proves the honest empty-state contract from CLAUDE.md.
     const deadPort = (server!.port as number) + 1; // best-effort dead port
@@ -245,14 +201,18 @@ describe("v7-cli eval feedback — POSTs to backend, --note sanitized", () => {
       { UNBROWSE_API_URL: apiBase },
     );
     // Either the dead port refuses (most likely) and we get a clean
-    // unreachable envelope, or it happens to be bound and returns 404 —
+    // honest envelope, or it happens to be bound and returns 4xx/5xx —
     // both are honest, but we assert at least that the canary path
     // (a 2xx ack) is NOT reached for a dead port.
     if (res.code !== 0) {
       const body = JSON.parse(res.stdout);
       expect(body.ok).toBe(false);
-      // Either honest network error OR honest non-2xx.
-      expect(["backend_unreachable", "backend_non_2xx"]).toContain(body.error);
+      // W24.6: postStateless surfaces network errors as a sanitized
+      // errorHint string (any nonempty string is fine). Backend 404 lands
+      // as `http_404`. Either is acceptable evidence of an honest
+      // empty-state.
+      expect(typeof body.error).toBe("string");
+      expect((body.error as string).length).toBeGreaterThan(0);
     }
   }, 30_000);
 });

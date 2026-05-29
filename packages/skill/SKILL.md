@@ -24,7 +24,7 @@ All four resolve to the same runtime workflow underneath:
 - **execute** picks one endpoint from the shortlist and runs it — returns the real data.
 - **browse-session** opens a managed browser when the API is too dynamic to predict; local capture indexes route metadata.
 
-The two-tool flow (resolve + execute) is the agent UX north star: never one call, never three. The shortlist is structured so the calling LLM picks; execute is paid via x402 when the route is priced.
+The two-tool flow (resolve + execute) is the agent UX north star: never one call, never three. The shortlist is structured so the calling LLM picks; execute is paid from the agent's wallet (or sponsored credit) when the route is priced.
 
 ## Quickstart
 

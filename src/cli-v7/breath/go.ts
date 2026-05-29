@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath go"):
  *   CLI subcommand  : breath go
  *   MCP tool        : unbrowse_go
- *   Covenant kind   : actuate_navigate
+ *   Op kind   : breath:navigate
  *   Verb            : breath
  *
  * Composition (W5 cdp surface):
@@ -30,7 +30,10 @@ import {
   spawnChrome,
 } from "../../cdp/index.js";
 import type { ParsedV7Args } from "../args.js";
-import { writeSessionRecord, type BrowseSessionRecord } from "../_session.js";
+import {
+  writeSessionRecord,
+  type BrowseSessionRecord,
+} from "../_session.js";
 import {
   EX_GENERIC,
   EX_USAGE,
@@ -40,6 +43,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
   const meta = lookupKindMap("breath", "go")!; // safe — kind-map invariant
@@ -58,7 +62,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--timeout", description: "Wall-clock timeout in ms (default: 30000).", value_expected: true },
           { name: "--ws", description: "Attach to existing Chrome at this ws:// endpoint.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -74,7 +78,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath go",
         required: ["url"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -104,16 +108,36 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     };
     await writeSessionRecord(rec);
 
+    // W24.2 — emit a sig-keyed `navigate` breath-act receipt. Selector
+    // is undefined (navigation has no DOM target); the URL flows through
+    // urlHash inside the helper. Best-effort: binding-missing surfaces
+    // in the envelope, never blocks the navigation.
+    const navAudit = await emitBreathActStateless({
+      sessionId,
+      actType: "navigate",
+      selector: null,
+      currentUrl: url,
+    });
+
     emit(
       {
         ok: true,
         subcommand: "breath go",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         session_id: sessionId,
         target_id: target.targetId,
         context_id: ctx.browserContextId,
         chrome_ws_url: conn.endpoint,
         url,
+        audit: {
+          ok: navAudit.ok,
+          idempotent: navAudit.idempotent,
+          binding_missing: navAudit.bindingMissing,
+          receipt_id: navAudit.receiptId,
+          cache_key: navAudit.cacheKey,
+          variant: "breath-act",
+          act_type: "navigate",
+        },
       },
       opts,
     );

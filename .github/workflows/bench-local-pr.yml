@@ -41,7 +41,10 @@ jobs:
         continue-on-error: true
         env:
           UNBROWSE_PROXY_URL: ${{ secrets.IPROYAL_URL }}
-        run: bash scripts/bench-local.sh --use-source --corpus-file scripts/corpus/hard-target-bench.txt --timeout 120 --force-capture
+        # bench-local is now a /contract. The .sh executor was removed; the
+        # substrate is responsible for spawning the probe loop and writing
+        # .bench-local/. HOLDs until the substrate-side bench executor exists.
+        run: ~/.claude/skills/contract/scripts/aiko "bench-local --use-source --corpus-file scripts/corpus/hard-target-bench.txt --timeout 120 --force-capture"
 
       # render markdown comment from evidence + base-history delta
       - name: Render PR comment

@@ -1,0 +1,39 @@
+# bench-tls-spoof.txt — JA3/JA4-gated probes for the TLS-spoof bench wedge (W13)
+# Format: intent|url
+#
+# Bench rubric: with TLS spoof OFF, these probes should land in
+# ANTIBOT_BLOCK (vendor signal present, no JA3-shaped ClientHello). With
+# TLS spoof ON (libcurl-impersonate front + iproyal residential exit),
+# the bench expects either PASS or a residual capability gap that
+# isolates to a layer OTHER than TLS (e.g. JS challenge, CAPTCHA).
+#
+# This corpus is for the bench-gate W15 wedge — every row is a real
+# production domain known (per r/webscraping + HN discussions and the
+# v6 hard-target benchmark) to discriminate on JA3/JA4 ClientHello shape.
+
+# --- Cloudflare Turnstile / Bot Management (JA4 + JA3-heavy) ---
+check bot detection status|https://nowsecure.nl
+search software reviews on g2|https://www.g2.com/categories/crm
+get traffic stats for a domain|https://www.similarweb.com/website/openai.com/
+search jobs in san francisco|https://www.indeed.com/jobs?q=software+engineer&l=San+Francisco
+list event tickets|https://www.ticketmaster.com/discover/concerts
+
+# --- Datadome (JA3 + behavioural; TLS gate first, then JS challenge) ---
+list listings on leboncoin|https://www.leboncoin.fr/recherche?text=velo
+search products on rakuten|https://www.rakuten.com/shop/search?keyword=headphones
+
+# --- PerimeterX / HUMAN (JA3 + browser-attribute gate) ---
+get listings on streeteasy|https://streeteasy.com/for-sale/manhattan
+search car listings on autotrader|https://www.autotrader.com/cars-for-sale/all-cars
+
+# --- Imperva Incapsula (heavy on JA3/JA4 + UA correlation) ---
+get visa appointment slots|https://ais.usvisa-info.com/en-mx/niv
+search products on fnac|https://www.fnac.com/SearchResult/ResultList.aspx?Search=casque
+
+# --- Akamai Bot Manager Premier (JA3 + sec-ch-ua + IP rep stack) ---
+list flights on united|https://www.united.com/en/us/flights-from-newark
+search amazon products|https://www.amazon.com/s?k=usb-c+cable
+
+# --- Self-check / canary (echo TLS fingerprint back so bench can assert) ---
+echo tls fingerprint|https://tls.peet.ws/api/all
+echo ja3 fingerprint|https://ja3er.com/json

@@ -2,7 +2,7 @@
  * W9-B — v7 CLI tests for breath click / select / submit.
  *
  * Pure-shape assertions run always:
- *   - help-mode JSON contains the covenant_kind row from kind-map.ts
+ *   - help-mode JSON contains the op_kind row from kind-map.ts
  *   - missing-positional exits with EX_GENERIC and emits machine-readable error
  *
  * End-to-end CDP cases gate on UNBROWSE_W5W6_READY=1 (W5 chrome + W6 values
@@ -126,21 +126,21 @@ describe("v7-cli kind-map bindings (W9-B)", () => {
   it("breath click is bound to actuate_click + unbrowse_click", () => {
     const meta = lookupKindMap("breath", "click");
     expect(meta).toBeDefined();
-    expect(meta!.covenant_kind).toBe("actuate_click");
+    expect(meta!.op_kind).toBe("breath:click");
     expect(meta!.mcp_tool).toBe("unbrowse_click");
   });
 
   it("breath select is bound to actuate_select + unbrowse_select", () => {
     const meta = lookupKindMap("breath", "select");
     expect(meta).toBeDefined();
-    expect(meta!.covenant_kind).toBe("actuate_select");
+    expect(meta!.op_kind).toBe("breath:select");
     expect(meta!.mcp_tool).toBe("unbrowse_select");
   });
 
   it("breath submit is bound to actuate_submit + unbrowse_submit", () => {
     const meta = lookupKindMap("breath", "submit");
     expect(meta).toBeDefined();
-    expect(meta!.covenant_kind).toBe("actuate_submit");
+    expect(meta!.op_kind).toBe("breath:submit");
     expect(meta!.mcp_tool).toBe("unbrowse_submit");
   });
 });
@@ -148,30 +148,30 @@ describe("v7-cli kind-map bindings (W9-B)", () => {
 // ─── Always-on: help + missing-positional surface ──────────────────────────
 
 describe("v7-cli click/select/submit surface (always-on)", () => {
-  it("breath click --help emits covenant_kind=actuate_click", async () => {
+  it("breath click --help emits op_kind=actuate_click", async () => {
     const res = await runCli(["breath", "click", "--help", "--json"]);
     expect(res.code).toBe(64);
     const out = JSON.parse(res.stdout);
     expect(out.help).toBe(true);
-    expect(out.covenant_kind).toBe("actuate_click");
+    expect(out.op_kind).toBe("breath:click");
     expect(out.mcp_tool).toBe("unbrowse_click");
   });
 
-  it("breath select --help emits covenant_kind=actuate_select", async () => {
+  it("breath select --help emits op_kind=actuate_select", async () => {
     const res = await runCli(["breath", "select", "--help", "--json"]);
     expect(res.code).toBe(64);
     const out = JSON.parse(res.stdout);
     expect(out.help).toBe(true);
-    expect(out.covenant_kind).toBe("actuate_select");
+    expect(out.op_kind).toBe("breath:select");
     expect(out.mcp_tool).toBe("unbrowse_select");
   });
 
-  it("breath submit --help emits covenant_kind=actuate_submit", async () => {
+  it("breath submit --help emits op_kind=actuate_submit", async () => {
     const res = await runCli(["breath", "submit", "--help", "--json"]);
     expect(res.code).toBe(64);
     const out = JSON.parse(res.stdout);
     expect(out.help).toBe(true);
-    expect(out.covenant_kind).toBe("actuate_submit");
+    expect(out.op_kind).toBe("breath:submit");
     expect(out.mcp_tool).toBe("unbrowse_submit");
   });
 
@@ -180,7 +180,7 @@ describe("v7-cli click/select/submit surface (always-on)", () => {
     expect(res.code).toBe(1);
     const out = JSON.parse(res.stdout);
     expect(out.error).toBe("missing_positional");
-    expect(out.covenant_kind).toBe("actuate_click");
+    expect(out.op_kind).toBe("breath:click");
   });
 
   it("breath select without args emits missing_positional", async () => {
@@ -188,7 +188,7 @@ describe("v7-cli click/select/submit surface (always-on)", () => {
     expect(res.code).toBe(1);
     const out = JSON.parse(res.stdout);
     expect(out.error).toBe("missing_positional");
-    expect(out.covenant_kind).toBe("actuate_select");
+    expect(out.op_kind).toBe("breath:select");
   });
 });
 
@@ -228,7 +228,7 @@ describe.if(W5W6_READY)("v7-cli breath click/select/submit e2e (W5+W6 required)"
     const out = JSON.parse(res.stdout);
     expect(out.ok).toBe(true);
     expect(out.subcommand).toBe("breath click");
-    expect(out.covenant_kind).toBe("actuate_click");
+    expect(out.op_kind).toBe("breath:click");
     expect(out.selector).toBe("#button");
     expect(typeof out.x).toBe("number");
     expect(typeof out.y).toBe("number");
@@ -361,7 +361,7 @@ describe.if(W5W6_READY)("v7-cli breath click/select/submit e2e (W5+W6 required)"
     const out = JSON.parse(res.stdout);
     expect(out.ok).toBe(true);
     expect(out.subcommand).toBe("breath submit");
-    expect(out.covenant_kind).toBe("actuate_submit");
+    expect(out.op_kind).toBe("breath:submit");
     expect(typeof out.action).toBe("string");
     expect(out.method).toBe("post");
     expect(typeof out.element_count).toBe("number");
