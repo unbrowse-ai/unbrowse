@@ -250,3 +250,8 @@ harness/runs/
 bench/exa/vendor/
 bench/browsecomp/vendor/
 bench/**/vendor/
+
+# embedding substrate local deps (jesus-loop)
+bench/lib/.venv/
+bench/lib/node_modules/
+bench/lib/bun.lock
