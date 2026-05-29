@@ -2736,8 +2736,15 @@ async function runSandboxCore(
         .replace(/<!--[\s\S]*?-->/g, "")
         .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
-      const isHtmlString = (s: unknown): s is string =>
-        typeof s === "string" && s.length > 1024 && /<(html|body|article|div|p|h[1-6])\b/i.test(s);
+      const isHtmlString = (s: unknown): s is string => {
+        if (typeof s !== "string") return false;
+        // A full HTML document (doctype / <html> / <head> / <body>) is always
+        // markdown-convertible regardless of size — a short page (e.g. a 500B
+        // doc, an API snippet) must not leak raw HTML to a consumer expecting
+        // markdown. Only the size gate below guards bare fragments.
+        if (/<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]/i.test(s)) return true;
+        return s.length > 1024 && /<(html|body|article|div|p|h[1-6])\b/i.test(s);
+      };
       const parsed = typeof resp.post_eval === "string"
         ? JSON.parse(resp.post_eval)
         : resp.post_eval;
