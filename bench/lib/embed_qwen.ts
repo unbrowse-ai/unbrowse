@@ -7,12 +7,7 @@
  * transformers.js needs an ONNX export; the official Qwen repo ships only
  * safetensors, so we use the canonical onnx-community port (same weights,
  * exported to ONNX). dtype fp32 -> onnx/model.onnx, full precision, to match the
- * Python sentence-transformers fp32 reference for parity.
- *
-// transformers.js needs an ONNX-published repo; the base Qwen/Qwen3-Embedding-0.6B
-// ships no ONNX (404). onnx-community mirrors it with ONNX weights for the web runtime.
-const MODEL_ID = "onnx-community/Qwen3-Embedding-0.6B-ONNX";
- * `pooling: 'last_token'` on the feature-extraction pipeline; we pair it with
+const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
  * `normalize: true` to match the Python L2-normalized output.
  *
  * Public API:
@@ -35,24 +30,14 @@ const QUERY_INSTRUCT =
   "Instruct: Given a web search query, retrieve relevant passages that " +
   "answer the query\nQuery: ";
 
-    _pipe = pipeline("feature-extraction", MODEL_ID, {
-      // dtype via EMBED_TS_DTYPE (default fp32 for best parity with Python fp32).
-      // fp32 uses external-data weights (~2.4GB, prone to truncated downloads);
-      // q8/fp16 are single-file and robust — use them if fp32 won't download intact.
-      dtype: (process.env.EMBED_TS_DTYPE as any) || "fp32",
-      device: "cpu",
-    });
-const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
-  | "fp32"
-  | "fp16"
-  | "q8"
-  | "q4";
+let _pipe: Promise<FeatureExtractionPipeline> | null = null;
 
 function getPipe(): Promise<FeatureExtractionPipeline> {
   if (_pipe === null) {
-    // Apple has no CoreML EP here, so this runs on CPU.
+    // fp32 keeps the ONNX weights full-precision for the best parity with the
+    // torch reference. Apple has no CoreML EP here, so this runs on CPU.
     _pipe = pipeline("feature-extraction", MODEL_ID, {
-      dtype: DTYPE,
+      dtype: "fp32",
     }) as Promise<FeatureExtractionPipeline>;
   }
   return _pipe;
