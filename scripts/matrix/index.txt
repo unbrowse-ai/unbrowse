@@ -1,0 +1,6 @@
+R1C1   row=R1 column=C1 exit=0   dur=74562  ms sub_state=no_paid_surface_hit          
+R1C2   row=R1 column=C2 exit=0   dur=68088  ms sub_state=no_paid_surface_hit          
+R2C1   row=R2 column=C1 exit=1   dur=12722  ms sub_state=wallet_present_ux_walk       pages=5 page_errors=2
+R2C2   row=R2 column=C2 exit=1   dur=10756  ms sub_state=no_wallet_ux_walk            pages=5 page_errors=2
+R3C1   row=R3 column=C1 exit=0   dur=1438   ms sub_state=x402_no_wallet               llm_http=402 version_http=200
+R3C2   row=R3 column=C2 exit=0   dur=819    ms sub_state=x402_no_wallet               llm_http=402 version_http=200

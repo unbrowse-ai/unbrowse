@@ -15,7 +15,7 @@
  * takes two positionals).
  */
 import type { ParsedV7Args } from "../args.js";
-import type { KindMapEntry, V7CovenantKind } from "../kind-map.js";
+import type { KindMapEntry, V7OpKind } from "../kind-map.js";
 
 export interface DispatchContext {
   /** Pass --json (default true for MCP, default false for CLI). */
@@ -40,9 +40,9 @@ type ArgAdapter = (
  * positionals (rather than flags) need an entry; the default adapter
  * handles the rest by flattening every arg into a flag.
  */
-const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
+const ADAPTERS: Partial<Record<V7OpKind, ArgAdapter>> = {
   // breath go <url>
-  actuate_navigate: (a) => {
+  "breath:navigate": (a) => {
     const positional: string[] = [];
     if (typeof a.url === "string") positional.push(a.url);
     const flags: Record<string, string | boolean> = {};
@@ -54,7 +54,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath fill <selector> <pointer>
-  actuate_fill: (a) => {
+  "breath:fill": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     // MCP `unbrowse_fill` may pass either `pointer` (preferred) or `text`
@@ -70,7 +70,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath type <selector> <pointer> — same shape as fill
-  actuate_type: (a) => {
+  "breath:type": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     if (typeof a.pointer === "string") positional.push(a.pointer);
@@ -82,7 +82,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath click <selector>
-  actuate_click: (a) => {
+  "breath:click": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     const flags: Record<string, string | boolean> = {};
@@ -94,7 +94,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath press <key>
-  actuate_press: (a) => {
+  "breath:press": (a) => {
     const positional: string[] = [];
     if (typeof a.key === "string") positional.push(a.key);
     const flags: Record<string, string | boolean> = {};
@@ -104,7 +104,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath select <selector> <value>
-  actuate_select: (a) => {
+  "breath:select": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     if (typeof a.value === "string") positional.push(a.value);
@@ -115,7 +115,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath scroll [selector] [dx] [dy]
-  actuate_scroll: (a) => {
+  "breath:scroll": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     if (typeof a.dx === "number") positional.push(String(a.dx));
@@ -126,7 +126,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath submit [selector]
-  actuate_submit: (a) => {
+  "breath:submit": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     const flags: Record<string, string | boolean> = {};
@@ -135,7 +135,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath execute <skill> <endpoint>
-  actuate_execute: (a) => {
+  "breath:execute": (a) => {
     const positional: string[] = [];
     if (typeof a.skill === "string") positional.push(a.skill);
     if (typeof a.endpoint === "string") positional.push(a.endpoint);
@@ -149,7 +149,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath auth-capture <url>
-  actuate_auth_capture: (a) => {
+  "breath:auth_capture": (a) => {
     const positional: string[] = [];
     if (typeof a.url === "string") positional.push(a.url);
     const flags: Record<string, string | boolean> = {};
@@ -159,7 +159,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // breath close [--session id]
-  actuate_close: (a) => {
+  "breath:close": (a) => {
     const flags: Record<string, string | boolean> = {};
     if (typeof a.session === "string") flags.session = a.session;
     if (typeof a.session_id === "string") flags.session = a.session_id;
@@ -167,7 +167,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval resolve <intent>
-  observe_resolve: (a) => {
+  "eval:resolve": (a) => {
     const positional: string[] = [];
     if (typeof a.intent === "string") positional.push(a.intent);
     const flags: Record<string, string | boolean> = {};
@@ -179,7 +179,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval trace [session-id]
-  observe_trace: (a) => {
+  "eval:trace": (a) => {
     const positional: string[] = [];
     const sid = a.session_id ?? a.session ?? a.host ?? a.domain;
     if (typeof sid === "string") positional.push(sid);
@@ -187,7 +187,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval skill <skill-id>
-  observe_skill: (a) => {
+  "eval:skill": (a) => {
     const positional: string[] = [];
     const sid = a.skill_id ?? a.skill ?? a.id;
     if (typeof sid === "string") positional.push(sid);
@@ -195,14 +195,14 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval cookies <domain>
-  observe_cookies: (a) => {
+  "eval:cookies": (a) => {
     const positional: string[] = [];
     if (typeof a.domain === "string") positional.push(a.domain);
     return { positional, flags: {} };
   },
 
   // eval text [selector]
-  observe_text: (a) => {
+  "eval:text": (a) => {
     const positional: string[] = [];
     if (typeof a.selector === "string") positional.push(a.selector);
     const flags: Record<string, string | boolean> = {};
@@ -211,7 +211,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval feedback <skill_id> <endpoint_id> <score>
-  observe_feedback: (a) => {
+  "eval:feedback": (a) => {
     const positional: string[] = [];
     if (typeof a.skill === "string") positional.push(a.skill);
     if (typeof a.endpoint === "string") positional.push(a.endpoint);
@@ -223,7 +223,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // eval reflect <intent_status>
-  observe_reflect: (a) => {
+  "eval:reflect": (a) => {
     const positional: string[] = [];
     if (typeof a.outcome === "string") positional.push(a.outcome);
     else if (typeof a.intent_status === "string") positional.push(a.intent_status);
@@ -231,7 +231,7 @@ const ADAPTERS: Partial<Record<V7CovenantKind, ArgAdapter>> = {
   },
 
   // build skill <skill-id>
-  skill_declare: (a) => {
+  "build:skill": (a) => {
     const positional: string[] = [];
     const sid = a.skill_id ?? a.skill ?? a.id;
     if (typeof sid === "string") positional.push(sid);
@@ -263,7 +263,7 @@ export function buildParsedArgsForKind(
   args: Record<string, unknown>,
   ctx: DispatchContext,
 ): ParsedV7Args {
-  const adapter = ADAPTERS[entry.covenant_kind as V7CovenantKind] ?? defaultAdapter;
+  const adapter = ADAPTERS[entry.op_kind as V7OpKind] ?? defaultAdapter;
   const { positional, flags } = adapter(args, ctx);
 
   // Honor ctx flags for output mode.

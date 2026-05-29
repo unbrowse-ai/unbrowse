@@ -74,7 +74,7 @@ If a wallet is configured, that wallet address becomes the contributor/payment t
 
 Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
 
-Unbrowse supports wallet providers such as Crossmint `lobster.cash` for x402-gated routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for paid routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
 
 For repeat npm use after a healthy publish:
 

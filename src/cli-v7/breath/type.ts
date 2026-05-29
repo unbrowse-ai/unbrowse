@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath type"):
  *   CLI subcommand  : breath type
  *   MCP tool        : unbrowse_type
- *   Covenant kind   : actuate_type
+ *   Op kind   : breath:type
  *   Verb            : breath
  *
  * Two paths:
@@ -74,6 +74,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 const FIVE_MINUTES_MS = 300_000;
@@ -152,7 +153,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--arg", description: "Single arg-scope key (key=value form).", value_expected: true },
           { name: "--argScope", description: "Full arg-scope object as JSON.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -168,7 +169,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath type",
         required: ["text-or-pointer"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -214,17 +215,37 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       emitErr(err, opts);
       process.exit(EX_CDP);
     }
+    // Day-6 Dominion: the literal-text path emits a breath-act
+    // receipt (variant=breath-act, actType=type-literal). The
+    // receipt records the FACT of the type, never the text bytes
+    // (cleartext literal isn't a value-store pointer; it doesn't get
+    // the fill commitment, just the act witness). Binding-missing
+    // surfaces as stderr, never blocks (A5).
+    const breathAudit = await emitBreathActStateless({
+      sessionId: rec.sessionId,
+      actType: "type-literal",
+      selector: null,
+      currentUrl,
+    });
     emit(
       {
         ok: true,
         subcommand: "breath type",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         session_id: rec.sessionId,
         path: "literal",
         // Echo is allowed — caller passed it on the CLI explicitly. For
         // sensitive values they should be using arg://<key>.
         text: textOrPointer,
-        audit: false,
+        audit: {
+          ok: breathAudit.ok,
+          idempotent: breathAudit.idempotent,
+          binding_missing: breathAudit.bindingMissing,
+          receipt_id: breathAudit.receiptId,
+          cache_key: breathAudit.cacheKey,
+          variant: "breath-act",
+          act_type: "type-literal",
+        },
       },
       opts,
     );
@@ -306,7 +327,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "breath type",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "audit_post_failed",
           status: res.status,
           response_excerpt: text.slice(0, 200),
@@ -325,7 +346,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     {
       ok: true,
       subcommand: "breath type",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       path: "pointer",
       pointer: pointerUri, // pointer is the receipt; value is gone

@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath auth-capture"):
  *   CLI subcommand  : breath auth-capture
  *   MCP tool        : unbrowse_auth_capture
- *   Covenant kind   : actuate_auth_capture
+ *   Op kind   : breath:auth_capture
  *   Verb            : breath
  *
  * Behavior:
@@ -39,10 +39,8 @@
  *   70  keychain write failed (security CLI errored)
  *   1   other (timeout with zero cookies, etc.)
  */
-import { mkdir, writeFile } from "node:fs/promises";
-import { homedir, platform } from "node:os";
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { platform } from "node:os";
+import { randomUUID, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 
 import {
@@ -52,7 +50,10 @@ import {
   spawnChrome,
 } from "../../cdp/index.js";
 import type { ParsedV7Args } from "../args.js";
-import { writeSessionRecord, type BrowseSessionRecord } from "../_session.js";
+import {
+  writeSessionRecord,
+  type BrowseSessionRecord,
+} from "../_session.js";
 import {
   EX_GENERIC,
   EX_SOFTWARE,
@@ -62,6 +63,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 const DEFAULT_TIMEOUT_MS = 300_000;
@@ -164,7 +166,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--timeout", description: "Hard timeout in ms (default: 300000).", value_expected: true },
           { name: "--settle", description: "No-new-cookie quiet period in ms (default: 10000).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -180,7 +182,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath auth-capture",
         required: ["login-url"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -213,8 +215,10 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     target = await createTarget(conn, loginUrl, { browserContextId: ctx.browserContextId });
 
     // Persist a session record so subsequent breath/eval calls can attach.
+    // (Initial write — we rewrite below with the cookies_inventory_ref once
+    // the inventory hash is computed.)
     const sessionId = randomUUID();
-    const rec: BrowseSessionRecord = {
+    let rec: BrowseSessionRecord = {
       sessionId,
       contextId: ctx.browserContextId,
       targetId: target.targetId,
@@ -223,6 +227,21 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       createdAt: Date.now(),
     };
     await writeSessionRecord(rec);
+
+    // W24.2 — auth-capture is a two-phase act: (a) HEADED Chrome is up
+    // and the login page is loaded; (b) keychain write lands. Emit a
+    // start-witness here so a forensic query can detect "agent kicked
+    // off auth but never finished" (timeout, user-abort). The finish-
+    // witness lands after the keychain write below. selectorHash carries
+    // the cookie DOMAIN scope hash (sha256(targetDomain)) — Day-6 helper
+    // sha256-hashes whatever string we pass; the field semantics are
+    // overloaded for non-DOM acts.
+    const startAudit = await emitBreathActStateless({
+      sessionId,
+      actType: "auth-capture-start",
+      selector: targetDomain,
+      currentUrl: loginUrl,
+    });
 
     // ── Arm Network domain so we observe Set-Cookie events ────────────────
     await call(conn, "Network.enable", {}, target.sessionId);
@@ -269,7 +288,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "breath auth-capture",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "no_cookies_captured",
           session_id: sessionId,
           domain: targetDomain,
@@ -307,35 +326,75 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       process.exit(EX_SOFTWARE);
     }
 
-    // ── Write metadata-only sidecar next to the session record ────────────
-    const profileDir = join(homedir(), ".unbrowse", "sessions");
-    await mkdir(profileDir, { recursive: true });
-    const profilePath = join(profileDir, `${sessionId}.auth_profile.json`);
-    await writeFile(
-      profilePath,
-      JSON.stringify(
-        { sessionId, domain: targetDomain, captured_at: Date.now(), cookies: sidecar },
-        null,
-        2,
-      ) + "\n",
-      { mode: 0o600 },
-    );
+    // ── Compute cookies_inventory_ref (Day-5 §E Option-1) ─────────────────
+    //
+    // The inventory IS the witness: a sha256 hex over the canonical-JSON
+    // serialization of (sessionId, domain, captured_at, sidecar). The hash
+    // is what lands in the SESSION_STATE row's `cookiesInventoryRef` field;
+    // cookie VALUES already live in OS Keychain (above). Under stateless
+    // mode the inventory NEVER touches disk in cleartext — the hash is
+    // the only artifact that crosses the firmament.
+    const inventoryDoc = {
+      sessionId,
+      domain: targetDomain,
+      captured_at: Date.now(),
+      cookies: sidecar,
+    };
+    const canonicalInventory = JSON.stringify(inventoryDoc);
+    const cookiesInventoryRef = createHash("sha256")
+      .update(canonicalInventory)
+      .digest("hex");
+
+    // ── Persist the inventory_ref onto the session record ─────────────────
+    rec = { ...rec, cookies_inventory_ref: cookiesInventoryRef };
+    await writeSessionRecord(rec);
+
+    // ── The hash above IS the canonical witness; the cleartext sidecar
+    // never lands on disk. Per STATELESS_BOUNDARY §H invariant 7.
 
     // ── Scrub the in-process value buffer one more time ───────────────────
     for (const k of Object.keys(nameToValue)) nameToValue[k] = "";
 
     const pointer = `keychain://${KEYCHAIN_SERVICE}/${targetDomain}`;
+
+    // W24.2 — finish-witness: keychain write succeeded, inventory hashed.
+    // The pair (start, finish) lets a forensic query distinguish "auth
+    // captured + sealed" from "auth started but timed out". Pointer-only:
+    // selector carries domain hash; no cookie names/values cross.
+    const finishAudit = await emitBreathActStateless({
+      sessionId,
+      actType: "auth-capture-finish",
+      selector: targetDomain,
+      currentUrl: loginUrl,
+    });
+
     emit(
       {
         ok: true,
         subcommand: "breath auth-capture",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         session_id: sessionId,
         domain: targetDomain,
         pointer,
         cookie_names: sidecar.map((c) => c.name),
         cookie_count: sidecar.length,
-        auth_profile: profilePath,
+        cookies_inventory_ref: cookiesInventoryRef,
+        audit: {
+          start: {
+            ok: startAudit.ok,
+            receipt_id: startAudit.receiptId,
+            cache_key: startAudit.cacheKey,
+            binding_missing: startAudit.bindingMissing,
+          },
+          finish: {
+            ok: finishAudit.ok,
+            receipt_id: finishAudit.receiptId,
+            cache_key: finishAudit.cacheKey,
+            binding_missing: finishAudit.bindingMissing,
+          },
+          variant: "breath-act",
+          act_type: "auth-capture",
+        },
       },
       opts,
     );

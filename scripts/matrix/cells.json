@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "doc": "3x2 thoroughness matrix declaration. ROWS = delivery surfaces, COLUMNS = wallet posture. Harness collects per-cell evidence; agent judges verdict in-thread (CLAUDE.md: harness collects, agent judges). NO heuristic verdict baked here.",
+  "rows": {
+    "R1": { "surface": "cli", "runner": "scripts/matrix/r1-cli.sh", "doc": "npm install -g from a freshly packed tarball; run resolve probe via ./node_modules/.bin/unbrowse" },
+    "R2": { "surface": "frontend", "runner": "scripts/matrix/r2-frontend.ts", "doc": "Playwright headed walk: landing -> /install -> /login -> /billing -> /docs; screenshot each page" },
+    "R3": { "surface": "api",      "runner": "scripts/matrix/r3-api.sh",    "doc": "curl against the gated /v1/llm route on beta-api.unbrowse.ai (production) — paid surface" }
+  },
+  "columns": {
+    "C1": {
+      "posture": "wallet_configured",
+      "env": {
+        "UNBROWSE_WALLET_ADAPTER": "${UNBROWSE_WALLET_ADAPTER:-lobster}",
+        "UNBROWSE_WALLET_KEY":     "${LOBSTER_TEST_KEY:-}",
+        "UNBROWSE_X402_MAX_COST_USD": "0.01"
+      },
+      "expected_substate_on_paid_probe": ["x402_signed", "x402_no_wallet"],
+      "doc": "If LOBSTER_TEST_KEY is unset on this machine, x402-fetch surfaces x402_no_wallet — same as C2. cells.json declares this honestly. Do NOT spend real money on smoke runs."
+    },
+    "C2": {
+      "posture": "no_wallet",
+      "env": {
+        "UNBROWSE_WALLET_ADAPTER": "",
+        "UNBROWSE_WALLET_KEY": "",
+        "UNBROWSE_X402_MAX_COST_USD": "0"
+      },
+      "expected_substate_on_paid_probe": ["x402_no_wallet"],
+      "expected_exit_code": 0,
+      "doc": "Graceful degrade. NEVER 500. Either sponsor fallback ack or 402 + next_step."
+    }
+  },
+  "cells": [
+    { "id": "R1C1", "row": "R1", "column": "C1" },
+    { "id": "R1C2", "row": "R1", "column": "C2" },
+    { "id": "R2C1", "row": "R2", "column": "C1" },
+    { "id": "R2C2", "row": "R2", "column": "C2" },
+    { "id": "R3C1", "row": "R3", "column": "C1" },
+    { "id": "R3C2", "row": "R3", "column": "C2" }
+  ],
+  "evidence_row_shape": {
+    "cell_id": "string",
+    "row": "R1|R2|R3",
+    "column": "C1|C2",
+    "column_env": { "UNBROWSE_WALLET_ADAPTER": "?present", "UNBROWSE_WALLET_KEY": "?present" },
+    "exit_code": "int",
+    "duration_ms": "int",
+    "raw_artifact_path": "scripts/matrix/.artifacts/<cell_id>/",
+    "sub_state": "x402_signed|x402_no_wallet|x402_signer_error|x402_cost_exceeded|x402_retry_blocked|x402_passthrough|no_paid_surface_hit|harness_red",
+    "verdict_signal": "evidence_only — agent-judges-in-thread",
+    "diagnostic": "free-form when row is red (missing dep, missing env, surface not reachable)"
+  }
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "page": "landing",
+    "error": "req_failed GET https://www.unbrowse.ai/search?_rsc=1r34m: net::ERR_ABORTED"
+  },
+  {
+    "page": "billing",
+    "error": "req_failed GET https://www.unbrowse.ai/search?_rsc=1qoj8: net::ERR_ABORTED"
+  }
+]

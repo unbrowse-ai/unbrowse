@@ -4,13 +4,20 @@
  * 1:1 mapping (kind-map.ts row "eval stats"):
  *   CLI subcommand  : eval stats
  *   MCP tool        : unbrowse_stats
- *   Covenant kind   : observe_stats
+ *   Op kind   : eval:stats
  *   Verb            : eval
  *
  * Fetches `${UNBROWSE_API_URL || beta-api.unbrowse.ai}/v1/stats/summary`
  * and surfaces the raw response. Honors `--fresh` by attaching
  * `Cache-Control: no-cache` (so any CDN / KV cache between the CLI and
  * the worker is bypassed). Read-only; no audit POSTs.
+ *
+ * Stateless verification (Day-6 Dominion W6-EVAL-4, 2026-05-28):
+ *   - `--fresh` sets `Cache-Control: no-cache`; the stats endpoint is
+ *     a public read-only summary that doesn't gate on wallet identity,
+ *     so the header is the only knob.
+ *   - Every read emits a sig-keyed `eval_read` audit row (W24.6 — the
+ *     prior env-gate was purged; stateless is the sole path).
  */
 import type { ParsedV7Args } from "../args.js";
 import {
@@ -22,6 +29,7 @@ import {
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
+import { postStateless } from "../_stateless.js";
 
 function resolveApiBase(): string {
   return (
@@ -49,7 +57,7 @@ export async function handler(
             description: "Bypass CDN / KV cache (Cache-Control: no-cache).",
           },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -81,15 +89,44 @@ export async function handler(
       clearTimeout(t);
     }
 
+    // W24.2 — sig-keyed eval-read audit row. readKind=stats is a pure
+    // backend summary; no Chrome tab, no URL. byteCount is the summary
+    // JSON size for forensic correlation.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "stats" as const,
+        byteCount: JSON.stringify(body).length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     emit(
       {
         ok: status >= 200 && status < 300,
         subcommand: "eval stats",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         api_base: base,
         status_code: status,
         fresh,
         summary: body,
+        audit_emit: auditEmit,
       },
       opts,
     );

@@ -1,0 +1,12 @@
+HTTP/2 402 
+date: Wed, 27 May 2026 11:34:10 GMT
+content-type: application/json
+content-length: 419
+access-control-allow-origin: *
+access-control-expose-headers: PAYMENT-REQUIRED,PAYMENT-RESPONSE,X-Payment-Required
+payment-required: eyJ4NDAyVmVyc2lvbiI6MiwiZXJyb3IiOiJwYXltZW50X3JlcXVpcmVkIiwiYWNjZXB0cyI6W3sic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoic29sYW5hOjVleWt0NFVzRnY4UDhOSmRUUkVwWTF2enFLcVpLdmRwIiwiYW1vdW50IjoiMTgwOTAiLCJhc3NldCI6IkVQakZXZGQ1QXVmcVNTcWVNMnFOMXh6eWJhcEM4RzR3RUdHa1p3eVREdDF2IiwicGF5VG8iOiI2S3B4YW9Qb1REQkFNeE5OTVBRdlFFblRiRXJ0am9nTDJ1bks4cTNWS2NkbiIsIm1heFRpbWVvdXRTZWNvbmRzIjozMDB9XSwiZmFjaWxpdGF0b3IiOiJmYXJlbWV0ZXItZmxleC1zb2xhbmEiLCJleHRyYSI6eyJwcm92aWRlciI6ImFudGhyb3BpYyIsIm1vZGVsIjoiY2xhdWRlLXNvbm5ldC00LTYiLCJtYXJrdXAiOjEuNSwicGFzc3Rocm91Z2hfdXNkIjoiMC4wMTIwNjAifX0=
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=SeG5%2FcDA%2BYZ0OtoecUV0%2BRAw%2Bdm77vTr6N%2FI%2BHXP7%2FtHh%2BoX0AzUVuag8bNz4OTbV9H2%2F3vkqkDirsdcYBaiLcr8N4V0ElZkYeGIoZL7oUI8f8beLJl%2FfkrrmnExYQsmwEZzjlVm"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a024b5779aab0550-SIN
+

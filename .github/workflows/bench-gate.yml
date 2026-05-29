@@ -82,7 +82,10 @@ jobs:
           set -euo pipefail
           # Harness collects only. Prep writes judge.bundle.md. No verdict.json
           # is produced by CI — that's the agent's job.
-          RUN_DIR="$(bash scripts/bench-gate.sh | tail -1)"
+          # bench-gate is now a /contract. Declared via aiko; the substrate
+          # is responsible for invoking the bench executor and writing RUN_DIR.
+          # Until a substrate-side executor adapter exists this step HOLDs.
+          RUN_DIR="$(~/.claude/skills/contract/scripts/aiko 'bench-gate' | tail -1)"
           bun scripts/bench-gate-judge.ts --artifacts "$RUN_DIR"
 
           RUN_ID="$(basename "$RUN_DIR")"

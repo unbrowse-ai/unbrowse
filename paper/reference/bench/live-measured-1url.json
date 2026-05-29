@@ -1,0 +1,11 @@
+{
+  "disclaimer": "Single-URL live measurement in a sandbox, NOT the 94-domain field study (arXiv:2604.00694). Numbers below were read from the unbrowse v7.0.2 binary's own stdout, not computed by hand or invented.",
+  "url": "https://example.com",
+  "cold_discover_ms": 5396,
+  "cold_discover_evidence": "perf] exa: 5396ms  /  discover=5396ms (unbrowse resolve --no-execute, cache MISS -> marketplace+exa search)",
+  "warm_cached_fetch_ms": 201,
+  "warm_cached_fetch_evidence": "[fetch] 200 201ms 35B (unbrowse fetch, HTTP replay of a known route)",
+  "speedup_observed": 26.8,
+  "n_urls": 1,
+  "honest_note": "This is ONE url and compares resolve-discover vs fetch-replay; the field study's 3.6x is browser-go vs cached-execute over 94 domains. Directionally consistent (cached >> cold), NOT a reproduction of the headline number."
+}

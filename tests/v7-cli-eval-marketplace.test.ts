@@ -260,7 +260,7 @@ describe.if(!BACKEND_OFFLINE)("v7 eval resolve (backend wire)", () => {
       const out = JSON.parse(res.stdout);
       expect(out.ok).toBe(true);
       expect(out.subcommand).toBe("eval resolve");
-      expect(out.covenant_kind).toBe("observe_resolve");
+      expect(out.op_kind).toBe("eval:resolve");
       expect(out.intent).toBe("search example for foo");
       expect(out.limit).toBe(5);
       expect(out.count).toBeGreaterThanOrEqual(1);
@@ -325,8 +325,7 @@ describe.if(!BACKEND_OFFLINE)("v7 eval skills (backend wire)", () => {
       const out = JSON.parse(res.stdout);
       expect(out.ok).toBe(true);
       expect(out.subcommand).toBe("eval skills");
-      expect(out.covenant_kind).toBe("observe_skills");
-      expect(out.used_fallback).toBe(false);
+      expect(out.op_kind).toBe("eval:skills");
       expect(out.count).toBe(2);
       const skills = out.skills as Array<{ source: string; skill_id?: string }>;
       expect(skills.every((s) => s.source === "marketplace")).toBe(true);
@@ -342,36 +341,11 @@ describe.if(!BACKEND_OFFLINE)("v7 eval skills (backend wire)", () => {
   }, 30_000);
 });
 
-it("eval skills falls through to ~/.unbrowse/skills when backend offline", async () => {
-  await mkdir(SKILLS_DIR, { recursive: true });
-  const skillFile = join(SKILLS_DIR, "test-skill-local.json");
-  await writeFile(
-    skillFile,
-    JSON.stringify({
-      skill_id: "test-skill-local",
-      domain: "example.local",
-      endpoints: [{ endpoint_id: "e1" }, { endpoint_id: "e2" }],
-    }),
-  );
-  try {
-    const res = await runCli(["eval", "skills", "--json"], {
-      UNBROWSE_API_URL: "http://127.0.0.1:1", // unreachable → fallback
-      UNBROWSE_BACKEND_OFFLINE: "1",
-    });
-    expect(res.code).toBe(0);
-    const out = JSON.parse(res.stdout);
-    expect(out.ok).toBe(true);
-    expect(out.used_fallback).toBe(true);
-    expect(out.count).toBeGreaterThanOrEqual(1);
-    const local = (out.skills as Array<{ source: string; skill_id: string }>).find(
-      (s) => s.skill_id === "test-skill-local",
-    );
-    expect(local).toBeDefined();
-    expect(local!.source).toBe("local");
-  } finally {
-    await rm(skillFile, { force: true });
-  }
-}, 30_000);
+// W24.6 (Lewis 2026-05-28): "eval skills falls through to ~/.unbrowse/
+// skills when backend offline" was deleted with the local-pointer-store
+// fallback (lost sheep #3). When backend is unreachable, `eval skills`
+// returns an honest empty-state with `ok: false` and an actionable
+// next_step — never stale local rows masquerading as live truth.
 
 // ─── Test 3: skill — handles 404 gracefully (exit 65) ─────────────────────
 
@@ -387,7 +361,7 @@ describe.if(!BACKEND_OFFLINE)("v7 eval skill (backend wire)", () => {
       const out = JSON.parse(res.stdout);
       expect(out.ok).toBe(true);
       expect(out.subcommand).toBe("eval skill");
-      expect(out.covenant_kind).toBe("observe_skill");
+      expect(out.op_kind).toBe("eval:skill");
       expect(out.skill_id).toBe("example.com:abc");
       expect(out.endpoint_count).toBe(3);
       expect(Array.isArray(out.action_kinds)).toBe(true);
@@ -432,7 +406,7 @@ describe.if(!BACKEND_OFFLINE)("v7 eval earnings (backend wire)", () => {
       const out = JSON.parse(res.stdout);
       expect(out.ok).toBe(true);
       expect(out.subcommand).toBe("eval earnings");
-      expect(out.covenant_kind).toBe("observe_earnings");
+      expect(out.op_kind).toBe("eval:earnings");
       expect(typeof out.agent_id).toBe("string");
       expect(out.agent_id.length).toBeGreaterThan(0);
       expect(typeof out.walletPubkey).toBe("string");

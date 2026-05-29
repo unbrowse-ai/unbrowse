@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval reflect"):
  *   CLI subcommand  : eval reflect
  *   MCP tool        : unbrowse_reflect
- *   Covenant kind   : observe_reflect
+ *   Op kind   : eval:reflect
  *   Verb            : eval
  *
  * Anonymous — only the outcome value is recorded (per the MCP server's
@@ -28,10 +28,12 @@ import {
   EX_GENERIC,
   EX_USAGE,
   emit,
+  emitErr,
   helpExit,
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { postStateless } from "../_stateless.js";
 
 export type ReflectOutcome = "achieved" | "partial" | "failed";
 
@@ -73,7 +75,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--endpoint", description: "Endpoint id whose reliability the reflect updates.", value_expected: true },
           { name: "--session-id", description: "Session id (local trail only — not sent to backend).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -90,7 +92,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "eval reflect",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "missing_required",
         required: ["--outcome", "--skill", "--endpoint"],
         got: { outcome: outcomeFlag, skill: skillFlag, endpoint: endpointFlag },
@@ -106,7 +108,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       {
         ok: false,
         subcommand: "eval reflect",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         error: "bad_outcome",
         hint: "Use --outcome achieved | partial | failed",
         got: outcomeFlag,
@@ -126,33 +128,44 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   };
 
   const apiBase = defaultApiBase();
-  const url = `${apiBase.replace(/\/$/, "")}/v1/stats/reflect`;
-  const apiKey = process.env.UNBROWSE_API_KEY;
 
+  // Outcome-only body routed through `postStateless` so the agent walks
+  // away with a sig-keyed `cacheKey` pointer to the reflection. Backend
+  // ignores the extra wallet-sig fields gracefully (existing route).
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/stats/reflect",
+      body,
+      signableFields: ["skill_id", "endpoint_id", "intent_status", "nonce"],
+      apiBaseUrl: apiBase,
     });
-    const respText = await res.text();
-    let respBody: unknown = null;
-    try {
-      respBody = JSON.parse(respText);
-    } catch {
-      respBody = respText;
+    if (post.ok) {
+      emit(
+        {
+          ok: true,
+          subcommand: "eval reflect",
+          op_kind: meta.op_kind,
+          posted: body,
+          cacheKey: post.cacheKey,
+          receiptId: post.receiptId ?? null,
+          idempotent: post.idempotent,
+          http_status: post.httpStatus,
+        },
+        opts,
+      );
+      process.exit(0);
     }
-    if (!res.ok) {
+    if (post.bindingMissing) {
       emit(
         {
           ok: false,
           subcommand: "eval reflect",
-          covenant_kind: meta.covenant_kind,
-          error: "backend_non_2xx",
-          status: res.status,
-          response: respBody,
+          op_kind: meta.op_kind,
+          error: "binding_missing",
+          binding_missing: post.bindingMissing,
+          cacheKey: post.cacheKey,
+          http_status: post.httpStatus,
         },
         opts,
       );
@@ -160,28 +173,18 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     }
     emit(
       {
-        ok: true,
-        subcommand: "eval reflect",
-        covenant_kind: meta.covenant_kind,
-        posted: body,
-        response: respBody,
-      },
-      opts,
-    );
-    process.exit(0);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    emit(
-      {
         ok: false,
         subcommand: "eval reflect",
-        covenant_kind: meta.covenant_kind,
-        error: "backend_unreachable",
-        detail: message,
-        api_base: apiBase,
+        op_kind: meta.op_kind,
+        error: post.errorHint ?? `http_${post.httpStatus}`,
+        cacheKey: post.cacheKey,
+        http_status: post.httpStatus,
       },
       opts,
     );
+    process.exit(EX_GENERIC);
+  } catch (err) {
+    emitErr(err, opts);
     process.exit(EX_GENERIC);
   }
 }

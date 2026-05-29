@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval cookies"):
  *   CLI subcommand  : eval cookies
  *   MCP tool        : unbrowse_cookies
- *   Covenant kind   : observe_cookies
+ *   Op kind   : eval:cookies
  *   Verb            : eval
  *
  * SECRET-REDACTION INVARIANT (load-bearing — W3 spec, contract ee1f5409):
@@ -17,6 +17,8 @@
  * Read-only — no audit POST. The cookie metadata IS the pointer; values
  * remain only in the live browser process.
  */
+import { createHash } from "node:crypto";
+
 import { attach, attachToTarget, call } from "../../cdp/index.js";
 import type { ParsedV7Args } from "../args.js";
 import { resolveSession } from "../_session.js";
@@ -28,6 +30,11 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { postStateless } from "../_stateless.js";
+
+function urlHash32(s: string): string {
+  return createHash("sha256").update(s).digest("hex").slice(0, 32);
+}
 
 interface RawCDPCookie {
   name?: unknown;
@@ -98,7 +105,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--session", description: "Browse session id (default: most-recent).", value_expected: true },
           { name: "--no-json", description: "Pretty-print `name@domain` lines instead of JSON." },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -137,6 +144,66 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       (result.cookies ?? []) as unknown as ReadonlyArray<Record<string, unknown>>,
     );
 
+    // Defense-in-depth (Day-6 worker 3) — re-assert the cookie-value
+    // invariant AFTER redaction. Even though `redactCookies` constructs
+    // brand-new objects with an explicit allowed-keys whitelist, the
+    // boundary assertion catches a future refactor that re-introduces a
+    // `value` leak via type-erasure. If ANY redacted entry carries a key
+    // matching `value` (any case), the handler errors out BEFORE emit.
+    // Stricter than W10-A's redactCookies-pure-function discipline.
+    for (const c of redacted as readonly unknown[]) {
+      const obj = c as Record<string, unknown>;
+      for (const k of Object.keys(obj)) {
+        if (k.toLowerCase() === "value" || k.toLowerCase() === "cookievalue") {
+          throw new Error(
+            "eval-cookies-redaction-violation: redacted cookie carried a forbidden value-shaped key",
+          );
+        }
+      }
+    }
+
+    // A2 — sig-keyed audit row. The wire body carries ONLY metadata:
+    // sessionId, urlHash, readKind="cookies", byteCount=N. It NEVER
+    // carries cookie names, NEVER cookie domains, and absolutely
+    // NEVER cookie values. The signed fragment whitelist is the gate
+    // that makes a value leak structurally impossible.
+    let currentUrl = "";
+    try {
+      const r = await call<{ expression: string; returnByValue: boolean }, { result?: { value?: unknown } }>(
+        conn,
+        "Runtime.evaluate",
+        { expression: "location.href", returnByValue: true },
+        target.sessionId,
+      );
+      if (typeof r.result?.value === "string") currentUrl = r.result.value;
+    } catch { /* best-effort URL capture */ }
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        sessionId: rec.sessionId,
+        urlHash: urlHash32(currentUrl),
+        readKind: "cookies" as const,
+        byteCount: redacted.length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     if (noJson) {
       // `name@domain` per line — no JSON serialisation surface.
       for (const c of redacted) {
@@ -147,12 +214,13 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: true,
           subcommand: "eval cookies",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           session_id: rec.sessionId,
           target_id: rec.targetId,
           domain: domainArg ?? null,
           count: redacted.length,
           cookies: redacted,
+          audit_emit: auditEmit,
         },
         opts,
       );

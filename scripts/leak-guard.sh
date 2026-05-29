@@ -72,6 +72,37 @@ SENSITIVE_KEYWORDS=(
   "No Silent Failures"
 )
 
+# Covenant MECHANISM keywords — the moat (W34, Genesis 1:9: the dry land
+# is the 37 internet ops; the deep is the mechanism). These reveal HOW
+# unbrowse scores / decides / populates / learns and must NEVER appear in
+# the PUBLIC source surface (src/, packages/, backend public routes) or the
+# built bundle. The internet op_kinds (breath:navigate, eval:snap, build:skill)
+# are NOT here — they ARE the product surface and are allowed.
+# Source of truth: .planning/v7-rip/INTERNET_LAYER_COVENANT_SURFACE.md §5.
+SENSITIVE_KEYWORDS_COVENANT=(
+  "revealed_context"
+  "diffusion_populate"
+  "ebm_route"
+  "ebm_train"
+  "ebm_loop"
+  "energy_score"
+  "canon_witness"
+  "rules_for_identity"
+  "establishment_query"
+  "recall_episode"
+  "COVENANT_SUBSTRATE_MAP"
+)
+
+# Source-surface paths the mechanism scan covers. .planning/ is gitignored
+# (the mechanism maps live there by design) so it is NOT scanned. Tests
+# carry assert-absence strings deliberately and are excluded inline below.
+COVENANT_SOURCE_PATHS=(
+  "src"
+  "packages/skill/src"
+  "packages/sdk/src"
+  "backend/src"
+)
+
 # Public paths — any file under these is reachable by the outside world
 PUBLIC_PATHS=(
   "packages/skill/SKILL.md"
@@ -89,14 +120,11 @@ check_path() {
   if [ ! -e "$path" ]; then return; fi
 
   for name in "${SENSITIVE_NAMES[@]}"; do
-    if grep -rIl "$name" "$path" 2>/dev/null | head -5 | while read -r f; do
-      LEAK_COUNT=$((LEAK_COUNT + 1))
-      LEAK_DETAILS+=("$name found in $f")
-      echo "  ✗ LEAK: '$name' found in $f"
-    done; then :; fi
-    # grep -l doesn't export the loop vars due to subshell — use direct check
+    # internal/ is the gitignored internal tier — NOT a public path. Exclude it,
+    # consistent with the v6.16 alpha scan below (--exclude-dir=internal). A
+    # sensitive name inside docs/internal/ is by-design internal, not a leak.
     local matches
-    matches=$(grep -rIl "$name" "$path" 2>/dev/null | head -5 || true)
+    matches=$(grep -rIl --exclude-dir=internal "$name" "$path" 2>/dev/null | head -5 || true)
     if [ -n "$matches" ]; then
       while IFS= read -r f; do
         [ -z "$f" ] && continue
@@ -167,6 +195,72 @@ if [ "$STRICT" = "true" ]; then
       done
     fi
   done
+fi
+
+# 3c. Covenant MECHANISM keyword scan — ALWAYS enforced (W34, Genesis 1:9).
+# Fail if any mechanism keyword appears in the PUBLIC source surface or the
+# built bundle as FUNCTIONAL code that ships. The teeth are the BUNDLE scan:
+# the shipped npm CLI bundle (packages/skill/dist) must yield zero mechanism
+# tokens under `strings`. The source scan is a pre-build early-warning.
+#
+# Exclusions (only REAL leaks fail the gate — Genesis 1:9, the named dry land
+# vs the masked deep):
+#   - .planning/                 gitignored by design (the deep — the maps)
+#   - *.test.ts                  assert-absence tests carry the strings on purpose
+#   - /fixtures/, dist source    captured site data / generated
+#   - pure-comment lines         comments are stripped by minification; they do
+#                                NOT ship in the bundle (the boundary-doc comments
+#                                in dispatch/index.ts explain WHY the mechanism is
+#                                excluded — that explanation is itself the control)
+#   - "NOT <mechanism>" etc.     absence-assertion comments
+#   - lines tagged leak-guard:allow   intentional enforcement (deny-lists) on the
+#                                PRIVATE backend Worker — these are the boundary
+#                                CONTROL (the gate that rejects the mechanism),
+#                                not a leak; auditable by the marker.
+echo ""
+echo "[leak-guard] scanning covenant mechanism keywords in source surface..."
+COVENANT_LEAK_COUNT=0
+# A "comment line" = trimmed line starting with // or * or # (the bundle drops these).
+COMMENT_RE='^[[:space:]]*(//|\*|#|/\*)'
+for kw in "${SENSITIVE_KEYWORDS_COVENANT[@]}"; do
+  for path in "${COVENANT_SOURCE_PATHS[@]}"; do
+    [ -e "$path" ] || continue
+    while IFS= read -r row; do
+      [ -z "$row" ] && continue
+      # row is "file:lineno:content" — strip file:lineno to test the content.
+      content="${row#*:}"; content="${content#*:}"
+      # Skip pure-comment lines (stripped from the shipped bundle).
+      if printf '%s' "$content" | grep -qE "$COMMENT_RE"; then continue; fi
+      COVENANT_LEAK_COUNT=$((COVENANT_LEAK_COUNT + 1))
+      LEAK_COUNT=$((LEAK_COUNT + 1))
+      echo "  ✗ MECHANISM LEAK: '$kw' at $row" >&2
+    done < <(
+      grep -rIn "$kw" "$path" \
+        --include="*.ts" --include="*.tsx" --include="*.js" --include="*.mjs" \
+        --exclude="*.test.ts" --exclude="*.test.tsx" \
+        --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=fixtures \
+        2>/dev/null \
+        | grep -viE "NOT[[:space:]]+${kw}|never[[:space:]]+${kw}|no[[:space:]]+${kw}|absence|MUST[[:space:]]+NOT|assert.*absent" \
+        | grep -v "leak-guard:allow" \
+        || true
+    )
+  done
+  # Built bundle (the TEETH) — strings(bundle) must yield zero mechanism tokens.
+  for bundle in "packages/skill/dist" "dist"; do
+    [ -d "$bundle" ] || continue
+    matches=$(grep -rIl "$kw" "$bundle" --exclude-dir=node_modules 2>/dev/null | head -3 || true)
+    if [ -n "$matches" ]; then
+      while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        echo "  ✗ MECHANISM LEAK IN BUNDLE: '$kw' in $f" >&2
+        COVENANT_LEAK_COUNT=$((COVENANT_LEAK_COUNT + 1))
+        LEAK_COUNT=$((LEAK_COUNT + 1))
+      done <<< "$matches"
+    fi
+  done
+done
+if [ "$COVENANT_LEAK_COUNT" -eq 0 ]; then
+  echo "[leak-guard] ✓ no covenant mechanism keywords in source surface"
 fi
 
 # 4. Check the skill repo mirror if present

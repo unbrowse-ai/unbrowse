@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath proxy-rotate"):
  *   CLI subcommand  : breath proxy-rotate
  *   MCP tool        : unbrowse_proxy_rotate
- *   Covenant kind   : actuate_proxy_rotate
+ *   Op kind   : breath:proxy_rotate
  *   Verb            : breath
  *
  * Behavior:
@@ -19,10 +19,40 @@
  *      the caller decides whether to `breath close` the old one.
  *   4. Persist a new session record and return its sessionId.
  *
- * NO audit POST: proxy rotation is operational state (a network-routing
- * config), not a value-fill that crosses the witness boundary. The
- * covenant kind `actuate_proxy_rotate` records the act elsewhere (covenant
- * dispatch layer); this handler is a thin CDP+session-record action.
+ * Audit POST (W24.2 — A2 closure): the handler emits a sig-keyed
+ * `proxy-rotate` breath-act receipt. The receipt body carries
+ * pointer-only (sessionId + proxy host hash) — NEVER iproyal
+ * username/password (those stay strictly local per the KEEP-LOCAL
+ * invariant below). The receipt is the witness that "this agent
+ * rotated proxy here at time T"; the rotation pattern is itself
+ * forensic data.
+ *
+ * ── KEEP-LOCAL invariant (Day-2 §B, Day-6 W2 confirmation) ────────────────
+ *
+ * iproyal credentials in `~/.identity/iproyal-creds` are TRUST-ROOT
+ * credentials — they're the proxy-auth substrate the agent must already
+ * trust to do residential rotation at all. They are NOT operational
+ * state to migrate across the firmament. The proxy creds:
+ *
+ *   1. STAY LOCAL — never wire-bound, never written to KV, never POSTed
+ *      anywhere. The handler reads them, builds the proxy URL, and the
+ *      bytes never escape this process.
+ *   2. The rotated SESSION (chromeWsUrl, contextId, targetId, sessionId)
+ *      crosses the firmament via the SESSION_STATE row that `breath
+ *      session-park` posts — NOT via this handler. session-park reads
+ *      the session record (writeSessionRecord routes to tmp/<sigHash>/)
+ *      and posts the pointer-only park body.
+ *   3. The output JSON envelope carries `proxy_server` (host:port —
+ *      data, NOT a secret) and the new `session_id`. It NEVER carries
+ *      `username`, `password`, or `passwordWithCountry` (those are
+ *      held in the in-process `proxy` struct only, consumed by
+ *      Fetch.continueWithAuth at request time when W5/W6 interceptor
+ *      wave lands).
+ *
+ * Why KEEP-LOCAL is right: residential proxy creds are scoped to the
+ * machine that paid for them. Migrating them across the firmament would
+ * be a substrate-prescription violation (contract ee1f5409) — the
+ * substrate ENABLES the rotation; the credentials are the operator's.
  *
  * Exit codes:
  *   0   success — new session record written
@@ -50,6 +80,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 const DEFAULT_IPROYAL_HOST = "geo.iproyal.com";
@@ -155,7 +186,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--session", description: "Browse session id (default: spawn a new one).", value_expected: true },
           { name: "--country", description: "Country lock (ISO-3166-1 alpha-2, e.g. US, MY, SG).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -176,7 +207,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "breath proxy-rotate",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "iproyal_creds_missing",
           status: 503,
           hint:
@@ -229,11 +260,23 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   };
   await writeSessionRecord(rec);
 
+  // W24.2 — emit a sig-keyed `proxy-rotate` breath-act receipt. Selector
+  // overload: pass the proxy SERVER (host:port — not secret) which the
+  // helper sha256-hashes before crossing the wire. Country lock is
+  // surfaced as the URL slot (sha256(country-iso2) hash buckets country
+  // distribution forensically without leaking which datacenter).
+  const rotateAudit = await emitBreathActStateless({
+    sessionId,
+    actType: "proxy-rotate",
+    selector: proxy.server,
+    currentUrl: country ? `proxy-rotate://country/${country}` : "proxy-rotate://no-country",
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath proxy-rotate",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: sessionId,
       proxy_server: proxy.server,
       country: country ?? null,
@@ -241,6 +284,17 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       // secret (URL-form proxy auth is consulted via Fetch.continueWithAuth
       // at request time, not surfaced here).
       chrome_ws_url: conn.endpoint,
+      audit: rotateAudit.skipped
+        ? false
+        : {
+            ok: rotateAudit.ok,
+            idempotent: rotateAudit.idempotent,
+            binding_missing: rotateAudit.bindingMissing,
+            receipt_id: rotateAudit.receiptId,
+            cache_key: rotateAudit.cacheKey,
+            variant: "breath-act",
+            act_type: "proxy-rotate",
+          },
     },
     opts,
   );

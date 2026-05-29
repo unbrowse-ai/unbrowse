@@ -39,6 +39,7 @@ Install: `npm install unbrowse@preview`
 - 45 new tests cover the v7 surface end-to-end (`tests/v7-cdp-foundation.test.ts`, `backend/tests/v7-audit-log.test.ts`, `backend/tests/v7-audit-variants.test.ts`, `backend/tests/v7-kv-cache.test.ts`). All green at preview tag.
 - Backend `tsc --noEmit` clean against the new types in `backend/src/types.ts`.
 - Planning artifacts under `.planning/v7-rip/` (CDP primitives, Kuri inventory, pointer scheme, value-store adapters, ZK scope) document the destructive-rip path the v7.0.0-final cycle will execute.
+- **Honest ZK scope.** This preview ships the pointer-only flow plus **Ed25519-signed** audit receipts — the no-cleartext-on-the-wire invariant holds today. The zero-knowledge proof (authorization without revealing the wallet, behind the same receipt interface) is **roadmap, not shipped**; it is a substitution of the signature primitive in a later v7.x rollout. Value protection (local dereference, in-memory zeroing) does not depend on it. Public framing: [docs/covenant-internet-layer.md](./docs/covenant-internet-layer.md).
 
 ## Unreleased
 

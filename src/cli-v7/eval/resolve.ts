@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval resolve"):
  *   CLI subcommand  : eval resolve
  *   MCP tool        : unbrowse_resolve
- *   Covenant kind   : observe_resolve
+ *   Op kind   : eval:resolve
  *   Verb            : eval
  *
  * Wraps the v6 backend `POST /v1/search/resolve` (see
@@ -24,6 +24,8 @@
  * future signed-resolve admission against the same identity that the
  * rest of v7 already surfaces (eval version / status).
  */
+import { createHash, randomBytes } from "node:crypto";
+
 import type { ParsedV7Args } from "../args.js";
 import {
   EX_GENERIC,
@@ -35,7 +37,13 @@ import {
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
-import { getWalletPubkey } from "../../values/signer.js";
+import { getWalletPubkey, signBytes } from "../../values/signer.js";
+import { safeZero } from "../../values/memzero.js";
+import {
+  STATELESS_SIGNATURE_SCHEME,
+  canonicalizeSignedFragment,
+  postStateless,
+} from "../_stateless.js";
 
 function resolveApiBase(): string {
   return (
@@ -49,6 +57,10 @@ function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
   for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
   return hex;
+}
+
+function bytesToBase64(b: Uint8Array): string {
+  return Buffer.from(b).toString("base64");
 }
 
 export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
@@ -69,7 +81,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--limit", description: "Max shortlist size (default: 10).", value_expected: true },
           { name: "--fresh", description: "Bypass CDN / KV cache (Cache-Control: no-cache)." },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -109,6 +121,29 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const apiKey = process.env.UNBROWSE_API_KEY;
     if (apiKey) headers["authorization"] = `Bearer ${apiKey}`;
 
+    // A2 — sig-keyed receipt for the read request. Sign the canonicalized
+    // {intent, surrogateUrl, domain, nonce} fragment with the wallet key;
+    // backend receives walletPubkey + signature + nonce in the body and
+    // can witness the read whenever the signed-resolve admission gate
+    // ships. cacheKey = sha256(sig) is the same pointer the agent gets
+    // back for `eval_read` audit linkage (byte-identical to backend
+    // deriveCacheKey).
+    const nonce = bytesToBase64(new Uint8Array(randomBytes(32)));
+    const fragment = canonicalizeSignedFragment(
+      {
+        intent,
+        surrogateUrl: urlFlag ?? null,
+        domain: domainFlag ?? null,
+        nonce,
+      },
+      ["intent", "surrogateUrl", "domain", "nonce"],
+    );
+    const canonicalBytes = new TextEncoder().encode(fragment);
+    const signed = await signBytes(canonicalBytes);
+    const signatureHex = bytesToHex(signed.signature);
+    const cacheKey = createHash("sha256").update(signed.signature).digest("hex").slice(0, 32);
+    safeZero(signed.signature);
+
     const payload = {
       intent,
       // Backend route accepts surrogateUrl (the context URL anchor).
@@ -119,8 +154,13 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       // v7 identity hint — backend may use this to route signed-resolve
       // admission in a later wave. Safe to print (public key).
       walletPubkey,
-      signatureScheme: "ed25519-v7.0",
+      signatureScheme: STATELESS_SIGNATURE_SCHEME,
+      nonce,
+      signature: signatureHex,
     };
+    headers["x-wallet-pubkey"] = walletPubkey;
+    headers["x-stateless-nonce"] = nonce;
+    headers["x-stateless-signature"] = signatureHex;
 
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 15_000);
@@ -155,11 +195,41 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const shortlist = [...domainResults, ...globalResults].slice(0, limit);
 
     const ok = status >= 200 && status < 300;
+
+    // W24.2 — sig-keyed eval-read audit row. readKind=resolve has no
+    // browse session (it's a pure backend read), so sessionId/urlHash
+    // are omitted. byteCount is the shortlist JSON size — pointer-only
+    // forensic metadata, never the shortlist content.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "resolve" as const,
+        byteCount: JSON.stringify(shortlist).length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
     emit(
       {
         ok,
         subcommand: "eval resolve",
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         api_base: base,
         status_code: status,
         intent,
@@ -168,6 +238,9 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         limit,
         fresh,
         walletPubkey,
+        cache_key: cacheKey,
+        audit_kind: "eval_read",
+        audit_emit: auditEmit,
         count: shortlist.length,
         shortlist,
         ...(ok

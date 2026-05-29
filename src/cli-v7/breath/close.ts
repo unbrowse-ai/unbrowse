@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "breath close"):
  *   CLI subcommand  : breath close
  *   MCP tool        : unbrowse_close
- *   Covenant kind   : actuate_close
+ *   Op kind   : breath:close
  *   Verb            : breath
  *
  * Composition (W5 cdp surface):
@@ -40,6 +40,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 function tryKillProcess(pid: number): boolean {
   if (!pid || !Number.isFinite(pid) || pid <= 1) return false;
@@ -51,8 +52,30 @@ function tryKillProcess(pid: number): boolean {
   }
 }
 
+/**
+ * v7.2.0-preview.0 deprecation notice (W23, 2026-05-28).
+ *
+ * Per `feedback_close_is_antipattern_persistent_session.md` — `breath close`
+ * destroys the pointer-of-pointer chain that the user paid the browser-open
+ * cost to acquire. Replacement: `breath session-park` (KV-persisted,
+ * wallet-gated). v7.2 keeps close working with a stderr notice; v7.3 makes
+ * it an alias; v8 removes it.
+ *
+ * Mt 6:19-20 — *"Lay up not for yourselves treasures upon earth, where
+ * moth and rust corrupt... but lay up for yourselves treasures in heaven."*
+ * close destroys the treasure; session-park lays it up.
+ */
+const DEPRECATION_NOTICE =
+  "[deprecation] unbrowse breath close is being replaced by session-park (KV-persisted). v7.3 removes the close alias. Use 'unbrowse breath session-park' for forward-compat.";
+
 export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
   const meta = lookupKindMap("breath", "close")!;
+
+  // Stderr one-liner (NOT stdout — agents parsing stdout JSON are
+  // unaffected). Fires on every non-help invocation.
+  if (!parsed.wantsHelp) {
+    process.stderr.write(DEPRECATION_NOTICE + "\n");
+  }
 
   if (parsed.wantsHelp) {
     helpExit(
@@ -66,7 +89,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         flags: [
           { name: "--session", description: "Alternate form of the positional session id.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -87,7 +110,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     // idempotent-ok for the no-arg form.
     if (!explicitId && (err as Error & { code?: string }).code === "no_active_session") {
       emit(
-        { ok: true, subcommand: "breath close", covenant_kind: meta.covenant_kind, idempotent_noop: true },
+        { ok: true, subcommand: "breath close", op_kind: meta.op_kind, idempotent_noop: true },
         opts,
       );
       process.exit(0);
@@ -122,14 +145,33 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
 
   await deleteSessionRecord(rec.sessionId);
 
+  // W24.2 — emit a sig-keyed `teardown` breath-act receipt.
+  // Pre-deletion URL is unknown (chrome may already be dead); leave
+  // currentUrl empty so urlHash stays absent.
+  const teardownAudit = await emitBreathActStateless({
+    sessionId: rec.sessionId,
+    actType: "teardown",
+    selector: null,
+    currentUrl: "",
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath close",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       chrome_killed: chromeKilled,
       cdp_errored: cdpErrored,
+      audit: {
+        ok: teardownAudit.ok,
+        idempotent: teardownAudit.idempotent,
+        binding_missing: teardownAudit.bindingMissing,
+        receipt_id: teardownAudit.receiptId,
+        cache_key: teardownAudit.cacheKey,
+        variant: "breath-act",
+        act_type: "teardown",
+      },
     },
     opts,
   );

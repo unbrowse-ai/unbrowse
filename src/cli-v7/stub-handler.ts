@@ -74,7 +74,7 @@ export function makeStub(spec: StubSpec) {
               : f.description,
             value_expected: f.value_expected ?? false,
           })),
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           mcp_tool: meta.mcp_tool,
           verb: spec.verb,
           not_implemented_yet: true,
@@ -92,7 +92,7 @@ export function makeStub(spec: StubSpec) {
           subcommand,
           required: required.map((p) => p.name),
           got: parsed.positional,
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           hint: `Run \`unbrowse ${subcommand} --help\` for details.`,
         },
         opts,
@@ -104,7 +104,7 @@ export function makeStub(spec: StubSpec) {
     notImplementedExit(
       subcommand,
       {
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: spec.verb,
         pending_in: spec.pending_in,

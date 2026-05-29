@@ -14,7 +14,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
-import { resolveProxyUrl } from "../execution/proxy-fetch.js";
+import { resolveProxyUrl, resolveEgressProxy } from "../execution/proxy-fetch.js";
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
 import {
@@ -309,6 +309,11 @@ export function snapshotPathForCacheKey(cacheKey: string): string {
 }
 
 export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+  // v7 stateless gate (Day-5 worker E): under UNBROWSE_STATELESS=1 disk
+  // snapshots are suppressed. Already opt-in via UNBROWSE_LOCAL_CACHES;
+  // stateless makes the suppression unambiguous (stricter superset).
+  // Precedence: STATELESS wins over OFFLINE (Heb 7:18-19).
+  if (process.env.UNBROWSE_STATELESS === "1") return undefined;
   if (!LOCAL_CACHES_ENABLED) return undefined;
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
@@ -1233,6 +1238,74 @@ export function shouldFallbackToLiveCaptureAfterAutoexecFailure(
   contextUrl?: string,
 ): boolean {
   return autoexecFailedAll && !!contextUrl;
+}
+
+/**
+ * Generic "is this an obvious direct JSON API?" signal, derived purely from
+ * evidence — never a per-domain registry (CLAUDE.md ranker philosophy bans
+ * those). The strongest signal is a content-type the upstream itself
+ * declared (`application/json`, `+json`, `text/json`) on a 2xx/3xx response.
+ * Captured from the race's HEAD/GET-1byte probe (`probeUrl`). When true, the
+ * caller's URL IS the data — a direct fetch of its body always beats Exa
+ * web-search highlights ABOUT the topic (1 Thess 5:21 — hold fast the good).
+ */
+export function probeLooksLikeDirectJsonApi(probe: {
+  status: number;
+  content_type?: string;
+}): boolean {
+  if (!(probe.status >= 200 && probe.status < 400)) return false;
+  const ct = (probe.content_type ?? "").toLowerCase();
+  return ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
+}
+
+/**
+ * Fetch the caller's URL directly and return parsed JSON when the response is
+ * JSON-shaped (by content-type OR body-sniff). Returns null when the body is
+ * not usable JSON, the fetch fails, or the response is not ok. Used by BOTH
+ * the probe-winner fast path (restores the direct-fetch-over-exa contracts
+ * c3f05a50 / 3b3e67d1 / a4bfd532 / 6bb821ff) and the post-race serial path so
+ * obvious JSON APIs never fall through to the Exa shortcut on a budget race.
+ *
+ * `fetchImpl` is a test seam — production passes the global `fetch`.
+ */
+export async function tryDirectJsonFetch(
+  url: string,
+  opts?: { timeoutMs?: number; fetchImpl?: typeof fetch },
+): Promise<{ data: unknown; content_type: string } | null> {
+  const fetchImpl = opts?.fetchImpl ?? fetch;
+  const timeoutMs = opts?.timeoutMs ?? 15000;
+  try {
+    const res = await fetchImpl(url, {
+      headers: { Accept: "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    const ctSaysJson = ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
+    if (ctSaysJson) {
+      const data = await res.json();
+      return { data, content_type: ct };
+    }
+    // Body-sniff: some APIs return valid JSON with text/html or text/plain.
+    const bodyText = await res.text();
+    if (bodyText.length < 2_000_000) {
+      const trimmed = bodyText.trimStart();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(bodyText);
+          if (parsed !== null && typeof parsed === "object") {
+            return { data: parsed, content_type: ct };
+          }
+        } catch {
+          /* not JSON — caller falls through */
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function shouldReuseRouteResultSnapshot(
@@ -3775,6 +3848,40 @@ export async function resolveAndExecute(
       //    one to capture/fetch, which then flows through the indexing
       //    pipeline → marketplace publish → next caller hits a real skill.
       //    This is the link-discovery → flywheel kickstarter.
+      // Direct-fetch-over-exa (contracts c3f05a50 / 3b3e67d1 / a4bfd532 /
+      // 6bb821ff; 1 Thess 5:21 — prove all things, hold fast the good):
+      // when the probe's own content-type says the URL is a JSON API, the
+      // URL IS the data. A direct fetch of its body always beats Exa
+      // highlights ABOUT the topic. This block had REGRESSED — the budget
+      // race made the fast Exa shortcut win on speed even though the slower
+      // direct fetch is the correct answer for obvious APIs. The direct-fetch
+      // block at the post-race serial path (~L4560) was unreachable here
+      // because this Exa branch returns early. Fix the priority generically
+      // (content-type signal, no per-domain heuristic), not the timing.
+      if (w.kind === "probe" && probeLooksLikeDirectJsonApi(w)) {
+        const directJson = await tryDirectJsonFetch(raceContextUrl);
+        if (directJson) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(),
+            skill_id: "direct-fetch",
+            endpoint_id: "direct-fetch",
+            started_at: new Date(t0).toISOString(),
+            completed_at: new Date().toISOString(),
+            success: true,
+          };
+          console.log(`[direct-fetch] ${raceContextUrl} probe-winner JSON-API fast path — direct fetch over exa (ct=${directJson.content_type})`);
+          return {
+            result: directJson.data,
+            trace,
+            source: "direct-fetch" as const,
+            skill: undefined as any,
+            timing: finalize("direct-fetch", directJson.data, "direct-fetch", undefined as any, trace),
+          };
+        }
+        // direct fetch failed/was non-JSON despite the JSON content-type
+        // probe — fall through to Exa as the genuine fallback.
+        console.log(`[direct-fetch] ${raceContextUrl} probe said JSON but direct fetch yielded no usable JSON — falling through to exa`);
+      }
       const raceProbeDomain = (() => {
         try { return new URL(raceContextUrl).hostname; } catch { return undefined; }
       })();
@@ -4555,11 +4662,11 @@ export async function resolveAndExecute(
               // existing browser ladder still runs as the final fallback.
               if (directDocument.reason === "interstitial_detected") {
                 try {
-                  // tryCurlImpersonateFetch hoisted to module-top static import
-                  const proxy = process.env.UNBROWSE_PROXY_URL
-                    || (process.env.IPROYAL_USER && process.env.IPROYAL_PASS
-                        ? `http://${encodeURIComponent(process.env.IPROYAL_USER)}:${encodeURIComponent(process.env.IPROYAL_PASS)}@${process.env.IPROYAL_HOST || "geo.iproyal.com"}:${process.env.IPROYAL_PORT || "12321"}`
-                        : undefined);
+                  // tryCurlImpersonateFetch hoisted to module-top static import.
+                  // resolveEgressProxy applies the residential-proxy-default
+                  // policy (covenant sha256:65714387c8c9f6...): direct-egress
+                  // opt-out > UNBROWSE_PROXY_URL > IPROYAL_* > ProxyKingdom default.
+                  const proxy = resolveEgressProxy();
                   const cffi = await tryCurlImpersonateFetch({ url: context.url, proxy, timeoutMs: 25_000 });
                   if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
                     const cffiArtifact = buildPageArtifactCapture(context.url, intent, cffi.html, false);
@@ -5146,12 +5253,13 @@ export async function resolveAndExecute(
       const hasVendorBlockSignal =
         Array.isArray(capturedBlockSignals) &&
         capturedBlockSignals.some((s: unknown) => typeof s === "string" && s.startsWith("vendor:"));
-      // resolveProxyUrl reads IPROYAL_USER/IPROYAL_PASS (optionally
-      // IPROYAL_HOST/PORT) and returns the canonical residential-proxy URL.
-      // UNBROWSE_PROXY_URL wins when explicitly set. Same composition used by
-      // the no_progress_bail rescue (src/execution/index.ts:1732) and the
-      // direct-document curl_cffi shortcut (line 4464 above).
-      const antibotProxy = process.env.UNBROWSE_PROXY_URL || resolveProxyUrl();
+      // resolveEgressProxy applies the residential-proxy-default policy
+      // (covenant sha256:65714387c8c9f6...): UNBROWSE_DIRECT_EGRESS=1 → direct;
+      // UNBROWSE_PROXY_URL → verbatim; IPROYAL_* → IProyal; else → ProxyKingdom.
+      // Same composition used by the no_progress_bail rescue
+      // (src/execution/index.ts:1749) and the direct-document curl_cffi
+      // shortcut (line 4559 above).
+      const antibotProxy = resolveEgressProxy();
 
       if (hasVendorBlockSignal) {
         try {

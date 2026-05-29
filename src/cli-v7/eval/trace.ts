@@ -4,7 +4,7 @@
  * 1:1 mapping (kind-map.ts row "eval trace"):
  *   CLI subcommand  : eval trace
  *   MCP tool        : unbrowse_trace
- *   Covenant kind   : observe_trace
+ *   Op kind   : eval:trace
  *   Verb            : eval
  *
  * Pointers-over-anything Clause B (CLAUDE.md): the trace store at
@@ -24,6 +24,11 @@
  * free-form string fields. The redaction filter lives HERE so the
  * invariant is co-located with the surface that emits.
  */
+import { existsSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+
 import type { ParsedV7Args } from "../args.js";
 import {
   EX_GENERIC,
@@ -36,9 +41,12 @@ import { lookupKindMap } from "../kind-map.js";
 import {
   getRecentTraces,
   findTracesByIntent,
+  getTraceStorePath,
   type StoredTrace,
 } from "../../graph/trace-store.js";
 import { readSessionRecord } from "../_session.js";
+import { postStateless, type PostStatelessResult } from "../_stateless.js";
+import { traceV6ToV7Steps, type V7TraceStep } from "../_trace-projector.js";
 
 /**
  * Sensitive-shape patterns we refuse to emit raw. Defensive: the v6
@@ -125,6 +133,121 @@ async function resolveDomain(
   }
 }
 
+// ─── v7 STATELESS POST PATH ────────────────────────────────────────────────
+//
+// Day-5 Swarm worker B (2026-05-28). The eval trace handler:
+//   1. Reads v6 traces (the local trace-store remains the v6 ingress; v7
+//      lifts each row across the firmament).
+//   2. Projects each through `traceV6ToV7Step` (drops FORBIDDEN fields).
+//   3. POSTs via `postStateless` to /v1/trace/append (TRACE_STATE namespace).
+//   4. On 2xx: rm's the local JSONL (the wire receipt supersedes the file).
+//   5. On 503 binding-missing: keeps local + marks `_v7_pending: true` rows
+//      for next-firing retry; warns to stderr (sanitized — no v6 row bodies).
+//   6. Returns `cacheKey` as the new pointer the CLI surfaces.
+//
+// NEVER LOGS the v6 trace before projection — some v6 rows carry secrets in
+// query strings via `context_url`/`params`. The projector drops every
+// cleartext-shaped field unconditionally.
+//
+// W24.6 LOST SHEEP #2 (Lewis 2026-05-28 — "stateless is the only path"):
+// the prior `eval trace` redacted-local-emit path (`redactStoredTrace()` over
+// the v6 store, written to stdout/JSON) is gone. v7 is POST-only; local
+// `eval trace` reads at the v7 surface require the wallet-signed
+// `GET /v1/trace/list` endpoint to ship (v7.3 follow-up).
+
+/** Domain-file path mirror of trace-store's private helper (legacy mode). */
+function v7DomainFilePath(domain: string): string {
+  const root =
+    process.env.UNBROWSE_TRACE_STORE_DIR ?? join(homedir(), ".unbrowse", "traces");
+  const normalized = domain
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .replace(/[^a-z0-9.\-]/g, "_");
+  return join(root, `${normalized}.jsonl`);
+}
+
+/**
+ * Stateless-mode pending-trace tmp path. Mirrors `_session.ts:sessionTmpDir`
+ * convention — `~/.unbrowse/tmp/<sigHash>/trace-pending.jsonl` where sigHash
+ * is sha256(domain).slice(0,16). Lives under tmp/ so the A1 falsifier's
+ * `! -path '*<slash>tmp<slash>*'` exclusion lets it through (STATELESS_BOUNDARY §H).
+ * Deterministic per-domain so the next firing's retry-from-pending reads
+ * the same path.
+ */
+function v7TmpPendingPath(domain: string): string {
+  const normalized = domain.toLowerCase().replace(/^www\./, "");
+  const sigHash = createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+  return join(homedir(), ".unbrowse", "tmp", sigHash, "trace-pending.jsonl");
+}
+
+/**
+ * On successful POST: delete BOTH the legacy local JSONL and any stateless
+ * tmp pending file (the wire receipt is now the truth-claim). Silent on
+ * missing file — idempotent.
+ */
+function rmLocalTraceFile(domain: string): void {
+  for (const fp of [v7DomainFilePath(domain), v7TmpPendingPath(domain)]) {
+    try {
+      if (existsSync(fp)) unlinkSync(fp);
+    } catch {
+      // Best-effort cleanup; never crash the handler over a filesystem hiccup.
+    }
+  }
+}
+
+/**
+ * On 503 binding-missing: persist rows with `_v7_pending: true` markers so
+ * next-firing knows which rows still need POST.
+ *
+ * Routing (A1 invariant — STATELESS_BOUNDARY §H rule 1):
+ *   Write to `~/.unbrowse/tmp/<sigHash>/trace-pending.jsonl` so the
+ *   falsifier
+ *   `find ~/.unbrowse -type f ! -path '*wallet*' ! -path '*<slash>tmp<slash>*'`
+ *   returns empty after 503.
+ *
+ * Best-effort; on write failure existing files (if any) remain for retry.
+ */
+function markLocalRowsPending(domain: string, rows: StoredTrace[]): void {
+  try {
+    const fp = v7TmpPendingPath(domain);
+    mkdirSync(join(fp, ".."), { recursive: true });
+    const marked = rows.map((r) => ({ ...r, _v7_pending: true }));
+    writeFileSync(fp, marked.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf-8");
+  } catch {
+    // Best-effort; existing local file remains for retry on next firing.
+  }
+}
+
+/**
+ * Project + POST. Returns the wire result so the handler can surface the
+ * cacheKey pointer to the caller. NEVER throws — surfaces the failure
+ * shape via `PostStatelessResult.ok=false`.
+ */
+async function postV7Traces(
+  sessionId: string,
+  domain: string,
+  v6Rows: StoredTrace[],
+): Promise<{ result: PostStatelessResult; v7Traces: V7TraceStep[] }> {
+  // 1. Project — strips endpoint_sequence, context_url, params, goal_embedding
+  //    UNCONDITIONALLY. After this point no v6 cleartext can leak.
+  // 2. Slice to 1024 (backend schema cap).
+  const v7Traces = traceV6ToV7Steps(v6Rows).slice(0, 1024);
+
+  // 3. POST. signableFields whitelist is THE security gate at the firmament.
+  const result = await postStateless({
+    namespace: "trace",
+    route: "/v1/trace/append",
+    body: {
+      sessionId,
+      domain,
+      traces: v7Traces,
+    },
+    signableFields: ["sessionId", "domain", "traces", "nonce"],
+  });
+
+  return { result, v7Traces };
+}
+
 export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
   const meta = lookupKindMap("eval", "trace")!;
 
@@ -142,7 +265,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--intent", description: "Filter by intent substring.", value_expected: true },
           { name: "--limit", description: "Max rows to emit (default 50).", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "eval",
       },
@@ -158,7 +281,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "eval trace",
         required: ["session-id"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         hint: "Pass a session-id from `unbrowse eval sessions`, or a bare host like `example.com`.",
       },
       opts,
@@ -178,7 +301,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         {
           ok: false,
           subcommand: "eval trace",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           error: "domain_unresolved",
           hint: "Pass --domain <host>, or a bare host as the positional (e.g. `example.com`).",
         },
@@ -191,27 +314,103 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       ? findTracesByIntent(domain, intentFilter, limit)
       : getRecentTraces(domain, limit);
 
-    const redacted = rows.map(redactStoredTrace);
-
-    if (opts.json) {
+    // v7 path — project + POST through `postStateless`. When no rows are
+    // available, emit an honest empty-state envelope (W24.6 lost sheep #2:
+    // no local-redacted JSONL emit path; `GET /v1/trace/list` ships in
+    // v7.3).
+    if (rows.length === 0) {
       emit(
         {
           ok: true,
           subcommand: "eval trace",
-          covenant_kind: meta.covenant_kind,
+          op_kind: meta.op_kind,
           domain,
-          count: redacted.length,
-          rows: redacted,
+          count: 0,
+          hint:
+            "no local v6 trace rows for this domain; v7 read surface " +
+            "(`GET /v1/trace/list`) ships in v7.3",
         },
         opts,
       );
-    } else {
-      // JSONL on stdout — one row per line, defensive single-line JSON.
-      for (const row of redacted) {
-        process.stdout.write(JSON.stringify(row) + "\n");
-      }
+      process.exit(0);
     }
-    process.exit(0);
+
+    // SECURITY GATE: never log/emit v6 rows before projection. The
+    // projector drops endpoint_sequence/context_url/params/goal_embedding
+    // unconditionally — anything that crosses out of postV7Traces is
+    // pointer-shaped only.
+    // sessionId is the pointer back to SESSION_STATE — accept either a
+    // bare host (collapses to "trace-by-host:<host>") or the canonical
+    // session id positional. Backend `validateTraceAppendBody` only caps
+    // length at 256 chars; the value itself is opaque.
+    const sessionIdForWire = looksLikeHost(sessionIdOrHost)
+      ? `trace-by-host:${sessionIdOrHost}`
+      : sessionIdOrHost;
+    const { result, v7Traces } = await postV7Traces(sessionIdForWire, domain, rows);
+
+    if (result.ok) {
+      rmLocalTraceFile(domain);
+      emit(
+        {
+          ok: true,
+          subcommand: "eval trace",
+          op_kind: meta.op_kind,
+          domain,
+          count: v7Traces.length,
+          cacheKey: result.cacheKey,
+          receiptId: result.receiptId ?? null,
+          idempotent: result.idempotent,
+          v7_pointer: `trace://${result.cacheKey}`,
+        },
+        opts,
+      );
+      process.exit(0);
+    }
+
+    if (result.bindingMissing) {
+      // 503 — keep local + mark pending. Emit a sanitized warn to stderr.
+      markLocalRowsPending(domain, rows);
+      process.stderr.write(
+        `[eval trace] v7 namespace '${result.bindingMissing}' unwired; ` +
+          `kept ${rows.length} local rows marked _v7_pending=true for retry\n`,
+      );
+      emit(
+        {
+          ok: false,
+          subcommand: "eval trace",
+          op_kind: meta.op_kind,
+          domain,
+          error: "trace_state_binding_missing",
+          bindingMissing: result.bindingMissing,
+          cacheKey: result.cacheKey,
+          local_rows_kept: rows.length,
+          hint: "operator must run `bunx wrangler kv:namespace create TRACE_STATE`",
+        },
+        opts,
+      );
+      process.exit(EX_GENERIC);
+    }
+
+    // Other failure (4xx / non-503 5xx / network throw). Surface honestly;
+    // keep local rows untouched so next firing can retry.
+    process.stderr.write(
+      `[eval trace] v7 POST failed httpStatus=${result.httpStatus} ` +
+        `errorHint=${result.errorHint ?? "<none>"}\n`,
+    );
+    emit(
+      {
+        ok: false,
+        subcommand: "eval trace",
+        op_kind: meta.op_kind,
+        domain,
+        error: "v7_post_failed",
+        httpStatus: result.httpStatus,
+        cacheKey: result.cacheKey,
+        errorHint: result.errorHint ?? null,
+      },
+      opts,
+    );
+    process.exit(EX_GENERIC);
   } catch (err) {
     emitErr(err, opts);
     process.exit(EX_GENERIC);

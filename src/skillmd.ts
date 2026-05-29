@@ -118,6 +118,12 @@ export function renderSkillMd(skill: SkillManifest): string {
 }
 
 export function exportSkillMdLocal(skill: SkillManifest): string | null {
+  // v7 stateless gate (Day-5 worker E): under UNBROWSE_STATELESS=1 the
+  // local ~/.unbrowse/skills/ dir is READ-ONLY. The marketplace is the
+  // source of truth; skipping the SKILL.md export is a no-op (the export
+  // is informational, never load-bearing). Precedence: STATELESS wins
+  // over OFFLINE when both are set (Heb 7:18-19 — the newer covenant).
+  if (process.env.UNBROWSE_STATELESS === "1") return null;
   try {
     // SECURITY: skill.domain is publisher-controlled. A malicious manifest
     // with `domain: "../../../.ssh/authorized_keys.d"` would write attacker

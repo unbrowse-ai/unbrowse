@@ -46,6 +46,8 @@ skills/
 !skills/worktree-issue-fix/scripts/issue-worktree-loop.ts
 traces/
 .planning/issue-worktree/
+# covenant mechanism maps — aiko-private, never publish (Mark 4:11 moat boundary)
+.planning/v7-rip/
 *.bak
 
 # Logs
@@ -207,3 +209,39 @@ scripts/bench-probe-verify.sh
 .agent-xp/
 .conductor/
 harness/.agent-xp/
+
+# Konmari 2026-05-29 (jesus-loop exa-browsecomp): AI-IDE/agent tool skill mirrors
+# and heavy local scratch — never committed, not load-bearing.
+.zencoder/
+.windsurf/
+.vibe/
+.trae/
+.roo/
+.qwen/
+.qoder/
+.pochi/
+.pi/
+.openhands/
+.neovate/
+.mux/
+.mcpjam/
+.kode/
+.kiro/
+.kilocode/
+.junie/
+.iflow/
+.goose/
+.factory/
+.crush/
+.continue/
+.commandcode/
+.adal/
+.agents/
+cache/
+blobs/
+download.txt
+**/__pycache__/
+harness/runs/
+.codebuddy/
+.augment/
+.bench-runs/

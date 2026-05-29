@@ -23,6 +23,8 @@ import { filterAdapterStderr } from "../stderr-filter.js";
 import {
   AdapterError,
   type AdapterContext,
+  type CandidatePointer,
+  type EnumerateOptions,
   type Pointer,
   type ResolvedValue,
   type ValueAdapter,
@@ -30,6 +32,35 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const SECURITY_BIN = "/usr/bin/security";
+
+/**
+ * Known unbrowse keychain service prefixes to probe for candidates. We do NOT
+ * use `security dump-keychain` (too broad — exposes every credential on the
+ * machine, and risks decrypting). Instead we probe a fixed allow-list of
+ * unbrowse-owned services with `find-generic-password` WITHOUT `-w`/`-g`, so
+ * only NON-SECRET attribute metadata (service + account names) is returned.
+ */
+const UNBROWSE_SERVICE_PREFIXES: readonly string[] = [
+  "unbrowse",
+  "unbrowse-session",
+  "unbrowse-auth",
+  "com.unbrowse.session",
+];
+
+/** Parse `svce` + `acct` attributes from `security find-generic-password`
+ * (no `-w`/`-g`) human-readable output. NEVER parses a password. */
+function parseAttrLines(out: string): { service?: string; account?: string } {
+  let service: string | undefined;
+  let account: string | undefined;
+  for (const line of out.split("\n")) {
+    // `    "svce"<blob>="unbrowse"` / `    "acct"<blob>="lewis@unbrowse.ai"`
+    const svce = line.match(/"svce"[^=]*=(?:<[^>]*>)?"?([^"\n]*)"?/);
+    if (svce) service = svce[1];
+    const acct = line.match(/"acct"[^=]*=(?:<[^>]*>)?"?([^"\n]*)"?/);
+    if (acct) account = acct[1];
+  }
+  return { service, account };
+}
 
 function parseKeychainPath(path: string): { service: string; account: string } {
   // `keychain://<service>/<account>` → path is `<service>/<account>`.
@@ -139,6 +170,55 @@ export class KeychainAdapter implements ValueAdapter {
       );
     }
     this.readyChecked = true;
+  }
+
+  /**
+   * Enumerate unbrowse-owned Generic Password items as candidate POINTERS.
+   * Probes a fixed allow-list of unbrowse service prefixes with
+   * `find-generic-password` WITHOUT `-w`/`-g` so ONLY the non-secret
+   * service + account attributes are returned (never the password). macOS-
+   * only; returns [] on every other platform (honest skip).
+   *
+   * Pointer = `keychain://<service>/<account>`. Label = the account name
+   * (non-secret). The password is never read.
+   */
+  async enumerate(opts: EnumerateOptions): Promise<CandidatePointer[]> {
+    try {
+      await this.ensureReady();
+    } catch {
+      // Non-darwin (or unavailable) → honest empty set.
+      return [];
+    }
+    const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const seen = new Set<string>();
+    const out: CandidatePointer[] = [];
+    for (const service of UNBROWSE_SERVICE_PREFIXES) {
+      let result: { stdout: Uint8Array; stderr: string; exit: number };
+      try {
+        // NO -w, NO -g: only attribute metadata is printed (no secret).
+        result = await spawnSecurity(
+          ["find-generic-password", "-s", service],
+          timeout,
+        );
+      } catch {
+        continue;
+      }
+      if (result.exit !== 0) continue; // exit 44 = not found → skip silently
+      const text = new TextDecoder().decode(result.stdout);
+      const { service: svc, account } = parseAttrLines(text);
+      const realSvc = svc || service;
+      if (!account || account.length === 0) continue;
+      const pointer = `keychain://${realSvc}/${account}`;
+      if (seen.has(pointer)) continue;
+      seen.add(pointer);
+      out.push({
+        pointer,
+        label: account, // account name — non-secret metadata
+        scheme: "keychain",
+        hint: `macOS Keychain · service ${realSvc}`,
+      });
+    }
+    return out;
   }
 
   async resolve(

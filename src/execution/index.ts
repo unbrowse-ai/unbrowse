@@ -23,6 +23,7 @@ import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-s
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
 import { deriveRecipeReplayNextStep } from "./recipe-replay-hints.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
+import { isCaptchaVendor, solveCaptchaViaX402, injectSolvedToken } from "./captcha-solve.js";
 import type { ChainWalkContext, DecisionTraceStep, EndpointDescriptor, ExecutionOptions, ExecutionTrace, OperationBinding, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SessionYield, SessionYieldCache, SkillManifest } from "../types/index.js";
 import { isBindingStale } from "../orchestrator/dag-feedback.js";
 import { nanoid } from "nanoid";
@@ -47,7 +48,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looksLikeTinyContentReadResult } from "../extraction/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
-import { resolveProxyUrl } from "./proxy-fetch.js";
+import { resolveProxyUrl, resolveEgressProxy, egressProxyArg } from "./proxy-fetch.js";
 import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
@@ -1715,7 +1716,7 @@ async function executeBrowserCapture(
         // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
         const ssr = await trySsrFastPathOnBlock({
           url, seedCookies: cookies, timeoutMs: 15_000,
-          proxy: process.env.UNBROWSE_PROXY_URL,
+          proxy: resolveEgressProxy(),
         });
         if (ssr?.html && ssr.html.length > 1024) {
           const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
@@ -1746,7 +1747,7 @@ async function executeBrowserCapture(
           // vendor-block + direct-document rescue paths. Replaces the missing
           // resolveAntibotProxy reference that previously threw ReferenceError
           // and silently turned this branch into a no-op.
-          const cffi = await tryCurlImpersonateFetch({ url, proxy: process.env.UNBROWSE_PROXY_URL || resolveProxyUrl(), timeoutMs: 30_000 });
+          const cffi = await tryCurlImpersonateFetch({ url, proxy: resolveEgressProxy(), timeoutMs: 30_000 });
           if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
             const cffiArtifact = buildPageArtifactCapture(url, intent, cffi.html, false);
             if (cffiArtifact.endpoint && cffiArtifact.result) {
@@ -1820,7 +1821,7 @@ async function executeBrowserCapture(
     if (hasVendorChallenge) {
       try {
         // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
-        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: resolveEgressProxy() });
         if (ssr?.html && ssr.html.length > 1024) {
           const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, false);
           if (ssrArtifact.endpoint && ssrArtifact.result) {
@@ -2077,7 +2078,7 @@ async function executeBrowserCapture(
   if (cleanEndpoints.length === 0 && (!domArtifactEndpoint || !domArtifactResult || pageArtifact.quality_note)) {
     try {
       // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
-      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+      const ssr = await trySsrFastPathOnBlock({ url, seedCookies: captured.cookies, timeoutMs: 15_000, proxy: resolveEgressProxy() });
       if (ssr?.html && ssr.html.length > 1024) {
         const ssrArtifact = buildPageArtifactCapture(url, intent, ssr.html, authBackedCapture);
         if (ssrArtifact.endpoint && ssrArtifact.result) {
@@ -2108,7 +2109,7 @@ async function executeBrowserCapture(
           body: captured.html,
           cookies: captured.cookies ?? [],
           kuriBase: process.env.KURI_BASE_URL,
-          ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+          ...egressProxyArg(),
           timeoutMs: 30_000,
         });
         if (solved && solved.html.length > 0) {
@@ -3583,13 +3584,75 @@ export async function executeEndpoint(
             evidence: serverClassification.evidence,
             status: result.status,
           });
-          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-          decisionTrace.push({
-            step: "browser_fallback",
-            reason: `vendor_block_${serverClassification.vendor ?? "unknown"}`,
-            status: result.status,
-          });
-          workflowChosenStrategy = "browser-fetch";
+
+          // 2Captcha auto-solve hook (covenant remembrance sha256:50d2bca7).
+          // When the vendor is a known captcha widget (cloudflare turnstile,
+          // recaptcha, hcaptcha, funcaptcha, arkose, geetest), dispatch to
+          // the paysponge x402 gateway (~$0.01/call) for a solved token,
+          // then replay the original serverFetch with the token injected.
+          // Only on solve-failure / no-payment / no-sitekey do we fall
+          // through to the existing browser_fallback path.
+          let solvedAndReplayed = false;
+          if (isCaptchaVendor(serverClassification.vendor)) {
+            decisionTrace.push({
+              step: "captcha_solve_dispatch",
+              vendor: serverClassification.vendor,
+              challenge_url: url,
+            });
+            const bodyStr = typeof result.data === "string"
+              ? result.data
+              : (() => { try { return JSON.stringify(result.data); } catch { return String(result.data); } })();
+            const solve = await solveCaptchaViaX402({
+              vendor: serverClassification.vendor!,
+              body: bodyStr,
+              challengeUrl: url,
+            });
+            if (solve && solve.token) {
+              decisionTrace.push({
+                step: "captcha_solve_token_received",
+                cost_usd: solve.cost_usd,
+                evidence: solve.evidence,
+              });
+              const baseHeaders = workflowBindings?.extraHeaders ?? {};
+              const injected = injectSolvedToken(baseHeaders, solve);
+              result = await serverFetch(injected, workflowBindings?.bodyOverride);
+              const replayClass = classifyExecuteFailure({
+                status: result.status,
+                body: result.data,
+                headers: result.response_headers,
+              });
+              if (result.status >= 200 && result.status < 400 && replayClass.kind !== "vendor_blocked") {
+                decisionTrace.push({
+                  step: "captcha_solve_replay_success",
+                  status: result.status,
+                });
+                workflowChosenStrategy = "server";
+                solvedAndReplayed = true;
+              } else {
+                decisionTrace.push({
+                  step: "captcha_solve_replay_blocked",
+                  status: result.status,
+                  replay_classification: replayClass.kind,
+                  replay_vendor: replayClass.vendor,
+                });
+              }
+            } else if (solve) {
+              decisionTrace.push({
+                step: "captcha_solve_dispatch_skipped",
+                evidence: solve.evidence,
+              });
+            }
+          }
+
+          if (!solvedAndReplayed) {
+            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+            decisionTrace.push({
+              step: "browser_fallback",
+              reason: `vendor_block_${serverClassification.vendor ?? "unknown"}`,
+              status: result.status,
+            });
+            workflowChosenStrategy = "browser-fetch";
+          }
         }
         break;
       }
@@ -3893,7 +3956,7 @@ export async function executeEndpoint(
               body: cfBody,
               cookies,
               kuriBase: cfSandboxBase,
-              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              ...egressProxyArg(),
               timeoutMs: 15_000,
             });
             if (cfResult && cfResult.status >= 200 && cfResult.status < 300 && cfResult.html.length > 0) {
@@ -3928,7 +3991,7 @@ export async function executeEndpoint(
               body: pxBody,
               cookies,
               kuriBase: pxSandboxBase,
-              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              ...egressProxyArg(),
               timeoutMs: 30_000,
             });
             if (pxResult && pxResult.status >= 200 && pxResult.status < 300 && pxResult.html.length > 0) {
@@ -3963,7 +4026,7 @@ export async function executeEndpoint(
               body: akBody,
               cookies,
               kuriBase: akSandboxBase,
-              ...(process.env.UNBROWSE_PROXY_URL ? { proxy: process.env.UNBROWSE_PROXY_URL } : {}),
+              ...egressProxyArg(),
               timeoutMs: 15_000,
             });
             if (akResult && akResult.status >= 200 && akResult.status < 300 && akResult.html.length > 0) {
@@ -4053,7 +4116,7 @@ export async function executeEndpoint(
           throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
         }
         // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
-        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: resolveEgressProxy() });
         if (ssr) {
           log("exec", `5xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           // Run DOM extraction on the recovered HTML.
@@ -4102,7 +4165,7 @@ export async function executeEndpoint(
           throw new Error(`Kuri sandbox not reachable at ${sandboxBase}`);
         }
         // trySsrFastPathOnBlock hoisted to module-top static import (Β9)
-        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: process.env.UNBROWSE_PROXY_URL });
+        const ssr = await trySsrFastPathOnBlock({ url: fallbackUrl, seedCookies: cookies, kuriBase: sandboxBase, timeoutMs: 15_000, proxy: resolveEgressProxy() });
         if (ssr) {
           log("exec", `4xx fallback: libcurl-impersonate got ${ssr.status} ${ssr.html.length}B for ${fallbackUrl}`);
           const extracted = extractFromDOM(ssr.html, fallbackIntent, fallbackUrl);
@@ -4152,11 +4215,13 @@ export async function executeEndpoint(
       // Consented: attempt the proxy retry.
       decisionTrace.push({ step: "429_proxy_fallback_attempted", target: targetUrl });
       try {
-        // resolveProxyUrl now hoisted to module-top static import (T-antibot-cascade)
+        // resolveEgressProxy applies the residential-proxy-default policy
+        // (covenant sha256:65714387c8c9f6...): UNBROWSE_DIRECT_EGRESS=1 → direct;
+        // UNBROWSE_PROXY_URL → verbatim; IPROYAL_* → IProyal; else → ProxyKingdom.
         const { proxiedFetchOnce } = await import("./proxy-fetch.js");
-        const proxyUrl = resolveProxyUrl();
+        const proxyUrl = resolveEgressProxy();
         if (!proxyUrl) {
-          decisionTrace.push({ step: "429_proxy_fallback_error", reason: "creds_missing" });
+          decisionTrace.push({ step: "429_proxy_fallback_error", reason: "direct_egress_opt_out" });
         } else {
           const { response: pr, dispatch } = await proxiedFetchOnce(targetUrl, {}, proxyUrl);
           if (!dispatch.dispatched) {
@@ -5562,8 +5627,18 @@ export function classifyExecuteFailure(input: {
   if (/shape\.security|f5\.com\/shape|shapesecurity/i.test(sample)) {
     return { kind: "vendor_blocked", vendor: "shape_security", evidence: "body_marker" };
   }
-  if (/hcaptcha|h-captcha|recaptcha|arkoselabs|funcaptcha|g-recaptcha-response|data-sitekey/i.test(sample)) {
-    return { kind: "vendor_blocked", vendor: "captcha_vendor", evidence: "body_marker" };
+  // captcha_vendor: require an ACTIVE challenge marker — widget container,
+  // iframe, or solved-response form field. A bare script reference to
+  // hcaptcha/recaptcha is common on normal pages that protect a sign-up or
+  // search form (observed false-positive on pubmed.ncbi.nlm.nih.gov where
+  // the page is unrestricted but the search form has reCAPTCHA spam guard).
+  // Substrate-faithful: structural primitive (widget shape), no per-host.
+  if (
+    /<div[^>]+(?:class\s*=\s*"[^"]*(?:g-recaptcha|h-captcha)[^"]*"|data-sitekey\s*=)/i.test(sample) ||
+    /<iframe[^>]+src\s*=\s*"[^"]*(?:hcaptcha|recaptcha|funcaptcha|arkoselabs)/i.test(sample) ||
+    /name\s*=\s*"g-recaptcha-response"|"g-recaptcha-response"\s*:/.test(sample)
+  ) {
+    return { kind: "vendor_blocked", vendor: "captcha_vendor", evidence: "challenge_widget" };
   }
 
   // W6: Akamai bot management interstitial detection on JSON-extracted bodies.

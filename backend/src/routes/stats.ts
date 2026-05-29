@@ -13,6 +13,7 @@ import { getSkill } from "../services/marketplace.js";
 import { updateContributorDelta } from "../services/splits.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
 import { getTractionMetrics } from "../services/traction.js";
+import { statsKVOr503 } from "../services/stats-kv-guard.js";
 import {
   getEngagement,
   getRetention,
@@ -297,7 +298,11 @@ statsRoutes.post("/stats/diagnostics", optionalAuth, async (c) => {
   }
   // Store in KV for analysis — keyed by trace_version for version grouping
   const key = `diag:${body.trace_version ?? "unknown"}:${Date.now()}`;
-  await c.env.STATS_KV.put(key, JSON.stringify({
+  // A5 silent-500 guard: surface a typed 503 envelope if STATS_KV is not
+  // provisioned, instead of crashing in `c.env.STATS_KV.put(...)` below.
+  const kvOrRes = statsKVOr503(c, { key });
+  if (kvOrRes instanceof Response) return kvOrRes;
+  await kvOrRes.put(key, JSON.stringify({
     ...body,
     agent_id: c.get("agent_id"),
     ts: new Date().toISOString(),

@@ -5,7 +5,7 @@
  * 1:1 mapping (kind-map.ts row "breath click"):
  *   CLI subcommand  : breath click
  *   MCP tool        : unbrowse_click
- *   Covenant kind   : actuate_click
+ *   Op kind   : breath:click
  *   Verb            : breath
  *
  * No value-bearing: this handler NEVER touches src/values/. Stdout carries
@@ -34,6 +34,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { emitBreathActStateless } from "../_breath-audit.js";
 
 const EX_CDP = 65;
 
@@ -102,7 +103,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "--click-count", description: "1 for single, 2 for double, 3 for triple (default: 1).", value_expected: true },
           { name: "--modifiers", description: "Comma-separated: shift,alt,ctrl,meta.", value_expected: true },
         ],
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
         mcp_tool: meta.mcp_tool,
         verb: "breath",
       },
@@ -118,7 +119,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         subcommand: "breath click",
         required: ["selector"],
         got: parsed.positional,
-        covenant_kind: meta.covenant_kind,
+        op_kind: meta.op_kind,
       },
       opts,
     );
@@ -140,6 +141,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
 
   let x = 0;
   let y = 0;
+  let currentUrl = "";
   try {
     const conn = await attach(rec.chromeWsUrl);
     const target = await attachToTarget(conn, rec.targetId);
@@ -187,16 +189,44 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       { type: "mouseReleased", x, y, button, clickCount, modifiers },
       targetSessionId,
     );
+
+    // Read current URL AFTER the click so the breath-act audit binds to
+    // the URL the click happened ON (clicks can navigate; we want the
+    // pre-navigation URL bucket if the gesture lands quickly, but the
+    // CDP round-trip here gives us whatever URL Chrome has now — best
+    // effort, never blocks the audit emit).
+    try {
+      const hist = await call<
+        Record<string, never>,
+        { currentIndex: number; entries: Array<{ url: string }> }
+      >(conn, "Page.getNavigationHistory", {}, targetSessionId);
+      currentUrl = hist.entries[hist.currentIndex]?.url ?? "";
+    } catch {
+      // URL fetch failure must not block the gesture; emit audit with
+      // empty url (urlHash field stays absent — schema gate accepts).
+      currentUrl = "";
+    }
   } catch (err) {
     emitErr(err, opts);
     process.exit(EX_CDP);
   }
 
+  // Day-6 Dominion: emit a sig-keyed breath-act receipt for this
+  // click. Selector is sha256-hashed by the helper — never raw to KV.
+  // Binding-missing surfaces as a stderr warning, never blocks the
+  // gesture (A5).
+  const breathAudit = await emitBreathActStateless({
+    sessionId: rec.sessionId,
+    actType: "click",
+    selector,
+    currentUrl,
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath click",
-      covenant_kind: meta.covenant_kind,
+      op_kind: meta.op_kind,
       session_id: rec.sessionId,
       selector,
       button,
@@ -204,6 +234,16 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       modifiers,
       x,
       y,
+      // breath-act audit sub-state — always emitted (W24.6).
+      audit: {
+        ok: breathAudit.ok,
+        idempotent: breathAudit.idempotent,
+        binding_missing: breathAudit.bindingMissing,
+        receipt_id: breathAudit.receiptId,
+        cache_key: breathAudit.cacheKey,
+        variant: "breath-act",
+        act_type: "click",
+      },
     },
     opts,
   );

@@ -25,6 +25,8 @@ import { filterAdapterStderr } from "../stderr-filter.js";
 import {
   AdapterError,
   type AdapterContext,
+  type CandidatePointer,
+  type EnumerateOptions,
   type Pointer,
   type ResolvedValue,
   type ValueAdapter,
@@ -151,6 +153,77 @@ export class OpAdapter implements ValueAdapter {
     }
     this.binPath = bin;
     this.readyChecked = true;
+  }
+
+  /**
+   * Enumerate 1Password items as candidate value-POINTERS. Runs
+   * `op item list --format=json` (item TITLES + vault names — NON-SECRET
+   * metadata; the values themselves are never fetched). Emits one candidate
+   * per item pointing at the common `username`/`password` fields. POINTER-
+   * ONLY: labels are item titles, never the stored secrets.
+   *
+   * Security note: item titles + vault names DO reveal which services the
+   * user has accounts for. enumerate() is therefore gated on the adapter
+   * being READY (signed-in) and is intended for the trusted in-process
+   * populate flow — the candidate pointers/labels never cross the audit/
+   * receipt boundary as a value, but the LIST itself is account-existence
+   * metadata. Callers must treat the candidate set as sensitive.
+   *
+   * Returns [] (honest skip) if op is absent or locked.
+   */
+  async enumerate(opts: EnumerateOptions): Promise<CandidatePointer[]> {
+    try {
+      await this.ensureReady();
+    } catch {
+      // op absent / locked → honest empty candidate set.
+      return [];
+    }
+    const bin = this.binPath ?? "op";
+    const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    let result: { stdout: Uint8Array; stderr: string; exit: number };
+    try {
+      result = await spawnAdapter(
+        bin,
+        ["item", "list", "--format=json"],
+        timeout,
+        "op",
+      );
+    } catch {
+      return [];
+    }
+    if (result.exit !== 0) return [];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(result.stdout));
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+    const out: CandidatePointer[] = [];
+    for (const raw of parsed) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const title = typeof item.title === "string" ? item.title : undefined;
+      if (!title) continue;
+      const vaultObj = item.vault as Record<string, unknown> | undefined;
+      const vault =
+        vaultObj && typeof vaultObj.name === "string"
+          ? vaultObj.name
+          : "Private";
+      // Emit candidate pointers at the two common login fields. The actual
+      // field a slot wants is picked by the caller's ranker; we surface both
+      // so username AND password slots have a candidate. Pointers reference
+      // metadata coordinates ONLY — no value is read.
+      for (const field of ["username", "password"]) {
+        out.push({
+          pointer: `op://${vault}/${title}/${field}`,
+          label: `${title} (${field})`,
+          scheme: "op",
+          hint: `1Password · vault ${vault}`,
+        });
+      }
+    }
+    return out;
   }
 
   async resolve(

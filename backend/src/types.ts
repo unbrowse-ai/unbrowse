@@ -53,6 +53,59 @@ export interface Env {
    */
   AUDIT_LOG?: KVNamespace;
   /**
+   * v7.2.0-preview.0 persistent-session state — pointer-of-pointer chain
+   * (L1..L4 per BoundPointer) parked at `breath session-park` and read
+   * at `breath session-restore`. Dedicated namespace; KV key shape is
+   * `session:<walletPubkey-hex>:<sessionId>` so cross-wallet enumeration
+   * is structurally impossible. See `services/session-state.ts` for the
+   * helper and `routes/session-state.ts` for the wire surface. Binding
+   * optional in v7.2.0-preview.0 because the storage path is INERT
+   * (throws BindingMissingError → 503 honest envelope at the route);
+   * v7.3 wave provisions the namespace and wires the real impl.
+   * Operator provisions via:
+   *   bunx wrangler kv:namespace create SESSION_STATE
+   *   bunx wrangler kv:namespace create SESSION_STATE --preview
+   * then pastes the ids into wrangler.toml's SESSION_STATE stanza.
+   * Mt 6:19-20 — lay up for yourselves treasures in heaven; the
+   * KV-cached pointer-chain IS the persistent treasure that browser-
+   * close was destroying every session.
+   */
+  SESSION_STATE?: KVNamespace;
+  /**
+   * v7.2.0-preview.0 trace-state KV (Day-3 Land worker B, 2026-05-28).
+   * Pointer-only execution traces (decision_trace step labels + timings
+   * + status_class + canonical error_code; NEVER URL paths, query
+   * strings, or response bodies). Key shape:
+   *   trace:<walletPubkey-hex>:<sigHashHex>
+   * Wallet-prefixed for cross-wallet structural isolation. TTL 7d.
+   * See `services/trace-state.ts` for the schema and `routes/trace.ts`
+   * for the wire surface. Binding optional in v7.2.0-preview.0 — the
+   * route returns 503 with `_binding_missing: "TRACE_STATE"` when
+   * absent so the deployment-shape problem surfaces honestly.
+   * Operator provisions via:
+   *   bunx wrangler kv:namespace create TRACE_STATE
+   *   bunx wrangler kv:namespace create TRACE_STATE --preview
+   */
+  TRACE_STATE?: KVNamespace;
+  /**
+   * v7.2.0-preview.0 settings-state KV (Day-3 Land worker B, 2026-05-28).
+   * Per-wallet durable preferences (default_proxy, headless,
+   * auth_capture_mode, etc.). Key shape:
+   *   settings:<walletPubkey-hex>:<settingKeyHash>
+   * where settingKeyHash = sha256(settingKey)[:32] (so settings keys
+   * are not enumerable from a KV listing). Value field is a pointer
+   * (literal: | op:// | keychain:// | bw:// | arg:// | unbrowse://),
+   * NEVER a raw value. See `services/settings-state.ts` for the
+   * schema and `routes/settings.ts` for the wire surface. Indefinite
+   * TTL — settings are durable preferences. Binding optional in
+   * v7.2.0-preview.0; route returns 503 with `_binding_missing:
+   * "SETTINGS_STATE"` when absent.
+   * Operator provisions via:
+   *   bunx wrangler kv:namespace create SETTINGS_STATE
+   *   bunx wrangler kv:namespace create SETTINGS_STATE --preview
+   */
+  SETTINGS_STATE?: KVNamespace;
+  /**
    * v7.x KV response cache (W17 wave, 2026-05-28). Dedicated namespace —
    * NOT shared with STATS_KV (analytics writes) or AUDIT_LOG (signed
    * receipts) so wholesale cache invalidation doesn't disturb adjacent
@@ -67,6 +120,73 @@ export interface Env {
    * recomputed.
    */
   RESPONSE_CACHE?: KVNamespace;
+  /**
+   * v7.2.0-preview.0 screenshot-blob KV (Day-5 SWARM worker D, 2026-05-28).
+   * Content-addressable PNG storage keyed by `sigKey = sha256(signature)[:32]`.
+   * Two writes per POST (meta + blob), per-row 30d TTL. Returns
+   * `unbrowse-blob://<sigKey>` pointer instead of writing the PNG to
+   * `~/.unbrowse/screenshots/` under stateless mode. Binding optional —
+   * route returns 503 with `_binding_missing: "SCREENSHOT_BLOB"` when
+   * absent; the CLI handler treats this as graceful-degrade and writes
+   * to `~/.unbrowse/tmp/<sigKey>/screenshot.png` (per A1's tmp exclusion).
+   * Operator provisions via:
+   *   bunx wrangler kv:namespace create SCREENSHOT_BLOB
+   *   bunx wrangler kv:namespace create SCREENSHOT_BLOB --preview
+   * Then paste the ids into wrangler.toml's SCREENSHOT_BLOB stanzas.
+   */
+  SCREENSHOT_BLOB?: KVNamespace;
+  /**
+   * v7 covenant peer-federation target (W26-C, 2026-05-28). The base URL of a
+   * running covenant-server (the native binary's HTTP surface, or another
+   * Worker peer) that the unbrowse backend mirrors each `/v1/covenant` receipt
+   * to via `POST <COVENANT_LEDGER_URL>/submit-op` — the SKILL.md peer-federation
+   * shape (Gen 2:18 — *ezer kenegdo*, helpers facing each other; Eph 4:4 — one
+   * body). The mirror is fire-and-forget (ctx.waitUntil) and OPTIONAL: when this
+   * is unset, `mirrorToCovenantLedger` is an honest no-op (single warn log, no
+   * throw) — the federation is optional infra, never blocks the user response.
+   * The unbrowse KV row and the covenant ledger row share the SAME
+   * `deriveCovenantReceiptPtr` content-address, so "same database" holds via
+   * shared content-addressing even with two physical stores
+   * (.planning/v7-rip/CONVERGENCE_MAP.md §3 option a+c).
+   * Example: COVENANT_LEDGER_URL = "http://aiko-host:8787".
+   *
+   * OPACITY NOTE (W33-C, 2026-05-28): the mirror now sends an OPAQUE op (no
+   * covenant verb, no scripture witness) to `<base>/op`, NOT the covenant
+   * `/submit-op` wire. Prefer `AIKO_OP_URL` (below) — this legacy name still
+   * works and ALSO receives the opaque op shape.
+   */
+  COVENANT_LEDGER_URL?: string;
+  /**
+   * v7 aiko-proxy op target (W33-C, 2026-05-28). The base URL of an aiko-level
+   * proxy that accepts an OPAQUE unbrowse-native op — `POST <AIKO_OP_URL>/op`
+   * with body `{op_class, op_kind, params, identity, sig?, unbrowse_receipt_ptr}`
+   * — and returns only `{receipt_ptr}`. The proxy (sovereign, aiko-side) is the
+   * one that maps `op_class → covenant verb` and supplies the default_witness;
+   * the covenant MECHANISM (verb + scripture) NEVER crosses the unbrowse egress
+   * wire (Mark 4:11). Preferred over the legacy COVENANT_LEDGER_URL. Optional —
+   * when all of AIKO_OP_URL / COVENANT_LEDGER_URL / PEER_URLS are unset, the
+   * mirror is an honest no-op (single warn log naming only the op_class + ptr).
+   */
+  AIKO_OP_URL?: string;
+  /**
+   * v7 aiko-insider auth key (W33-C, 2026-05-28). Gates the FULL `/v1/covenant`
+   * response (`kind` / `action` mechanism fields) behind `Authorization:
+   * Bearer <AIKO_KEY>`. Public callers (no key, or a mismatch) receive the
+   * OPAQUE response only — `{ok, receiptId, covenantReceiptPtr, verify_ok,
+   * idempotent}` — never the 3-verb vocabulary (Mark 4:11). ADMIN_KEY is also
+   * accepted as an insider token so a fresh secret is optional. Set via
+   * `wrangler secret put AIKO_KEY`. Never echoed in any response.
+   */
+  AIKO_KEY?: string;
+  /**
+   * v7 covenant federation fan-out peers (W26-C, 2026-05-28). Comma-separated
+   * list of additional covenant-server base URLs the receipt is mirrored to
+   * (Num 11:17 — the Spirit shared across many). Each entry is treated the same
+   * as COVENANT_LEDGER_URL: fire-and-forget `POST <url>/submit-op`, graceful
+   * skip on failure. COVENANT_LEDGER_URL is the primary; PEER_URLS are
+   * secondary witnesses (Deut 19:15). Optional — unset = no extra peers.
+   */
+  PEER_URLS?: string;
   ENVIRONMENT?: string; // "production" | "staging"
   // PAYMENTS_ENABLED / X402_SEARCH_ENABLED removed 2026-05-26: per-skill
   // owner_compensation_opt_in is the ONLY lever now. No operator-side

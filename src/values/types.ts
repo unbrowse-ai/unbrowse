@@ -99,7 +99,46 @@ export interface AdapterContext {
   readonly timeoutMs?: number;
 }
 
-/** The single verb every adapter implements. */
+/**
+ * A candidate value-POINTER surfaced by `enumerate()`. POINTER-ONLY: it
+ * names *where* a value lives + metadata-derived labels, but NEVER the value
+ * itself. This is the load-bearing invariant of the enumeration surface —
+ * the candidate set must be rankable (by W31-A's covenant-side EBM) and
+ * fillable (by W31-A's multi-slot populate) without ever dereferencing a
+ * secret. The label/hint come from the store's non-secret metadata (item
+ * title, account name), never from the cleartext.
+ *
+ * Mt 6:6 — the closet stays shut: enumerate lists the doors, not what's
+ * behind them.
+ */
+export interface CandidatePointer {
+  /** The pointer URI a later `resolve()` would dereference, e.g.
+   * `op://Personal/Twitter/username`. Never carries a value. */
+  readonly pointer: string;
+  /** Human-/agent-readable label from store metadata (item title, account
+   * name, arg key-name). NEVER the secret value. */
+  readonly label: string;
+  /** Which adapter scheme this candidate belongs to. */
+  readonly scheme: Scheme;
+  /** Optional extra non-secret hint (vault name, field name, item id). */
+  readonly hint?: string;
+}
+
+/** Options passed to `enumerate()` to scope + rank the candidate set. */
+export interface EnumerateOptions {
+  /** Free-text intent ("login to twitter"); used for keyword ranking. */
+  readonly intent?: string;
+  /** The form-slot name ("username", "email", "password"). */
+  readonly slotName?: string;
+  /** The form-slot type hint ("text", "password", "email", ...). */
+  readonly slotType?: string;
+  /** Tool-call argScope, consulted by the `arg://` adapter only. */
+  readonly argScope?: Readonly<Record<string, unknown>>;
+  /** Per-call wall-clock budget for adapter spawns. */
+  readonly timeoutMs?: number;
+}
+
+/** The single verb every adapter implements (plus an optional second one). */
 export interface ValueAdapter {
   readonly scheme: Scheme;
   /** Lazy auth/unlock. Called once per process before first `resolve()`. */
@@ -110,6 +149,13 @@ export interface ValueAdapter {
     nonce: Uint8Array,
     ctx: AdapterContext,
   ): Promise<ResolvedValue>;
+  /**
+   * OPTIONAL. List available candidate value-POINTERS for a slot. Adapters
+   * that cannot (or should not) enumerate omit this method; the registry
+   * treats them as contributing `[]`. enumerate() NEVER dereferences a
+   * value — it returns pointers + non-secret metadata labels only.
+   */
+  enumerate?(opts: EnumerateOptions): Promise<CandidatePointer[]>;
 }
 
 /** Typed errors raised by the adapter layer. */

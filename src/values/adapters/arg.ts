@@ -28,6 +28,8 @@ import { sign } from "../signer.js";
 import {
   AdapterError,
   type AdapterContext,
+  type CandidatePointer,
+  type EnumerateOptions,
   type Pointer,
   type ResolvedValue,
   type ValueAdapter,
@@ -93,6 +95,32 @@ export class ArgAdapter implements ValueAdapter {
   async ensureReady(): Promise<void> {
     // No-op: arg adapter has no external dependency, no auth, no spawn.
     return;
+  }
+
+  /**
+   * Enumerate the TOP-LEVEL keys of the current tool-call argScope as
+   * `arg://<key>` candidate pointers. POINTER-ONLY: the label is the
+   * key-NAME, never the value bound to it. A value bound to `argScope` is
+   * never read, stringified, or surfaced here.
+   *
+   * No spawn, no fs, no syscall — pure in-process key listing.
+   */
+  async enumerate(opts: EnumerateOptions): Promise<CandidatePointer[]> {
+    const scope = opts.argScope;
+    if (!scope || typeof scope !== "object") return [];
+    const out: CandidatePointer[] = [];
+    // Object.keys is the ONLY read we do — never touch scope[key].
+    for (const key of Object.keys(scope)) {
+      if (key.length === 0) continue;
+      out.push({
+        pointer: `arg://${key}`,
+        // Label = the key NAME (non-secret). Never the value.
+        label: key,
+        scheme: "arg",
+        hint: "tool-call argument",
+      });
+    }
+    return out;
   }
 
   async resolve(
