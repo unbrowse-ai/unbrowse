@@ -59,11 +59,13 @@ def run_ts() -> list[list[float]]:
 
 def main() -> int:
     py = run_python()
-    json.dump(py, open(PY_OUT, "w"))
+    with open(PY_OUT, "w") as f:
+        json.dump(py, f)
     print(f"[parity] wrote {PY_OUT} ({len(py)} vecs, dim={len(py[0])})", file=sys.stderr)
 
     ts = run_ts()
-    json.dump(ts, open(TS_OUT, "w"))
+    with open(TS_OUT, "w") as f:
+        json.dump(ts, f)
     print(f"[parity] wrote {TS_OUT} ({len(ts)} vecs, dim={len(ts[0])})", file=sys.stderr)
 
     assert len(py) == len(ts) == len(STRINGS)
@@ -87,8 +89,6 @@ def main() -> int:
     print(f"\n  min={mn:.4f}  avg={avg:.4f}")
     print(f"  GATE {'PASS' if all_pass else 'FAIL'} (>= {GATE} per string)")
     return 0 if all_pass else 1
-
-
 if __name__ == "__main__":
     sys.path.insert(0, HERE)
     raise SystemExit(main())

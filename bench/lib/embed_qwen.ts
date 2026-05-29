@@ -35,12 +35,13 @@ const QUERY_INSTRUCT =
   "Instruct: Given a web search query, retrieve relevant passages that " +
   "answer the query\nQuery: ";
 
-let _pipe: Promise<FeatureExtractionPipeline> | null = null;
-
-// dtype is configurable via EMBED_QWEN_DTYPE (fp32|fp16|q8|q4). Default fp32 —
-// it is the only dtype verified at cosine 1.0000 against the Python fp32 torch
-// reference (parity_test.py). Lighter dtypes load faster / use less memory but
-// drift from the fp32 reference; measure before trusting them for the gate.
+    _pipe = pipeline("feature-extraction", MODEL_ID, {
+      // dtype via EMBED_TS_DTYPE (default fp32 for best parity with Python fp32).
+      // fp32 uses external-data weights (~2.4GB, prone to truncated downloads);
+      // q8/fp16 are single-file and robust — use them if fp32 won't download intact.
+      dtype: (process.env.EMBED_TS_DTYPE as any) || "fp32",
+      device: "cpu",
+    });
 const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
   | "fp32"
   | "fp16"
