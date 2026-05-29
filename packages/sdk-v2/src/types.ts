@@ -54,9 +54,9 @@ export interface ExecuteInput {
   transport?: "worker-proxy" | "direct";
   // Routing for the outbound fetch when transport is "worker-proxy".
   // - "direct" (default): worker fetches from its own egress IP.
-  // - "residential": worker tunnels through IProyal residential proxy.
-  //   Requires IPROYAL_USER/IPROYAL_PASS to be set on the worker; returns
-  //   502 with `error: "upstream_fetch_failed"` if not configured.
+  // - "residential": worker tunnels through a residential proxy provider.
+  //   Requires the worker's residential proxy credentials to be configured;
+  //   returns 502 with `error: "upstream_fetch_failed"` if not configured.
   proxy?: "direct" | "residential";
 }
 
