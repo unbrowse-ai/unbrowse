@@ -12,11 +12,13 @@
 #
 # Exit 0 = auditable + clean. Exit 1 = unaudited surface or moat leak.
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INDEX="$ROOT/packages/sdk-v2/src/index.ts"
-AUDIT="$ROOT/paper/client-audit.tsv"
-SRC_DIR="$ROOT/packages/sdk-v2/src"
+# Paths are overridable via env so the gate is falsifiable (a mutation test can
+# point it at fixtures with an unaudited export or an injected moat term and
+# confirm it fails-closed). Unset = the real client surface (default behavior).
+INDEX="${CLIENT_AUDIT_INDEX:-$ROOT/packages/sdk-v2/src/index.ts}"
+AUDIT="${CLIENT_AUDIT_TSV:-$ROOT/paper/client-audit.tsv}"
+SRC_DIR="${CLIENT_AUDIT_SRC:-$ROOT/packages/sdk-v2/src}"
 
 [[ -f "$INDEX" ]] || { echo "client-audit-gate: missing $INDEX" >&2; exit 1; }
 [[ -f "$AUDIT" ]] || { echo "client-audit-gate: missing $AUDIT" >&2; exit 1; }
@@ -32,7 +34,7 @@ EXPORTS=$(tr '\n' ' ' < "$INDEX" \
   | sed -E 's/export (type )?\{//; s/\}//' \
   | tr ',' '\n' \
   | sed -E 's/[[:space:]]//g' \
-  | grep -vE '^$' | sort -u)
+  | grep -vE '^$' | sort -u || true)
 
 n_exports=0
 n_missing=0

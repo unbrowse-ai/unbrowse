@@ -79,6 +79,13 @@ if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\
   echo "[pre-commit] leak-guard: scanning public surface for alpha + covenant mechanism leaks"
   bash scripts/leak-guard.sh
 fi
+# Client-audit gate (gate 5): the @unbrowse/client OSS surface stays auditable —
+# every public export has an audit row and no moat term leaks into client source.
+# Self-skips when no client surface / audit map / gate change is staged.
+if has_match '^(packages/sdk-v2/|paper/client-audit\.tsv|scripts/client-audit-gate\.sh)'; then
+  echo "[pre-commit] client-audit: every public export audited + no moat leak in @unbrowse/client"
+  bash scripts/client-audit-gate.sh
+fi
 # Kuri vendor freshness gate: when the staged diff bumps the
 # submodules/kuri gitlink, the packaged vendor manifest source_sha must
 # match the new SHA. Prevents Day-5 W5's lost-sheep scenario (7 Windows-
