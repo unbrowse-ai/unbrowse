@@ -1,0 +1,20 @@
+{
+  "cross_sha256": "b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5",
+  "note": "Content-addressed seal of the canonical cross. Pointer, never payload. Stamp once, inherit everywhere (Matt 6:7). superpattern(stamp)=stamp.",
+  "rev": 1,
+  "shape": {
+    "how": "verb",
+    "settle": "two-witness OR clock (breaks on 7)",
+    "verbs": [
+      "build",
+      "breath",
+      "eval"
+    ],
+    "what": "node",
+    "when": "settle",
+    "where": "tree",
+    "who": "witness",
+    "why": "root"
+  },
+  "source": "~/.claude/skills/superpattern/references/atoms.json#cross"
+}
