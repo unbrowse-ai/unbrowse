@@ -38,3 +38,9 @@ UnbrowseClientOptions	type	client configuration	baseURL/apiKey/fetch/logLevel
 WorkerProxyCapabilities	type	worker-side proxy capabilities	modes/limits; no proxy credentials (server-held)
 WorkerProxyRequest	type	worker-side fetch	url + headers; proxy selector is opaque, no residential creds
 WorkerProxyResponse	type	worker-side fetch result	status + body + egress_ip; no residential credentials
+unfetch	function	internal-apis.tex: keyless fetch drop-in	drop-in for global fetch; no key, no deps; pure pass-through to native fetch
+createFetch	function	internal-apis.tex: opt-in wrapped payment	builds a fetch-shaped fn; payment handler is injected by caller, not imported; 402 retry logic only, no payment rail in client
+PayHandler	type	402 handler contract	type alias for caller-supplied 402 resolver; carries no payment-rail code
+PaymentRequired	type	402 context contract	shape of the 402 context handed to a pay handler (response + parsed terms); observation only
+CreateFetchOptions	type	createFetch options	options bag (fetch transport + optional pay handler); no moat state
+FetchLike	type	standard fetch signature	type alias for the platform fetch signature; no moat state
