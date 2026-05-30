@@ -17,7 +17,16 @@
  * Each fetcher degrades gracefully (returns []) so discovery never hard-fails.
  */
 // cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
-import type { X402Resource, X402Accept, SkillFrontmatter } from "./agent-primitives.js";
+import type {
+	X402Resource,
+	X402Accept,
+	SkillFrontmatter,
+	OpenApiOperation,
+	LlmsTxtLink,
+	AgentPrimitive,
+	AuthScheme,
+} from "./agent-primitives.js";
+import { parseLlmsTxt, agentCardToPrimitives, type A2aAgentCard } from "./agent-primitives.js";
 
 export const X402_BAZAAR_URL = "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources";
 
@@ -88,5 +97,99 @@ export function localSkillsSource(loadFrontmatters?: () => Promise<SkillFrontmat
 		} catch {
 			return [];
 		}
+	};
+}
+
+// ─── live fetchers for the standards a site publishes at well-known locations ─
+
+async function tryFetchText(fetchFn: typeof fetch, url: string): Promise<string | null> {
+	try {
+		const res = await fetchFn(url, { headers: { Accept: "text/plain, text/markdown, */*" }, signal: AbortSignal.timeout(8_000) });
+		return res.ok ? await res.text() : null;
+	} catch {
+		return null;
+	}
+}
+async function tryFetchJson(fetchFn: typeof fetch, url: string): Promise<any | null> {
+	try {
+		const res = await fetchFn(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8_000) });
+		return res.ok ? await res.json() : null;
+	} catch {
+		return null;
+	}
+}
+
+/** REAL llms.txt source — the standard root file (llmstxt.org). Graceful. */
+export function llmsTxtSource(opts?: { fetchFn?: typeof fetch }) {
+	const fetchFn = opts?.fetchFn ?? fetch;
+	return async (_intent: string, domain?: string): Promise<LlmsTxtLink[]> => {
+		if (!domain) return [];
+		const text = await tryFetchText(fetchFn, `https://${domain}/llms.txt`);
+		return text ? parseLlmsTxt(text) : [];
+	};
+}
+
+/** Map an OpenAPI components.securityScheme map to our standard AuthScheme. */
+function authFromOpenApi(spec: any): AuthScheme | undefined {
+	const schemes = spec?.components?.securitySchemes;
+	if (!schemes || typeof schemes !== "object") return undefined;
+	const first = Object.values(schemes)[0] as { type?: string } | undefined;
+	if (!first?.type) return undefined;
+	const t = first.type as AuthScheme["type"];
+	return { type: (["oauth2", "openIdConnect", "apiKey", "http", "mutualTLS"] as const).includes(t as any) ? t : "none", detail: first as Record<string, unknown> };
+}
+
+/**
+ * REAL OpenAPI source — fetch the site's spec at the common locations and walk
+ * paths × methods into operations. src: https://spec.openapis.org/oas/latest.html
+ */
+export function openApiSource(opts?: { fetchFn?: typeof fetch; paths?: string[] }) {
+	const fetchFn = opts?.fetchFn ?? fetch;
+	const candidates = opts?.paths ?? ["/openapi.json", "/.well-known/openapi.json", "/swagger.json"];
+	const METHODS = ["get", "post", "put", "patch", "delete", "head", "options"];
+	return async (_intent: string, domain?: string): Promise<OpenApiOperation[]> => {
+		if (!domain) return [];
+		let spec: any = null;
+		for (const p of candidates) {
+			spec = await tryFetchJson(fetchFn, `https://${domain}${p}`);
+			if (spec?.paths) break;
+		}
+		if (!spec?.paths || typeof spec.paths !== "object") return [];
+		const baseUrl = spec.servers?.[0]?.url ?? `https://${domain}`;
+		const auth = authFromOpenApi(spec);
+		const ops: OpenApiOperation[] = [];
+		for (const [path, item] of Object.entries(spec.paths as Record<string, any>)) {
+			for (const method of METHODS) {
+				const op = item?.[method];
+				if (!op || typeof op !== "object") continue;
+				ops.push({
+					path,
+					method,
+					operationId: op.operationId,
+					summary: op.summary,
+					description: op.description,
+					baseUrl,
+					...(auth ? { auth } : {}),
+				});
+			}
+		}
+		return ops;
+	};
+}
+
+/**
+ * REAL A2A source — fetch the AgentCard at its well-known location and fan it out
+ * to one primitive per skill. src: https://a2a-protocol.org/latest/specification/
+ */
+export function a2aSource(opts?: { fetchFn?: typeof fetch; paths?: string[] }) {
+	const fetchFn = opts?.fetchFn ?? fetch;
+	const candidates = opts?.paths ?? ["/.well-known/agent-card.json", "/.well-known/agent.json"];
+	return async (_intent: string, domain?: string): Promise<AgentPrimitive[]> => {
+		if (!domain) return [];
+		for (const p of candidates) {
+			const card = (await tryFetchJson(fetchFn, `https://${domain}${p}`)) as A2aAgentCard | null;
+			if (card?.name) return agentCardToPrimitives(card);
+		}
+		return [];
 	};
 }
