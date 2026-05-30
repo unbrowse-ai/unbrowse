@@ -23,6 +23,7 @@
  * JSON → sha256 → `sha256:` pointer (NOT sorted-key — would break covenant-binary
  * byte-compat). Web Crypto only, zero external deps.
  */
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 import { COVENANT_MAP, type CovenantVerb } from "./covenant-mapping.js";
 
 // ─── node (what): the six-interrogative envelope ────────────────────────────
