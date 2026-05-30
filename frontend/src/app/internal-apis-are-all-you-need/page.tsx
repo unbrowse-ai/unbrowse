@@ -5,7 +5,7 @@ const PAPER_TITLE = "Internal APIs Are All You Need";
 const PAPER_SUBTITLE =
   "Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures";
 const CANONICAL_PATH = "/internal-apis-are-all-you-need";
-const PAPER_PDF_URL = "/papers/shadow-apis-are-all-you-need.pdf";
+const PAPER_PDF_URL = "/papers/internal-apis-are-all-you-need.pdf";
 const ARXIV_ID = "2604.00694";
 const ARXIV_URL = `https://arxiv.org/abs/${ARXIV_ID}`;
 const PUBLISHED_AT = "2026-04-01";

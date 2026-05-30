@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the seal plane inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 # leak-guard.sh — prevent harness/primitive techniques from leaking to public
 #
 # The Ralph loop primitives (coverage-harness, dogfood-loop,
@@ -25,7 +26,10 @@ for arg in "$@"; do
   esac
 done
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Scan root — defaults to the repo root (one up from scripts/). Overridable via
+# LEAK_GUARD_ROOT so a fails-closed mutation test can point it at a temp dir
+# without touching the live tree. Default behavior is identical when unset.
+ROOT_DIR="${LEAK_GUARD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$ROOT_DIR"
 
 # Sensitive names that must never appear in public artifacts
