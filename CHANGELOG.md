@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### What's New
+
+- **Three new zero-edit drop-ins: `@unbrowse/node-fetch-shim`, `@unbrowse/puppeteer-shim`, `@unbrowse/axios-shim`.** Each mirrors the upstream library's own public surface, so a caller swaps a single import line and a safe `GET` routes through Unbrowse's resolved-route cache (free on a hit), falling through to native fetch / real puppeteer on a miss. Semantics are preserved, cost is lowered on hits, and the upstream is attributed in every README. Joins the existing `firecrawl-shim`, `playwright-shim`, `stagehand-shim`, and the keyless `@unbrowse/client` fetch drop-in.
+- **Drop-in parity gate (`scripts/dropin-parity-gate.sh`).** Enumerates the committed significant libraries in `scripts/dropin-manifest.tsv` and exits 0 only when every one has a parity-verified drop-in (package + attributing README + passing parity test). Adding a library to the manifest makes its row red until a real drop-in is built — features extend the benchmark. Distribution (fork + attributing upstream PR) is tracked, un-gated, in `scripts/dropin-distribution.tsv`, since a local command cannot truthfully verify an upstream merge.
+
 ## [7.2.0-preview.0] - 2026-05-28
 
 > Rev 3:8 — *"I have set before thee an open door, and no man can shut it."*
