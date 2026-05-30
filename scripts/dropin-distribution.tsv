@@ -19,3 +19,6 @@ github.com/whatwg/fetch	@unbrowse/client	built	keyless fetch drop-in (packages/s
 github.com/axios/axios	@unbrowse/axios-shim	built	shim built this wave; publish + attributing PR pending
 github.com/puppeteer/puppeteer	@unbrowse/puppeteer-shim	built	shim built this wave; publish + attributing PR pending
 github.com/node-fetch/node-fetch	@unbrowse/node-fetch-shim	built	shim built this wave; publish + attributing PR pending
+github.com/sindresorhus/got	@unbrowse/got-shim	built	shim built via the convergence loop; publish + attributing PR pending
+github.com/sindresorhus/ky	@unbrowse/ky-shim	built	shim built via the convergence loop; publish + attributing PR pending
+github.com/lquixada/cross-fetch	@unbrowse/cross-fetch-shim	built	shim built via the convergence loop; publish + attributing PR pending

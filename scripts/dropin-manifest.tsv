@@ -22,3 +22,6 @@ fetch	@unbrowse/client	packages/sdk-v2	packages/sdk-v2/README.md	tests/unfetch-d
 axios	@unbrowse/axios-shim	packages/axios-shim	packages/axios-shim/README.md	packages/axios-shim/test/shape.test.ts
 puppeteer	@unbrowse/puppeteer-shim	packages/puppeteer-shim	packages/puppeteer-shim/README.md	packages/puppeteer-shim/test/shape.test.ts
 node-fetch	@unbrowse/node-fetch-shim	packages/node-fetch-shim	packages/node-fetch-shim/README.md	packages/node-fetch-shim/test/shape.test.ts
+got	@unbrowse/got-shim	packages/got-shim	packages/got-shim/README.md	packages/got-shim/test/shape.test.ts
+ky	@unbrowse/ky-shim	packages/ky-shim	packages/ky-shim/README.md	packages/ky-shim/test/shape.test.ts
+cross-fetch	@unbrowse/cross-fetch-shim	packages/cross-fetch-shim	packages/cross-fetch-shim/README.md	packages/cross-fetch-shim/test/shape.test.ts
