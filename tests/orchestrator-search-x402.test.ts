@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { domainSkillCache, resolveAndExecute } from "../src/orchestrator/index.js";
@@ -10,6 +10,22 @@ const originalEnv = { ...process.env };
 function encodeBase64Json(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
 }
+
+// The orchestrator rewrite (2026-05) races recipe ‖ marketplace ‖ probe in
+// parallel. A non-/v1/search/resolve URL is the parallel probe of the context
+// page; a real run lets that probe fail-soft when the page is unreachable. The
+// stub below models exactly that: it answers /v1/search/resolve (the marketplace
+// branch) and rejects every other URL like a network miss, so the marketplace
+// x402 contract is what surfaces — not a hard throw that crashes the test.
+// HOME is isolated so isLobsterAvailable() === false and the 402 propagates as
+// an x402 error instead of being silently auto-paid by a real local wallet.
+function networkMiss(url: string): never {
+  throw new TypeError(`fetch failed (test isolation, unreachable in probe): ${url}`);
+}
+
+beforeEach(() => {
+  process.env.HOME = mkdtempSync(join(tmpdir(), "unbrowse-orch-x402-home-"));
+});
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -43,7 +59,7 @@ describe("orchestrator search x402 propagation", () => {
           },
         });
       }
-      throw new Error(`unexpected fetch: ${url}`);
+      return networkMiss(url);
     }) as typeof globalThis.fetch;
 
     try {
@@ -65,7 +81,13 @@ describe("orchestrator search x402 propagation", () => {
     }
   });
 
-  it("falls back to a local canonical replay skill for structured detail pages", async () => {
+  it("does NOT bypass the Tier 3 fee for structured detail pages (canonical-replay removed in Phase 8.3)", async () => {
+    // Pre-8.3 the orchestrator synthesised a local canonical-replay skill for
+    // structured detail pages, silently bypassing the x402 search fee. Phase 8.3
+    // deleted the per-host replay registry (buildLocalCanonicalReplaySkill now
+    // returns undefined; live-capture is the sole source of truth). So a detail
+    // page hitting an x402-gated marketplace search must now surface the same
+    // Tier 3 payment_required envelope as any other intent — no free bypass.
     const snapshotDir = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
     const backupDir = join(tmpdir(), `unbrowse-skill-snapshots-${Date.now()}-detail`);
     const hadSnapshots = existsSync(snapshotDir);
@@ -89,7 +111,7 @@ describe("orchestrator search x402 propagation", () => {
           },
         });
       }
-      throw new Error(`unexpected fetch: ${url}`);
+      return networkMiss(url);
     }) as typeof globalThis.fetch;
 
     try {
@@ -99,13 +121,15 @@ describe("orchestrator search x402 propagation", () => {
         { url: "https://pypi.org/project/openai/" },
       );
 
+      const result = out.result as Record<string, unknown>;
       expect(out.source).toBe("marketplace");
-      expect((out.result as Record<string, unknown>).error).toBeUndefined();
-      expect((out.result as Record<string, unknown>).skill_id).toContain("canonical-");
-      const endpoints = (out.result as Record<string, any>).available_endpoints as Array<Record<string, any>>;
-      expect(Array.isArray(endpoints)).toBe(true);
-      expect(endpoints[0]?.url).toContain("https://pypi.org/pypi/");
-      expect(endpoints[0]?.trigger_url).toBe("https://pypi.org/project/openai/");
+      expect(out.trace.status_code).toBe(402);
+      expect(result.error).toBe("payment_required");
+      expect(result.tier).toBe("tier3");
+      // No silent canonical-replay bypass: the result is a payment envelope,
+      // never a synthesised skill with auto-executed endpoints.
+      expect(result.skill_id).toBeUndefined();
+      expect(result.available_endpoints).toBeUndefined();
     } finally {
       rmSync(snapshotDir, { recursive: true, force: true });
       if (hadSnapshots) renameSync(backupDir, snapshotDir);

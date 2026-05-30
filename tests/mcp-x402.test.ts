@@ -42,18 +42,20 @@ describe("mcp-cli-payment-parity", () => {
   });
 });
 
-// AC6 splits-settle-on-mcp - frozen split MATH guard (NON-GOAL: do not change
-// it). Green today and must stay green. sources:
-// code:backend/src/services/flex.ts#L34, code:src/mcp.ts#L1033, podman:mcp-x402.
+// AC6 splits-settle-on-mcp - frozen split MATH guard. Re-frozen at the
+// canonical PLATFORM_BPS=5000 shipped in #478 (50/20/30 owner lane); the
+// remaining 5000 bps is the contributor/indexer pool. The total always sums
+// to 10000 bps — that invariant is the real guard and must stay green. sources:
+// code:backend/src/services/flex.ts#L68, code:src/mcp.ts#L1033, podman:mcp-x402.
 describe("splits-settle-on-mcp", () => {
-  test("computeFlexSplits keeps platform 1000 bps / total 10000 bps", () => {
-    expect(PLATFORM_BPS).toBe(1000);
+  test("computeFlexSplits keeps platform PLATFORM_BPS / total 10000 bps", () => {
+    expect(PLATFORM_BPS).toBe(5000);
     const splits = computeFlexSplits(
       { contributors: [{ wallet_address: "Wabc", cumulative_delta: 1 } as never] },
       "PLATFORMWALLET",
     );
     const platform = splits.find((s) => s.recipient === "PLATFORMWALLET");
-    expect(platform?.bps).toBe(1000);
+    expect(platform?.bps).toBe(PLATFORM_BPS);
     expect(splits.reduce((n, s) => n + s.bps, 0)).toBe(10000);
   });
 });
