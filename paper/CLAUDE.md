@@ -40,8 +40,9 @@ Supporting doctrine already in the repo (reuse, do not re-derive): `docs/vision.
 1. **Write Paper 3** — the Maintenance Network paper. It carries the FDRY
    bonding/challenge/slash economics *and* the token doctrine in full.
 2. **State the token doctrine once, coherently.** Today it lives in fragments
-   (Matt 6:24 in THE_FDRY_ECONOMY; "collateralising a promise, not a currency" in
-   Paper 2; "never hold an asset" in vision). No single passage ties the
+   (Matt 6:24 in THE_FDRY_ECONOMY; "collateral for trust, not a currency" /
+   "collateralised accountability" in Paper 2; "never hold an asset" in vision).
+   No single passage ties the
    grain-of-wheat shape together. This file is that passage; Paper 3 inherits it.
 3. **Finalize Paper 2** — paper-gate + leak-guard + anchors + push. Owned by
    `paper/PLAN.md`; referenced here, not duplicated.
@@ -112,7 +113,7 @@ name for a property the paper already defends adversarially.
 | [x] | 1 * | now . eval | Pin the corpus: read Papers 1+2, the 6 doctrine docs, anchors, leak-guard | `muonry_read` / `WebFetch` / `pdftotext` |
 | [x] | 2 * | root . build | Fix the axiom: $FDRY = collateral for trust, never a currency. Grain-of-Wheat doctrine, scripture verified verbatim from real WEB text | `codedb` (bible) |
 | [x] | 3 * | node . build | One token-doctrine record: the 5 verses → the one rule, stated once (this file) | `muonry_create` |
-| [ ] | 4 * | tree . breath | Outline Paper 3 (Maintenance Network) as a tree: trust tiers → bonded maintenance → challenge → slash → fair distribution, each node citing a real primitive (FROST, ERC-8004, Pigouvian/commons, CT log) | `Agent(WebSearch)` |
+| [x] | 4 * | tree . breath | Outlined Paper 3 → `paper/maintenance-network.OUTLINE.md`: 10-§ tree (CPR/Ostrom → public-good/Samuelson+Pigou → trust tiers → bonded/Casper+FROST → challenge → Sybil-limit/Douceur → token doctrine → built-vs-proposed). All 5 new citations web-verified; reuses Paper 2 preamble+bibitems. | `Agent(WebSearch)` |
 | [ ] | 5 * | walk . breath | Draft Paper 3 `.tex` from the outline; reuse Papers 1–2 references + `docs/` doctrine; doctrine section = §"the grain that must fall" | `muonry_create` |
 | [ ] | 6 | witness . eval | Every [shipped] claim in Paper 3 gets a `paper/anchors.tsv` row → real repo anchor; [proposed] claims labelled, never dressed as shipped | `muonry_edit` |
 | [ ] | 7 * | seal . eval | `paper-gate.sh` + `leak-guard.sh` green on all artifacts; no economic constant / capture-engine internal crosses the wire | `Bash` |
