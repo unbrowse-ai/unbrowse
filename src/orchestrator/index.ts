@@ -2140,6 +2140,22 @@ export async function resolveAndExecute(
   const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
   if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
 
+  // Interop discovery (opt-in: UNBROWSE_INTEROP_DISCOVERY=1). Surface the
+  // primitives a site already uses — x402 Bazaar resources, installed skills —
+  // ranked by real adoption, so the agent is pointed at what it already pays for /
+  // runs, not a redundant re-wrap. Zero added latency + no throw when the flag is
+  // off (the gate short-circuits before any network call).
+  try {
+    const domainForInterop = context?.domain ?? (context?.url ? new URL(context.url).hostname : undefined);
+    const { discoverSitePrimitives } = await import("../interop/mount.js");
+    const interopPrimitives = await discoverSitePrimitives(queryIntent, domainForInterop);
+    if (interopPrimitives.length > 0) {
+      decisionTrace.interop_primitives = interopPrimitives.slice(0, 10);
+    }
+  } catch {
+    // interop discovery is additive — never let it break resolve.
+  }
+
   // When the agent explicitly passes endpoint_id, execute directly — they already chose.
   const agentChoseEndpoint = !!params.endpoint_id;
 
