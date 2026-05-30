@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/client",
+  "version": "7.0.0-preview.1",
+  "description": "Thin HTTP-first SDK for the Unbrowse API. Browser + Node 18+. Zero runtime deps.",
+  "directoryRenameIntent": "packages/sdk-v2/ → packages/client/ (matches the npm name @unbrowse/client). The sdk-v2 folder name is historical from the parallel v6/v7 transition; keep public docs pointing at the npm package name, not the folder name.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["unbrowse", "agent", "browser", "api", "sdk"],
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
