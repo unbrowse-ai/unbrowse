@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the seal plane inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 # paper-gate.sh — the whitepaper must REFLECT the code and never LEAK the moat.
 #
 # Two mechanical checks on a public paper (default: paper/internal-apis.tex):

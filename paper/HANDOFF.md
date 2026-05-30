@@ -41,9 +41,14 @@ committed locally; nothing has been pushed to any public destination.
 To publish when ready:
 - **Overleaf:** upload `paper/maintenance-network.tex` (preamble + bibitems are
   self-contained; no external `.bib`).
-- **arXiv:** the `.tex` compiles standalone with `tectonic` (0 undefined refs);
-  assign the real arXiv ID and update the placeholder `arXiv:2604.00694` self-id +
-  Paper 2's reciprocal `\bibitem{fdry}` to match.
+- **arXiv:** both `.tex` files compile standalone with `tectonic` 0.15.0 (verified
+  locally — `internal-apis.pdf` + `maintenance-network.pdf` regenerated, 0 undefined
+  refs/citations). Paper 2's reciprocal `\bibitem{fdry}` no longer carries Paper 1's
+  published id; it now reads *Unbrowse Maintenance Network: Proof of Indexing and
+  Bonded Accountability in a Shared Route Graph. Unbrowse AI, 2026* (unpublished, no
+  arXiv id — symmetric with Paper 3's `\bibitem{internalapis}` → Paper 2). The ONLY
+  step left for the author: when Paper 3 is accepted, assign its real arXiv ID and add
+  it to that `\bibitem{fdry}`. `arXiv:2604.00694` now denotes Paper 1 alone, everywhere.
 
 ## Verification posture (no fabricated green)
 

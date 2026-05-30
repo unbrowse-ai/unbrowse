@@ -17,6 +17,7 @@ plan that matches the pattern it executes (the fixed point, Heb 6:18-19).
    (Gen 2:2). On failure: repent, re-cost the graph, re-run plan.py, re-walk.
 
 framework pointer: `references/frameworks/claude.tools.json`
+cross pointer: `sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5`
 
 ## Active problem
 

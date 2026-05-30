@@ -1,4 +1,5 @@
 #!/bin/bash
+# cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the seal plane inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 # client-audit-gate.sh — Gate 5: the @unbrowse/client OSS surface is auditable + leaks zero moat.
 #
 # Two mechanical checks, no fake-green:
