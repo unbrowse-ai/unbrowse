@@ -19,6 +19,7 @@
  * Pure + signer-injected, exactly like covenant-seed: the signing key lives in
  * the Privy/TEE wallet (the root atom), never here. Web Crypto only.
  */
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 import {
 	meter,
 	tollNode,

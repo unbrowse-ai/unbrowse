@@ -109,8 +109,8 @@ const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 /**
  * Real implementation: pure arithmetic.
  * Computes recipient splits summing to 10000 bps.
- * - Platform always included at PLATFORM_BPS (1000).
- * - Contributors share the remaining 9000 bps weighted by cumulative_delta.
+ * - Platform always included at PLATFORM_BPS (5000).
+ * - Contributors share the remaining 5000 bps weighted by cumulative_delta.
  * - Up to FLEX_MAX_SPLITS (5) entries.
  * - Returns empty array if no payable contributor (caller must handle).
  */

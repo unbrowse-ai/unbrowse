@@ -1,9 +1,18 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { executeSkill } from "../src/execution/index.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
+
+// Hermetic isolation: isLobsterAvailable() checks `existsSync($HOME/.lobster/agents.json)`,
+// so on a developer machine with a real lobster wallet the payment gate auto-pays
+// instead of surfacing the 402. Point HOME at an empty temp dir so the no-auto-pay
+// branch (the contract this test asserts) runs deterministically everywhere.
+const ISOLATED_HOME = mkdtempSync(join(tmpdir(), "unbrowse-paysurface-home-"));
 
 function makePaidSkill(): SkillManifest {
   const endpoint: EndpointDescriptor = {
@@ -42,6 +51,7 @@ describe("execution payment surface", () => {
   it("returns the configured wallet provider and address in payment-required payloads", async () => {
     process.env.AGENT_WALLET_ADDRESS = "0xfeedface";
     process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
+    process.env.HOME = ISOLATED_HOME; // no ~/.lobster → isLobsterAvailable() === false
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
