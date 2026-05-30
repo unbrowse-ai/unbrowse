@@ -19,6 +19,12 @@ Everything except the funded spend is already built, deployed, and verified.
 
 ## The one remaining act (funded spend)
 
+**SOL-only? auto-convert (default workflow).** If you hold only SOL: pull SOL into
+the payer (e.g. `lobstercash send --to <payer> --amount 0.01 --token sol`) then
+`UNBROWSE_PAYMENT_SECRET_FILE=/tmp/x402_payer.key bun scripts/sol-to-usdc-swap.mjs`
+— it Jupiter-swaps SOL→USDC and creates the USDC ATA. Then run the settle below.
+Proven mainnet 2026-05-30: SOL pull edf04f → swap 3nHP2U → settle 2kbnPks (finalized).
+
 1. Fund the payer with USDC (no SOL needed — PayAI is the fee payer; receiving
    USDC creates the payer's token account):
 
