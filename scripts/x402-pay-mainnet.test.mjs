@@ -33,6 +33,14 @@ describe("x402 client X-PAYMENT construction", () => {
     expect(decoded.extra.facilitator).toBe(exactAccept.extra.facilitator);
   });
 
+  it("ADVERSARIAL: a minimal accept with no `extra` still builds a valid payload (default facilitator, no crash)", () => {
+    const minimal = { scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", amount: "3672", asset: "x", payTo: "y", maxTimeoutSeconds: 300 };
+    const decoded = JSON.parse(Buffer.from(buildXPayment(minimal, signedPayload), "base64").toString("utf8"));
+    expect(decoded.scheme).toBe("exact");
+    expect(decoded.extra.facilitator).toBe("https://facilitator.payai.network");
+    expect(decoded.payload.transaction).toBe(signedPayload.transaction);
+  });
+
   it("pickExactAccept selects the solana exact entry and ignores others", () => {
     const accepts = [
       { scheme: "@faremeter/flex", network: "solana-mainnet" },
