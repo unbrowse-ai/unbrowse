@@ -1,4 +1,11 @@
 export { Unbrowse } from "./client.js";
+export { createFetch, unfetch } from "./fetch.js";
+export type {
+  CreateFetchOptions,
+  FetchLike,
+  PayHandler,
+  PaymentRequired,
+} from "./fetch.js";
 export {
   UnbrowseError,
   UnbrowseAPIError,
