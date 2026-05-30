@@ -10,7 +10,7 @@
  */
 // cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 import { discoverPrimitives, type PrimitiveSources } from "./discover.js";
-import { x402BazaarSource, localSkillsSource } from "./sources.js";
+import { x402BazaarSource, localSkillsSource, llmsTxtSource, openApiSource, a2aSource } from "./sources.js";
 import { prioritize, type AgentPrimitive, type SkillFrontmatter } from "./agent-primitives.js";
 
 export interface InteropMountOpts {
@@ -25,10 +25,15 @@ export interface InteropMountOpts {
 
 /** Bind the real, available sources. */
 export function liveSources(opts?: InteropMountOpts): PrimitiveSources {
+	const ff = opts?.fetchFn ? { fetchFn: opts.fetchFn } : undefined;
 	return {
-		x402Resources: x402BazaarSource(opts?.fetchFn ? { fetchFn: opts.fetchFn } : undefined),
+		x402Resources: x402BazaarSource(ff),
 		skills: localSkillsSource(opts?.loadSkills),
 		mcpTools: opts?.mcpTools,
+		// the standards a site publishes at its own well-known locations (per-domain):
+		openApiOps: openApiSource(ff),
+		llmsTxtLinks: llmsTxtSource(ff),
+		a2aPrimitives: a2aSource(ff),
 		routes: opts?.nativeRoutes ? async () => opts.nativeRoutes! : undefined,
 	};
 }

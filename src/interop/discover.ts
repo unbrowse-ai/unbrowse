@@ -22,6 +22,8 @@ import {
 	type SkillFrontmatter,
 	type McpTool,
 	type X402Resource,
+	type OpenApiOperation,
+	type LlmsTxtLink,
 } from "./agent-primitives.js";
 
 /** Each source is optional; a missing or throwing source contributes nothing. */
@@ -29,6 +31,10 @@ export interface PrimitiveSources {
 	skills?: (intent: string, domain?: string) => Promise<SkillFrontmatter[]>;
 	mcpTools?: (intent: string, domain?: string) => Promise<McpTool[]>;
 	x402Resources?: (intent: string, domain?: string) => Promise<X402Resource[]>;
+	openApiOps?: (intent: string, domain?: string) => Promise<OpenApiOperation[]>;
+	llmsTxtLinks?: (intent: string, domain?: string) => Promise<LlmsTxtLink[]>;
+	/** A2A is pre-fanned (card → one primitive per skill). */
+	a2aPrimitives?: (intent: string, domain?: string) => Promise<AgentPrimitive[]>;
 	/** native route graph — already covenant-shaped. */
 	routes?: (intent: string, domain?: string) => Promise<AgentPrimitive[]>;
 }
@@ -52,10 +58,13 @@ export async function discoverPrimitives(
 	domain: string | undefined,
 	sources: PrimitiveSources,
 ): Promise<AgentPrimitive[]> {
-	const [skills, mcpTools, x402Resources, routes] = await Promise.all([
+	const [skills, mcpTools, x402Resources, openApiOps, llmsTxtLinks, a2aPrimitives, routes] = await Promise.all([
 		safe(sources.skills ? () => sources.skills!(intent, domain) : undefined),
 		safe(sources.mcpTools ? () => sources.mcpTools!(intent, domain) : undefined),
 		safe(sources.x402Resources ? () => sources.x402Resources!(intent, domain) : undefined),
+		safe(sources.openApiOps ? () => sources.openApiOps!(intent, domain) : undefined),
+		safe(sources.llmsTxtLinks ? () => sources.llmsTxtLinks!(intent, domain) : undefined),
+		safe(sources.a2aPrimitives ? () => sources.a2aPrimitives!(intent, domain) : undefined),
 		safe(sources.routes ? () => sources.routes!(intent, domain) : undefined),
 	]);
 
@@ -63,6 +72,9 @@ export async function discoverPrimitives(
 		...skills.map((s) => ingest(s, "skill", { who: domain })),
 		...mcpTools.map((t) => ingest(t, "mcp_tool", { who: domain })),
 		...x402Resources.map((r) => ingest(r, "x402_resource")),
+		...openApiOps.map((o) => ingest(o, "openapi", { who: domain })),
+		...llmsTxtLinks.map((l) => ingest(l, "llms_txt", { who: domain })),
+		...a2aPrimitives, // already covenant-shaped (card fanned to skills)
 		...routes.map((r) => ingest(r, "route")),
 	];
 
