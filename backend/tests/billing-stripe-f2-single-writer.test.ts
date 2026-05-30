@@ -27,6 +27,13 @@ const allowedFiles = new Set([
   "backend/tests/billing-stripe-f2-single-writer.test.ts",
   "backend/tests/crypto-sub.test.ts",
   "backend/tests/sponsor-stripe-integration.test.ts",
+  // Build-time codegen of the public "how unbrowse pays" doc. It RENDERS the
+  // `stripe:customer:<id>` KV key shape as prose (sourced from
+  // docs/HOW_UNBROWSE_PAYS.md via frontend/scripts/codegen-docs.mjs) to document
+  // the Stripe webhook flow — a documenter, not a KV writer. Same category as the
+  // test-file key-shape assertions above; the single-writer invariant still holds
+  // for real source (only services/stripe.ts writes the prefix).
+  "frontend/src/lib/generated/how-unbrowse-pays.html.ts",
 ]);
 
 function grepLiteral(literal: string): string[] {
