@@ -1,14 +1,27 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { isX402Error, searchIntentResolve } from "../src/client/index.js";
 
 const originalFetch = globalThis.fetch;
+const originalHome = process.env.HOME;
 
 function encodeBase64Json(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
 }
 
+// Hermetic isolation: a real ~/.lobster wallet makes apiRequest's 402 handler
+// attempt a live lobster pay-and-retry (subprocess hits the network) instead of
+// surfacing the x402 error this test asserts. Empty HOME → isLobsterAvailable()
+// === false, so the handler falls through to `throw x402Error` deterministically.
+beforeEach(() => {
+  process.env.HOME = mkdtempSync(join(tmpdir(), "unbrowse-clientsearch-home-"));
+});
+
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  process.env.HOME = originalHome;
 });
 
 describe("client search x402 propagation", () => {
