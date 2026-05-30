@@ -134,6 +134,8 @@ export interface X402Accept {
 export interface X402Resource {
 	resource: { url: string; description?: string; mimeType?: string };
 	accepts: X402Accept[];
+	/** real adoption signal (e.g. x402 Bazaar 30-day call count) → primitive.adoption. */
+	quality?: number;
 }
 
 export function x402ResourceToPrimitive(entry: X402Resource, opts?: { who?: string }): AgentPrimitive {
@@ -152,6 +154,7 @@ export function x402ResourceToPrimitive(entry: X402Resource, opts?: { who?: stri
 		payment: accept
 			? { amount: accept.amount, asset: accept.asset, network: accept.network, payTo: accept.payTo }
 			: undefined,
+		adoption: typeof entry.quality === "number" ? entry.quality : undefined,
 		raw: entry,
 	};
 }
