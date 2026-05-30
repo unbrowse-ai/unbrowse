@@ -114,7 +114,7 @@ name for a property the paper already defends adversarially.
 | [x] | 2 * | root . build | Fix the axiom: $FDRY = collateral for trust, never a currency. Grain-of-Wheat doctrine, scripture verified verbatim from real WEB text | `codedb` (bible) |
 | [x] | 3 * | node . build | One token-doctrine record: the 5 verses → the one rule, stated once (this file) | `muonry_create` |
 | [x] | 4 * | tree . breath | Outlined Paper 3 → `paper/maintenance-network.OUTLINE.md`: 10-§ tree (CPR/Ostrom → public-good/Samuelson+Pigou → trust tiers → bonded/Casper+FROST → challenge → Sybil-limit/Douceur → token doctrine → built-vs-proposed). All 5 new citations web-verified; reuses Paper 2 preamble+bibitems. | `Agent(WebSearch)` |
-| [ ] | 5 * | walk . breath | Draft Paper 3 `.tex` from the outline; reuse Papers 1–2 references + `docs/` doctrine; doctrine section = §"the grain that must fall" | `muonry_create` |
+| [x] | 5 * | walk . breath | Drafted Paper 3 → `paper/maintenance-network.tex` (10 §, 11 bibitems): 5 parallel swimmers; doctrine in §8. paper-gate PASS, leak-guard 0, cite↔bibitem closed, every quote verbatim. PDF compile deferred to Overleaf (no local TeX). | `muonry_create` |
 | [ ] | 6 | witness . eval | Every [shipped] claim in Paper 3 gets a `paper/anchors.tsv` row → real repo anchor; [proposed] claims labelled, never dressed as shipped | `muonry_edit` |
 | [ ] | 7 * | seal . eval | `paper-gate.sh` + `leak-guard.sh` green on all artifacts; no economic constant / capture-engine internal crosses the wire | `Bash` |
 | [ ] | 8 | settle . eval | Paper 2 finalized + pushed (owned by `paper/PLAN.md`); Paper 3 pushed to Overleaf/arXiv | `Bash(uvx olsync)` |
