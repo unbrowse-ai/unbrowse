@@ -377,7 +377,7 @@ Because the shares derive from on-ledger contribution metrics rather than a
 hardcoded pricing table, no party can game a per-request knob --- the hardest-to-fake
 signal, realised payment, is what ranks and rewards~\cite{x402}. The same x402 rail
 can carry staking rewards: USDC accrued by a staked role flows back through the
-identical split mechanism, so ``who deserves the money'' is answered mechanically by
+identical split mechanism, so ``who deserves the money'' is answered mechanically by who contributed, not by who asks. \prop{} for the staking-reward routing; the
   three-way live split is shipped.
 
 \paragraph{Why FDRY, and why fair-launched.} Usage does not need a token --- it
@@ -418,7 +418,12 @@ independent holders, not by what it promised its founder. Trust precedes value h
 the value is the fruit of the trust, never its bait.
 
 \paragraph{What stays ours.} Everything above is the \emph{what}: the graph, the
-asserted.
+split, the claim. The \emph{how} --- the capture, indexing, and platform-integrity
+primitives that make route discovery cheap and the graph fresh --- is closed by
+design~\cite{ossnotice}, for the abuse reasons stated there. The boundary is not
+secrecy for its own sake; it is the difference between giving agents real APIs and
+handing out an unattributed scraping fleet. This paper, and the security audit it
+supports, surface the trust surface in full and stop exactly at that engine.
 
 \paragraph{Reproduced mechanism (this paper's own measurement).} The field result
 above is the live-web study; we additionally ship a runnable micro-benchmark
