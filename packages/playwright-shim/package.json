@@ -21,7 +21,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts src/chromium.ts --outdir dist --target node --format esm && bun run build:types",
+    "build": "bun build src/index.ts src/chromium.ts --outdir dist --target node --format esm --external playwright && bun run build:types",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "test": "bun test"
   },

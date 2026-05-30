@@ -1,0 +1,79 @@
+name: publish-dropins
+
+# Publish the drop-in family (@unbrowse/*-shim + @unbrowse/adopt) to npm.
+#
+# Trigger manually (workflow_dispatch) or by pushing a tag `dropins-v*`.
+# Idempotent: a version already on the registry is skipped (see publish-dropins.sh).
+#
+# TOKEN: needs an npm token with publish rights to the @unbrowse SCOPE. The
+# existing NPM_TOKEN is CLI-scoped and will 403 on @unbrowse/*; set
+# NPM_TOKEN_DROPINS (org- or package-scoped) — it falls back to NPM_TOKEN.
+# FIRST publish of each brand-new name must be bootstrapped once locally with a
+# maintainer 2FA login (`bash scripts/publish-dropins.sh`); automation tokens
+# 404 on PUT for names that don't exist yet. After that, this workflow owns versions.
+# No --provenance: the source repo is private and npm rejects provenance from it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "npm publish --dry-run only (no real publish)"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "dropins-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-dropins
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Resolve npm token
+        id: tok
+        env:
+          NPM_TOKEN_DROPINS: ${{ secrets.NPM_TOKEN_DROPINS }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TOKEN="${NPM_TOKEN_DROPINS:-${NPM_TOKEN:-}}"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::No npm token. Set NPM_TOKEN_DROPINS (preferred, @unbrowse-scoped) or NPM_TOKEN."
+            exit 1
+          fi
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Publish drop-in packages
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.tok.outputs.token }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            bash scripts/publish-dropins.sh dry-run
+          else
+            bash scripts/publish-dropins.sh
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### publish-dropins"
+            echo "Packages: axios/got/ky/node-fetch/cross-fetch/puppeteer/playwright/firecrawl/stagehand shims + adopt"
+            echo "Dry-run: \`${{ github.event.inputs.dry_run }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
