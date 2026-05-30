@@ -137,6 +137,12 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   if (options.scheduleVerification ?? true) {
     schedulePeriodicVerification();
     schedulePeriodicStaleCleanup();
+    // Opt-in (UNBROWSE_TRUST_REFRESH=1): the 6h proof-of-indexing refresh loop.
+    // No-op + zero wallet/network touch when the flag is off.
+    void import("./trust/mount.js")
+      .then((m) => m.startTrustRefreshIfEnabled())
+      .then((s) => { if (s) app.log.info("[trust-refresh] 6h proof-of-indexing loop started"); })
+      .catch((err) => app.log.warn({ err }, "[trust-refresh] start failed"));
   }
 
   return {
