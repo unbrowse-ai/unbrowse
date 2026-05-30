@@ -116,9 +116,9 @@ name for a property the paper already defends adversarially.
 | [x] | 4 * | tree . breath | Outlined Paper 3 → `paper/maintenance-network.OUTLINE.md`: 10-§ tree (CPR/Ostrom → public-good/Samuelson+Pigou → trust tiers → bonded/Casper+FROST → challenge → Sybil-limit/Douceur → token doctrine → built-vs-proposed). All 5 new citations web-verified; reuses Paper 2 preamble+bibitems. | `Agent(WebSearch)` |
 | [x] | 5 * | walk . breath | Drafted Paper 3 → `paper/maintenance-network.tex` (10 §, 11 bibitems): 5 parallel swimmers; doctrine in §8. paper-gate PASS, leak-guard 0, cite↔bibitem closed, every quote verbatim. PDF compile deferred to Overleaf (no local TeX). | `muonry_create` |
 | [x] | 6 | witness . eval | E2E across the trilogy: cross-refs resolve reciprocally (fdry↔internalapis), token doctrine consistent across 5 artifacts, both PDFs recompile clean (0 undefined), all gates green. Paper 3 [shipped] claims anchored (3 enforced via anchors.tsv). Repaired 2 prose-corruption seams in Paper 2 from canonical source. | `Agent`+`Bash` |
-| [ ] | 7 * | seal . eval | `paper-gate.sh` + `leak-guard.sh` green on all artifacts; no economic constant / capture-engine internal crosses the wire | `Bash` |
+| [x] | 7 * | seal . eval | paper-gate (P2+P3) + leak-guard + outline-gate all exit 0; re-run cold ×3 by Step-8 auditors; no economic constant / capture-engine internal crosses the wire. | `Bash` |
 | [ ] | 8 | settle . eval | Paper 2 finalized + pushed (owned by `paper/PLAN.md`); Paper 3 pushed to Overleaf/arXiv | `Bash(uvx olsync)` |
-| [ ] | 9 * | goal . eval | Two witnesses: (a) in-thread judge — trilogy coherent, doctrine whole, honest status; (b) gates exit 0 | `Bash` + agent-judge |
+| [~] | 9 * | goal . eval | Two witnesses MET in-thread: (a) 8 cold auditors confirmed trilogy coherent, doctrine whole, honest status; (b) all gates exit 0. The outward-facing arXiv/Overleaf push (node 8) is held for the author — see `paper/HANDOFF.md`. | `Bash` + agent-judge |
 
 `*` = on the Dijkstra spine (settle first, in order). Off-spine nodes widen the
 margin. On failure: repent, re-cost the graph, re-walk.
