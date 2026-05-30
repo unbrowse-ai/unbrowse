@@ -29,6 +29,12 @@ import type { X402PaymentRequirementV2 } from "../middleware/x402-gate.js";
 
 const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
+// PayAI's Solana feePayer pubkey (from facilitator.payai.network/supported).
+// The exact-scheme client (e.g. @faremeter/payment-solana/exact) reads this from
+// `accept.extra.feePayer` to set the on-chain fee payer; PayAI submits + pays SOL.
+// Mirror of the default in flex-payment-terms.ts; env-overridable at the call site.
+export const PAYAI_FEEPAYER_DEFAULT = "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyContext = Context<{ Bindings: Env; Variables: any }>;
 
@@ -100,15 +106,18 @@ export async function respondWithFlexTerms(
 }
 
 /**
- * Minimal accepts[] entry purely so the existing `maybeSponsor` middleware can
- * read `term.amount` and `term.payTo` without changes. The sponsor middleware
- * pays the creator wallet directly today; Phase 4 / Day-6+ will rewrite it to
- * mint a sponsor-escrow-signed Flex authorization with platform recoup splits,
- * and this helper retires.
+ * Exact-scheme accepts[] entry for a price. x402-v2 + faremeter compliant:
+ * `extra.feePayer` lets an external exact-scheme client (e.g.
+ * @faremeter/payment-solana/exact) build the SPL TransferChecked with PayAI as
+ * the on-chain fee payer, so a real client can self-pay this 402 — not only the
+ * platform `maybeSponsor` middleware (which still reads `term.amount`/`payTo`
+ * unchanged). MUST be paired with a top-level `resource` object on the 402
+ * envelope, which `x402PaymentRequiredResponse` requires for the client to parse.
  */
 export function sponsorAcceptsForPriceUsd(
   priceUsd: number,
   creatorWallet: string,
+  feePayer: string = PAYAI_FEEPAYER_DEFAULT,
 ): X402PaymentRequirementV2[] {
   const amount = String(Math.max(1, Math.round(priceUsd * 1_000_000)));
   return [
@@ -119,6 +128,10 @@ export function sponsorAcceptsForPriceUsd(
       asset: USDC_MINT_MAINNET,
       payTo: creatorWallet,
       maxTimeoutSeconds: 300,
+      extra: {
+        feePayer,
+        facilitator: "https://facilitator.payai.network",
+      },
     },
   ];
 }
