@@ -113,7 +113,6 @@ if (!hasBinary("zig")) {
 // download-artifact (e.g. darwin-arm64 from the macos-latest job). Per-target
 // logic below will detect existing real binaries and use them.
 mkdirSync(vendorRoot, { recursive: true });
-mkdirSync(vendorRoot, { recursive: true });
 const sourceSha = readSourceSha(sourceDir);
 const manifest = {
   repo_url: upstreamRepoUrl,
