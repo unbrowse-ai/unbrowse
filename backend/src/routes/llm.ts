@@ -186,10 +186,19 @@ llmRoutes.post("/:provider/messages", async (c: Context<LlmRouteEnv>) => {
         503,
       );
     }
-    const accepts = sponsorAcceptsForPriceUsd(chargeUsd, operatorWallet);
+    const feePayer = (c.env as { PAYAI_FEEPAYER_PUBKEY?: string }).PAYAI_FEEPAYER_PUBKEY?.trim();
+    const accepts = sponsorAcceptsForPriceUsd(chargeUsd, operatorWallet, feePayer || undefined);
     const required = {
       x402Version: 2,
       error: "payment_required",
+      // Top-level `resource` object is REQUIRED by x402PaymentRequiredResponse
+      // (@faremeter/types x402v2); without it a real exact-scheme client throws
+      // "resource must be an object (was missing)" before it can sign.
+      resource: {
+        url: c.req.url,
+        description: `LLM access: ${provider}/${model}`,
+        mimeType: "application/json",
+      },
       accepts,
       facilitator: "faremeter-flex-solana",
       extra: {
