@@ -255,3 +255,5 @@ bench/**/vendor/
 bench/lib/.venv/
 bench/lib/node_modules/
 bench/lib/bun.lock
+**/.zig-cache/
+**/zig-out/
