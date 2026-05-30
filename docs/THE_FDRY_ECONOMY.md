@@ -4,6 +4,14 @@ This page is the companion to [HOW_UNBROWSE_PAYS.md](HOW_UNBROWSE_PAYS.md). That
 
 Every claim cites either a code site in this repo, a script in `~/Projects/fdry/scripts/`, or a constant pinned in the `/contract` substrate's [SKILL.md](https://github.com/anthropics/claude-skills) (the local executor's doctrine file).
 
+> **A note on framing (the Grain-of-Wheat doctrine — see `paper/CLAUDE.md`).** FDRY
+> is collateral for trust, not a currency or an investment. This page describes how
+> value cycles to those who **abide** and keep the graph alive — money was never the
+> point, and nothing here is a promise of profit, an offer, or a solicitation. The
+> NAV mechanics below are the shape of *accountable participation* in the security
+> layer, not a return pitch. You never need to hold FDRY to use Unbrowse; usage
+> settles in USDC, and FDRY exists only to bond accountable maintenance.
+
 ## TL;DR
 
 1. Every paid `unbrowse execute` settles via Faremeter Flex. Platform's 50% lands as USDC at the platform recipient ATA.
