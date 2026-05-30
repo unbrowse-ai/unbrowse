@@ -199,35 +199,4 @@ That sequencing is healthier than pretending the economic layer already exists.
 
 Lead with:
 
-- drop-in replacement for browser automation in agent stacks
-- ~30x faster on the API-native path
-- ~90% cheaper than repeated browser execution
-- execution layer for agents
-- browser rediscovery tax
-- reusable route knowledge
-- faster, cheaper, more reliable than repeated browser execution
 
-Avoid leading with:
-
-- protocol
-- token
-- toll booth
-- control point
-- "we index the whole web"
-
-## Suggested Reading Order
-
-1. [Unbrowse In Plain English](./plain-english.md)
-2. [The Problem](./the-problem.md)
-3. [What Is Unbrowse?](./what-is-unbrowse.md)
-4. [System Today](./system-today.md)
-5. [Paper vs Product Status](./paper-vs-product.md)
-6. [Coming Soon](./coming-soon.md)
-
-## The Investor Takeaway
-
-Unbrowse is easiest to understand as infrastructure for agent execution, not as another agent wrapper.
-
-The current repo already supports that capability-layer thesis.
-
-The full marketplace economy in the whitepaper is the optional expansion path after the capability layer proves out.
