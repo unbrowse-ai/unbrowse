@@ -130,9 +130,46 @@ const prebuiltAssets = {
 
 ensureNativeBuildDeps();
 
+// The stateless FFI shared lib (kuri `zig build ffi`) has no heavy native deps
+// (pure Zig + spawned curl — no curl-impersonate / quickjs / iconv), so it
+// CROSS-COMPILES cleanly for every target with Zig's bundled libc — no sysroot,
+// no stubs. Vendored alongside the binary so unbrowse can embed it in-process
+// (src/kuri/ffi.ts) without spawning the kuri server.
+function ffiLibName(zigTarget) {
+  if (zigTarget.includes("macos")) return "libkuri_ffi.dylib";
+  if (zigTarget.includes("windows")) return "kuri_ffi.dll";
+  return "libkuri_ffi.so";
+}
+function buildFfiForTarget(target, outDir) {
+  const prefixDir = path.join(os.tmpdir(), `unbrowse-kuriffi-${target.id}-${process.pid}-${Date.now()}`);
+  rmSync(prefixDir, { recursive: true, force: true });
+  mkdirSync(prefixDir, { recursive: true });
+  try {
+    execFileSync("zig", ["build", "ffi", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir], {
+      cwd: sourceDir,
+      stdio: "inherit",
+    });
+    const name = ffiLibName(target.zigTarget);
+    const built = path.join(prefixDir, "lib", name);
+    if (existsSync(built)) {
+      const dest = path.join(outDir, name);
+      cpSync(built, dest);
+      manifest.ffi ??= {};
+      manifest.ffi[target.id] = { zig_target: target.zigTarget, lib: name, sha256: hashFile(dest) };
+      console.log(`[build-kuri] FFI lib ${target.id} -> ${name}`);
+    }
+  } catch (e) {
+    console.warn(`[build-kuri] FFI lib build failed for ${target.id} (embed falls back to server): ${e.message?.split("\n")[0] ?? "unknown"}`);
+  } finally {
+    rmSync(prefixDir, { recursive: true, force: true });
+  }
+}
+
 for (const target of supportedTargets) {
   const outDir = path.join(vendorRoot, target.id);
   mkdirSync(outDir, { recursive: true });
+  // Always build the stateless FFI lib (cross-compiles regardless of the binary).
+  buildFfiForTarget(target, outDir);
   const outFile = path.join(outDir, target.bin);
 
   // If a real binary is already present (e.g. CI download-artifact step
