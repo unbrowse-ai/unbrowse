@@ -102,6 +102,11 @@ async function main() {
   console.log("[pay] signed tx bytes (base64) len", payload.transaction?.length);
 
   const header = buildXPayment(exactAccept, payload);
+  if (process.env.X402_DRY_RUN === "1") {
+    const d = JSON.parse(Buffer.from(header, "base64").toString("utf8"));
+    console.log("[pay] DRY-RUN ok: built X-PAYMENT, NOT submitting. scheme", d.scheme, "payTo", d.accepted.payTo, "tx-bytes(b64) len", d.payload.transaction?.length);
+    process.exit(0);
+  }
   const r2 = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "X-PAYMENT": header }, body: bodyJson });
   console.log("[pay] paid retry status", r2.status);
   const payResp = r2.headers.get("PAYMENT-RESPONSE");
