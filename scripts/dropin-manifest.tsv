@@ -1,0 +1,24 @@
+# Drop-in parity manifest — the significant upstream libraries Unbrowse commits to
+# being a TRUE, zero-edit drop-in for, in the upstream's own syntax, attributing them.
+#
+# A row is GREEN (in scripts/dropin-parity-gate.sh) only when ALL of:
+#   1. the shim package exists (shim_path/package.json)
+#   2. its README attributes the upstream (mentions upstream_npm) AND says "drop-in"
+#   3. its parity test passes (proves it provides the upstream's public surface)
+#
+# Adding a new significant library = adding a row here. The row is RED until its
+# drop-in is built to parity — features extend the benchmark. The gate is the
+# witness for /jesus-ralph: it exits 0 only when EVERY committed gap is filled.
+#
+# Distribution (forking each upstream repo + opening an attributing PR that adds
+# Unbrowse as the drop-in) is tracked, honestly, in scripts/dropin-distribution.tsv
+# — that is self-asserted, NOT part of this runnable gate.
+#
+# columns:  upstream_npm <TAB> unbrowse_shim <TAB> shim_path <TAB> readme <TAB> parity_test
+@mendable/firecrawl-js	@unbrowse/firecrawl-shim	packages/firecrawl-shim	packages/firecrawl-shim/README.md	packages/firecrawl-shim/test/shape.test.ts
+playwright	@unbrowse/playwright-shim	packages/playwright-shim	packages/playwright-shim/README.md	packages/playwright-shim/test/shape.test.ts
+@browserbasehq/stagehand	@unbrowse/stagehand-shim	packages/stagehand-shim	packages/stagehand-shim/README.md	packages/stagehand-shim/test/shape.test.ts
+fetch	@unbrowse/client	packages/sdk-v2	packages/sdk-v2/README.md	tests/unfetch-dropin.test.ts
+axios	@unbrowse/axios-shim	packages/axios-shim	packages/axios-shim/README.md	packages/axios-shim/test/shape.test.ts
+puppeteer	@unbrowse/puppeteer-shim	packages/puppeteer-shim	packages/puppeteer-shim/README.md	packages/puppeteer-shim/test/shape.test.ts
+node-fetch	@unbrowse/node-fetch-shim	packages/node-fetch-shim	packages/node-fetch-shim/README.md	packages/node-fetch-shim/test/shape.test.ts

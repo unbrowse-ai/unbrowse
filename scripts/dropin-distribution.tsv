@@ -1,0 +1,21 @@
+# Drop-in DISTRIBUTION ledger — the fork + attributing-PR side of the north star.
+#
+# HONEST BOUNDARY: this is self-asserted, NOT part of the runnable parity gate.
+# scripts/dropin-parity-gate.sh proves the drop-in EXISTS and is parity-verified
+# (that is gateable). Whether an attributing PR has actually landed in the
+# upstream repo is a human/network fact a local command cannot truthfully verify,
+# so it lives here as a tracked ledger, never as a fake green check.
+#
+# status: built     = parity-verified shim exists in this repo (gate-green)
+#         published  = shim published to npm
+#         pr_open    = attributing PR opened against the upstream fork
+#         pr_merged  = upstream merged it (Unbrowse is now a drop-in dependency)
+#
+# columns:  upstream_repo <TAB> unbrowse_shim <TAB> status <TAB> pr_url_or_note
+github.com/mendableai/firecrawl	@unbrowse/firecrawl-shim	built	shim in-repo; npm publish via scripts/publish-shims.sh; PR not yet opened
+github.com/microsoft/playwright	@unbrowse/playwright-shim	built	shim in-repo; npm publish via scripts/publish-shims.sh; PR not yet opened
+github.com/browserbase/stagehand	@unbrowse/stagehand-shim	built	shim in-repo; npm publish via scripts/publish-shims.sh; PR not yet opened
+github.com/whatwg/fetch	@unbrowse/client	built	keyless fetch drop-in (packages/sdk-v2); native standard, no upstream PR target
+github.com/axios/axios	@unbrowse/axios-shim	built	shim built this wave; publish + attributing PR pending
+github.com/puppeteer/puppeteer	@unbrowse/puppeteer-shim	built	shim built this wave; publish + attributing PR pending
+github.com/node-fetch/node-fetch	@unbrowse/node-fetch-shim	built	shim built this wave; publish + attributing PR pending
