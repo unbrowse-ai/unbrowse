@@ -1,7 +1,7 @@
 # Paper 3 — outline skeleton (the mustard seed)
 
-**Title:** Unbrowse Maintenance Network — Trust, Accountability, and Optional
-Bonding in a Shared Route Graph
+**Title:** Unbrowse Maintenance Network — Proof of Indexing and Bonded
+Accountability in a Shared Route Graph
 **Author:** Lewis Tham, Unbrowse AI · **Cite key:** `fdry` (self-ref in Papers 1-2)
 **Self-id:** arXiv:2604.00694 — this paper IS ref [3] of Papers 1 & 2.
 
@@ -30,6 +30,8 @@ Bonding in a Shared Route Graph
 | `samuelson` | P. A. Samuelson. *The Pure Theory of Public Expenditure.* Rev. Econ. Stat. 36(4):387–389, 1954. DOI: 10.2307/1925895. | fresh graph = non-rival public good; free-rider ⇒ pure usage under-provides maintenance |
 | `sybil` | J. R. Douceur. *The Sybil Attack.* IPTPS 2002, LNCS 2429:251–260. DOI: 10.1007/3-540-45748-8_24. | the open problem the attribution layer only partially mitigates (cite honestly) |
 | `casper` | V. Buterin, V. Griffith. *Casper the Friendly Finality Gadget.* arXiv:1710.09437, 2017. | accountable-safety slashing model → bonded maintainer, slashable false freshness claim |
+| `thegraph` | The Graph. *Proof of Indexing (POI)*; *Indexing Overview.* The Graph Protocol Documentation, 2024. | the positive freshness primitive — indexer submits a POI, slashed on a lost dispute (Fishermen) |
+| `filecoin2017` | Protocol Labs. *Filecoin: A Decentralized Storage Network.* White paper, 2017. | prove the indexing work was done AND keep proving it over time (PoRep / PoSt) |
 
 ## §-tree (the spine — Dijkstra order, each settles Plan→Build→Test→Judge)
 
@@ -46,18 +48,25 @@ Bonding in a Shared Route Graph
   graph is a non-rival public good → free-rider problem → maintenance is
   under-supplied by usage fees alone. Staleness is a negative externality
   (`pigou`); the bond + slashing is the corrective.
+- **§3.5 Proof of indexing — making freshness a verifiable artifact.** [`thegraph`,
+  `filecoin2017`] The positive primitive the bond secures: a maintainer re-indexes a
+  route and commits a content-addressed proof that it still resolves and its shape
+  matches — The Graph's *Proof of Indexing* by name. Freshness is a *spacetime*
+  property: repeated proofs over time, not one (Filecoin PoRep/PoSt). Stops at WHAT
+  the proof attests, never HOW the index is produced (moat boundary). `\prop`.
 - **§4 Trust tiers.** Open routes for low-risk traffic; higher-trust routes for
   authenticated/high-value paths. Ranking grounded in route quality, NOT capital
   (echo Paper 2: "bonding buys eligibility, not ranking"). [`erc8004`] for portable
   identity + reputation + validation registries.
-- **§5 Bonded, slashable maintenance.** [`casper`, `frost`] A maintainer bonds
-  FDRY to claim a route is fresh+safe; a false/conflicting claim is slashable
-  (accountable-safety analogy). FROST t-of-n quorum finalises a trust-tier claim,
-  not one confident wallet. `\prop`.
-- **§6 Challenge & dispute.** A challenger stakes to dispute a freshness claim;
-  resolution by independent re-execution (witness atom; Deut 19:15 / Matt 18:19
-  two-witness). [`rfc6962`] CT-style append-only log of claims; [`erc8004`]
-  validation registry.
+- **§5 Bonded, slashable maintenance.** [`casper`, `frost`, `thegraph`] The bond
+  secures an honest proof of indexing: a maintainer bonds FDRY against its proof,
+  and a proof that fails to reproduce (or conflicts) is slashable — exactly The
+  Graph's POI-dispute-slash (accountable-safety analogy). FROST t-of-n quorum
+  finalises a trust-tier claim, not one confident wallet. `\prop`.
+- **§6 Challenge & dispute.** A challenger stakes to dispute a proof of indexing;
+  resolution by independent re-indexing (witness atom; Deut 19:15 / Matt 18:19
+  two-witness) — exactly The Graph's *Fishermen* disputing a POI [`thegraph`].
+  [`rfc6962`] CT-style append-only log of claims; [`erc8004`] validation registry.
 - **§7 Attribution & the Sybil limit (honest).** Delta-based attribution rewards
   marginal contribution. [`sybil`] State plainly: bonding raises Sybil cost but
   does NOT formally close the gap; this is acknowledged open work, not a solved

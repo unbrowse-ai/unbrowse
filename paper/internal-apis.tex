@@ -22,7 +22,7 @@
 
 \title{\textbf{Internal APIs Were Not All You Needed}\\
 \large A Signed, Layer-Descending Stack for Agent Computation:\\
-Identity, Zero-Knowledge Credential Binding, and Bonded Route Trust}
+Identity, Authentication, and Zero-Knowledge Privacy across the Stack}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}}
 \date{March 2026}
@@ -46,9 +46,11 @@ the stack (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet).
 Every layer is signed by one Ed25519 wallet key; credentials are bound to that
 identity by zero-knowledge proof and revealed only under signature; every
 intermediate result is content-addressed and cached, with the signed commitment
-appended to a hash-chained ledger (value off-chain, root on-chain); and the routes
-other agents lean on are secured by stake you can actually lose. We cite a real
-primitive for
+appended to a hash-chained ledger (value off-chain, root on-chain); and nothing
+leaves any layer unsigned. The maintenance economy that keeps those routes fresh
+--- bonded accountability and proof of indexing --- is the concern of the companion
+Maintenance Network paper; this paper is about the security, authentication, and
+privacy of the stack itself. We cite a real primitive for
 each layer instead of inventing one, and we label what is \textbf{[shipped]}
 versus \textbf{[proposed]} so the reader always knows whether they are looking at
 a product or a promise. The short version: internal APIs were a great first
@@ -291,161 +293,26 @@ signatures and the hash-chain never change. \impl{} for the local append-only
 ledger (the route graph already keeps signed JSONL records); \prop{} for the
 on-chain root checkpointing and independent-auditor layer.
 
-\section{Settle: bonded, slashable route trust}
+\section{From security to economics: where this paper stops}
 
-A route graph that carries real traffic has a maintenance problem, not just a
-discovery problem: routes go stale, schemas drift, auth flows mutate the week
-after you cache them~\cite{fdry}. Discovery itself is settled by the inequality
-\[
-f_{\text{shared route}} < c_{\text{rediscovery}},
-\]
-under which a rational agent prefers the shared route whenever its fee undercuts
-the expected cost of rediscovering it~\cite{fdry}. Maintenance needs something with
-teeth: \emph{collateralised accountability} --- a maintainer signs a claim that a
-route is fresh and safe, and a false or conflicting claim is slashable. The
-mechanism and its incentive analysis are the subject of the Maintenance Network
-paper~\cite{fdry}; threshold signatures (FROST~\cite{frost}) finalise a trust-tier
-claim only with a $t$-of-$n$ quorum rather than one confident wallet. In
-Unbrowse terms this is the FDRY layer~\cite{fdry}: stable settlement for ordinary
-usage, with a native asset reserved \emph{strictly} for the security function ---
-bonding accountable maintenance, funding challenges, slashing liars. Bonding buys
-credibility and eligibility; it explicitly does \emph{not} buy ranking, because the
-moment stake buys placement you have built a pay-to-win search engine and deserve
-the users you get. \prop{} --- FDRY's bonding/challenge layer is sequenced as
-future work in~\cite{fdry}, and nothing in the wedge depends on rushing it.
+A signed, sealed, ledgered route graph is a security substrate; what it is
+\emph{worth} --- who maintains the routes, who pays, who earns, and how a freshness
+claim is made costly to fake --- is a separate concern with its own paper. We draw
+the line here deliberately. This paper is the security, authentication, and privacy
+of the stack: one key signs every layer, credentials are bound by zero-knowledge
+proof and revealed only under signature, every result is content-addressed and
+sealed, and nothing ships unsigned. The maintenance economy that sits on top of
+that substrate --- bonded accountability, proof of indexing, the challenge-and-slash
+discipline, and the FDRY security stake --- is developed in full in the companion
+Maintenance Network paper~\cite{fdry}.
 
-The token contract address, since a whitepaper that hides its own CA is just a
-PDF with anxiety, is \CA{} on Solana.\footnote{We put the contract address in the
-paper on purpose. If you would rather we were coy about it, there are many other
-whitepapers.}
-
-
-\section{The network: who pays, who earns, who opts in}
-
-A signed, ledgered route graph is infrastructure, and infrastructure has an
-economy. We are explicit about it because a trust paper that is coy about money is
-not actually trustworthy --- but we describe the \emph{what}, not the engine that
-makes capture cheap, which is the part we keep.
-
-\paragraph{Commoditised RPA, routed through one layer.} Every site that an agent
-automates today is re-discovered from scratch, per agent, per call --- the browser
-tax. Unbrowse turns that one-off robotic-process-automation work into a
-\emph{shared, maintained route graph}: discover once, reuse forever, and route the
-API/search cost through one infrastructure layer rather than re-paying it
-everywhere. The graph, kept fresh by real traffic, is the asset; any single route
-is copyable, the maintained graph is not~\cite{fdry}. \impl{} for resolve/execute
-over the shared graph; the maintenance-network economics are sequenced
-in~\cite{fdry}.
-
-\paragraph{Execution is the payment surface for security.} Payment is bound to the
-act, not bolted on: a paid \texttt{execute} settles over \textbf{x402}~\cite{x402}
---- the HTTP 402 ``Payment Required'' protocol revived as a real rail --- through a
-split authorisation, and that settlement is what funds the substrate that keeps the
-graph safe to depend on (validation, freshness, sponsor admission). x402 is the
-right primitive precisely because it is the missing payment layer the web stubbed
-out in 1997: a call either carries a valid micropayment or it gets a 402, so charging
-per execution needs no accounts, invoices, or middleman --- the wire itself settles.
-The agent either pays per call on the wallet rail or rides a subscription that hides
-the chain entirely; either way the platform share funds the security layer, not a
-rent-seeker. \impl{} (the x402 split settlement and subscription admission are shipped).
-
-\paragraph{Websites get wallets they opt into.} The quiet structural move: every
-paid call on a route splits three ways --- the indexer who captured it, the
-\emph{owner of the domain it serves}, and the platform. A domain's share accrues
-the moment its routes earn, \emph{before the owner has done anything}, held in a
-public, per-domain-attributed escrow. To claim it, the owner proves the domain is
-theirs the same way they would opt out --- a DNS record or a \texttt{.well-known}
-file --- and binds it to a wallet via Privy domain sign-in. From the next
-settlement on, their share routes straight to them. The incentive runs the right
-way: the network pays domains for being automated well, and the only way to collect
-is to join the network. \prop{}/\impl{} --- the fair-split, public earnings ledger,
-and Privy-DNS claim flow are documented and partially shipped; the full
-website-wallet rollout is sequenced, not claimed as universal today.
-
-\paragraph{The game theory: pay whoever actually created the value.} The split is
-not charity, it is incentive design. Three parties produce the value of a reused
-route, so x402 routes USDC to all three in one settlement: the \emph{indexer} who
-did the work of discovering and capturing the route, the \emph{domain owner} whose
-service is being called (paid for hosting the thing worth automating), and the
-\emph{platform} that runs the routing, search, and security substrate. Each share
-is the dominant strategy for the role it pays: an indexer earns by capturing routes
-others reuse, so the graph's coverage grows; a domain owner earns by being reliably
-automatable, so blocking agents becomes the costly move and cooperation the
-profitable one; the platform earns only when a settlement it secured actually
-happens, so its incentive is the graph staying trustworthy, not extracting rent.
-Because the shares derive from on-ledger contribution metrics rather than a
-hardcoded pricing table, no party can game a per-request knob --- the hardest-to-fake
-signal, realised payment, is what ranks and rewards~\cite{x402}. The same x402 rail
-can carry staking rewards: USDC accrued by a staked role flows back through the
-identical split mechanism, so ``who deserves the money'' is answered mechanically by who contributed, not by who asks. \prop{} for the staking-reward routing; the
-  three-way live split is shipped.
-
-\paragraph{Why FDRY, and why fair-launched.} Usage does not need a token --- it
-settles in stable USDC over x402~\cite{x402}, and we are emphatic that it stays
-that way. FDRY exists for one job the stablecoin cannot do: the
-security/accountability layer, where a maintainer's bond, a challenger's stake, and
-a slashing penalty must be denominated in an asset whose value is tied to the
-network's own integrity~\cite{fdry}. The non-obvious constraint is on its
-\emph{distribution}, and it falls straight out of the witness atom: accountability
-is credible only when many \emph{independent} parties hold the bond, the same way a
-claim stands on two independent witnesses rather than one. A security asset
-concentrated in insider hands is a single witness wearing many hats --- it
-contradicts the very decentralisation it is meant to underwrite. So FDRY launched
-fair by necessity, not branding: no pre-sale, no team allocation, no insider round;
-supply placed on a public Solana pool at launch, acquirable only on the open market
-at the same price for the founder as for everyone else. The platform's USDC fee is
-the sap that flows back to whoever holds that distributed security stake --- staking
-by abiding, not by lock-up. \impl{} (fair launch + live platform-fee collection);
-\prop{} (the vault cycle that returns the fee to holders). No promise of profit;
-the mechanism is the claim, not a guarantee.
-
-\paragraph{Why money could not be the point.} There is a deeper reason the
-distribution had to be fair, and it is not financial --- it is about the order in
-which trust and money can be created. A network that puts money first inverts its
-own foundation: if the token is launched to enrich its issuer, then the issuer's
-incentive at the root is extraction, and every participant downstream correctly
-discounts the system's trust claims accordingly --- the rot is at the origin, so no
-amount of mechanism above it recovers credibility. This is the same failure societies
-hit when an institution's first move is to capture rent: the capture is observed, and
-trust never accrues. The accountability layer we need --- proof-of-stake bonding and
-ZK identity --- \emph{cannot} sit on a money-first root, because its entire job is to
-let strangers trust each other's claims, and a root optimised for the issuer's gain
-is exactly the thing strangers are right to distrust. FDRY clears this only because
-money was not its point: it was distributed with no issuer advantage and then
-\emph{repurposed} as the security stake. The asset earns its trust the same way a
-route does in this system --- by what it does for the network, corroborated by
-independent holders, not by what it promised its founder. Trust precedes value here;
-the value is the fruit of the trust, never its bait.
-
-\paragraph{What stays ours.} Everything above is the \emph{what}: the graph, the
-split, the claim. The \emph{how} --- the capture, indexing, and platform-integrity
-primitives that make route discovery cheap and the graph fresh --- is closed by
-design~\cite{ossnotice}, for the abuse reasons stated there. The boundary is not
-secrecy for its own sake; it is the difference between giving agents real APIs and
-handing out an unattributed scraping fleet. This paper, and the security audit it
-supports, surface the trust surface in full and stop exactly at that engine.
-
-\paragraph{Reproduced mechanism (this paper's own measurement).} The field result
-above is the live-web study; we additionally ship a runnable micro-benchmark
-(\texttt{reference/bench/bench\_reuse.py}) that isolates and measures the
-\emph{mechanism} the field speedup rests on --- content-addressed reuse versus
-re-derivation --- on the actual cache implementation. Over 60 trials, re-deriving a
-representative $\sim$64\,KB extracted payload averages \textbf{4.48\,ms} while a
-content-addressed cache hit (read + hash re-verify) averages \textbf{0.052\,ms}: a
-measured \textbf{$\approx$95$\times$} mean speedup, wall-clock, deterministic, with a
-gate that fails if reuse is not materially faster. We are careful about what this is:
-it is a CPU-only recompute-versus-reuse demonstration and is therefore \emph{larger}
-than the 3.6$\times$ field figure, which includes the browser, the network, and real
-page variance the micro-benchmark deliberately excludes. The field number is the
-honest end-to-end claim; this number proves the structural reason behind it ---
-reuse is asymptotically cheaper than rediscovery --- holds on our code, not just in
-prose.
-primitives that make route discovery cheap and the graph fresh --- is closed by
-design~\cite{ossnotice}, for the abuse reasons stated there. The boundary is not
-secrecy for its own sake; it is the difference between giving agents real APIs and
-handing out an unattributed scraping fleet. This paper, and the security audit it
-supports, surface the trust surface in full and stop exactly at that engine.
-
+Keeping the two concerns in separate papers is itself the discipline. A security
+model must stand on its own, without leaning on a token to be true: the signatures,
+the ZK binding, and the sealed cache are correct or not on cryptographic grounds
+alone, independent of any economics layered above them. Conversely, the economics
+is only worth stating once the substrate it secures is trustworthy. So we settle
+the substrate here and hand the reader, deliberately, to the next paper for the
+question of who keeps it fresh and how that claim is made accountable~\cite{fdry}.
 \section{The control loop}
 
 The whole stack runs as an OODA loop~\cite{ooda}: observe the layer's state, orient
@@ -458,43 +325,40 @@ glamorous control loops are the ones that do not converge.
 
 
 
-\section{Evaluation}
+\section{Evaluation: the security substrate}
 
-We summarise the quantitative result the wedge rests on, as reported in the
-Maintenance Network study~\cite{fdry}, and are precise about what it does and does
-not establish.
+This paper's claims are about a security discipline, so we evaluate the security
+substrate it introduces --- not the end-to-end latency win of route reuse, which is
+a discovery and economics result developed in the companion paper~\cite{fdry}. We
+are precise about what the measurements here do and do not establish.
 
-\paragraph{Setup.} A single-host, live-web benchmark over \textbf{94 domains}
-compares two ways of completing the \emph{same} information-retrieval task: (i)
-executing a cached first-party route, versus (ii) driving a real browser
-(Playwright) to obtain the equivalent result. Tasks are matched for output so the
-comparison is like-for-like, not API-easy-case versus browser-hard-case.
-
-\paragraph{Results.} Cached route execution averages \textbf{950\,ms} against
-\textbf{3{,}404\,ms} for browser automation --- a \textbf{3.6$\times$ mean} speedup,
-with a \textbf{5.4$\times$ median} (the median exceeds the mean because the browser's
-tail is heavy: slow pages drag its average up, while cached routes are tightly
-distributed). Well-cached routes complete in under \textbf{100\,ms}. The local
-cache+ledger reference implementation that ships with this paper is separately
-unit-verified --- content-addressing, value-off-chain/root-on-chain, hash-chain
+\paragraph{The substrate is correct by executable test.} The local cache+ledger
+reference implementation that ships with this paper is unit-verified:
+content-addressing, value-off-chain/root-on-chain separation, hash-chain
 tamper-evidence, ed25519 signatures, and deterministic Merkle-root inclusion all
 pass as executable tests, so the substrate's correctness claims are runnable, not
 asserted.
 
-\paragraph{Live single-URL spot-check (this session).} As an honest sanity check --- not the field study --- we timed the shipped \texttt{unbrowse} v7.0.2 binary on one URL in a sandbox: a cold discovery (\texttt{resolve}, cache miss $\to$ marketplace/search) reported \textbf{5396\,ms}, while a warm cached fetch (HTTP replay of a known route) reported \textbf{201\,ms} --- a \textbf{$\approx$27$\times$} observed gap, both numbers read from the binary's own output (\texttt{reference/bench/live-measured-1url.json}). This is $n{=}1$ and compares discover-vs-replay rather than browser-vs-execute; it is directionally consistent with the field result (cached $\gg$ cold) but is explicitly \emph{not} a reproduction of the 94-domain 3.6$\times$ headline, which remains future work.
+\paragraph{Sealed-cache reuse, measured.} We additionally ship a runnable
+micro-benchmark (\texttt{reference/bench/\allowbreak bench\_reuse.py}) that isolates the one
+property the sealed cache rests on --- content-addressed reuse versus re-derivation
+--- on the actual cache implementation. Over 60 trials, re-deriving a representative
+$\sim$64\,KB extracted payload averages \textbf{4.48\,ms} while a content-addressed
+cache hit (read + hash re-verify) averages \textbf{0.052\,ms}: a measured
+\textbf{$\approx$95$\times$} mean speedup, wall-clock, deterministic, with a gate
+that fails if reuse is not materially faster. This is a CPU-only
+recompute-versus-reuse demonstration --- it isolates the cache primitive, not the
+network or the browser --- and it establishes exactly one thing: a sealed,
+content-addressed commitment is asymptotically cheaper to re-read than to
+re-derive, which is what makes the cache safe to lean on rather than merely fast.
 
-\paragraph{What this establishes, and what it does not.} The measurement supports
-exactly one claim: when a route already exists in the graph, reusing it is
-substantially cheaper than rediscovering it with a browser --- which is the entire
-economic premise, since an agent adopts the shared graph only when the route fee
-undercuts expected rediscovery cost~\cite{fdry}. It does \emph{not} establish
-cold-start discovery cost (the first agent still pays the browser tax), end-to-end
-task success rates (not reported), or accuracy on adversarial or
-heavily-JavaScript-gated sites where the descent to the browser layer is forced. We
-state this plainly: the speedup is a reuse result, not a universal one, and the
-honest adoption condition is the inequality of the network section, not a blanket
-``always faster.''
-
+\paragraph{What this establishes, and what it does not.} The substrate tests
+establish that the security primitives are correct as implemented; the
+micro-benchmark establishes that sealed-cache reuse is cheap. Neither establishes
+end-to-end task success, cold-start discovery cost, or accuracy on adversarial,
+heavily-JavaScript-gated sites where the descent to the browser layer is forced ---
+those are out of this paper's scope and are taken up, where they belong, in the
+companion Maintenance Network paper~\cite{fdry}.
 \section{Threat model}
 
 We state the adversary explicitly, because a trust paper that never names what it
@@ -561,7 +425,9 @@ fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
 route/endpoint caching.
 \item \prop{} Uniform \emph{signed} descent through the OS/kernel layers; ZK
 credential binding (the central contribution); the sealed-unless-revealed
-commitment cache; ERC-8004 registry binding; FDRY bonding / challenge / slashing.
+commitment cache. The bonded route-trust economy (ERC-8004 binding, FDRY bonding /
+challenge / slashing, and proof of indexing) is the subject of the companion
+Maintenance Network paper~\cite{fdry}, not claimed here.
 \end{itemize}
 Treat the \prop{} list as a research agenda with cited foundations, not a feature
 list with a release date. The gap between those two things is the entire

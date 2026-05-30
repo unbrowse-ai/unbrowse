@@ -23,7 +23,7 @@
 \newcommand{\CA}{\texttt{2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL}}
 
 \title{\textbf{Unbrowse Maintenance Network}\\
-\large Trust, Accountability, and Optional Bonding in a Shared Route Graph}
+\large Proof of Indexing and Bonded Accountability in a Shared Route Graph}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}}
 \date{March 2026}
@@ -43,12 +43,17 @@ problem: who keeps the routes fresh, and how is the claim that a route is fresh 
 trustworthy. We frame the graph as a common-pool resource that degrades under
 uncoordinated use~\cite{ostrom}, show why pure usage fees structurally under-provide
 freshness (a non-rival public good~\cite{samuelson} whose decay is a negative
-externality~\cite{pigou}), and propose collateralised accountability as the
-corrective: a maintainer bonds the network's security asset against a freshness
-claim, and a false or conflicting claim is slashable~\cite{casper}, finalised by a
-threshold quorum~\cite{frost} and adjudicated against a tamper-evident, independently
-auditable log~\cite{rfc6962}. We are explicit about the token this requires --- why
-it exists strictly for the security function, why its fair distribution is a
+externality~\cite{pigou}), and make freshness a \emph{verifiable artifact} rather
+than a bare assertion: a maintainer publishes a \emph{proof of indexing} --- a
+content-addressed attestation that a route was re-indexed against its live source,
+in the lineage of The Graph's Proof of Indexing~\cite{thegraph} and Filecoin's proof
+that storage is held across time~\cite{filecoin2017}. Collateralised accountability
+secures the proof: a maintainer bonds the network's security asset against it, and a
+proof that fails to reproduce under independent re-indexing is slashable~\cite{casper},
+finalised by a threshold quorum~\cite{frost} and adjudicated against a tamper-evident,
+independently auditable log~\cite{rfc6962}. We are explicit about the token this
+requires --- why it exists strictly for the security function, why its fair
+distribution is a
 security parameter rather than a marketing choice, and why a coordination asset
 launched for money cannot become trustworthy --- and equally explicit about the
 limit we have not closed, formal Sybil resistance~\cite{sybil}. Throughout we tag
@@ -189,6 +194,53 @@ being worth trusting at all. \prop{} --- the bond-and-slash corrective is the
 sequenced security layer, not a shipped mechanism; the usage rail it sits beside
 is live~\cite{x402}.
 
+\section{Proof of indexing: making freshness a verifiable artifact}
+
+The previous section establishes \emph{why} the graph needs accountability; this
+one supplies the primitive the accountability is about. A bond, by itself, only
+punishes a freshness claim after it has been found false --- it presupposes some way
+to find it false. We want more than a slashable assertion: we want freshness to be
+a \emph{verifiable artifact} a stranger can check, not a promise they must take on
+faith. That artifact is a \emph{proof of indexing}.
+
+A proof of indexing is what a maintainer produces by actually re-indexing a route
+against its live source: a content-addressed attestation, committed to the
+hash-chained ledger, that the route still resolves and that its observed shape ---
+the schema, the fields an agent depends on, the auth handshake --- matches what the
+proof commits to, at a stated time. The proof is the freshness evidence. Anyone can
+verify the commitment against the ledger, and any independent party can re-index the
+same route and check that they reconstruct the same proof. Freshness stops being a
+maintainer's say-so and becomes a checkable object.
+
+This is not a new invention, and we are careful not to dress it as one. The Graph
+protocol already uses exactly this primitive under exactly this name: an Indexer
+that has indexed a subgraph submits a \emph{Proof of Indexing} --- in the protocol's
+own words, ``a cryptographic proof that an Indexer has correctly indexed a subgraph
+deployment up to a given block''~\cite{thegraph} --- is paid for it, and remains
+liable to a dispute that slashes its stake if the proof is wrong. A route
+maintainer's proof of indexing stands in precisely that position: produced by real
+indexing work, accepted optimistically, and disputable on independent re-indexing.
+
+Freshness, crucially, is not a property a route has once; it is a property it has
+\emph{over time}, and a single proof certifies only a single moment. The right
+analogy is Filecoin's separation of two proofs: a Proof-of-Replication that the work
+of storing specific data was actually done, and a Proof-of-Spacetime that lets a
+provider ``prove they have stored some data throughout a specified amount of
+time''~\cite{filecoin2017}. A route is the same: one proof of indexing shows the
+indexing work was done; \emph{repeated} proofs, on a cadence the trust tier sets,
+are what show the route is being \emph{kept} fresh rather than indexed once and left
+to rot. Maintenance is the spacetime property, not the point one.
+
+We stop, deliberately, at \emph{what} the proof attests and never publish \emph{how}
+the index is produced. The proof commits to observable facts about the route --- it
+resolves, its schema matches, its fields are present --- which is all a verifier
+needs. The deep capture surface that does the indexing is the closed
+engine~\cite{ossnotice}, for the abuse reasons stated there; the boundary is the
+difference between giving agents a checkable freshness proof and handing out the
+machine that makes scraping cheap. So the proof of indexing is tagged \prop{}: the
+indexing capability it would certify is the live capture surface, but the
+cryptographic proof and the bonded economics that secure it are a designed layer,
+not a shipped one.
 \section{Trust tiers}
 
 Not all traffic needs the same assurance, and pretending it does is its own kind of
@@ -232,17 +284,20 @@ graph and its usage settlement, with the bonded tier sequenced behind it.
 \section{Bonded, slashable maintenance}
 
 The trust tiers of the previous section raise an obvious question: what makes a
-higher-trust claim actually trustworthy? A route's freshness is not a fact the
-network can read off a register --- it is an assertion someone makes about the
-world (``this endpoint still works, its schema has not drifted, its auth flow is
-unchanged''), and an assertion is only as good as what the asserter has to lose if
-it is wrong. So a maintainer who wishes to claim a route is fresh and safe at a
-trust tier \emph{bonds} FDRY against that claim: the bond is collateral
-posted into the open, escrowed against the specific route attestation. A claim that
-later proves false, or that conflicts with another bonded claim about the same
-route, is \emph{slashable} --- the maintainer forfeits stake. This is collateralised
-accountability: the maintainer is paid to be right and made to pay for being wrong,
-so claiming freshness stops being free talk and becomes a position with skin in it.
+higher-trust claim actually trustworthy? Proof of indexing answers \emph{what} a
+fresh route looks like as evidence; bonding answers \emph{why} that evidence is
+honest. A route's freshness, even with a proof attached, is still an assertion that
+the proof was produced faithfully --- and an assertion is only as good as what the
+asserter has to lose if it is wrong. So a maintainer who wishes to certify a route
+at a trust tier posts a proof of indexing and \emph{bonds} FDRY against it: the bond
+is collateral posted into the open, escrowed against that specific proof. A proof
+that later fails to reproduce --- an independent re-index does not reconstruct it
+--- or that conflicts with another bonded proof about the same route, is
+\emph{slashable}, and the maintainer forfeits stake. This is exactly the discipline
+The Graph applies to its own indexers, whose Proof of Indexing is accepted
+optimistically but slashed if a dispute resolves against it~\cite{thegraph}: the
+maintainer is paid to be right and made to pay for being wrong, so certifying
+freshness stops being free talk and becomes a position with skin in it.
 
 The shape of this is not novel and we do not claim it as such; it is exactly the
 \emph{accountable-safety} discipline of proof-of-stake finality. Casper the
@@ -294,17 +349,20 @@ maintainer, and a sound one is rewarded from the slashed bond. Both sides now ha
 skin in the same question, which is the precondition for the question being
 answered honestly rather than loudly.
 
-Resolution is by independent re-execution. The disputed claim is a claim about an
-observable fact --- does this route still return the expected result? --- so it is
-settled by re-running the route from parties who do not trust either side and
-comparing what they observe. This is the two-witness principle made operational: a
-claim stands only on independent corroboration, never on one party's assertion
-(neither the maintainer's original claim nor the challenger's accusation is
-self-validating). ERC-8004's Validation registry~\cite{erc8004} is the surface for
-exactly this --- it defines independent re-execution, and where applicable ZK or
+Resolution is by independent re-indexing. The disputed claim is a claim about an
+observable fact --- does re-indexing this route reproduce the bonded proof? --- so
+it is settled by independent parties who do not trust either side re-running the
+index and comparing what they observe against the committed proof of indexing. This
+is the role The Graph assigns to its \emph{Fishermen}, who may dispute a published
+Proof of Indexing and, where the dispute resolves against the indexer, trigger a
+slash of its stake~\cite{thegraph}. It is the two-witness principle made
+operational: a proof stands only on independent corroboration, never on one party's
+assertion (neither the maintainer's original proof nor the challenger's accusation
+is self-validating). ERC-8004's Validation registry~\cite{erc8004} is the surface
+for exactly this --- it defines independent re-execution, and where applicable ZK or
 TEE checks, as the mechanism by which one agent's work is verified by others who
 have no reason to favour it --- so a freshness dispute is adjudicated by the
-re-execution evidence, not by a trusted referee.
+re-indexing evidence, not by a trusted referee.
 
 For the dispute history to be auditable, the record of claims and challenges must
 itself be tamper-evident rather than a log a single operator could quietly rewrite.
@@ -331,10 +389,11 @@ a contributor is rewarded in proportion to the marginal improvement their work
 makes to a route, not for mere presence on it. Tightening a schema so that fewer
 calls fail, adding an endpoint that was missing, repairing an auth flow that had
 drifted --- each is scored by the difference it makes to the route's measured
-quality, so the reward tracks the increment, and a no-op edit on top of someone
-else's work earns nothing. This keeps the incentive pointed at real maintenance
-rather than at land-grabbing a popular route and collecting rent on another
-party's labour.
+quality, read off the freshness, coverage, and faithful-replay deltas between
+successive proofs of indexing, so the reward tracks the increment, and a no-op edit
+on top of someone else's work earns nothing. This keeps the incentive pointed at
+real maintenance rather than at land-grabbing a popular route and collecting rent
+on another party's labour.
 
 Delta-based attribution prices contribution honestly, but it does not, by itself,
 solve who is making the contribution --- and here we have to be plain rather than
@@ -439,8 +498,13 @@ pre-sale, team allocation, or insider round.
 \item \impl{} Platform-fee collection on settled executions.
 \item \impl{} The signed, append-only JSONL route ledger --- the local, hash-chained
 record of route claims.
+\item \prop{} Proof of indexing: a content-addressed proof that a route was
+re-indexed against its live source, committed to the ledger and checkable by
+independent re-indexing~\cite{thegraph,filecoin2017}. The deep capture surface that
+produces the index is the live, closed engine~\cite{ossnotice}; the cryptographic
+proof and its bonded economics are the proposed layer.
 \item \prop{} Bonding, challenge, and slashing: the collateralised-accountability
-layer in which a maintainer's stake is forfeit on a false freshness claim.
+layer in which a maintainer's stake is forfeit on a proof that fails to reproduce.
 \item \prop{} On-chain Merkle-root checkpoints of the ledger, batching many signed
 entries into a single transparency-style root~\cite{rfc6962}.
 \item \prop{} Formal Sybil resistance for attributed contribution, which remains an
@@ -521,6 +585,13 @@ Threshold Signatures}. SAC 2020, LNCS 12804. IACR ePrint 2020/852; RFC 9591.
 \bibitem{rfc6962} B.~Laurie, A.~Langley, E.~Kasper. \emph{Certificate Transparency}.
 RFC 6962, IETF, 2013.
 
+\bibitem{thegraph} The Graph. \emph{Proof of Indexing (POI)}; \emph{Indexing
+Overview}. The Graph Protocol Documentation, 2024.
+\url{https://thegraph.com/docs/en/resources/glossary/};
+\url{https://thegraph.com/docs/en/indexing/overview/}.
+
+\bibitem{filecoin2017} Protocol Labs. \emph{Filecoin: A Decentralized Storage
+Network}. White paper, July 2017. \url{https://filecoin.io/filecoin.pdf}.
 \end{thebibliography}
 
 \end{document}
