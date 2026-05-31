@@ -119,6 +119,11 @@ CLI_ENV=(
   HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config"
   UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1
   UNBROWSE_URL="http://127.0.0.1:$PORT"
+  # Direct egress for the smoke: the CLI otherwise auto-wires KURI_PROXY to the
+  # paid prod proxy (proxykingdom), which returns 402/407 with no signer on a CI
+  # runner — Chrome then lands on chrome-error:// and snap is empty. This gate
+  # tests the binary's own browse capability, not the prod proxy, so go direct.
+  UNBROWSE_DIRECT_EGRESS=1
 )
 
 # Redirect stderr separately — CLI prints [domain-cache] etc. to stderr which breaks JSON parsing
