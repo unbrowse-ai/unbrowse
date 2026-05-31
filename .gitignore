@@ -24,6 +24,12 @@ build/
 out/
 *.tsbuildinfo
 
+# src/cli-v7/build/ holds CLI verb-handler SOURCE (skill/template/value-source),
+# not build output — the generic `build/` rule above wrongly excluded it, so it
+# was absent in CI and the Windows unbrowse.exe build could not resolve it.
+!src/cli-v7/build/
+!src/cli-v7/build/**
+
 # Environment variables
 .env
 .env.local
