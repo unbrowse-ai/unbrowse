@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
 import http from "node:http";
 import https from "node:https";
-import { SUPPORTED_TARGETS, buildBinaryArchiveName, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
+import { SUPPORTED_TARGETS, buildBinaryArchiveName, buildReleaseAssetUrl, getReleaseAssetConfig, unbrowseBinaryName } from "./release-assets.mjs";
 
 // --- Persist landing attribution from env to disk ---
 // The UNBROWSE_LANDING_TOKEN env var is set when the user copies the install
@@ -42,7 +42,11 @@ try {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
-const binaryPath = join(binDir, "unbrowse");
+// On Windows the compiled binary is `unbrowse.exe`; everywhere else it's
+// `unbrowse`. The wrapper (bin/unbrowse-wrapper.mjs) resolves the same name,
+// so both sides must agree — the decision lives in release-assets.mjs.
+const installedBinaryName = unbrowseBinaryName(process.platform);
+const binaryPath = join(binDir, installedBinaryName);
 const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;
 const wrapperPath = join(binDir, "unbrowse-wrapper.mjs");
 const launcherPath = join(binDir, "unbrowse.js");
@@ -148,9 +152,14 @@ for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     await download(url, archivePath);
     mkdirSync(extractDir, { recursive: true });
     execFileSync("tar", ["-xzf", archivePath, "-C", extractDir]);
-    const extractedBinary = join(extractDir, "unbrowse");
-    if (!existsSync(extractedBinary)) {
-      throw new Error(`Archive ${assetName} did not contain ./unbrowse`);
+    // The win-x64 tarball packs `unbrowse.exe` at the archive root; darwin/linux
+    // pack `unbrowse`. Prefer the target-appropriate member, but accept either
+    // layout so an unexpectedly-named asset still installs.
+    const memberName = unbrowseBinaryName(target);
+    const memberCandidates = [join(extractDir, memberName), join(extractDir, "unbrowse"), join(extractDir, "unbrowse.exe")];
+    const extractedBinary = memberCandidates.find((p) => existsSync(p));
+    if (!extractedBinary) {
+      throw new Error(`Archive ${assetName} did not contain ${memberName}`);
     }
     mkdirSync(binDir, { recursive: true });
     copyFileSync(extractedBinary, binaryPath);
