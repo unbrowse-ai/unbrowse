@@ -24,6 +24,7 @@ import kuriDarwinArm64Path from "../packages/skill/vendor/kuri/darwin-arm64/kuri
 import kuriDarwinX64Path from "../packages/skill/vendor/kuri/darwin-x64/kuri" with { type: "file" };
 import kuriLinuxArm64Path from "../packages/skill/vendor/kuri/linux-arm64/kuri" with { type: "file" };
 import kuriLinuxX64Path from "../packages/skill/vendor/kuri/linux-x64/kuri" with { type: "file" };
+import kuriWinX64Path from "../packages/skill/vendor/kuri/win-x64/kuri.exe" with { type: "file" };
 
 const UNBROWSE_HOME = join(homedir(), ".unbrowse");
 // `kuri` on darwin/linux, `kuri.exe` on Windows — the cached/extracted name
@@ -34,6 +35,8 @@ const EMBEDDED_KURI_BY_TARGET: Record<string, string> = {
   "darwin-x64": kuriDarwinX64Path,
   "linux-arm64": kuriLinuxArm64Path,
   "linux-x64": kuriLinuxX64Path,
+  // os.platform() returns "win32" on Windows, so the key is "win32-x64".
+  "win32-x64": kuriWinX64Path,
 };
 
 function currentKuriTarget(): string {
