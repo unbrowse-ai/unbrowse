@@ -21,7 +21,10 @@ jobs:
   test-windows:
     name: Windows E2E
     runs-on: windows-latest
-    timeout-minutes: 15
+    # 15 was too tight once kuri.exe is built from source on the runner (zig +
+    # quickjs) on top of the bun builds + browser test; the job was cancelled on
+    # the final continue-on-error OpenClaw step despite every real test passing.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
