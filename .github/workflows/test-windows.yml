@@ -100,7 +100,10 @@ jobs:
           }
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        # Not --frozen-lockfile: bun.lock is generated on darwin/linux and resolves
+        # different platform-specific optional deps on Windows, which trips the
+        # frozen check. The E2E only needs deps present to build unbrowse.exe.
+        run: bun install --no-frozen-lockfile
 
       - name: Build unbrowse.exe
         shell: pwsh
