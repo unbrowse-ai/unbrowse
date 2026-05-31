@@ -25,7 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # NOT `recursive` — the skills/foundry submodule (unbrowse-ai/foundry,
+          # private) aborts the whole recursive checkout for the CI token. We
+          # only need submodules/kuri, pulled selectively below.
+          submodules: false
+
+      - name: Init submodules/kuri only
+        run: |
+          git submodule init submodules/kuri
+          git submodule update --init --depth=1 submodules/kuri
 
       - uses: actions/setup-node@v4
         with:
@@ -34,6 +42,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
 
       - name: Check Chrome is available
         shell: pwsh
@@ -47,47 +60,31 @@ jobs:
             Get-ChildItem "C:\Program Files*\Google\Chrome\Application\chrome.exe" -ErrorAction SilentlyContinue
           }
 
-      - name: Resolve kuri.exe (vendored or latest kuri-vendor artifact)
+      - name: Build kuri.exe from source (the exact submodule under test)
         id: resolve_kuri
         shell: pwsh
         run: |
-          $vendored = "packages\skill\vendor\kuri\win-x64\kuri.exe"
-          if (Test-Path $vendored) {
-            Write-Host "Using vendored kuri.exe at $vendored"
-            "kuri_path=$vendored" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            exit 0
-          }
-          Write-Host "No vendored kuri.exe; falling back to latest kuri-vendor artifact"
-          "kuri_path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Download kuri-windows-x64 artifact (fallback path)
-        if: steps.resolve_kuri.outputs.kuri_path == ''
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: kuri-vendor.yml
-          workflow_conclusion: success
-          name: kuri-windows-x64
-          path: .kuri-artifact
-          if_no_artifact_found: fail
-
-      - name: Set kuri path from artifact
-        if: steps.resolve_kuri.outputs.kuri_path == ''
-        id: artifact_kuri
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem -Path .kuri-artifact -Recurse -Filter kuri.exe | Select-Object -First 1
-          if (-not $exe) { Write-Error "kuri.exe not found in downloaded artifact"; exit 1 }
-          $resolved = $exe.FullName
-          Write-Host "Using artifact kuri.exe at $resolved"
+          Push-Location submodules/kuri
+          zig build -Dtarget=x86_64-windows-gnu
+          Pop-Location
+          $exe = "submodules\kuri\zig-out\bin\kuri.exe"
+          if (-not (Test-Path $exe)) { Write-Error "kuri.exe not produced by zig build"; exit 1 }
+          $resolved = (Resolve-Path $exe).Path
+          Write-Host "Built kuri.exe at $resolved"
           "kuri_path=$resolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          # The win-x64 kuri.exe is gitignored (unlike the committed darwin/linux
+          # ones), so it is absent on a fresh checkout. single-binary.ts embeds it,
+          # so stage the freshly-built binary into the vendor path before the
+          # unbrowse.exe build below.
+          New-Item -ItemType Directory -Force -Path "packages\skill\vendor\kuri\win-x64" | Out-Null
+          Copy-Item -Force $resolved "packages\skill\vendor\kuri\win-x64\kuri.exe"
 
       - name: Test kuri.exe health
         shell: pwsh
         env:
-          KURI_PATH_VENDORED: ${{ steps.resolve_kuri.outputs.kuri_path }}
-          KURI_PATH_ARTIFACT: ${{ steps.artifact_kuri.outputs.kuri_path }}
+          KURI_PATH: ${{ steps.resolve_kuri.outputs.kuri_path }}
         run: |
-          $kuriExe = if ($env:KURI_PATH_VENDORED) { $env:KURI_PATH_VENDORED } else { $env:KURI_PATH_ARTIFACT }
+          $kuriExe = $env:KURI_PATH
           if (-not (Test-Path $kuriExe)) { Write-Error "kuri.exe still not resolvable"; exit 1 }
           Write-Host "Using kuri.exe at $kuriExe"
           $env:HEADLESS = "true"
