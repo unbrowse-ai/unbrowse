@@ -38,3 +38,21 @@ export function buildBinaryArchiveName(version, target) {
 export function buildReleaseAssetUrl(baseUrl, tag, assetName) {
   return `${baseUrl.replace(/\/+$/, "")}/${tag}/${assetName}`;
 }
+
+// --- Windows-aware binary naming -------------------------------------------
+// The compiled unbrowse binary is `unbrowse` on darwin/linux but `unbrowse.exe`
+// on Windows: bun emits `.exe` for `--target=bun-windows-x64`, the release
+// tarball packs it at the archive root as `unbrowse.exe`, and Windows refuses
+// to exec a file without the extension. Both the postinstall (which extracts
+// the tarball member and installs it into bin/) and the wrapper (which execs
+// bin/unbrowse[.exe]) must agree on the name, so the decision lives here.
+//
+// Accepts either a Node `process.platform` value (`win32`) or a release target
+// id (`win-x64`) — anything that starts with `win` is treated as Windows.
+export function isWindowsPlatform(platformOrTarget) {
+  return typeof platformOrTarget === "string" && platformOrTarget.startsWith("win");
+}
+
+export function unbrowseBinaryName(platformOrTarget) {
+  return isWindowsPlatform(platformOrTarget) ? "unbrowse.exe" : "unbrowse";
+}

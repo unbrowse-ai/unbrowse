@@ -10,10 +10,13 @@ import { createRequire } from "node:module";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { unbrowseBinaryName } from "../scripts/release-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
-const binaryPath = join(__dirname, "unbrowse");
+// Windows ships `unbrowse.exe`; postinstall installs it under that name, so the
+// wrapper must look for the same name (a plain `unbrowse` never exists on win).
+const binaryPath = join(__dirname, unbrowseBinaryName(process.platform));
 const launcherPath = join(__dirname, "unbrowse.js");
 const require = createRequire(import.meta.url);
 
