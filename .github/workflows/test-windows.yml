@@ -21,10 +21,10 @@ jobs:
   test-windows:
     name: Windows E2E
     runs-on: windows-latest
-    # 15 was too tight once kuri.exe is built from source on the runner (zig +
-    # quickjs) on top of the bun builds + browser test; the job was cancelled on
-    # the final continue-on-error OpenClaw step despite every real test passing.
-    timeout-minutes: 25
+    # Building kuri.exe from source on the runner (zig + quickjs) + the bun builds
+    # + browser test runs ~20 min; give headroom so a slow tail step can't cancel
+    # the job after the real tests have already passed.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -162,6 +162,10 @@ jobs:
       - name: Test OpenClaw plugin install
         shell: pwsh
         continue-on-error: true
+        # Tangential to the browse E2E and prone to hanging on Windows
+        # (npx unbrowse-openclaw install). Cap it so a hang cannot run the job
+        # out to its timeout and cancel it after the real tests have passed.
+        timeout-minutes: 4
         run: |
           npm install -g openclaw 2>&1 | Select-Object -Last 3
           openclaw --version 2>&1
