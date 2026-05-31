@@ -246,7 +246,13 @@ jobs:
           # private; only unbrowse-ai/unbrowse is public). E422 with message
           # "Unsupported GitHub Actions source repository visibility: private".
           # Restore --provenance only if/when this source repo becomes public.
-          npm publish 2>&1 | tee "$PUBLISH_LOG"
+          # Publish prerelease (*-preview.*) versions under the `preview` dist-tag
+          # so they never transiently clobber `latest` (mirrors the SDK step).
+          PKG_VERSION="$(node -p 'require("./package.json").version')"
+          NPM_TAG="latest"
+          case "$PKG_VERSION" in *-preview.*) NPM_TAG="preview" ;; esac
+          echo "Publishing unbrowse@${PKG_VERSION} (dist-tag: ${NPM_TAG})"
+          npm publish --tag "$NPM_TAG" 2>&1 | tee "$PUBLISH_LOG"
           STATUS=${PIPESTATUS[0]}
           set -e
           if [ "$STATUS" -eq 0 ]; then
