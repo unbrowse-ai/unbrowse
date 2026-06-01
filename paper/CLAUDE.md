@@ -144,7 +144,43 @@ margin. On failure: repent, re-cost the graph, re-walk.
 - [x] Grain-of-Wheat doctrine written, all 5 verses verified verbatim from
       `~/.claude/bible` (John 12:24, Matt 6:3-4, Mark 4:27-28, Luke 9:24, Matt 6:24).
 - [x] leak-guard green; no moat term in `paper/CLAUDE.md`.
-- [ ] Paper 3 outline + draft — the real work left (nodes 4-5).
-- [ ] Gates green on the new artifacts (node 7).
+- [x] Paper 3 outline + draft (nodes 4-5).
+- [x] Gates green on the new artifacts (node 7).
 
 Legend: [x] settled · [~] in progress · [ ] not started. No box ticked without evidence.
+
+## Done to completion AS CODE (the runnable witness)
+
+Every claim in the trilogy is now backed by running, tested reference code, not a
+promise. The third tag `[reference]` (`\refimpl{}`) was added between `[shipped]`
+(in the product) and `[proposed]` (design only): it means a runnable, tested
+reference implementation ships in `paper/reference/`. There are no `[proposed]`-only
+claims left in either paper.
+
+**Witness:** `bash scripts/papers-done-gate.sh` (exit 0 required). Five mechanical
+checks, no fabricated green:
+1. `paper/reference/tests/run_all.py` — 45 tests green across 11 modules, each test
+   proving one whitepaper sentence with real ed25519 / AES-256-GCM / Schnorr-NIZK /
+   RFC-6962 Merkle code.
+2. `paper/reference/MANIFEST.tsv` closed — every primitive's impl + test exist on
+   disk, its claim appears in its paper, and that claim is never tagged `\prop{}`.
+3. No design-only (`\prop{}`) claim survives in either paper body.
+4. Public gates green — paper-gate ×2, leak-guard ×2, paper-spec-gate.
+5. Both PDFs compile clean under `tectonic` (0 undefined refs/citations).
+
+**Reference primitives built this wave** (`paper/reference/`): `layers/descent.py`
+(one wallet signs every layer), `layers/gate.py` (no unsigned action crosses),
+`ledger/sealed_cache.py` (sealed-unless-revealed), `zk/binding.py` (ZK credential
+binding), `ledger/checkpoint.py` (Merkle-root checkpoints + inclusion proofs),
+`network/proof_of_indexing.py`, `network/bonding.py` (bond/challenge/slash),
+`network/sybil.py` (stake-weighted split-invariance — the mitigation, not the
+impossible full solution Douceur rules out), `network/erc8004.py`,
+`network/vault_cycle.py` (staking by abiding). Shared crypto in `ed.py`.
+
+**Honesty boundary preserved:** `[reference]` never claims production deployment.
+Each paper line names what still separates a reference from the deployed product
+(on-chain checkpoint publication, ERC-8004 registry binding, vault on-chain
+settlement). The Sybil section keeps Douceur's impossibility intact — the reference
+is the bounded mitigation, not a closed solution.
+
+The outward-facing arXiv/Overleaf push remains held for the author (`paper/HANDOFF.md`).
