@@ -4,8 +4,9 @@
 % Internal APIs Were Not All You Needed
 % The signed sovereign computation stack — Unbrowse, ZK identity, FDRY.
 % A real whitepaper that knows it is a whitepaper. Every technical claim
-% carries a real citation; claims are tagged [implemented] or [proposed]
-% so nobody gets sold a vibe with a footnote.
+% carries a real citation; claims are tagged [shipped] (in the product),
+% [reference] (a runnable, tested reference implementation ships in reference/),
+% or [proposed] (design only) so nobody gets sold a vibe with a footnote.
 % =====================================================================
 
 \usepackage[margin=1in]{geometry}
@@ -17,6 +18,7 @@
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
 \newcommand{\impl}{\textcolor{green!55!black}{\small[shipped]}}
+\newcommand{\refimpl}{\textcolor{blue!70!black}{\small[reference]}}
 \newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
 \newcommand{\CA}{\texttt{2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL}}
 
@@ -51,10 +53,12 @@ leaves any layer unsigned. The maintenance economy that keeps those routes fresh
 --- bonded accountability and proof of indexing --- is the concern of the companion
 Maintenance Network paper; this paper is about the security, authentication, and
 privacy of the stack itself. We cite a real primitive for
-each layer instead of inventing one, and we label what is \textbf{[shipped]}
-versus \textbf{[proposed]} so the reader always knows whether they are looking at
-a product or a promise. The short version: internal APIs were a great first
-layer. They were never the last one.
+each layer instead of inventing one, and we label what is \textbf{[shipped]} in
+the product, what is \textbf{[reference]} (a runnable, tested reference
+implementation that ships with this paper in \texttt{reference/}), and what is
+\textbf{[proposed]} so the reader always knows whether they are looking at a
+product, running code, or a promise. The short version: internal APIs were a
+great first layer. They were never the last one.
 \end{abstract}
 
 \section{Introduction: one layer is not the stack}
@@ -140,8 +144,11 @@ and 0\% mercy --- the agent descends, and at the bottom it emits packets whose
 TLS/HTTP fingerprint is indistinguishable from a real browser via
 curl-impersonate~\cite{curlimpersonate}, matching exactly the JA3/JA4 signature
 the other side is keying on~\cite{ja3,ja4}. \impl{} for browser/CLI/HTTP and
-fingerprint-faithful fetch; \prop{} for a uniform \emph{signed} descent through the
-OS and kernel layers.
+fingerprint-faithful fetch; \refimpl{} for a uniform \emph{signed descent through
+every layer} (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet):
+a runnable reference (\texttt{reference/layers/descent.py}) signs one wallet root
+once and threads a hash-chained, per-layer signature down the whole stack, with a
+test that any tampered or reordered layer fails to verify.
 
 The reason any of this composes is that the shape at every layer is identical:
 observe, decide, sign, act. That self-similarity is the whole trick --- it is what
@@ -195,9 +202,13 @@ model~\cite{erc8004}, which defines three on-chain registries: \textbf{Identity}
 (portable agent IDs), \textbf{Reputation} (signed feedback), and
 \textbf{Validation} (independent re-execution / ZK / TEE checks). An Unbrowse route
 maintainer is precisely one of these agents: a portable identity that can carry
-reputation and be checked by someone who does not trust it yet. \prop{}: the
-ERC-8004 binding is a design target, not a shipped feature, and we will not pretend
-otherwise three paragraphs from a contract address.
+reputation and be checked by someone who does not trust it yet. \refimpl{}: a
+runnable reference (\texttt{reference/network/erc8004.py}) produces and verifies
+the three ERC-8004 record types --- a portable Identity that is the wallet pubkey,
+signed Reputation feedback, and an independent Validation re-execution record ---
+each signed by a real wallet; binding to the \emph{deployed} on-chain registries
+remains integration work, and we will not pretend otherwise three paragraphs from a
+contract address.
 
 \section{Witness without disclosure: ZK credential binding}
 
@@ -215,10 +226,16 @@ Semaphore~\cite{semaphore} proves anonymous group membership with zk-SNARKs;
 Pedersen commitments~\cite{pedersen} give the ``commit now, open later, can't lie
 about it'' primitive for a single secret. Together they make the binding a
 two-witness corroboration that betrays nothing: the chain sees \emph{that} a
-credential is bound, never \emph{what} it is. \prop{} --- this is the central new
-proposal of the paper, and to be blunt, today Unbrowse stores credentials in a
-boring local vault like everyone else. The proposal is the upgrade, not the status
-quo.
+credential is bound, never \emph{what} it is. \refimpl{} --- this is the central
+contribution, and it ships as a runnable reference: \texttt{reference/zk/binding.py}
+implements a non-interactive Schnorr proof (Fiat--Shamir over a 2048-bit MODP group)
+that proves a credential is \emph{bound to the wallet without revealing} it ---
+the wallet signs $y=g^{x}$ where $x$ is derived from the credential, and a holder
+proves knowledge of $x$ while the verifier learns only ``yes, bound.'' A test
+confirms the credential never appears in the binding or the proof, and that a wrong
+credential or a foreign wallet cannot forge one. To be blunt, the production vault
+has not yet adopted this; the reference is the upgrade made concrete, not the
+shipped status quo.
 
 \section{Cache: content-addressed, sealed unless revealed}
 
@@ -229,10 +246,14 @@ IPFS~\cite{ipfs} and Git's object model~\cite{gitobjects}. Same structure
 re-walked, same key, same answer, deterministically; the cache is re-derived to
 \emph{verify}, never trusted because it looked right last time. Unbrowse's
 centralised cache servers can hold these entries and serve them across agents,
-while a Pedersen commitment~\cite{pedersen} over a sensitive entry keeps it sealed
-until the holder opens it --- a cache that is public by default and private by
-proof. \impl{} for endpoint/route caching; \prop{} for the sealed-unless-revealed
-commitment layer.
+while a sensitive entry is kept sealed until the holder opens it --- a
+content-addressed cache that is public by default and private by proof. \impl{} for
+endpoint/route caching; \refimpl{} for the sealed-unless-revealed commitment layer:
+\texttt{reference/ledger/sealed\_cache.py} addresses each value by the sha256 of its
+\emph{plaintext} (so the same content resolves to the same key on any host) yet
+stores AES-256-GCM ciphertext under a key bound to the wallet, and a test confirms
+the at-rest bytes are unreadable, that only the binding wallet can reveal, and that
+a tampered ciphertext refuses to open.
 
 
 The parallel worth naming is to the \emph{KV cache} inside the transformer doing
@@ -254,9 +275,13 @@ checks the tag before it trusts a single byte, and tampering fails closed rather
 than failing quietly into your logs. The same discipline generalises upward as
 object-capability attenuation~\cite{ocap} --- authority travels only by reference
 and can be narrowed, never picked up from the ambient air. The rule is boring on
-purpose: no unsigned action crosses the gate, at any layer, ever. \prop{} as a
-\emph{uniform} stack property --- AEAD itself is, obviously, ubiquitous and shipped
-at the transport layer; we are not claiming to have invented encryption.
+purpose: no unsigned action crosses the gate, at any layer, ever. \refimpl{} as a
+\emph{uniform} stack property: \texttt{reference/layers/gate.py} is a runnable gate
+bound to one wallet root that admits an action only if its signature verifies over
+the action's canonical bytes, and a test confirms that an unsigned, foreign-signed,
+or tampered action is rejected and counted --- zero unsigned actions ever cross.
+AEAD itself is, obviously, ubiquitous and shipped at the transport layer; we are not
+claiming to have invented encryption.
 
 \section{Ledger: where the signatures actually land}
 
@@ -290,8 +315,13 @@ as Solana's proof of history~\cite{solana}. The maturity ladder is one shape at
 every rung: a local append-only log today, a signed-root server next, on-chain
 Merkle-root checkpoints as the decentralised end-state --- you swap the host, the
 signatures and the hash-chain never change. \impl{} for the local append-only
-ledger (the route graph already keeps signed JSONL records); \prop{} for the
-on-chain root checkpointing and independent-auditor layer.
+ledger (the route graph already keeps signed JSONL records); \refimpl{} for the
+Merkle-root checkpoint and independent-auditor layer:
+\texttt{reference/ledger/checkpoint.py} batches many signed entries into one root
+and emits a per-entry inclusion proof any auditor verifies against that root, with a
+test that an entry outside the batch cannot prove inclusion and that changing any
+entry changes the root. Publishing the root on-chain is the deployment step; the
+commitment it would publish is exactly this root.
 
 \section{From security to economics: where this paper stops}
 
@@ -416,23 +446,33 @@ global passive adversary correlating timing across the whole network, or coercio
 a key holder. These are out of scope and named so the reader is not misled by
 silence.
 
-\section{What is actually built (no fabricated green)}
+\section{What is built, what is referenced (no fabricated green)}
 
-In the spirit of not selling a roadmap as a changelog:
+In the spirit of not selling a roadmap as a changelog, we separate what runs in the
+product, what ships as runnable code, and where the work stops:
 \begin{itemize}[leftmargin=1.4em]
 \item \impl{} Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
 fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
 route/endpoint caching.
-\item \prop{} Uniform \emph{signed} descent through the OS/kernel layers; ZK
-credential binding (the central contribution); the sealed-unless-revealed
-commitment cache. The bonded route-trust economy (ERC-8004 binding, FDRY bonding /
-challenge / slashing, and proof of indexing) is the subject of the companion
-Maintenance Network paper~\cite{fdry}, not claimed here.
+\item \refimpl{} Each cross-layer security primitive ships as a runnable, tested
+reference in \texttt{reference/}: the signed descent through every layer
+(\texttt{layers/descent.py}), the signed-action gate (\texttt{layers/gate.py}), ZK
+credential binding --- the central contribution --- (\texttt{zk/binding.py}), the
+sealed-unless-revealed cache (\texttt{ledger/sealed\_cache.py}), the hash-chained
+signed ledger (\texttt{ledger/ledger.py}), Merkle-root checkpoints with inclusion
+proofs (\texttt{ledger/checkpoint.py}), and the ERC-8004 records
+(\texttt{network/erc8004.py}). Every claim above is exercised by a test that
+executes it; none is asserted.
+\item The \refimpl{} primitives are reference implementations, not production
+features of the Unbrowse product, and the on-chain deployment of the checkpoint
+root and the ERC-8004 registry binding remain integration work. The bonded
+route-trust economy (FDRY bonding / challenge / slashing, and proof of indexing) is
+developed in the companion Maintenance Network paper~\cite{fdry}.
 \end{itemize}
-Treat the \prop{} list as a research agenda with cited foundations, not a feature
-list with a release date. The gap between those two things is the entire
-difference between a whitepaper and a press release, and we would like to stay on
-the correct side of it.
+Treat the \refimpl{} list as running, tested code with cited foundations --- not a
+feature list with a release date, and not a research agenda either. The gap between
+running code and a press release is the entire difference between a whitepaper and a
+pitch, and we would like to stay on the correct side of it.
 
 \section{Conclusion}
 

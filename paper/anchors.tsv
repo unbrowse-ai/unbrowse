@@ -24,3 +24,13 @@ measured $pprox$95$	imes$ mean speedup	paper/reference/bench/bench_reuse.py
 reference/bench/bench_reuse.py	paper/reference/bench/bench_reuse.py
 reference/bench/live-measured-1url.json	paper/reference/bench/live-measured-1url.json
 $pprox$27$	imes$ observed gap	paper/reference/bench/live-measured-1url.json
+signed descent through every layer	paper/reference/layers/descent.py
+bound to the wallet without revealing	paper/reference/zk/binding.py
+sealed-unless-revealed	paper/reference/ledger/sealed_cache.py
+no unsigned action crosses	paper/reference/layers/gate.py
+proof of indexing	paper/reference/network/proof_of_indexing.py
+bonding, challenge, and slashing	paper/reference/network/bonding.py
+Merkle-root checkpoint	paper/reference/ledger/checkpoint.py
+Sybil resistance	paper/reference/network/sybil.py
+ERC-8004	paper/reference/network/erc8004.py
+staking by abiding	paper/reference/network/vault_cycle.py

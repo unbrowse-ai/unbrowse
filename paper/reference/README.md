@@ -1,7 +1,35 @@
-# Reference implementation — the cache + ledger from the whitepaper
+# Reference implementation — every claim of the trilogy, as runnable code
 
-This is the runnable core of *Internal APIs Were Not All You Needed*: the two
-halves that a signed entry needs, kept separate on purpose.
+This is the runnable core of *Internal APIs Were Not All You Needed* and *Unbrowse
+Maintenance Network*. Every `[reference]` (`\refimpl{}`) claim in the papers maps to
+a module here, and every module is exercised by a test that proves one whitepaper
+sentence. `MANIFEST.tsv` is the claim↔code↔test ledger; `scripts/papers-done-gate.sh`
+fails if any claim lacks a passing test, any impl is missing, or any paper still
+carries a design-only claim.
+
+Run all:  `python3 tests/run_all.py`  (45 tests, 11 modules; needs `cryptography`
+for real ed25519 / AES-GCM, degrades to an honest `__UNSIGNED__` marker if absent —
+never a faked signature).
+
+## Modules
+
+- `ed.py` — shared ed25519 (RFC 8032) wallet + HKDF seal-key. One key type, every layer.
+- `layers/descent.py` — **signed descent**: one wallet root signs every layer
+  (screen→browser→CLI→OS→kernel→packet), hash-chained; tamper or reorder breaks it.
+- `layers/gate.py` — **signed-action gate**: no unsigned/foreign/tampered action crosses.
+- `zk/binding.py` — **ZK credential binding**: a Schnorr NIZK (Fiat–Shamir, 2048-bit
+  MODP) proving a credential is bound to the wallet without revealing it.
+- `ledger/cache.py` / `ledger/sealed_cache.py` — content-addressed cache; the sealed
+  variant stores AES-256-GCM ciphertext, revealable only by the binding wallet.
+- `ledger/ledger.py` / `ledger/checkpoint.py` — hash-chained signed ledger; Merkle-root
+  checkpoints (RFC 6962) with per-entry inclusion proofs.
+- `network/proof_of_indexing.py` — content-addressed freshness attestation, re-derivable.
+- `network/bonding.py` — bond / challenge / slash with conservative stake arithmetic.
+- `network/sybil.py` — stake-weighted, split-invariant attribution (the Sybil mitigation).
+- `network/erc8004.py` — ERC-8004 Identity / Reputation / Validation records, wallet-signed.
+- `network/vault_cycle.py` — the fee-return cycle: staking by abiding, pro rata to balance×duration.
+
+## The cache + ledger core (original two halves, kept separate on purpose)
 
 - `ledger/cache.py` — **content-addressed cache** (the value half). Fetch by
   `sha256(content)`; order-independent; the same content resolves to the same key
