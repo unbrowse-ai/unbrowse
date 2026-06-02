@@ -4,6 +4,19 @@
 
 ### What's New
 
+- **Python-layer adapters — the runtime below the JS ecosystem.** Six new pure-stdlib
+  packages chosen by June-2026 adoption research: zero-edit HTTP drop-ins
+  `unbrowse-requests`, `unbrowse-httpx`, `unbrowse-aiohttp`, `unbrowse-urllib3`
+  (swap `import unbrowse_requests as requests`; a safe GET routes through
+  resolve+execute, miss/non-GET falls back to stdlib `urllib`, `UNBROWSE_DRYRUN=1`
+  is an offline path), and native-tool agent adapters `unbrowse-crewai` (`BaseTool`)
+  + `unbrowse-pydantic-ai` (`Tool`) exposing `unbrowse_resolve`/`execute`/`search`.
+  No third-party install needed for the fallback. New docs page
+  `docs/for-developers/python-adapters.md` (linked from `integration-surfaces.md`)
+  and witnesses `scripts/python-adapter-gate.sh` (6/6 green) +
+  `scripts/everywhere-gate.sh` (JS libraries + agent SDKs + MCP + Python, all
+  parity-verified AND documented).
+
 - **Native-tool adapters for the popular agent SDKs (`@unbrowse/ai-sdk`,
   `@unbrowse/langchain-js`, `@unbrowse/mastra`, `@unbrowse/llamaindex`,
   `@unbrowse/openai-agents`).** Chosen by June-2026 adoption research (Vercel AI SDK,

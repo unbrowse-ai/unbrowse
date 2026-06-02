@@ -1,0 +1,16 @@
+[project]
+name = "unbrowse-httpx"
+version = "0.1.0"
+description = "A zero-edit drop-in for the httpx library that routes safe GETs through Unbrowse's resolve+execute marketplace cache, falling back to a pure-stdlib HTTP call on a miss."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[project.urls]
+homepage = "https://unbrowse.ai/vs/httpx"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

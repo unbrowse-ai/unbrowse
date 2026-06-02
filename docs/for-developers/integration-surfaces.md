@@ -29,3 +29,9 @@ Unbrowse plugs into the popular agent SDKs as a **native tool** — Vercel AI SD
 LangChain JS, Mastra, LlamaIndex, and the OpenAI Agents SDK — and serves the full
 tool set over MCP (`npx unbrowse mcp`) for any MCP host. See
 [Agent SDK Adapters](./agent-sdk-adapters.md).
+
+## Writing Python?
+
+The same drop-in story holds for the Python layer: `requests`, `httpx`, `aiohttp`,
+and `urllib3` HTTP clients, plus `crewai` and `pydantic-ai` agent tools. See
+[Python Adapters](./python-adapters.md).
