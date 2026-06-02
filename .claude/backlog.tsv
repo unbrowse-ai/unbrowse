@@ -22,11 +22,11 @@ skills-prune	AUTO	4	LOW	-	todo	bash scripts/backlog/skills-prune-gate.sh	Redunda
 agnostic-skill	AUTO	4	LOW	-	todo	bash scripts/backlog/agnostic-skill-gate.sh	Skill loads in a non-claude framework via pointers (graff)
 exa-search-backend	BACKEND	3	HIGH	-	blocked	bun test backend/test/search-x402.test.ts	[FREE BY DESIGN PR#816 — needs product decision] Backend /v1/search does Exa x402 call + on-chain 50/35/15 split
 wallet-sign-backend	BACKEND	2	HIGH	-	todo	bun test backend/test/wallet-sign.test.ts	Backend /v1/wallet/sign signs for the unbrowse-default wallet
-funnel-tracking	BACKEND	3	HIGH	-	todo	bash scripts/backlog/funnel-gate.sh	Per-stage funnel tracking down to MCP-level dropoff
-earnings-tracking	BACKEND	3	MED	-	todo	bun test backend/test/earnings.test.ts	unbrowse_earnings returns per-contribution revenue + call counts
+funnel-tracking	BACKEND	3	HIGH	-	done	cd backend && bun test tests/analytics-funnel.test.ts tests/analytics-bottleneck.test.ts	Per-stage funnel tracking down to MCP-level dropoff
+earnings-tracking	BACKEND	3	MED	-	done	cd backend && bun test tests/dashboard-routes.test.ts tests/attribution.test.ts	unbrowse_earnings returns per-contribution revenue + call counts
 proxy-fallback	BACKEND	3	HIGH	-	done	cd backend && bun test tests/proxy-429-fallback.test.ts	Cloudflare proxy x402 fallback on 429, charges per-call toll
-stripe-sub-wrapper	BACKEND	4	MED	-	todo	bash scripts/backlog/stripe-sub-gate.sh	Stripe subscription + overage on top of x402 (hide x402 behind API key)
-account-gate	BACKEND	4	MED	wallet-sign-backend	todo	bash scripts/backlog/account-gate-gate.sh	Require registered account (key+wallet via lobster) before use
+stripe-sub-wrapper	BACKEND	4	MED	-	done	cd backend && bun test tests/crypto-sub.test.ts tests/stripe-tier-detection.test.ts tests/billing-stripe-roundtrip.test.ts	Stripe subscription + overage on top of x402 (hide x402 behind API key)
+account-gate	BACKEND	4	MED	wallet-sign-backend	blocked	bash scripts/backlog/account-gate-gate.sh	[CONFLICTS with public-by-default afcba9ac — needs product decision] Require registered account (key+wallet via lobster) before use
 npm-deprecate	OUTWARD	4	MED	-	todo	bash scripts/backlog/npm-deprecate-check.sh	npm deprecate @unbrowse/sdk + @unbrowse/client -> unbrowse/sdk
 push-public	OUTWARD	4	HIGH	exa-bench-win,paper2-push	todo	bash scripts/backlog/push-public-check.sh	Public open-core branch == local gated open-core sha
 frontend-dashboard	OUTWARD	4	MED	funnel-tracking	todo	bash scripts/backlog/frontend-dashboard-gate.sh	Web app shows api-keys + earnings + private marketplaces
