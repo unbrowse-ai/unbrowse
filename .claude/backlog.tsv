@@ -19,7 +19,7 @@ windows-runtime	AUTO	3	MED	-	todo	bash scripts/win-kuri-browse-gate.sh	Real end-
 meta-mcp-hotswap	AUTO	3	MED	-	todo	bun test tests/mcp-hotswap.test.ts	[partial d8: ensureLocalServer auto-stops stale + respawns on version/code-hash drift (managed-server mode picks up rebuilt binary, no /mcp reconnect); detection tested local-server-version-guard 6pass; UNCONFIRMED whether the Phase-0d in-process MCP re-execs on rebuild] MCP picks up rebuilt binary mid-session without manual /mcp reconnect
 binary-slim	AUTO	4	LOW	-	todo	bash scripts/backlog/binary-size-gate.sh	Built binary measurably smaller (before/after byte count)
 skills-prune	AUTO	4	LOW	-	todo	bash scripts/backlog/skills-prune-gate.sh	Redundant skills/modules removed; tests still green
-agnostic-skill	AUTO	4	LOW	-	todo	bash scripts/backlog/agnostic-skill-gate.sh	Skill loads in a non-claude framework via pointers (graff)
+agnostic-skill	AUTO	4	LOW	-	done	bash scripts/backlog/agnostic-skill-gate.sh	Skill loads in a non-claude framework via pointers (graff) [universal agentskills.io SKILL.md: host-agnostic runtime pointer npx unbrowse, 4+ MCP hosts, no claude-only hardcoding; npx skills add installs it to 40+ frameworks via symlink pointers]
 exa-search-backend	BACKEND	3	HIGH	-	blocked	bun test backend/test/search-x402.test.ts	[FREE BY DESIGN PR#816 — needs product decision] Backend /v1/search does Exa x402 call + on-chain 50/35/15 split
 wallet-sign-backend	BACKEND	2	HIGH	-	todo	bun test backend/test/wallet-sign.test.ts	Backend /v1/wallet/sign signs for the unbrowse-default wallet
 funnel-tracking	BACKEND	3	HIGH	-	done	cd backend && bun test tests/analytics-funnel.test.ts tests/analytics-bottleneck.test.ts	Per-stage funnel tracking down to MCP-level dropoff
