@@ -3,6 +3,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { log } from "../logger.js";
+import { sealToWallet, revealForWallet, type WalletSealed } from "../trust/sealed-cache.js";
+
+/** The holder's wallet secret, if configured (UNBROWSE_WALLET_SECRET). When set,
+ *  credential VALUES are sealed to the wallet at rest — the vault file/keychain
+ *  then holds only opaque ciphertext + a content-hash, openable only by the
+ *  holder. Absent → the existing keytar/local-AES behaviour, unchanged. */
+function getWalletSecret(): string | null {
+  const v = process.env.UNBROWSE_WALLET_SECRET?.trim();
+  return v ? v : null;
+}
 
 type KeytarClient = {
   setPassword: (service: string, account: string, password: string) => Promise<unknown>;
@@ -98,6 +108,10 @@ export interface StoredCredential {
   stored_at: string;
   expires_at?: string;
   max_age_ms?: number;
+  /** When the credential is sealed to the holder's wallet, the opaque sealed
+   *  blob (value is emptied). Only the wallet-holder can open it; the expiry
+   *  metadata above stays in clear so eviction still works without the wallet. */
+  sealed?: WalletSealed;
 }
 
 const SERVICE = "unbrowse";
@@ -222,6 +236,14 @@ export async function storeCredential(
     expires_at: opts?.expires_at,
     max_age_ms: opts?.max_age_ms,
   };
+  // Wallet-sealed at rest: when a wallet secret is configured, seal the VALUE to
+  // the holder's wallet and store only the opaque blob (no plaintext on disk /
+  // in the keychain). The expiry metadata stays in clear so eviction works.
+  const walletSecret = getWalletSecret();
+  if (walletSecret) {
+    wrapped.sealed = await sealToWallet(value, walletSecret, account);
+    wrapped.value = "";
+  }
   const serialized = JSON.stringify(wrapped);
   await withVaultLock(async () => {
     const store = await readVaultStore();
@@ -268,6 +290,21 @@ export async function getCredential(account: string): Promise<string | null> {
   // Try to parse as StoredCredential; backward-compat: raw strings are legacy (no expiry)
   try {
     const parsed = JSON.parse(raw) as StoredCredential;
+    if (parsed.sealed && parsed.stored_at) {
+      // Wallet-sealed credential — check expiry (clear metadata) then open it
+      // with the holder's wallet. No wallet / wrong wallet → cannot open → null.
+      if (isExpired(parsed)) {
+        await deleteExpired();
+        return null;
+      }
+      const walletSecret = getWalletSecret();
+      if (!walletSecret) return null;
+      try {
+        return (await revealForWallet(parsed.sealed, walletSecret, account)) as string;
+      } catch {
+        return null; // not the sealing wallet, or tampered
+      }
+    }
     if (parsed.value && parsed.stored_at) {
       // It's a wrapped credential — check expiry
       if (isExpired(parsed)) {
