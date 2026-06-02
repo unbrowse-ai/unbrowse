@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const sections = [
   { href: "/docs", label: "Quickstart" },
   { href: "/docs/api", label: "API reference" },
+  { href: "/docs/adapters", label: "Drop-in adapters" },
   { href: "/docs/proxy", label: "Worker proxy + IProyal" },
   { href: "/docs/errors", label: "Errors" },
   { href: "/docs/benchmarks", label: "Benchmarks" },

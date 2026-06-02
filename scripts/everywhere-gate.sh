@@ -62,6 +62,14 @@ else
   echo "  INDEX-FAIL: $INDEX does not link python-adapters.md"; fail=1
 fi
 
+# --- 5. PUBLISHED ON docs.unbrowse.ai -----------------------------------------
+section "5. adapter catalogue published on docs.unbrowse.ai"
+if bash scripts/docs-site-adapters-gate.sh >/tmp/ew_docsite.out 2>&1; then
+  echo "  docs site: /docs/adapters published + linked in the nav"
+else
+  echo "  DOCSITE-FAIL: scripts/docs-site-adapters-gate.sh did not exit 0 (see /tmp/ew_docsite.out)"; fail=1
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   echo "EVERYWHERE-GATE FAIL — Unbrowse is not yet a documented native adapter on every layer + runtime."
