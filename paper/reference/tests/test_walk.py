@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from walk.route_graph import (  # noqa: E402
-    Route, RouteGraph, walk, freshness,
+    Route, RouteGraph, walk, seal, freshness,
     W_EMBED, W_RELIABILITY, W_FRESHNESS, W_VERIFICATION)
 
 
@@ -96,6 +96,46 @@ def test_settle_by_reliability_quorum_or_freshness_clock():
     assert quorum_only.settled()              # reliability quorum
     assert fresh_only.settled()               # freshness clock
     assert not stale_weak.settled()           # neither -> not trusted
+
+
+def test_public_internet_is_the_default_no_auth_required():
+    # a route built with NO auth argument is complete and walkable (public internet)
+    g = RouteGraph()
+    pub = Route(domain="public.com", endpoint="/api", method="GET",
+                schema={"q": "string"}, embedding=(1, 0),
+                reliability=0.9, days_since=0, verified=1.0)
+    assert pub.auth == "public" and not pub.is_permissioned()
+    assert pub.well_formed()                          # auth is NOT required to be well-formed
+    g.add(pub)
+    r = walk("get data", (1, 0), g, browser=lambda i: None)
+    assert r["verb"] == "graph" and r["route"].domain == "public.com"
+
+
+def test_seal_removes_auth_completely_for_public_routes():
+    pub = Route(domain="public.com", endpoint="/api", schema={"q": "s"}, embedding=(1, 0))
+    assert seal(pub) == {}                            # nothing leaves the agent
+    assert seal(pub, credential="ignored") == {}      # even a stray credential is not attached
+
+
+def test_auth_only_when_permissioned_and_properly_credentialed():
+    gated = Route(domain="priv.com", endpoint="/me", schema={"q": "s"}, embedding=(1, 0),
+                  auth="Bearer", permissioned=True)
+    assert gated.is_permissioned()
+    # permissioned but no credential -> refuse to proceed (fail honestly, not silently)
+    try:
+        seal(gated)
+        assert False, "permissioned route sealed without a credential"
+    except PermissionError:
+        pass
+    assert seal(gated, credential="tok123") == {"authorization": "Bearer tok123"}
+
+
+def test_auth_descriptor_without_optin_is_treated_as_public():
+    # auth string set but permissioned=False -> still public (no auth attached)
+    half = Route(domain="x.com", endpoint="/a", schema={"q": "s"}, embedding=(1, 0),
+                 auth="Bearer", permissioned=False)
+    assert not half.is_permissioned()
+    assert seal(half) == {}
 
 
 if __name__ == "__main__":
