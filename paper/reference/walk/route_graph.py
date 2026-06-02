@@ -38,7 +38,8 @@ class Route:
     endpoint: str
     method: str = "GET"
     schema: dict = field(default_factory=dict)
-    auth: str = "none"           # auth DESCRIPTOR, never a credential
+    auth: str = "public"         # auth DESCRIPTOR, never a credential; "public" = none needed
+    permissioned: bool = False   # True only when the route is properly auth-gated
     reliability: float = 0.0     # [0,1] from execution feedback
     days_since: float = 0.0      # days since last verification
     verified: float = 0.0        # [0,1] from the automated verification loop
@@ -46,9 +47,14 @@ class Route:
     disabled: bool = False       # confirmed-broken routes drop from search
 
     def well_formed(self) -> bool:
-        # a node answers who(auth)/what(endpoint+schema)/where(domain)/how(method)
-        return bool(self.domain and self.endpoint and self.method
-                    and self.schema and self.auth)
+        # public internet for now: a node answers what(endpoint+schema)/where(domain)/
+        # how(method). Auth is NOT required — a public route is complete without it.
+        return bool(self.domain and self.endpoint and self.method and self.schema)
+
+    def is_permissioned(self) -> bool:
+        """A route is permissioned only when it BOTH opts in and names a real,
+        non-public auth descriptor. Anything else is treated as public."""
+        return bool(self.permissioned and self.auth not in ("public", "none", ""))
 
     def composite(self, query_emb) -> float:
         return (W_EMBED * cosine(self.embedding, query_emb)
@@ -85,6 +91,22 @@ class RouteGraph:
     def resolve(self, query_emb) -> Route | None:
         ranked = self.rank(query_emb)
         return ranked[0] if ranked else None
+
+
+def seal(route: Route, credential: str | None = None) -> dict:
+    """The boundary check before a request leaves — the seal atom, made conditional.
+
+    Public internet for now: a public route seals to NOTHING (no auth header, no
+    credential leaves the agent). Only a properly permissioned route attaches its
+    auth descriptor, and then only if a credential was actually provided — so the
+    default path is credential-free public access.
+    """
+    if not route.is_permissioned():
+        return {}                                   # public: remove auth completely
+    if not credential:
+        raise PermissionError(
+            f"route {route.endpoint} is permissioned ({route.auth}) but no credential provided")
+    return {"authorization": f"{route.auth} {credential}"}
 
 
 def walk(intent: str, query_emb, graph: RouteGraph, browser=None) -> dict:

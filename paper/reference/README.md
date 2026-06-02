@@ -33,7 +33,11 @@ never a faked signature).
   graph as an index of pointers merged at the domain level, the paper's composite
   score (0.40 embedding + 0.30 reliability + 0.15 freshness + 0.15 verification),
   the freshness law `1/(1+d/30)`, the continuous-trust settle, and the verb ladder
-  `cache → graph → browser` that escalates only on a miss.
+  `cache → graph → browser` that escalates only on a miss. The **seal** is
+  conditional — the public internet is the default: a public route carries no auth
+  and `seal()` attaches nothing; only a genuinely `permissioned` route (opted in AND
+  naming a non-public auth descriptor) seals, and then only with a real credential
+  (else it fails honestly). Auth is removed unless permissioned.
 
 ## The cache + ledger core (original two halves, kept separate on purpose)
 
