@@ -263,3 +263,6 @@ bench/lib/node_modules/
 bench/lib/bun.lock
 **/.zig-cache/
 **/zig-out/
+
+# folded SDK build output (built on prepack via tsconfig.sdk.json)
+packages/skill/dist-sdk/

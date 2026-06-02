@@ -7,8 +7,15 @@
   "bin": {
     "unbrowse": "bin/unbrowse-wrapper.mjs"
   },
+  "exports": {
+    "./sdk": {
+      "types": "./dist-sdk/index.d.ts",
+      "import": "./dist-sdk/index.js"
+    }
+  },
   "files": [
     "bin",
+    "dist-sdk",
     "vendor/kuri",
     "vendor/utls-proxy",
     "scripts/release-assets.mjs",
@@ -21,7 +28,8 @@
   ],
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "prepack": "node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
+    "build:sdk": "tsc -p tsconfig.sdk.json",
+    "prepack": "npm run build:sdk && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"

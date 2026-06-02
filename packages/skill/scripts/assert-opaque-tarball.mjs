@@ -72,6 +72,12 @@ function main() {
   const files = packDryRun();
   const dynamicOffenders = [];
   for (const file of files) {
+    // The folded HTTP-first SDK (dist-sdk/) is the intentionally-open client —
+    // zero-dep fetch wrappers + type declarations, formerly the MIT
+    // @unbrowse/client package. Its .js + .d.ts are meant for consumers
+    // (`import { Unbrowse } from "unbrowse/sdk"`) and carry none of the runtime
+    // bundle or backend moat (the moat is the opaque platform binary + backend).
+    if (file.startsWith("dist-sdk/")) continue;
     if (file.startsWith("dist/") && !DIST_ALLOWLIST.has(file)) {
       dynamicOffenders.push({ file, reason: "dist/ files leak bundled JS implementation" });
       continue;
