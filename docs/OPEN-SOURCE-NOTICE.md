@@ -24,7 +24,7 @@ a private repo**, and the **frontend web app is private**.
 | Public OSS snapshot (older) | [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) | MIT, frozen |
 
 The CLI you build against is fully open source (MIT) and carries no moat; trust in
-the closed engine and backend is established by ZK + a hash-chained, auditable
+the closed engine and backend is established by a hash-chained, auditable
 ledger (see the reference implementation under `paper/reference/`), not by exposing
 the server. The web app is a private product surface.
 

@@ -22,7 +22,7 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `breath fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-The signature layer is shipping in stages — Ed25519-signed today, a zero-knowledge proof (same receipt interface, authorization without revealing the wallet) on the roadmap. The pointer-only invariant holds in every stage. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/covenant-internet-layer.md](./docs/covenant-internet-layer.md).
+Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/covenant-internet-layer.md](./docs/covenant-internet-layer.md).
 
 > The three-verb surface (`unbrowse {build,breath,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 

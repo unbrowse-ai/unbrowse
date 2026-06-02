@@ -97,6 +97,22 @@ SENSITIVE_KEYWORDS_COVENANT=(
   "COVENANT_SUBSTRATE_MAP"
 )
 
+# Unreleased privacy/authorization IP — must not appear in any public artifact
+# until the whitepaper ships. The shipped `commitment_only` / proof-verifier
+# feature (SHA-256 tamper-evidence) is a DIFFERENT, public thing and is NOT
+# listed here, so it is unaffected. These terms are specific on purpose (no bare
+# "zk") to avoid false positives on unrelated identifiers.
+SENSITIVE_KEYWORDS_ZK=(
+  "zero-knowledge"
+  "zero knowledge"
+  "zk-proof"
+  "zk proof"
+  "zkhash"
+  "zk-hash"
+  "nullifier"
+  "zk-proofs.md"
+)
+
 # Source-surface paths the mechanism scan covers. .planning/ is gitignored
 # (the mechanism maps live there by design) so it is NOT scanned. Tests
 # carry assert-absence strings deliberately and are excluded inline below.
@@ -175,6 +191,27 @@ for path in "${PUBLIC_PATHS[@]}"; do
         while IFS= read -r f; do
           [ -z "$f" ] && continue
           echo "  ✗ ALPHA LEAK: '$kw' in $f (move to internal/ or strip)" >&2
+          LEAK_COUNT=$((LEAK_COUNT + 1))
+        done <<< "$matches"
+      fi
+    done
+  fi
+done
+
+# 2c. Unreleased ZK / privacy-IP keyword scan — ALWAYS enforced. The
+# zero-knowledge authorization approach is unreleased IP; it must not appear in
+# any public artifact until the whitepaper ships. (The shipped commitment_only
+# proof feature is public and not on this list, so it is unaffected.)
+echo ""
+echo "[leak-guard] scanning unreleased ZK/privacy-IP keywords in public paths..."
+for path in "${PUBLIC_PATHS[@]}"; do
+  if [ -e "$path" ]; then
+    for kw in "${SENSITIVE_KEYWORDS_ZK[@]}"; do
+      matches=$(grep -rIli --exclude-dir=internal "$kw" "$path" 2>/dev/null | head -3 || true)
+      if [ -n "$matches" ]; then
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue
+          echo "  ✗ ZK-IP LEAK: '$kw' in $f (unreleased — strip until whitepaper)" >&2
           LEAK_COUNT=$((LEAK_COUNT + 1))
         done <<< "$matches"
       fi
