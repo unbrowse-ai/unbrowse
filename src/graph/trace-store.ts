@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { isStateless } from "../state/stateless.js";
 
 export interface StoredTrace {
   trace_id: string;
@@ -59,6 +60,10 @@ function domainFilePath(domain: string): string {
  * Graceful degradation: if fs fails, log and continue.
  */
 export function storeExecutionTrace(trace: StoredTrace): void {
+  // Stateless binary: keep no local trace history on disk. The backend
+  // /v1/trace/append (wallet-signed, wallet-prefixed KV) is the source of truth;
+  // local RAG degrades gracefully without the file.
+  if (isStateless()) return;
   try {
     const dir = getTraceStoreRoot();
     if (!existsSync(dir)) {
