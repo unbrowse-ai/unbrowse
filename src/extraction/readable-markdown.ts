@@ -42,15 +42,27 @@ export async function htmlToPlainMarkdown(html: string): Promise<string> {
 
 /** Main-content HTML → markdown: cleanDOM strips the chrome and isolates the
  *  main region, THEN turndown converts — higher extraction fidelity than the
- *  whole page. Safe fallback: cleanDOM keeps <body> when no main region exists,
- *  so a chrome-less page loses nothing. */
+ *  whole page on prose/doc pages.
+ *
+ *  CONTENT-LOSS GUARD (measured on real data, bench/exa/micro_rouge_readable.ts):
+ *  cleanDOM's main-region heuristic (main/article/[role=main]/...) misfires on
+ *  pages whose content is NOT in a semantic main region — e.g. a code viewer
+ *  rendering a .proto/.json file — and discards the real content (ROUGE-L
+ *  collapsed 0.66→0.02 on those). So if the readable output collapses to a small
+ *  fraction of the whole-page conversion, the region was wrong: fall back to the
+ *  whole page rather than lose content. Prose pages (where cleanDOM helps) keep
+ *  the readable output; structured pages are protected. */
 export async function htmlToReadableMarkdown(html: string): Promise<string> {
 	const td = await turndownService();
+	const plain = td.turndown(stripPreamble(html)).replace(/\n{3,}/g, "\n\n").trim();
 	let cleaned: string;
 	try {
 		cleaned = cleanDOM(html);
 	} catch {
-		cleaned = stripPreamble(html); // never fail closed — fall back to whole page
+		return plain; // never fail closed — fall back to whole page
 	}
-	return td.turndown(cleaned).replace(/\n{3,}/g, "\n\n").trim();
+	const readable = td.turndown(cleaned).replace(/\n{3,}/g, "\n\n").trim();
+	// readable collapsed to <25% of the page → main-region misfired → keep plain.
+	if (readable.length < plain.length * 0.25) return plain;
+	return readable;
 }

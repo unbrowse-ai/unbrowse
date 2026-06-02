@@ -75,4 +75,24 @@ describe("htmlToReadableMarkdown — strips chrome, keeps main content", () => {
 		expect(md).toContain("Just the content here");
 		expect(md).toContain("Title");
 	});
+
+	it("content-loss guard: when the main-region heuristic would discard the real content, keep the whole page", async () => {
+		// A code-viewer-style page: <main> holds only a tiny placeholder while the
+		// real file content lives OUTSIDE it (in a div the heuristic ignores).
+		// cleanDOM isolates the tiny <main> and would lose everything; the guard
+		// detects the collapse (readable << whole page) and falls back.
+		const big = "syntax proto3 message CloudBilling string billing account name int64 budget cents currency code repeated LineItem items service name usage amount tax region project parent label metadata created updated version status code path scheme host query header response body request method timeout retry";
+		const codeViewer = `<html><body>
+<nav>repo files settings</nav>
+<main>Loading…</main>
+<div class="blob-code-viewer"><pre>${big}</pre></div>
+</body></html>`;
+		const md = await htmlToReadableMarkdown(codeViewer);
+		const isolatedOnly = (await htmlToReadableMarkdown(`<html><body><main>Loading…</main></body></html>`)).trim();
+		// the file content survives (guard fell back to the whole page, not the
+		// isolated tiny main region)
+		expect(md).toContain("CloudBilling");
+		expect(md).toContain("LineItem");
+		expect(md.length).toBeGreaterThan(isolatedOnly.length + 100);
+	});
 });
