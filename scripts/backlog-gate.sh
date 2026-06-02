@@ -24,7 +24,7 @@ park(){ printf '\033[33mPARK\033[0m %s\n' "$1"; }
 [ -f "$MD" ] && pass "plan: $MD present" || bad "plan: $MD missing"
 
 # Outward items transitively blocked on the single HUMAN blocker (paper2 sign-off).
-HUMAN_BLOCKED_OUTWARD="push-public history-scrub release-announce"
+HUMAN_BLOCKED_OUTWARD="push-public history-scrub release-announce npm-deprecate"
 # Items parked on a PRODUCT decision (not a build): e.g. exa-search-backend —
 # /v1/search is free by design (PR #816); pricing it + splitting per-search would
 # reverse a deliberate decision, so it needs the user's call, not an autonomous build.

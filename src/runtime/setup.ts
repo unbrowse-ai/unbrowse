@@ -300,7 +300,7 @@ export async function runSetup(options?: {
 
   // P0.2 / Day-4 Flex onboarding chain: fund escrow + register session key.
   // For v6.16.0-preview.0, these prompts are HONEST-SKIP: they print clear
-  // next-steps (run @unbrowse/sdk fund-escrow or visit unbrowse.ai/account/...)
+  // next-steps (visit unbrowse.ai/account/escrow + /account/session-key)
   // and report a `skipped` result with a `reason`. They never throw, so no
   // try/catch silent-swallow path. Enforcement lives in the backend's
   // `flex-onboarding-required` middleware — priced calls return 402 with
@@ -364,9 +364,8 @@ export async function promptFundEscrow(
   console.log("[unbrowse setup] Flex escrow funding (required for paid calls)");
   console.log("  Pre-deposit USDC into a Flex escrow PDA so the platform can");
   console.log("  settle creator payments off-chain in batches.");
-  console.log("  Run one of:");
-  console.log("    npx @unbrowse/sdk fund-escrow --amount 5.00     # via SDK");
-  console.log("    open https://unbrowse.ai/account/escrow         # via web");
+  console.log("  Fund it via the web flow:");
+  console.log("    open https://unbrowse.ai/account/escrow");
   console.log("  Server-side priced calls will return 402 with");
   console.log("  X-Flex-Onboarding-Required: 1 until this step is done.");
   return { skipped: true, reason: "deferred_to_sdk_or_web" };
@@ -388,8 +387,7 @@ export async function promptRegisterSessionKey(
   console.log("[unbrowse setup] Flex session key registration");
   console.log("  Register an Ed25519 session key against your escrow so the");
   console.log("  SDK can sign payment authorizations off-chain.");
-  console.log("  Run one of:");
-  console.log("    npx @unbrowse/sdk register-session-key           # via SDK");
-  console.log("    open https://unbrowse.ai/account/session-key     # via web");
+  console.log("  Register it via the web flow:");
+  console.log("    open https://unbrowse.ai/account/session-key");
   return { skipped: true, reason: "deferred_to_sdk_or_web" };
 }
