@@ -15,8 +15,8 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-if ! bun build src/state/stateless.ts src/graph/trace-store.ts --target=node --outdir="$tmp" >/dev/null 2>&1; then
-  echo "stateless-binary-gate: FAIL — stateless / trace-store modules do not build"; exit 1
+if ! bun build src/state/stateless.ts src/graph/trace-store.ts src/api/session-store.ts --target=node --outdir="$tmp" >/dev/null 2>&1; then
+  echo "stateless-binary-gate: FAIL — stateless / trace-store / session-store modules do not build"; exit 1
 fi
 
 if ! bun test tests/stateless-mode.test.ts >/dev/null 2>&1; then
