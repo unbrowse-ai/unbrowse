@@ -116,6 +116,17 @@ def main() -> int:
         beat = sum(1 for s in scores if s >= EXA_PUBLISHED)
         print(f"\n[score] n={len(scores)}  avg_rouge_l={avg:.4f}  "
               f">={EXA_PUBLISHED}:{beat}/{len(scores)}  (exa published full-250 = {EXA_PUBLISHED})")
+        # --gate: witness mode. Exit 0 ONLY when unbrowse's extraction avg clears
+        # Exa's published 0.828 on the (self-generated, legal) golden — the
+        # backlog gate's re-runnable proof, no fabricated green.
+        if "--gate" in sys.argv:
+            if avg >= EXA_PUBLISHED:
+                print(f"[gate] PASS avg {avg:.4f} >= {EXA_PUBLISHED}")
+                return 0
+            print(f"[gate] FAIL avg {avg:.4f} < {EXA_PUBLISHED}")
+            return 1
+    elif "--gate" in sys.argv:
+        return 1
     return 0
 
 
