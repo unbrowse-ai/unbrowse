@@ -88,7 +88,7 @@ Build summary on windows-target tip `f248771`:
 
 ## Closing both honest gaps (2026-05-26 PM, this PR)
 
-The two gaps the cross-compile-only state left open are both closed
+The two gaps that a cross-compile-only state left open are both closed
 by the new `native-msvc-runtime` job in
 `.github/workflows/kuri-windows-cross-build.yml`:
 

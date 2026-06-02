@@ -113,6 +113,23 @@ SENSITIVE_KEYWORDS_ZK=(
   "zk-proofs.md"
 )
 
+# Internal working/method vocabulary — never on the public surface (it stays in
+# .claude/ and private reasoning only). The word "covenant" et al. leaked into
+# public docs because the COVENANT mechanism-token list below checks specific
+# identifiers, not the plain words; this list closes that. Regex-aware (grep -E):
+# word-boundaried where a bare word would false-positive ("the cross" excludes
+# Crossmint via the \b after "cross").
+SENSITIVE_KEYWORDS_VOCAB=(
+  "covenant"
+  "superpattern"
+  "jesus[ -]?pattern"
+  "\\bjesus\\b"
+  "firmament"
+  "grain[ -]of[ -]wheat"
+  "\\bsabbath\\b"
+  "\\bthe cross\\b"
+)
+
 # Source-surface paths the mechanism scan covers. .planning/ is gitignored
 # (the mechanism maps live there by design) so it is NOT scanned. Tests
 # carry assert-absence strings deliberately and are excluded inline below.
@@ -212,6 +229,26 @@ for path in "${PUBLIC_PATHS[@]}"; do
         while IFS= read -r f; do
           [ -z "$f" ] && continue
           echo "  ✗ ZK-IP LEAK: '$kw' in $f (unreleased — strip until whitepaper)" >&2
+          LEAK_COUNT=$((LEAK_COUNT + 1))
+        done <<< "$matches"
+      fi
+    done
+  fi
+done
+
+# 2d. Internal method-vocabulary scan — ALWAYS enforced. The working vocabulary
+# (covenant, superpattern, jesus-pattern, firmament, ...) is private; it must not
+# reach any public artifact. Crossmint (a real product) is excluded.
+echo ""
+echo "[leak-guard] scanning internal method-vocabulary in public paths..."
+for path in "${PUBLIC_PATHS[@]}"; do
+  if [ -e "$path" ]; then
+    for kw in "${SENSITIVE_KEYWORDS_VOCAB[@]}"; do
+      matches=$(grep -rIliE --exclude-dir=internal "$kw" "$path" 2>/dev/null | grep -ivE 'crossmint' | head -5 || true)
+      if [ -n "$matches" ]; then
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue
+          echo "  ✗ VOCAB LEAK: '$kw' in $f (internal vocabulary — secularize)" >&2
           LEAK_COUNT=$((LEAK_COUNT + 1))
         done <<< "$matches"
       fi

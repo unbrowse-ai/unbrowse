@@ -54,10 +54,10 @@ them; we do not fork-and-rebrand them:
 | Standard | Author / owner | What we do with it |
 |---|---|---|
 | **Agent Skills** (`SKILL.md` format) | Anthropic — released as an open standard (agentskills.io) | ingest + serve our routes as skills, to the published spec |
-| **Model Context Protocol (MCP)** | Anthropic — open spec (modelcontextprotocol.io) | expose our surface as MCP tools; map every tool to the covenant shape |
+| **Model Context Protocol (MCP)** | Anthropic — open spec (modelcontextprotocol.io) | expose our surface as MCP tools; map every tool to the uniform route shape |
 | **x402** + **x402 Bazaar** | Coinbase — open payment protocol + public discovery catalog | settle usage over x402; rank a site's already-listed Bazaar resources above any re-wrap |
 
-A covenant route is a drop-in *replacement* only in the sense of *interoperating with*
+A route is a drop-in *replacement* only in the sense of *interoperating with*
 these formats — never of replacing their authorship. Where we build on a cited source,
 we keep its `source_id` in the code and build **on top** of it, not over it.
 

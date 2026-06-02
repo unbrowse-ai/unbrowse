@@ -20,7 +20,7 @@ This is the PII discipline applied to the client/server boundary. Sanitize at th
 | MCP telemetry | `tests/telemetry-sanitize.test.ts` | `sanitizeArgs` skipped on a tool call — raw arg values (which may carry credentials) written to the local session log |
 | Server-side parity | `backend/tests/sanitize-parity.test.ts` | client and backend strip rules diverge — what one allows the other rejects |
 | Server-side enforcement | `backend/tests/skills-publish-sanitization.test.ts` | backend accepts an unsanitized payload that bypassed the client check |
-| Server-side mirror | `backend/tests/contract-mirror-strip-pii.test.ts` | contract mirror sync leaks PII to the cross-project sharing surface |
+| Server-side mirror | `backend/tests/contract-mirror-strip-pii.test.ts` | contract mirror sync leaks PII to a cross-project sharing surface |
 | Static publish-path | `grep` over `src/publish/`, `src/api/routes.ts`, `src/workflow/publish.ts` | a future code change introduces a raw-cookie / raw-header field that bypasses `sanitizeForPublish` |
 | Type parity | `EndpointDescriptor` diff between `src/types/skill.ts` and `backend/src/types.ts` | drift between client outbound shape and backend acceptance shape — silent data leak path |
 

@@ -56,4 +56,35 @@ mkdir -p "$DST/src"; rsync -a --exclude='node_modules/' "$ROOT/src/interop/" "$D
 # the dev root, public-safe (no moat), gated by open-core-gate + leak-guard.
 [ -f "$ROOT/SKILL.md" ] && cp "$ROOT/SKILL.md" "$DST/SKILL.md" && echo "  + SKILL.md (root, for npx skills add)"
 
+# --- translate internal vocabulary out of the public tree (jargon guardrail) ---
+# The dev source may use internal naming in non-doc surfaces (e.g. src/interop
+# imports a CovenantVerb type); the PUBLIC tree must read in plain secular
+# engineering language. Translate every synced file in place. perl -i for
+# portability (macOS/Linux). Idempotent on already-clean files. Crossmint and
+# cross-* compounds are preserved (\b after "cross" never matches "Crossmint").
+echo "== translate internal vocabulary out of the public tree =="
+find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.mjs' -o -name '*.md' -o -name '*.json' \) \
+  -not -path '*/node_modules/*' -not -path '*/dist/*' -print0 2>/dev/null | while IFS= read -r -d '' f; do
+  perl -0pi -e '
+    s/COVENANT_MAP/ROUTE_MAP/g;
+    s/CovenantVerb/Verb/g;
+    s/covenant-mapping/verb-mapping/g;
+    s/covenant-seed/route-seed/g;
+    s/Covenant/Route/g;
+    s/covenant/route/g;
+    s/Superpattern/Architecture/g;
+    s/superpattern/architecture/g;
+    s/jesus[- ]?pattern/the method/gi;
+    s/\bjesus\b/the method/gi;
+    s{build \(commit\) / breath \(act\) / eval \(observe\)}{create / act / read}g;
+    s/\bbreath\b/act/g;
+    s/\bthe cross\b/the root signature/gi;
+    s/\bfirmament\b/boundary/gi;
+    s{grain[- ]of[- ]wheat}{seed}gi;
+    s/\bsabbath\b/rest/gi;
+    s{\.claude/[A-Za-z0-9_./\-]+}{(internal)}g;
+  ' "$f"
+done
+echo "  translated $(find "$DST" -type f \( -name '*.ts' -o -name '*.md' \) -not -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ') files"
+
 echo "open-core sync complete -> $DST"

@@ -59,7 +59,7 @@ Payouts land in the same on-chain transaction as the platform's. There is no esc
 
 If you run the domain that unbrowse is indexing, you can claim 15% of every paid call to that domain's skills.
 
-The claim is a DNS-TXT record. The verifier resolves `_unbrowse-claim.<apex>` through two independent DoH providers (Cloudflare and Google), both must return a TXT whose value is `unbrowse-claim=<challenge>;wallet=<your-wallet>`. The contract is described in `.claude/firmament-step2.md` lines 86-176 and implemented under `backend/src/routes/claim.ts` and `backend/src/services/domain-claim.ts`.
+The claim is a DNS-TXT record. The verifier resolves `_unbrowse-claim.<apex>` through two independent DoH providers (Cloudflare and Google), both must return a TXT whose value is `unbrowse-claim=<challenge>;wallet=<your-wallet>`. The contract is described in an internal design note and implemented under `backend/src/routes/claim.ts` and `backend/src/services/domain-claim.ts`.
 
 The skill must also carry `owner_compensation_opt_in === true` (`backend/src/types.ts:437`). The publish handler sets this when the indexer or owner explicitly opts in. The OWNER_BPS lane fires only when both conditions hold: the opt-in flag is true AND `owner_wallet_usdc_ata` resolves from the `domain-wallet:<domain>` KV binding.
 
