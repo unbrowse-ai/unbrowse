@@ -2765,9 +2765,14 @@ async function runSandboxCore(
   }, { kuriBase });
 
   // Default: convert HTML body fields (>1KB, look HTML-shaped) to markdown
-  // via turndown. --raw skips for reverse-engineering / debugging.
+  // via turndown. --raw skips for reverse-engineering / debugging. --main ALSO
+  // skips it here: --main runs htmlToReadableMarkdown (readability node-scoring +
+  // cleanDOM) on the body downstream, which needs RAW HTML — turndown-ing first
+  // feeds it markdown, so the readability pass sees no DOM and collapses (the exa
+  // bench's javacodegeeks "13-word" outlier). cmdFetch re-applies the markdown
+  // conversion via htmlToReadableMarkdown, so the --main output is still markdown.
   let postEvalProcessed: unknown = resp.post_eval;
-  if (flags.raw !== true && resp.post_eval !== undefined) {
+  if (flags.raw !== true && flags.main !== true && resp.post_eval !== undefined) {
     try {
       const TurndownService = (await import("turndown")).default;
       const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
