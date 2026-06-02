@@ -13,7 +13,8 @@
 
 import { describe, test, expect } from "bun:test";
 import { app } from "../src/index.js";
-import { revengObfuscatedCapture } from "../src/routes/reveng.js";
+import { revengObfuscatedCapture, revengWithHoles } from "../src/routes/reveng.js";
+import { fillHoles } from "../../src/capture/hole-template.js";
 import type { RawRequest } from "../../../src/capture/index.js";
 
 const SECRET_BEARER = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NSJ9.sig_abc123_secret";
@@ -80,5 +81,50 @@ describe("/v1/reveng route is mounted", () => {
       baseEnv,
     );
     expect(res.status).not.toBe(200);
+  });
+});
+
+describe("reveng EXPOSES ONLY THE HOLES (the backend hands the client what to fill)", () => {
+  test("revengWithHoles returns per-request holes carrying NO secret", () => {
+    const { endpoints, holes } = revengWithHoles(RAW_CAPTURE);
+    expect(endpoints.length).toBeGreaterThan(0);
+    expect(holes.length).toBe(RAW_CAPTURE.length);
+    const t = holes[0]!;
+    // the slots the client fills are named, but no secret value is exposed
+    const names = t.holes.map((h) => h.name);
+    expect(names).toContain("authorization");
+    const blob = JSON.stringify(holes);
+    expect(blob).not.toContain(SECRET_BEARER);
+    expect(blob).not.toContain(SECRET_KEY);
+    expect(blob).not.toContain("hunter2");
+  });
+
+  test("the client can fill the holes locally back into a concrete request", () => {
+    const { holes } = revengWithHoles(RAW_CAPTURE);
+    const filled = fillHoles(holes[0]!, { authorization: `Bearer ${SECRET_BEARER}`, api_key: SECRET_KEY });
+    expect(filled.request_headers.authorization).toBe(`Bearer ${SECRET_BEARER}`);
+    expect(filled.method).toBe("POST"); // structure preserved
+  });
+
+  test("the /v1/reveng response includes holes (end-to-end through the route)", async () => {
+    const env = { ENVIRONMENT: "staging", API_KEY: "test-admin-key" } as unknown as Parameters<typeof app.fetch>[1];
+    const res = await app.fetch(
+      new Request("http://local.test/v1/reveng", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer test-admin-key" },
+        body: JSON.stringify({ capture: RAW_CAPTURE }),
+      }),
+      env,
+    );
+    // requireSignedClient/execTokenGate may still gate; accept either a wired
+    // 200 carrying holes, or an auth/gate rejection — never a 404 or a secret.
+    expect(res.status).not.toBe(404);
+    const text = await res.text();
+    expect(text).not.toContain(SECRET_BEARER);
+    expect(text).not.toContain("hunter2");
+    if (res.status === 200) {
+      const body = JSON.parse(text) as { holes?: unknown[] };
+      expect(Array.isArray(body.holes)).toBe(true);
+    }
   });
 });

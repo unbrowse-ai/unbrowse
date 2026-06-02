@@ -6,6 +6,7 @@ import { execTokenGate } from "../middleware/exec-token.js";
 import type { RawRequest } from "../../../src/capture/index.js";
 import { obfuscateCaptureForReveng } from "../../../src/capture/obfuscate.js";
 import { extractEndpoints } from "../../../src/reverse-engineer/index.js";
+import { extractHoles, type HoleTemplate } from "../../../src/capture/hole-template.js";
 
 export const revengRoutes = new Hono<{ Bindings: Env }>();
 
@@ -44,6 +45,21 @@ export function revengObfuscatedCapture(capture: RawRequest[]) {
   return extractEndpoints(safe);
 }
 
+/**
+ * Reveng AND expose only the holes. Returns the endpoint specs plus, per request,
+ * the hole template (skeleton + typed holes the client fills locally from its
+ * vault/LLM). The backend holds the reveng; the client receives the SHAPE and
+ * the NAMES of what to fill and nothing more — secrets never leave the client,
+ * and the defensively-re-obfuscated skeleton + holes carry none either.
+ */
+export function revengWithHoles(capture: RawRequest[]): {
+  endpoints: ReturnType<typeof extractEndpoints>;
+  holes: HoleTemplate[];
+} {
+  const safe = obfuscateCaptureForReveng(capture);
+  return { endpoints: extractEndpoints(safe), holes: safe.map(extractHoles) };
+}
+
 revengRoutes.post("/reveng", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
   let body: { capture?: unknown };
   try {
@@ -60,8 +76,8 @@ revengRoutes.post("/reveng", bearerAuth, requireSignedClient, execTokenGate(), a
     return c.json({ error: "capture too large (max 5000 requests)" }, 413);
   }
   try {
-    const endpoints = revengObfuscatedCapture(capture as RawRequest[]);
-    return c.json({ endpoints, count: endpoints.length });
+    const { endpoints, holes } = revengWithHoles(capture as RawRequest[]);
+    return c.json({ endpoints, holes, count: endpoints.length });
   } catch (err) {
     console.error("[reveng] extract failed:", (err as Error).message);
     return c.json({ error: "reveng failed", degraded: true }, 500);
