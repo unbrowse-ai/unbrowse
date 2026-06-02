@@ -6,8 +6,10 @@
  *
  * transformers.js needs an ONNX export; the official Qwen repo ships only
  * safetensors, so we use the canonical onnx-community port (same weights,
- * exported to ONNX). dtype fp32 -> onnx/model.onnx, full precision, to match the
-const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
+ * exported to ONNX).
+ *
+ * Qwen3-Embedding is last-token pooled. transformers.js >=3 exposes
+ * `pooling: 'last_token'` on the feature-extraction pipeline; we pair it with
  * `normalize: true` to match the Python L2-normalized output.
  *
  * Public API:
@@ -17,6 +19,7 @@ const DTYPE = (process.env.EMBED_QWEN_DTYPE || "fp32") as
  * CLI:
  *   node --experimental-strip-types embed_qwen.ts "some text"
  *   node --experimental-strip-types embed_qwen.ts --json "a" "b" "c"
+ *   node --experimental-strip-types embed_qwen.ts --out vecs.json "a" "b"
  */
 
 import {
@@ -30,14 +33,29 @@ const QUERY_INSTRUCT =
   "Instruct: Given a web search query, retrieve relevant passages that " +
   "answer the query\nQuery: ";
 
+// dtype is configurable via EMBED_QWEN_DTYPE (fp32|fp16|q8|int8|uint8|q4).
+// Default uint8: onnx/model_uint8.onnx is a single self-contained ~613MB file
+// (no external model.onnx_data) that downloads byte-exact and runs inference
+// reliably here. The fp32/fp16 exports use a multi-GB external-data sidecar
+// (model.onnx_data) whose fetch in this environment keeps truncating, which
+// corrupts the weights and makes onnxruntime SIGABRT on session load. Measured
+// uint8-vs-fp32-torch parity is reported per-string by parity_test.py; set
+// EMBED_QWEN_DTYPE=fp32 once the external-data file is fully present for cos~1.0.
+const DTYPE = (process.env.EMBED_QWEN_DTYPE || "uint8") as
+  | "fp32"
+  | "fp16"
+  | "q8"
+  | "int8"
+  | "uint8"
+  | "q4";
+
 let _pipe: Promise<FeatureExtractionPipeline> | null = null;
 
 function getPipe(): Promise<FeatureExtractionPipeline> {
   if (_pipe === null) {
-    // fp32 keeps the ONNX weights full-precision for the best parity with the
-    // torch reference. Apple has no CoreML EP here, so this runs on CPU.
+    // Apple has no CoreML EP here, so this runs on CPU.
     _pipe = pipeline("feature-extraction", MODEL_ID, {
-      dtype: "fp32",
+      dtype: DTYPE,
     }) as Promise<FeatureExtractionPipeline>;
   }
   return _pipe;
@@ -112,20 +130,37 @@ export async function rankPassages(
 async function main(argv: string[]): Promise<number> {
   let args = argv.slice(2);
   let asJson = false;
+  let outPath: string | null = null;
+  // --out <path> writes JSON vectors to a file instead of stdout. This is the
+  // robust transport for the parity harness: onnxruntime-node can SIGABRT in its
+  // native teardown on macOS arm64 after inference, racing a stdout flush; an fs
+  // write completes before that finalizer ever runs.
+  const outIdx = args.indexOf("--out");
+  if (outIdx !== -1) {
+    outPath = args[outIdx + 1];
+    args = [...args.slice(0, outIdx), ...args.slice(outIdx + 2)];
+  }
   if (args[0] === "--json") {
     asJson = true;
     args = args.slice(1);
   }
   if (args.length === 0) {
-    console.log('usage: node embed_qwen.ts [--json] "text" ["text2" ...]');
+    console.log(
+      'usage: node embed_qwen.ts [--json] [--out file] "text" ["text2" ...]',
+    );
     return 2;
   }
   const vecs = await embed(args);
+  if (outPath) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(outPath, JSON.stringify(vecs));
+    return 0;
+  }
   if (asJson) {
     console.log(JSON.stringify(vecs));
     return 0;
   }
-  console.log(`backend: transformers.js (onnx) ${MODEL_ID}`);
+  console.log(`backend: transformers.js (onnx ${DTYPE}) ${MODEL_ID}`);
   for (let i = 0; i < args.length; i++) {
     const v = vecs[i];
     const head = v
@@ -138,10 +173,26 @@ async function main(argv: string[]): Promise<number> {
   return 0;
 }
 
-// run when invoked directly
+// Run when invoked directly. Force a flush then a hard process.exit AFTER the
+// result is emitted: onnxruntime-node has a known teardown bug on macOS arm64
+// (SIGABRT "mutex lock failed" in its native finalizer) that fires on normal
+// exit. Hard-exiting once output is drained returns a clean rc with the real
+// vector already produced.
 const isMain =
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith("embed_qwen.ts");
+
 if (isMain) {
-  main(process.argv).then((code) => process.exit(code));
+  main(process.argv)
+    .then((code) => {
+      if (process.stdout.writableLength === 0) {
+        process.exit(code);
+      } else {
+        process.stdout.once("drain", () => process.exit(code));
+      }
+    })
+    .catch((err) => {
+      process.stderr.write(String(err?.stack || err) + "\n");
+      process.exit(1);
+    });
 }

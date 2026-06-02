@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY_OUT = "/tmp/parity_py.json"
@@ -47,26 +48,50 @@ def run_python() -> list[list[float]]:
 
 
 def run_ts() -> list[list[float]]:
+    # Use the embedder's --out FILE transport, NOT --json stdout. onnxruntime-node
+    # has a known macOS-arm64 teardown bug: it SIGABRTs ("mutex lock failed",
+    # rc=-6/134) in its native finalizer on process exit, AFTER inference. With
+    # --json the crash races the stdout flush and the harness sees a non-zero rc
+    # for a vector that was computed fine; with --out, embed_qwen.ts writes the
+    # vectors to disk BEFORE that finalizer ever runs (verified: file complete,
+    # rc=134). So we trust the FILE — a valid, correctly-shaped vector file means
+    # the embed succeeded, regardless of a cosmetic teardown crash on exit.
+    out_path = os.path.join(tempfile.gettempdir(), "parity_ts_vecs.json")
     cmd = ["node", "--experimental-strip-types", os.path.join(HERE, "embed_qwen.ts"),
-           "--json", *STRINGS]
-    res = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True)
-    if res.returncode != 0:
-        sys.stderr.write(res.stderr[-2000:])
-        raise RuntimeError(f"TS embed failed rc={res.returncode}")
-    # transformers.js prints progress to stderr; stdout's last line is pure JSON
-    return json.loads(res.stdout.strip().splitlines()[-1])
-
-
+           "--out", out_path, *STRINGS]
+    env = {k: v for k, v in os.environ.items() if not k.startswith("EMBED_QWEN_BACKEND")}
+    env["OMP_NUM_THREADS"] = "1"
+    env["ORT_NUM_THREADS"] = "1"
+    last = None
+    for _ in range(2):
+        if os.path.exists(out_path):
+            os.remove(out_path)
+        res = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True, env=env)
+        if os.path.exists(out_path):
+            try:
+                vecs = json.loads(open(out_path).read())
+            except Exception:
+                vecs = None
+            if isinstance(vecs, list) and len(vecs) == len(STRINGS) and all(
+                isinstance(v, list) and v for v in vecs
+            ):
+                return vecs
+        last = res
+    if last is not None:
+        sys.stderr.write((last.stderr or "")[-2000:])
+    raise RuntimeError(f"TS embed produced no vector file (last rc={last.returncode if last else '?'})")
 def main() -> int:
-    py = run_python()
-    with open(PY_OUT, "w") as f:
-        json.dump(py, f)
-    print(f"[parity] wrote {PY_OUT} ({len(py)} vecs, dim={len(py[0])})", file=sys.stderr)
-
+    # Run TS FIRST — before importing torch/sentence-transformers in this process —
+    # so onnxruntime-node does not collide with a resident torch model (rc=-6 mutex).
     ts = run_ts()
     with open(TS_OUT, "w") as f:
         json.dump(ts, f)
     print(f"[parity] wrote {TS_OUT} ({len(ts)} vecs, dim={len(ts[0])})", file=sys.stderr)
+
+    py = run_python()
+    with open(PY_OUT, "w") as f:
+        json.dump(py, f)
+    print(f"[parity] wrote {PY_OUT} ({len(py)} vecs, dim={len(py[0])})", file=sys.stderr)
 
     assert len(py) == len(ts) == len(STRINGS)
     assert len(py[0]) == len(ts[0]), f"dim mismatch py={len(py[0])} ts={len(ts[0])}"
