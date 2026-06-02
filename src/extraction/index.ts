@@ -609,6 +609,40 @@ function countDataElements(obj: unknown, depth = 0): number {
  * Strip noise from raw page HTML — remove scripts, styles, nav chrome,
  * ads, hidden elements. Prefer content inside main/article regions.
  */
+/** Density-based main-content pick (readability/arc90-style): when a page has no
+ *  single clean semantic region (<main>/<article>), find the block element that
+ *  maximises real prose — most text, fewest links — so diverse blog CMSes still
+ *  isolate the article body instead of returning the whole <body> with its
+ *  sidebars/related/comments (the exa contents bench measured ~2x word inflation
+ *  on such pages). Returns null when no block is a confident win (the caller then
+ *  keeps the whole body; the readable-markdown content-loss guard is a 2nd net). */
+function pickDenseMain($: ReturnType<typeof cheerio.load>): string | null {
+  const bodyText = $("body").text().replace(/\s+/g, " ").trim();
+  const bodyLen = bodyText.length;
+  if (bodyLen < 400) return null; // short pages: nothing to isolate
+  let best: { html: string; score: number; textLen: number } | null = null;
+  $("article, main, section, div, td").each((_, el) => {
+    const $el = $(el);
+    const text = $el.text().replace(/\s+/g, " ").trim();
+    const textLen = text.length;
+    if (textLen < 200) return;
+    let linkLen = 0;
+    $el.find("a").each((_, a) => { linkLen += $(a).text().length; });
+    const linkDensity = linkLen / textLen;
+    if (linkDensity > 0.5) return; // nav / sidebar / related-link lists
+    const pCount = $el.find("p").filter((_, p) => $(p).text().trim().length > 40).length;
+    // prose score: text mass, paragraph-boosted, link-penalised.
+    const score = textLen * (1 - linkDensity) * (1 + Math.min(pCount, 20) * 0.05);
+    if (!best || score > best.score) best = { html: $el.html() ?? "", score, textLen };
+  });
+  if (!best) return null;
+  const winner = best as { html: string; score: number; textLen: number };
+  // accept only when it captures a meaningful fraction of the page — never
+  // over-narrow to a stray paragraph (that would DROP real content).
+  if (winner.textLen / bodyLen < 0.25) return null;
+  return winner.html || null;
+}
+
 export function cleanDOM(html: string): string {
   const $ = cheerio.load(html);
 
@@ -666,6 +700,11 @@ export function cleanDOM(html: string): string {
       return region.html() ?? $.html();
     }
   }
+
+  // 5b. No single clean semantic region → density-based main-content pick, so
+  //     diverse blog CMSes still isolate the article body (readability-style).
+  const dense = pickDenseMain($);
+  if (dense && dense.trim().length > 200) return dense;
 
   return $("body").html() ?? $.html();
 }
