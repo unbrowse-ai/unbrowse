@@ -11,6 +11,10 @@
     "./sdk": {
       "types": "./dist-sdk/index.d.ts",
       "import": "./dist-sdk/index.js"
+    },
+    "./sdk/wallet-standard": {
+      "types": "./dist-sdk/wallet-standard.d.ts",
+      "import": "./dist-sdk/wallet-standard.js"
     }
   },
   "files": [
