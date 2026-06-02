@@ -12,6 +12,7 @@ import {
   fetchMe,
   fetchPreferences,
   fetchSkills,
+  fetchPrivateDomains,
   patchPreferences,
   createKey,
   revokeKey,
@@ -28,6 +29,7 @@ import {
   type BillingMe,
   type KeyFunding,
   type CreatedKey,
+  type PrivateDomains,
   type SponsorStatus,
   type CreditBalance,
   type UserCreditBalance,
@@ -462,6 +464,87 @@ function ApiKeysSection({
           })}
         </ul>
       )}
+    </SectionCard>
+  );
+}
+
+function PrivateDomainsSection({
+  apiKey,
+  onAuthError,
+}: {
+  apiKey: string;
+  onAuthError: (err: unknown) => void;
+}) {
+  const [data, setData] = useState<PrivateDomains | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPrivateDomains(apiKey)
+      .then((r) => {
+        if (!cancelled) setData(r);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          onAuthError(err);
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiKey, onAuthError]);
+
+  if (error) {
+    return (
+      <SectionCard title="Private domains">
+        <ErrorChip message={error} />
+      </SectionCard>
+    );
+  }
+  if (!data) {
+    return (
+      <SectionCard title="Private domains">
+        <p className="text-xs text-text-secondary">Loading…</p>
+      </SectionCard>
+    );
+  }
+  if (data.claims.length === 0 && data.takedowns.length === 0) {
+    return (
+      <SectionCard title="Private domains">
+        <p className="text-xs text-text-secondary">
+          No DNS-verified domains yet. Claim a domain to earn owner-share on paid
+          execute, or take one down to suppress publishing.
+        </p>
+      </SectionCard>
+    );
+  }
+  return (
+    <SectionCard title="Private domains">
+      {data.claims.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-text-primary">Claimed (earning owner-share)</p>
+          {data.claims.map((c) => (
+            <div key={c.domain} className="flex items-center justify-between text-xs text-text-secondary">
+              <span className="font-mono text-text-primary">{c.domain}</span>
+              <span className="font-mono">
+                {c.wallet_address.slice(0, 6)}…{c.wallet_address.slice(-4)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {data.takedowns.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-text-primary">Takedowns (publish suppressed)</p>
+          {data.takedowns.map((t) => (
+            <div key={t.domain} className="flex items-center justify-between text-xs text-text-secondary">
+              <span className="font-mono text-text-primary">{t.domain}</span>
+              {t.reason ? <span>{t.reason}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </SectionCard>
   );
 }
@@ -1417,6 +1500,7 @@ export default function AccountPage() {
       <FlexOnboardingSection apiKey={apiKey} onAuthError={handleAuthError} />
       <ApiKeysSection apiKey={apiKey} onAuthError={handleAuthError} />
       <SkillsSection apiKey={apiKey} onAuthError={handleAuthError} />
+      <PrivateDomainsSection apiKey={apiKey} onAuthError={handleAuthError} />
       <PreferencesSection apiKey={apiKey} onAuthError={handleAuthError} />
       <BillingSummary apiKey={apiKey} onAuthError={handleAuthError} />
       <X402Panel apiKey={apiKey} onAuthError={handleAuthError} />
