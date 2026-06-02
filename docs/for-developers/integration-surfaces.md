@@ -22,3 +22,10 @@ If your code already calls `axios`, `got`, `ky`, `undici`, `superagent`, `wretch
 `@browserbasehq/stagehand`, `@mendable/firecrawl-js`, `exa-js`, or `@tavily/core`,
 you do not need to rewrite it — swap one import for the matching `@unbrowse/*` drop-in.
 See [Drop-in Adapters](./drop-in-adapters.md) for the full list and one-line swaps.
+
+## Building an agent?
+
+Unbrowse plugs into the popular agent SDKs as a **native tool** — Vercel AI SDK,
+LangChain JS, Mastra, LlamaIndex, and the OpenAI Agents SDK — and serves the full
+tool set over MCP (`npx unbrowse mcp`) for any MCP host. See
+[Agent SDK Adapters](./agent-sdk-adapters.md).

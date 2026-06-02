@@ -4,6 +4,20 @@
 
 ### What's New
 
+- **Native-tool adapters for the popular agent SDKs (`@unbrowse/ai-sdk`,
+  `@unbrowse/langchain-js`, `@unbrowse/mastra`, `@unbrowse/llamaindex`,
+  `@unbrowse/openai-agents`).** Chosen by June-2026 adoption research (Vercel AI SDK,
+  LangChain, Mastra, LlamaIndex, OpenAI Agents). Each exposes Unbrowse's
+  `resolve` / `execute` / `search` in that framework's own tool type
+  (`tool()` / `DynamicStructuredTool` / `createTool()` / `FunctionTool`), so an
+  agent author registers Unbrowse with one import; a `createUnbrowseTools({...})`
+  factory yields framework-branded instances when given the framework's helpers.
+  MCP remains the native protocol surface (`npx unbrowse mcp`, wired into Claude
+  Desktop / Cursor / Codex / Continue / Windsurf). New docs page
+  `docs/for-developers/agent-sdk-adapters.md` (linked from `integration-surfaces.md`)
+  and witnesses `scripts/agent-sdk-parity-gate.sh` (5/5 green) +
+  `scripts/native-complete-gate.sh` (library drop-ins + agent SDKs + MCP, all
+  parity-verified AND documented).
 - **Six more zero-edit drop-ins (10 → 16) + a canonical docs page.** New shims:
   `@unbrowse/undici-shim`, `@unbrowse/superagent-shim`, `@unbrowse/wretch-shim`
   (HTTP clients), `@unbrowse/selenium-shim` (`selenium-webdriver`), and
