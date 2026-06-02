@@ -37,6 +37,22 @@ type Redactor = (secret: string) => string;
 const SENSITIVE_HEADER =
   /^(authorization|cookie|set-cookie|x-csrf-token|csrf-token|x-xsrf-token|x-api-key|x-auth-token|x-access-token|x-session-token|proxy-authorization|x-amz-security-token|x-goog-api-key|api-key|apikey|x-secret|x-token)$/i;
 
+// The obfuscation must be STRICTER than the generic publish sanitizer: a field
+// literally named a credential is a secret even when its value does not match a
+// known token shape (short, or a vendor-custom format). The reveng only ever
+// needs the field NAME + type, never the value — so a false positive costs
+// nothing, while a miss leaks the user's secret to the backend. Catches the
+// bare-name cases `looksLikeSecret` leaves (token, secret, auth, cookie, sid,
+// credential) on top of its own key/value heuristics.
+const SECRET_FIELD_NAME =
+  /^(token|secret|credential|credentials|auth|cookie|sid|sess(?:ion)?(?:id|_id)?|access[_-]?token|refresh[_-]?token|id[_-]?token|bearer|jwt)$/i;
+
+/** A string leaf is a secret if its FIELD NAME names a credential or its
+ *  key/value matches the shared secret heuristics. */
+function isSecretField(key: string, value: string): boolean {
+  return SECRET_FIELD_NAME.test(key) || looksLikeSecret(key, value);
+}
+
 function obfuscateHeaders(h: Record<string, string> | undefined, redact: Redactor): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(h ?? {})) {
@@ -53,7 +69,7 @@ function obfuscateUrl(url: string, redact: Redactor): string {
     const u = new URL(url);
     for (const key of [...u.searchParams.keys()]) {
       const val = u.searchParams.get(key) ?? "";
-      u.searchParams.set(key, looksLikeSecret(key, val) ? redact(val) : sanitizeAgentVisibleText(val));
+      u.searchParams.set(key, isSecretField(key, val) ? redact(val) : sanitizeAgentVisibleText(val));
     }
     u.pathname = u.pathname
       .split("/")
@@ -83,7 +99,7 @@ function obfuscateUrl(url: string, redact: Redactor): string {
  *  `redactSecrets` but routes the placeholder through `redact`. */
 function redactSecretsWith(obj: unknown, redact: Redactor, parentKey = ""): unknown {
   if (obj === null || obj === undefined) return obj;
-  if (typeof obj === "string") return looksLikeSecret(parentKey, obj) ? redact(obj) : obj;
+  if (typeof obj === "string") return isSecretField(parentKey, obj) ? redact(obj) : obj;
   if (Array.isArray(obj)) return obj.map((item) => redactSecretsWith(item, redact, parentKey));
   if (typeof obj === "object") {
     const result: Record<string, unknown> = {};
