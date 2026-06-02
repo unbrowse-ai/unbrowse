@@ -20,7 +20,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DRY="${1:-}"
 
 PKGS=(axios-shim got-shim ky-shim node-fetch-shim cross-fetch-shim \
-      puppeteer-shim playwright-shim firecrawl-shim stagehand-shim adopt)
+      undici-shim superagent-shim wretch-shim \
+      puppeteer-shim playwright-shim selenium-shim stagehand-shim \
+      firecrawl-shim exa-shim tavily-shim \
+      ai-sdk langchain-js mastra llamaindex openai-agents \
+      adopt)
 
 publish_one() {
   local dir="$ROOT/packages/$1"
