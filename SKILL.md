@@ -18,7 +18,7 @@ This skill installs the instructions. The runtime (CLI binary + MCP server) come
 |---|---|
 | **MCP server** | An MCP-host agent (Claude Code, Claude Desktop, Cursor, Codex, Windsurf). Tools like `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_go` appear in the host. |
 | **CLI** (`unbrowse`) | A shell or script that wants the same surface without an MCP host. |
-| **SDK** (`@unbrowse/sdk`) | A TypeScript program embedding Unbrowse; the SDK spawns its own local binary. |
+| **SDK** (`unbrowse/sdk`) | A TypeScript program embedding Unbrowse; the SDK spawns its own local binary. |
 
 ## The workflow
 
@@ -59,14 +59,14 @@ unbrowse execute --skill-id <id-from-resolve> --endpoint-id <id-from-shortlist>
 From Node:
 
 ```bash
-npm i @unbrowse/sdk
+npm i unbrowse
 ```
 
 ```typescript
-import { spawn } from '@unbrowse/sdk';
-const client = await spawn();
+import { Unbrowse } from 'unbrowse/sdk';
+const client = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const resolved = await client.resolve({ intent: 'search hn for openai', url: 'https://news.ycombinator.com' });
-const result = await client.execute({ skillId: resolved.skill.id, endpointId: resolved.endpoints[0].id });
+const result = await client.execute({ endpoint_id: resolved.available_operations![0].endpoint_id, params: { q: 'agents' } });
 ```
 
 ## Links
