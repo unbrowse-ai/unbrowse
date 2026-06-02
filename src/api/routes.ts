@@ -20,6 +20,7 @@ import { generateLocalDescription, writeSkillSnapshot, readSkillSnapshot, buildR
 import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, RUNTIME_GIT_SHA, PACKAGE_VERSION } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig, setContributionConfig, type ContributionConfig } from "../config/contribution.js";
+import { isPassiveIndexEnabled } from "../capture/passive-index.js";
 import { getSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
 import { getRecentTraces } from "../graph/trace-store.js";
@@ -751,6 +752,7 @@ export async function registerRoutes(app: FastifyInstance) {
       contribution: {
         share_pointers: contributionCfg.contribution.share_pointers,
         auto_review: contributionCfg.contribution.auto_review,
+        passive_index: contributionCfg.contribution.passive_index,
         set_via: contributionCfg.contribution.set_via,
         ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
       },
@@ -881,6 +883,7 @@ export async function registerRoutes(app: FastifyInstance) {
       clear_publish_domain_promptlist?: boolean;
       share_pointers?: boolean;
       auto_review?: boolean;
+      passive_index?: boolean;
       attach_existing_chrome?: boolean;
     };
 
@@ -905,6 +908,10 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     if (typeof body.auto_review === "boolean") {
       contributionUpdate.contribution.auto_review = body.auto_review;
+      contributionUpdate.contribution.set_via = "mode-command";
+    }
+    if (typeof body.passive_index === "boolean") {
+      contributionUpdate.contribution.passive_index = body.passive_index;
       contributionUpdate.contribution.set_via = "mode-command";
     }
     if (Object.keys(contributionUpdate.contribution).length > 0) {
@@ -936,6 +943,7 @@ export async function registerRoutes(app: FastifyInstance) {
       contribution: {
         share_pointers: sharePointers,
         auto_review: autoReview,
+        passive_index: contributionCfg.contribution.passive_index,
         set_via: contributionCfg.contribution.set_via,
         ...(contributionCfg.contribution.set_at ? { set_at: contributionCfg.contribution.set_at } : {}),
       },
@@ -3716,7 +3724,16 @@ export async function registerRoutes(app: FastifyInstance) {
         browseClient,
         requestedSessionId(req),
         async (session) => {
-          const syncResult = await flushBrowseCapture(session, { queueIndex: true, queuePublish: true });
+          // Passive parallel index (default ON, opt-out): a sync checkpoint does
+          // not block on the late-XHR content-ready wait — the index/publish
+          // pipeline runs in the background and the next checkpoint/close catches
+          // any freshly-fired XHRs. Browsing stays fast. Opt out with
+          // `unbrowse_settings passive_index=false` to wait inline each sync.
+          const syncResult = await flushBrowseCapture(session, {
+            queueIndex: true,
+            queuePublish: true,
+            skipContentReadyWait: isPassiveIndexEnabled(),
+          });
           await restartBrowseCapture(session);
           return syncResult;
         },

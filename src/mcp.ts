@@ -2682,6 +2682,10 @@ const tools: ToolDefinition[] = [
           type: "boolean",
           description: "Whether ready-to-publish skills auto-publish on close/sync (true) or wait for an explicit unbrowse_publish call (false). Independent of share_pointers and auto_review - auto_publish=false + share_pointers=true means you publish manually, on your timing.",
         },
+        passive_index: {
+          type: "boolean",
+          description: "Passive parallel indexing. true (default) = the capture → reverse-engineer → index → publish pipeline runs in the background while you browse, so `sync` checkpoints return immediately instead of blocking on the page's late-XHR settle — browsing stays fast and the index grows in parallel. false = run the pipeline inline (each sync waits until the page's endpoints are fully reverse-engineered: slower browse, but every checkpoint's endpoints are complete before it returns).",
+        },
         attach_existing_chrome: {
           type: "boolean",
           description: "Browser launch policy. true (default, North Star) = attach to your already-running Chrome on the CDP port whenever possible, so one pipeline captures every tab any agent opens. false = never touch your real Chrome; always launch a clean managed headless Chrome (no visible window, no tabs in your browser). Set false on shared machines, automated/CI gate runs, or for privacy. Persisted to config.json; the env knob KURI_DISABLE_CDP_ATTACH=1 is the per-process override and still wins.",
@@ -2708,6 +2712,8 @@ const tools: ToolDefinition[] = [
         || args.auto_publish === false
         || args.auto_review === true
         || args.auto_review === false
+        || args.passive_index === true
+        || args.passive_index === false
         || args.share_pointers === true
         || args.share_pointers === false
         || args.attach_existing_chrome === true
@@ -2727,6 +2733,9 @@ const tools: ToolDefinition[] = [
       }
       if (args.auto_review === true || args.auto_review === false) {
         body.auto_review = args.auto_review;
+      }
+      if (args.passive_index === true || args.passive_index === false) {
+        body.passive_index = args.passive_index;
       }
       if (args.share_pointers === true || args.share_pointers === false) {
         body.share_pointers = args.share_pointers;
