@@ -16,8 +16,7 @@
 import { X402_CONFIG } from "./index.js";
 import { payAndRetryFlex, type FlexWalletLike } from "../../packages/sdk/src/flex.js";
 import type { PaymentRequiredError } from "../../packages/sdk/src/errors.js";
-import type { FlexPaymentRequired, FlexAcceptEntry } from "../../backend/src/services/flex-payment-terms.js";
-import type { FlexSplit } from "../../backend/src/services/flex.js";
+import type { FlexPaymentRequired, FlexAcceptEntry, FlexSplit } from "./flex-terms.js";
 
 export interface FlexSettleResult<T = unknown> {
   data: T;
