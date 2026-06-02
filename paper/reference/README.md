@@ -28,6 +28,12 @@ never a faked signature).
 - `network/sybil.py` — stake-weighted, split-invariant attribution (the Sybil mitigation).
 - `network/erc8004.py` — ERC-8004 Identity / Reputation / Validation records, wallet-signed.
 - `network/vault_cycle.py` — the fee-return cycle: staking by abiding, pro rata to balance×duration.
+- `walk/route_graph.py` — **the index of the internet, walked all the way up**
+  (arXiv:2604.00694, sp-unbrowse tree+walk+verb+settle atoms): the shared route
+  graph as an index of pointers merged at the domain level, the paper's composite
+  score (0.40 embedding + 0.30 reliability + 0.15 freshness + 0.15 verification),
+  the freshness law `1/(1+d/30)`, the continuous-trust settle, and the verb ladder
+  `cache → graph → browser` that escalates only on a miss.
 
 ## The cache + ledger core (original two halves, kept separate on purpose)
 
