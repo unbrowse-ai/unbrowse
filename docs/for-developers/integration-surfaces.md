@@ -14,3 +14,11 @@ MCP and CLI speak to the same local runtime. `@unbrowse/client` calls the hosted
 MCP and the SDKs are the supported integration surfaces; the CLI is the same runtime for direct use.
 
 Both SDK packages are MIT licensed. New code should start with `@unbrowse/client`; use `@unbrowse/sdk` only when you need a local browser session owned by your process. See [SDK Quickstart](./sdk-quickstart.md) and the SDK reference under `sdk/`.
+
+## Already using another library?
+
+If your code already calls `axios`, `got`, `ky`, `undici`, `superagent`, `wretch`,
+`node-fetch`, `cross-fetch`, `playwright`, `puppeteer`, `selenium-webdriver`,
+`@browserbasehq/stagehand`, `@mendable/firecrawl-js`, `exa-js`, or `@tavily/core`,
+you do not need to rewrite it — swap one import for the matching `@unbrowse/*` drop-in.
+See [Drop-in Adapters](./drop-in-adapters.md) for the full list and one-line swaps.

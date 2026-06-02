@@ -25,3 +25,9 @@ node-fetch	@unbrowse/node-fetch-shim	packages/node-fetch-shim	packages/node-fetc
 got	@unbrowse/got-shim	packages/got-shim	packages/got-shim/README.md	packages/got-shim/test/shape.test.ts
 ky	@unbrowse/ky-shim	packages/ky-shim	packages/ky-shim/README.md	packages/ky-shim/test/shape.test.ts
 cross-fetch	@unbrowse/cross-fetch-shim	packages/cross-fetch-shim	packages/cross-fetch-shim/README.md	packages/cross-fetch-shim/test/shape.test.ts
+undici	@unbrowse/undici-shim	packages/undici-shim	packages/undici-shim/README.md	packages/undici-shim/test/shape.test.ts
+superagent	@unbrowse/superagent-shim	packages/superagent-shim	packages/superagent-shim/README.md	packages/superagent-shim/test/shape.test.ts
+wretch	@unbrowse/wretch-shim	packages/wretch-shim	packages/wretch-shim/README.md	packages/wretch-shim/test/shape.test.ts
+selenium-webdriver	@unbrowse/selenium-shim	packages/selenium-shim	packages/selenium-shim/README.md	packages/selenium-shim/test/shape.test.ts
+exa-js	@unbrowse/exa-shim	packages/exa-shim	packages/exa-shim/README.md	packages/exa-shim/test/shape.test.ts
+@tavily/core	@unbrowse/tavily-shim	packages/tavily-shim	packages/tavily-shim/README.md	packages/tavily-shim/test/shape.test.ts
