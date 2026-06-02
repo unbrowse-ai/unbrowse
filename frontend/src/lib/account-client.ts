@@ -168,6 +168,31 @@ export async function rotateKey(apiKey: string, keyId: string): Promise<CreatedK
   return authed<CreatedKey>("POST", `/v1/account/keys/${encodeURIComponent(keyId)}/rotate`, apiKey);
 }
 
+/** Private-marketplace surface: DNS-verified domain claims (earn owner-share)
+ *  + takedowns (publish opt-outs) bound to this account. */
+export interface PrivateDomainClaim {
+  domain: string;
+  wallet_address: string;
+  verified_at: string;
+}
+export interface PrivateDomainTakedown {
+  domain: string;
+  opted_out_at: string;
+  reason?: string;
+}
+export interface PrivateDomains {
+  claims: PrivateDomainClaim[];
+  takedowns: PrivateDomainTakedown[];
+}
+export async function fetchPrivateDomains(apiKey: string): Promise<PrivateDomains> {
+  const r = await authed<{ claims?: PrivateDomainClaim[]; takedowns?: PrivateDomainTakedown[] }>(
+    "GET",
+    "/v1/account/private-domains",
+    apiKey,
+  );
+  return { claims: Array.isArray(r.claims) ? r.claims : [], takedowns: Array.isArray(r.takedowns) ? r.takedowns : [] };
+}
+
 export async function bindKeyFunding(
   apiKey: string,
   keyId: string,
