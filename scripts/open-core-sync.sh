@@ -2,10 +2,11 @@
 # open-core-sync.sh — assemble the public open-core tree (additive, allow-list).
 #
 # Copies ONLY the allow-listed public surface from the dev repo into a target tree
-# (arg 1, a worktree checked out on open-core). Additive on top of the already-clean
-# open-core branch: source files only (no node_modules/dist/build), never the moat.
+# (arg 1, a worktree checked out on the public default branch `main`). Additive on
+# top of the already-clean public tree: source files only (no node_modules/dist/
+# build), never the moat.
 #
-#   bash scripts/open-core-sync.sh /path/to/open-core-worktree
+#   bash scripts/open-core-sync.sh /path/to/public-worktree
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DST="${1:?usage: open-core-sync.sh <target-tree>}"
