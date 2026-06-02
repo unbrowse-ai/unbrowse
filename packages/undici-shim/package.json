@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/undici-shim",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for undici. A safe GET routes through Unbrowse's resolved-route cache ($0 on hit); everything else is native fetch shaped into undici's ResponseData object — same request() returning { statusCode, headers, body } with body.text()/.json()/.arrayBuffer(), plus fetch and stub Client/Pool/Agent/setGlobalDispatcher/getGlobalDispatcher/interceptors.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["undici", "http", "client", "request", "fetch", "unbrowse", "shim"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/vs/undici"
+}
