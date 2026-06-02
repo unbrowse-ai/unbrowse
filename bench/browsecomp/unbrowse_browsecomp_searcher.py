@@ -61,8 +61,13 @@ except Exception:  # pragma: no cover - standalone import-time fallback for self
 UNBROWSE = os.environ.get("UNBROWSE_BIN", "/opt/homebrew/bin/unbrowse")
 TIMEOUT = int(os.environ.get("UNBROWSE_TIMEOUT", "120"))
 
-# Strip unbrowse's human trace lines so only SERP markdown remains.
-_TRACE = re.compile(r"^(\[\d{2}:\d{2}:\d{2}(\.\d+)?\]|\[unbrowse\]|\[trace\]|\[debug\]|\[info\]|\[auth\])")
+# Strip unbrowse's + kuri's human log lines so only the JSON/markdown payload
+# remains. Kuri emits bare `info:`/`warn:`/`error:` lines (not bracketed), which
+# otherwise pollute the resolve JSON and break parsing.
+_TRACE = re.compile(
+    r"^(\[\d{2}:\d{2}:\d{2}(\.\d+)?\]|\[unbrowse\]|\[trace\]|\[debug\]|\[info\]|\[auth\]"
+    r"|info:|warn:|warning:|error:|debug:|\[kuri)"
+)
 
 # A DDG result heading:  ## [Title](//duckduckgo.com/l/?uddg=ENCODED&rut=...)
 _HEADING = re.compile(r"^##\s+\[(?P<title>.+?)\]\((?P<href>[^)]+)\)\s*$")
@@ -176,13 +181,83 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         head = await asyncio.gather(*[_one(r) for r in results[:top_k]])
         return list(head) + results[top_k:]
 
+    async def _resolve_search(self, query: str, num_results: int) -> list["SearchResult"]:
+        """PRIMARY path (the paper's `tree`+`verb` atoms): walk the shared route
+        graph — `unbrowse resolve` routes a search intent to the best FIRST-PARTY
+        search API (exa-web-search) below the domain layer, returning neural-search
+        candidates. This is "solve via unbrowse" by walking the endpoint trees, not
+        scraping the human SERP surface (DDG)."""
+        import json as _json
+        # Resolve's route selection is non-deterministic for generic search
+        # intents (it sometimes matches a junk cached route or None instead of
+        # falling to the synthetic exa-web-search skill). Retry until we get a
+        # response carrying exa_candidates (the web-search fallback fired).
+        cands: list = []
+        last_result: dict = {}
+        _dec = _json.JSONDecoder()
+        for _attempt in range(2):
+            async with self._sem:
+                # No --url: a domain biases resolve toward (often junk) cached
+                # routes and blocks the exa fallback. Without it, resolve routes
+                # deterministically to the synthetic exa-web-search skill (global
+                # neural search). The orchestrator's quality gate may still discard
+                # low-score results (→ 0 candidates); the DDG fallback covers that.
+                out, ok = await _run(["resolve", "--intent", query, "--pretty"])
+            if not ok:
+                continue
+            clean = _clean(out)
+            start = clean.find("{")
+            if start < 0:
+                continue
+            try:
+                # raw_decode parses the first JSON object and ignores trailing log
+                # text (resolve prints JSON then more `info:` lines → "Extra data").
+                d, _end = _dec.raw_decode(clean[start:])
+            except Exception:
+                continue
+            last_result = d.get("result") or last_result
+            cands = (last_result).get("exa_candidates") or []
+            if cands:
+                break
+        results: list[SearchResult] = []
+        for c in cands[:num_results]:
+            url = c.get("url") or ""
+            if not url:
+                continue
+            title = (c.get("title") or url).strip()
+            snippet = (c.get("highlights_excerpt") or c.get("snippet") or title).strip()
+            results.append(SearchResult(url=url, title=title, snippet=snippet))
+        # exa_answer fallback: resolve often returns a SYNTHESIZED answer + its
+        # source (exa_answer / data / source_url) instead of a ranked candidate
+        # list — a high-quality direct hit (e.g. the Wikipedia page for the
+        # entity, "Sam Altman ... CEO of OpenAI since 2019"). The adapter used to
+        # discard it (only read exa_candidates) and drop to the DDG SERP scrape,
+        # starving the agent of the best result. Surface it as a SearchResult.
+        if not results and last_result.get("source_url"):
+            url = (last_result.get("source_url") or "").strip()
+            title = (last_result.get("source_title") or url).strip()
+            data = last_result.get("data")
+            if isinstance(data, list):
+                snippet = " ".join(str(x) for x in data if x).strip()
+            elif isinstance(data, str):
+                snippet = data.strip()
+            else:
+                snippet = ""
+            if url:
+                results.append(SearchResult(url=url, title=title, snippet=(snippet or title)[:4000]))
+        return results
+
     async def __call__(self, query: str, num_results: int) -> list[SearchResult]:
+        # 1) route-graph path: resolve → first-party search API (exa-web-search).
+        results = await self._resolve_search(query, num_results)
+        if results:
+            return await self._enrich(results)
+        # 2) last-resort fallback: DDG SERP scrape (the human surface).
         from urllib.parse import quote_plus
         serp_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
         async with self._sem:
             stdout, ok = await _run(["fetch", serp_url])
         if not ok:
-            # Honest empty result on failure — the agent will see no results.
             return []
         md = _clean(stdout)
         results = parse_ddg_markdown(md, num_results)
