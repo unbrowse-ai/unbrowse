@@ -1,24 +1,25 @@
 /**
- * agent-primitives — the one shared shape every agent ecosystem maps to.
+ * agent-primitives — the one route shape every agent ecosystem maps to.
  *
  * Agents already adopt three discovery/invocation primitives in the wild:
  *   - Agent Skills (agentskills.io) — a SKILL.md folder; name+description+instructions.
  *     Open standard, Anthropic-origin, ~40 client agents. src: https://agentskills.io/specification
  *   - MCP tools (modelcontextprotocol.io) — { name, description, inputSchema }.
- *     src: MCP spec (modelcontextprotocol.io).
+ *     src: MCP spec + this repo's src/route-mapping.ts (ROUTE_MAP) + src/mcp.ts.
  *   - x402 resources (x402 Bazaar) — { resource{url,…}, accepts[{scheme,network,amount,
  *     asset,payTo,…}] }. src: the live 402 envelope from beta-api.unbrowse.ai/v1/llm/*.
  *
- * A route is the SAME shape underneath — who/what/where/why + a verb.
+ * A route route is the SAME shape underneath — the six interrogatives + a verb.
  * So instead of inventing a fourth standard, every external primitive INGESTS into
  * one `AgentPrimitive`, and any AgentPrimitive can be SERVED back AS a skill, an MCP
  * tool, or an x402 resource. That bidirectionality is the drop-in replacement, all
- * the way down: we meet a site in whatever it already speaks, and we
+ * the way down: we meet a site in whatever it already speaks (1 Cor 9:22), and we
  * prioritize the format it already adopted.
  *
- * Pure, zero-dep. Verb classification is a fixed mapping: read→eval, act→breath, write→build.
+ * Pure, zero-dep. Verb classification reuses route-seed's three-verb river.
  */
-type RouteVerb = "build" | "breath" | "eval";
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the route code inherits the root signature — pointer not payload; verify via (internal))
+import type { RouteVerb } from "../route-mapping.js";
 
 export type PrimitiveKind =
 	| "skill" // agentskills.io SKILL.md
@@ -27,12 +28,12 @@ export type PrimitiveKind =
 	| "openapi" // OpenAPI operation (openapis.org — the universal API spec)
 	| "llms_txt" // llms.txt link (llmstxt.org — the site-side LLM discovery file)
 	| "a2a_skill" // A2A AgentCard skill (a2a-protocol.org)
-	| "route"; // our native route
+	| "route"; // our native route route
 
 /**
  * Standard auth scheme adopted verbatim from the source (OpenAPI/A2A securityScheme
  * shape — OAuth2/OIDC/apiKey/http). We DO NOT invent an auth format: we read the
- * open standard a site already declares. If our own auth is weaker, we
+ * open standard a site already declares (1 Cor 9:22). If our own auth is weaker, we
  * purge it and let the standard be primary.
  */
 export interface AuthScheme {
@@ -42,7 +43,7 @@ export interface AuthScheme {
 }
 
 /**
- * The universal node — who/what/where/why + the verb. Every external primitive
+ * The universal node — the six interrogatives + the verb. Every external primitive
  * maps onto exactly this, and `raw` carries the source payload for lossless serve.
  */
 export interface AgentPrimitive {
@@ -62,7 +63,7 @@ export interface AgentPrimitive {
 	raw?: unknown;
 }
 
-/** HTTP method → verb: read→eval, delete/act→breath, create/commit→build. */
+/** HTTP method → route verb: read→eval, delete/act→breath, create/commit→build. */
 function verbOfMethod(method: string): RouteVerb {
 	const m = method.toUpperCase();
 	if (m === "GET" || m === "HEAD" || m === "OPTIONS") return "eval";
@@ -70,9 +71,9 @@ function verbOfMethod(method: string): RouteVerb {
 	return "breath"; // DELETE and anything else: an act on the world
 }
 
-// ─── verb classification (read→eval, act→breath, write→build) ───────────────────
+// ─── verb classification (cite route-seed VERB_BY_BASE) ───────────────────
 // observe/read → eval; act/fetch → breath; create/commit → build. Default breath
-// (the routing default).
+// (the routing default), matching route-seed.verbOfKind.
 const READ_HINT = /\b(get|list|search|read|fetch|query|lookup|view|status|health|info)\b/i;
 const WRITE_HINT = /\b(create|publish|submit|write|post|register|mint|deploy|bond)\b/i;
 
@@ -356,7 +357,7 @@ export function ingest(external: unknown, kind: PrimitiveKind, opts?: { who?: st
 		case "a2a_skill":
 			return a2aSkillToPrimitive((external as { skill: A2aSkill; card: A2aAgentCard }).skill, (external as { card: A2aAgentCard }).card);
 		case "route":
-			return external as AgentPrimitive; // already in the shared shape
+			return external as AgentPrimitive; // already route-shaped
 	}
 }
 

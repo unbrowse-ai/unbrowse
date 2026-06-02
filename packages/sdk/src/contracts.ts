@@ -388,7 +388,7 @@ export interface HealthResponse {
 }
 
 // Earnings & dashboard surface.
-// Server-side handlers map these contract shapes.
+// Backend handlers: backend/src/routes/{dashboard,transactions,attribution}.ts
 export interface DashboardEarnings {
   total_usd?: number;
   unsettled_usd?: number;
@@ -476,7 +476,7 @@ export interface PublishSkillInput {
   domain: string;
   description: string;
   endpoints: unknown[];
-  /** Optional per-skill platform markup in bps (clamped server-side to a supported range). */
+  /** Optional per-skill platform markup in bps. [500, 8000] clamped. */
   markup_bps?: number;
   [extra: string]: unknown;
 }

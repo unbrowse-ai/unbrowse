@@ -122,10 +122,10 @@ Captured routes monetize when re-used by other agents. The SDK exposes the full 
 
 ```ts
 // Publish a captured skill so other agents can resolve + execute it.
-// markup_bps is clamped server-side to a supported range.
+// markup_bps is clamped server-side to [500, 8000] (5 to 80 percent platform cut).
 const pub = await u.publish({
   skill: capturedSkill,
-  markup_bps: 1500, // optional per-skill markup override, in basis points
+  markup_bps: 1500, // optional; defaults to PLATFORM_BPS = 5000 (50%)
 });
 
 // Annotate an endpoint with extra semantic metadata. Improves the

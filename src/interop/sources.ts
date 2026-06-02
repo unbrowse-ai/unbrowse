@@ -16,6 +16,7 @@
  *
  * Each fetcher degrades gracefully (returns []) so discovery never hard-fails.
  */
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the route code inherits the root signature — pointer not payload; verify via (internal))
 import type {
 	X402Resource,
 	X402Accept,
@@ -43,7 +44,7 @@ interface BazaarItem {
 }
 
 /**
- * Map a Bazaar item to the X402Resource shape. Handles both the live API
+ * Map a Bazaar item to the route X402Resource shape. Handles both the live API
  * (top-level `description`, `quality.l30DaysTotalCalls`) and the older docs shape
  * (`metadata.description`). `quality.l30DaysTotalCalls` becomes the adoption signal
  * — real 30-day usage, the truest "what sites already use".

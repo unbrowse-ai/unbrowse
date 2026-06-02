@@ -1,41 +1,48 @@
 # Open Source Notice
 
-**Unbrowse is open source (open core).** The SDKs, the agent-interop layer, the payment protocol, and the docs are MIT and public — that is the surface you build on, and it is current, not a frozen snapshot.
+**The public open-source Unbrowse repo at [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) is an outdated snapshot.** It does not reflect what current production builds do.
 
-A small core stays private, for security rather than instinct. The local capture, indexing, and replay primitives carry real abuse potential if shipped without guardrails:
+Later versions are **closed-source** because the local capture, indexing, and replay primitives that make Unbrowse work also create real abuse risk if shipped without guardrails:
 
 - **Local session import** can be retargeted at accounts the operator does not own.
 - **Route inference + replay** can be aimed at services that explicitly disallow automated access.
 - **Marketplace publish + payout** plumbing is a financial path that can be steered into theft if the integrity of the indexer is compromised.
-- **Platform-integrity research** contains low-level detail we will not publish until it can be disclosed safely.
+- **Platform integrity research** contains low-level details that we will not publish until they can be safely disclosed.
 
-Everything outside that core is open. The split:
+The split:
 
-| Surface | Where it lives | License |
+The split is three-way: the **frontend CLI is fully open source**, the **backend is
+a private repo**, and the **frontend web app is private**.
+
+| Surface | Where it lives | License / visibility |
 |---|---|---|
-| `@unbrowse/client` (HTTP-first SDK) | npm `@unbrowse/client` + `packages/sdk-v2/` | MIT |
-| `@unbrowse/sdk` (legacy local-runtime SDK) | npm `@unbrowse/sdk` + `packages/sdk/` | MIT |
-| Agent-interop layer (Skills / MCP / OpenAPI / llms.txt / A2A / x402 drop-in) | `src/interop/` | MIT |
-| Public repo + docs + whitepaper | [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) | MIT |
-| `unbrowse` CLI binary | npm `unbrowse` | proprietary, distributed binary |
-| Capture / indexing / runtime engine | private repo | proprietary |
-| Backend (marketplace, payouts) | private repo, Cloudflare Workers | proprietary |
+| **Frontend CLI** — open client, SDKs & drop-in adapters (`@unbrowse/client`, `@unbrowse/sdk`, every `@unbrowse/*` shim + agent-SDK adapter) | npm + public repo | **MIT, fully open source** |
+| `unbrowse` CLI launcher binary | npm `unbrowse` | distributed binary that wraps the private engine |
+| Capture / indexing / replay **engine** | **private repo** | proprietary (the moat; ships only as the binary) |
+| **Backend** (marketplace, payouts, settlement) | **private repo**, Cloudflare Workers | proprietary |
+| **Frontend web app** (unbrowse.ai) | **private repo** | proprietary |
+| Public OSS snapshot (older) | [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) | MIT, frozen |
+
+The CLI you build against is fully open source (MIT) and carries no moat; trust in
+the closed engine and backend is established by ***REMOVED*** + a hash-chained, auditable
+ledger (see the reference implementation under `paper/reference/`), not by exposing
+the server. The web app is a private product surface.
 
 ## What this means for you
 
 - **Building on the SDK?** New code should use `@unbrowse/client`. Existing local-runtime integrations can keep using `@unbrowse/sdk` plus a running `unbrowse` runtime (`npx unbrowse setup`). Both SDKs are MIT.
-- **Reading the repo for architecture?** The public repo, `docs/`, and the [whitepaper](./whitepaper/) reflect current behavior. The SDKs and the interop layer are the real, maintained source.
+- **Reading the OSS repo for architecture?** Treat it as a 2025 historical reference. Look here in `docs/` and at the public [whitepaper](./whitepaper/) for current behavior.
 - **Filing a bug?** Use [github.com/unbrowse-ai/unbrowse/issues](https://github.com/unbrowse-ai/unbrowse/issues) for SDK/CLI issues. The CLI binary tracks current production.
-- **Want source access to the private core for security review?** Email security@unbrowse.ai. Review under NDA is available for serious enterprise integrators.
+- **Want source access for security review?** Email security@unbrowse.ai. Code review under NDA is available for serious enterprise integrators.
 
-## Why open core, not fully open
+## Why we made this call
 
-We shipped fully open early on, and two patterns showed why the *engine* specifically needs guardrails:
+We shipped fully open until April 2026. Two patterns forced the change:
 
-1. **Forks-as-scrapers.** Some forks rebranded the indexer and stripped the marketplace-publish, paid-route, and terms gates — turning a discovery tool into an unattributed scraping fleet.
-2. **Platform-integrity escalation.** Publishing low-level evasion detail starts a race that harms legitimate users and site owners.
+1. **Forks-as-scrapers.** Several forks rebranded the indexer and removed marketplace-publish, paid-routes, and ToS gates — turning a benign discovery tool into an unattributed scraping fleet.
+2. **Platform integrity escalation.** Publishing low-level evasion details creates a race that harms legitimate users and site owners.
 
-So the answer is open core, not all-or-nothing: the surface agents build on is open and credited; the abuse-prone engine stays behind a guardrail. Giving agents real APIs was always the point — open core keeps that promise sustainable.
+We still believe in giving agents real APIs. Closing the source is a tradeoff we made to keep that promise sustainable, not a permanent posture.
 
 ## Open standards we build on — and credit
 
@@ -47,17 +54,22 @@ them; we do not fork-and-rebrand them:
 | Standard | Author / owner | What we do with it |
 |---|---|---|
 | **Agent Skills** (`SKILL.md` format) | Anthropic — released as an open standard (agentskills.io) | ingest + serve our routes as skills, to the published spec |
-| **Model Context Protocol (MCP)** | Anthropic — open spec (modelcontextprotocol.io) | expose our surface as MCP tools; map every tool to our unified route shape |
+| **Model Context Protocol (MCP)** | Anthropic — open spec (modelcontextprotocol.io) | expose our surface as MCP tools; map every tool to the route shape |
 | **x402** + **x402 Bazaar** | Coinbase — open payment protocol + public discovery catalog | settle usage over x402; rank a site's already-listed Bazaar resources above any re-wrap |
 
-A unified route is a drop-in *replacement* only in the sense of *interoperating with*
+A route route is a drop-in *replacement* only in the sense of *interoperating with*
 these formats — never of replacing their authorship. Where we build on a cited source,
 we keep its `source_id` in the code and build **on top** of it, not over it.
 
-## What's open today
+## What we give first
 
-Freely available today, MIT: the `@unbrowse/client` + `@unbrowse/sdk` SDKs and the
-agent-interop layer above — so any agent can use Unbrowse through the formats it
-already speaks, at no cost and with no lock-in (the browser fallback is always the
-exit). USDC settles usage; that's the whole deal — use what's here, build on it, pay
-only for what you call.
+The open part is given before anything is asked back. Freely available today, MIT:
+the `@unbrowse/client` + `@unbrowse/sdk` SDKs, and the standards-interop above — so any
+agent can use Unbrowse through the formats it already speaks, at no cost and with no
+lock-in (the browser fallback is always the exit).
+
+The deeper layers open **as gifts over time, as they mature safely** — not hoarded, not
+sold as the point. The maintenance/trust economy (proof-of-indexing, bonded
+accountability) is staged for reveal, not extraction (see `RELEASE_STRATEGY.md`); USDC
+settles usage while the bond only secures trust (one master, never a money-first root).
+Give first, hidden from money-motive, planted in good soil — then it grows on its own.

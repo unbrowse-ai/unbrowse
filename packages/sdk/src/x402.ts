@@ -2,7 +2,8 @@
  * x402 payment primitives — typed shapes the SDK and a wallet agree on.
  *
  * Mirrors the canonical x402 protocol shape (resource-URL flavor) so a generic
- * x402 wallet client can sign these without an Unbrowse-specific adapter. The server is
+ * x402 wallet client can sign these without an Unbrowse-specific adapter. The
+ * backend (`backend/src/middleware/x402-gate.ts:X402PaymentRequirementV2`) is
  * the producer; this is the consumer-side declaration.
  *
  * IMPORTANT: this file MUST NOT import from `./client.js` — keep payment
