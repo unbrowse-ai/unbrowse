@@ -37,3 +37,6 @@ paper2-push	HUMAN	-	HIGH	-	blocked	bash scripts/whitepaper-signoff-gate.sh	Paper
 paper3-push	HUMAN	-	MED	paper2-push	blocked	bash scripts/backlog/paper3-check.sh	Paper 3 arXiv/Overleaf push (held for author)
 metalearn-loop	UNBOUNDED	-	LOW	selfimprove-loop	standing	true	Get better at getting better (no clean completion gate)
 index-of-internet	UNBOUNDED	-	MED	dag-recompute	standing	true	Index-of-the-internet walk above robots.txt (standing direction)
+pubrepo-vocab-leak	AUTO	2	HIGH	-	done	bash scripts/backlog/pubrepo-vocab-gate.sh --check	Public repo (tree+history+tags+messages) free of internal/method vocabulary
+dev-vocab-scrub	AUTO	2	HIGH	pubrepo-vocab-leak	todo	bash scripts/leak-guard.sh	Dev SOURCE scrubbed of method vocabulary so open-core-sync cannot re-leak; leak-guard arms the vocab set
+passive-parallel-index	FEATURE	3	HIGH	-	todo	bun test tests/passive-index.test.ts	CLI/skill harness: opt-in passive reverse-engineer+index-to-publish IN PARALLEL with browsing, and faster browse
