@@ -474,6 +474,17 @@ export interface Env {
    * own request directly.
    */
   UNBROWSE_LLM_CHAT_URL?: string;
+  /**
+   * External OS-level egress service for the `residential` proxy mode. The
+   * Workers runtime cannot complete a TLS handshake to non-Cloudflare origins
+   * via `cloudflare:sockets` startTls(), so the residential path delegates the
+   * actual upstream fetch to a real-OS egress process reachable over plain
+   * HTTPS. MINI_EGRESS_URL is its base URL; EGRESS_SECRET is the shared secret
+   * sent as `X-Egress-Secret`. Set via `wrangler secret put`. When unset, the
+   * residential path returns an honest error rather than degrading.
+   */
+  MINI_EGRESS_URL?: string;
+  EGRESS_SECRET?: string;
 }
 // --- Agent identity ---
 
