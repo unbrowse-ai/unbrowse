@@ -182,27 +182,28 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         return list(head) + results[top_k:]
 
     async def _resolve_search(self, query: str, num_results: int) -> list["SearchResult"]:
-        """PRIMARY path (the paper's `tree`+`verb` atoms): walk the shared route
-        graph — `unbrowse resolve` routes a search intent to the best FIRST-PARTY
-        search API (exa-web-search) below the domain layer, returning neural-search
-        candidates. This is "solve via unbrowse" by walking the endpoint trees, not
-        scraping the human SERP surface (DDG)."""
+        """PRIMARY path: `unbrowse search` — the unified-discovery command whose
+        FREE best-effort web enrichment routes the intent to the synthetic
+        exa-web-search skill and returns ranked neural-search candidates
+        (result.exa_candidates: {url,title,score,highlights_excerpt}) plus a
+        synthesized answer (result.exa_answer / data / source_url). This is "solve
+        via unbrowse" by walking the endpoint trees, not scraping the human SERP.
+
+        NB (d113): the earlier 0.0 browsecomp runs called `resolve`, which does
+        API-DISCOVERY (marketplace skill match) and returns 0 viable candidates for
+        generic web-research intents — starving the agent. `search` is the command
+        that actually performs the free Exa web search (verified live: "...first
+        clamshell handheld" → wikipedia/Game_Boy_Advance_SP + 5 candidates, no
+        payment), so the agent now gets real ranked sources every query."""
         import json as _json
-        # Resolve's route selection is non-deterministic for generic search
-        # intents (it sometimes matches a junk cached route or None instead of
-        # falling to the synthetic exa-web-search skill). Retry until we get a
-        # response carrying exa_candidates (the web-search fallback fired).
+        # `search` deterministically fires the free Exa web-enrichment path; retry
+        # once for transient marketplace timeouts that can precede the exa result.
         cands: list = []
         last_result: dict = {}
         _dec = _json.JSONDecoder()
         for _attempt in range(2):
             async with self._sem:
-                # No --url: a domain biases resolve toward (often junk) cached
-                # routes and blocks the exa fallback. Without it, resolve routes
-                # deterministically to the synthetic exa-web-search skill (global
-                # neural search). The orchestrator's quality gate may still discard
-                # low-score results (→ 0 candidates); the DDG fallback covers that.
-                out, ok = await _run(["resolve", "--intent", query, "--pretty"])
+                out, ok = await _run(["search", "--intent", query, "--pretty"])
             if not ok:
                 continue
             clean = _clean(out)
