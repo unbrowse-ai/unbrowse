@@ -11,14 +11,22 @@ Later versions are **closed-source** because the local capture, indexing, and re
 
 The split:
 
-| Surface | Where it lives | License |
+The split is three-way: the **frontend CLI is fully open source**, the **backend is
+a private repo**, and the **frontend web app is private**.
+
+| Surface | Where it lives | License / visibility |
 |---|---|---|
+| **Frontend CLI** — open client, SDKs & drop-in adapters (`@unbrowse/client`, `@unbrowse/sdk`, every `@unbrowse/*` shim + agent-SDK adapter) | npm + public repo | **MIT, fully open source** |
+| `unbrowse` CLI launcher binary | npm `unbrowse` | distributed binary that wraps the private engine |
+| Capture / indexing / replay **engine** | **private repo** | proprietary (the moat; ships only as the binary) |
+| **Backend** (marketplace, payouts, settlement) | **private repo**, Cloudflare Workers | proprietary |
+| **Frontend web app** (unbrowse.ai) | **private repo** | proprietary |
 | Public OSS snapshot (older) | [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) | MIT, frozen |
-| `@unbrowse/client` (HTTP-first SDK) | npm `@unbrowse/client` + `packages/sdk-v2/` | MIT |
-| `@unbrowse/sdk` (legacy local-runtime SDK) | npm `@unbrowse/sdk` + `packages/sdk/` | MIT |
-| `unbrowse` CLI binary | npm `unbrowse` | proprietary, distributed binary |
-| Capture / indexing / runtime engine | private repo | proprietary |
-| Backend (marketplace, payouts) | private repo, Cloudflare Workers | proprietary |
+
+The CLI you build against is fully open source (MIT) and carries no moat; trust in
+the closed engine and backend is established by ZK + a hash-chained, auditable
+ledger (see the reference implementation under `paper/reference/`), not by exposing
+the server. The web app is a private product surface.
 
 ## What this means for you
 
