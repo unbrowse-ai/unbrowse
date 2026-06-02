@@ -112,7 +112,7 @@ export function SiteFooter() {
           <div className="flex items-center gap-3 text-[11px] font-mono text-[rgba(255,122,32,0.5)]">
             <span>© {new Date().getFullYear()} Unbrowse AI Pte. Ltd.</span>
             <span className="text-[rgba(255,122,32,0.25)]">·</span>
-            <span>Free, open source, AGPL-3.0</span>
+            <span>Open-source MIT SDKs · runs locally</span>
           </div>
           <div className="flex items-center gap-4">
             <a

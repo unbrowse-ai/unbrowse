@@ -159,7 +159,7 @@ export default function SecurityPage() {
               rel="noopener"
               className="text-orange-500 hover:underline"
             >
-              Source code (AGPL-3.0)
+              Source code (MIT)
             </a>{" "}
             — vault implementation auditable in <code className="text-orange-400">src/vault/</code>.
           </li>

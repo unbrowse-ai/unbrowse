@@ -128,7 +128,7 @@ export function EditionsFooter() {
           <span className="ed-footer-bottom-sep" aria-hidden="true">
             ·
           </span>
-          <span>Free, open source, AGPL-3.0</span>
+          <span>Open-source MIT SDKs · runs locally</span>
         </div>
       </div>
 

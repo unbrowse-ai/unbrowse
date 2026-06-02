@@ -81,7 +81,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "Is Unbrowse free?",
-    a: "Yes. Unbrowse is open source under the AGPL and runs locally. The marketplace is a shared index of captured routes; you can use it, contribute to it, and earn USDC when other agents call routes you indexed.",
+    a: "The Unbrowse CLI client and SDKs are open source (MIT) and run locally. The marketplace is a shared index of captured routes; you can use it, contribute to it, and earn USDC when other agents call routes you indexed. The capture engine and backend are proprietary.",
   },
   {
     q: "How do I install Unbrowse?",

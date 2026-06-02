@@ -214,7 +214,7 @@ export default function AboutPage() {
             </a>
           </li>
           <li className="pt-3 text-xs text-text-muted">
-            Unbrowse AI Pte. Ltd. · Singapore · AGPL-3.0
+            Unbrowse AI Pte. Ltd. · Singapore · MIT (open-source SDKs)
           </li>
         </ul>
       </section>
