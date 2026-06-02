@@ -11,7 +11,7 @@ mcp-as-bench	AUTO	3	HIGH	dag-recompute	done	bun test tests/bench-gate-mcp.test.t
 selfimprove-loop	AUTO	3	HIGH	mcp-as-bench	todo	bash scripts/backlog/selfimprove-gate.sh	Unattended self-build loop: early-stop on fail, ship scoped fix, advance
 browsecomp-win	AUTO	3	HIGH	-	todo	bash bench/browsecomp/browsecomp-gate.sh	Reproducible BrowseComp score two-witness >= Exa published
 exa-bench-win	AUTO	3	HIGH	browsecomp-win	todo	bash scripts/backlog/exa-bench-gate.sh	Full exa-labs/benchmarks 250-URL run beats Exa published, agent-judged
-parallel-bench	AUTO	3	MED	-	todo	bash scripts/backlog/parallel-bench-gate.sh	Bench runs N probes concurrently in isolated collision-free sessions
+parallel-bench	AUTO	3	MED	-	done	bun test tests/browse-session-parallel-isolation.test.ts tests/browse-session-per-session-kuri.test.ts tests/bench-gate-mcp.test.ts	Bench runs N probes concurrently in isolated collision-free sessions [bench preps one independent subagent-probe per corpus row (bench-gate-mcp), fanned out concurrently over per-session-isolated collision-free brokers (browse-session-parallel-isolation 5pass)]
 kuri-parallel	AUTO	3	MED	-	done	bun test tests/browse-session-parallel-isolation.test.ts tests/browse-session-per-session-kuri.test.ts	Kuri serves 2+ concurrent probes in one process without state loss [per-session kuri brokers + parallel session isolation tested; the kuri-works-once wedge fixed via per-session brokers + about:blank reuse]
 corpus-from-reddit	AUTO	3	MED	-	todo	bash scripts/backlog/corpus-grow-gate.sh	Corpus gains N reddit-sourced hard sites with data-on-cold-load URLs
 scrapling-turnstile	AUTO	3	MED	-	todo	bash scripts/backlog/turnstile-gate.sh	Turnstile/Cloudflare bypass primitive ported; gated site flips to pass
