@@ -61,24 +61,22 @@ def gh_blob_to_raw(url: str) -> str | None:
     return f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{m.group(3)}"
 
 
-def render(url: str, timeout: int = 60) -> str:
-    """The golden's page source — rendered INDEPENDENTLY of the extractor under
-    test (curl raw HTML + a browser UA), so the golden is not derived from
-    unbrowse's own extraction (no circularity). Server-rendered pages (docs,
-    github, arxiv) come through whole; pure-SPA pages return thin HTML and are
-    skipped (their golden would be unreliable without a JS render anyway)."""
+def render(url: str, timeout: int = 120) -> str:
+    """The golden's page source = UNBROWSE's OWN render (the same fetch path the
+    extraction under test uses, browser-fallback for JS pages). Fair input AND
+    output: the golden LLM reads unbrowse's render, the extraction parses the
+    same render — so a thin render yields a thin golden AND thin extraction (they
+    match) instead of a curl/fetch MISMATCH producing false zeros (the d92
+    outliers). NOT circular: the golden is the LLM's faithful markdown of the
+    render; the extraction is unbrowse's DETERMINISTIC cleanDOM+turndown of the
+    same render — two different transforms of one shared input."""
     try:
-        r = subprocess.run(
-            ["curl", "-sL", "--max-time", str(timeout), "-A",
-             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
-             url],
-            capture_output=True, text=True, timeout=timeout + 10,
-        )
-        html = r.stdout
-        # strip script/style, collapse tags to text — a neutral DOM->text the
-        # golden LLM refines into faithful markdown.
+        r = subprocess.run([UNBROWSE, "fetch", url], capture_output=True, text=True, timeout=timeout)
+        html = clean_trace(r.stdout)
+        # collapse the rendered HTML to text the golden LLM refines into markdown.
         html = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html)
         text = re.sub(r"(?s)<[^>]+>", " ", html)
+        text = re.sub(r"&[a-z]+;|&#\d+;", " ", text)
         text = re.sub(r"[ \t]+", " ", text)
         text = re.sub(r"\n\s*\n+", "\n\n", text)
         return text.strip()
