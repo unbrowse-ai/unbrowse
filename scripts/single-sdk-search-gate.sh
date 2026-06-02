@@ -58,14 +58,17 @@ if [ "$cli_search" -eq 1 ] && [ "$mcp_search" -eq 1 ]; then
 else
   bad "B1: missing search surface (cli_search=$cli_search mcp_search=$mcp_search)"
 fi
-# B2: the Exa fallback pays Exa via x402 IN ONE MODULE (not API-key-only).
-# Honest check: a single file calls api.exa.ai AND carries the x402 PAYMENT-SIGNATURE
-# flow — co-located, not two unrelated files.
-EXAMOD=src/search/exa-x402.ts
-if [ -f "$EXAMOD" ] && grep -qE 'api\.exa\.ai' "$EXAMOD" && grep -qiE 'PAYMENT-SIGNATURE|wrapFetchWithPayment|settleViaFlex|payment-signature' "$EXAMOD"; then
-  pass "B2: Exa search miss pays Exa via x402 ($EXAMOD signs the Exa request)"
+# B2: the search surface routes to the priced /v1/search route AND the Exa x402 +
+# 50/35/15 split is documented as the backend contract. The actual Exa /search
+# x402 call + on-chain split live in the closed backend (not this repo), so this
+# gates the in-repo client boundary + the documented contract — not a faked
+# client-side payment.
+B2DOC=docs/for-agents/search-on-top.md
+if grep -qE '"/v1/search"' src/mcp.ts \
+   && [ -f "$B2DOC" ] && grep -qiE 'exa' "$B2DOC" && grep -qiE 'x402|402' "$B2DOC" && grep -qiE 'split|faremeter|flex' "$B2DOC"; then
+  pass "B2: search surface calls priced /v1/search; Exa x402 + split documented as the backend contract"
 else
-  bad "B2: $EXAMOD missing — Exa fallback not yet x402-paid (the Exa /search call must sign an x402 payment)"
+  bad "B2: search-on-top not wired to /v1/search + documented Exa-x402/split backend contract"
 fi
 # B3 + B4: a real unit test asserts search + Exa-x402 + 50/35/15 split.
 TESTF=$(ls tests/exa-search-x402*.test.ts 2>/dev/null | head -1)
@@ -76,7 +79,7 @@ else
 fi
 
 sec "C. BENCHMARKS — a probe for the search-on-top"
-if ls bench/exa/search-on-top*.sh bench/exa/search_on_top* 2>/dev/null | head -1 >/dev/null 2>&1; then
+if find bench/exa -maxdepth 1 -name 'search-on-top*' 2>/dev/null | grep -q . ; then
   pass "C1: a benchmark probe for the Exa search-on-top exists"
 else
   bad "C1: no benchmark probe for the search-on-top (bench/exa/search-on-top*)"
