@@ -17,7 +17,7 @@ The marketplace's verified count deliberately excludes local commitments, so the
 
 ## What is not shipped, and not overclaimed
 
-Third-party notarised proofs (MPC notary handshakes, WASM verifiers), selective disclosure, and full cryptographic route-verification are research direction, not current behaviour. Stronger provenance, including ***REMOVED*** approaches to proving a route returned what it claims without exposing the underlying response, is part of an ongoing security and verification effort. It is described here as direction, and the docs will not claim it as shipped until it is.
+Third-party notarised proofs (MPC notary handshakes, WASM verifiers), selective disclosure, and full cryptographic route-verification are research direction, not current behaviour. Stronger provenance is part of an ongoing security and verification effort; specifics will be detailed in a forthcoming whitepaper. It is described here as direction, and the docs will not claim it as shipped until it is.
 
 ## The security work behind this
 

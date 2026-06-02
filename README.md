@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **Open source (MIT).** The TypeScript SDKs (`@unbrowse/client`, `@unbrowse/sdk`), the agent-interop layer (drop-in for Agent Skills, MCP, OpenAPI, llms.txt, A2A, and x402), the payment protocol, and the docs are open and public. A small core — the capture/indexing engine and the hosted backend — stays private for security (account-import and replay primitives carry real abuse risk if shipped without guardrails). See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact split and the reasoning.
+> **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (imported from `unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
@@ -10,21 +10,21 @@ On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than d
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
-## How it works
+## The internet, route-shaped
 
-Every web action an agent takes is one of three kinds:
+Every web action an agent takes collapses onto **three verbs** — the same shape the binary speaks internally:
 
-| Group | What it does | Examples |
+| Verb | What it is | Examples |
 |---|---|---|
-| **Declare** (`build`) | Register something to reuse — a route skill, a fill template, a value source. | `build skill`, `build template` |
-| **Act** (`breath`) | Do something on a page — navigate, fill, click, type, submit, execute a route. | `breath go`, `breath fill`, `breath execute` |
-| **Read** (`eval`) | Observe state — snapshot, resolve an intent, read text, status, earnings. | `eval snap`, `eval resolve`, `eval text` |
+| `build` | **Declare** what you'll reuse — a skill, a fill-template, a value-source. | `build skill`, `build template` |
+| `breath` | **Act** on the internet — navigate, fill, click, type, submit, execute. | `breath go`, `breath fill`, `breath execute` |
+| `eval` | **Observe** state — snapshot, resolve, read, status, earnings. | `eval snap`, `eval resolve`, `eval text` |
 
-Each action produces a **pointer-only, wallet-signed receipt**: it references values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `breath fill` resolves a credential pointer **locally** and types the result into the page; the secret never leaves your machine. **We never see your secret values.**
+Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `breath fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-Receipts are Ed25519-signed, and the pointer-only guarantee means your secret values never leave your machine. Full reference — all 37 actions, the two-call contract, and the receipt shape — is in [docs/route-internet-layer.md](./docs/route-internet-layer.md).
+Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/route-internet-layer.md](./docs/route-internet-layer.md).
 
-> The grouped commands (`unbrowse {build,breath,eval}`) ship in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
+> The three-verb surface (`unbrowse {build,breath,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
 ## Install — pick one
 
@@ -47,18 +47,14 @@ That's it. `npx` fetches the `unbrowse` binary on first run; every web task in t
 
 ### Option 2 — TypeScript SDK
 
-Two SDK options. **New code should use `@unbrowse/client` (v7).**
-
-#### `@unbrowse/client` (v7 — recommended)
-
-Thin HTTP-first client. Browser + Node 18+. Zero runtime deps. Talks directly to the hosted Unbrowse API — no local binary required.
+One SDK, one install. The HTTP-first client ships inside the `unbrowse` package and is imported from `unbrowse/sdk` — browser + Node 18+, zero runtime deps, talks directly to the hosted Unbrowse API (no local binary required).
 
 ```bash
-npm i @unbrowse/client
+npm i unbrowse
 ```
 
 ```ts
-import { Unbrowse } from "@unbrowse/client";
+import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 
@@ -72,27 +68,7 @@ const data = await unbrowse.execute({
 });
 ```
 
-Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. See [`packages/sdk-v2/README.md`](./packages/sdk-v2/README.md) for streaming, proxy routing, and the full method surface.
-
-#### `@unbrowse/sdk` (v6 — legacy, binary-spawn)
-
-For existing v6 integrations or workflows that need the local CLI running alongside. Auto-spawns the `unbrowse` binary as a child process; talks to `127.0.0.1:6969`.
-
-```bash
-npm install @unbrowse/sdk
-```
-
-```ts
-import { Unbrowse } from "@unbrowse/sdk";
-
-const u = await Unbrowse.local();
-const result = await u.resolve({
-  intent: "list tomorrow's events",
-  url: "https://calendar.google.com",
-});
-```
-
-`Unbrowse.local()` probes `127.0.0.1:6969`, connects if a daemon is already running, and spawns the `unbrowse` CLI as a child process if not. See [`packages/sdk/README.md`](./packages/sdk/README.md) for `connect()` / `spawn()` factories and [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/) for the payment surface. v6 stays supported until existing users migrate to v7.
+Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. The same install also provides the `unbrowse` CLI and the MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for the full surface.
 
 ### Option 3 — Standalone CLI
 
@@ -227,6 +203,11 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 - [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
 - [`docs/SECURITY.md`](./docs/SECURITY.md) — security model for public packages and runtime integrity
 
+Whitepaper companion set:
+
+- [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) — public companion index
+- [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, product boundary
+- [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) — market and business framing
 
 ## Architecture
 
