@@ -69,6 +69,21 @@ const resolved = await client.resolve({ intent: 'search hn for openai', url: 'ht
 const result = await client.execute({ endpoint_id: resolved.available_operations![0].endpoint_id, params: { q: 'agents' } });
 ```
 
+## Passive parallel indexing
+
+While you browse, Unbrowse reverse-engineers the page's API traffic and indexes
+it to publish — in the background, in parallel, so browsing stays fast. This is
+**on by default**; each `sync` checkpoint returns immediately instead of blocking
+on the page's network settle. Opt out per machine to index inline (slower
+checkpoints, complete endpoints before each returns):
+
+```bash
+unbrowse settings --passive-index off    # opt out; back on with: --passive-index on
+```
+
+Agents can toggle the same flag via the `unbrowse_settings` tool
+(`passive_index: true|false`).
+
 ## Links
 
 - npm: <https://www.npmjs.com/package/unbrowse>

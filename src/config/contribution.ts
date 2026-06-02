@@ -45,6 +45,15 @@ export interface ContributionConfig {
      * Flip false to force the agent to review each skill before publish.
      */
     auto_review: boolean;
+    /**
+     * When true (the default — opt-out), the capture → reverse-engineer →
+     * index → publish pipeline runs in the background, in parallel with
+     * browsing: `sync` checkpoints return immediately instead of blocking on
+     * the late-XHR content-ready wait, so browsing stays fast while indexing
+     * happens passively. Flip false to run the pipeline inline (each sync
+     * blocks until the page's endpoints are fully reverse-engineered).
+     */
+    passive_index: boolean;
     set_at?: string;
     set_via?: "setup-prompt" | "mode-command" | "default";
   };
@@ -62,7 +71,7 @@ const DEFAULT: ContributionConfig = {
   // agent to review each skill before publish, set auto_review=false. To
   // disable publish entirely (keep all captures local), call
   // `unbrowse_settings share_pointers=false` or run `unbrowse mode private`.
-  contribution: { share_pointers: true, auto_review: true, set_via: "default" },
+  contribution: { share_pointers: true, auto_review: true, passive_index: true, set_via: "default" },
   rev_share: { opted_in: false },
   notice_shown_count: 0,
 };
@@ -118,6 +127,10 @@ export function getContributionConfig(): ContributionConfig {
         contributionRaw?.auto_review === undefined
           ? DEFAULT.contribution.auto_review
           : !!contributionRaw.auto_review,
+      passive_index:
+        contributionRaw?.passive_index === undefined
+          ? DEFAULT.contribution.passive_index
+          : !!contributionRaw.passive_index,
       set_via: (contributionRaw?.set_via as ContributionConfig["contribution"]["set_via"]) ?? DEFAULT.contribution.set_via,
       ...(contributionRaw?.set_at ? { set_at: String(contributionRaw.set_at) } : {}),
     },

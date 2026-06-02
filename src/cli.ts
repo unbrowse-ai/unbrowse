@@ -1871,6 +1871,11 @@ async function cmdSettings(flags: Record<string, string | boolean>): Promise<voi
     if (normalized !== "on" && normalized !== "off") die("--auto-publish must be on or off");
     body.auto_publish_checkpoints = normalized === "on";
   }
+  if (typeof flags["passive-index"] === "string") {
+    const normalized = String(flags["passive-index"]).trim().toLowerCase();
+    if (normalized !== "on" && normalized !== "off") die("--passive-index must be on or off");
+    body.passive_index = normalized === "on";
+  }
 
   const blacklist = parseCsvFlag(flags["publish-blacklist"]);
   if (blacklist) body.publish_domain_blacklist = blacklist;
@@ -2917,7 +2922,7 @@ export const CLI_REFERENCE = {
     { name: "mode", usage: "", desc: "Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace)." },
     { name: "payment-provider", usage: "", desc: "Re-prompt for payment provider: pay.sh / lobster.cash / external Solana / Privy embedded / skip. Controls which wallet rail settles paid calls." },
     { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
-    { name: "settings", usage: "[--auto-publish on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy (per-domain allow/block lists)." },
+    { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
     // ── The two primary call paths for an agent ───────────────────────────
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
