@@ -4823,7 +4823,7 @@ export async function resolveAndExecute(
     if (viable.length === 0 && exaResults?.length) {
       const richHit = exaResults.find((r) => (r.highlights ?? []).join(" ").length >= 150);
       if (richHit) {
-        console.log(`[exa] returning highlights answer from ${richHit.url} (${(richHit.highlights ?? []).join(" ").length} chars)`);
+        console.log(`[exa] returning highlights answer from ${richHit.url} (${(richHit.highlights ?? []).join(" ").length} chars) + ${exaResults.length} ranked candidate(s)`);
         const exaTrace: ExecutionTrace = {
           trace_id: nanoid(),
           skill_id: "exa-web-search",
@@ -4833,12 +4833,28 @@ export async function resolveAndExecute(
           success: true,
           status_code: 200,
         };
+        // Multi-source parity (the post-race exa path used to surface ONLY the
+        // single richHit; the probe-fallback path at ~L3994 already surfaces the
+        // full ranked list). A research agent solving a multi-clue question needs
+        // EVERY ranked source to cross-reference, not one synthesized answer —
+        // this is the apples-to-apples shape a neural-search bench feeds its agent.
+        const candidates = exaResults.map((hit) => ({
+          url: hit.url,
+          title: hit.title,
+          score: hit.score,
+          highlights_excerpt: (hit.highlights ?? []).join(" ").slice(0, 240),
+          next_step: {
+            go: `unbrowse go --url ${JSON.stringify(hit.url)}`,
+            fetch: `unbrowse fetch --url ${JSON.stringify(hit.url)}`,
+          },
+        }));
         return {
           result: {
             data: richHit.highlights,
             source_url: richHit.url,
             source_title: richHit.title,
             exa_answer: true,
+            exa_candidates: candidates,
             // Day-6 W1: same round-trippability hint as the probe-fallback
             // path. exa-web-search is preview-only; execute will fail with
             // "Skill not found". Agents should call unbrowse_fetch on
@@ -4846,7 +4862,7 @@ export async function resolveAndExecute(
             synthetic_skill: true,
             exec_unsupported: true,
             next_step: "use unbrowse fetch for synthetic Exa results",
-            suggested_commands: [`unbrowse fetch --url ${JSON.stringify(richHit.url)}`],
+            suggested_commands: candidates.slice(0, 3).map((c) => `unbrowse fetch --url ${JSON.stringify(c.url)}`),
           },
           trace: exaTrace,
           source: "exa" as const,
