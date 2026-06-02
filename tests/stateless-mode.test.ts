@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { isStateless } from "../src/state/stateless.js";
 import { storeExecutionTrace, type StoredTrace } from "../src/graph/trace-store.js";
+import { recordSessionCreate, readActiveSessions, type PersistedSession } from "../src/api/session-store.js";
 
 const TMP = join(tmpdir(), `unbrowse-stateless-test-${process.pid}`);
 
@@ -26,10 +27,18 @@ function trace(): StoredTrace {
 	};
 }
 
+const SESS = join(tmpdir(), `unbrowse-stateless-sess-${process.pid}.jsonl`);
+
+function session(): PersistedSession {
+	return { sessionId: "s1", tabId: "t1", url: "https://example.com", domain: "example.com", harActive: false, ts: 1 };
+}
+
 afterEach(() => {
 	delete process.env.UNBROWSE_STATELESS;
 	delete process.env.UNBROWSE_TRACE_STORE_DIR;
+	delete process.env.UNBROWSE_SESSION_STORE;
 	rmSync(TMP, { recursive: true, force: true });
+	rmSync(SESS, { force: true });
 });
 
 describe("isStateless", () => {
@@ -68,5 +77,23 @@ describe("execution-trace store respects stateless mode", () => {
 		process.env.UNBROWSE_STATELESS = "1";
 		storeExecutionTrace(trace());
 		expect(readdirSync(TMP).length).toBe(0);
+	});
+});
+
+describe("session store respects stateless mode", () => {
+	it("STATELESS=1: recordSessionCreate writes NO local sessions.jsonl, reads degrade to []", () => {
+		process.env.UNBROWSE_SESSION_STORE = SESS;
+		process.env.UNBROWSE_STATELESS = "1";
+		recordSessionCreate(session());
+		expect(existsSync(SESS)).toBe(false);
+		expect(readActiveSessions()).toEqual([]); // no rehydration, graceful
+	});
+
+	it("normal mode: recordSessionCreate persists + rehydrates (control)", () => {
+		process.env.UNBROWSE_SESSION_STORE = SESS;
+		delete process.env.UNBROWSE_STATELESS;
+		recordSessionCreate(session());
+		expect(existsSync(SESS)).toBe(true);
+		expect(readActiveSessions().map((s) => s.sessionId)).toContain("s1");
 	});
 });

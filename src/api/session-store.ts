@@ -23,6 +23,7 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { isStateless } from "../state/stateless.js";
 
 export interface PersistedSession {
   sessionId: string;
@@ -111,6 +112,12 @@ export function readActiveSessions(file = sessionStorePath()): PersistedSession[
 }
 
 function appendEvent(event: SessionEvent, file: string): void {
+  // Stateless binary: keep no local session log on disk. Within a process the
+  // in-memory browseSessions Map is authoritative; cross-restart rehydration is
+  // ceded to the backend (/v1/session/park) or accepted as ephemeral. Reads
+  // (readActiveSessions) degrade to [] when the file is absent, so suppressing
+  // the write is safe — no rehydration, no local state.
+  if (isStateless()) return;
   ensureDir(file);
   appendFileSync(file, JSON.stringify(event) + "\n", "utf8");
   maybeCompact(file);
