@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: "Is Unbrowse free?",
-    a: "Yes. Unbrowse is 100% free and open source under the AGPL-3.0 license. There are no paid tiers, no cloud proxies, no usage credits; everything runs locally on your machine. The project is funded by a small fee on agent-to-agent route payments, not by you. So installing costs nothing and stays that way.",
+    a: "Unbrowse is open-core. The CLI client and SDKs are open source (MIT) and free to install and run locally on your machine. The capture engine and backend are proprietary. You pay only per-use in USDC when your agent executes a route through the shared marketplace — and you can earn USDC for routes you index. There are no subscriptions: a small per-use marketplace fee is the only cost.",
   },
   {
     q: "What websites does Unbrowse support?",

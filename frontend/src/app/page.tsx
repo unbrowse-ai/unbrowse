@@ -72,7 +72,7 @@ const faqJsonLd = {
       name: "Is Unbrowse free?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Unbrowse is open source under AGPL-3.0 and runs locally. There are no paid tiers, cloud proxies, or usage credits required to install or run it. The marketplace settles in USDC; the tool itself is free.",
+        text: "The Unbrowse CLI client and SDKs are open source (MIT) and free to install and run locally. You pay only per-use in USDC when your agent executes a route through the shared marketplace — and you can earn USDC for routes you index. The capture engine and backend are proprietary.",
       },
     },
     {

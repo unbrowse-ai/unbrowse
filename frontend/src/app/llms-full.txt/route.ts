@@ -84,7 +84,7 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 - **~200 tokens** per action (vs ~8,000 tokens for DOM-based browser automation)
 - **94 domains** benchmarked in the whitepaper evaluation
 - **Seven layers** of cache resolution before touching the network
-- **AGPL-3.0** open-source license
+- **MIT** open-source SDKs (open-core; engine + backend proprietary)
 
 ## Installation
 

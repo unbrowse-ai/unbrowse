@@ -8,7 +8,7 @@ import Link from "next/link";
  *   - arXiv 2604.00694 (peer-reviewed, NUS co-authored)
  *   - NVIDIA Inception member badge
  *   - Open bench (n=94 domains) — links to /benchmark-deep-dive
- *   - AGPL-3.0 + free, runs locally
+ *   - MIT SDKs + runs locally
  *
  * Live npm + GitHub counters are fetched client-side by <LiveCounts /> so
  * the strip itself stays a server component and renders during the
@@ -137,7 +137,7 @@ export async function TrustStrip() {
           rel="noopener"
           className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-text-secondary hover:text-orange-400 transition-colors"
         >
-          <span className="text-orange-500">AGPL-3.0</span>
+          <span className="text-orange-500">MIT</span>
           <span className="text-text-muted normal-case tracking-normal">
             runs locally
           </span>

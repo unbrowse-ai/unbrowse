@@ -184,7 +184,7 @@ export function ChapterSpine() {
       <section className="hl-masthead">
         <div className="hl-masthead__inner">
           <span className="hl-masthead__eyebrow">
-            Free · open source · AGPL-3.0 · runs locally
+            Open-source MIT SDKs · runs locally
           </span>
 
           <h1 className="hl-masthead__h1">

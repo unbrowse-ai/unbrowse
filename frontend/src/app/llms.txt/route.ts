@@ -60,7 +60,7 @@ export async function GET() {
 
 ## GitHub
 
-- [Source Code (unbrowse-ai/unbrowse)](https://github.com/unbrowse-ai/unbrowse): Full source, issue tracker, and contribution guidelines (AGPL-3.0)
+- [Source Code (unbrowse-ai/unbrowse)](https://github.com/unbrowse-ai/unbrowse): Full source, issue tracker, and contribution guidelines (MIT)
 - [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native CDP broker powering Unbrowse -- 464KB binary, ~3ms cold start, 80+ HTTP endpoints
 
 ## Key Facts
