@@ -4,6 +4,18 @@
 
 ### What's New
 
+- **Six more zero-edit drop-ins (10 → 16) + a canonical docs page.** New shims:
+  `@unbrowse/undici-shim`, `@unbrowse/superagent-shim`, `@unbrowse/wretch-shim`
+  (HTTP clients), `@unbrowse/selenium-shim` (`selenium-webdriver`), and
+  `@unbrowse/exa-shim` (`exa-js`) + `@unbrowse/tavily-shim` (`@tavily/core`) for
+  search/retrieval. Each mirrors the upstream's public surface, routes a safe
+  GET/search through resolve+execute (free on a cache hit), and falls back to
+  native fetch or the upstream API on a miss. The new
+  `docs/for-developers/drop-in-adapters.md` documents all 16 adapters
+  (upstream → shim → one-line swap), linked from `integration-surfaces.md`. New
+  witness `scripts/adapters-done-gate.sh` exits 0 only when every manifest row is
+  parity-verified AND documented (16/16 green).
+
 - **npm publishing CI/CD for the drop-in family (`.github/workflows/publish-dropins.yml`).** A `workflow_dispatch` / `dropins-v*`-tag workflow plus `scripts/publish-dropins.sh` build and publish all 10 drop-in packages (the 9 `@unbrowse/*-shim`s + `@unbrowse/adopt`) to npm — `--access public`, idempotent (skips versions already on the registry), no provenance (private source). Gated by `scripts/check-dropins-publishable.sh`, a secret-free check that every package builds and packs clean with `dist/` shipped and no bundled-peer-dep bloat. (Fixes: `playwright-shim` was bundling playwright into its tarball — now `--external`, 13 MB → 179 kB.)
 
 - **`@unbrowse/adopt` — the universal drop-in adopter.** One command (`npx @unbrowse/adopt`) rewrites a repo's imports from any supported library (`axios`, `got`, `ky`, `node-fetch`, `cross-fetch`, `puppeteer`, `playwright`, firecrawl, stagehand) to the matching Unbrowse drop-in shim, in the source's own syntax (ESM `import`, named imports, `require`, dynamic `import()`), producing a reviewable diff. Behaviour is preserved (each shim falls through to the upstream on a cache miss) and the upstream stays the attributed fallback. Adoption is by consent — a maintainer runs it on their own repo and reviews the diff (or accepts a clean PR); it never edits `package.json` and never opens unsolicited dependency PRs.
