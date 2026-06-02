@@ -14,7 +14,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 PKGS=(axios-shim got-shim ky-shim node-fetch-shim cross-fetch-shim \
-      puppeteer-shim playwright-shim firecrawl-shim stagehand-shim adopt)
+      undici-shim superagent-shim wretch-shim \
+      puppeteer-shim playwright-shim selenium-shim stagehand-shim \
+      firecrawl-shim exa-shim tavily-shim \
+      ai-sdk langchain-js mastra llamaindex openai-agents \
+      adopt)
 MAX_KB=2048          # a tarball over this means a peer dep got bundled (missing --external)
 WORKFLOW=".github/workflows/publish-dropins.yml"
 
