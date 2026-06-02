@@ -223,6 +223,10 @@ export interface Env {
   EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  /** The unbrowse-default wallet secret (64-byte Solana keypair, JSON-array /
+   *  hex / base58). Platform-held; signs attestations server-side via Web Crypto
+   *  Ed25519. Set via `wrangler secret put UNBROWSE_DEFAULT_WALLET_KEY`. */
+  UNBROWSE_DEFAULT_WALLET_KEY?: string;
   /**
    * Rotation weight (0-10000 bps) for which scheme appears FIRST in the
    * dual-accept Flex 402 envelope. 0 = always Flex-first, 10000 = always

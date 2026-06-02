@@ -308,7 +308,7 @@ async function signMessageWithSessionKey(
   });
 }
 
-async function decodeSecretKeyBytes(raw: string): Promise<Uint8Array> {
+export async function decodeSecretKeyBytes(raw: string): Promise<Uint8Array> {
   const trimmed = raw.trim();
   if (!trimmed) throw new Error("empty_session_key_secret");
   if (trimmed.startsWith("[")) {
