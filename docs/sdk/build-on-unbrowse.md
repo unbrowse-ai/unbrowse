@@ -158,7 +158,7 @@ Where you can plug in instead of waiting for the platform.
 
 What's NOT yet a documented extension point but is on the roadmap:
 - Custom ranker plugins (local override of marketplace ranking)
-- Custom proof systems beyond `commitment_only` (TLSNotary integration is parked, see `docs/zk-proofs.md`)
+- Custom proof systems beyond `commitment_only` (stronger provenance schemes are an active research direction; details will follow in a forthcoming whitepaper)
 - Custom payment rails (non-x402 settlement)
 
 If you need any of these, file an issue or email security@unbrowse.ai for an NDA discussion.
@@ -171,7 +171,7 @@ Be honest about the misfit cases. Don't pick the substrate if:
 - **You need millisecond latency.** Cache hits are <200ms but not <10ms. If you're building HFT-adjacent stuff, this is the wrong layer.
 - **You can't accept x402 / Solana / USDC settlement.** The earnings rail is fixed. You can run local-only with no earnings, but if your business model needs a different rail, that's a hard mismatch today.
 - **Your target sites have iron-clad ToS prohibitions you must respect.** Unbrowse is a capability, not a license. `confirmThirdPartyTerms` is your gate, but the legal call is yours.
-- **You need cryptographic origin proofs today.** `commitment_only` is tamper-evident, not cryptographic. If your buyer requires real TLSNotary-class proofs, this is parked (see `docs/zk-proofs.md`).
+- **You need cryptographic origin proofs today.** `commitment_only` is tamper-evident, not cryptographic. Stronger provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper.
 
 ## Distribution channels for what you build
 

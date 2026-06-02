@@ -129,20 +129,18 @@ Pointer-only is load-bearing. `breath fill` dereferences a `value:ptr`
 **locally** and types the result into the page — the secret value never crosses
 the wire. The covenant promise: *we never see your secret values.*
 
-### Receipt evolution: signed today, zero-knowledge next
+### Receipt evolution: signed today, stronger schemes next
 
-The receipt's signature layer is shipping in stages. The pointer-only invariant
-above — no secret value ever crosses the wire — holds in **every** stage.
+Today the wallet's Ed25519 key signs over `(pointer, nonce, url, selector, iat)`.
+The signature proves *your* wallet authorized the act, and the receipt's
+pointer-only invariant — no secret value ever crosses the wire — holds.
 
-| Stage | What signs the receipt | Status |
-|---|---|---|
-| **Today** | The wallet's Ed25519 key signs over `(pointer, nonce, url, selector, iat)`. The signature proves *your* wallet authorized the act; the wallet pubkey is on the wire. | **Shipping** (v7 preview) |
-| **Next** | A zero-knowledge proof replaces the plain signature behind the same receipt interface: the verifier confirms an authorized wallet signed an authorized pointer **without learning which wallet or which pointer**. | **Roadmap** |
-
-Both stages emit the same receipt shape at the same audit surface, so callers
-write against one interface. The zero-knowledge proof is a strengthening of the
-*authorization* claim — it is **not** what protects your secret values. That
-protection is the pointer-only flow, and it is true from day one.
+Stronger authorization and provenance schemes are an active research direction;
+specifics will be detailed in a forthcoming whitepaper. They are designed to slot
+in behind the same receipt interface and audit surface, so callers write against
+one interface. Any such strengthening targets the *authorization* claim — it is
+**not** what protects your secret values. That protection is the pointer-only
+flow, and it is true from day one.
 
 ## Out of scope
 
@@ -160,9 +158,9 @@ nothing in this document exposes it.
   never transmitted.
 - **Wallet-bound.** Every op is signed by your key. You authorize an act by
   signing it; an op without your signature is not your op. Today that signature
-  is a plain Ed25519 signature; a zero-knowledge proof is on the roadmap to make
-  the *same* authorization claim without revealing the wallet (see
-  [Receipt evolution](#receipt-evolution-signed-today-zero-knowledge-next)).
+  is a plain Ed25519 signature; stronger authorization schemes are an active
+  research direction (see
+  [Receipt evolution](#receipt-evolution-signed-today-stronger-schemes-next)).
 - **Credentials surface only on authorization.** Secret values are resolved
   locally only when your wallet authorizes the dereference, then zeroed. The
   value is never an input to the signature or the proof — protecting your secret
