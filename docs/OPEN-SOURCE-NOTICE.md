@@ -43,3 +43,33 @@ We shipped fully open until April 2026. Two patterns forced the change:
 2. **Platform integrity escalation.** Publishing low-level evasion details creates a race that harms legitimate users and site owners.
 
 We still believe in giving agents real APIs. Closing the source is a tradeoff we made to keep that promise sustainable, not a permanent posture.
+
+## Open standards we build on — and credit
+
+We fault forks for *unattributed* rebranding; we will not do the same to the layers
+below us. Unbrowse's agent-interop surface (`src/interop/`) is a **drop-in for, and
+builds on, open standards authored by others**. We interoperate with them and credit
+them; we do not fork-and-rebrand them:
+
+| Standard | Author / owner | What we do with it |
+|---|---|---|
+| **Agent Skills** (`SKILL.md` format) | Anthropic — released as an open standard (agentskills.io) | ingest + serve our routes as skills, to the published spec |
+| **Model Context Protocol (MCP)** | Anthropic — open spec (modelcontextprotocol.io) | expose our surface as MCP tools; map every tool to the covenant shape |
+| **x402** + **x402 Bazaar** | Coinbase — open payment protocol + public discovery catalog | settle usage over x402; rank a site's already-listed Bazaar resources above any re-wrap |
+
+A covenant route is a drop-in *replacement* only in the sense of *interoperating with*
+these formats — never of replacing their authorship. Where we build on a cited source,
+we keep its `source_id` in the code and build **on top** of it, not over it.
+
+## What we give first
+
+The open part is given before anything is asked back. Freely available today, MIT:
+the `@unbrowse/client` + `@unbrowse/sdk` SDKs, and the standards-interop above — so any
+agent can use Unbrowse through the formats it already speaks, at no cost and with no
+lock-in (the browser fallback is always the exit).
+
+The deeper layers open **as gifts over time, as they mature safely** — not hoarded, not
+sold as the point. The maintenance/trust economy (proof-of-indexing, bonded
+accountability) is staged for reveal, not extraction (see `RELEASE_STRATEGY.md`); USDC
+settles usage while the bond only secures trust (one master, never a money-first root).
+Give first, hidden from money-motive, planted in good soil — then it grows on its own.

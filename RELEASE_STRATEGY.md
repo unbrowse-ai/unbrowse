@@ -21,12 +21,24 @@ stable (main, public)  →  release/zk-auth  →  release/maintenance-network
   indexing, bonded challenge/slash, Merkle checkpoints, the 6h refresh loop,
   sealed-unless-revealed cache (`src/trust/`). Revealed last.
 
-## The sync rule (only stable → public)
+## The remote model (pointer, not active sync)
 
-Only `main` syncs to the public repo, and only when the stable gate is green. The
-hidden branches never sync. `scripts/leak-guard.sh` is the mechanical boundary (no
-economic constant, capture/RE internal, or operator surface in any public
-artifact); the staged-reveal branches are the human boundary on top of it.
+No active main→public copy pipeline. Each line is a branch on a remote; "public"
+is just a **pointer to the stable branch**, advanced deliberately when the gate is
+green — never a background job that could leak an unrevealed branch.
+
+- **Core / canonical home:** the self-hosted **gitea-mirror** (`gitea` remote) —
+  `main` (stable) lives here as the source of truth for unbrowse core.
+- **Dev:** `github-ssh` (`unbrowse-ai/unbrowse-dev`, private) — all branches,
+  including the hidden reveals.
+- **Public:** `unbrowse-ai/unbrowse` (frozen `stable`) — a pointer to the stable
+  branch only. Advanced by the author, gate-green, not by automation.
+- **Reveal branches** (`release/zk-auth`, `release/maintenance-network`) live as
+  branch remotes; never pointed-to by public until their reveal.
+
+`scripts/leak-guard.sh` is the mechanical boundary (no economic constant, capture/RE
+internal, or operator surface in any public artifact) under the human staged-reveal
+boundary on top.
 
 ## Prove stable before sync (the seal — no fabricated green)
 
