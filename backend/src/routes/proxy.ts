@@ -12,6 +12,7 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { optionalAuth } from "../middleware/auth.js";
+import { getProxyConsent, recordProxySurcharge } from "../middleware/sponsor.js";
 
 // cloudflare:sockets is a Workers-runtime virtual module. It does not exist in
 // Bun (which loads this file during backend tests via the Hono app import
@@ -49,6 +50,48 @@ interface ProxyResponseBody {
   proxy_used: "direct" | "residential";
   duration_ms: number;
   egress_ip?: string;
+  /** True when a direct 429 was retried via the paid residential fallback. */
+  fallback_used?: boolean;
+  /** USD toll charged for the paid residential fallback on this call. */
+  surcharge_usd?: number;
+}
+
+/**
+ * Opt-in paid residential-proxy fallback on a rate-limit (HTTP 429).
+ *
+ * When a `direct` proxy call comes back 429 and the caller is an authenticated
+ * agent who has opted in (`consent:proxy_fallback:<agent> = "yes"`), retry the
+ * request through the residential proxy and charge a small per-call toll
+ * (`SPONSOR_PROXY_SURCHARGE_USD`, default $0.001) recorded on the sponsor ledger.
+ * Without consent (or for anonymous/x402 callers) the 429 is returned unchanged
+ * — no silent paid escalation. Extracted as a seam so it is unit-testable
+ * without the Workers-only `cloudflare:sockets` residential path.
+ */
+export async function maybeProxyFallback(
+  env: Env,
+  agentId: string | undefined,
+  direct: ProxyResponseBody,
+  proxyMode: "direct" | "residential",
+  residentialFetch: () => Promise<ProxyResponseBody>,
+  host: string,
+): Promise<ProxyResponseBody> {
+  if (direct.status !== 429 || proxyMode !== "direct" || !agentId) return direct;
+  if ((await getProxyConsent(env, agentId)) !== "yes") return direct;
+
+  const surchargeUsd = Number(
+    (env as unknown as { SPONSOR_PROXY_SURCHARGE_USD?: string }).SPONSOR_PROXY_SURCHARGE_USD ?? "0.001",
+  ) || 0.001;
+  const resi = await residentialFetch();
+  await recordProxySurcharge(env, {
+    agent_id: agentId,
+    skill_id: host,
+    endpoint_id: "proxy",
+    ledger_id: `proxy-${agentId}-${crypto.randomUUID()}`,
+    cost_usd: surchargeUsd,
+  });
+  resi.fallback_used = true;
+  resi.surcharge_usd = surchargeUsd;
+  return resi;
 }
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
@@ -160,6 +203,15 @@ async function handleProxy(c: Context<{ Bindings: Env; Variables: { agent_id?: s
       result = await fetchViaIproyal(target, method, headers, req.body ?? null, timeoutMs, c.env);
     } else {
       result = await fetchDirect(target, method, headers, req.body ?? null, timeoutMs);
+      // Opt-in paid residential fallback on a rate-limit (consent-gated, tolled).
+      result = await maybeProxyFallback(
+        c.env,
+        agentId,
+        result,
+        proxyMode,
+        () => fetchViaIproyal(target, method, headers, req.body ?? null, timeoutMs, c.env),
+        target.hostname,
+      );
     }
     result.duration_ms = Date.now() - start;
     // Tag the response so the caller can audit which auth path settled.

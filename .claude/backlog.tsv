@@ -20,11 +20,11 @@ meta-mcp-hotswap	AUTO	3	MED	-	todo	bun test tests/mcp-hotswap.test.ts	MCP picks 
 binary-slim	AUTO	4	LOW	-	todo	bash scripts/backlog/binary-size-gate.sh	Built binary measurably smaller (before/after byte count)
 skills-prune	AUTO	4	LOW	-	todo	bash scripts/backlog/skills-prune-gate.sh	Redundant skills/modules removed; tests still green
 agnostic-skill	AUTO	4	LOW	-	todo	bash scripts/backlog/agnostic-skill-gate.sh	Skill loads in a non-claude framework via pointers (graff)
-exa-search-backend	BACKEND	3	HIGH	-	todo	bun test backend/test/search-x402.test.ts	Backend /v1/search does Exa x402 call + on-chain 50/35/15 split
+exa-search-backend	BACKEND	3	HIGH	-	blocked	bun test backend/test/search-x402.test.ts	[FREE BY DESIGN PR#816 — needs product decision] Backend /v1/search does Exa x402 call + on-chain 50/35/15 split
 wallet-sign-backend	BACKEND	2	HIGH	-	todo	bun test backend/test/wallet-sign.test.ts	Backend /v1/wallet/sign signs for the unbrowse-default wallet
 funnel-tracking	BACKEND	3	HIGH	-	todo	bash scripts/backlog/funnel-gate.sh	Per-stage funnel tracking down to MCP-level dropoff
 earnings-tracking	BACKEND	3	MED	-	todo	bun test backend/test/earnings.test.ts	unbrowse_earnings returns per-contribution revenue + call counts
-proxy-fallback	BACKEND	3	HIGH	-	todo	bash scripts/backlog/proxy-fallback-gate.sh	Cloudflare proxy x402 fallback on 429, charges per-call toll
+proxy-fallback	BACKEND	3	HIGH	-	done	cd backend && bun test tests/proxy-429-fallback.test.ts	Cloudflare proxy x402 fallback on 429, charges per-call toll
 stripe-sub-wrapper	BACKEND	4	MED	-	todo	bash scripts/backlog/stripe-sub-gate.sh	Stripe subscription + overage on top of x402 (hide x402 behind API key)
 account-gate	BACKEND	4	MED	wallet-sign-backend	todo	bash scripts/backlog/account-gate-gate.sh	Require registered account (key+wallet via lobster) before use
 npm-deprecate	OUTWARD	4	MED	-	todo	bash scripts/backlog/npm-deprecate-check.sh	npm deprecate @unbrowse/sdk + @unbrowse/client -> unbrowse/sdk

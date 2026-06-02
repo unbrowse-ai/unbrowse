@@ -14,13 +14,14 @@ const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const hits = await unbrowse.search({ intent: "best machine learning frameworks" });
 ```
 
-## It's a priced call — paid per request via x402
+## Search is free — you pay when you *execute* a paid route
 
-Search-on-top is a priced call. When the route graph misses and the query is
-answered by a paid web-search provider, that cost is real, so the call settles
-**per-request over [x402](https://www.x402.org)** rather than a subscription:
+Discovery itself is **free**: `/v1/search` searches the route graph and adds
+best-effort web (Exa) enrichment without charging per query. You only pay when
+you **execute** a returned route that is priced — `unbrowse_execute` on a paid
+endpoint settles **per-request over [x402](https://www.x402.org)**:
 
-1. The request returns `402 Payment Required` with the price (USDC on Solana).
+1. The execute request returns `402 Payment Required` with the price (USDC on Solana).
 2. Your agent's **wallet** signs the payment and the request is retried — the
    client never sees or handles private keys.
 3. On settlement you get the results plus a receipt.
@@ -32,28 +33,26 @@ that settles USDC over x402 works; agent wallets such as **lobster.cash** are
 compatible and tested. The skill prepares the payment *requirements* (amount,
 currency, reason) and delegates execution to the wallet.
 
-### Pricing & the fee split
+### The fee split (on execution)
 
-Pricing mirrors the upstream web-search provider's x402 pricing plus the
-marketplace fee. The current web-search provider is **Exa** (`api.exa.ai`), which
-itself settles over x402 — e.g. `$0.007` for a standard search, `$0.001` per
-fetched page — so the cost is a transparent pass-through. The fee is split **50 / 35 / 15** — platform / indexer pool / route owner —
-so everyone who created the value gets their share. The split is settled on-chain
-by the payment layer (Faremeter/Flex); the CLI/SDK shows the same breakdown in
-the receipt (`computeSplit`, `src/payments/split-constants.ts`).
+When a priced route executes, the fee is split **50 / 35 / 15** — platform /
+indexer pool / route owner — so everyone who created the value gets their share.
+The split is settled on-chain by the payment layer (Faremeter/Flex); the CLI/SDK
+shows the same breakdown in the receipt (`computeSplit`,
+`src/payments/split-constants.ts`). Web search via Exa is funded by the platform
+(Exa is called with an API key), so discovery stays free to the caller.
 
-### Payment states the surface handles
+### Payment states the surface handles (on a priced execute)
 
-- **Wallet not configured** — prompts you to set up a wallet before searching.
+- **Wallet not configured** — prompts you to set up a wallet before executing.
 - **Not enough balance** — reports the required amount; fund the wallet and retry.
 - **Payment failure** — surfaces a clear error; the call is retryable.
 - **Awaiting confirmation** — waits for the wallet to report final status before
   returning results.
 
-## Route graph only (no web, no charge for cached hits)
+## Route graph only (skip web enrichment)
 
-Set `web: false` to search the route graph alone. A cached route hit costs
-nothing; you only pay when the search reaches a paid provider.
+Set `web: false` to search the route graph alone, without the Exa enrichment.
 
 ```ts
 const routes = await unbrowse.search({ intent: "list GitHub repos", web: false });

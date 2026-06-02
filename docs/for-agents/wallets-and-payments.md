@@ -54,6 +54,11 @@ const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY, pay: walle
 It is optional and never forced: omit it and bring lobster.cash or any other
 wallet. It exists only so "just let me pay via the API" is one line.
 
+> Status: the client adapter is shipped; the server signing endpoint it calls
+> (`/v1/wallet/sign`) is being wired (`wallet-sign-backend` in the plan). Until
+> that lands, bring a Wallet Standard wallet (lobster.cash, Phantom, …) — those
+> work today. This default activates once the signing endpoint is deployed.
+
 ## x402 facilitator
 
 | Property   | Value                                   |
