@@ -12,11 +12,11 @@ selfimprove-loop	AUTO	3	HIGH	mcp-as-bench	todo	bash scripts/backlog/selfimprove-
 browsecomp-win	AUTO	3	HIGH	-	todo	bash bench/browsecomp/browsecomp-gate.sh	Reproducible BrowseComp score two-witness >= Exa published
 exa-bench-win	AUTO	3	HIGH	browsecomp-win	todo	bash scripts/backlog/exa-bench-gate.sh	Full exa-labs/benchmarks 250-URL run beats Exa published, agent-judged
 parallel-bench	AUTO	3	MED	-	todo	bash scripts/backlog/parallel-bench-gate.sh	Bench runs N probes concurrently in isolated collision-free sessions
-kuri-parallel	AUTO	3	MED	-	todo	bun test tests/kuri-parallel.test.ts	Kuri serves 2+ concurrent probes in one process without state loss
+kuri-parallel	AUTO	3	MED	-	done	bun test tests/browse-session-parallel-isolation.test.ts tests/browse-session-per-session-kuri.test.ts	Kuri serves 2+ concurrent probes in one process without state loss [per-session kuri brokers + parallel session isolation tested; the kuri-works-once wedge fixed via per-session brokers + about:blank reuse]
 corpus-from-reddit	AUTO	3	MED	-	todo	bash scripts/backlog/corpus-grow-gate.sh	Corpus gains N reddit-sourced hard sites with data-on-cold-load URLs
 scrapling-turnstile	AUTO	3	MED	-	todo	bash scripts/backlog/turnstile-gate.sh	Turnstile/Cloudflare bypass primitive ported; gated site flips to pass
 windows-runtime	AUTO	3	MED	-	todo	bash scripts/win-kuri-browse-gate.sh	Real end-to-end Windows run (resolve+browse), not just CI build
-meta-mcp-hotswap	AUTO	3	MED	-	todo	bun test tests/mcp-hotswap.test.ts	MCP picks up rebuilt binary mid-session without manual /mcp reconnect
+meta-mcp-hotswap	AUTO	3	MED	-	todo	bun test tests/mcp-hotswap.test.ts	[partial d8: ensureLocalServer auto-stops stale + respawns on version/code-hash drift (managed-server mode picks up rebuilt binary, no /mcp reconnect); detection tested local-server-version-guard 6pass; UNCONFIRMED whether the Phase-0d in-process MCP re-execs on rebuild] MCP picks up rebuilt binary mid-session without manual /mcp reconnect
 binary-slim	AUTO	4	LOW	-	todo	bash scripts/backlog/binary-size-gate.sh	Built binary measurably smaller (before/after byte count)
 skills-prune	AUTO	4	LOW	-	todo	bash scripts/backlog/skills-prune-gate.sh	Redundant skills/modules removed; tests still green
 agnostic-skill	AUTO	4	LOW	-	todo	bash scripts/backlog/agnostic-skill-gate.sh	Skill loads in a non-claude framework via pointers (graff)
