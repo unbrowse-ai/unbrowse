@@ -2858,16 +2858,23 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
 //                (cookies, post_eval, routes_observed). Use this for
 //                anti-bot bundle replay, signed-URL HMAC compute, etc.
 async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const url = args[0] ?? (flags.url as string);
+  const requestedUrl = args[0] ?? (flags.url as string);
   const customBundle = !!(flags["bundle-source"] || flags["bundle-url"] || flags["stdin"]);
   const wantEnvelope = flags.envelope === true || customBundle;
+  const fetchMethod = ((flags.method as string) ?? "GET").toUpperCase();
+  // github code-file blob → fetch the CLEAN RAW file. The rendered blob page
+  // carries ~50% chrome on top of the file (the exa micro-bench measured small
+  // code files at ~0.53 ROUGE-L); raw.githubusercontent serves the exact bytes.
+  // Simple GET only — PRs/issues/tree views + custom bundles pass through.
+  const { githubBlobToRaw } = await import("./extraction/github-raw.js");
+  const url = (!customBundle && fetchMethod === "GET" && githubBlobToRaw(requestedUrl)) || requestedUrl;
 
   if (!url && !customBundle) die("usage: unbrowse fetch <url>  |  unbrowse fetch --help for advanced bundle mode");
 
   // SIMPLE mode: build the bundle ourselves.
   let bundleSource = flags["bundle-source"] as string | undefined;
   if (!customBundle && url) {
-    const method = ((flags.method as string) ?? "GET").toUpperCase();
+    const method = fetchMethod;
     const reqHeaders: Record<string, string> = { Accept: "*/*" };
     if (typeof flags.header === "string") {
       const idx = flags.header.indexOf(":");
