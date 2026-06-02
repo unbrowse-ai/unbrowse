@@ -28,6 +28,12 @@ never a faked signature).
 - `network/sybil.py` — stake-weighted, split-invariant attribution (the Sybil mitigation).
 - `network/erc8004.py` — ERC-8004 Identity / Reputation / Validation records, wallet-signed.
 - `network/vault_cycle.py` — the fee-return cycle: staking by abiding, pro rata to balance×duration.
+- `adoption/adoption.py` — **Paper 1's necessary condition, as code** (arXiv:2604.00694):
+  the three-tier x402 fee model (Tier 1 install / Tier 2 per-exec opt-in / Tier 3
+  per-query) and the rational-adoption inequality `f_route < c_rediscovery` — an
+  agent adopts the shared graph only when its total fee undercuts browser
+  rediscovery; the three-path `cache → graph → browser` ladder is the cheapest-rung
+  walk over exactly those costs, voluntary and self-correcting.
 - `pay/redeemable.py` — **the toll, paid under the hood; x402 hidden** (sp-toll
   node/verb/seal + sp-unbrowse root/seal): a `PrivyWallet` whose user-facing surface
   is a redeemable credit balance (address / balance / `redeem` / `statement`), while
