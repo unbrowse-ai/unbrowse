@@ -1,0 +1,21 @@
+# Agent-SDK adapter manifest — the popular agent frameworks Unbrowse ships a
+# NATIVE-TOOL adapter for: Unbrowse's resolve/execute/search exposed in each
+# framework's own tool type, so an agent author registers Unbrowse with one import.
+#
+# Chosen by real adoption research (June 2026): Vercel AI SDK (~20M/mo, dominant),
+# LangChain JS (largest ecosystem), Mastra (built on AI SDK), LlamaIndex TS (RAG),
+# OpenAI Agents SDK. MCP is already a native protocol surface (`npx unbrowse mcp`)
+# and is documented rather than packaged.
+#
+# A row is GREEN (scripts/agent-sdk-parity-gate.sh) only when ALL of:
+#   PKG   the adapter package exists (pkg_path/package.json)
+#   ATTR  its README names the upstream framework (framework_npm)
+#   TOOL  its README documents registering Unbrowse as the framework's tool
+#   TEST  its shape test passes (the framework's tool contract is provided)
+#
+# columns:  framework_npm <TAB> unbrowse_pkg <TAB> pkg_path <TAB> readme <TAB> shape_test
+ai	@unbrowse/ai-sdk	packages/ai-sdk	packages/ai-sdk/README.md	packages/ai-sdk/test/shape.test.ts
+@langchain/core	@unbrowse/langchain-js	packages/langchain-js	packages/langchain-js/README.md	packages/langchain-js/test/shape.test.ts
+@mastra/core	@unbrowse/mastra	packages/mastra	packages/mastra/README.md	packages/mastra/test/shape.test.ts
+llamaindex	@unbrowse/llamaindex	packages/llamaindex	packages/llamaindex/README.md	packages/llamaindex/test/shape.test.ts
+@openai/agents	@unbrowse/openai-agents	packages/openai-agents	packages/openai-agents/README.md	packages/openai-agents/test/shape.test.ts
