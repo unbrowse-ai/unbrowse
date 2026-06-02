@@ -43,6 +43,37 @@ SINCE_LOG="$(ls -t "$LOGDIR"/*.log 2>/dev/null | head -1)"
 SINCE_LINES=$(wc -l < "$SINCE_LOG" 2>/dev/null || echo 0)
 echo "---------------------------------------------------"
 
+# --- vault-consistency check (the real bug surface, no browser needed) -------
+# login-purge root cause (d32): kuri saveProfile writes the keychain secret
+# first and the meta.json second; if the meta is lost, the cookies are orphaned
+# (keychain entry present, meta absent) and loadProfile — which required the
+# meta — failed, so auth was never restored => "constant logout". Detect those
+# orphans directly. macOS keychain only; harmless elsewhere.
+echo "--------------- vault consistency (orphan scan) ---------------"
+KSVC="dev.justrach.kuri.auth-profile"
+PROFILE_META_DIR="$HOME/.kuri/auth-profiles"
+if command -v security >/dev/null 2>&1; then
+  ACCTS=$(security dump-keychain 2>/dev/null | awk -v svc="$KSVC" '
+    /"svce"<blob>=/ { if (index($0, svc)) svc_hit=1 }
+    /"acct"<blob>=/ { a=$0; sub(/.*"acct"<blob>="/,"",a); sub(/".*/,"",a); acct=a }
+    /^keychain:/ || /^class:/ { if (svc_hit && acct!="") print acct; svc_hit=0; acct="" }
+    END { if (svc_hit && acct!="") print acct }' | sort -u)
+  total=0; orphans=0
+  while IFS= read -r dom; do
+    [ -z "$dom" ] && continue
+    total=$((total+1))
+    safe=$(printf '%s' "$dom" | sed 's#[/\\ ]#_#g')
+    if [ ! -f "$PROFILE_META_DIR/$safe.meta.json" ]; then
+      orphans=$((orphans+1))
+      [ $orphans -le 12 ] && echo "  ORPHAN (keychain has cookies, meta missing -> load fails): $dom"
+    fi
+  done <<< "$ACCTS"
+  echo "  vault: $total saved domains, $orphans orphaned (would log out until the d32 loadProfile fix re-vendors)"
+else
+  echo "  (security CLI unavailable — non-macOS keychain backend; skip)"
+fi
+echo "--------------------------------------------------------------"
+
 if [ -z "$URL" ]; then
   SET_URL="https://httpbin.org/cookies/set/${COOKIE_NAME}/reproval"
   CHECK_URL="https://httpbin.org/cookies"
