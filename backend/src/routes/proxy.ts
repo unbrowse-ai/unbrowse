@@ -22,6 +22,7 @@ import { getProxyConsent, recordProxySurcharge } from "../middleware/sponsor.js"
 type Socket = {
   readable: ReadableStream<Uint8Array>;
   writable: WritableStream<Uint8Array>;
+  opened?: Promise<{ remoteAddress?: string | null; localAddress?: string | null }>;
   close(): Promise<void>;
   startTls(opts: { expectedServerHostname: string }): Socket;
 };
@@ -265,125 +266,55 @@ async function fetchDirect(
 async function fetchViaIproyal(
   url: URL,
   method: string,
-  headers: Headers,
-  body: string | null,
+  _headers: Headers,
+  _body: string | null,
   timeoutMs: number,
   env: Env,
 ): Promise<ProxyResponseBody> {
-  const iproyalUser = (env as unknown as { IPROYAL_USER?: string }).IPROYAL_USER;
-  const iproyalPass = (env as unknown as { IPROYAL_PASS?: string }).IPROYAL_PASS;
-  const iproyalHost = (env as unknown as { IPROYAL_HOST?: string }).IPROYAL_HOST ?? "geo.iproyal.com";
-  const iproyalPort = Number((env as unknown as { IPROYAL_PORT?: string }).IPROYAL_PORT ?? 12321);
-  if (!iproyalUser || !iproyalPass) {
-    throw new Error("IPROYAL_USER / IPROYAL_PASS env not set; run `wrangler secret put IPROYAL_USER` and `wrangler secret put IPROYAL_PASS`");
+  // The Workers runtime cannot complete a TLS handshake to non-Cloudflare
+  // origins via `cloudflare:sockets` startTls(), so the residential egress is
+  // delegated to an external OS-level service that performs the iProyal fetch
+  // itself and is reachable over plain HTTPS (no startTls limitation here).
+  const egressUrl = env.MINI_EGRESS_URL;
+  const egressSecret = env.EGRESS_SECRET;
+  if (!egressUrl || !egressSecret) {
+    throw new Error("MINI_EGRESS_URL / EGRESS_SECRET env not set; run `wrangler secret put MINI_EGRESS_URL` and `wrangler secret put EGRESS_SECRET`");
   }
 
-  const targetHost = url.hostname;
-  const targetPort = url.port ? Number(url.port) : (url.protocol === "https:" ? 443 : 80);
-  const isHttps = url.protocol === "https:";
+  // Amazon's anti-bot layer needs more retries to land a real body; others are
+  // fast. min_len lets the egress retry past CAPTCHA/interstitials until the
+  // body looks real.
+  const retries = /(^|\.)amazon\./i.test(url.hostname) ? 12 : 3;
 
-  // Open TCP socket to iproyal proxy endpoint. Cloudflare's cloudflare:sockets
-  // connect() returns a Socket with readable/writable streams. Loaded lazily
-  // because the module is a Workers virtual; Bun can't resolve it statically.
-  const connect = await getCloudflareConnect();
-  const sock: Socket = connect(
-    { hostname: iproyalHost, port: iproyalPort },
-    // `secureTransport: "starttls"` is required by cloudflare:sockets so a
-    // later sock.startTls() upgrade is allowed. Without it, startTls() throws
-    // "The `secureTransport` socket option must be set to 'starttls'".
-    {
-      secureTransport: isHttps ? "starttls" : "off",
-      allowHalfOpen: false,
-    },
-  );
-
-  const enc = new TextEncoder();
-  const dec = new TextDecoder();
-
-  const writer = sock.writable.getWriter();
-  const reader = sock.readable.getReader();
-
-  // 1) Send HTTP CONNECT for the target host:port (with Proxy-Authorization).
-  const proxyAuth = btoa(`${iproyalUser}:${iproyalPass}`);
-  const connectReq =
-    `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\n` +
-    `Host: ${targetHost}:${targetPort}\r\n` +
-    `Proxy-Authorization: Basic ${proxyAuth}\r\n` +
-    `Proxy-Connection: keep-alive\r\n\r\n`;
-  await writer.write(enc.encode(connectReq));
-
-  // 2) Read the CONNECT response (line-oriented; we only care about 200).
-  const connectResp = await readUntilDoubleCrlf(reader, timeoutMs);
-  const firstLine = connectResp.split("\r\n")[0] ?? "";
-  if (!/^HTTP\/\d\.\d 200/.test(firstLine)) {
-    writer.releaseLock();
-    reader.releaseLock();
-    await sock.close();
-    throw new Error(`iproyal CONNECT failed: ${firstLine}`);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), Math.max(timeoutMs, 60_000));
+  try {
+    const r = await fetch(egressUrl, {
+      method: "POST",
+      headers: {
+        "X-Egress-Secret": egressSecret,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url.toString(),
+        method,
+        min_len: 50_000,
+        retries,
+      }),
+      signal: ctrl.signal,
+    });
+    const payload = await r.json<{ status?: number; body?: string; proxy_used?: string }>();
+    const bodyText = typeof payload.body === "string" ? payload.body : "";
+    return {
+      status: typeof payload.status === "number" ? payload.status : r.status,
+      headers: {},
+      body: bodyText.length > MAX_BODY_BYTES ? bodyText.slice(0, MAX_BODY_BYTES) : bodyText,
+      proxy_used: "residential",
+      duration_ms: 0,
+    };
+  } finally {
+    clearTimeout(t);
   }
-  writer.releaseLock();
-  reader.releaseLock();
-
-  // 3) If https, upgrade to TLS. cloudflare:sockets exposes startTls().
-  const conn: Socket = isHttps ? sock.startTls({ expectedServerHostname: targetHost }) : sock;
-
-  // 4) Send the actual HTTP request through the (now possibly TLS) tunnel.
-  const path = url.pathname + url.search;
-  const reqHeaderLines: string[] = [
-    `${method} ${path} HTTP/1.1`,
-    `Host: ${targetHost}${url.port ? `:${url.port}` : ""}`,
-    `Connection: close`,
-  ];
-  headers.forEach((v, k) => {
-    if (k.toLowerCase() === "host" || k.toLowerCase() === "connection") return;
-    reqHeaderLines.push(`${k}: ${v}`);
-  });
-  let bodyBytes: Uint8Array | null = null;
-  if (body && method !== "GET" && method !== "HEAD") {
-    bodyBytes = enc.encode(body);
-    reqHeaderLines.push(`Content-Length: ${bodyBytes.byteLength}`);
-  }
-  const reqStr = reqHeaderLines.join("\r\n") + "\r\n\r\n";
-
-  const w = conn.writable.getWriter();
-  await w.write(enc.encode(reqStr));
-  if (bodyBytes) await w.write(bodyBytes);
-  w.releaseLock();
-
-  // 5) Read the full HTTP response.
-  const r = conn.readable.getReader();
-  const buf = await readAll(r, MAX_BODY_BYTES, timeoutMs);
-  r.releaseLock();
-  await conn.close();
-
-  const text = dec.decode(buf);
-  const headerEnd = text.indexOf("\r\n\r\n");
-  if (headerEnd < 0) throw new Error("malformed http response from iproyal upstream (no header terminator)");
-  const headerBlock = text.slice(0, headerEnd);
-  const bodyText = text.slice(headerEnd + 4);
-
-  const lines = headerBlock.split("\r\n");
-  const statusLine = lines[0] ?? "";
-  const statusMatch = /^HTTP\/\d\.\d (\d{3})/.exec(statusLine);
-  const status = statusMatch ? Number(statusMatch[1]) : 0;
-  const respHeaders: Record<string, string> = {};
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    const sep = line.indexOf(":");
-    if (sep <= 0) continue;
-    const k = line.slice(0, sep).trim().toLowerCase();
-    const v = line.slice(sep + 1).trim();
-    if (STRIP_RESPONSE_HEADERS.has(k)) continue;
-    respHeaders[k] = v;
-  }
-
-  return {
-    status,
-    headers: respHeaders,
-    body: bodyText,
-    proxy_used: "residential",
-    duration_ms: 0,
-  };
 }
 
 async function readUntilDoubleCrlf(
