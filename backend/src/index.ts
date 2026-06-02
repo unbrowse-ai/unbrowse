@@ -33,6 +33,7 @@ import { contractRoutes } from "./routes/contract.js";
 import { provisionPodRoutes } from "./routes/provision-pod.js";
 import { openaiToolsRoutes } from "./routes/openai-tools.js";
 import { extractRoutes } from "./routes/extract.js";
+import { revengRoutes } from "./routes/reveng.js";
 import { auditRoutes } from "./routes/audit.js";
 import { sessionStateRoutes } from "./routes/session-state.js";
 import { traceRoutes } from "./routes/trace.js";
@@ -95,6 +96,11 @@ app.route("/v1", contractRoutes);
 app.route("/v1", provisionPodRoutes);
 app.route("/v1", openaiToolsRoutes);
 app.route("/v1", extractRoutes);
+// Server-side reverse-engineer: POST /v1/reveng takes the OBFUSCATED capture
+// (secrets stripped + wallet-bound client-side) and derives endpoint specs.
+// Sibling of /v1/extract/refine — the reveng know-how is served, not shipped in
+// the client; the server re-obfuscates defensively and never sees a secret.
+app.route("/v1", revengRoutes);
 // v7.0 audit-log surface — pointer-only fill receipts (Ed25519 sig-shape
 // today, Groth16 SNARK in v7.3 behind the same wire). See routes/audit.ts
 // and services/audit.ts. Storage path is inert in v7.0 scaffold (returns
