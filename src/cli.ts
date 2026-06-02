@@ -2910,9 +2910,25 @@ async function cmdFetch(args: string[], flags: Record<string, string | boolean>)
 
   // SIMPLE mode output: stat line on stderr, body on stdout.
   const peo = postEvalProcessed as Record<string, unknown> | string | undefined;
-  const body = (peo && typeof peo === "object" && "body" in peo) ? peo.body : peo;
+  let body = (peo && typeof peo === "object" && "body" in peo) ? peo.body : peo;
   const status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
   const routesCount = resp.routes_observed?.length ?? 0;
+  // --main: extract the page's MAIN CONTENT as clean markdown (drop nav, chrome,
+  // sidebars, related-links, footers) rather than dumping the whole HTML page.
+  // Only fires on HTML bodies; cleanDOM has a content-loss guard that falls back
+  // to the whole page when the main-region heuristic misfires (structured files).
+  // This is what closes the chrome-dilution gap on article/doc pages (the exa
+  // contents bench: whole-page fetch over-extracts ~65% vs the clean golden).
+  if (flags.main && typeof body === "string") {
+    const ct = (peo && typeof peo === "object" && "content_type" in peo) ? String((peo as Record<string, unknown>).content_type ?? "") : "";
+    const looksHtml = /html/i.test(ct) || /<html[\s>]|<!doctype html/i.test(body.slice(0, 1000));
+    if (looksHtml) {
+      try {
+        const { htmlToReadableMarkdown } = await import("./extraction/readable-markdown.js");
+        body = await htmlToReadableMarkdown(body);
+      } catch { /* extraction failed — emit the raw body unchanged */ }
+    }
+  }
   info(`[fetch] ${status} ${resp.ms}ms ${resp.egress_bytes}B${routesCount > 0 ? ` · ${routesCount} route(s) observed` : ""}`);
   if (typeof body === "string") {
     process.stdout.write(body);
