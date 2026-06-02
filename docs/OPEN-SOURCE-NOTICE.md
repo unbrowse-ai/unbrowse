@@ -16,7 +16,7 @@ a private repo**, and the **frontend web app is private**.
 
 | Surface | Where it lives | License / visibility |
 |---|---|---|
-| **Frontend CLI** — open client, SDKs & drop-in adapters (`@unbrowse/client`, `@unbrowse/sdk`, every `@unbrowse/*` shim + agent-SDK adapter) | npm + public repo | **MIT, fully open source** |
+| **Frontend CLI** — open client, SDKs & drop-in adapters (`unbrowse/sdk`, `unbrowse/sdk`, every `@unbrowse/*` shim + agent-SDK adapter) | npm + public repo | **MIT, fully open source** |
 | `unbrowse` CLI launcher binary | npm `unbrowse` | distributed binary that wraps the private engine |
 | Capture / indexing / replay **engine** | **private repo** | proprietary (the moat; ships only as the binary) |
 | **Backend** (marketplace, payouts, settlement) | **private repo**, Cloudflare Workers | proprietary |
@@ -24,13 +24,13 @@ a private repo**, and the **frontend web app is private**.
 | Public OSS snapshot (older) | [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) | MIT, frozen |
 
 The CLI you build against is fully open source (MIT) and carries no moat; trust in
-the closed engine and backend is established by ***REMOVED*** + a hash-chained, auditable
+the closed engine and backend is established by a hash-chained, auditable
 ledger (see the reference implementation under `paper/reference/`), not by exposing
 the server. The web app is a private product surface.
 
 ## What this means for you
 
-- **Building on the SDK?** New code should use `@unbrowse/client`. Existing local-runtime integrations can keep using `@unbrowse/sdk` plus a running `unbrowse` runtime (`npx unbrowse setup`). Both SDKs are MIT.
+- **Building on the SDK?** New code should use `unbrowse/sdk`. Existing local-runtime integrations can keep using `unbrowse/sdk` plus a running `unbrowse` runtime (`npx unbrowse setup`). Both SDKs are MIT.
 - **Reading the OSS repo for architecture?** Treat it as a 2025 historical reference. Look here in `docs/` and at the public [whitepaper](./whitepaper/) for current behavior.
 - **Filing a bug?** Use [github.com/unbrowse-ai/unbrowse/issues](https://github.com/unbrowse-ai/unbrowse/issues) for SDK/CLI issues. The CLI binary tracks current production.
 - **Want source access for security review?** Email security@unbrowse.ai. Code review under NDA is available for serious enterprise integrators.
@@ -64,7 +64,7 @@ we keep its `source_id` in the code and build **on top** of it, not over it.
 ## What we give first
 
 The open part is given before anything is asked back. Freely available today, MIT:
-the `@unbrowse/client` + `@unbrowse/sdk` SDKs, and the standards-interop above — so any
+the `unbrowse/sdk` + `unbrowse/sdk` SDKs, and the standards-interop above — so any
 agent can use Unbrowse through the formats it already speaks, at no cost and with no
 lock-in (the browser fallback is always the exit).
 

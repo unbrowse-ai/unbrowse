@@ -40,22 +40,20 @@ The practical reliability model ships today, but these stronger trust primitives
 - cryptographic proof of route verification
 - TEE-backed verification attestation
 
-## ***REMOVED*** Fill Authorization
+## Stronger Fill Authorization
 
 Unbrowse op receipts are wallet-signed today: an Ed25519 signature over
 `(pointer, nonce, url, selector, iat)` proves your wallet authorized the act.
 The pointer-only invariant — no secret value ever crosses the wire — already
 holds. This ships in the v7 preview.
 
-Still `coming soon` is the *****REMOVED***** strengthening of the authorization
-claim: a proof that an authorized wallet signed an authorized pointer **without
-revealing which wallet or which pointer**, behind the same receipt and audit-log
-interface. It is a substitution of the signature primitive, not a new surface —
-callers write against one interface across both stages.
+Stronger authorization schemes are an active research direction; specifics will
+be detailed in a forthcoming whitepaper. They are designed to slot in behind the
+same receipt and audit-log interface, so callers write against one interface.
 
 Read this as product direction. The honest scope: pointer-only plus
-wallet-signed audit receipts are the shipped baseline; the SNARK-backed proof is
-a later rollout behind the same interface, and the value-protection guarantee
+wallet-signed audit receipts are the shipped baseline; any later strengthening is
+a rollout behind the same interface, and the value-protection guarantee
 (pointer-only, local dereference, in-memory zeroing) does not depend on it.
 
 ## Packaging and Distribution Model
