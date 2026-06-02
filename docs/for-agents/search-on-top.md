@@ -14,12 +14,19 @@ const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const hits = await unbrowse.search({ intent: "best machine learning frameworks" });
 ```
 
-## Search is free — you pay when you *execute* a paid route
+## Route discovery is free — web search and execution are priced
 
-Discovery itself is **free**: `/v1/search` searches the route graph and adds
-best-effort web (Exa) enrichment without charging per query. You only pay when
-you **execute** a returned route that is priced — `unbrowse_execute` on a paid
-endpoint settles **per-request over [x402](https://www.x402.org)**:
+**Route discovery is free.** `/v1/search` searches the route graph (the index of
+captured routes) and never charges per query.
+
+**Web search (`/v1/search/web`) is an Exa-backed lookup for finding answers and
+sources beyond the route graph.** It runs on the operator's own Exa key, so it is
+**free for the operator**; every other caller pays a small per-query fee over
+[x402](https://www.x402.org) before the lookup runs (the lookup has a real upstream
+cost), settled through the same Flex split as execution.
+
+You also pay when you **execute** a returned route that is priced —
+`unbrowse_execute` on a paid endpoint settles **per-request over x402**:
 
 1. The execute request returns `402 Payment Required` with the price (USDC on Solana).
 2. Your agent's **wallet** signs the payment and the request is retried — the
