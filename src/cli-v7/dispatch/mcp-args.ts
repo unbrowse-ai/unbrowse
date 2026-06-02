@@ -41,6 +41,17 @@ type ArgAdapter = (
  * handles the rest by flattening every arg into a flag.
  */
 const ADAPTERS: Partial<Record<V7OpKind, ArgAdapter>> = {
+  // eval spec <url-or-domain> — handler reads positional[0] as the target,
+  // plus --budget-ms / --graphql flags. Without this the default adapter would
+  // route `target` to a flag and the handler would emit target_required.
+  "eval:spec_discover": (a) => {
+    const positional: string[] = [];
+    if (typeof a.target === "string") positional.push(a.target);
+    const flags: Record<string, string | boolean> = {};
+    if (typeof a.budget_ms === "number") flags["budget-ms"] = String(a.budget_ms);
+    if (a.graphql === true) flags.graphql = true;
+    return { positional, flags };
+  },
   // breath go <url>
   "breath:navigate": (a) => {
     const positional: string[] = [];
