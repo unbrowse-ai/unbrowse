@@ -171,12 +171,14 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
             if fok:
                 full = _clean(body).strip()[:cap]
                 # Reject soft-failure bodies (CLI exits 0 but content is a junk
-                full = _clean(body).strip()[:cap]
-                # Reject soft-failure bodies (CLI exits 0 but content is a junk
                 # sentinel/error page): only replace if the fetch is richer than
                 # the original snippet. Keeps the thin DDG snippet on failure.
                 if full and full.lower() != "null" and len(full) > len(r.snippet):
                     r.snippet = full
+            return r  # MUST return r — gather of None-returning coros yields a list
+                      # of Nones, and the eval framework then crashes on r.title
+                      # ('NoneType' object has no attribute 'title'), starving the
+                      # agent of every result (the real cause of the 0.0 runs).
 
         head = await asyncio.gather(*[_one(r) for r in results[:top_k]])
         return list(head) + results[top_k:]
