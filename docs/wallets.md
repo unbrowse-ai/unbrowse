@@ -87,7 +87,7 @@ import {
   Unbrowse,
   buildEscrowCreationTx,
   buildSessionKeyRegistrationTx,
-} from "@unbrowse/sdk";
+} from "unbrowse/sdk";
 
 const unbrowse = await Unbrowse.local();
 
@@ -113,7 +113,7 @@ const { txSignature: regTx } = await unbrowse.registerSessionKey({
 });
 ```
 
-Both methods are thin wrappers around standalone functions you can also import directly from `@unbrowse/sdk`:
+Both methods are thin wrappers around standalone functions you can also import directly from `unbrowse/sdk`:
 
 ```ts
 import {
@@ -121,7 +121,7 @@ import {
   registerSessionKey,
   buildEscrowCreationTx,           // pure tx assembly, hand to your own signer
   buildSessionKeyRegistrationTx,   // pure tx assembly, hand to your own signer
-} from "@unbrowse/sdk";
+} from "unbrowse/sdk";
 ```
 
 The `build*Tx` helpers return the unsigned `BuiltFlexTx` if you want to

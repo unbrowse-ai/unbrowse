@@ -86,7 +86,7 @@ await u.feedback({
 ## Recipe 5: Long-running worker pool
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 import pLimit from "p-limit";
 
 const u = new Unbrowse({ clientId: `worker-${process.pid}` });
@@ -114,7 +114,7 @@ Key constraint: 8 concurrent against one runtime is roughly the safe ceiling. Fo
 Useful for routing through a residential proxy or for instrumentation.
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const dispatcher = new ProxyAgent("http://geo.iproyal.com:12321");

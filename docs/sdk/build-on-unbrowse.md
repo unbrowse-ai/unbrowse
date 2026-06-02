@@ -111,7 +111,7 @@ Use `unbrowse settings --publish-blacklist <domain>` for any internal/PII-bearin
 For builders going from zero to production, expect roughly:
 
 ### Week 1 — Local prototype
-- `npm install -g unbrowse @unbrowse/sdk`
+- `npm install -g unbrowse unbrowse/sdk`
 - `unbrowse setup` + wallet
 - Wire SDK into a single test agent
 - 5-10 manual `resolve`/`execute` calls against your target sites
@@ -177,7 +177,7 @@ Be honest about the misfit cases. Don't pick the substrate if:
 
 Once you've built something on Unbrowse, where does it ship?
 
-1. **As an npm package** that depends on `@unbrowse/sdk`. Standard.
+1. **As an npm package** that depends on `unbrowse/sdk`. Standard.
 2. **As an MCP server** so any Claude Code / Cursor / etc. user can mount your wrapper. The Unbrowse runtime already speaks MCP via `unbrowse mcp`; you can layer your own MCP server on top.
 3. **As an OpenClaw plugin** so the agent's default browser auto-routes through your wrapper. See `openclaw` metadata in [the packaged skill manifest](../../packages/skill/SKILL.md).
 4. **As a hosted endpoint** (your service runs Unbrowse, exposes a thin API to your customers). The SDK runs server-side fine.
