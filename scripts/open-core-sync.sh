@@ -47,4 +47,10 @@ echo "== refresh root README + interop (public) =="
 [ -f "$ROOT/docs/OPEN-SOURCE-NOTICE.md" ] && cp "$ROOT/docs/OPEN-SOURCE-NOTICE.md" "$DST/docs/OPEN-SOURCE-NOTICE.md"
 mkdir -p "$DST/src"; rsync -a --exclude='node_modules/' "$ROOT/src/interop/" "$DST/src/interop/"
 
+# Root SKILL.md — the agentskills.io skill manifest so `npx skills add
+# unbrowse-ai/unbrowse` resolves the unbrowse skill (instructions; the runtime
+# binary + MCP come from the `unbrowse` npm package). Single source of truth in
+# the dev root, public-safe (no moat), gated by open-core-gate + leak-guard.
+[ -f "$ROOT/SKILL.md" ] && cp "$ROOT/SKILL.md" "$DST/SKILL.md" && echo "  + SKILL.md (root, for npx skills add)"
+
 echo "open-core sync complete -> $DST"
