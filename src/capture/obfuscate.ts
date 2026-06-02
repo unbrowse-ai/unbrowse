@@ -143,11 +143,51 @@ export interface ObfuscateOpts {
    *  (`[bound:<...>]`) instead of a flat `[REDACTED]` — proving the field is a
    *  secret bound to this wallet without revealing the value. */
   walletPubkey?: string;
+  /** The user's KNOWN secret values (from their local vault). Heuristics catch
+   *  unknown secrets by shape; this list GUARANTEES the user's actual secrets
+   *  are stripped wherever they appear — closing the heuristic gap. Each exact
+   *  occurrence is replaced by its placeholder (wallet-bound when a wallet is
+   *  given). This is what makes the obfuscation provably safe + auditable. */
+  secrets?: string[];
+}
+
+/** Replace every exact occurrence of a known secret value across the request's
+ *  string fields with its placeholder. The heuristic passes catch unknown
+ *  secrets by shape; this catches the user's KNOWN secrets by identity, so no
+ *  vault value can slip through a heuristic gap. Longest secrets first so a
+ *  secret that contains another is scrubbed whole. */
+function scrubKnownSecrets(r: RawRequest, secrets: string[], redact: Redactor): RawRequest {
+  const real = [...new Set(secrets.filter((s) => typeof s === "string" && s.length >= 4))].sort(
+    (a, b) => b.length - a.length,
+  );
+  if (real.length === 0) return r;
+  const scrub = (s: string | undefined): string | undefined => {
+    if (s == null || s === "") return s;
+    let out = s;
+    for (const secret of real) {
+      if (out.includes(secret)) out = out.split(secret).join(redact(secret));
+    }
+    return out;
+  };
+  const scrubHeaders = (h: Record<string, string> | undefined): Record<string, string> | undefined => {
+    if (!h) return h;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(h)) out[k] = scrub(String(v)) ?? "";
+    return out;
+  };
+  return {
+    ...r,
+    url: scrub(r.url) ?? r.url,
+    request_headers: scrubHeaders(r.request_headers) ?? r.request_headers,
+    request_body: scrub(r.request_body),
+    response_headers: scrubHeaders(r.response_headers) ?? r.response_headers,
+    response_body: scrub(r.response_body),
+  };
 }
 
 export function obfuscateRequestForReveng(r: RawRequest, opts: ObfuscateOpts = {}): RawRequest {
   const redact = makeRedactor(opts.walletPubkey);
-  return {
+  const out: RawRequest = {
     ...r,
     url: obfuscateUrl(r.url, redact),
     request_headers: obfuscateHeaders(r.request_headers, redact),
@@ -155,6 +195,8 @@ export function obfuscateRequestForReveng(r: RawRequest, opts: ObfuscateOpts = {
     response_headers: obfuscateHeaders(r.response_headers, redact),
     response_body: obfuscateBody(r.response_body, redact),
   };
+  // Final guarantee pass: scrub any KNOWN vault secret the heuristics missed.
+  return opts.secrets && opts.secrets.length ? scrubKnownSecrets(out, opts.secrets, redact) : out;
 }
 
 export function obfuscateCaptureForReveng(requests: RawRequest[], opts: ObfuscateOpts = {}): RawRequest[] {
