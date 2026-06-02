@@ -43,6 +43,7 @@
  * Proxy-Authorization, no silent retry loop.
  */
 import { x402Fetch, type X402SubState } from "../payments/x402-fetch.js";
+import { loadCredsFileSync } from "../cdp/proxy/iproyal.js";
 
 export interface ProxyFetchEnv {
   /** IProyal username, often includes country/session params:
@@ -66,12 +67,27 @@ export interface ProxyDispatchResult {
 /** Build the IProyal proxy URL from env. Returns undefined when creds are
  *  missing — caller emits the "creds_missing" decision_trace step. */
 export function resolveProxyUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const user = env.IPROYAL_USER?.trim();
-  const pass = env.IPROYAL_PASS?.trim();
+  let user = env.IPROYAL_USER?.trim();
+  let pass = env.IPROYAL_PASS?.trim();
+  let host = env.IPROYAL_HOST?.trim();
+  let port = env.IPROYAL_PORT?.trim();
+  // Env wins; otherwise fall back to the persistent ~/.identity/iproyal-creds
+  // file (the same source the browser/CDP proxy reads), so a single creds file
+  // bakes IProyal into BOTH the browser and the fetch/network-descent egress.
+  // The secret stays in ~/.identity (mode 600), never in source.
+  if (!user || !pass) {
+    const f = loadCredsFileSync();
+    if (f) {
+      user ||= f.username;
+      pass ||= f.password;
+      host ||= f.host;
+      port ||= String(f.port);
+    }
+  }
   if (!user || !pass) return undefined;
-  const host = env.IPROYAL_HOST?.trim() || "geo.iproyal.com";
-  const port = env.IPROYAL_PORT?.trim() || "12321";
-  // URL-encode creds so country-lock params like `cr.us` survive intact.
+  host = host || "geo.iproyal.com";
+  port = port || "12321";
+  // URL-encode creds so country-lock params like `_country-my` survive intact.
   return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
 }
 
