@@ -235,24 +235,3 @@ export function buildIproyalProxy(opts: {
   };
 }
 
-/**
- * Legacy alias — preserved for src/cli-v7/breath/proxy-rotate.ts callers
- * that already import the credential-URL helper.
- */
-export function buildIproyalCredsUrl(opts: {
-  username: string;
-  password: string;
-  country?: string;
-  sessionId?: string;
-  host?: string;
-  port?: number;
-}): string {
-  return buildIproyalProxyUrl({
-    user: opts.username,
-    pass: opts.password,
-    host: opts.host || DEFAULT_IPROYAL_HOST,
-    port: opts.port || DEFAULT_IPROYAL_PORT,
-    country: opts.country,
-    sessionId: opts.sessionId,
-  });
-}

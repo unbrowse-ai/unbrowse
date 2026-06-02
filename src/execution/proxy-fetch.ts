@@ -315,7 +315,3 @@ export async function x402ProxyAuthorization(
   }
 }
 
-/** Reset the proxy-auth cache (e.g. when env changes mid-process). */
-export function clearProxyAuthCache(): void {
-  _cachedProxyAuth = null;
-}
