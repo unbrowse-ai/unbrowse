@@ -103,6 +103,10 @@ def openai_markdown(rendered: str, url: str, title: str) -> str:
             "model": GOLDEN_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
+            # Long pages (arxiv papers, deep tutorials) need a high output ceiling
+            # — the default caps the golden ~2-3k words, TRUNCATING the article so
+            # a correct full extraction scores low against a too-short golden (d101).
+            "max_tokens": 16000,
         }).encode(),
         headers={"Authorization": f"Bearer {GOLDEN_KEY}", "Content-Type": "application/json"},
     )
