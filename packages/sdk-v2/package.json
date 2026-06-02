@@ -5,6 +5,15 @@
   "directoryRenameIntent": "packages/sdk-v2/ → packages/client/ (matches the npm name @unbrowse/client). The sdk-v2 folder name is historical from the parallel v6/v7 transition; keep public docs pointing at the npm package name, not the folder name.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbrowse-ai/unbrowse",
+    "directory": "packages/sdk-v2"
+  },
+  "homepage": "https://github.com/unbrowse-ai/unbrowse#readme",
+  "bugs": {
+    "url": "https://github.com/unbrowse-ai/unbrowse/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,14 +21,26 @@
     }
   },
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build"
   },
-  "engines": { "node": ">=18" },
-  "keywords": ["unbrowse", "agent", "browser", "api", "sdk"],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "unbrowse",
+    "agent",
+    "browser",
+    "api",
+    "sdk"
+  ],
   "devDependencies": {
     "typescript": "^5.4.0"
   }

@@ -8,6 +8,8 @@ readme = "README.md"
 
 [project.urls]
 Homepage = "https://unbrowse.ai/vs/crewai"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
 
 [build-system]
 requires = ["setuptools"]

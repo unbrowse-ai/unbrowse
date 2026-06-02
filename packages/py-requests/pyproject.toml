@@ -6,7 +6,9 @@ requires-python = ">=3.8"
 license = { text = "MIT" }
 
 [project.urls]
-homepage = "https://unbrowse.ai/vs/requests"
+Homepage = "https://unbrowse.ai/vs/requests"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
 
 [build-system]
 requires = ["setuptools"]
