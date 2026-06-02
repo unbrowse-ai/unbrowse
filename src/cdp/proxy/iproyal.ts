@@ -11,6 +11,7 @@
 // when creds are absent — never crashes the caller.
 
 import { readFile, stat } from "node:fs/promises";
+import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -93,6 +94,28 @@ export async function load(): Promise<IproyalLoadResult> {
     };
   }
   return { ok: true, creds: parsed };
+}
+
+let _syncCache: { creds: IproyalCreds | null; mtimeMs: number } | undefined;
+
+/**
+ * Synchronous, mtime-cached creds-file loader for the hot fetch path
+ * (`resolveProxyUrl` in execution/proxy-fetch). Reads ~/.identity/iproyal-creds
+ * — the SAME file the browser/CDP proxy path uses — so one creds file drives
+ * both the browser and the HTTP-fetch egress (the network-descent layer of the
+ * stack). Returns null when the file is missing/malformed; the caller falls
+ * through to the next proxy in precedence. The secret never lives in source.
+ */
+export function loadCredsFileSync(): IproyalCreds | null {
+  try {
+    const st = statSync(IPROYAL_CREDS_PATH);
+    if (_syncCache && _syncCache.mtimeMs === st.mtimeMs) return _syncCache.creds;
+    const creds = parseCreds(readFileSync(IPROYAL_CREDS_PATH, "utf8"));
+    _syncCache = { creds, mtimeMs: st.mtimeMs };
+    return creds;
+  } catch {
+    return null;
+  }
 }
 
 function parseCreds(raw: string): IproyalCreds | null {
