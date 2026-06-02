@@ -16,11 +16,12 @@ and the reusable scorer for the full 250-URL run once a golden / Exa key lands.
 """
 import json
 import re
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-UNBROWSE = "/Users/lekt9/.bun/bin/unbrowse"
+UNBROWSE = os.environ.get("UNBROWSE_BIN", "/Users/lekt9/.bun/bin/unbrowse")
 HERE = Path(__file__).parent
 CORPUS = HERE / "vendor/benchmarks/webcode-benchmark/data/contents/code_contents.jsonl"
 
