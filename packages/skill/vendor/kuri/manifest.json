@@ -2,13 +2,8 @@
   "repo_url": "https://github.com/justrach/kuri.git",
   "branch": "adding-extensions",
   "source_sha": "8938f89f3d0c032bd19c59db0de4eadca18a1800",
-  "built_at": "2026-05-31T08:43:00.000Z",
+  "built_at": "2026-06-02T16:42:01.060Z",
   "binaries": {
-    "win-x64": {
-      "zig_target": "x86_64-windows",
-      "sha256": "025748920626e779dcb36162a533023425f29f93c327d91b03d3d1535e571f45",
-      "source": "cross-built"
-    },
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
       "sha256": "58edbbf7c7488db8f8a6495fb670f0b731815bb36713b1c4e0c970a74385764a",
@@ -28,6 +23,33 @@
       "zig_target": "x86_64-linux",
       "source": "placeholder",
       "sha256": "66e35d14361feb683b80dc7e01902a454945ce6829dbb31ed99c1751abc9ced8"
+    },
+    "win-x64": {
+      "zig_target": "x86_64-windows-gnu",
+      "sha256": "025748920626e779dcb36162a533023425f29f93c327d91b03d3d1535e571f45",
+      "source": "pre-staged"
+    }
+  },
+  "ffi": {
+    "darwin-arm64": {
+      "zig_target": "aarch64-macos",
+      "lib": "libkuri_ffi.dylib",
+      "sha256": "33f4b636a652a5e164b5932f075956e1e2b8a9a6892d7d504f7e8afbfb4ce5ad"
+    },
+    "darwin-x64": {
+      "zig_target": "x86_64-macos",
+      "lib": "libkuri_ffi.dylib",
+      "sha256": "097d19dcc22dc317223534083d0aaef88d850be8c87091f448402ea7f44cc93f"
+    },
+    "linux-arm64": {
+      "zig_target": "aarch64-linux",
+      "lib": "libkuri_ffi.so",
+      "sha256": "46de6dcee4c22a17d17b49ffa658d86a2408b118e2d602cd2bca4302817a73a7"
+    },
+    "linux-x64": {
+      "zig_target": "x86_64-linux",
+      "lib": "libkuri_ffi.so",
+      "sha256": "c11bc9c3ad09d839687baf701e9e94df4662e7ee3727ea0bf92cf84355daf231"
     }
   }
 }
