@@ -2,6 +2,7 @@ import { Hono, type Context, type Next } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoints, type EndpointSearchHit } from "../services/discovery.js";
 import { exaSearch } from "../services/exa.js";
+import { getOrComputeSemantic } from "../services/semantic-cache.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
@@ -262,8 +263,18 @@ searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) =
   const gate = await requireWebSearchPayment(c);
   if (gate) return gate; // 402 Flex terms / onboarding for external callers.
   try {
-    const results = await exaSearch(c.env.EXA_API_KEY, query.trim(), Math.min(Math.max(k ?? 5, 1), 20));
-    return c.json({ query: query.trim(), results });
+    const topK = Math.min(Math.max(k ?? 5, 1), 20);
+    // Semantic cache: a reworded repeat of a prior query returns the cached Exa
+    // results without paying the live Exa round-trip. Fail-open — any cache
+    // trouble falls through to the live exaSearch. (Keyed per-k so a k=5 cache
+    // never serves a k=20 request.)
+    const { value: results, cached } = await getOrComputeSemantic(
+      c.env,
+      `web:k${topK}`,
+      query.trim(),
+      () => exaSearch(c.env.EXA_API_KEY!, query.trim(), topK),
+    );
+    return c.json({ query: query.trim(), results, cached });
   } catch (err) {
     console.error("[search/web] exa failed:", (err as Error).message);
     return c.json({ query: query.trim(), results: [] });
