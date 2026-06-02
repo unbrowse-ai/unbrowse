@@ -2,6 +2,7 @@
   "name": "unbrowse",
   "version": "7.2.0",
   "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
+  "mcpName": "io.github.unbrowse-ai/unbrowse",
   "type": "module",
   "bin": {
     "unbrowse": "bin/unbrowse-wrapper.mjs"

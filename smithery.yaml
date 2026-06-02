@@ -4,7 +4,7 @@ description: >
   Reverse-engineer any website into reusable API skills for AI agents.
   Unbrowse learns internal APIs from real browsing traffic and replaces brittle
   browser automation with direct, reusable calls through a shared route graph.
-version: "2.11.0"
+version: "7.2.0"
 license: "AGPL-3.0"
 
 author:
