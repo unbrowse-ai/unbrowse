@@ -97,6 +97,22 @@ else
   fi
 fi
 
+# --- C3. `npx skills add unbrowse-ai/unbrowse` surface ----------------------
+# The public repo needs a root SKILL.md (named unbrowse) wired into the
+# open-core sync so the agentskills.io `skills` CLI can resolve it.
+ROOT_SKILL="SKILL.md"
+SYNC="scripts/open-core-sync.sh"
+if [ -f "$ROOT_SKILL" ] && grep -qE '^name:[[:space:]]*unbrowse[[:space:]]*$' "$ROOT_SKILL" && grep -qE '^description:' "$ROOT_SKILL"; then
+  pass "C3a: root SKILL.md is a valid agentskills.io skill named 'unbrowse' (npx skills add target)"
+else
+  bad "C3a: root SKILL.md missing/invalid — npx skills add unbrowse-ai/unbrowse needs name: unbrowse + description"
+fi
+if [ -f "$SYNC" ] && grep -q 'SKILL.md' "$SYNC" && grep -q '"\$DST/SKILL.md"' "$SYNC"; then
+  pass "C3b: open-core-sync.sh publishes root SKILL.md to the public repo"
+else
+  bad "C3b: open-core-sync.sh does not wire root SKILL.md to the public surface"
+fi
+
 # --- D. all four publish targets wired --------------------------------------
 [ -f "$SMITHERY" ]    && pass "D-smithery: smithery.yaml present"    || bad "D-smithery: missing"
 [ -f "$GLAMA" ]       && pass "D-glama: glama.json present"          || bad "D-glama: missing"
