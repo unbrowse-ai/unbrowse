@@ -4,6 +4,7 @@ import * as path from "path";
 import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
+import { withDeadline } from "../lib/deadline.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
@@ -2872,7 +2873,12 @@ export async function registerRoutes(app: FastifyInstance) {
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
-        const { entries } = await traceAsync("close", session.sessionId, "har-stop", () => brokerForSession(session).harStop(session.tabId));
+        // Bound the broker IPC: a wedged kuri must not hang close forever.
+        const { entries } = await withDeadline(
+          traceAsync("close", session.sessionId, "har-stop", () => brokerForSession(session).harStop(session.tabId)),
+          5000,
+          { entries: [] as KuriHarEntry[] },
+        );
         harEntries = entries;
       } catch { /* non-fatal */ }
     }
@@ -2897,7 +2903,11 @@ export async function registerRoutes(app: FastifyInstance) {
     // Collect JS bundle bodies for token source scanning
     const jsBundles = new Map<string, string>();
     try {
-      const intercepted = await traceAsync("close", session.sessionId, "collect-js-intercepted", () => collectInterceptedRequests(session.tabId).catch(() => []));
+      const intercepted = await withDeadline(
+        traceAsync("close", session.sessionId, "collect-js-intercepted", () => collectInterceptedRequests(session.tabId).catch(() => [])),
+        5000,
+        [] as Awaited<ReturnType<typeof collectInterceptedRequests>>,
+      );
       for (const entry of intercepted) {
         if (entry.is_js && entry.response_body && jsBundles.size < 20) {
           jsBundles.set(entry.url, entry.response_body);
@@ -3752,8 +3762,16 @@ export async function registerRoutes(app: FastifyInstance) {
           const syncResult = await traceAsync("close", session.sessionId, "flush-capture", () => flushBrowseCapture(session, { queueIndex: true, queuePublish: true, skipContentReadyWait: true }));
           stopStreamingWatcher(session.sessionId);
           await traceAsync("close", session.sessionId, "close-tab", async () => {
-            try { await broker.closeTab(session.tabId); }
-            catch (err) { console.error(`[browse-close] closeTab failed sid=${session.sessionId}: ${(err as Error).message}`); }
+            // Bound closeTab: a wedged broker must not hang close. The detached
+            // broker.stop below SIGKILLs the tab's process anyway, so a timed-out
+            // closeTab leaks nothing.
+            await withDeadline(
+              broker.closeTab(session.tabId).catch((err: unknown) => {
+                console.error(`[browse-close] closeTab failed sid=${session.sessionId}: ${(err as Error).message}`);
+              }),
+              3000,
+              undefined,
+            );
           });
           const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);

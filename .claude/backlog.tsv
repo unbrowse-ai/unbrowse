@@ -3,7 +3,7 @@ plan-file	AUTO	1	HIGH	-	done	test -f .claude/UNBROWSE-BACKLOG.md && test -f .cla
 stray-doc-cleanup	AUTO	1	MED	-	done	bash scripts/backlog/stray-doc-clean.sh --check	Docs reflect code: no stray @unbrowse/sdk or @unbrowse/client refs
 journal-vault	AUTO	1	LOW	-	done	test -d .claude/vault && ls .claude/vault/*.md >/dev/null 2>&1	Dated reflection vault (zettelkasten) accrues per-session learnings
 live-verify	AUTO	1	MED	-	done	bash scripts/web-reflects-gate.sh	Live site reflects open-core truth (web-reflects gate green)
-close-stuck-bug	AUTO	2	HIGH	-	todo	bun test tests/close-indexes.test.ts	unbrowse_close indexes + returns without hanging
+close-stuck-bug	AUTO	2	HIGH	-	done	bash scripts/backlog/close-stuck-gate.sh	unbrowse_close indexes + returns without hanging
 login-purge-bug	AUTO	2	HIGH	-	todo	bun test tests/auth-persist.test.ts	Auth/cookies persist across sessions (no constant logout)
 headless-default	AUTO	2	MED	-	todo	bun test tests/headless-default.test.ts	Headless by default; headful only on block; no stray tabs
 dag-recompute	AUTO	2	HIGH	-	todo	bash scripts/backlog/dag-recompute-gate.sh	resolve+execute walk requires/yields DAG at runtime (not static fallback)
