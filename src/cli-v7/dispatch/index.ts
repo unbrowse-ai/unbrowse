@@ -298,7 +298,7 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
       };
     }
     case "eval": {
-      const [snap, resolve, status, version, trace, markdown, screenshot, text, cookies, stats, skills, skill, sessions, earnings, settings, feedback, reflect] = await Promise.all([
+      const [snap, resolve, status, version, trace, markdown, screenshot, text, cookies, stats, skills, skill, sessions, earnings, settings, feedback, reflect, authInventory, spec] = await Promise.all([
         import("../eval/snap.js"),
         import("../eval/resolve.js"),
         import("../eval/status.js"),
@@ -316,6 +316,8 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         import("../eval/settings.js"),
         import("../eval/feedback.js"),
         import("../eval/reflect.js"),
+        import("../eval/auth-inventory.js"),
+        import("../eval/spec.js"),
       ]);
       return {
         snap: snap.handler,
@@ -335,6 +337,8 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         settings: settings.handler,
         feedback: feedback.handler,
         reflect: reflect.handler,
+        "auth-inventory": authInventory.handler,
+        spec: spec.handler,
       };
     }
     default:

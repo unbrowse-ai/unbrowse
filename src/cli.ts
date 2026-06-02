@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
+import { dispatchByKind } from "./cli-v7/dispatch/index.js";
 import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
@@ -1994,6 +1995,41 @@ async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise
   );
 }
 
+// `spec` and `auth-inventory` are v7-native eval primitives. Rather than
+// reimplement them, the CLI delegates to the SAME dispatchByKind path the MCP
+// server uses (src/mcp.ts → unbrowse_spec / unbrowse_auth_inventory), so the v7
+// kind-map handler is the single source of truth for both surfaces. In-process:
+// dispatchByKind runs the handler directly — no shell-out, no shared state.
+async function runV7Eval(
+  opKind: string,
+  evalArgs: Record<string, unknown>,
+  flags: Record<string, string | boolean>,
+): Promise<void> {
+  const pretty = flags.pretty === true;
+  const r = await dispatchByKind(opKind, evalArgs, { json: true, pretty });
+  output(
+    r.jsonResult ??
+      { ok: r.ok, exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr, error: r.dispatch_error },
+    pretty,
+  );
+  process.exit(r.exitCode);
+}
+
+async function cmdSpec(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const target = (typeof flags.target === "string" ? flags.target : undefined) ?? args[0];
+  if (!target) die("spec requires a target: unbrowse spec <domain-or-url> [--budget-ms N] [--graphql]");
+  const evalArgs: Record<string, unknown> = { target };
+  if (flags["budget-ms"] != null && flags["budget-ms"] !== true) evalArgs.budget_ms = Number(flags["budget-ms"]);
+  if (flags.graphql === true) evalArgs.graphql = true;
+  return runV7Eval("eval:spec_discover", evalArgs, flags);
+}
+
+async function cmdAuthInventory(_args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const evalArgs: Record<string, unknown> = {};
+  if (typeof flags.domain === "string") evalArgs.domain = flags.domain;
+  return runV7Eval("eval:auth_inventory", evalArgs, flags);
+}
+
 async function cmdSearch(flags: Record<string, string | boolean>): Promise<void> {
   // The `search` command emits funnel telemetry (search_started /
   // search_completed) so the agent acquisition story stays measurable.
@@ -2905,6 +2941,9 @@ export const CLI_REFERENCE = {
     { name: "publish", usage: "--skill ID [--confirm-publish] [--endpoints '[...]']", desc: "Publish reviewed skill to the marketplace. Re-indexes locally first; --confirm-publish bypasses the safety prompt." },
     { name: "publish-bundle", usage: "--preset path [--hosts codex,claude,openclaw] [--site-url url]", desc: "Derive foundry bundle/share/host artifacts from one preset and write the public share manifest." },
     { name: "cleanup-stale", usage: "[--skill ID] [--domain host] [--limit N]", desc: "Verify skills against live endpoints and evict stale cached entries." },
+    { name: "search", usage: '--intent "..." [--domain "..."] [--url "..."]', desc: "Unified discovery: find the route/skill (or web answer) for an intent. Searches the shared route graph first, plus best-effort web enrichment. Free — you only pay when you execute a returned paid route." },
+    { name: "spec", usage: "<domain-or-url> [--budget-ms N] [--graphql]", desc: "Probe spec-publishing endpoints (openapi/swagger/sitemap/robots/graphql) for a site BEFORE browse-capture. Pointer-only metadata. Delegates to the v7 eval handler shared with MCP `unbrowse_spec`." },
+    { name: "auth-inventory", usage: "[--domain host]", desc: "Per-domain inventory of what the local browser profile can already authenticate against (hostnames, cookie NAMES, counts — never values). Bias resolve toward logged-in domains. Shared with MCP `unbrowse_auth_inventory`." },
 
     // ── Browser session (Kuri primitives) ─────────────────────────────────
     // Use these when the work needs a real DOM (form submits, click flows).
@@ -4685,6 +4724,8 @@ async function main(): Promise<void> {
     case "skill": return cmdSkill(args, flags);
     case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
+    case "spec": return cmdSpec(args, flags);
+    case "auth-inventory": return cmdAuthInventory(args, flags);
     case "sessions": return cmdSessions(flags);
     case "inspect": return cmdInspect(args, flags);
     // Browse commands — Kuri browser actions with passive indexing

@@ -57,6 +57,10 @@ const LOCAL_ONLY_CLI = new Set([
 // for the agent runtime — there's no human-shaped CLI equivalent.
 const MCP_PROTOCOL_ONLY = new Set([
   "reflect", "diagnose", "validate", "trace", "test_crash",
+  "type_audit",  // Dev/harness tool, registered ONLY when running from source
+                 // (backend/src/types.ts present). Audits type parity across
+                 // backend/SDK/CLI for verify scripts — not a user-facing verb,
+                 // same class as test_crash. No CLI command by design.
   "publish_suggestions", "earnings",
   "auth_capture",  // MCP normalises hyphens — CLI side is `auth-capture` or
                    // `auth --capture`; allowlisted as matched-cousin.
