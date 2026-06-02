@@ -4,6 +4,16 @@
 
 ### What's New
 
+- **PyPI publish path for the six Python adapters.** `scripts/check-python-publishable.py`
+  builds a REAL wheel for each of `unbrowse-requests`, `unbrowse-httpx`,
+  `unbrowse-aiohttp`, `unbrowse-urllib3`, `unbrowse-crewai`, `unbrowse-pydantic-ai`
+  via the PEP-517 setuptools backend (no pip frontend, no network, no build
+  isolation) and asserts the wheel ships the module + dist-info METADATA and is not
+  bloated — 6/6 clean wheels. `scripts/publish-python.sh` is the human-triggered
+  twine upload (mirrors `publish-dropins.sh` for npm), gated by the check. Completes
+  the distribution story: 21 JS packages (npm) + 6 Python packages (PyPI) all have a
+  verified publish path.
+
 - **Python-layer adapters — the runtime below the JS ecosystem.** Six new pure-stdlib
   packages chosen by June-2026 adoption research: zero-edit HTTP drop-ins
   `unbrowse-requests`, `unbrowse-httpx`, `unbrowse-aiohttp`, `unbrowse-urllib3`
