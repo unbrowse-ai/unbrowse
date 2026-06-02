@@ -12,9 +12,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DST="${1:?usage: open-core-sync.sh <target-tree>}"
 cd "$ROOT"
 
-# Public packages: the open SDKs + every drop-in / agent-SDK / python adapter + the
-# adopter. NOT packages/skill (has moat src), NOT extraction-core (capture engine).
-PUBLIC_PKGS=(sdk sdk-v2 adopt
+# Public packages: every drop-in / agent-SDK / python adapter + the adopter.
+# The SDK is now folded into the `unbrowse` npm package (import from `unbrowse/sdk`),
+# so the standalone sdk / sdk-v2 packages are retired and no longer synced.
+# NOT packages/skill (has moat src), NOT extraction-core (capture engine).
+PUBLIC_PKGS=(adopt
   axios-shim got-shim ky-shim node-fetch-shim cross-fetch-shim undici-shim superagent-shim wretch-shim
   playwright-shim puppeteer-shim selenium-shim stagehand-shim
   firecrawl-shim exa-shim tavily-shim

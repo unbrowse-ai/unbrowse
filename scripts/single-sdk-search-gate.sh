@@ -24,9 +24,12 @@ if node -e "const p=require('./$PKG'); const e=p.exports||{}; process.exit((p.ma
 else
   bad "A1: \`unbrowse\` package has no SDK surface yet (need exports + packages/skill/src/sdk/index.ts)"
 fi
-# A2: no separately-published sdk / sdk-v2 in the public sync.
-if grep -qE '^PUBLIC_PKGS=\(sdk |[( ]sdk-v2[ )]' scripts/open-core-sync.sh; then
-  bad "A2: open-core-sync.sh still publishes a separate sdk/sdk-v2 package"
+# A2: no separately-published sdk / sdk-v2 in the public sync. Scope to the
+# PUBLIC_PKGS(...) array block only (avoid the docs/sdk dir + comments); match
+# whole tokens so `ai-sdk` doesn't false-trigger.
+PKG_ARRAY=$(awk '/^PUBLIC_PKGS=\(/{f=1} f{print} f&&/\)/{exit}' scripts/open-core-sync.sh)
+if printf '%s' "$PKG_ARRAY" | grep -qE '[( ]sdk(-v2)?[ )]'; then
+  bad "A2: open-core-sync.sh PUBLIC_PKGS still lists a separate sdk/sdk-v2 package"
 else
   pass "A2: no separate sdk/sdk-v2 in the public open-core sync"
 fi

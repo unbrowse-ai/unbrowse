@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (`@unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary.
+> **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (imported from `unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
@@ -47,18 +47,14 @@ That's it. `npx` fetches the `unbrowse` binary on first run; every web task in t
 
 ### Option 2 — TypeScript SDK
 
-Two SDK options. **New code should use `@unbrowse/client` (v7).**
-
-#### `@unbrowse/client` (v7 — recommended)
-
-Thin HTTP-first client. Browser + Node 18+. Zero runtime deps. Talks directly to the hosted Unbrowse API — no local binary required.
+One SDK, one install. The HTTP-first client ships inside the `unbrowse` package and is imported from `unbrowse/sdk` — browser + Node 18+, zero runtime deps, talks directly to the hosted Unbrowse API (no local binary required).
 
 ```bash
-npm i @unbrowse/client
+npm i unbrowse
 ```
 
 ```ts
-import { Unbrowse } from "@unbrowse/client";
+import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 
@@ -72,27 +68,7 @@ const data = await unbrowse.execute({
 });
 ```
 
-Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. See [`packages/sdk-v2/README.md`](./packages/sdk-v2/README.md) for streaming, proxy routing, and the full method surface.
-
-#### `@unbrowse/sdk` (v6 — legacy, binary-spawn)
-
-For existing v6 integrations or workflows that need the local CLI running alongside. Auto-spawns the `unbrowse` binary as a child process; talks to `127.0.0.1:6969`.
-
-```bash
-npm install @unbrowse/sdk
-```
-
-```ts
-import { Unbrowse } from "@unbrowse/sdk";
-
-const u = await Unbrowse.local();
-const result = await u.resolve({
-  intent: "list tomorrow's events",
-  url: "https://calendar.google.com",
-});
-```
-
-`Unbrowse.local()` probes `127.0.0.1:6969`, connects if a daemon is already running, and spawns the `unbrowse` CLI as a child process if not. See [`packages/sdk/README.md`](./packages/sdk/README.md) for `connect()` / `spawn()` factories and [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/) for the payment surface. v6 stays supported until existing users migrate to v7.
+Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. The same install also provides the `unbrowse` CLI and the MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for the full surface.
 
 ### Option 3 — Standalone CLI
 
