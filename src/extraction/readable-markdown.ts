@@ -17,6 +17,7 @@
  * adapter) gets it. The default fetch path is unchanged — opt-in only.
  */
 import { cleanDOM } from "./index.js";
+import { extractArticle } from "./readability.js";
 
 async function turndownService() {
 	const TurndownService = (await import("turndown")).default;
@@ -55,6 +56,20 @@ export async function htmlToPlainMarkdown(html: string): Promise<string> {
 export async function htmlToReadableMarkdown(html: string): Promise<string> {
 	const td = await turndownService();
 	const plain = td.turndown(stripPreamble(html)).replace(/\n{3,}/g, "\n\n").trim();
+	// 1. Readability node-scoring (src/extraction/readability.ts) — the real
+	//    algorithm. Unlike cleanDOM's region heuristic it separates the article
+	//    from PROSE-LIKE chrome (bios, related summaries) via class-WEIGHT scoring
+	//    + additive sibling assembly. Accept when it kept substantial content
+	//    (>=10% of the whole page, guarding against over-narrowing to a stray
+	//    sentence; normal article-vs-chrome narrowing lands well above that).
+	try {
+		const article = extractArticle(html);
+		if (article) {
+			const md = td.turndown(article).replace(/\n{3,}/g, "\n\n").trim();
+			if (md.length > 200 && md.length >= plain.length * 0.1) return md;
+		}
+	} catch { /* fall through to cleanDOM */ }
+	// 2. cleanDOM main-region fallback (its own content-loss guard below).
 	let cleaned: string;
 	try {
 		cleaned = cleanDOM(html);
