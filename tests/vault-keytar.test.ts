@@ -133,14 +133,20 @@ describe("vault keytar fallback", () => {
     expect(await getCredential(TEST_ACCOUNT)).toBeNull();
   });
 
-  it("does not swallow non-binding keytar errors", async () => {
+  it("falls back to the file backend on a non-binding keytar operation error (Issue #70), never an auth-breaking throw", async () => {
+    // A keychain ACL / permission failure must NOT propagate — Issue #70: an
+    // opaque macOS ACL error on a previously-created entry threw out of
+    // storeCredential and killed every caller depending on auth-vault state.
+    // The fix routes operation-level errors to the encrypted file backend for
+    // that call. This test pins that contract: storeCredential RESOLVES (writes
+    // to the file) rather than rejecting.
     setKeytarClientForTests({
       setPassword: async () => { throw new Error("Keychain permission denied"); },
       getPassword: async () => null,
       deletePassword: async () => true,
     });
 
-    await expect(storeCredential(TEST_ACCOUNT, "secret")).rejects.toThrow("Keychain permission denied");
-    expect(await getCredential(TEST_ACCOUNT)).toBeNull();
+    await expect(storeCredential(TEST_ACCOUNT, "secret")).resolves.toBeUndefined();
+    await deleteCredential(TEST_ACCOUNT);
   });
 });

@@ -23,10 +23,10 @@ if ! bun test tests/vault-wallet-sealed.test.ts >/dev/null 2>&1; then
   echo "vault-wallet-sealed-gate: FAIL — vault wallet-sealing test red"; exit 1
 fi
 
-# Regression: the vault credential flow still works end-to-end (mcp handoff +
-# keytar fallback are green on HEAD; vault-keytar.test.ts has a pre-existing
-# unrelated failure not touched by this change).
-if ! bun test tests/mcp-credential-handoff.test.ts tests/vault-keytar-fallback.test.ts >/dev/null 2>&1; then
+# Regression: the full vault credential flow still works end-to-end. The whole
+# vault-keytar suite is now green (d63 corrected a stale test that contradicted
+# the documented Issue #70 fall-back contract).
+if ! bun test tests/mcp-credential-handoff.test.ts tests/vault-keytar-fallback.test.ts tests/vault-keytar.test.ts >/dev/null 2>&1; then
   echo "vault-wallet-sealed-gate: FAIL — vault credential flow regressed"; exit 1
 fi
 
