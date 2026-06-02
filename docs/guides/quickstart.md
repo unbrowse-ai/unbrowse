@@ -122,11 +122,11 @@ unbrowse auth "https://calendar.google.com"
 If you want to call the same local-first flow from app code:
 
 ```bash
-npm install @unbrowse/sdk
+npm install unbrowse/sdk
 ```
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse();
 

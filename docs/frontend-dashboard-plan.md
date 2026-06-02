@@ -81,7 +81,7 @@ The split between gated `/dashboard` and public `/dashboard/[wallet]` already se
 
 ## Data sources (typed SDK only)
 
-Everything reachable through `@unbrowse/sdk` 6.9.69423+ where possible. No shadow REST calls from the frontend.
+Everything reachable through `unbrowse/sdk` 6.9.69423+ where possible. No shadow REST calls from the frontend.
 
 | Page / section | Typed SDK call | Notes |
 |---|---|---|

@@ -18,7 +18,7 @@ own split-and-settle logic on top of bare x402?**
 ## Decision
 
 ADOPT `@faremeter/flex-solana` as the canonical Flex payment scheme in
-`@unbrowse/sdk`. Concrete evidence:
+`unbrowse/sdk`. Concrete evidence:
 
 - `packages/sdk/package.json` declares `@faremeter/flex-solana@^0.2.1` as an
   optional dependency (tree-shake-preserving — SDK callers who never sign
@@ -44,7 +44,7 @@ ADOPT `@faremeter/flex-solana` as the canonical Flex payment scheme in
 | Variable-cost endpoint settle | native (Flex `createUptoHandler`) | re-implement |
 | Audit surface | shared audit with other Faremeter consumers | bespoke, one-of-one |
 | Risk if Faremeter pivots | medium — pin minor, vendor escape hatch in flex.ts | n/a |
-| Compatibility with @unbrowse/sdk tree-shake | preserved via lazy `await import` | n/a |
+| Compatibility with unbrowse/sdk tree-shake | preserved via lazy `await import` | n/a |
 
 Adopt wins on every line except "risk if Faremeter pivots", which we
 mitigate by (a) pinning `^0.2.1` (minor-version lock), (b) keeping every

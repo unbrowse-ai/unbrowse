@@ -62,7 +62,7 @@ Then point that worker's SDK at `http://localhost:6970`.
 ## Step 3 — Wire the SDK in your agent
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse({
   baseUrl: process.env.UNBROWSE_URL ?? "http://localhost:6969",

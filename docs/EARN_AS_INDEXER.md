@@ -19,7 +19,7 @@ Settlement is on-chain. Your share lands in the same Faremeter Flex transaction 
 
 1. Install the SDK or CLI.
    ```
-   npm i @unbrowse/sdk
+   npm i unbrowse/sdk
    ```
    The SDK spawns the local binary itself; no global install required. CLI users can run `npx unbrowse setup` or `unbrowse setup` for the interactive bootstrap.
 
