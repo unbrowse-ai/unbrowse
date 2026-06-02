@@ -2777,6 +2777,18 @@ async function runSandboxCore(
         .replace(/<!--[\s\S]*?-->/g, "")
         .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
+      // --main: strip page chrome (nav/sidebar/footer/ads) and isolate the main
+      // content region before converting, for higher extraction fidelity. Opt-in;
+      // the default whole-page conversion is unchanged. cleanDOM is lazy-loaded
+      // only when the flag is set, so default fetch pays no startup cost.
+      let cleanMain: ((h: string) => string) | null = null;
+      if (flags.main === true) {
+        try { cleanMain = (await import("./extraction/index.js")).cleanDOM; } catch { cleanMain = null; }
+      }
+      const prepHtml = (html: string): string => {
+        if (cleanMain) { try { return cleanMain(html); } catch { /* fall back */ } }
+        return stripPreamble(html);
+      };
       const isHtmlString = (s: unknown): s is string => {
         if (typeof s !== "string") return false;
         // A full HTML document (doctype / <html> / <head> / <body>) is always
@@ -2791,7 +2803,7 @@ async function runSandboxCore(
         : resp.post_eval;
       const convertHtmlFields = (val: unknown): unknown => {
         if (isHtmlString(val)) {
-          try { return turndown.turndown(stripPreamble(val)).replace(/\n{3,}/g, "\n\n").trim(); }
+          try { return turndown.turndown(prepHtml(val)).replace(/\n{3,}/g, "\n\n").trim(); }
           catch { return val; }
         }
         if (Array.isArray(val)) return val.map(convertHtmlFields);
