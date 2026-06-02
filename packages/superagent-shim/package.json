@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/superagent-shim",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for superagent. A safe GET routes through Unbrowse's resolved-route cache ($0 on hit); everything else is native fetch shaped into superagent's Response object — same callable request(method, url), get/post/put/patch/del/delete/head, chainable thenable Request with set/query/send/type/accept/timeout, .then()/await, and .end(callback).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["superagent", "http", "client", "request", "unbrowse", "shim"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/vs/superagent"
+}

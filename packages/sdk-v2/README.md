@@ -19,6 +19,39 @@ const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const result = await unbrowse.resolve({ intent: "search hackernews for AI agent papers" });
 ```
 
+## `fetch` drop-in (no key, no setup)
+
+`unfetch` is a drop-in for the global `fetch` — same signature, zero
+dependencies, no API key. Swap one import and your code is unchanged:
+
+```ts
+import { unfetch } from "@unbrowse/client";
+
+const res = await unfetch("https://example.com"); // identical to native fetch
+```
+
+Payment is opt-in and injected — never imported, so the base stays
+dependency-free. Provide a `pay` handler and the client transparently settles a
+`402 Payment Required` and retries once; without one, a 402 is returned to you
+unchanged, exactly like native fetch. Paying is a capability you can turn on, not
+a path the client forces:
+
+```ts
+import { createFetch } from "@unbrowse/client";
+
+const fetch = createFetch({
+  // Called only on a 402. Return headers to retry with, or null to decline.
+  // The handler owns the payment mechanism (subscription/credits, an
+  // embedded-wallet signer, an on-chain micropayment) — the client does not.
+  pay: async ({ terms, response }) => {
+    const proof = await myWallet.authorize(terms); // your choice of rail
+    return { "X-PAYMENT": proof };
+  },
+});
+
+const res = await fetch("https://paid.api.example/data"); // pays + retries if needed
+```
+
 ## What you get back
 
 ```ts

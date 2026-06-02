@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/langchain-js",
+  "version": "0.1.0",
+  "description": "Unbrowse as native LangChain JS tools. Three tools (resolve, execute, search) shaped exactly like LangChain's StructuredTool/DynamicStructuredTool — { name, description, schema (JSON Schema), invoke, call }. No zod dependency. Pass your own @langchain/core `tool` helper to createUnbrowseTools for branded DynamicStructuredTool instances.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["langchain", "@langchain/core", "tool", "agent", "unbrowse", "resolve", "execute", "search", "shim"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/vs/langchain"
+}

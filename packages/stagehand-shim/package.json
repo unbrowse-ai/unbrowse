@@ -1,0 +1,59 @@
+{
+  "name": "@unbrowse/stagehand-shim",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for @browserbasehq/stagehand. act/extract/observe route through Unbrowse's resolved-route cache. Same import line, same API, no per-browser-hour billing.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": [
+    "stagehand",
+    "browserbase",
+    "browser-automation",
+    "unbrowse",
+    "shim",
+    "llm-agent"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@browserbasehq/stagehand": ">=3.0.0",
+    "zod": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@browserbasehq/stagehand": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@unbrowse/sdk": "^7.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbrowse-ai/unbrowse"
+  },
+  "bugs": {
+    "url": "https://github.com/unbrowse-ai/unbrowse/issues"
+  },
+  "homepage": "https://unbrowse.ai/vs/browserbase"
+}

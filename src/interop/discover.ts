@@ -5,15 +5,16 @@
  * The drop-in promise is bidirectional: we serve our routes AS whatever a site
  * speaks (agent-primitives.serveAs), and we INGEST what the site already exposes
  * — its Agent Skills, its MCP tools, its x402 Bazaar resources — into the one
- * shared shape and prioritize them over our own wrapper. So when a site already
+ * route shape and prioritize them over our own wrapper. So when a site already
  * monetizes an x402 resource or runs an MCP tool for an intent, the agent is
- * pointed at THAT, not at a redundant re-wrap (the rational-adoption
+ * pointed at THAT, not at a redundant re-wrap (1 Cor 9:22; the rational-adoption
  * inequality of arXiv:2604.00694 — use what costs least to reach).
  *
  * Sources are INJECTED (each optional), so this is pure + testable with stubs and
  * the real fetchers (agentskills.io registry, an MCP server probe, the x402 Bazaar
  * list, the native route graph) are wired at the mount.
  */
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the route code inherits the root signature — pointer not payload; verify via (internal))
 import {
 	ingest,
 	prioritize,
@@ -34,7 +35,7 @@ export interface PrimitiveSources {
 	llmsTxtLinks?: (intent: string, domain?: string) => Promise<LlmsTxtLink[]>;
 	/** A2A is pre-fanned (card → one primitive per skill). */
 	a2aPrimitives?: (intent: string, domain?: string) => Promise<AgentPrimitive[]>;
-	/** native route graph — already in the shared shape. */
+	/** native route graph — already route-shaped. */
 	routes?: (intent: string, domain?: string) => Promise<AgentPrimitive[]>;
 }
 
@@ -73,7 +74,7 @@ export async function discoverPrimitives(
 		...x402Resources.map((r) => ingest(r, "x402_resource")),
 		...openApiOps.map((o) => ingest(o, "openapi", { who: domain })),
 		...llmsTxtLinks.map((l) => ingest(l, "llms_txt", { who: domain })),
-		...a2aPrimitives, // already in the shared shape (card fanned to skills)
+		...a2aPrimitives, // already route-shaped (card fanned to skills)
 		...routes.map((r) => ingest(r, "route")),
 	];
 

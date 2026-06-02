@@ -1,0 +1,29 @@
+{
+  "name": "@unbrowse/adopt",
+  "version": "0.1.0",
+  "description": "Universal drop-in adopter: one command rewrites a repo's imports from a supported library (axios, got, ky, node-fetch, cross-fetch, puppeteer, playwright, firecrawl, stagehand) to the matching Unbrowse drop-in shim, in the source's own syntax, producing a reviewable diff. Adoption by consent — never unsolicited.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "unbrowse-adopt": "./bin/adopt.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "bin", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["unbrowse", "codemod", "drop-in", "adopter", "migration", "shim"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/adopt"
+}

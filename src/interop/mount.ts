@@ -8,6 +8,7 @@
  * before any fetch). Native route candidates are passed IN by resolve (it already
  * has them) rather than re-fetched, then ranked together with the external ones.
  */
+// cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the route code inherits the root signature — pointer not payload; verify via (internal))
 import { discoverPrimitives, type PrimitiveSources } from "./discover.js";
 import { x402BazaarSource, localSkillsSource, llmsTxtSource, openApiSource, a2aSource } from "./sources.js";
 import { prioritize, type AgentPrimitive, type SkillFrontmatter } from "./agent-primitives.js";

@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/mastra",
+  "version": "0.1.0",
+  "description": "Native Unbrowse tools for Mastra agents. Exposes resolve/execute/search as Mastra createTool()-compatible tools (JSON-Schema input, no zod). Each tool routes through Unbrowse's resolved-route marketplace cache ($0 on hit).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["mastra", "@mastra/core", "tool", "agent", "unbrowse", "resolve", "execute", "ai"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/vs/mastra"
+}
