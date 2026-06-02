@@ -25,6 +25,7 @@
 
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
+import { resolveEgressProxy } from "../execution/proxy-fetch.js";
 
 export interface CurlCffiResult {
   status: number;
@@ -56,8 +57,14 @@ export interface CurlCffiOptions {
 export async function tryCurlImpersonateFetch(opts: CurlCffiOptions): Promise<CurlCffiResult | null> {
   const scriptPath = opts.scriptPath ?? resolve(process.cwd(), "scripts/curl-impersonate-fetch.py");
   const timeoutMs = opts.timeoutMs ?? 30_000;
+  // Bake the residential egress into the packet-layer (fingerprint-faithful)
+  // fetch: when the caller didn't pin a proxy and isn't forcing direct, descend
+  // through the resolved egress. resolveEgressProxy reads ~/.identity/iproyal-creds
+  // -> IProyal (the same source the browser + TS-fetch paths use), so one creds
+  // file routes every layer of the network descent through the residential pool.
+  const proxy = opts.forceDirect ? undefined : (opts.proxy ?? resolveEgressProxy());
   const args = [scriptPath, opts.url];
-  if (opts.proxy) { args.push("--proxy", opts.proxy); }
+  if (proxy) { args.push("--proxy", proxy); }
   if (opts.impersonate) { args.push("--impersonate", opts.impersonate); }
   args.push("--timeout", String(Math.floor(timeoutMs / 1000)));
 
