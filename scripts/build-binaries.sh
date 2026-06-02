@@ -43,7 +43,11 @@ build_target() {
     --target="$bun_target"
     --outfile "$outfile"
   )
-  if [ "${UNBROWSE_BUILD_MINIFY:-0}" = "1" ]; then
+  # Minify by default: drops the embedded bundle ~5.0M -> ~2.8M (binary 78M -> 75M)
+  # with no runtime change (verified: minified binary boots + parses CLI). Set
+  # UNBROWSE_BUILD_MINIFY=0 to opt out (e.g. for readable stack traces in a debug
+  # build).
+  if [ "${UNBROWSE_BUILD_MINIFY:-1}" != "0" ]; then
     build_args+=(--minify)
   fi
   bun build "${build_args[@]}" 2>&1
