@@ -28,7 +28,7 @@ HUMAN_BLOCKED_OUTWARD="push-public history-scrub release-announce npm-deprecate"
 # Items parked on a PRODUCT decision (not a build): e.g. exa-search-backend —
 # /v1/search is free by design (PR #816); pricing it + splitting per-search would
 # reverse a deliberate decision, so it needs the user's call, not an autonomous build.
-PRODUCT_PARKED="exa-search-backend account-gate"
+PRODUCT_PARKED="exa-search-backend account-gate meta-mcp-hotswap"
 
 todo=0 done=0 parked=0 integrity=0
 while IFS=$'\t' read -r id class wave leverage deps status witness title; do
