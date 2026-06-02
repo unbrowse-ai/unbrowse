@@ -2276,6 +2276,32 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: "unbrowse_search",
+    description: "Unified search-on-top: find the route/skill (or the web answer) for an intent. Searches the shared route graph first, then falls back to live web search when no indexed route fits. A priced call settled per-request via x402 — the agent's wallet pays on the 402 challenge (delegated to the configured wallet; no keys handled here), and the fee is split among the parties who created the value (the existing platform/indexer/owner split). Returns ranked hits, each with skill_id + endpoint_id where applicable so you can chain into unbrowse_execute.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        intent: { type: "string", description: "Natural-language query (e.g., 'best machine learning frameworks', 'find a route to list GitHub repos')." },
+        k: { type: "number", description: "Max results to return (1-25, default 10).", minimum: 1, maximum: 25 },
+        web: { type: "boolean", description: "Allow live web-search fallback when no indexed route fits (default true). Set false to search the route graph only." },
+      },
+      required: ["intent"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      await ensureServerReady();
+      const body: Record<string, unknown> = { intent: args.intent };
+      if (typeof args.k === "number") body.k = args.k;
+      if (typeof args.web === "boolean") body.web = args.web;
+      // /v1/search is the priced search-on-top route. The backend resolves the
+      // route graph, falls back to a paid web-search provider on miss, and the
+      // x402 settlement (incl. the platform/indexer/owner split) happens there;
+      // api() handles the 402 challenge by delegating payment to the wallet seam.
+      return successResult(await api("POST", "/v1/search", body), "Search results.");
+    },
+  },
+  {
     name: "unbrowse_feedback",
     description: "MANDATORY after every unbrowse_execute where results were shown to the user. Submit quality feedback so the marketplace learns which endpoints work.",
     inputSchema: {

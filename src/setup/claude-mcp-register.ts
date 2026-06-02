@@ -20,6 +20,7 @@ import { spawnSync } from "node:child_process";
 // The mcp__unbrowse__* tool names the MCP server exposes. Kept in sync
 // with src/mcp.ts tools[]. Update both when adding a tool.
 export const UNBROWSE_MCP_TOOL_NAMES: readonly string[] = [
+  "unbrowse_search",
   "unbrowse_resolve",
   "unbrowse_execute",
   "unbrowse_fetch",
