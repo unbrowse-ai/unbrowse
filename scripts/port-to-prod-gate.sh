@@ -70,8 +70,16 @@ if [ -z "$KEY" ] || [ ! -f "$LEDGER" ]; then note "PENDING — need UNBROWSE_API
   hits=0; tried=0
   for s in $(grep '"ok":true' "$LEDGER" | grep -oE '"site":"https://[^"]+"' | sed 's/"site":"//;s/"//' | head -"$SAMPLE_N"); do
     dom=$(echo "$s" | sed -E 's#https?://##;s#/.*##'); tried=$((tried+1))
-    body=$(curl -s --max-time 15 -H "Authorization: Bearer $KEY" "$API/v1/skills?domain=$dom" 2>/dev/null || echo "")
-    echo "$body" | grep -qE '"skill_id"|"endpoint_id"' && hits=$((hits+1))
+    # Retry-once on miss with a small delay — prod rate-limits rapid sequential
+    # probes, which was making the sampled count flake 14↔16 on the same domains.
+    ok_dom=0
+    for attempt in 1 2; do
+      body=$(curl -s --max-time 15 -H "Authorization: Bearer $KEY" "$API/v1/skills?domain=$dom" 2>/dev/null || echo "")
+      if echo "$body" | grep -qE '"skill_id"|"endpoint_id"'; then ok_dom=1; break; fi
+      sleep 0.4
+    done
+    hits=$((hits+ok_dom))
+    sleep 0.2
   done
   if [ "$hits" -ge "$REQ" ]; then note "ok — $hits/$tried sampled ok-domains resolve in prod marketplace (>= $REQ)"; else note "PENDING — only $hits/$tried sampled domains resolve in prod (want >= $REQ)"; fail=1; fi
 fi
