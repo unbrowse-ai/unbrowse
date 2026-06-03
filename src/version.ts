@@ -17,7 +17,20 @@ import {
 // Computed once at startup. Same code = same hash.
 // Used to stamp every trace so real user sessions become versioned evals.
 
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+// Resolve the module directory for the dev-only filesystem code-hash fallback.
+// In a Cloudflare Worker (workerd) `import.meta.url` is undefined, so
+// fileURLToPath(undefined) throws at module-load and the worker fails CF
+// validation (error 10021). Guard it: release builds carry BUILD_CODE_HASH and
+// never touch the filesystem, so an empty dir here is harmless.
+function safeModuleDir(): string {
+  try {
+    return dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return "";
+  }
+}
+
+const MODULE_DIR = safeModuleDir();
 
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
