@@ -14,13 +14,12 @@
  * the SAME root, correctly chained, untampered. Tamper any layer, or swap the
  * wallet, and verification fails closed.
  */
-import { createHash } from "node:crypto";
 import { signBytes, getWalletPubkey } from "./signer.js";
 import { verifyEd25519 } from "./zk-binding.js";
 
 /** Top (closest to the human) → bottom (closest to the wire). */
 export const LAYERS = ["screen", "browser", "cli", "os", "kernel", "packet"] as const;
-import { GENESIS } from "./content-address.js"; // one source of truth (commandments #1/#6)
+import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (commandments #1/#6)
 
 export interface DescentRecord {
   layer: string;
@@ -32,7 +31,6 @@ export interface DescentRecord {
   sig: string;      // wallet Ed25519 signature over the canonical record (hex)
 }
 
-const sha = (data: Uint8Array): string => createHash("sha256").update(Buffer.from(data)).digest("hex");
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
 /** Canonical bytes of a record's signed core (deterministic, sorted keys). */
@@ -59,7 +57,7 @@ export async function descend(
     const { sig } = await signBytes(c).then((r) => ({ sig: bytesToHex(r.signature) }));
     const rec: DescentRecord = { ...core, sig };
     chain.push(rec);
-    parent = sha(Buffer.concat([c, Buffer.from(sig, "utf8")]));
+    parent = sha256hex(Buffer.concat([c, Buffer.from(sig, "utf8")]));
   }
   return chain;
 }
@@ -76,7 +74,7 @@ export function verifyDescent(chain: DescentRecord[], expectRoot: string): boole
     if (rec.parent !== parent) return false;
     const c = canon(rec);
     if (!verifyEd25519(rootBytes, c, Buffer.from(rec.sig, "hex"))) return false;
-    parent = sha(Buffer.concat([c, Buffer.from(rec.sig, "utf8")]));
+    parent = sha256hex(Buffer.concat([c, Buffer.from(rec.sig, "utf8")]));
   }
   return true;
 }

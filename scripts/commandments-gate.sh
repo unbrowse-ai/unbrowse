@@ -17,6 +17,13 @@ else
   echo "  FAIL — GENESIS defined in $genesis_defs files (duplication = theft)"; fail=1
   grep -rl 'repeat(64)' src/values/*.ts | grep -v test | sed 's/^/    /'
 fi
+# the sha256-HEX primitive must live only in content-address (raw .digest() Merkle uses ok)
+sha_dupes=$(grep -rnE 'createHash\("sha256"\).*digest\("hex"\)' src/values/*.ts 2>/dev/null | grep -v 'content-address.ts' | grep -v test || true)
+if [ -z "$sha_dupes" ]; then
+  echo "  ok — sha256-hex primitive centralized (content-address.sha256hex)"
+else
+  echo "  FAIL — sha256-hex re-implemented (theft):"; echo "$sha_dupes" | sed 's/^/    /'; fail=1
+fi
 
 echo "=== #3 no graven images: no stubs/dummy/TODO in the primitive surface ==="
 stubs=$(grep -rnE '\bTODO\b|\bFIXME\b|not implemented|throw new Error\(["'"'"'`]stub|dummy success|fake.?success' "${SCOPE[@]}" 2>/dev/null | grep -vE 'test' || true)
