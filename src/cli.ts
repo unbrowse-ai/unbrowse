@@ -10,6 +10,7 @@
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
+import { cachedResolution } from "./values/cached-resolution.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
 import { dispatchByKind } from "./cli-v7/dispatch/index.js";
@@ -814,7 +815,28 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       );
     }
 
-    let result = await resolveOnce();
+    // Signature-keyed resolution cache (src/values/cached-resolution.ts): a repeated
+    // identical resolve replays the cached pointer instead of re-paying discovery +
+    // enrichment. CLEAN results only (no error/auth_required, real shortlist), TTL'd,
+    // and skipped for explicit-endpoint / dry-run / force-capture / require-proof (those
+    // want fresh) and under UNBROWSE_STATELESS=1 (no local state). Retries below stay live.
+    const resolveCacheTtlMs = process.env.UNBROWSE_STATELESS === "1"
+      ? 0
+      : Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
+    const resolveCacheSafe = resolveCacheTtlMs > 0 && !explicitEndpointId
+      && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"];
+    let result: Record<string, unknown>;
+    if (resolveCacheSafe) {
+      const cached = await cachedResolution<Record<string, unknown>>({
+        key: `intent-resolve ${JSON.stringify({ intent, url: url ?? "", domain: domain ?? "", autoExecute, params: extraParams })}`,
+        ttlMs: resolveCacheTtlMs,
+        recompute: () => resolveOnce(),
+        cacheable: (r) => isResolveSuccessResult(r),
+      });
+      result = cached.value;
+    } else {
+      result = await resolveOnce();
+    }
     const resultError = resolveResultError(result);
     if (resultError === "auth_required") {
       const loginUrl = resolveLoginUrl(result, url);
