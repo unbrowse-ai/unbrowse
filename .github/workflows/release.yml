@@ -134,6 +134,13 @@ jobs:
         if: env.SKIP_SYNC != '1'
         working-directory: dev
         run: bash scripts/public-tree-leak-gate.sh "$GITHUB_WORKSPACE/public"
+      # Ten doc commandments on the assembled tree: no dead links, balanced
+      # fences, one H1, substance, no markers/local-paths/secrets. A hit fails
+      # the job before the public push.
+      - name: Markdown commandments gate on assembled public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/md-commandments-gate.sh "$GITHUB_WORKSPACE/public"
       - name: Commit + push public tree
         if: env.SKIP_SYNC != '1'
         working-directory: public
