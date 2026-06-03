@@ -105,6 +105,22 @@ describe("semantic-cache tiering", () => {
     expect(r.value).toEqual(["computed"]);
   });
 
+  it("an EXPIRED L1 entry is treated as a miss (recomputes)", async () => {
+    l1Value = JSON.stringify({ __semexp: Date.now() - 1000, __semv: ["stale"] }); // expired 1s ago
+    let computed = false;
+    const r = await getOrComputeSemantic(env, "web", "ttl expired query", async () => { computed = true; return ["fresh"]; });
+    expect(r.cached).toBe(false);
+    expect(r.value).toEqual(["fresh"]);
+    expect(computed).toBe(true);
+  });
+
+  it("a FRESH (unexpired) wrapped L1 entry still hits", async () => {
+    l1Value = JSON.stringify({ __semexp: Date.now() + 60_000, __semv: ["still-good"] });
+    const r = await getOrComputeSemantic(env, "web", "ttl fresh query", async () => ["recomputed"]);
+    expect(r.cached).toBe(true);
+    expect(r.value).toEqual(["still-good"]);
+  });
+
   it("L0 in-process hit serves a repeat with ZERO network calls", async () => {
     // 1st call: a miss — pays the network (embed/search/get); populates L0. Drain
     // the deferred write-through so the fetch count is stable before we measure.
