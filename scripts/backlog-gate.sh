@@ -29,6 +29,20 @@ HUMAN_BLOCKED_OUTWARD="push-public history-scrub release-announce npm-deprecate"
 # /v1/search is free by design (PR #816); pricing it + splitting per-search would
 # reverse a deliberate decision, so it needs the user's call, not an autonomous build.
 PRODUCT_PARKED="account-gate meta-mcp-hotswap"
+# Bench wins whose WITNESS the autonomous loop cannot move without a HUMAN step
+# (re-verified d118 — see the per-row notes for the full d52-d117 evidence trail):
+#  - browsecomp-win: the N=10 witness measures unbrowse's `search` vs prod Exa, but
+#    EXA_API_KEY is prod-only (absent from .env AND backend/.dev.vars), so the exa
+#    results come from prod regardless of local code — NO autonomous change moves the
+#    witness without a prod DEPLOY or a local EXA key (both Lewis-provided). The
+#    d113-116 arc shipped 4 real fixes (resolve->search, enrich-return, multi-source,
+#    globalK coverage) lifting the true baseline 0.0->0.1; the residual descriptive-
+#    puzzle search-quality gap needs that deploy + multi-day ranking work.
+#  - scrapling-turnstile: the "gated site flips to pass" witness is a LIVE third-party
+#    CF/Turnstile e2e needing x402 funds + a wallet + a Lewis-driven browser run (he
+#    uninstalled the unbrowse MCP, d117). d117 saw a positive CF-pass signal (nowsecure
+#    success text) but it is not a clean re-runnable witness.
+HUMAN_BLOCKED_BENCH="browsecomp-win scrapling-turnstile"
 
 todo=0 done=0 parked=0 integrity=0
 while IFS=$'\t' read -r id class wave leverage deps status witness title; do
@@ -38,6 +52,7 @@ while IFS=$'\t' read -r id class wave leverage deps status witness title; do
   case "$class" in HUMAN|UNBOUNDED) parked_row=1;; esac
   case " $HUMAN_BLOCKED_OUTWARD " in *" $id "*) parked_row=1;; esac
   case " $PRODUCT_PARKED " in *" $id "*) parked_row=1;; esac
+  case " $HUMAN_BLOCKED_BENCH " in *" $id "*) parked_row=1;; esac
 
   if [ "$status" = "done" ]; then
     if bash -c "$witness" >/dev/null 2>&1; then
