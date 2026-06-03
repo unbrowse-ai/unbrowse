@@ -68,3 +68,38 @@ export async function cachedResolution<T>(opts: {
   }
   return { value, cached: false };
 }
+
+/**
+ * Read-only cache peek — returns the cached value for `key` if a FRESH entry exists,
+ * else null. Pure fs, no recompute and no network: it never boots anything, so a hit
+ * can short-circuit a command before any expensive setup. Disabled (null) when
+ * ttlMs <= 0. Never throws.
+ */
+export function peekResolution<T>(key: string, ttlMs: number, dir?: string, now?: number): T | null {
+  if (!(ttlMs > 0)) return null;
+  try {
+    const root = dir ?? defaultResolutionCacheDir();
+    const ledger = fsLedger(join(root, "resolutions.jsonl"));
+    const hit = ledger.find(intentPointer(key));
+    if (!hit || hit.ts == null || (now ?? Date.now()) - hit.ts > ttlMs) return null;
+    const cached = resolvePointer(hit.result, fsBlobStore(join(root, "blobs")));
+    return cached === null ? null : (JSON.parse(cached) as T);
+  } catch {
+    return null;
+  }
+}
+
+/** Write a value into the resolution cache under `key` (content-addressed pointer +
+ *  ledger row). Best-effort: a write failure never throws. */
+export function storeResolution<T>(key: string, value: T, ttlMs: number, dir?: string, now?: number): void {
+  if (!(ttlMs > 0)) return;
+  try {
+    const root = dir ?? defaultResolutionCacheDir();
+    const store = fsBlobStore(join(root, "blobs"));
+    const ledger = fsLedger(join(root, "resolutions.jsonl"));
+    const ptr = putBlob(JSON.stringify(value), store);
+    ledger.append(intentPointer(key), ptr, now ?? Date.now());
+  } catch {
+    /* best-effort */
+  }
+}

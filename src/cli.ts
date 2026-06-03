@@ -10,7 +10,7 @@
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
-import { cachedResolution } from "./values/cached-resolution.js";
+import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
 import { dispatchByKind } from "./cli-v7/dispatch/index.js";
@@ -703,9 +703,50 @@ async function cmdExplain(flags: Record<string, string | boolean>): Promise<void
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 }
 
+// Stable cache key for a resolve invocation — the semantic inputs only (params parse
+// is guarded so a malformed --params never throws on the fast path).
+function resolveCacheKeyFor(flags: Record<string, string | boolean>, intent: string): string {
+  const url = flags.url as string | undefined;
+  const domain = flags.domain as string | undefined;
+  const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
+  let extra: Record<string, unknown> = {};
+  try {
+    extra = { ...(flags.params ? JSON.parse(flags.params as string) : {}), ...(cliKv && Object.keys(cliKv).length ? cliKv : {}) };
+  } catch { extra = {}; }
+  return `intent-resolve ${JSON.stringify({ intent, url: url ?? "", domain: domain ?? "", autoExecute: flags["no-execute"] !== true, params: extra })}`;
+}
+function resolveCacheTtlMs(): number {
+  if (process.env.UNBROWSE_STATELESS === "1") return 0;
+  return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
+}
+function resolveCacheSafe(flags: Record<string, string | boolean>): boolean {
+  const endpointFlag = flags["endpoint-id"] ?? flags.endpoint;
+  return resolveCacheTtlMs() > 0
+    && typeof endpointFlag !== "string"
+    && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"];
+}
+
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
+
+  // FAST PATH: a fresh resolution-cache hit short-circuits BEFORE the in-process
+  // backend boots (~4s) and before any telemetry — warm resolve in ~module-load time.
+  // The cached value is the SAME final result the slow path prints, so output is
+  // byte-identical. Skipped under stateless / explicit-endpoint / dry-run / force-capture.
+  if (resolveCacheSafe(flags)) {
+    const cachedHit = peekResolution<Record<string, unknown>>(resolveCacheKeyFor(flags, intent), resolveCacheTtlMs());
+    if (cachedHit) {
+      void recordFunnelTelemetryEvent("resolve_completed", {
+        source: "cli",
+        hostType: detectTelemetryHostType(),
+        properties: { command: "resolve", intent, cache_hit: true },
+      }).catch(() => {});
+      output(cachedHit, !!flags.pretty);
+      return;
+    }
+  }
+
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
   await ensureCliInstallTracked(hostType);
@@ -815,28 +856,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       );
     }
 
-    // Signature-keyed resolution cache (src/values/cached-resolution.ts): a repeated
-    // identical resolve replays the cached pointer instead of re-paying discovery +
-    // enrichment. CLEAN results only (no error/auth_required, real shortlist), TTL'd,
-    // and skipped for explicit-endpoint / dry-run / force-capture / require-proof (those
-    // want fresh) and under UNBROWSE_STATELESS=1 (no local state). Retries below stay live.
-    const resolveCacheTtlMs = process.env.UNBROWSE_STATELESS === "1"
-      ? 0
-      : Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
-    const resolveCacheSafe = resolveCacheTtlMs > 0 && !explicitEndpointId
-      && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"];
-    let result: Record<string, unknown>;
-    if (resolveCacheSafe) {
-      const cached = await cachedResolution<Record<string, unknown>>({
-        key: `intent-resolve ${JSON.stringify({ intent, url: url ?? "", domain: domain ?? "", autoExecute, params: extraParams })}`,
-        ttlMs: resolveCacheTtlMs,
-        recompute: () => resolveOnce(),
-        cacheable: (r) => isResolveSuccessResult(r),
-      });
-      result = cached.value;
-    } else {
-      result = await resolveOnce();
-    }
+    let result = await resolveOnce();
     const resultError = resolveResultError(result);
     if (resultError === "auth_required") {
       const loginUrl = resolveLoginUrl(result, url);
@@ -983,6 +1003,13 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     if (skill?.skill_id && trace) {
       (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
+    }
+
+    // Store the FINAL result so a repeated identical resolve hits the fast path above
+    // (clean results only; skipped for the unsafe/stateless cases). This is the exact
+    // object printed, so the warm fast-path output is byte-identical.
+    if (resolveCacheSafe(flags) && isResolveSuccessResult(result)) {
+      storeResolution(resolveCacheKeyFor(flags, intent), result, resolveCacheTtlMs());
     }
 
     output(result, !!flags.pretty);

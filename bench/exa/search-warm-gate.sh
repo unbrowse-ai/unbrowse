@@ -28,7 +28,14 @@ echo "[warm-gate] cold=${cold}ms  warm=${warm}ms"
 if ! cmp -s /tmp/warm-gate-cold.json /tmp/warm-gate-warm.json; then
   echo "[warm-gate] FAIL — warm result differs from cold (caching changed the answer)"; exit 1
 fi
+# Two gates: (1) materially faster than cold, and (2) below the app-boot floor — a
+# fresh hit must short-circuit BEFORE the in-process backend boots (~4s). 4000ms ceiling
+# catches a regression where a cache hit re-boots the app.
+WARM_CEILING_MS="${WARM_CEILING_MS:-4000}"
 if [ "$cold" -le 0 ] || [ "$((warm*2))" -ge "$cold" ]; then
   echo "[warm-gate] NOT YET — warm (${warm}ms) not < cold/2 (${cold}ms). Cache miss?"; exit 1
 fi
-echo "[warm-gate] PASS — warm replay ${warm}ms < cold/2 (${cold}ms), identical result. Repeated search is fast."
+if [ "$warm" -ge "$WARM_CEILING_MS" ]; then
+  echo "[warm-gate] NOT YET — warm (${warm}ms) >= ${WARM_CEILING_MS}ms ceiling; the hit is likely still booting the app."; exit 1
+fi
+echo "[warm-gate] PASS — warm replay ${warm}ms (< cold/2 ${cold}ms, < ${WARM_CEILING_MS}ms floor), identical result. Repeated search beats a cold app boot."
