@@ -31,6 +31,9 @@ NODES=(
   "superpattern-cli-surface:tests/cli-surface.test.ts"   # the CLI shaped to the atoms; every command exposes only holes + auth, no internal
   "wallet-hierarchy:tests/wallet-hierarchy.test.ts"      # every layer has a wallet PARENT that owns it + covenants it vertically
   "layer-wallet-descent:tests/layer-wallet-descent.test.ts" # each layer SIGNS with its own parent-owned wallet (hierarchy ∘ descent)
+  # --- the backend IS the harness: obfuscated API surfaces only holes; values ZK'd to the wallet; layered KV-cached fallback pipe ---
+  "backend-reveng-endpoint:tests/backend-reveng-endpoint.test.ts" # end-to-end: client obfuscates+audits → backend returns ONLY {skeleton,holes} (no secret/engine on the wire) → client fills sealed-to-wallet locally → round-trips the exact request; bound holes verify attested w/o the secret
+  "kv-fallback-pipe:tests/kv-fallback-pipe.test.ts"      # the descent ladder walked highest-capable-first, each layer content-addressed/cached, falling through to the next on miss — "everything is a fallback kv-cached to a pipe"
 )
 
 todo=0; done=0; pending_tests=()
