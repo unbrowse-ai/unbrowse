@@ -403,7 +403,7 @@ export async function searchIntentResolve(
   // Exa fires in parallel with graph searches — it's a best-effort enrichment,
   // never on the critical path. Skip when key not configured.
   const exaPromise: Promise<ExaWebResult[]> = env.EXA_API_KEY
-    ? exaSearch(env.EXA_API_KEY, intent).catch((err) => {
+    ? exaSearch(env.EXA_API_KEY, intent, globalK).catch((err) => {
         console.error("[search-resolve] exa error:", (err as Error).message);
         return [] as ExaWebResult[];
       })
