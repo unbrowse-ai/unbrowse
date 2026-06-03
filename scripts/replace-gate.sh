@@ -17,9 +17,11 @@
 #   2. faster (mechanism + margin)   — tests/replay-speed.test.ts: the warm cached
 #      replay path SKIPS the cold work and is ≥20× faster in real wall-clock; this is
 #      WHY unbrowse beats an always-cold agent (Browser-Use) and an always-paid API (Exa)
-#   3. drop-in interface parity      — every surface a user would switch FROM exists:
-#      exa→search, browser-use→browse+execute(replay), MCP, CLI skills, OpenAI-compat
-#      SDK, and the stateless binary the north star requires
+#   3. stateless binary (behaviour)  — stateless-mode + cross-firmament signer tests:
+#      STATELESS=1 writes NO local files, and only pointers/hashes/sig cross the wire
+#      (proven by behaviour, not by grepping that _stateless.ts exists)
+#   4. drop-in interface parity      — every surface a user would switch FROM exists:
+#      exa→search, browser-use→browse+execute(replay), MCP, CLI skills, OpenAI-compat SDK
 #
 # LIVE (tier 2, evidence only, needs keys): the exa extraction scorer (quality
 # "better": the recorded two-witness 0.8919 > Exa 0.828) and the BrowseComp gate.
@@ -28,21 +30,32 @@ cd "$(dirname "$0")/.."   # repo root
 
 fail=0
 
-echo "=== GATED 1/3 — privacy/moat frontier (zk-gate) ==="
+echo "=== GATED 1/4 — privacy/moat frontier (zk-gate) ==="
 if ! bash scripts/zk-gate.sh >/tmp/replace-zk.log 2>&1; then
   echo "[replace-gate] FAIL — zk-gate red:"; tail -6 /tmp/replace-zk.log; fail=1
 else
   echo "  ok — backend-is-the-harness frontier green ($(grep -c '  built' /tmp/replace-zk.log) nodes)"
 fi
 
-echo "=== GATED 2/3 — faster: warm replay ≥20× the cold path (real wall-clock) ==="
+echo "=== GATED 2/4 — faster: warm replay ≥20× the cold path (real wall-clock) ==="
 if ! bun test tests/replay-speed.test.ts >/tmp/replace-speed.log 2>&1; then
   echo "[replace-gate] FAIL — replay-speed red:"; tail -6 /tmp/replace-speed.log; fail=1
 else
   echo "  ok — $(grep -oE '[0-9]+ pass' /tmp/replace-speed.log | head -1), warm path categorically faster"
 fi
 
-echo "=== GATED 3/3 — drop-in interface parity (the surfaces a user switches FROM) ==="
+echo "=== GATED 3/4 — stateless binary (behavioral, not just present) ==="
+# The north star requires a STATELESS binary. Prove it by BEHAVIOUR, not by grepping
+# that _stateless.ts exists: stateless-mode (STATELESS=1 writes NO local files, disk
+# stays clean) + the cross-firmament signer (only pointers/hashes/sig on the wire,
+# fresh nonce per call, canary never leaks, never throws).
+if ! bun test tests/stateless-mode.test.ts tests/v7-cli-stateless-signer.test.ts >/tmp/replace-stateless.log 2>&1; then
+  echo "[replace-gate] FAIL — stateless-binary behaviour red:"; tail -6 /tmp/replace-stateless.log; fail=1
+else
+  echo "  ok — $(grep -oE '[0-9]+ pass' /tmp/replace-stateless.log | head -1), binary holds no local state; only pointers/sig cross the wire"
+fi
+
+echo "=== GATED 4/4 — drop-in interface parity (the surfaces a user switches FROM) ==="
 # anchor file/command → what it replaces. A missing anchor fails the gate.
 declare -a PARITY=(
   "src/superpattern/cli-surface.ts:::search:::exa → search (exa-like results)"
@@ -50,7 +63,6 @@ declare -a PARITY=(
   "src/superpattern/cli-surface.ts:::go:::browser-use → go/snap/click (live browse when needed)"
   "src/superpattern/cli-surface.ts:::mcp:::MCP server surface"
   "src/superpattern/cli-surface.ts:::skills:::CLI skills surface"
-  "src/cli-v7/_stateless.ts:::::::stateless binary (north-star requirement)"
   "packages/ai-sdk/package.json:::::::OpenAI-compat SDK (familiar drop-in wrapper)"
   "src/sdk/index.ts:::::::programmatic SDK surface"
 )
