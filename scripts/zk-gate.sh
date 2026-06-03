@@ -39,6 +39,7 @@ NODES=(
   "r2-blob-store:tests/r2-blob-store.test.ts"            # the kv-cache tier backed by Cloudflare R2 (S3 API; EmergentDB later) — content-addressed AsyncBlobStore, hermetically tested with a stub client
   "iq-ledger:tests/iq-ledger.test.ts"                   # the ledger-of-resolutions backed by IQLabs on-chain signed table rows — append-only, hash-chained, preserves git-style signed history of past values
   "standards-registry:tests/standards-registry.test.ts" # unbrowse as the kv-cache layer in front of every agent standard (MCP/MCP-registry, ACP, A2A, OpenAI/Anthropic tools, skills.sh) — pluggable cached registry layers, failure-isolated
+  "live-registry-adapters:tests/live-registry-adapters.test.ts" # the standards layers wired to the REAL endpoints (official MCP registry verified live; A2A/x402-bazaar/skills.sh/agentskills.dev), fetch-injected + failure-isolated
 )
 
 todo=0; done=0; pending_tests=()
