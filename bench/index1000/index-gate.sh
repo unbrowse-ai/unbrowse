@@ -10,8 +10,12 @@ cd "$(dirname "$0")/../.."
 OUT="${INDEX_OUT:-bench/index1000/.artifacts/index.jsonl}"
 THRESH="${INDEX_THRESHOLD:-800}"   # 80% of 1000; set lower for a proof slice
 
+if [ ! -f "$OUT" ]; then
+  echo "[index-gate] NOT YET — no ledger at $OUT (campaign not run). 0/$THRESH."
+  exit 1
+fi
 ok=$(grep -c '"ok":true' "$OUT" 2>/dev/null || echo 0)
-total=$(wc -l < "$OUT" 2>/dev/null | tr -d ' ' || echo 0)
+total=$(grep -c '' "$OUT" 2>/dev/null || echo 0)
 echo "[index-gate] indexed ok=$ok / attempted=$total ; threshold=$THRESH"
 if [ "$ok" -ge "$THRESH" ]; then
   echo "[index-gate] PASS — >= $THRESH sites indexed."
