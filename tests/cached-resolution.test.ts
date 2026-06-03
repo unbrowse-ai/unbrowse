@@ -9,7 +9,7 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cachedResolution } from "../src/values/cached-resolution.js";
+import { cachedResolution, peekResolution, storeResolution } from "../src/values/cached-resolution.js";
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "reso-cache-")); });
@@ -72,5 +72,24 @@ describe("cached-resolution", () => {
   it("a recompute error propagates and is not cached", async () => {
     const recompute = async () => { throw new Error("boom"); };
     await expect(cachedResolution({ key: "k", ttlMs: 60_000, recompute, cacheable: ok, dir })).rejects.toThrow("boom");
+  });
+
+  // peek/store — the read-only fast-path pair (the CLI short-circuit that avoids app boot)
+  it("peekResolution returns null on miss, the stored value on a fresh hit (no recompute)", () => {
+    expect(peekResolution<{ a: number }>("k", 60_000, dir)).toBeNull();   // cold → null
+    storeResolution("k", { a: 7 }, 60_000, dir);
+    expect(peekResolution<{ a: number }>("k", 60_000, dir)).toEqual({ a: 7 }); // fresh hit
+  });
+
+  it("peekResolution honors the TTL (expired → null) and stateless (ttl<=0 → null)", () => {
+    const t0 = 1_000_000;
+    storeResolution("k", { v: 1 }, 60_000, dir, t0);
+    expect(peekResolution("k", 1000, dir, t0 + 5000)).toBeNull();  // expired
+    expect(peekResolution("k", 0, dir, t0)).toBeNull();            // ttl<=0 (stateless)
+  });
+
+  it("a value stored under one key never satisfies a different key", () => {
+    storeResolution("key-A", { x: 1 }, 60_000, dir);
+    expect(peekResolution("key-B", 60_000, dir)).toBeNull();
   });
 });
