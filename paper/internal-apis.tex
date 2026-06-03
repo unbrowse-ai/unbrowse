@@ -25,7 +25,8 @@
 \large A Signed, Layer-Descending Stack for Agent Computation:\\
 Identity, Authentication, and Zero-Knowledge Privacy across the Stack}
 
-\author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}}
+\author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}
+  \and Cayden Chik\\ Unbrowse AI \\ \texttt{cayden@unbrowse.ai}}
 \date{March 2026}
 
 \begin{document}
@@ -105,7 +106,7 @@ thousands of APIs~\cite{gorilla}; the Model Context Protocol standardises how a 
 connects to tools and data~\cite{mcp}. These solve single-agent tool use. They do not
 address what happens when many agents discover the same interface repeatedly, who
 maintains that knowledge as sites drift, or how the cost of discovery is shared --- the
-maintenance-and-economics problem this paper's later layers take up.
+maintenance-and-economics problem we leave to future work.
 
 \paragraph{Identity, transparency, and capabilities.} Our trust layer reuses
 established cryptographic systems rather than inventing them: EdDSA
@@ -510,10 +511,14 @@ coherent entity across every layer it touches: under one key, revealing nothing 
 did not choose to reveal, and standing behind its routes with something it can
 actually lose. The contribution is deliberately modest --- one covenant (sign it,
 seal it, cache it, bind identity without disclosure) that holds all the way down,
-each layer pinned to a real primitive. Attention, it turns out, was a great deal of
-what you needed. It just was never the \emph{stack}.
+each layer pinned to a real primitive. Internal APIs were a great deal of what you
+needed~\cite{wedge} --- but it turns out \emph{cryptography} was what you needed for
+security.
 
 \begin{thebibliography}{99}
+\bibitem{wedge} L.~Tham, N.~Mac~Gregor~Garcia, J.~Hahn. \emph{Internal APIs Are All
+You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent
+Architectures}. arXiv:2604.00694, 2026.
 \bibitem{ossnotice} Unbrowse AI. \emph{Open Source Notice --- the closed/open boundary}. docs/OPEN-SOURCE-NOTICE.md, 2026.
 \bibitem{x402} Coinbase. \emph{x402: An Open Protocol for Internet-Native
 Payments over HTTP 402}. x402.org whitepaper, 2025. \url{https://github.com/coinbase/x402}.

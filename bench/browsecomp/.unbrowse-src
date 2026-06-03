@@ -1,0 +1,5 @@
+#!/bin/sh
+# Source-backed unbrowse for the BrowseComp harness: the globally-installed
+# /opt/homebrew/bin/unbrowse is stale (no working `search` exa path → 0 retrieval
+# → BrowseComp 0.0). Run the current source so the bench measures real capability.
+exec bun "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/cli.ts" "$@"
