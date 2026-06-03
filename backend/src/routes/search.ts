@@ -268,11 +268,16 @@ searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) =
     // results without paying the live Exa round-trip. Fail-open — any cache
     // trouble falls through to the live exaSearch. (Keyed per-k so a k=5 cache
     // never serves a k=20 request.)
+    // Defer the cache write-through past the response (EmergentDB writes ~5s).
+    const waitUntil = (p: Promise<unknown>) => {
+      try { c.executionCtx?.waitUntil(p); } catch { /* no ctx (tests) → fire-and-forget */ }
+    };
     const { value: results, cached } = await getOrComputeSemantic(
       c.env,
       `web:k${topK}`,
       query.trim(),
       () => exaSearch(c.env.EXA_API_KEY!, query.trim(), topK),
+      waitUntil,
     );
     return c.json({ query: query.trim(), results, cached });
   } catch (err) {
