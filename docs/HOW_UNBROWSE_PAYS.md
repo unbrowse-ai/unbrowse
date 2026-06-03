@@ -40,6 +40,16 @@ The compatible and tested agent wallet is `lobster.cash`. Fund a `lobster.cash`
 wallet once, and it pays each x402 challenge automatically. Unbrowse never creates
 wallets and never asks for private keys, seed phrases, or raw card details.
 
+## Seeing what your wallet received
+
+Because the owner share is paid on-chain, the authoritative record is the wallet
+itself: the USDC is already there. For a quick summary keyed by domain, a verified
+owner can read `GET /v1/claim/earnings?domain=<your-domain>`, which sums the
+owner-lane payouts across settled batches and returns the total earned, the count
+of payouts, and the most recent settlement transaction. There is no balance to
+release and no button to press: the read is a mirror of on-chain settlement, not a
+withdrawal.
+
 ## Verify it yourself
 
 The split constants above are read straight from the code. Run

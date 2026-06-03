@@ -47,6 +47,7 @@ import {
   storeOfficialSubmission,
   type OfficialSkillSubmissionEndpoint,
 } from "../services/official-submissions.js";
+import { earningsForWallet } from "../services/settlement.js";
 
 type ClaimEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -324,6 +325,49 @@ claimRoutes.get("/claim/status", async (c) => {
     verified: true,
     wallet_address: binding.wallet_address,
     verified_at: binding.verified_at,
+  });
+});
+
+// GET /v1/claim/earnings -----------------------------------------------------
+// A bound website owner reads what their wallet has been paid. Websites do not
+// "redeem": the owner lane (OWNER_BPS) settles directly to the wallet's USDC
+// ATA on-chain at settlement time, so this is purely a read over the persisted
+// settlement batches. Public, keyed by domain, mirroring /claim/status.
+claimRoutes.get("/claim/earnings", async (c) => {
+  const domainRaw = c.req.query("domain") ?? "";
+  if (!isValidApexDomain(domainRaw)) {
+    return c.json({ error: "invalid_domain" }, 400);
+  }
+
+  const domain = domainRaw.trim().toLowerCase();
+  const bindingRaw = await statsKV(c.env).get(buildBindingKey(domain)).catch(() => null);
+  if (bindingRaw == null || typeof bindingRaw !== "string") {
+    return c.json({ verified: false, earned_uc: 0, earned_usd: "0.00" });
+  }
+  let binding: DomainClaimBinding;
+  try {
+    binding = JSON.parse(bindingRaw) as DomainClaimBinding;
+  } catch {
+    return c.json({ verified: false, earned_uc: 0, earned_usd: "0.00" });
+  }
+
+  // The owner lane settles to the USDC ATA; older bindings without a derived
+  // ATA fall back to the raw wallet address.
+  const ata = binding.wallet_usdc_ata ?? binding.wallet_address;
+  const e = await earningsForWallet(c.env, ata);
+  return c.json({
+    verified: true,
+    domain,
+    wallet_address: binding.wallet_address,
+    owner_wallet_usdc_ata: binding.wallet_usdc_ata ?? null,
+    verified_at: binding.verified_at,
+    earned_uc: e.earned_uc,
+    earned_usd: (e.earned_uc / 1_000_000).toFixed(2),
+    pending_uc: e.pending_uc,
+    pending_usd: (e.pending_uc / 1_000_000).toFixed(2),
+    payout_count: e.payout_count,
+    last_tx: e.last_tx,
+    last_settled_at: e.last_settled_at,
   });
 });
 
