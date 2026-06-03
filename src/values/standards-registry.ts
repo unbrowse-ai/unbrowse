@@ -27,6 +27,9 @@ export const AGENT_STANDARDS = [
   "openai-tools",     // OpenAI function/tool-calling schemas
   "anthropic-tools",  // Anthropic tool-use schemas
   "skills.sh",        // skill registry
+  "agentskills.dev",  // skill registry (agent skills)
+  "pay.sh",           // agent payment rail
+  "x402-bazaar",      // x402 marketplace of paid endpoints
 ] as const;
 export type AgentStandard = (typeof AGENT_STANDARDS)[number];
 

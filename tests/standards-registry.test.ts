@@ -19,10 +19,30 @@ function memBlob(): AsyncBlobStore {
 const entry = (standard: AgentStandard, id: string, ref: string): RegistryEntry => ({ standard, id, ref });
 
 describe("standards-registry — unbrowse fronts every agent standard", () => {
-  it("supports the real agent-standard set, including ACP and MCP registries", () => {
-    for (const s of ["mcp", "mcp-registry", "acp", "a2a", "openai-tools", "anthropic-tools", "skills.sh"]) {
+  it("supports the real agent-standard set, including ACP, MCP registries, and the payment/skill registries", () => {
+    for (const s of [
+      "mcp", "mcp-registry", "acp", "a2a", "openai-tools", "anthropic-tools",
+      "skills.sh", "agentskills.dev", "pay.sh", "x402-bazaar",
+    ]) {
       expect(AGENT_STANDARDS).toContain(s as AgentStandard);
     }
+  });
+
+  it("the new registries (pay.sh, x402-bazaar, agentskills.dev) resolve + cache like any layer", async () => {
+    let hits = 0;
+    const adapters = buildAdapters({
+      "pay.sh": async (q) => { hits++; return [entry("pay.sh", q, "https://pay.sh/rail")]; },
+      "x402-bazaar": async (q) => { hits++; return [entry("x402-bazaar", q, "https://bazaar.x402/endpoint")]; },
+      "agentskills.dev": async (q) => { hits++; return [entry("agentskills.dev", q, "https://agentskills.dev/s")]; },
+    });
+    const cache = { store: memBlob(), pointers: new Map<string, string>() };
+    const cold = await resolveStandards("pay for a route", adapters, cache);
+    expect([...cold.standards].sort()).toEqual(["agentskills.dev", "pay.sh", "x402-bazaar"]);
+    expect(cold.entries.length).toBe(3);
+    expect(hits).toBe(3);
+    const warm = await resolveStandards("pay for a route", adapters, cache);
+    expect(warm.cached).toBe(true);
+    expect(hits).toBe(3); // no re-hit — handled by unbrowse's kv cache
   });
 
   it("resolves a query ACROSS standards into one normalized result", async () => {
