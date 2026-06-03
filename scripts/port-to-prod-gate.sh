@@ -89,7 +89,14 @@ GITEA="${GITEA_BASE:-http://lewiss-mac-mini-1.tailce6bc6.ts.net:3000}"
 BR="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
 TOK="${GITEA_TOKEN:-$(security find-generic-password -a lekt8 -s GITEA_TOKEN -w 2>/dev/null || echo "")}"
 if [ -z "$TOK" ]; then note "PENDING — no GITEA_TOKEN; cannot verify mirror push"; fail=1; else
-  REMOTE_SHA=$(curl -fsS --max-time 15 -u "lekt8:$TOK" "$GITEA/api/v1/repos/lekt8/unbrowse/branches/$BR" 2>/dev/null | grep -oE '"id":"[0-9a-f]{40}"' | head -1 | grep -oE '[0-9a-f]{40}' || echo "")
+  # Retry the tailnet gitea API a few times — it flakes transiently under the
+  # bare Stop-hook env (reported empty remote SHA though the branch was pushed).
+  REMOTE_SHA=""
+  for attempt in 1 2 3; do
+    REMOTE_SHA=$(curl -fsS --max-time 20 -u "lekt8:$TOK" "$GITEA/api/v1/repos/lekt8/unbrowse/branches/$BR" 2>/dev/null | grep -oE '"id":"[0-9a-f]{40}"' | head -1 | grep -oE '[0-9a-f]{40}' || echo "")
+    [ -n "$REMOTE_SHA" ] && break
+    sleep 2
+  done
   LOCAL_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
   if [ -n "$REMOTE_SHA" ] && [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then note "ok — Gitea mirror branch $BR at $LOCAL_SHA"; else note "PENDING — Gitea $BR=$REMOTE_SHA local=$LOCAL_SHA"; fail=1; fi
 fi
