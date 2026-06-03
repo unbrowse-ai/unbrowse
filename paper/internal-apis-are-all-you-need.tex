@@ -4,8 +4,7 @@
 % Internal APIs Are All You Need  (arXiv:2604.00694v1)
 % Shadow APIs, Shared Discovery, and the Case Against Browser-First
 % Agent Architectures. Paper I of the trilogy — the wedge. Academic
-% format mirrors the arXiv source; claims tagged \impl{} [shipped],
-% \refimpl{} [runnable tested reference in reference/], or proposed.
+% format mirrors the arXiv source.
 % =====================================================================
 
 \usepackage[margin=1in]{geometry}
@@ -16,10 +15,6 @@
 \usepackage{booktabs}
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
-
-\newcommand{\impl}{\textcolor{green!55!black}{\small[shipped]}}
-\newcommand{\refimpl}{\textcolor{blue!70!black}{\small[reference]}}
-\newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
 
 \title{\textbf{Internal APIs Are All You Need}\\
 \large Shadow APIs, Shared Discovery, and the Case Against\\
@@ -74,13 +69,13 @@ amortised across all callers, not re-paid on every visit. This paper presents
 Unbrowse, a system built on that observation, and makes three contributions:
 \begin{enumerate}[leftmargin=1.6em]
   \item A passive route-discovery pipeline that learns callable interfaces from
-  real usage and normalises them into a shared graph. \impl
+  real usage and normalises them into a shared graph.
   \item An adoption condition that states precisely when a shared route commons is
   the cost-minimising choice, and a three-tier payment architecture that settles
-  the resulting value over x402. \impl
+  the resulting value over x402.
   \item An evaluation across 94 live domains showing a 3.6$\times$ mean and
   5.4$\times$ median speedup over a browser baseline, with the reuse mechanism
-  isolated in a runnable reference benchmark. \refimpl
+  isolated in a runnable reference benchmark.
 \end{enumerate}
 
 \section{Related work}
@@ -123,7 +118,7 @@ on a miss --- a one-time browser capture that feeds the graph for every later
 caller. The two-call contract an agent sees is deliberately small: an \emph{intent
 $\to$ ranked endpoint shortlist $\to$ execute} resolution returns the candidates
 that answer an intent, and a single follow-up realizes the chosen endpoint call
-against the live site. \impl
+against the live site.
 
 \subsection{Capability layer: route discovery pipeline}
 \paragraph{Traffic observation and filtering.} During a capture session the runtime
@@ -134,7 +129,7 @@ into routes: method, URL template with typed path and query parameters, the auth
 handshake, and a fingerprint of the response shape.
 \paragraph{What the graph stores.} The graph stores callable routes and typed edges
 (list$\to$detail, pagination, auth), plus a signed record of which routes were used
-and what they returned --- value off-chain, commitment hash-chained. \refimpl
+and what they returned --- value off-chain, commitment hash-chained.
 \paragraph{Skill packaging.} Related routes for a domain are packaged into a
 reusable skill that later agents install and execute without re-capturing.
 
@@ -143,7 +138,7 @@ An intent is embedded and matched against the graph; candidates are ranked by a
 composite of semantic similarity, observed reliability, freshness, and faithful
 replay. The chosen route is executed; a content-addressed cache stores each
 intermediate result under the hash of its content, so a second visit resolves
-without launching a browser. \impl
+without launching a browser.
 
 \subsection{Skill lifecycle and schema drift}
 Routes decay --- schemas drift, auth flows mutate. The lifecycle tracks reliability
@@ -170,7 +165,7 @@ Because the mapping cost is paid once and amortised over every later caller,
 
 \subsection{What agents pay for}
 Discovery and internal-API routing are free; only execution against a priced route
-settles. An \emph{unpaid \texttt{execute} gets HTTP 402}. \impl\ Agents pay for the
+settles. An \emph{unpaid \texttt{execute} gets HTTP 402}. Agents pay for the
 value they consume --- a settled call against a maintained route --- not for the
 act of looking.
 
@@ -189,7 +184,7 @@ priced well below a single browser rediscovery.
 Paid execution \emph{settles over \textbf{x402}}, and the settlement \emph{splits
 three ways} --- to the indexer who mapped the route, the platform, and (when
 claimed) the site owner --- so \emph{x402 routes USDC to all three} in one
-transaction. \impl\ This \emph{three-way live split is shipped}. \impl
+transaction. This \emph{three-way live split is shipped}.
 \paragraph{Tier 3: search and routing fees.} An optional fee on a priced shortlist
 returned by resolution.
 \paragraph{Dynamic route pricing.} Prices track observed reliability and demand so
@@ -236,7 +231,7 @@ replay categorically skips the cold mapping path, and the harness records a meas
 $\approx$95$\times$ mean speedup on the reuse micro-benchmark
 (\texttt{reference/bench/bench\_reuse.py}), with a conservative $\approx$27$\times$
 observed gap on a single live URL
-(\texttt{reference/bench/live-measured-1url.json}). \refimpl\ The full
+(\texttt{reference/bench/live-measured-1url.json}). The full
 release-coverage methodology --- corpus shape, scoring rubric, and current numbers
 --- is maintained alongside the product.
 
@@ -268,7 +263,7 @@ whether the route graph actually returns real results across a broad, diverse in
 space rather than on cherry-picked domains. A live coverage gate runs the real
 \texttt{unbrowse search} binary over a diverse intent set and counts the fraction
 that return real results; on the current graph it returns results on every probed
-intent (coverage $=1.0$ against a $\geq 0.75$ release threshold). \refimpl\ Coverage
+intent (coverage $=1.0$ against a $\geq 0.75$ release threshold). Coverage
 is a gated, re-runnable measurement (\texttt{scripts/coverage-gate.sh}), not a static
 claim --- it fails honestly when the graph cannot answer.
 
@@ -288,7 +283,7 @@ per-step success rate) the model recovers $\approx$45$\times$ faster and
 $\approx$300$\times$ fewer tokens end-to-end, bracketing the field-measured
 $\approx$30$\times$ faster / $\approx$90$\times$ cheaper headline. We ship this as a
 deterministic, runnable reference (\texttt{reference/bench/task\_cost.py}) so the
-compounding is provable arithmetic rather than a marketing multiplier. \refimpl
+compounding is provable arithmetic rather than a marketing multiplier.
 
 \section{Discussion}
 The first-party API is not always present (some surfaces are genuinely
@@ -316,7 +311,7 @@ stand on.
 \section{Reproducibility}
 The benchmark corpus, capture configuration, and scoring rubric are maintained with
 the product; the reuse mechanism is reproduced in isolation by
-\texttt{reference/bench/bench\_reuse.py} (\refimpl) so the categorical
+\texttt{reference/bench/bench\_reuse.py} so the categorical
 warm-vs-cold gap can be re-derived independently of any live endpoint.
 
 \section{Benchmark domain list}

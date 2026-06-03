@@ -17,7 +17,7 @@ PUBLIC_SCAN=(
   "docs"
   "packages/skill/SKILL.md"
   "packages/skill/README.md"
-  "paper/internal-apis.tex"
+  "paper/crypto-was-all-you-needed.tex"
   "frontend/src/app"
   "frontend/src/lib/generated"
   "frontend/src/components"

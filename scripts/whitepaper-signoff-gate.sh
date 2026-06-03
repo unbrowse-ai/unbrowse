@@ -20,7 +20,7 @@ section() { echo; echo "=== $1 ==="; }
 
 section "1. whitepaper FINISHED (done as code + leak-clean)"
 if bash scripts/papers-done-gate.sh >/tmp/wsg_papers.out 2>&1; then echo "  papers-done-gate: green"; else echo "  FINISHED-FAIL: papers-done-gate not green (see /tmp/wsg_papers.out)"; fail=1; fi
-if bash scripts/leak-guard.sh paper/internal-apis.tex >/dev/null 2>&1; then echo "  leak-guard: Paper 2 clean"; else echo "  FINISHED-FAIL: Paper 2 leak-guard"; fail=1; fi
+if bash scripts/leak-guard.sh paper/crypto-was-all-you-needed.tex >/dev/null 2>&1; then echo "  leak-guard: Paper 2 clean"; else echo "  FINISHED-FAIL: Paper 2 leak-guard"; fail=1; fi
 
 section "2. SIGNED-OFF by Kevin or Rach Pradhan"
 sig=$(grep -nE '^SIGNED-OFF:[[:space:]]*(Kevin|Rach Pradhan|Rach)\b.*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$SIGNOFF" 2>/dev/null | head -1 || true)

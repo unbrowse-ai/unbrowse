@@ -4,7 +4,7 @@
 # This gate previously checked the outline of a companion paper that has since been
 # moved out of the public tree into the gitignored internal/ tier (for later). With
 # its target gone, the gate has nothing public to check and exits 0 by design. The
-# public paper (paper/internal-apis.tex) is covered by paper-gate.sh and
+# public paper (paper/crypto-was-all-you-needed.tex) is covered by paper-gate.sh and
 # papers-done-gate.sh.
 
 set -uo pipefail

@@ -1,16 +1,5 @@
 \documentclass[11pt]{article}
 
-% =====================================================================
-% Unbrowse Maintenance Network
-% Trust, Accountability, and Optional Bonding in a Shared Route Graph
-% Paper 3 of the Unbrowse trilogy. This IS ref [3] (\cite{fdry}) of
-% Papers 1 and 2 — here it is self, so back-references to Paper 2 use
-% \cite{internalapis}. Every technical claim carries a real citation;
-% claims are tagged \impl{} [shipped in the product], \refimpl{} [a runnable,
-% tested reference implementation ships in reference/], or proposed [design
-% only] so nobody gets sold a vibe with a footnote.
-% =====================================================================
-
 \usepackage[margin=1in]{geometry}
 \usepackage{hyperref}
 \usepackage{amsmath}
@@ -19,9 +8,6 @@
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
-\newcommand{\impl}{\textcolor{green!55!black}{\small[shipped]}}
-\newcommand{\refimpl}{\textcolor{blue!70!black}{\small[reference]}}
-\newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
 \newcommand{\CA}{\texttt{2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL}}
 
 \title{\textbf{Unbrowse Maintenance Network}\\
@@ -58,11 +44,11 @@ requires --- why it exists strictly for the security function, why its fair
 distribution is a
 security parameter rather than a marketing choice, and why a coordination asset
 launched for money cannot become trustworthy --- and equally explicit about the
-limit we have not closed, formal Sybil resistance~\cite{sybil}. Throughout we tag
-what is \impl{} shipped in the product, what is \refimpl{} a runnable, tested
-reference implementation (shipping in \texttt{reference/}), and what remains a
-design, and we stop exactly where the capture engine begins~\cite{ossnotice}: this
-paper is the trust surface in full, not the moat.
+limit we have not closed, formal Sybil resistance~\cite{sybil}. Throughout we
+separate what is shipped in the product from what ships as a runnable, tested
+reference implementation and what remains a design, and we stop exactly where the
+capture engine begins~\cite{ossnotice}: this paper is the trust surface in full,
+not the moat.
 \end{abstract}
 
 \section{Introduction: the maintenance problem, not the discovery problem}
@@ -75,7 +61,7 @@ reusing a route someone already mapped, $f_{\text{shared route}}$, is less than
 the cost of rediscovering it from scratch, $c_{\text{rediscovery}}$, the rational
 move is to share. A live route graph already does this: an intent resolves to a
 ranked endpoint shortlist and executes, and the cost of mapping each route is
-amortised across every agent that follows. \impl{} We are not here to relitigate
+amortised across every agent that follows. We are not here to relitigate
 that. It works.
 
 This paper is about the \emph{second} problem, which only shows up once the first
@@ -95,13 +81,12 @@ Maintenance is not a feature bolted onto discovery; it is the thing that decides
 whether the shared graph degrades into a liability or compounds into an asset. We
 separate, throughout, what is running from what is designed. The route graph
 itself --- resolution, execution, the signed record of which routes were used and
-what they returned --- is live. \impl{} The accountability machinery that makes a
+what they returned --- is live. The accountability machinery that makes a
 freshness claim costly to fake --- the bonding, challenge, and slashing layer
 described in the later sections --- ships as a runnable, tested reference
-implementation (\texttt{reference/network/}), distinct from production deployment,
-and we mark it as such. \refimpl{} We would rather ship a running reference and call
-it a reference than over-claim it as a deployed product; the tags are there so the
-reader is never in doubt which they are reading.
+implementation (\texttt{reference/network/}), distinct from production deployment.
+We would rather ship a running reference and call it a reference than over-claim it
+as a deployed product.
 
 \section{The route as a common-pool resource}
 
@@ -195,7 +180,7 @@ to call volume. That is the job we reserve for FDRY, kept
 strictly separate from the USDC usage rail for the same reason one does not pay a
 deductible out of the till: the thing that funds maintenance and the thing that
 prices its failure must be the asset whose worth rises and falls with the network
-being worth trusting at all. \refimpl{} --- the bond-and-slash corrective ships as
+being worth trusting at all. The bond-and-slash corrective ships as
 a runnable, tested reference (\texttt{reference/network/bonding.py}), not yet a
 production mechanism; the usage rail it sits beside is live~\cite{x402}.
 
@@ -242,8 +227,8 @@ resolves, its schema matches, its fields are present --- which is all a verifier
 needs. The deep capture surface that does the indexing is the closed
 engine~\cite{ossnotice}, for the abuse reasons stated there; the boundary is the
 difference between giving agents a checkable freshness proof and handing out the
-machine that makes scraping cheap. So the proof of indexing is tagged \refimpl{}:
-the indexing capability it would certify is the live, closed capture surface, while
+machine that makes scraping cheap. The indexing capability the proof of indexing
+would certify is the live, closed capture surface, while
 the cryptographic proof itself ships as a runnable, tested reference
 (\texttt{reference/network/proof\_of\_indexing.py}) --- a content-addressed, signed,
 hash-chained attestation a stranger re-derives against the real content --- and the
@@ -284,8 +269,8 @@ outcomes, and a \textbf{Validation} surface where an independent party re-execut
 or otherwise checks a claim before trusting it. An Unbrowse maintainer is precisely
 one of these trustless agents --- an identity that can carry reputation and be
 verified by someone who does not yet trust it --- which is what lets the higher
-tier be evaluated on portable, checkable history rather than on assertion. \refimpl{}
---- the ERC-8004 binding ships as a runnable, tested reference
+tier be evaluated on portable, checkable history rather than on assertion. The
+ERC-8004 binding ships as a runnable, tested reference
 (\texttt{reference/network/erc8004.py}) that produces and verifies the Identity,
 Reputation, and Validation records, each wallet-signed~\cite{erc8004}; binding to
 the deployed on-chain registry is integration work, and what ships in the product
@@ -343,7 +328,7 @@ buying attention; the two roles are incompatible and we keep them apart by
 construction. Ranking is grounded in route quality (Section on trust tiers); the
 bond is a security deposit against a freshness assertion, nothing more. This entire
 layer --- the bond, the slashing conditions, the threshold finalisation --- ships as
-a runnable, tested reference (\texttt{reference/network/bonding.py}) \refimpl{}; the
+a runnable, tested reference (\texttt{reference/network/bonding.py}); the
 open and quality-ranked tiers do not depend on it, and we will not present a
 reference implementation as a deployed product.
 
@@ -388,7 +373,7 @@ is detectable by anyone auditing the log, exactly as a misissued certificate is
 detectable in CT. The challenge mechanism supplies the economic incentive to look,
 and the transparent log makes what they find undeniable. This challenge-and-dispute
 layer ships in the same runnable reference as bonding
-(\texttt{reference/network/bonding.py}) \refimpl{}: a test adjudicates a challenge by
+(\texttt{reference/network/bonding.py}): a test adjudicates a challenge by
 re-derivation against the content-addressed truth, slashing a lying maintainer and
 forfeiting a spurious challenger's stake while conserving total stake on every path.
 It is the accountability complement to the bond --- running and tested, not yet
@@ -425,7 +410,7 @@ closing a gap. Bonding makes the attack more expensive; it does not formally
 guarantee that distinct attributed identities are distinct entities, which is
 exactly the guarantee Douceur shows cannot be had without a trusted certifier.
 
-We are precise about what is and is not closed. \refimpl{} The Sybil
+We are precise about what is and is not closed. The Sybil
 \emph{mitigation} ships as a runnable, tested reference
 (\texttt{reference/network/sybil.py}): attribution is stake-weighted and
 \emph{split-invariant} --- a test proves that splitting one identity's stake across
@@ -460,7 +445,7 @@ integrity~\cite{internalapis}. Payment surface and security stake are kept stric
 separate, because the moment a holder is forced to spend the security asset to
 \emph{use} the network, the asset becomes a tollgate and the holder a
 beggar-at-the-gate. This is the old wisdom that ``No one can serve two masters''
-(Matt 6:24) read as an engineering constraint: \impl{} USDC settles usage; FDRY
+(Matt 6:24) read as an engineering constraint: USDC settles usage; FDRY
 only bonds. An asset asked to do both jobs does neither honestly.
 
 \paragraph{Why the distribution is a security parameter.} The non-obvious constraint
@@ -473,11 +458,11 @@ decentralisation it is meant to underwrite. So FDRY launched fair by necessity, 
 branding: no pre-sale, no team allocation, no insider round; supply placed on a
 public Solana pool at launch, acquirable only on the open market at the same price
 for the founder as for everyone else. The fair launch is therefore not a gesture of
-goodwill --- it is the parameter that makes the bond mean anything. \impl{} (fair
-launch; live platform-fee collection). The vault cycle that returns the platform's
+goodwill --- it is the parameter that makes the bond mean anything. The fair launch
+and platform-fee collection are live. The vault cycle that returns the platform's
 USDC fee to the distributed holders --- \emph{staking by abiding} rather than by
 lock-up --- ships as a runnable, tested reference
-(\texttt{reference/network/vault\_cycle.py}) \refimpl{}: a test confirms the fee
+(\texttt{reference/network/vault\_cycle.py}): a test confirms the fee
 pool is split pro rata to each holder's balance $\times$ duration held, that the
 split is conservative (no unit minted or lost), that holding longer or larger earns
 more, and that holding nothing earns nothing --- no lock-up required. The on-chain
@@ -511,45 +496,49 @@ The ``what'' is fully disclosed; only the money-as-motive framing is denied,
 because that framing is exactly what would poison the soil the security layer has to
 grow in. We make no promise of profit: the mechanism is the claim, not a guarantee.
 
-\section{What is shipped, what is referenced (no fabricated green)}
+\section{What is shipped, what is referenced}
 
 In the spirit of the companion paper~\cite{internalapis} --- and of not selling a
 roadmap as a changelog --- we separate what runs in the product, what ships as
-runnable, tested reference code, and where deployment still stops:
+runnable, tested reference code, and where deployment still stops. Live in the
+product today:
 \begin{itemize}[leftmargin=1.4em]
-\item \impl{} The live three-way split: every paid execution settles to the
+\item The live three-way split: every paid execution settles to the
 indexer, the domain owner, and the platform in one transaction over
 x402~\cite{x402}.
-\item \impl{} Fair-launched FDRY: supply placed on a public pool at launch with no
+\item Fair-launched FDRY: supply placed on a public pool at launch with no
 pre-sale, team allocation, or insider round.
-\item \impl{} Platform-fee collection on settled executions.
-\item \impl{} The signed, append-only JSONL route ledger --- the local, hash-chained
+\item Platform-fee collection on settled executions.
+\item The signed, append-only JSONL route ledger --- the local, hash-chained
 record of route claims.
-\item \refimpl{} Proof of indexing: a content-addressed, signed, hash-chained
+\end{itemize}
+Shipping as runnable, tested reference code:
+\begin{itemize}[leftmargin=1.4em]
+\item Proof of indexing: a content-addressed, signed, hash-chained
 attestation that a route was re-indexed against its live source, re-derivable by
 independent re-indexing~\cite{thegraph,filecoin2017}
 (\texttt{reference/network/\allowbreak proof\_of\_indexing.py}). The deep capture
 surface that produces the index is the live, closed engine~\cite{ossnotice}; the
 cryptographic proof is running, tested code, and production deployment of the bonded
 economics is the remaining step.
-\item \refimpl{} Bonding, challenge, and slashing: the collateralised-accountability
+\item Bonding, challenge, and slashing: the collateralised-accountability
 layer in which a maintainer's stake is forfeit on a proof that fails to reproduce,
 with conservative stake arithmetic (\texttt{reference/network/bonding.py}).
-\item \refimpl{} Merkle-root checkpoints of the ledger, batching many signed entries
+\item Merkle-root checkpoints of the ledger, batching many signed entries
 into a single transparency-style root~\cite{rfc6962} with per-entry inclusion proofs
 (\texttt{reference/ledger/checkpoint.py}); publishing the root on-chain is the
 deployment step.
-\item \refimpl{} The Sybil \emph{mitigation}: stake-weighted, split-invariant
+\item The Sybil \emph{mitigation}: stake-weighted, split-invariant
 attribution (\texttt{reference/network/sybil.py}). Full formal Sybil resistance for
 attributed contribution remains an open problem with a cited
 foundation~\cite{sybil}; the reference is the bound, not the closed solution.
-\item \refimpl{} ERC-8004 trustless-agent records --- Identity, Reputation,
+\item ERC-8004 trustless-agent records --- Identity, Reputation,
 Validation, each wallet-signed (\texttt{reference/network/erc8004.py})~\cite{erc8004};
 and the vault fee-return cycle, ``staking by abiding,'' split pro rata to
 balance $\times$ duration (\texttt{reference/network/vault\_cycle.py}). Binding to
 the deployed registries and on-chain settlement of the cycle are integration work.
 \end{itemize}
-Treat the \refimpl{} list as running, tested code with cited foundations --- not a
+This reference code is running, tested code with cited foundations --- not a
 research agenda, and not a feature list with a release date. What still separates a
 reference from the deployed product is named on each line. The gap between running
 code and a press release is the entire difference between a whitepaper and a pitch,

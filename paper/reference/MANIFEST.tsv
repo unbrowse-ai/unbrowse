@@ -2,16 +2,16 @@
 # "Done to completion as code" = each row's test passes, impl exists, and the
 # claim appears in its paper tagged shipped/reference (\impl{} or \ref{}) — never \prop{}.
 # columns: primitive_id <TAB> paper_file <TAB> claim_substring <TAB> impl_path <TAB> test_module
-content-cache	paper/internal-apis.tex	content-addressed cache	paper/reference/ledger/cache.py	test_ledger.py
-signed-ledger	paper/internal-apis.tex	hash-chained	paper/reference/ledger/ledger.py	test_ledger.py
-signed-descent	paper/internal-apis.tex	signed descent through every layer	paper/reference/layers/descent.py	test_descent.py
-zk-binding	paper/internal-apis.tex	bound to the wallet without revealing	paper/reference/zk/binding.py	test_zk_binding.py
-sealed-cache	paper/internal-apis.tex	sealed-unless-revealed	paper/reference/ledger/sealed_cache.py	test_sealed_cache.py
-signed-gate	paper/internal-apis.tex	no unsigned action crosses	paper/reference/layers/gate.py	test_gate.py
-proof-of-indexing	paper/maintenance-network.tex	proof of indexing	paper/reference/network/proof_of_indexing.py	test_proof_of_indexing.py
-bonding-slash	paper/maintenance-network.tex	bonding, challenge, and slashing	paper/reference/network/bonding.py	test_bonding.py
-merkle-checkpoint	paper/maintenance-network.tex	Merkle-root checkpoint	paper/reference/ledger/checkpoint.py	test_checkpoint.py
-sybil-resistance	paper/maintenance-network.tex	Sybil resistance	paper/reference/network/sybil.py	test_sybil.py
-erc8004-records	paper/internal-apis.tex	ERC-8004	paper/reference/network/erc8004.py	test_erc8004.py
-vault-cycle	paper/maintenance-network.tex	staking by abiding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
-task-cost	paper/internal-apis-2604.tex	lower bound, not the end-to-end advantage	paper/reference/bench/task_cost.py	test_task_cost.py
+content-cache	paper/crypto-was-all-you-needed.tex	content-addressed cache	paper/reference/ledger/cache.py	test_ledger.py
+signed-ledger	paper/crypto-was-all-you-needed.tex	hash-chained	paper/reference/ledger/ledger.py	test_ledger.py
+signed-descent	paper/crypto-was-all-you-needed.tex	signed descent through every layer	paper/reference/layers/descent.py	test_descent.py
+zk-binding	paper/crypto-was-all-you-needed.tex	bound to the wallet without revealing	paper/reference/zk/binding.py	test_zk_binding.py
+sealed-cache	paper/crypto-was-all-you-needed.tex	sealed-unless-revealed	paper/reference/ledger/sealed_cache.py	test_sealed_cache.py
+signed-gate	paper/crypto-was-all-you-needed.tex	no unsigned action crosses	paper/reference/layers/gate.py	test_gate.py
+proof-of-indexing	paper/unbrowse-maintenance-network.tex	proof of indexing	paper/reference/network/proof_of_indexing.py	test_proof_of_indexing.py
+bonding-slash	paper/unbrowse-maintenance-network.tex	bonding, challenge, and slashing	paper/reference/network/bonding.py	test_bonding.py
+merkle-checkpoint	paper/unbrowse-maintenance-network.tex	Merkle-root checkpoint	paper/reference/ledger/checkpoint.py	test_checkpoint.py
+sybil-resistance	paper/unbrowse-maintenance-network.tex	Sybil resistance	paper/reference/network/sybil.py	test_sybil.py
+erc8004-records	paper/crypto-was-all-you-needed.tex	ERC-8004	paper/reference/network/erc8004.py	test_erc8004.py
+vault-cycle	paper/unbrowse-maintenance-network.tex	staking by abiding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
+task-cost	paper/internal-apis-are-all-you-need.tex	lower bound, not the end-to-end advantage	paper/reference/bench/task_cost.py	test_task_cost.py

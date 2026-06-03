@@ -8,12 +8,12 @@ the editorial/business sign-off — that is a person's call, not a script's.
 ## What is being approved
 
 The **public release** of Paper 2 — *Internal APIs Were Not All You Needed*
-(`paper/internal-apis.tex` + `.pdf`) — and the code it reflects (`paper/reference/`).
+(`paper/crypto-was-all-you-needed.tex` + `.pdf`) — and the code it reflects (`paper/reference/`).
 
 ## Pre-conditions (mechanical, verified by `scripts/whitepaper-signoff-gate.sh`)
 
 - `papers-done-gate.sh` green — every paper claim backed by running, tested code.
-- `leak-guard.sh` clean on `paper/internal-apis.tex` — no moat term in the public paper.
+- `leak-guard.sh` clean on `paper/crypto-was-all-you-needed.tex` — no moat term in the public paper.
 - `paper-gate.sh` green — every shipped claim anchored; no leak.
 - Both PDFs compile clean (0 undefined refs/citations).
 
