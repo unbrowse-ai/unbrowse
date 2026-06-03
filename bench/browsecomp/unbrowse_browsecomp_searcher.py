@@ -144,21 +144,50 @@ async def _run(args: list[str]) -> tuple[str, bool]:
         return f"__UNBROWSE_ERR__ {e}", False
 
 
+def _best_chunk(text: str, query: str, cap: int) -> str:
+    """Chunk a fetched page and keep the window most relevant to the query. Splits
+    on blank lines into paragraphs, scores each by query-term overlap, and returns
+    the highest-scoring contiguous run up to `cap` chars (lead content when the
+    query gives no signal). 'Per link or chunk, whatever makes sense' — return the
+    chunk the agent actually needs, not the whole DOM."""
+    text = text.strip()
+    if len(text) <= cap:
+        return text[:cap]
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paras:
+        return text[:cap]
+    terms = {t for t in re.findall(r"[a-z0-9]+", query.lower()) if len(t) > 2}
+    if not terms:
+        return text[:cap]  # no query signal -> lead content
+    def _score(p: str) -> int:
+        pl = p.lower()
+        return sum(pl.count(t) for t in terms)
+    best_i = max(range(len(paras)), key=lambda i: _score(paras[i]))
+    out, total, i = [], 0, best_i
+    while i < len(paras) and total < cap:
+        out.append(paras[i]); total += len(paras[i]) + 2; i += 1
+    return "\n\n".join(out)[:cap]
+
+
 class UnbrowseSearchEngine(AsyncSearchEngine):
-    """unbrowse-driven SERP. search() = libcurl-impersonate fetch of the DDG HTML
-    endpoint, parsed into ranked {url,title,snippet}."""
+    """unbrowse-driven search. PRIMARY: route the intent through Exa
+    (`unbrowse search` -> exa-web-search -> ranked per-link candidates), then run
+    each link through our per-link fetch+chunk (libcurl-impersonate). DDG SERP is
+    the last-resort fallback. Returns ranked {url,title,snippet=chunk}."""
 
     def __init__(self, api_key: str | None = None) -> None:
         # api_key arg accepted for registry symmetry; unbrowse needs no key here.
         self._sem = asyncio.Semaphore(int(os.environ.get("UNBROWSE_SERP_CONCURRENCY", "4")))
 
-    async def _enrich(self, results: list[SearchResult]) -> list[SearchResult]:
-        """WAVE-09 lever (two-witness): replace thin DDG snippets with full page
-        markdown for the top-k ranked results, so the deep-research agent can grind
-        multi-hop chains instead of bailing. OPT-IN (UNBROWSE_ENRICH_TOP_K>0, default
-        OFF so concurrent runs are unaffected); bounded by the SERP semaphore; honest
+    async def _enrich(self, results: list[SearchResult], query: str = "") -> list[SearchResult]:
+        """Route Exa's per-link candidates THROUGH our search: for the top-k ranked
+        links, `unbrowse fetch` the page (libcurl-impersonate, JA4-faithful) and
+        replace the thin snippet with the query-relevant CHUNK of the full content,
+        so the deep-research agent grinds multi-hop chains on real per-link data
+        instead of bailing on a one-line SERP snippet. Default ON (top-k=5); set
+        UNBROWSE_ENRICH_TOP_K=0 to disable. Bounded by the SERP semaphore; honest
         fallback keeps the original snippet on fetch failure."""
-        top_k = int(os.environ.get("UNBROWSE_ENRICH_TOP_K", "0"))
+        top_k = int(os.environ.get("UNBROWSE_ENRICH_TOP_K", "5"))
         if top_k <= 0:
             return results
         cap = int(os.environ.get("UNBROWSE_ENRICH_CHARS", "8000"))
@@ -169,12 +198,15 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
             async with self._sem:
                 body, fok = await _run(["fetch", r.url])
             if fok:
-                full = _clean(body).strip()[:cap]
+                full = _clean(body).strip()
+                # Chunk the fetched page to the window most relevant to the query
+                # (per link or chunk, whatever makes sense), not the whole DOM.
+                chunk = _best_chunk(full, query, cap) if full else ""
                 # Reject soft-failure bodies (CLI exits 0 but content is a junk
-                # sentinel/error page): only replace if the fetch is richer than
-                # the original snippet. Keeps the thin DDG snippet on failure.
-                if full and full.lower() != "null" and len(full) > len(r.snippet):
-                    r.snippet = full
+                # sentinel/error page): only replace if the chunk is richer than
+                # the original snippet. Keeps the thin snippet on failure.
+                if chunk and chunk.lower() != "null" and len(chunk) > len(r.snippet):
+                    r.snippet = chunk
             return r  # MUST return r — gather of None-returning coros yields a list
                       # of Nones, and the eval framework then crashes on r.title
                       # ('NoneType' object has no attribute 'title'), starving the
@@ -251,10 +283,11 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         return results
 
     async def __call__(self, query: str, num_results: int) -> list[SearchResult]:
-        # 1) route-graph path: resolve → first-party search API (exa-web-search).
+        # 1) route-graph path: resolve → first-party search API (exa-web-search),
+        #    then run each ranked link through our per-link fetch+chunk.
         results = await self._resolve_search(query, num_results)
         if results:
-            return await self._enrich(results)
+            return await self._enrich(results, query)
         # 2) last-resort fallback: DDG SERP scrape (the human surface).
         from urllib.parse import quote_plus
         serp_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
@@ -264,7 +297,7 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
             return []
         md = _clean(stdout)
         results = parse_ddg_markdown(md, num_results)
-        return await self._enrich(results)
+        return await self._enrich(results, query)
 
 
 def build_unbrowse_search_engine(**kwargs) -> "UnbrowseSearchEngine":
