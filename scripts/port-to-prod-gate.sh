@@ -30,22 +30,46 @@ if [ -f scripts/public-scrub-gate.sh ]; then
   if bash scripts/public-scrub-gate.sh >/tmp/port-gate-scrub.log 2>&1; then note "ok — public-scrub clean"; else note "FAIL — public-scrub"; fail=1; fi
 fi
 
-echo "=== 3. backend + CLI shipped to PROD ==="
+echo "=== 3. backend + CLI shipped to PROD (with THESE fixes, not just any version) ==="
 WANT_NPM="${PROD_NPM_VERSION:-}"
-if [ -z "$WANT_NPM" ]; then note "PENDING — set PROD_NPM_VERSION to the released version"; fail=1; else
+if [ -z "$WANT_NPM" ]; then note "PENDING — set PROD_NPM_VERSION to the NEW released version containing the fixes"; fail=1; else
   L=$(npm view unbrowse dist-tags.latest 2>/dev/null || echo "")
-  if [ "$L" = "$WANT_NPM" ]; then note "ok — unbrowse@$WANT_NPM on npm latest"; else note "PENDING — npm latest=$L want=$WANT_NPM"; fail=1; fi
+  if [ "$L" != "$WANT_NPM" ]; then note "PENDING — npm latest=$L want=$WANT_NPM"; fail=1; else
+    # Un-fakeable: the published tarball must actually carry the fixes. Download
+    # it and grep the bundled dist for fix fingerprints. A stale version (7.2.0,
+    # published before the fixes) fails here even though it's on `latest`.
+    TGZ=$(npm pack "unbrowse@$WANT_NPM" --silent 2>/dev/null || echo "")
+    if [ -n "$TGZ" ] && [ -f "$TGZ" ]; then
+      if tar -xzOf "$TGZ" 2>/dev/null | grep -q "dead_or_parked" && tar -xzOf "$TGZ" 2>/dev/null | grep -q "SPA_ROOT_CONTAINER_RE\|trackForwarderPid"; then
+        note "ok — unbrowse@$WANT_NPM on npm latest AND tarball carries the capture+forwarder fixes"
+      else
+        note "FAIL — unbrowse@$WANT_NPM on latest but tarball is MISSING the fixes (stale release)"; fail=1
+      fi
+      rm -f "$TGZ"
+    else note "PENDING — could not npm-pack unbrowse@$WANT_NPM to verify fixes"; fail=1; fi
+  fi
 fi
-if [ -n "${PROD_BACKEND_URL:-}" ]; then
-  if curl -fsS --max-time 15 "${PROD_BACKEND_URL%/}/health" >/dev/null 2>&1; then note "ok — prod backend health 200"; else note "FAIL — prod backend health"; fail=1; fi
-else note "PENDING — set PROD_BACKEND_URL for the prod health check"; fail=1; fi
+PB="${PROD_BACKEND_URL:-https://beta-api.unbrowse.ai}"
+if curl -fsS --max-time 15 "${PB%/}/health" >/dev/null 2>&1; then note "ok — prod backend health 200 ($PB)"; else note "FAIL — prod backend health ($PB)"; fail=1; fi
 
-echo "=== 4. 10k indexed data transferred to Neon prod ==="
-MIN_ROWS="${INDEX_MIN_ROWS:-1603}"
-if [ -z "${DATABASE_URL:-}" ]; then note "PENDING — set DATABASE_URL (Neon prod) for the data-transfer check"; fail=1; else
-  CNT=$(psql "$DATABASE_URL" -tAc "select count(*) from skills where source like 'index10k%' or skill_id like 'idx10k:%';" 2>/tmp/port-gate-db.log || echo "ERR")
-  if [ "$CNT" = "ERR" ]; then note "FAIL — DB query errored (see /tmp/port-gate-db.log)"; fail=1
-  elif [ "${CNT:-0}" -ge "$MIN_ROWS" ]; then note "ok — $CNT indexed rows in Neon prod (>= $MIN_ROWS)"; else note "PENDING — only $CNT indexed rows in prod (want >= $MIN_ROWS)"; fail=1; fi
+echo "=== 4. 10k indexed data in prod marketplace (auto-published live during the campaign) ==="
+# `unbrowse run` auto-publishes each resolved skill to the prod marketplace
+# (default API base beta-api.unbrowse.ai). So the transfer happened live during
+# the 10k campaign, not as a separate batch. Verify it un-fakeably: sample
+# ok-domains from the ledger and confirm prod returns a skill for them. Needs a
+# reachable prod API + key (.env). SAMPLE_N domains, require >= REQ_FRAC resolve.
+LEDGER="${INDEX_LEDGER:-bench/index1000/.artifacts/index.jsonl}"
+API="${UNBROWSE_API_URL:-https://beta-api.unbrowse.ai}"
+KEY="${UNBROWSE_API_KEY:-}"
+SAMPLE_N="${INDEX_SAMPLE_N:-20}"; REQ="${INDEX_SAMPLE_MIN:-15}"
+if [ -z "$KEY" ] || [ ! -f "$LEDGER" ]; then note "PENDING — need UNBROWSE_API_KEY + ledger for the prod-resolve check"; fail=1; else
+  hits=0; tried=0
+  for s in $(grep '"ok":true' "$LEDGER" | grep -oE '"site":"https://[^"]+"' | sed 's/"site":"//;s/"//' | head -"$SAMPLE_N"); do
+    dom=$(echo "$s" | sed -E 's#https?://##;s#/.*##'); tried=$((tried+1))
+    body=$(curl -s --max-time 15 -H "Authorization: Bearer $KEY" "$API/v1/skills?domain=$dom" 2>/dev/null || echo "")
+    echo "$body" | grep -qE '"skill_id"|"endpoint_id"' && hits=$((hits+1))
+  done
+  if [ "$hits" -ge "$REQ" ]; then note "ok — $hits/$tried sampled ok-domains resolve in prod marketplace (>= $REQ)"; else note "PENDING — only $hits/$tried sampled domains resolve in prod (want >= $REQ)"; fail=1; fi
 fi
 
 echo "=== 5. public-facing surfaces staged to Gitea mirror (your review before public) ==="
