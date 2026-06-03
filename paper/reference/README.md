@@ -28,29 +28,6 @@ never a faked signature).
 - `network/sybil.py` — stake-weighted, split-invariant attribution (the Sybil mitigation).
 - `network/erc8004.py` — ERC-8004 Identity / Reputation / Validation records, wallet-signed.
 - `network/vault_cycle.py` — the fee-return cycle: staking by abiding, pro rata to balance×duration.
-- `adoption/adoption.py` — **Paper 1's necessary condition, as code** (arXiv:2604.00694):
-  the three-tier x402 fee model (Tier 1 install / Tier 2 per-exec opt-in / Tier 3
-  per-query) and the rational-adoption inequality `f_route < c_rediscovery` — an
-  agent adopts the shared graph only when its total fee undercuts browser
-  rediscovery; the three-path `cache → graph → browser` ladder is the cheapest-rung
-  walk over exactly those costs, voluntary and self-correcting.
-- `pay/redeemable.py` — **the toll, paid under the hood; x402 hidden** (sp-toll
-  node/verb/seal + sp-unbrowse root/seal): a `PrivyWallet` whose user-facing surface
-  is a redeemable credit balance (address / balance / `redeem` / `statement`), while
-  a private `_settle_x402` signs the HTTP-402 challenge with the wallet's real
-  Ed25519 key (the signature IS the payment proof) and `pay()` auto-clears the toll
-  on a 402, debiting credits and retrying — the caller never names x402. A free
-  endpoint costs nothing; insufficient credits fail honestly with no access.
-- `walk/route_graph.py` — **the index of the internet, walked all the way up**
-  (arXiv:2604.00694, sp-unbrowse tree+walk+verb+settle atoms): the shared route
-  graph as an index of pointers merged at the domain level, the paper's composite
-  score (0.40 embedding + 0.30 reliability + 0.15 freshness + 0.15 verification),
-  the freshness law `1/(1+d/30)`, the continuous-trust settle, and the verb ladder
-  `cache → graph → browser` that escalates only on a miss. The **seal** is
-  conditional — the public internet is the default: a public route carries no auth
-  and `seal()` attaches nothing; only a genuinely `permissioned` route (opted in AND
-  naming a non-public auth descriptor) seals, and then only with a real credential
-  (else it fails honestly). Auth is removed unless permissioned.
 
 ## The cache + ledger core (original two halves, kept separate on purpose)
 
