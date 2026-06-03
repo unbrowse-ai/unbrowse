@@ -105,7 +105,8 @@ export function verifySchnorr(yHex: string, proof: Proof): boolean {
 
 // Ed25519 SPKI DER prefix (12 bytes) + 32-byte raw pubkey = a verifiable key.
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
-function verifyEd25519(pubkeyRaw: Uint8Array, message: Uint8Array, sig: Uint8Array): boolean {
+/** Verify an Ed25519 signature from a raw 32-byte pubkey (shared by signed-descent). */
+export function verifyEd25519(pubkeyRaw: Uint8Array, message: Uint8Array, sig: Uint8Array): boolean {
   try {
     const spki = Buffer.concat([SPKI_ED25519_PREFIX, Buffer.from(pubkeyRaw)]);
     const pub = createPublicKey({ key: spki, format: "der", type: "spki" });
