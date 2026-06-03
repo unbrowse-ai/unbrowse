@@ -19,10 +19,11 @@ import { withRootSeed } from "./signer.js";
 const PKCS8_ED25519_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
-interface KeyPair { pub: Uint8Array; sign: (msg: Uint8Array) => Uint8Array }
+export interface KeyPair { pub: Uint8Array; sign: (msg: Uint8Array) => Uint8Array }
 
-/** An Ed25519 keypair from a raw 32-byte seed (deterministic). */
-function ed25519FromSeed(seed: Uint8Array): KeyPair {
+/** An Ed25519 keypair from a raw 32-byte seed (deterministic). Shared with
+ *  layer-wallet-descent so each layer can sign with its own derived wallet. */
+export function keypairFromSeed(seed: Uint8Array): KeyPair {
   const priv = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_PREFIX, Buffer.from(seed)]), format: "der", type: "pkcs8" });
   const spki = createPublicKey(priv).export({ format: "der", type: "spki" }) as Buffer;
   const pub = new Uint8Array(spki.subarray(spki.length - 32)); // raw pubkey = last 32 bytes of SPKI
@@ -50,11 +51,11 @@ export interface LayerWallet {
 export function buildLayerTree(rootSeed: Uint8Array, layers: readonly string[]): LayerWallet[] {
   const tree: LayerWallet[] = [];
   let ownerSeed = rootSeed;
-  let owner = ed25519FromSeed(rootSeed);
+  let owner = keypairFromSeed(rootSeed);
   let ownerPub = bytesToHex(owner.pub);
   for (const layer of layers) {
     const cs = childSeed(ownerSeed, layer);
-    const child = ed25519FromSeed(cs);
+    const child = keypairFromSeed(cs);
     const childPub = bytesToHex(child.pub);
     const covenantSig = bytesToHex(owner.sign(Buffer.from(childPub, "utf8"))); // parent covenants child
     tree.push({ layer, pubkey: childPub, parent: ownerPub, covenantSig });
@@ -65,7 +66,7 @@ export function buildLayerTree(rootSeed: Uint8Array, layers: readonly string[]):
 
 /** The root pubkey for a given root seed (the top of the ownership tree). */
 export function rootPubkey(rootSeed: Uint8Array): string {
-  return bytesToHex(ed25519FromSeed(rootSeed).pub);
+  return bytesToHex(keypairFromSeed(rootSeed).pub);
 }
 
 /** Build the layer tree owned by the REAL user wallet (seed loaded transiently,
