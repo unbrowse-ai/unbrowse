@@ -69,14 +69,31 @@ async function kvGet(key) {
   return d.found && d.value != null ? d.value : null;
 }
 
-const A  = "What year did the company that makes the Nintendo Switch release its first clamshell handheld?";
-const Ap = "In which year did Nintendo, maker of the Switch, launch its first foldable clamshell handheld console?";
+// A shared high-entropy token makes this run's A/A' pair UNIQUE — vector search is
+// global (namespace does not scope it) and prior runs accumulate near-duplicate A
+// copies (embedding non-determinism), so without a per-run token A' sometimes
+// resolves to a payload-less near-copy. The token sits in BOTH, so they stay mutual
+// paraphrases (>0.80) while being distinct from every prior run.
+const TOK = Math.random().toString(36).slice(2, 10);
+const A  = `Case file ${TOK}: what year did the company that makes the Nintendo Switch release its first clamshell handheld?`;
+const Ap = `In case ${TOK}, which year did Nintendo, maker of the Switch, launch its first foldable clamshell handheld console?`;
 const PAYLOAD = [{ url: "https://en.wikipedia.org/wiki/Nintendo_DS", title: "Nintendo DS", year: "2004" }];
 
-// WRITE side (simulate a cold miss being cached)
+// WRITE side (simulate a cold miss being cached). Insert A's vector, then POLL
+// until it is indexed — a self-search returns it at score ~1.0 — before reading its
+// content-addressed id. Reading the id too early (before indexing) returns a stale
+// vector's id and writes the payload to the wrong key (the flaky failure mode).
 const eA = await embed(A);
 await insert(eA);
-const idA = (await nearest(eA))?.id;
+async function indexedId(vec) {
+  for (let i = 0; i < 8; i++) {
+    const h = await nearest(vec);
+    if (h && h.score >= 0.99) return h.id;       // self-match → A is indexed
+    await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+  }
+  return (await nearest(vec))?.id;               // best effort
+}
+const idA = await indexedId(eA);
 await kvSet(`veccache:${NS}:${idA}`, JSON.stringify(PAYLOAD));
 
 // READ side (the paraphrase — different words, same meaning)
