@@ -20,7 +20,7 @@ import { verifyEd25519 } from "./zk-binding.js";
 
 /** Top (closest to the human) → bottom (closest to the wire). */
 export const LAYERS = ["screen", "browser", "cli", "os", "kernel", "packet"] as const;
-const GENESIS = "0".repeat(64);
+import { GENESIS } from "./content-address.js"; // one source of truth (commandments #1/#6)
 
 export interface DescentRecord {
   layer: string;

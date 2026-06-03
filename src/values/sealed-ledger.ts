@@ -20,7 +20,7 @@ import { signBytes, getWalletPubkey, deriveSealKey } from "./signer.js";
 import { verifyEd25519 } from "./zk-binding.js";
 import { sealValue, revealValue } from "./wallet-seal.js";
 
-const GENESIS = "0".repeat(64);
+import { GENESIS } from "./content-address.js"; // one source of truth (commandments #1/#6)
 const sha = (data: Uint8Array): string => createHash("sha256").update(Buffer.from(data)).digest("hex");
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
