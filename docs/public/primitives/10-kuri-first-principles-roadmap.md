@@ -8,7 +8,7 @@ Unbrowse's critical browser primitives belong inside the Kuri Zig binary, not be
 
 Chrome is heavy, slow to spawn, and limited by its own launch-flag rules (`ERR_NO_SUPPORTED_PROXIES` on auth-in-URL proxy, no per-tab proxy override, no programmatic JA3 spoof). Every workaround we layer (the local auth forwarder, headless extensions, stealth patches) is a tax we pay forever, and the eleventh edge case will still bite us.
 
-Kuri is already a thin Zig binary with `quickjs_ng` integration and a CDP-shaped server. The primitives the runtime actually needs are a small fraction of Chrome's surface. Vendoring those primitives into Kuri lets us control the substrate end-to-end.
+Kuri is already a thin Zig binary with `quickjs_ng` integration and a CDP-shaped server. The primitives the runtime actually needs are a small fraction of Chrome's surface. Vendoring those primitives into Kuri lets us control the platform end-to-end.
 
 ## The six subtasks, in priority order
 
@@ -66,6 +66,6 @@ This is the roadmap, not the implementation. Each subtask is a multi-week vendor
 
 ## Composition with existing primitives
 
-The forwarder (PR #756, doc 02) is the L0 wedge that lets the Chrome path work today while the Kuri-native path is under construction. The contract substrate (referenced from doc 01) is the audit trail for the migration: every subtask ships as its own contract organism with a real verify gate, and the long-term root contract is satisfied only when every subtask is satisfied.
+The forwarder (PR #756, doc 02) is the L0 wedge that lets the Chrome path work today while the Kuri-native path is under construction. The contract platform (referenced from doc 01) is the audit trail for the migration: every subtask ships as its own contract organism with a real verify gate, and the long-term root contract is satisfied only when every subtask is satisfied.
 
 When subtask 1 lands and the forwarder becomes obsolete, the forwarder is removed in the same commit, the doc 02 mechanics are updated to describe the Kuri-native path, and the long-term contract's first child satisfies.

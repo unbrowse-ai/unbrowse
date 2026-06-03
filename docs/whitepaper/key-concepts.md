@@ -105,7 +105,7 @@ and never cross the wire.
 This three-verb surface ships today (`unbrowse {create,act,read}`, v7 preview)
 alongside the unchanged verb-per-command surface. How routes are scored, ranked,
 and value-populated is deliberately out of this public shape — that is the
-substrate, and the receipt exposes none of it. Full public surface:
+platform, and the receipt exposes none of it. Full public surface:
 [the uniform agent interface](../agent-internet-layer.md).
 
 ## Eval Truth

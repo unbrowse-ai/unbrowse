@@ -1,6 +1,6 @@
 # Unbrowse security model: official-package binding + anti-reverse-engineering
 
-This document is the honest threat model. It says what the substrate
+This document is the honest threat model. It says what the platform
 enforces, what it cannot, and why the design still holds.
 
 ## The honest premise

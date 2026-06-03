@@ -34,8 +34,8 @@ No additional setup — your existing Firecrawl API key works as the fallback au
 |---|---|---|
 | `scrape(url, opts)` | ✅ Unbrowse marketplace → synthesized Document | ✅ Firecrawl /v1/scrape |
 | `extract(urls, {schema})` | ✅ Per-URL Unbrowse execute --extract | partial (per-URL fallback in v0.2) |
-| `map(url)` | not in v0.1 (sitemap index TODO) | ✅ Firecrawl /v1/map |
-| `crawl(url, opts)` | not in v0.1 (recursive plan TODO) | ✅ Firecrawl /v1/crawl |
+| `map(url)` | not in v0.1 (sitemap index planned) | ✅ Firecrawl /v1/map |
+| `crawl(url, opts)` | not in v0.1 (recursive plan planned) | ✅ Firecrawl /v1/crawl |
 | `search(query)` | not in v0.1 | ✅ Firecrawl /v2/search |
 
 The shim is **safe to drop in**: if Unbrowse hasn't indexed your target URL yet, your call still works against Firecrawl with your existing key. The only thing that changes is your bill.

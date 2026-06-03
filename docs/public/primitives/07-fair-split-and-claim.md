@@ -60,7 +60,7 @@ The holding wallet's balance is itself public. `GET /v1/global-hold/balance` ret
 
 ## What happens when Faremeter mainnet is not reachable
 
-The same Flex protocol runs on a self-hosted facilitator. When Faremeter's hosted facilitator is unavailable or x402 funds on the agent's side cannot reach mainnet, the runtime falls through to a Unbrowse-operated facilitator on a Tencent SSH host (referenced as `machine:faremeter-facilitator` in the contract substrate). The split mechanics, the recipients, the claim flow are identical. The chain is never the blocker for the split being computed and recorded; settlement may delay until the host comes back if both are unreachable, but the attribution row is written either way.
+The same Flex protocol runs on a self-hosted facilitator. When Faremeter's hosted facilitator is unavailable or x402 funds on the agent's side cannot reach mainnet, the runtime falls through to a Unbrowse-operated facilitator on a Tencent SSH host (referenced as `machine:faremeter-facilitator` in the contract platform). The split mechanics, the recipients, the claim flow are identical. The chain is never the blocker for the split being computed and recorded; settlement may delay until the host comes back if both are unreachable, but the attribution row is written either way.
 
 This is the contract: payments either settle on Faremeter mainnet, or they settle on our self-hosted Faremeter facilitator, or the attribution row holds until one of the two recovers. The agent never sees a "we cannot pay you" error caused by chain availability.
 

@@ -91,7 +91,6 @@ async function doTask(intent: string, url: string) {
 `clientId` is important — it lets the marketplace track which worker captured which skill, so payouts attribute correctly even when several workers race the same domain.
 
 ## Step 4 — Confirm earnings flow
-## Step 4 — Confirm earnings flow
 
 Every published skill is re-executable by other Unbrowse users. When that happens, your wallet gets credited.
 
@@ -107,11 +106,6 @@ const me = await unbrowse.dashboard();                          // GET /v1/dashb
 const public_view = await unbrowse.dashboardByWallet(addr);     // public, no auth
 const { ledger, transactions } = await unbrowse.creatorTransactions(agentId);
 const attribution = await unbrowse.indexerAttribution(indexerId);
-```
-
-Funds settle on-chain via x402 once the unsettled balance crosses the platform threshold.
-await unbrowse.request("GET", "/v1/dashboard/me");
-await unbrowse.request("GET", `/v1/transactions/creator/${agentId}`);
 ```
 
 Funds settle on-chain via x402 once the unsettled balance crosses the platform threshold.
