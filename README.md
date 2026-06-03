@@ -6,7 +6,7 @@ Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK
 
 One agent learns a site once. Every later agent gets the fast path.
 
-On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694). For the release-coverage methodology (corpus shape, rubric, current numbers), see [docs/benchmarks.md](./docs/benchmarks.md).
+On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694).
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
@@ -22,7 +22,7 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/route-internet-layer.md](./docs/route-internet-layer.md).
+Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md).
 
 > The three-verb surface (`unbrowse {build,act,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
