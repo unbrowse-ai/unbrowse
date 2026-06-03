@@ -29,6 +29,10 @@ const env = {
   EMERGENTDB_API_KEY: process.env.EMERGENTDB_API_KEY,
   NEBIUS_API_KEY: process.env.NEBIUS_API_KEY,
   SEMANTIC_CACHE_NAMESPACE: "unbrowse-defer-witness",
+  // Disable the L2 fuzzy tier (threshold > 1) so the call is a GUARANTEED miss —
+  // otherwise a semantically-similar query from a prior run could L2-hit and no
+  // write-through would be scheduled. This witness isolates the deferral behavior.
+  SEMANTIC_CACHE_THRESHOLD: "1.01",
 };
 if (!env.EMERGENTDB_API_KEY || !env.NEBIUS_API_KEY) {
   console.error("[witness] missing EMERGENTDB_API_KEY / NEBIUS_API_KEY");
@@ -38,14 +42,9 @@ if (!env.EMERGENTDB_API_KEY || !env.NEBIUS_API_KEY) {
 const collected: Promise<unknown>[] = [];
 const waitUntil = (p: Promise<unknown>) => { collected.push(p); };
 
-// A genuinely DISTINCTIVE query forces a MISS (embedding far from prior runs —
-// note vector search is GLOBAL, namespace does not isolate it, so a numeric suffix
-// is not enough; the phrase content must differ). Pick random rare words.
-const POOL = ("aardvark basalt cinnabar dulcimer eelgrass fjord gneiss halberd ibex jacquard "
-  + "kestrel lichen marmoset nankeen obsidian pangolin quetzal rhubarb saffron tarragon "
-  + "umbra vellum wombat xylem yarrow zephyr cardamom dragonfly espalier filigree").split(" ");
-const pick = () => POOL[Math.floor(Math.random() * POOL.length)];
-const q = `${pick()} ${pick()} ${pick()} ${pick()} ${pick()} ${pick()} ${pick()}`;
+// A genuinely UNIQUE query forces a fresh MISS (with L2 disabled, only an exact
+// L1 hash collision could shadow it — this high-entropy string avoids that too).
+const q = `defer-witness-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 
 const t0 = Date.now();
 const { value, cached } = await getOrComputeSemantic(

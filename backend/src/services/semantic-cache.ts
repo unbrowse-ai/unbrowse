@@ -45,6 +45,31 @@ interface CacheEnv {
   SEMANTIC_CACHE_NAMESPACE?: string;
 }
 
+/**
+ * L0 — in-process memory cache, the tier ABOVE EmergentDB. Even an L1 exact hit
+ * costs a ~0.8s qdkv round-trip; a query repeated within the same Worker isolate
+ * (a burst, a retried request) should cost 0ms. Short TTL keeps it fresh; a hard
+ * size cap (oldest-out) keeps a long-lived isolate bounded. Same pattern kv.ts
+ * uses for the _idx. Lives for the isolate's lifetime; cleared between tests.
+ */
+interface L0Entry { value: unknown; expires: number }
+const _l0 = new Map<string, L0Entry>();
+const L0_TTL_MS = 60_000;
+const L0_MAX = 500;
+
+function l0Get(key: string): L0Entry | undefined {
+  const e = _l0.get(key);
+  if (e && e.expires > Date.now()) return e;
+  if (e) _l0.delete(key);
+  return undefined;
+}
+function l0Put(key: string, value: unknown): void {
+  if (_l0.size >= L0_MAX) { const oldest = _l0.keys().next().value; if (oldest !== undefined) _l0.delete(oldest); }
+  _l0.set(key, { value, expires: Date.now() + L0_TTL_MS });
+}
+/** test seam */
+export function clearSemanticL0(): void { _l0.clear(); }
+
 /** sha256(query) hex[:32] — the L1 exact-match key. Web Crypto works in Workers,
  *  Node, and bun. */
 async function hashQuery(query: string): Promise<string> {
@@ -145,6 +170,13 @@ export async function getOrComputeSemantic<T>(
   if (!edbKey || !nebiusKey) return { value: await compute(), cached: false };
 
   const ns = namespaceFor(env, kind);
+  const l0Key = `${ns}|${query}`;
+
+  // L0: in-process hit — 0ms, no EmergentDB round-trip. Populated on every resolved
+  // value below; serves in-isolate repeats within L0_TTL_MS.
+  const l0 = l0Get(l0Key);
+  if (l0) return { value: l0.value as T, cached: true };
+  const remember = (value: T): T => { l0Put(l0Key, value); return value; };
 
   // L1: exact-match fast path. A repeated query (same string — the common case)
   // resolves in ONE qdkv/get (~0.8s) instead of paying embed (~2s) + vector search
@@ -155,7 +187,7 @@ export async function getOrComputeSemantic<T>(
     const rawExact = await qdkvGet(exactKey, edbKey);
     if (rawExact) {
       try {
-        return { value: JSON.parse(rawExact) as T, cached: true };
+        return { value: remember(JSON.parse(rawExact) as T), cached: true };
       } catch { /* corrupt — fall through */ }
     }
   } catch { /* hashing/get error → skip L1 */ }
@@ -170,7 +202,7 @@ export async function getOrComputeSemantic<T>(
         const raw = await qdkvGet(`veccache:${ns}:${hit.id}`, edbKey);
         if (raw) {
           try {
-            return { value: JSON.parse(raw) as T, cached: true };
+            return { value: remember(JSON.parse(raw) as T), cached: true };
           } catch { /* corrupt entry — fall through to recompute */ }
         }
       }
@@ -198,5 +230,5 @@ export async function getOrComputeSemantic<T>(
     if (waitUntil) waitUntil(writeThrough);
     else void writeThrough; // fire-and-forget outside a Worker context
   }
-  return { value, cached: false };
+  return { value: remember(value), cached: false };
 }

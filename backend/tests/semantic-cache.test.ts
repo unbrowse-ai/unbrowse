@@ -7,7 +7,7 @@
  *   - L2 fuzzy hit returns the vector-keyed payload (embedding IS used).
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { getOrComputeSemantic } from "../src/services/semantic-cache.js";
+import { getOrComputeSemantic, clearSemanticL0 } from "../src/services/semantic-cache.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -18,9 +18,11 @@ let searchResults: { id: number; score: number }[];
 let embedCalls: number;
 let setKeys: string[];               // keys written via qdkv/set
 let insertCalls: number;
+let fetchCount: number;              // total network calls (to prove L0 makes ZERO)
 
 function installMockFetch() {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchCount++;
     const url = typeof input === "string" ? input : input.toString();
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
@@ -49,7 +51,8 @@ function installMockFetch() {
 const env = { EMERGENTDB_API_KEY: "test", NEBIUS_API_KEY: "test" };
 
 beforeEach(() => {
-  l1Value = null; l2Value = null; searchResults = []; embedCalls = 0; setKeys = []; insertCalls = 0;
+  l1Value = null; l2Value = null; searchResults = []; embedCalls = 0; setKeys = []; insertCalls = 0; fetchCount = 0;
+  clearSemanticL0();   // L0 is module-level — reset it so tests don't bleed into each other
   installMockFetch();
 });
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -100,5 +103,20 @@ describe("semantic-cache tiering", () => {
     const r = await getOrComputeSemantic(env, "web", "a loosely related query", async () => ["computed"]);
     expect(r.cached).toBe(false);
     expect(r.value).toEqual(["computed"]);
+  });
+
+  it("L0 in-process hit serves a repeat with ZERO network calls", async () => {
+    // 1st call: a miss — pays the network (embed/search/get); populates L0. Drain
+    // the deferred write-through so the fetch count is stable before we measure.
+    const writes: Promise<unknown>[] = [];
+    await getOrComputeSemantic(env, "web", "a hot repeated query", async () => ["v"], (p) => writes.push(p));
+    await Promise.all(writes);
+    const afterFirst = fetchCount;
+    expect(afterFirst).toBeGreaterThan(0);
+    // 2nd identical call within the isolate: L0 hit — no EmergentDB/Nebius at all.
+    const r = await getOrComputeSemantic(env, "web", "a hot repeated query", async () => ["should-not-run"]);
+    expect(r.cached).toBe(true);
+    expect(r.value).toEqual(["v"]);
+    expect(fetchCount).toBe(afterFirst);   // ZERO additional network calls
   });
 });
