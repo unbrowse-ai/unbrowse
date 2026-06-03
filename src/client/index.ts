@@ -24,7 +24,6 @@ import {
   RELEASE_MANIFEST_SIGNATURE,
   TRACE_VERSION,
 } from "../version.js";
-import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
@@ -1436,23 +1435,9 @@ export async function publishSkill(
     ...(wallet.wallet_address ? wallet : {}),
   }, { timeoutMs: PUBLISH_TIMEOUT_MS, extraHeaders: proofHeaders });
 
-  const cascade = await ensureCascadeSplitForSkill(published).catch((err) => ({
-    warning: `cascade_split_failed:${(err as Error).message}`,
-  }));
-  const warnings = [...(published.warnings ?? [])];
-  if (cascade.warning) warnings.push(cascade.warning);
-
-  if (cascade.split_config && cascade.split_config !== published.split_config) {
-    const updated = await api<SkillManifest>("PATCH", `/v1/skills/${published.skill_id}`, {
-      split_config: cascade.split_config,
-    });
-    return {
-      ...updated,
-      warnings,
-    };
-  }
-
-  return { ...published, warnings };
+  // Splits are computed server-side over Faremeter Flex (computeFlexSplits); the
+  // client no longer provisions a split at publish time.
+  return { ...published, warnings: [...(published.warnings ?? [])] };
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {

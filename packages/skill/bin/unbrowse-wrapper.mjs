@@ -24,7 +24,6 @@ const REQUIRED_FALLBACK_PACKAGES = [
   "tsx",
   "bs58",
   "@solana/kit",
-  "@cascade-fyi/splits-sdk",
 ];
 
 const KNOWN_BAD_FALLBACK_VERSIONS = new Set([
