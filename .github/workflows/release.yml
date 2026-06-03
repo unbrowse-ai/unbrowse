@@ -99,6 +99,55 @@ jobs:
             gh release create "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --title "$TAG" --notes "Release ${TAG}"
           fi
 
+  sync-public-tree:
+    name: Sync Public Docs + Packages
+    runs-on: ubuntu-latest
+    needs: upload-release-assets
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dev
+      - name: Resolve public repo token
+        env:
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          if [ -z "${SKILL_REPO_TOKEN:-}" ]; then
+            echo "::notice::No SKILL_REPO_TOKEN; skipping public-tree sync."
+            echo "SKIP_SYNC=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "::add-mask::$SKILL_REPO_TOKEN"
+          echo "PUB_TOKEN=$SKILL_REPO_TOKEN" >> "$GITHUB_ENV"
+      - name: Clone public repo
+        if: env.SKIP_SYNC != '1'
+        run: git clone --depth 1 "https://x-access-token:${PUB_TOKEN}@github.com/unbrowse-ai/unbrowse.git" public
+      - name: Assemble public tree (open-core sync)
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/open-core-sync.sh "$GITHUB_WORKSPACE/public"
+      # Last line before any public push: the assembled tree must carry NONE of
+      # the forbidden set (internal vocabulary, scripture citations, operational
+      # internals). A hit fails the job and nothing is pushed.
+      - name: Leak gate on assembled public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/public-tree-leak-gate.sh "$GITHUB_WORKSPACE/public"
+      - name: Commit + push public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: public
+        run: |
+          git config user.name "unbrowse-bot"
+          git config user.email "bot@unbrowse.ai"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::Public tree already in sync; nothing to push."
+            exit 0
+          fi
+          git commit -m "docs: sync public surface for ${GITHUB_REF_NAME} (docs + adapters)"
+          git push origin HEAD:main
+
   verify-release-assets:
     name: Verify CLI Release Assets
     runs-on: ubuntu-latest
