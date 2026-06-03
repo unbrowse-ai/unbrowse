@@ -18,11 +18,15 @@ cd "$(dirname "$0")/.."   # repo root
 
 # node-name : production test file (the witness that the node is real)
 NODES=(
+  # --- primitives (reference -> production) ---
   "sealed-unless-revealed:tests/wallet-seal.test.ts"     # AES-GCM seal under the wallet key
   "commit-reveal:tests/sealed-cache.test.ts"             # hash commitment, prove-without-revealing
   "zk-credential-binding:tests/zk-binding.test.ts"       # Schnorr NIZK: credential bound, never revealed
   "signed-layer-descent:tests/signed-descent.test.ts"    # hash-chained per-layer signatures, one wallet root
   "sealed-ledger:tests/sealed-ledger.test.ts"            # content-addressed, sealed, hash-chained ledger rows
+  # --- integration: the backend harness surfaces only holes; values ZK'd to the wallet ---
+  "sealed-hole-fill:tests/sealed-fill.test.ts"           # hole fills sealed to the wallet, revealed locally by the holder only
+  "zk-bound-hole:tests/zk-bound-hole.test.ts"            # a secret hole carries a real ZK binding; backend verifies bound w/o the secret
 )
 
 todo=0; done=0; pending_tests=()
