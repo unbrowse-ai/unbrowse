@@ -7,7 +7,8 @@ function stableEndpointId(method: string, urlTemplate: string): string {
 }
 import { readFileSync } from "node:fs";
 import { log } from "../logger.js";
-import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { extractEndpoints } from "../reverse-engineer/index.js";
+import { extractAuthHeaders } from "../values/header-classify.js";
 import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { validateExtractionQuality } from "../execution/index.js";

@@ -10,7 +10,8 @@
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
-import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { extractEndpoints } from "../reverse-engineer/index.js";
+import { extractAuthHeaders } from "../values/header-classify.js";
 import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";

@@ -2,7 +2,7 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
-import { extractAuthHeaders, extractGraphQLOperationName, isReplayCriticalHeader, isSensitiveHeader } from "../reverse-engineer/index.js";
+import { extractAuthHeaders, extractGraphQLOperationName, isReplayCriticalHeader, isSensitiveHeader } from "../values/header-classify.js";
 import { storeCredential } from "../vault/index.js";
 import { setLastVendorBlock } from "./process-vendor-signal.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
