@@ -117,12 +117,20 @@ function namespaceFor(env: CacheEnv, kind: string): string {
  * Look up a semantically-equivalent prior result; on miss, run `compute`, cache
  * its result, and return it. `kind` namespaces independent caches (e.g. one per
  * result-shape). Fail-open: cache trouble never blocks `compute`.
+ *
+ * `waitUntil` (Cloudflare `ctx.waitUntil`) is how the write-through stays OFF the
+ * response path. EmergentDB writes are SLOW (measured: vectors/insert + search +
+ * qdkv/set ≈ 5s), so awaiting them inline would make every cache MISS ~5s slower
+ * than the bare `compute` — the opposite of a cache. Instead we return the value
+ * the instant `compute` resolves and let the cache populate in the background. If
+ * no `waitUntil` is given (tests / non-Worker), the write-through is fire-and-forget.
  */
 export async function getOrComputeSemantic<T>(
   env: CacheEnv,
   kind: string,
   query: string,
   compute: () => Promise<T>,
+  waitUntil?: (p: Promise<unknown>) => void,
 ): Promise<{ value: T; cached: boolean }> {
   const edbKey = env.EMERGENTDB_API_KEY;
   const nebiusKey = env.NEBIUS_API_KEY;
@@ -147,13 +155,18 @@ export async function getOrComputeSemantic<T>(
 
   const value = await compute();
 
-  // Best-effort write-through; never block the response on it.
+  // Write-through is DEFERRED — it must never delay the response (see header).
   if (vector) {
-    try {
-      await vectorInsert(vector, edbKey, ns);
-      const assigned = await vectorNearest(vector, edbKey, ns);
-      if (assigned) await qdkvSet(`veccache:${ns}:${assigned.id}`, JSON.stringify(value), edbKey);
-    } catch { /* cache write failure is non-fatal */ }
+    const vec = vector;
+    const writeThrough = (async () => {
+      try {
+        await vectorInsert(vec, edbKey, ns);
+        const assigned = await vectorNearest(vec, edbKey, ns);
+        if (assigned) await qdkvSet(`veccache:${ns}:${assigned.id}`, JSON.stringify(value), edbKey);
+      } catch { /* cache write failure is non-fatal */ }
+    })();
+    if (waitUntil) waitUntil(writeThrough);
+    else void writeThrough; // fire-and-forget outside a Worker context
   }
   return { value, cached: false };
 }
