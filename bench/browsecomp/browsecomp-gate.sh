@@ -30,6 +30,23 @@ else
   GRADER_MODEL="${BROWSECOMP_GRADER_MODEL:-moonshotai/Kimi-K2.6}"
 fi
 
+# Binary selection: the globally-installed unbrowse is frequently stale (no
+# working `search` exa path → 0 retrieval → a false 0.0 that measures the binary's
+# age, not unbrowse's capability). If UNBROWSE_BIN is unset, probe the global
+# binary's `search` once; if it returns no JSON, fall back to the source-backed
+# wrapper so the gate measures the REAL current code. Honest: this runs source,
+# which is what a release would ship — not a mock.
+if [ -z "${UNBROWSE_BIN:-}" ]; then
+  GLOBAL="/opt/homebrew/bin/unbrowse"
+  if [ -x "$GLOBAL" ] && timeout 60 "$GLOBAL" search --intent "ping" --pretty 2>/dev/null | grep -q '"result"'; then
+    UNBROWSE_BIN="$GLOBAL"
+  else
+    UNBROWSE_BIN="$REPO/bench/browsecomp/.unbrowse-src"
+    echo "[bc-gate] global unbrowse stale/missing 'search' — using source binary $UNBROWSE_BIN" >&2
+  fi
+  export UNBROWSE_BIN
+fi
+
 bash bench/browsecomp/nebius-port/apply.sh >/dev/null 2>&1 || true
 cd bench/browsecomp/vendor/search_evals
 
