@@ -69,6 +69,8 @@
         "@gitbook/embed": "^0.4.0",
         "@opennextjs/cloudflare": "^1.15.1",
         "@privy-io/react-auth": "^3.26.0",
+        "@wallet-standard/app": "^1.1.0",
+        "@wallet-standard/base": "^1.1.0",
         "lenis": "1.1.18",
         "lucide-react": "^0.577.0",
         "micromark": "^4.0.2",
@@ -96,6 +98,49 @@
         "wrangler": "^4.67.0",
       },
     },
+    "packages/adopt": {
+      "name": "@unbrowse/adopt",
+      "version": "0.1.0",
+      "bin": {
+        "unbrowse-adopt": "./bin/adopt.mjs",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/ai-sdk": {
+      "name": "@unbrowse/ai-sdk",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/axios-shim": {
+      "name": "@unbrowse/axios-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/cross-fetch-shim": {
+      "name": "@unbrowse/cross-fetch-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/exa-shim": {
+      "name": "@unbrowse/exa-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
     "packages/extraction-core": {
       "name": "@unbrowse/extraction-core",
       "version": "0.1.0",
@@ -106,9 +151,62 @@
     "packages/firecrawl-shim": {
       "name": "@unbrowse/firecrawl-shim",
       "version": "0.1.0",
-      "dependencies": {
-        "@unbrowse/sdk": "^7.0.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
       },
+    },
+    "packages/got-shim": {
+      "name": "@unbrowse/got-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/ky-shim": {
+      "name": "@unbrowse/ky-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/langchain-js": {
+      "name": "@unbrowse/langchain-js",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/llamaindex": {
+      "name": "@unbrowse/llamaindex",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/mastra": {
+      "name": "@unbrowse/mastra",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/node-fetch-shim": {
+      "name": "@unbrowse/node-fetch-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/openai-agents": {
+      "name": "@unbrowse/openai-agents",
+      "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^22.0.0",
         "typescript": "^5.5.0",
@@ -117,9 +215,6 @@
     "packages/playwright-shim": {
       "name": "@unbrowse/playwright-shim",
       "version": "0.1.0",
-      "dependencies": {
-        "@unbrowse/sdk": "^7.0.0",
-      },
       "devDependencies": {
         "@types/node": "^22.0.0",
         "typescript": "^5.5.0",
@@ -131,9 +226,23 @@
         "playwright",
       ],
     },
+    "packages/puppeteer-shim": {
+      "name": "@unbrowse/puppeteer-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+      "peerDependencies": {
+        "puppeteer": "*",
+      },
+      "optionalPeers": [
+        "puppeteer",
+      ],
+    },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "7.2.0-preview.0",
+      "version": "7.2.0",
       "devDependencies": {
         "typescript": "^6.0.2",
       },
@@ -155,9 +264,17 @@
         "typescript": "^5.4.0",
       },
     },
+    "packages/selenium-shim": {
+      "name": "@unbrowse/selenium-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "7.2.0-preview.0",
+      "version": "7.2.0",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },
@@ -186,9 +303,6 @@
     "packages/stagehand-shim": {
       "name": "@unbrowse/stagehand-shim",
       "version": "0.1.0",
-      "dependencies": {
-        "@unbrowse/sdk": "^7.0.0",
-      },
       "devDependencies": {
         "@types/node": "^22.0.0",
         "typescript": "^5.5.0",
@@ -201,6 +315,38 @@
         "@browserbasehq/stagehand",
         "zod",
       ],
+    },
+    "packages/superagent-shim": {
+      "name": "@unbrowse/superagent-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/tavily-shim": {
+      "name": "@unbrowse/tavily-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/undici-shim": {
+      "name": "@unbrowse/undici-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "packages/wretch-shim": {
+      "name": "@unbrowse/wretch-shim",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.5.0",
+      },
     },
   },
   "packages": {
@@ -1204,17 +1350,53 @@
 
     "@typescript-eslint/visitor-keys": ["@typescript-eslint/visitor-keys@8.59.4", "", { "dependencies": { "@typescript-eslint/types": "8.59.4", "eslint-visitor-keys": "^5.0.0" } }, "sha512-U3gxVaDVnuZKhSspW/MzMxE1kq7zOdc072FcSNoqA1I9p8HyKbBFfEHoWckBAMgNMph4MamwS5iTVzFmrnt8TQ=="],
 
+    "@unbrowse/adopt": ["@unbrowse/adopt@workspace:packages/adopt"],
+
+    "@unbrowse/ai-sdk": ["@unbrowse/ai-sdk@workspace:packages/ai-sdk"],
+
+    "@unbrowse/axios-shim": ["@unbrowse/axios-shim@workspace:packages/axios-shim"],
+
     "@unbrowse/client": ["@unbrowse/client@workspace:packages/sdk-v2"],
+
+    "@unbrowse/cross-fetch-shim": ["@unbrowse/cross-fetch-shim@workspace:packages/cross-fetch-shim"],
+
+    "@unbrowse/exa-shim": ["@unbrowse/exa-shim@workspace:packages/exa-shim"],
 
     "@unbrowse/extraction-core": ["@unbrowse/extraction-core@workspace:packages/extraction-core"],
 
     "@unbrowse/firecrawl-shim": ["@unbrowse/firecrawl-shim@workspace:packages/firecrawl-shim"],
 
+    "@unbrowse/got-shim": ["@unbrowse/got-shim@workspace:packages/got-shim"],
+
+    "@unbrowse/ky-shim": ["@unbrowse/ky-shim@workspace:packages/ky-shim"],
+
+    "@unbrowse/langchain-js": ["@unbrowse/langchain-js@workspace:packages/langchain-js"],
+
+    "@unbrowse/llamaindex": ["@unbrowse/llamaindex@workspace:packages/llamaindex"],
+
+    "@unbrowse/mastra": ["@unbrowse/mastra@workspace:packages/mastra"],
+
+    "@unbrowse/node-fetch-shim": ["@unbrowse/node-fetch-shim@workspace:packages/node-fetch-shim"],
+
+    "@unbrowse/openai-agents": ["@unbrowse/openai-agents@workspace:packages/openai-agents"],
+
     "@unbrowse/playwright-shim": ["@unbrowse/playwright-shim@workspace:packages/playwright-shim"],
+
+    "@unbrowse/puppeteer-shim": ["@unbrowse/puppeteer-shim@workspace:packages/puppeteer-shim"],
 
     "@unbrowse/sdk": ["@unbrowse/sdk@workspace:packages/sdk"],
 
+    "@unbrowse/selenium-shim": ["@unbrowse/selenium-shim@workspace:packages/selenium-shim"],
+
     "@unbrowse/stagehand-shim": ["@unbrowse/stagehand-shim@workspace:packages/stagehand-shim"],
+
+    "@unbrowse/superagent-shim": ["@unbrowse/superagent-shim@workspace:packages/superagent-shim"],
+
+    "@unbrowse/tavily-shim": ["@unbrowse/tavily-shim@workspace:packages/tavily-shim"],
+
+    "@unbrowse/undici-shim": ["@unbrowse/undici-shim@workspace:packages/undici-shim"],
+
+    "@unbrowse/wretch-shim": ["@unbrowse/wretch-shim@workspace:packages/wretch-shim"],
 
     "@unrs/resolver-binding-android-arm-eabi": ["@unrs/resolver-binding-android-arm-eabi@1.12.2", "", { "os": "android", "cpu": "arm" }, "sha512-g5T90pqg1bo/7mytQx6F4iBNC0Wsh9cu+z9veDbFjc7HjpesJFWD7QMS0NGStXM075+7dJPPVvBbpZlnrdpi/w=="],
 
@@ -3546,15 +3728,9 @@
 
     "@typescript-eslint/visitor-keys/eslint-visitor-keys": ["eslint-visitor-keys@5.0.1", "", {}, "sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA=="],
 
-    "@unbrowse/firecrawl-shim/@unbrowse/sdk": ["@unbrowse/sdk@7.1.0", "", { "optionalDependencies": { "@faremeter/flex-solana": "^0.2.1", "unbrowse": "^6.15.0" } }, "sha512-JWi/M4ncY03U/46UtXpl7wWQoR7uFOttXlWOHdZqqE5kaTYMG358S7oXkH/KH1N5yQ7XEihZFu94wHTfOmgM3g=="],
-
-    "@unbrowse/playwright-shim/@unbrowse/sdk": ["@unbrowse/sdk@7.1.0", "", { "optionalDependencies": { "@faremeter/flex-solana": "^0.2.1", "unbrowse": "^6.15.0" } }, "sha512-JWi/M4ncY03U/46UtXpl7wWQoR7uFOttXlWOHdZqqE5kaTYMG358S7oXkH/KH1N5yQ7XEihZFu94wHTfOmgM3g=="],
-
     "@unbrowse/sdk/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@unbrowse/sdk/unbrowse": ["unbrowse@6.15.0", "", { "dependencies": { "@cascade-fyi/splits-sdk": "^0.11.1", "@fastify/cors": "^11.2.0", "@fastify/rate-limit": "^10.3.0", "@solana/kit": "^6.6.0", "@x402/fetch": "^2.9.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "tsx": "^4.20.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-Nmm0usNxYKN6as4RuP8Tja3pSCS/hmR6rrZYWJ9GY1xa3yJPU2WaNIoADpC85+Cdo8pY7ruUq6GFCzvm/zb/4g=="],
-
-    "@unbrowse/stagehand-shim/@unbrowse/sdk": ["@unbrowse/sdk@7.1.0", "", { "optionalDependencies": { "@faremeter/flex-solana": "^0.2.1", "unbrowse": "^6.15.0" } }, "sha512-JWi/M4ncY03U/46UtXpl7wWQoR7uFOttXlWOHdZqqE5kaTYMG358S7oXkH/KH1N5yQ7XEihZFu94wHTfOmgM3g=="],
 
     "@wagmi/connectors/@base-org/account": ["@base-org/account@2.4.0", "", { "dependencies": { "@coinbase/cdp-sdk": "^1.0.0", "@noble/hashes": "1.4.0", "clsx": "1.2.1", "eventemitter3": "5.0.1", "idb-keyval": "6.2.1", "ox": "0.6.9", "preact": "10.24.2", "viem": "^2.31.7", "zustand": "5.0.3" } }, "sha512-A4Umpi8B9/pqR78D1Yoze4xHyQaujioVRqqO3d6xuDFw9VRtjg6tK3bPlwE0aW+nVH/ntllCpPa2PbI8Rnjcug=="],
 
@@ -4201,12 +4377,6 @@
     "@types/yauzl/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 
     "@typescript-eslint/typescript-estree/minimatch/brace-expansion": ["brace-expansion@5.0.6", "", { "dependencies": { "balanced-match": "^4.0.2" } }, "sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g=="],
-
-    "@unbrowse/firecrawl-shim/@unbrowse/sdk/unbrowse": ["unbrowse@6.15.0", "", { "dependencies": { "@cascade-fyi/splits-sdk": "^0.11.1", "@fastify/cors": "^11.2.0", "@fastify/rate-limit": "^10.3.0", "@solana/kit": "^6.6.0", "@x402/fetch": "^2.9.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "tsx": "^4.20.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-Nmm0usNxYKN6as4RuP8Tja3pSCS/hmR6rrZYWJ9GY1xa3yJPU2WaNIoADpC85+Cdo8pY7ruUq6GFCzvm/zb/4g=="],
-
-    "@unbrowse/playwright-shim/@unbrowse/sdk/unbrowse": ["unbrowse@6.15.0", "", { "dependencies": { "@cascade-fyi/splits-sdk": "^0.11.1", "@fastify/cors": "^11.2.0", "@fastify/rate-limit": "^10.3.0", "@solana/kit": "^6.6.0", "@x402/fetch": "^2.9.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "tsx": "^4.20.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-Nmm0usNxYKN6as4RuP8Tja3pSCS/hmR6rrZYWJ9GY1xa3yJPU2WaNIoADpC85+Cdo8pY7ruUq6GFCzvm/zb/4g=="],
-
-    "@unbrowse/stagehand-shim/@unbrowse/sdk/unbrowse": ["unbrowse@6.15.0", "", { "dependencies": { "@cascade-fyi/splits-sdk": "^0.11.1", "@fastify/cors": "^11.2.0", "@fastify/rate-limit": "^10.3.0", "@solana/kit": "^6.6.0", "@x402/fetch": "^2.9.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "tsx": "^4.20.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-Nmm0usNxYKN6as4RuP8Tja3pSCS/hmR6rrZYWJ9GY1xa3yJPU2WaNIoADpC85+Cdo8pY7ruUq6GFCzvm/zb/4g=="],
 
     "@wagmi/connectors/@base-org/account/@noble/hashes": ["@noble/hashes@1.4.0", "", {}, "sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg=="],
 
