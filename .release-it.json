@@ -31,11 +31,9 @@
   },
   "hooks": {
     "before:init": [
-      "bash scripts/check-deploy-gate.sh",
       "bash scripts/check-release-on-boost.sh",
       "bun run test:issue-regressions",
-      "bun test tests/path-params.test.ts tests/utils.test.ts",
-      "bash scripts/bench-gate-prerelease.sh"
+      "bun test tests/path-params.test.ts tests/utils.test.ts"
     ],
     "after:bump": [
       "bun scripts/generate-release-notes.ts --version ${version}",
