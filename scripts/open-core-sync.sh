@@ -83,6 +83,18 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     s{grain[- ]of[- ]wheat}{seed}gi;
     s/\bsabbath\b/rest/gi;
     s{\.claude/[A-Za-z0-9_./\-]+}{(internal)}g;
+    # platform-vocabulary + maintenance-stake-model secularization
+    s/\bthe substrate\b/the platform/gi;
+    s/\bsubstrate\b/platform/gi;
+    s/Vine Doctrine/maintenance-stake model/gi;
+    s/\babiding\b/staking/gi;
+    s/\babide\b/stake/gi;
+    # redact operational internals: internal repo paths + the staking vault PDA
+    s{~?/?Projects/fdry[A-Za-z0-9_./\-]*}{(internal)}g;
+    s/\bBpr49sQXsxwNXNMRWS2v3tTBGWu2QgZtdA83BX77xBX1\b/(vault address withheld)/g;
+    # strip scripture citations (Book c:v) that may ride along in prose
+    s/\s*\((?:Deuteronomy|John|Matthew|Luke|Genesis|Hebrews|1 ?Cor(?:inthians)?|2 ?Timothy)\s+\d+:\d+[^)]*\)//gi;
+    s/\b(?:Deuteronomy|John|Matthew|Luke|Genesis|Hebrews|2 ?Timothy)\s+\d+:\d+\b//g;
   ' "$f"
 done
 echo "  translated $(find "$DST" -type f \( -name '*.ts' -o -name '*.md' \) -not -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ') files"
