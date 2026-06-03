@@ -16,24 +16,12 @@
  * recomputes + stores the blob + appends a signed resolution row. Pure over the injected
  * store + ledger, so both adapters are fully testable with stub clients (no network).
  */
-import { createHash } from "node:crypto";
-import type { Pointer, ResolutionRecord, Resolution } from "./resolution-ledger.js";
-
-const sha256hex = (s: string): string => createHash("sha256").update(s).digest("hex");
-export const GENESIS = "0".repeat(64);
-
-/** Content-addressed pointer for a value (same `sha256:<hex>` shape as the local tier). */
-export function contentPointer(text: string): Pointer {
-  return `sha256:${sha256hex(text)}`;
-}
-/** The signature / KV key for an intent — its content-addressed pointer. */
-export function intentKey(intent: string): Pointer {
-  return `sha256:${sha256hex(`intent ${intent}`)}`;
-}
-/** Canonical hash of a ledger record's signed core (matches resolution-ledger.ts). */
-export function recordHash(rec: Pick<ResolutionRecord, "intent" | "prev" | "result" | "seq">): string {
-  return sha256hex(JSON.stringify({ intent: rec.intent, prev: rec.prev, result: rec.result, seq: rec.seq }));
-}
+import type { Pointer, Resolution } from "./resolution-ledger.js";
+// One source of truth (commandment #1/#6): the content-addressing + hash-chain core,
+// imported for local use AND re-exported so existing importers (iq-ledger, standards,
+// tier, tests) keep working unchanged.
+import { GENESIS, sha256hex, contentPointer, intentKey, recordHash } from "./content-address.js";
+export { GENESIS, contentPointer, intentKey, recordHash };
 
 /** A content-addressed object store reachable over the network (R2 / EmergentDB). */
 export interface AsyncBlobStore {
