@@ -23,7 +23,7 @@ library's response type.
 
 | Upstream | Drop-in | Swap |
 |---|---|---|
-| `fetch` (WHATWG) | `@unbrowse/client` | `import { fetch } from '@unbrowse/client'` |
+| `fetch` (WHATWG) | `unbrowse/sdk` | `import { fetch } from 'unbrowse/sdk'` |
 | `axios` | `@unbrowse/axios-shim` | `import axios from '@unbrowse/axios-shim'` |
 | `got` | `@unbrowse/got-shim` | `import got from '@unbrowse/got-shim'` |
 | `ky` | `@unbrowse/ky-shim` | `import ky from '@unbrowse/ky-shim'` |
@@ -77,7 +77,7 @@ When you are not replacing an existing library, start from the native surfaces:
 
 | Surface | Install | Use it when |
 |---|---|---|
-| `@unbrowse/client` | `npm install @unbrowse/client` | Browser, edge, or Node TypeScript/JavaScript |
+| `unbrowse/sdk` | `npm i unbrowse` | Browser, edge, or Node TypeScript/JavaScript |
 | MCP server | `npx unbrowse mcp` | Wiring an agent host (Claude, Cursor, Codex, any MCP client) |
 | CLI | `npx unbrowse` | Shell scripts, CI, one-off use |
 

@@ -13,7 +13,7 @@ unbrowse account --register --email you@example.com
 
 That's it. Every later `resolve` / `execute` you run mines the marketplace, credits your wallet, and is free for cache hits.
 
-Next, see [@unbrowse/sdk installation](../../packages/sdk/docs/getting-started/installation.md) to wire the SDK into your code.
+Next, see [unbrowse/sdk installation](../../packages/sdk/docs/getting-started/installation.md) to wire the SDK into your code.
 
 That's it. Every later `resolve` / `execute` you run mines the marketplace, credits your wallet, and is free for cache hits.
 
@@ -62,7 +62,7 @@ For the web dashboard, visit `https://www.unbrowse.ai/dashboard` once your accou
 From the SDK:
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 const u = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const me = await u.dashboard();
 console.log(me.earnings?.total_usd, me.earnings?.unsettled_usd);
@@ -79,7 +79,7 @@ await u.request("GET", "/v1/dashboard/me");
 The SDK is the same as the validator path:
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse/sdk";
 
 const u = new Unbrowse();
 const result = await u.resolve({

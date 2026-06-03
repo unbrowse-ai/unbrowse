@@ -7,8 +7,7 @@
  * — its Agent Skills, its MCP tools, its x402 Bazaar resources — into the one
  * route shape and prioritize them over our own wrapper. So when a site already
  * monetizes an x402 resource or runs an MCP tool for an intent, the agent is
- * pointed at THAT, not at a redundant re-wrap (1 Cor 9:22; the rational-adoption
- * inequality of arXiv:2604.00694 — use what costs least to reach).
+ * pointed at THAT, not at a redundant re-wrap.
  *
  * Sources are INJECTED (each optional), so this is pure + testable with stubs and
  * the real fetchers (agentskills.io registry, an MCP server probe, the x402 Bazaar

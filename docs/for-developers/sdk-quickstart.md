@@ -1,13 +1,13 @@
 # SDK Quickstart
 
-`@unbrowse/client` is the thin HTTP-first TypeScript client for the hosted Unbrowse API. It runs in browsers, edge runtimes, and Node 18+.
+`unbrowse/sdk` is the thin HTTP-first TypeScript client for the hosted Unbrowse API. It runs in browsers, edge runtimes, and Node 18+.
 
 ```bash
-npm install @unbrowse/client
+npm i unbrowse
 ```
 
 ```ts
-import { Unbrowse } from "@unbrowse/client";
+import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 
@@ -25,7 +25,7 @@ const result = await unbrowse.execute({
 Need a local browser session owned by your process? Use the legacy local-runtime SDK:
 
 ```bash
-npm install @unbrowse/sdk
+npm install unbrowse/sdk
 ```
 
 Its three factories are `Unbrowse.local()`, `Unbrowse.connect(url)`, and `Unbrowse.spawn({ port })`.

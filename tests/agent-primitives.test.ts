@@ -21,7 +21,7 @@ describe("agentskills.io skill ↔ primitive", () => {
 		expect(p.kind).toBe("skill");
 		expect(p.what).toBe("pdf-fill");
 		expect(p.why).toBe("Fill PDF forms from a data map");
-		expect(p.verb).toBe("breath"); // procedural action
+		expect(p.verb).toBe("act"); // procedural action
 	});
 
 	it("round-trips name + description losslessly and preserves extra frontmatter", () => {
@@ -71,7 +71,7 @@ describe("x402 resource ↔ primitive", () => {
 	});
 
 	it("can mint an x402 resource from a primitive that has payment but no x402 raw", () => {
-		const p: AgentPrimitive = { who: "s", what: "https://s/x", why: "paid call", where: "https://s/x", verb: "breath", kind: "route", payment: { amount: "5", asset: "USDC" } };
+		const p: AgentPrimitive = { who: "s", what: "https://s/x", why: "paid call", where: "https://s/x", verb: "act", kind: "route", payment: { amount: "5", asset: "USDC" } };
 		const res = primitiveToX402Resource(p);
 		expect(res.resource.url).toBe("https://s/x");
 		expect(res.accepts[0]!.amount).toBe("5");
@@ -92,7 +92,7 @@ describe("drop-in: ingest from any, serve as any", () => {
 	});
 
 	it("ingest∘serveAs preserves the load-bearing fields for every kind", () => {
-		const p: AgentPrimitive = { who: "x", what: "do-thing", why: "does the thing", where: "do-thing", verb: "breath", kind: "skill" };
+		const p: AgentPrimitive = { who: "x", what: "do-thing", why: "does the thing", where: "do-thing", verb: "act", kind: "skill" };
 		for (const kind of ["skill", "mcp_tool"] as const) {
 			const round = ingest(serveAs(p, kind), kind);
 			expect(round.what).toBe(p.what);

@@ -51,7 +51,7 @@ Status meanings:
 | Background endpoint verification | Shipped | Safe GET verification loop exists. |
 | Pre-publish quality gate | Partial | There are local quality checks and passive publish gating, but not the exact formal validator pipeline described in the paper. |
 | Continuous trust score with signed feedback and validator attestations | Partial | There is a practical reliability model today, but not the full signed multi-signal trust system described in the paper. |
-| Independent validators with staking/slashing | Coming soon | Not implemented. |
+| Independent validator markets | Coming soon | Not implemented. |
 | E2B sandbox validation | Coming soon | Not implemented in the current codebase. |
 | TEE attestation for verification proofs | Coming soon | Not implemented. |
 

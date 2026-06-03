@@ -29,9 +29,6 @@
     "shim"
   ],
   "license": "MIT",
-  "dependencies": {
-    "@unbrowse/sdk": "^7.0.0"
-  },
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^22.0.0"

@@ -18,7 +18,7 @@ This skill installs the instructions. The runtime (CLI binary + MCP server) come
 |---|---|
 | **MCP server** | An MCP-host agent (Claude Code, Claude Desktop, Cursor, Codex, Windsurf). Tools like `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_go` appear in the host. |
 | **CLI** (`unbrowse`) | A shell or script that wants the same surface without an MCP host. |
-| **SDK** (`@unbrowse/sdk`) | A TypeScript program embedding Unbrowse; the SDK spawns its own local binary. |
+| **SDK** (`unbrowse/sdk`) | A TypeScript program embedding Unbrowse; the SDK spawns its own local binary. |
 
 ## The workflow
 
@@ -59,15 +59,30 @@ unbrowse execute --skill-id <id-from-resolve> --endpoint-id <id-from-shortlist>
 From Node:
 
 ```bash
-npm i @unbrowse/sdk
+npm i unbrowse
 ```
 
 ```typescript
-import { spawn } from '@unbrowse/sdk';
-const client = await spawn();
+import { Unbrowse } from 'unbrowse/sdk';
+const client = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 const resolved = await client.resolve({ intent: 'search hn for openai', url: 'https://news.ycombinator.com' });
-const result = await client.execute({ skillId: resolved.skill.id, endpointId: resolved.endpoints[0].id });
+const result = await client.execute({ endpoint_id: resolved.available_operations![0].endpoint_id, params: { q: 'agents' } });
 ```
+
+## Passive parallel indexing
+
+While you browse, Unbrowse reverse-engineers the page's API traffic and indexes
+it to publish — in the background, in parallel, so browsing stays fast. This is
+**on by default**; each `sync` checkpoint returns immediately instead of blocking
+on the page's network settle. Opt out per machine to index inline (slower
+checkpoints, complete endpoints before each returns):
+
+```bash
+unbrowse settings --passive-index off    # opt out; back on with: --passive-index on
+```
+
+Agents can toggle the same flag via the `unbrowse_settings` tool
+(`passive_index: true|false`).
 
 ## Links
 
