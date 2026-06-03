@@ -51,7 +51,7 @@ fi
 
 # 3. Papers reflect code — no overclaim in the public papers.
 section "paper-gate (papers reflect code)"
-for tex in paper/internal-apis.tex paper/maintenance-network.tex; do
+for tex in paper/crypto-was-all-you-needed.tex paper/unbrowse-maintenance-network.tex; do
   if bash scripts/paper-gate.sh "$tex" >/dev/null 2>&1; then
     echo "paper-gate $tex: PASS"
   else

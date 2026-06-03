@@ -2,7 +2,7 @@
 # cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the seal plane inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 # paper-gate.sh — the whitepaper must REFLECT the code and never LEAK the moat.
 #
-# Two mechanical checks on a public paper (default: paper/internal-apis.tex):
+# Two mechanical checks on a public paper (default: paper/crypto-was-all-you-needed.tex):
 #   1. REFLECTS: every "[shipped]" / "\impl{}" claim must have a verifiable code
 #      anchor — a path or symbol that actually exists in this repo. A shipped
 #      claim with no anchor is a paper that overclaims; the gate fails it.
@@ -13,11 +13,11 @@
 # so the binding is data, not baked into this script (pointer not payload).
 #
 #   bash scripts/paper-gate.sh                       # gate the default paper
-#   bash scripts/paper-gate.sh paper/internal-apis.tex
+#   bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex
 set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-PAPER="${1:-paper/internal-apis.tex}"
+PAPER="${1:-paper/crypto-was-all-you-needed.tex}"
 ANCHORS="${PAPER%/*}/anchors.tsv"
 fail=0
 

@@ -94,7 +94,7 @@ else
   bad "D2: $DOC missing or incomplete (needs exa + x402 + split)"
 fi
 # D3: the paper-gate stays green (paper reflects code, no moat leak).
-if [ -f scripts/paper-gate.sh ] && bash scripts/paper-gate.sh paper/internal-apis.tex >/tmp/paper-gate.out 2>&1; then
+if [ -f scripts/paper-gate.sh ] && bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex >/tmp/paper-gate.out 2>&1; then
   pass "D3: paper-gate green (paper reflects code, no leak)"
 else
   bad "D3: paper-gate red — see /tmp/paper-gate.out"

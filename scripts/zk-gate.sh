@@ -67,7 +67,7 @@ fi
 
 # Paper must stay honest regardless.
 echo "=== paper honesty (no fabricated green; [shipped] -> code; no moat leak) ==="
-if ! bash scripts/paper-gate.sh paper/internal-apis.tex; then
+if ! bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex; then
   echo "[zk-gate] FAIL — paper-gate red"; exit 1
 fi
 

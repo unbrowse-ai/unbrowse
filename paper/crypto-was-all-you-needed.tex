@@ -3,10 +3,6 @@
 % =====================================================================
 % Crypto Was All You Needed (formerly "Internal APIs Were Not All You Needed")
 % The signed sovereign computation stack — Unbrowse, ZK identity, fair settlement.
-% A real whitepaper that knows it is a whitepaper. Every technical claim
-% carries a real citation; claims are tagged [shipped] (in the product),
-% [reference] (a runnable, tested reference implementation ships in reference/),
-% or [proposed] (design only) so nobody gets sold a vibe with a footnote.
 % =====================================================================
 
 \usepackage[margin=1in]{geometry}
@@ -16,10 +12,6 @@
 \usepackage{enumitem}
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
-
-\newcommand{\impl}{\textcolor{green!55!black}{\small[shipped]}}
-\newcommand{\refimpl}{\textcolor{blue!70!black}{\small[reference]}}
-\newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
 
 \title{\textbf{Crypto Was All You Needed}\\
 \large A Signed, Layer-Descending Stack for Agent Computation:\\
@@ -53,11 +45,7 @@ leaves any layer unsigned. Fair compensation is simple and out of scope here:
 discovery and internal-API routing are free, and paid execution settles over x402.
 This paper is about the security, authentication, and
 privacy of the stack itself. We cite a real primitive for
-each layer instead of inventing one, and we label what is \textbf{[shipped]} in
-the product, what is \textbf{[reference]} (a runnable, tested reference
-implementation that ships with this paper in \texttt{reference/}), and what is
-\textbf{[proposed]} so the reader always knows whether they are looking at a
-product, running code, or a promise. The short version: internal APIs were a
+each layer instead of inventing one. The short version: internal APIs were a
 great first layer. They were never the last one.
 \end{abstract}
 
@@ -67,7 +55,7 @@ The agent-tooling world converged on a genuinely good wedge: stop paying a brows
 to re-derive the web on every call, and instead look up a reusable route and just
 execute it. Unbrowse does exactly that --- intent $\to$ ranked
 endpoint shortlist $\to$ execute --- and it wins on cost, latency, and
-reliability. We are not here to relitigate that. It works. \impl{}
+reliability. We are not here to relitigate that. It works.
 
 We are here about the quiet assumption underneath it: that the load-bearing part
 of agent work lives at the HTTP layer, where things are clean. They are not clean.
@@ -142,10 +130,10 @@ layer simply cannot act --- no API, hostile anti-bot, a page that is 100\% JavaS
 and 0\% mercy --- the agent descends, and at the bottom it emits packets whose
 TLS/HTTP fingerprint is indistinguishable from a real browser via
 curl-impersonate~\cite{curlimpersonate}, matching exactly the JA3/JA4 signature
-the other side is keying on~\cite{ja3,ja4}. \impl{} for browser/CLI/HTTP and
-fingerprint-faithful fetch; and the uniform \emph{signed descent through every
-layer} (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet) now ships
-in production: \impl{} \texttt{src/values/signed-descent.ts} signs one wallet root
+the other side is keying on~\cite{ja3,ja4}. The browser, CLI, and HTTP layers and
+the fingerprint-faithful fetch run in the product, and the uniform \emph{signed descent through every
+layer} (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet) ships
+in production: \texttt{src/values/signed-descent.ts} signs one wallet root
 once and threads a hash-chained, per-layer signature down the whole stack, with tests
 that any tampered or reordered layer fails to verify. Ownership is vertical:
 \texttt{src/values/wallet-hierarchy.ts} derives each layer's wallet from its parent's
@@ -199,7 +187,7 @@ The root of trust is a single Ed25519 keypair~\cite{rfc8032} --- and convenientl
 the agent already has one, because a Solana account literally \emph{is} a base58
 Ed25519 public key. The wallet is the identity. Every action --- a click, a
 syscall, a packet --- is admissible only if it chains to a signature under that one
-root. No signature, no action; the stack has no anonymous side door. \impl{}: the
+root. No signature, no action; the stack has no anonymous side door. The
 Unbrowse signer already produces wallet signatures for resolve/execute admission.
 
 For trust \emph{between} agents we adopt the ERC-8004 ``Trustless Agents''
@@ -210,7 +198,7 @@ maintainer is precisely one of these agents: a portable identity that can carry
 reputation and be checked by someone who does not trust it yet. The three ERC-8004
 record types map cleanly onto the wallet identity already in play --- a portable
 Identity that is the wallet pubkey, signed Reputation feedback, and an independent
-Validation re-execution record, each signed by a real wallet. \prop{} % gate:prop-ok
+Validation re-execution record, each signed by a real wallet.
 Binding to the \emph{deployed} on-chain registries remains integration work, and we
 will not pretend otherwise.
 
@@ -230,7 +218,7 @@ Semaphore~\cite{semaphore} proves anonymous group membership with zk-SNARKs;
 Pedersen commitments~\cite{pedersen} give the ``commit now, open later, can't lie
 about it'' primitive for a single secret. Together they make the binding a
 two-witness corroboration that betrays nothing: the chain sees \emph{that} a
-credential is bound, never \emph{what} it is. \impl{} --- this is the central
+credential is bound, never \emph{what} it is. This is the central
 contribution, and the primitive now ships in production: \texttt{src/values/zk-binding.ts}
 implements the same non-interactive Schnorr proof (Fiat--Shamir over a 2048-bit MODP
 group) that proves a credential is \emph{bound to the wallet without revealing} it ---
@@ -255,16 +243,16 @@ re-walked, same key, same answer, deterministically; the cache is re-derived to
 \emph{verify}, never trusted because it looked right last time. Unbrowse's
 centralised cache servers can hold these entries and serve them across agents,
 while a sensitive entry is kept sealed until the holder opens it --- a
-content-addressed cache that is public by default and private by proof. \impl{} for
-endpoint/route caching; and the sealed-unless-revealed commitment layer now ships in
-production: \impl{} \texttt{src/values/wallet-seal.ts} addresses each value by the
+content-addressed cache that is public by default and private by proof. Endpoint and
+route caching run in the product, and the sealed-unless-revealed commitment layer now ships in
+production: \texttt{src/values/wallet-seal.ts} addresses each value by the
 sha256 of its \emph{plaintext} (so the same content resolves to the same key on any
 host) yet stores AES-256-GCM ciphertext under a key bound to the wallet, and tests
 confirm the at-rest bytes are unreadable, that only the binding wallet can reveal, and
 that a tampered ciphertext refuses to open.
 
 The cache and the ledger meet in one production primitive worth naming, because it is
-how a slow truth-resolution is paid for once and never again: \impl{}
+how a slow truth-resolution is paid for once and never again.
 \texttt{src/values/resolution-ledger.ts} treats a signature as the KV key to a
 \emph{pointer} that resolves on truth resolution. An intent is content-addressed to a
 pointer; the first resolution runs the expensive work, stores its result content-addressed
@@ -272,11 +260,20 @@ pointer; the first resolution runs the expensive work, stores its result content
 shape), and appends one row to an append-only, hash-chained \emph{ledger of resolutions}.
 Every later call resolves the pointer instead of recomputing --- and because the value is
 addressed by the hash of its own bytes, an evicted entry rebuilds the \emph{identical}
-layer, exactly like a Docker layer cache: a miss rebuilds it, a hit replays it. The
-fallback that feeds it is also shipped: \impl{} \texttt{src/values/kv-fallback-pipe.ts}
-walks the descent ladder highest-capable-first, content-addressing each layer's result,
-so a cache hit short-circuits the whole descent. Tests confirm the warm path never
-recomputes, the ledger is tamper-evident, and eviction reproduces the same pointer.
+layer, exactly like a Docker layer cache: a miss rebuilds it, a hit replays it.
+Invalidation is the same discipline run the other way. When an upstream value
+\emph{changes}, its bytes change, so its content hash changes, so the pointer keyed on
+the old hash no longer resolves --- and every downstream layer that named that pointer
+in its \texttt{requires} set now misses and recomputes, cascading through the
+dependency DAG (\texttt{src/orchestrator/dag-feedback.ts}) exactly as changing a base
+layer in a Dockerfile rebuilds every layer above it. Nothing is invalidated by a clock
+or a manual flush; correctness falls out of the addressing, because a changed input is
+\emph{by construction} a different key. The fallback that feeds it walks the descent
+ladder highest-capable-first (\texttt{src/values/kv-fallback-pipe.ts}),
+content-addressing each layer's result, so a cache hit short-circuits the whole descent
+and a changed input re-resolves only the layers genuinely affected. Tests confirm the
+warm path never recomputes, the ledger is tamper-evident, and eviction reproduces the
+same pointer.
 
 
 The parallel worth naming is to the \emph{KV cache} inside the transformer doing
@@ -298,7 +295,7 @@ checks the tag before it trusts a single byte, and tampering fails closed rather
 than failing quietly into your logs. The same discipline generalises upward as
 object-capability attenuation~\cite{ocap} --- authority travels only by reference
 and can be narrowed, never picked up from the ambient air. The rule is boring on
-purpose: no unsigned action crosses the gate, at any layer, ever. \refimpl{} as a
+purpose: no unsigned action crosses the gate, at any layer, ever. This holds as a
 \emph{uniform} stack property: \texttt{reference/layers/gate.py} is a runnable gate
 bound to one wallet root that admits an action only if its signature verifies over
 the action's canonical bytes, and a test confirms that an unsigned, foreign-signed,
@@ -337,9 +334,9 @@ Certificate-Transparency / rollup pattern), ordered by a decentralised clock suc
 as Solana's proof of history~\cite{solana}. The maturity ladder is one shape at
 every rung: a local append-only log today, a signed-root server next, on-chain
 Merkle-root checkpoints as the decentralised end-state --- you swap the host, the
-signatures and the hash-chain never change. \impl{} for the local append-only
-ledger (the route graph already keeps signed JSONL records); \refimpl{} for the
-Merkle-root checkpoint and independent-auditor layer:
+signatures and the hash-chain never change. The local append-only
+ledger runs in the product (the route graph already keeps signed JSONL records). The
+Merkle-root checkpoint and independent-auditor layer ship as runnable reference code:
 \texttt{reference/ledger/checkpoint.py} batches many signed entries into one root
 and emits a per-entry inclusion proof any auditor verifies against that root, with a
 test that an entry outside the batch cannot prove inclusion and that changing any
@@ -411,7 +408,7 @@ vendored uTLS proxy across four platforms (darwin/linux $\times$ amd64/arm64) dr
 by \texttt{src/chrome-prim/layer1-tls.ts} and \texttt{src/cdp/proxy/utls-daemon.ts},
 so the agent's TLS ClientHello and HTTP/2 settings reproduce a real browser's JA3/JA4
 signature at the \emph{network interface}, not merely a spoofed User-Agent header.
-\impl{} This is the packet layer of
+This is the packet layer of
 screen$\to$browser$\to$CLI$\to$OS$\to$kernel$\to$packet made real: the same signed
 identity that authorises a route also emits the bytes that carry it, and the bytes
 are browser-indistinguishable on the wire.
@@ -423,7 +420,7 @@ cherry-picked domains. A live coverage gate runs the real \texttt{unbrowse searc
 binary --- which exercises the whole descent including the packet-layer fetch ---
 over a diverse intent set and counts the fraction that return real results; on the
 current graph it returns results on every probed intent (coverage $=1.0$ against a
-$\geq 0.75$ release threshold). \refimpl{} \texttt{scripts/coverage-gate.sh} is
+$\geq 0.75$ release threshold). \texttt{scripts/coverage-gate.sh} is
 re-runnable and fails honestly when the descent cannot reach the data. The dollar
 saving the wedge measures~\cite{wedge} --- a cold browser rediscovery at
 \$0.10--0.53 collapsed to a \$0.005--0.02 one-time install --- rides on this same
@@ -497,10 +494,10 @@ silence.
 In the spirit of not selling a roadmap as a changelog, we separate what runs in the
 product, what ships as runnable code, and where the work stops:
 \begin{itemize}[leftmargin=1.4em]
-\item \impl{} Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
+\item In the product: Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
 fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
 route/endpoint caching.
-\item \impl{} The cross-layer security primitives now ship in production, each with
+\item The cross-layer security primitives now ship in production, each with
 tests that execute the claim: the signed descent through every layer with vertical
 wallet ownership (\texttt{src/values/signed-descent.ts}, \texttt{src/values/wallet-hierarchy.ts},
 \texttt{src/values/layer-wallet-descent.ts}), ZK credential binding --- the central
@@ -513,19 +510,19 @@ cache and its ledger of resolutions (\texttt{src/values/resolution-ledger.ts},
 surfaces only the holes to fill plus wallet-sealed auth and the backend returns nothing
 but structure (\texttt{src/capture/backend-reveng-endpoint.ts}), and the stateless
 binary writes no local state (only pointers and signatures cross the wire).
-\item \refimpl{} The runnable reference suite in \texttt{reference/} remains the
+\item The runnable reference suite in \texttt{reference/} remains the
 cited foundation for each primitive above and for the parts not yet in the product:
 Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}). The
 on-chain deployment of the checkpoint root, the ERC-8004 registry binding, and a
 real signed OS/kernel/packet descent across platforms remain integration work,
 honestly labelled.
-\item \impl{} Zero-edit drop-in replacements for the libraries an agent would
+\item Zero-edit drop-in replacements for the libraries an agent would
 otherwise reach for ship as packages backed by the route graph: an \texttt{exa-py}
 drop-in (\texttt{packages/py-exa}) and a \texttt{browser-use} drop-in
 (\texttt{packages/py-browser-use}), each providing the upstream's public surface so a
 single import swap routes the call through Unbrowse instead.
 \end{itemize}
-Treat the \refimpl{} list as running, tested code with cited foundations --- not a
+Treat the reference suite as running, tested code with cited foundations --- not a
 feature list with a release date, and not a research agenda either. The gap between
 running code and a press release is the entire difference between a whitepaper and a
 pitch, and we would like to stay on the correct side of it.

@@ -1,6 +1,6 @@
 /**
  * proof-of-indexing — the verifiable freshness primitive (Paper 3 §"the proof
- * of indexing is tagged \prop"; arXiv:2604.00694 companion, maintenance-network.tex).
+ * of indexing is tagged \prop"; arXiv:2604.00694 companion, unbrowse-maintenance-network.tex).
  *
  * A shared route graph solves discovery once; freshness is a standing liability.
  * A route that is "wrong with confidence" is worse than no route at all. This

@@ -68,7 +68,7 @@ Two fake-greens caught + repented this wave: a fabricated WAVE-01 table (numbers
 
 ## Standing rule: paper reflects code, never leaks the moat (MECHANICAL)
 
-Every public artifact (`paper/internal-apis.tex`, README, docs/whitepaper/) obeys
+Every public artifact (`paper/crypto-was-all-you-needed.tex`, README, docs/whitepaper/) obeys
 two gated invariants — not a promise, a runnable check:
 
 1. **Reflects code.** Every `[shipped]`/`\impl{}` claim maps to a real repo anchor
@@ -80,7 +80,7 @@ two gated invariants — not a promise, a runnable check:
    trust/economic story (routing, execution-for-security, website wallets via Privy
    DNS domain signing) at the PUBLIC tier — the WHAT, never the HOW.
 
-Gate: `bash scripts/paper-gate.sh paper/internal-apis.tex` (exit 0 required).
+Gate: `bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex` (exit 0 required).
 Wired into release CI (`.github/workflows/release.yml`, beside `leak-guard.sh`) and
 mirrored as the superpattern `paper_reflects_code` standing rule. Moat boundary of
 record: `docs/OPEN-SOURCE-NOTICE.md`. Internal-tier strategy: gitignored `internal/`,
