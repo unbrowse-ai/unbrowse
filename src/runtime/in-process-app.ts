@@ -56,6 +56,13 @@ async function buildApp(): Promise<FastifyInstance> {
   // Rehydrate browse sessions from ~/.unbrowse/sessions.jsonl so a fresh
   // stdio process recovers session phase from disk (Kuri liveness is the
   // truth; dead tabs are caught lazily by isBrowseSessionLive).
+  // UNBROWSE_SKIP_REHYDRATE=1 skips this — for stateless one-shot commands
+  // (search/resolve) that touch no browse session, rehydrating a large session
+  // store (224 dirs observed) dominates cold-boot. Opt-in; browse flows leave
+  // it unset so recovery is preserved.
+  if (process.env.UNBROWSE_SKIP_REHYDRATE === "1") {
+    process.stderr.write("[in-process-app] rehydrate skipped (UNBROWSE_SKIP_REHYDRATE=1)\n");
+  } else
   try {
     const result = await traceAsync("inproc", undefined, "build-rehydrate", async () => rehydrateBrowseSessions());
     if (result.restored > 0) {
