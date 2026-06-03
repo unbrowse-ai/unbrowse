@@ -34,3 +34,4 @@ Merkle-root checkpoint	paper/reference/ledger/checkpoint.py
 Sybil resistance	paper/reference/network/sybil.py
 ERC-8004	paper/reference/network/erc8004.py
 staking by abiding	paper/reference/network/vault_cycle.py
+network interface	src/chrome-prim/layer1-tls.ts
