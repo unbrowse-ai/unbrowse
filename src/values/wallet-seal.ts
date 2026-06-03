@@ -17,12 +17,13 @@
  * it." It is the floor under ZK credential binding — the same shape, with the
  * commitment proof layered on next.
  */
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { sha256hex } from "./content-address.js";
 
 /** sha256(plaintext) hex — the content address; identical bytes → identical key
  *  on any host (the property the seal must preserve). */
 export function contentHash(data: Uint8Array): string {
-  return createHash("sha256").update(data).digest("hex");
+  return sha256hex(data);
 }
 
 /** Thrown when a reveal is attempted by a wallet that does not hold the seal key,

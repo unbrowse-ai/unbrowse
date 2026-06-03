@@ -18,7 +18,8 @@
  * verifier learns only "yes, bound" — never the credential. Tamper with y, the
  * proof, or the wallet, and verification fails (fails closed; no fabricated bind).
  */
-import { createHash, createPublicKey, randomBytes, verify as nodeVerify } from "node:crypto";
+import { createPublicKey, randomBytes, verify as nodeVerify } from "node:crypto";
+import { sha256hex } from "./content-address.js";
 import { signBytes } from "./signer.js";
 
 // RFC 3526 group 14 (2048-bit MODP). p safe prime, q=(p-1)/2, generator g=2.
@@ -49,7 +50,7 @@ function modpow(base: bigint, exp: bigint, mod: bigint): bigint {
 }
 
 function sha256Big(data: Uint8Array): bigint {
-  return BigInt("0x" + createHash("sha256").update(Buffer.from(data)).digest("hex"));
+  return BigInt("0x" + sha256hex(data));
 }
 
 const hex = (b: bigint): string => b.toString(16);

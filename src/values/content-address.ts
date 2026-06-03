@@ -16,8 +16,9 @@ export type Pointer = string;
 /** Genesis hash — the chain's prev-of-first-row. */
 export const GENESIS = "0".repeat(64);
 
-/** sha256 hex of a string — the one hash primitive. */
-export const sha256hex = (s: string): string => createHash("sha256").update(s).digest("hex");
+/** sha256 hex of a string OR raw bytes — the one hash primitive. */
+export const sha256hex = (s: string | Uint8Array): string =>
+  createHash("sha256").update(typeof s === "string" ? s : Buffer.from(s)).digest("hex");
 
 /** Content-addressed pointer for a value: `sha256:<hex of bytes>` (same on any host). */
 export function contentPointer(text: string): Pointer {

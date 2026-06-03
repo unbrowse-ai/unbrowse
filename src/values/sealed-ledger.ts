@@ -20,8 +20,7 @@ import { signBytes, getWalletPubkey, deriveSealKey } from "./signer.js";
 import { verifyEd25519 } from "./zk-binding.js";
 import { sealValue, revealValue } from "./wallet-seal.js";
 
-import { GENESIS } from "./content-address.js"; // one source of truth (commandments #1/#6)
-const sha = (data: Uint8Array): string => createHash("sha256").update(Buffer.from(data)).digest("hex");
+import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (commandments #1/#6)
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
 export interface LedgerEntry {
@@ -41,7 +40,7 @@ function canon(e: Omit<LedgerEntry, "sig">): Uint8Array {
 
 /** RFC-6962 Merkle Tree Hash over the row hashes. Empty → sha256(""). */
 function merkleRoot(leafHexes: string[]): string {
-  if (!leafHexes.length) return sha(new Uint8Array());
+  if (!leafHexes.length) return sha256hex(new Uint8Array());
   let level = leafHexes.map((h) => Buffer.from(h, "hex"));
   while (level.length > 1) {
     const next: Buffer[] = [];
@@ -73,7 +72,7 @@ export class SealedLedger {
     const { hash, sealed } = sealValue(value, this.sealKey);
     this.sealedStore.set(hash, sealed);
     const last = this.entries[this.entries.length - 1];
-    const prev = last ? sha(Buffer.concat([canon(last), Buffer.from(last.sig, "utf8")])) : GENESIS;
+    const prev = last ? sha256hex(Buffer.concat([canon(last), Buffer.from(last.sig, "utf8")])) : GENESIS;
     const core = { seq: this.entries.length, signer: this.signer, valueHash: hash, ts, prev };
     const { signature } = await signBytes(canon(core));
     const entry: LedgerEntry = { ...core, sig: bytesToHex(signature) };
@@ -96,14 +95,14 @@ export class SealedLedger {
       if (e.seq !== i) return false;
       if (e.prev !== prev) return false;
       if (!verifyEd25519(Buffer.from(e.signer, "hex"), canon(e), Buffer.from(e.sig, "hex"))) return false;
-      prev = sha(Buffer.concat([canon(e), Buffer.from(e.sig, "utf8")]));
+      prev = sha256hex(Buffer.concat([canon(e), Buffer.from(e.sig, "utf8")]));
     }
     return true;
   }
 
   /** The single on-chain-checkpointable commitment over the whole log. */
   root(): string {
-    return merkleRoot(this.entries.map((e) => sha(Buffer.concat([canon(e), Buffer.from(e.sig, "utf8")]))));
+    return merkleRoot(this.entries.map((e) => sha256hex(Buffer.concat([canon(e), Buffer.from(e.sig, "utf8")]))));
   }
 
   rows(): readonly LedgerEntry[] { return this.entries; }

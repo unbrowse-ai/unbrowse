@@ -13,14 +13,12 @@
  * three from the root; tamper an action, swap a layer wallet, or change the root and
  * it fails closed.
  */
-import { createHash } from "node:crypto";
 import { withRootSeed } from "./signer.js";
 import { verifyEd25519 } from "./zk-binding.js";
 import { keypairFromSeed, childSeed } from "./wallet-hierarchy.js";
 import { LAYERS } from "./signed-descent.js";
 
-import { GENESIS } from "./content-address.js"; // one source of truth (commandments #1/#6)
-const sha = (d: Uint8Array): string => createHash("sha256").update(Buffer.from(d)).digest("hex");
+import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (commandments #1/#6)
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
 export interface LayerSignedRecord {
@@ -65,7 +63,7 @@ export function descendByLayerWallet(
       const c = actionCore(core);
       const actionSig = bytesToHex(child.sign(c)); // this layer's own wallet signs its action
       chain.push({ ...core, covenantSig, actionSig });
-      prevHash = sha(Buffer.concat([c, Buffer.from(actionSig, "utf8")]));
+      prevHash = sha256hex(Buffer.concat([c, Buffer.from(actionSig, "utf8")]));
       ownerSeed = cs; owner = child; ownerPub = childPub;
     }
     return { root: rootPub, chain };
@@ -87,7 +85,7 @@ export function verifyLayerWalletDescent(chain: LayerSignedRecord[], rootPub: st
       // self: this layer signed its OWN action with its OWN wallet
       const c = actionCore(r);
       if (!verifyEd25519(Buffer.from(r.pubkey, "hex"), c, Buffer.from(r.actionSig, "hex"))) return false;
-      prevHash = sha(Buffer.concat([c, Buffer.from(r.actionSig, "utf8")]));
+      prevHash = sha256hex(Buffer.concat([c, Buffer.from(r.actionSig, "utf8")]));
     } catch {
       return false;
     }
