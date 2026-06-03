@@ -329,6 +329,21 @@ export function deriveSealKey(): Uint8Array {
 }
 
 /**
+ * Run `fn` with the raw 32-byte wallet seed loaded transiently, then zero it —
+ * same posture as sign()/deriveSealKey(). Used to derive the per-layer wallet
+ * ownership tree (wallet-hierarchy.ts) from the one root the user controls. `fn`
+ * must NOT retain the seed; copy out only derived material (pubkeys, signatures).
+ */
+export function withRootSeed<T>(fn: (seed: Uint8Array) => T): T {
+  const seed = ensureWalletKey();
+  try {
+    return fn(seed);
+  } finally {
+    safeZero(seed);
+  }
+}
+
+/**
  * Sign the v7.0 fill receipt fragment with the x402-wallet-bound Ed25519
  * key.
  *

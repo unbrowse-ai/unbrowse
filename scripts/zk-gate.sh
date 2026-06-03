@@ -27,6 +27,10 @@ NODES=(
   # --- integration: the backend harness surfaces only holes; values ZK'd to the wallet ---
   "sealed-hole-fill:tests/sealed-fill.test.ts"           # hole fills sealed to the wallet, revealed locally by the holder only
   "zk-bound-hole:tests/zk-bound-hole.test.ts"            # a secret hole carries a real ZK binding; backend verifies bound w/o the secret
+  # --- superpattern surface + vertical wallet ownership (CLI exposes only its holes; each layer's wallet owned by its parent) ---
+  "superpattern-cli-surface:tests/cli-surface.test.ts"   # the CLI shaped to the atoms; every command exposes only holes + auth, no internal
+  "wallet-hierarchy:tests/wallet-hierarchy.test.ts"      # every layer has a wallet PARENT that owns it + covenants it vertically
+  "layer-wallet-descent:tests/layer-wallet-descent.test.ts" # each layer SIGNS with its own parent-owned wallet (hierarchy ∘ descent)
 )
 
 todo=0; done=0; pending_tests=()
