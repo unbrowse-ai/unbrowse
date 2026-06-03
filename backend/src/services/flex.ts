@@ -155,11 +155,11 @@ export function computeFlexSplits(
   // Site-owner lane: when the domain has been DNS-claimed AND the skill
   // opts in to owner compensation, carve OWNER_BPS off the top before
   // the indexer pool is divided. The verify endpoint at
-  // backend/src/routes/claim.ts is the only path that stamps
-  // owner_wallet_usdc_ata; both fields are server-owned (see
-  // backend/src/types.ts new owner_wallet_* docstring). Until the
-  // verify endpoint ships, owner_wallet_usdc_ata is never set in
-  // production, so this branch is dormant by construction.
+  // backend/src/routes/claim.ts (POST /v1/claim/verify -> stampOwnerOnDomainSkills)
+  // is the only path that stamps owner_wallet_usdc_ata; both fields are
+  // server-owned (see backend/src/types.ts owner_wallet_* docstring). That
+  // endpoint ships, so this lane is LIVE once a domain is DNS-claimed and the
+  // skill opts in (covered by flex-owner-bps.test.ts + claim-owner-wallet-stamping.test.ts).
   const ownerOptedIn = skill.owner_compensation_opt_in === true;
   const ownerUsdcAta = skill.owner_wallet_usdc_ata?.trim();
   const ownerActive = ownerOptedIn && !!ownerUsdcAta;
