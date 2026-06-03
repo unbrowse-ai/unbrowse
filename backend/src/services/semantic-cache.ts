@@ -45,6 +45,14 @@ interface CacheEnv {
   SEMANTIC_CACHE_NAMESPACE?: string;
 }
 
+/** sha256(query) hex[:32] — the L1 exact-match key. Web Crypto works in Workers,
+ *  Node, and bun. */
+async function hashQuery(query: string): Promise<string> {
+  const bytes = new TextEncoder().encode(query);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
 async function embed(query: string, nebiusKey: string): Promise<number[] | null> {
   const res = await fetch(NEBIUS_EMBED_URL, {
     method: "POST",
@@ -137,6 +145,22 @@ export async function getOrComputeSemantic<T>(
   if (!edbKey || !nebiusKey) return { value: await compute(), cached: false };
 
   const ns = namespaceFor(env, kind);
+
+  // L1: exact-match fast path. A repeated query (same string — the common case)
+  // resolves in ONE qdkv/get (~0.8s) instead of paying embed (~2s) + vector search
+  // (~1.2s) of the fuzzy L2 path. Pure addition; on miss it falls through to L2.
+  let exactKey: string | null = null;
+  try {
+    exactKey = `exact:${ns}:${await hashQuery(query)}`;
+    const rawExact = await qdkvGet(exactKey, edbKey);
+    if (rawExact) {
+      try {
+        return { value: JSON.parse(rawExact) as T, cached: true };
+      } catch { /* corrupt — fall through */ }
+    }
+  } catch { /* hashing/get error → skip L1 */ }
+
+  // L2: fuzzy match — embed + vector nearest-neighbour, for REWORDED queries.
   let vector: number[] | null = null;
   try {
     vector = await embed(query, nebiusKey);
@@ -156,13 +180,19 @@ export async function getOrComputeSemantic<T>(
   const value = await compute();
 
   // Write-through is DEFERRED — it must never delay the response (see header).
-  if (vector) {
+  // Populates BOTH tiers: the L1 exact key (fast path for verbatim repeats) and
+  // the L2 vector + its payload (fuzzy path for rewordings).
+  if (vector || exactKey) {
     const vec = vector;
+    const payload = JSON.stringify(value);
     const writeThrough = (async () => {
       try {
-        await vectorInsert(vec, edbKey, ns);
-        const assigned = await vectorNearest(vec, edbKey, ns);
-        if (assigned) await qdkvSet(`veccache:${ns}:${assigned.id}`, JSON.stringify(value), edbKey);
+        if (exactKey) await qdkvSet(exactKey, payload, edbKey);
+        if (vec) {
+          await vectorInsert(vec, edbKey, ns);
+          const assigned = await vectorNearest(vec, edbKey, ns);
+          if (assigned) await qdkvSet(`veccache:${ns}:${assigned.id}`, payload, edbKey);
+        }
       } catch { /* cache write failure is non-fatal */ }
     })();
     if (waitUntil) waitUntil(writeThrough);
