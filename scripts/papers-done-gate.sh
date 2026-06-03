@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# papers-done-gate.sh — the public paper is DONE TO COMPLETION AS CODE.
+# papers-done-gate.sh — the trilogy is DONE TO COMPLETION AS CODE.
 #
-# Exits 0 exactly when every claim in the public paper (paper/internal-apis.tex)
-# is backed by running, tested reference code — no design-only (\prop{}) primitive
-# remains — and every public gate is green and the PDF compiles clean. This is the
-# runnable witness that the security substrate paper is done to completion as code.
+# Exits 0 exactly when every claim in all three papers is backed by running,
+# tested reference code — no design-only (\prop{}) primitive remains — and every
+# public gate is green and both PDFs compile clean. This is the runnable witness
+# for the north star: "go deep, be native on all layers, finish all 3 papers for
+# unbrowse to be done to completion as code."
 #
 # Five checks, all mechanical, no fabricated green:
 #   1. REFERENCE TESTS green — paper/reference/tests/run_all.py exits 0 (>0 tests).
@@ -20,7 +21,9 @@
 set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+P1="paper/internal-apis-2604.tex"
 P2="paper/internal-apis.tex"
+P3="paper/maintenance-network.tex"
 MANIFEST="paper/reference/MANIFEST.tsv"
 fail=0
 section() { echo; echo "=== $1 ==="; }
@@ -60,7 +63,7 @@ fi
 
 # --- 3. NO PURE-PROP ----------------------------------------------------------
 section "3. no design-only (\\prop{}) claim survives"
-for paper in "$P2"; do
+for paper in "$P1" "$P2" "$P3"; do
   # allowed: the \newcommand{\prop} definition, and lines explicitly marked ok
   stray=$(grep -nF '\prop{}' "$paper" | grep -vF 'gate:prop-ok' | grep -vF '\newcommand{\prop}' || true)
   if [ -n "$stray" ]; then
@@ -72,8 +75,12 @@ done
 
 # --- 4. PUBLIC GATES ----------------------------------------------------------
 section "4. public gates (reflect + no-leak + spec)"
-for g in "bash scripts/paper-gate.sh $P2" \
+for g in "bash scripts/paper-gate.sh $P1" \
+         "bash scripts/paper-gate.sh $P2" \
+         "bash scripts/paper-gate.sh $P3" \
+         "bash scripts/leak-guard.sh $P1" \
          "bash scripts/leak-guard.sh $P2" \
+         "bash scripts/leak-guard.sh $P3" \
          "bash scripts/paper-spec-gate.sh"; do
   if eval "$g" >/dev/null 2>&1; then
     echo "  PASS: $g"
@@ -88,7 +95,7 @@ if ! command -v tectonic >/dev/null 2>&1; then
   echo "  PDF-SKIP: tectonic not installed (cannot verify compile)"; fail=1
 else
   tmp="$(mktemp -d)"
-  for paper in "$P2"; do
+  for paper in "$P1" "$P2" "$P3"; do
     log="$tmp/$(basename "$paper").log"
     if tectonic --keep-logs --outdir "$tmp" "$paper" >"$log" 2>&1; then
       if grep -qiE 'undefined (reference|citation)|may have changed|there were undefined' "$tmp/$(basename "${paper%.tex}").log" 2>/dev/null; then
