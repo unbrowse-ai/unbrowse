@@ -43,6 +43,7 @@ NODES=(
   "resolution-tier:tests/resolution-tier.test.ts"      # tier selection — resolution cache routes to the R2+IQ remote tier when creds present, local fs otherwise; uncacheable never persisted
   "surface-projector:tests/surface-projector.test.ts"  # the CLI surface is a CONTEXT PROJECTION of the superpattern verb tree — expose only the verbs+holes the moment needs (LLM fills them), lossless in union, minimal per phase
   "search-with-standards:tests/search-with-standards.test.ts" # unified find-anything — route-graph search merged with the standards-registry (MCP/A2A/skills), standards-half cached + failure-isolated
+  "async-resolution:tests/async-resolution.test.ts"   # the remote-tier core (resolveAsync + content-addressing + ttl + docker-rebuild) tested directly, not just via the R2/IQ adapters
 )
 
 todo=0; done=0; pending_tests=()
