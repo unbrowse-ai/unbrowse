@@ -44,18 +44,27 @@ describe("live-registry-adapters — wired to the real endpoints", () => {
     expect(entries[1].ref).toBe("stdio://sqlite");
   });
 
-  it("a standard with no list API resolves to [] (honest, not fabricated)", async () => {
-    const entries = await liveAdapter("pay.sh", async () => ({})).resolve("anything");
-    expect(entries).toEqual([]); // pay.sh is a rail, not a list — no faked entries
+  it("standards with no VERIFIED list endpoint resolve to [] (honest, not fabricated)", async () => {
+    // pay.sh is a rail; agentskills.dev was unreachable at probe; x402-bazaar has no
+    // confirmed JSON list. None has a `list`, so all resolve [] rather than guess a URL.
+    for (const s of ["pay.sh", "agentskills.dev", "x402-bazaar"] as const) {
+      expect(await liveAdapter(s, async () => ({ anything: 1 })).resolve("q")).toEqual([]);
+    }
+  });
+
+  it("the VERIFIED endpoints carry their real URLs (a2aregistry, skills.sh)", () => {
+    expect(REGISTRY_ENDPOINTS.a2a!.list!("x")).toContain("a2aregistry.org/api/agents");
+    expect(REGISTRY_ENDPOINTS["skills.sh"]!.list!("x")).toContain("skills.sh/api/search");
   });
 
   it("live resolvers plug into the standards-registry and cache the merged result", async () => {
     let calls = 0;
     const fetchJson: FetchJson = async () => { calls++; return { results: [{ name: "x", url: "https://x" }] }; };
     const adapters = buildAdapters(liveResolvers(fetchJson));
-    // every standard with a real list endpoint becomes a live adapter
+    // only the VERIFIED-live endpoints become live adapters (mcp + a2a + skills.sh);
+    // unverified ones (agentskills.dev, x402-bazaar) have no list endpoint by design
     expect(adapters.map((a) => a.standard).sort()).toEqual(
-      ["a2a", "agentskills.dev", "mcp", "mcp-registry", "skills.sh", "x402-bazaar"],
+      ["a2a", "mcp", "mcp-registry", "skills.sh"],
     );
     const cache = { store: memBlob(), pointers: new Map<string, string>() };
     const cold = await resolveStandards("read calendar", adapters, cache);

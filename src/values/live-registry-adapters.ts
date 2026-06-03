@@ -44,23 +44,27 @@ export const REGISTRY_ENDPOINTS: Partial<Record<AgentStandard, RegistryEndpoint>
     base: "https://registry.modelcontextprotocol.io",
     list: (q) => `https://registry.modelcontextprotocol.io/v0/servers?search=${encodeURIComponent(q)}&limit=20`,
   },
+  // VERIFIED LIVE (probe returned 200 + a real JSON list): a2aregistry returns
+  // {agents:[{name,url,…}]}; skills.sh returns {skills:[{id,source,…}]}.
   "a2a": {
     base: "https://a2aregistry.org",
-    perDomain: true,
-    note: "A2A agents publish an Agent Card at /.well-known/agent-card.json; resolve per host.",
+    note: "Verified live: {agents:[…]} ; A2A agents also publish a per-host Agent Card at /.well-known/agent-card.json.",
     list: (q) => `https://a2aregistry.org/api/agents?q=${encodeURIComponent(q)}`,
-  },
-  "x402-bazaar": {
-    base: "https://www.x402.org",
-    list: (q) => `https://www.x402.org/bazaar/api/list?q=${encodeURIComponent(q)}`,
   },
   "skills.sh": {
     base: "https://skills.sh",
+    note: "Verified live: {skills:[{id,source,…}]}.",
     list: (q) => `https://skills.sh/api/search?q=${encodeURIComponent(q)}`,
   },
+  // UNVERIFIED (probe failed): no confirmed JSON list endpoint, so NO `list` — these
+  // resolve to [] (honest) until a real endpoint is confirmed, rather than guessing one.
   "agentskills.dev": {
     base: "https://agentskills.dev",
-    list: (q) => `https://agentskills.dev/api/skills?q=${encodeURIComponent(q)}`,
+    note: "Domain unreachable at probe time (DNS/000); no confirmed list API — resolves [] until verified.",
+  },
+  "x402-bazaar": {
+    base: "https://x402.org",
+    note: "x402 Bazaar discovery is via the x402 facilitator (a redirecting page, not a confirmed JSON list); resolves [] until the list endpoint is confirmed.",
   },
   "pay.sh": {
     base: "https://pay.sh",
@@ -96,7 +100,8 @@ function toEntry(standard: AgentStandard, raw: Record<string, unknown>): Registr
   const s = (raw.server && typeof raw.server === "object" ? raw.server : raw) as Record<string, unknown>;
   const id = String(s.id ?? s.name ?? s.slug ?? urlOf(s.url) ?? urlOf(s.endpoint) ?? "");
   const ref = String(
-    urlOf(s.url) ?? urlOf(s.endpoint) ?? urlOf(s.homepage) ?? urlOf(s.repository) ?? urlOf(s.remote) ?? id,
+    urlOf(s.url) ?? urlOf(s.endpoint) ?? urlOf(s.wellKnownURI) ?? urlOf(s.homepage)
+      ?? urlOf(s.repository) ?? urlOf(s.remote) ?? urlOf(s.source) ?? (typeof s.source === "string" ? s.source : undefined) ?? id,
   );
   const title = (s.title ?? s.name ?? s.description) as string | undefined;
   return { standard, id, ref, title, meta: s };
