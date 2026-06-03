@@ -17,12 +17,20 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import type { OperationBinding, SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
 import { DEFAULT_BACKEND_URL } from "../version.js";
 
-/** Stable session ID — one per process lifetime. */
-const SESSION_ID = nanoid();
+/**
+ * Stable session ID — one per process lifetime. Computed lazily on first use:
+ * nanoid() generates random values, which workerd forbids at global (module-load)
+ * scope. Lazy init keeps it inside a handler call so the worker passes validation.
+ */
+let _sessionId: string | null = null;
+function getSessionId(): string {
+  if (_sessionId === null) _sessionId = nanoid();
+  return _sessionId;
+}
 
 /** Expose session ID for test verification only. */
 export function _getSessionIdForTesting(): string {
-  return SESSION_ID;
+  return getSessionId();
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +342,7 @@ export function recordDagSessionAction(
   if (skill.domain) {
     recordSession(
       skill.domain,
-      SESSION_ID,
+      getSessionId(),
       endpointId,
       skill.intent_signature ?? "",
       succeeded ? "success" : "failure",
