@@ -14,3 +14,4 @@ merkle-checkpoint	paper/maintenance-network.tex	Merkle-root checkpoint	paper/ref
 sybil-resistance	paper/maintenance-network.tex	Sybil resistance	paper/reference/network/sybil.py	test_sybil.py
 erc8004-records	paper/internal-apis.tex	ERC-8004	paper/reference/network/erc8004.py	test_erc8004.py
 vault-cycle	paper/maintenance-network.tex	staking by abiding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
+task-cost	paper/internal-apis-2604.tex	lower bound, not the end-to-end advantage	paper/reference/bench/task_cost.py	test_task_cost.py
