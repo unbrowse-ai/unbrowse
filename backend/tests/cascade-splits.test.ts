@@ -37,6 +37,16 @@ function createMockFetch(store: Map<string, string>) {
       return Response.json({ ok: true });
     }
 
+    // Batch get: POST {keys:[...]} -> {values:{key->value|null}}. kv.ts._mget
+    // collapses N single-gets into one mget; the mock must mirror it or the
+    // listWithValues/index-load paths throw "Unexpected fetch".
+    if (url.pathname === "/qdkv/mget") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { keys?: string[] };
+      const values: Record<string, string | null> = {};
+      for (const key of body.keys ?? []) values[key] = store.get(key) ?? null;
+      return Response.json({ values });
+    }
+
     throw new Error(`Unexpected fetch: ${url.toString()}`);
   };
 }
