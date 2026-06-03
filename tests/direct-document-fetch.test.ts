@@ -211,11 +211,14 @@ describe("direct-document seed", () => {
     expect(result.rejected).toBe(false);
   });
 
-  test("rejects 86-byte SPA meta-only envelope as interstitial", () => {
+  test("rejects 86-byte SPA meta-only envelope (empty root) via spa_hydration_required", () => {
     // Construct a >5KB HTML (clears MIN_DIRECT_DOCUMENT_HTML_BYTES) where the
     // visible body text after script/style stripping is below
     // MIN_DIRECT_DOCUMENT_BODY_TEXT. SPA shells with massive inline scripts hit
-    // this in production (dribbble tag pages 2026-05-21).
+    // this in production (dribbble tag pages 2026-05-21). The shell carries an
+    // empty `<div id="root">` CSR container, so Fix 2 routes it to the
+    // hydration-render ladder (a wait for the data XHR) rather than the generic
+    // interstitial/auth path — the more precise next step for an un-hydrated SPA.
     const spaShell = `<!doctype html><html><head><title>Landing pages</title><script>${"window.__DATA__ = 1;".repeat(500)}</script></head><body><div id="root"></div></body></html>`;
     const result = buildDirectDocumentResult(
       "https://dribbble.com/tags/landing-page",
@@ -225,7 +228,7 @@ describe("direct-document seed", () => {
     );
     expect(result.rejected).toBe(true);
     if (!result.rejected) throw new Error("expected rejection");
-    expect(result.reason).toBe("interstitial_detected");
-    expect(result.evidence?.interstitial_signal).toMatch(/body_text_below_floor/);
+    expect(result.reason).toBe("spa_hydration_required");
+    expect(result.evidence?.spa_markers?.length ?? 0).toBeGreaterThan(0);
   });
 });
