@@ -34,3 +34,16 @@ Merkle-root checkpoint	paper/reference/ledger/checkpoint.py
 Sybil resistance	paper/reference/network/sybil.py
 ERC-8004	paper/reference/network/erc8004.py
 staking by abiding	paper/reference/network/vault_cycle.py
+# --- production primitives shipped this wave (claim = path in \texttt{}, anchor = the real file) ---
+src/values/zk-binding.ts	src/values/zk-binding.ts
+src/capture/zk-bound-hole.ts	src/capture/zk-bound-hole.ts
+src/values/signed-descent.ts	src/values/signed-descent.ts
+src/values/wallet-hierarchy.ts	src/values/wallet-hierarchy.ts
+src/values/layer-wallet-descent.ts	src/values/layer-wallet-descent.ts
+src/values/wallet-seal.ts	src/values/wallet-seal.ts
+src/values/resolution-ledger.ts	src/values/resolution-ledger.ts
+src/values/kv-fallback-pipe.ts	src/values/kv-fallback-pipe.ts
+src/values/sealed-ledger.ts	src/values/sealed-ledger.ts
+src/capture/backend-reveng-endpoint.ts	src/capture/backend-reveng-endpoint.ts
+packages/py-exa	packages/py-exa
+packages/py-browser-use	packages/py-browser-use
