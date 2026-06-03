@@ -261,20 +261,31 @@ shape), and appends one row to an append-only, hash-chained \emph{ledger of reso
 Every later call resolves the pointer instead of recomputing --- and because the value is
 addressed by the hash of its own bytes, an evicted entry rebuilds the \emph{identical}
 layer, exactly like a Docker layer cache: a miss rebuilds it, a hit replays it.
-Invalidation is the same discipline run the other way. When an upstream value
-\emph{changes}, its bytes change, so its content hash changes, so the pointer keyed on
-the old hash no longer resolves, and the layer re-resolves on next access
-(\texttt{src/values/resolution-ledger.ts}). Nothing is invalidated by a clock or a
-manual flush; correctness falls out of the addressing, because a changed input is
-\emph{by construction} a different key --- the same reason changing a base layer in a
-Dockerfile invalidates the layers built on it. The fallback that feeds it walks the
-descent ladder highest-capable-first (\texttt{src/values/kv-fallback-pipe.ts}),
-content-addressing each layer's result, so a cache hit short-circuits the whole descent
-and a changed input re-resolves at the layer it touched. Propagating one changed
-pointer through a \texttt{requires}/\texttt{yields} set to recompute every dependent
-layer in a single pass --- a full content-addressed rebuild DAG --- is the natural next
-step and remains design work. Tests confirm the warm path never recomputes, the ledger
-is tamper-evident, and eviction reproduces the same pointer.
+A settled value is a \emph{promise}: derived once, then \emph{true forever}. Because it
+is addressed by the hash of its own bytes, the same value resolves to the same pointer
+in every process, so a memo keyed on that pointer hits forever and never recomputes ---
+asking ``does it need to re-resolve each time?'' answers itself: no, not if it is true
+forever. The only thing that busts the cache is the \emph{value} changing, and the
+sharpest case is when \emph{time is part of the value}: then the pointer changes every
+moment and the derivation re-resolves each time --- unless the promise included time
+itself, a timeless claim is computed once and held. Invalidation is this same
+discipline run the other way: when an upstream value changes, its bytes change, its
+content hash changes, the pointer keyed on the old hash no longer resolves, and the
+layer re-resolves on next access (\texttt{src/values/resolution-ledger.ts}). Nothing is
+invalidated by a clock or a manual flush; correctness falls out of the addressing,
+because a changed input is \emph{by construction} a different key --- the same reason
+changing a base layer in a Dockerfile invalidates the layers built on it. Crucially,
+dependent recompute needs \emph{no} dependency-graph walk: a value keyed on another
+value's pointer is automatically a different key the instant that pointer changes, so a
+changed input invalidates everything addressed through it without a cascade to engineer.
+The fallback that feeds it walks the descent ladder highest-capable-first
+(\texttt{src/values/kv-fallback-pipe.ts}), content-addressing each layer's result, so a
+hit short-circuits the whole descent and a changed input re-resolves only at the layer
+it touched. The recompute boundary is proven runnably
+(\texttt{reference/ledger/recompute.py}): a timeless value derives once over a hundred
+reads, a time-keyed value recomputes each moment, and a dependent value re-derives
+automatically when its upstream pointer flips. Tests confirm the warm path never
+recomputes, the ledger is tamper-evident, and eviction reproduces the same pointer.
 
 
 The parallel worth naming is to the \emph{KV cache} inside the transformer doing
