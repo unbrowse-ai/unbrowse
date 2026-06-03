@@ -61,7 +61,7 @@ Today, it is not accurate to say Unbrowse already ships the full paper economy:
 
 - multi-party fee splits across contributors, infra, and treasury
 - paper-style dynamic route pricing and fee ceilings
-- validator staking or slashing
+- independent validator markets
 - TEE or E2B-based attestation
 
 Those belong in [Coming Soon](./coming-soon.md).

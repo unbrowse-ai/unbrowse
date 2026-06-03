@@ -108,12 +108,12 @@ Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route
 You have three ways to pay:
 
 1. **Sponsored credit (default).** Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet — so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
-2. **Your wallet + Flex escrow.** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs a payment header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md).
+2. **Your wallet + Flex escrow.** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs a payment header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
 > Protocol appendix (for implementers): the payment flow is the canonical [x402](https://www.x402.org) protocol; payment proofs travel in the `X-PAYMENT` request header. The runtime exposes `payAndRetryFlex` so most agents never touch the protocol directly.
 
-Payment architecture: [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
+Payment architecture: [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md). Wallet + escrow + session-key setup: [`docs/wallets.md`](./docs/wallets.md). SDK-level error handling: [`packages/sdk/docs/payments/`](./packages/sdk/docs/payments/).
 
 ## MCP server
 
@@ -199,7 +199,7 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 - [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) — canonical install, setup, and headless bootstrap path
 - [`docs/for-agents/how-an-agent-uses-unbrowse.md`](./docs/for-agents/how-an-agent-uses-unbrowse.md) — route-level behavior and agent workflow
 - [`docs/for-developers/integration-surfaces.md`](./docs/for-developers/integration-surfaces.md) — MCP, SDK, and CLI integration surfaces
-- [`docs/HOW_UNBROWSE_PAYS.md`](./docs/HOW_UNBROWSE_PAYS.md) — payment + sponsor flow on Faremeter Flex
+- [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md) — payment + sponsor flow on Faremeter Flex
 - [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
 - [`docs/SECURITY.md`](./docs/SECURITY.md) — security model for public packages and runtime integrity
 

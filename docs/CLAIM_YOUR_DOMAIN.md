@@ -37,7 +37,7 @@ GET https://beta-api.unbrowse.ai/v1/claim/status?domain=<your-domain>
 
 ## What you need
 
-- A Solana wallet. lobster.cash is the recommended provisioner (`docs/HOW_UNBROWSE_PAYS.md`), but any signer that exposes a base58 pubkey and an SPL USDC ATA works. The verify step accepts the wallet pubkey; the USDC ATA is derived server-side.
+- A Solana wallet. lobster.cash is the recommended provisioner, but any signer that exposes a base58 pubkey and an SPL USDC ATA works. The verify step accepts the wallet pubkey; the USDC ATA is derived server-side.
 - DNS edit access on the apex domain. Cloudflare, Route53, Namecheap, Google Domains, anything that lets you publish a TXT record.
 
 ## Anti-spoofing rules

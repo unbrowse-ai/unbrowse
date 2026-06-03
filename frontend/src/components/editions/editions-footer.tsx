@@ -22,8 +22,7 @@ const PRODUCT_LINKS: FooterLink[] = [
   { href: "/", label: "Overview" },
   { href: "/#install", label: "Install" },
   { href: "/#demo", label: "Demo" },
-  { href: "/miners", label: "Miners" },
-  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/search", label: "Marketplace" },
 ];
 
 const DEVELOPER_LINKS: FooterLink[] = [
@@ -45,7 +44,7 @@ const RESOURCES_LINKS: FooterLink[] = [
 const COMPANY_LINKS: FooterLink[] = [
   { href: "https://discord.gg/VWugEeFNsG", label: "Discord" },
   { href: "https://x.com/getFoundry", label: "X / @getFoundry" },
-  { href: "/openclaw-earn", label: "Earn" },
+  { href: "/how-unbrowse-pays", label: "How Unbrowse pays" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
 ];

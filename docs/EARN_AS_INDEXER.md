@@ -27,7 +27,7 @@ Settlement is on-chain. Your share lands in the same Faremeter Flex transaction 
    ```
    npx @crossmint/lobster-cli setup
    ```
-   Cited in `docs/HOW_UNBROWSE_PAYS.md` (the `/how-unbrowse-pays` page renders from this markdown via `frontend/src/lib/docs-renderer.ts`). Lobster owns the private key. unbrowse only sees the public Solana address you bind to your agent.
+   Lobster owns the private key. unbrowse only sees the public Solana address you bind to your agent.
 
 3. Bind the wallet to your agent. The magic-link flow at `backend/src/routes/auth.ts:53-172` creates the agent_id; the `account` page lets you set `wallet_address` on your `SkillContributor` record. Without a wallet bound, `computeFlexSplits` filters you out (`backend/src/services/flex.ts:58`, the `payable` filter).
 

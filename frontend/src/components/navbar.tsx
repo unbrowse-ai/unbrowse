@@ -94,12 +94,12 @@ export function Navbar() {
                     </span>
                   </Link>
                   <Link
-                    href="/miners"
+                    href="/how-unbrowse-pays"
                     className="block px-4 py-2 text-sm font-mono text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.08)] hover:text-[rgba(255,176,96,1)] transition-colors"
                   >
-                    Leaderboard
+                    How Unbrowse pays
                     <span className="block text-[10px] text-text-muted mt-0.5">
-                      Top route publishers
+                      Free discovery, fair payouts
                     </span>
                   </Link>
                 </div>
@@ -287,8 +287,8 @@ export function Navbar() {
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>
               Marketplace
             </MobileNavLink>
-            <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>
-              Leaderboard
+            <MobileNavLink href="/how-unbrowse-pays" onClick={() => setMobileOpen(false)}>
+              How Unbrowse pays
             </MobileNavLink>
             <a
               href="https://docs.unbrowse.ai"

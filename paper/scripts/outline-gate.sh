@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# outline-gate.sh — a falsifiable sign that the Paper 3 outline is internally honest.
+# outline-gate.sh — no-op.
 #
-# Three checks, all runnable:
-#   A. No fabricated-green sentinels (TODO/FIXME/XXX/TKTK/lorem).
-#   B. Every declared citation key (ostrom, pigou, samuelson, sybil, casper)
-#      also appears in the §-tree body — i.e. it occurs >=2 times (table + section),
-#      so there are no orphan citations.
-#   C. No moat-leak terms (engine internals / economic constants).
-#
-# Exit 0 on all-pass, 1 on any fail. Edit the outline to fix a real failure,
-# never edit this gate to force a pass.
+# This gate previously checked the outline of a companion paper that has since been
+# moved out of the public tree into the gitignored internal/ tier (for later). With
+# its target gone, the gate has nothing public to check and exits 0 by design. The
+# public paper (paper/internal-apis.tex) is covered by paper-gate.sh and
+# papers-done-gate.sh.
 
 set -uo pipefail
+echo "outline-gate: no public outline to check — exit 0."
+exit 0
 
 # Repo root = dir two levels up from this script (paper/scripts/ -> repo).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

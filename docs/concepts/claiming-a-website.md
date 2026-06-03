@@ -57,7 +57,6 @@ Bindings do not auto-expire — Unbrowse cannot detect a registrar transfer. The
 ## Related
 
 - [Fare Splits](fare-splits.md) — how the three on-chain lanes are computed
-- [How Unbrowse Pays](../HOW_UNBROWSE_PAYS.md) — the system narrative
 - `backend/src/services/domain-claim.ts` — the DoH verifier + KV key shapes
 - `backend/src/services/domain-claim-effects.ts` — the post-verify owner-wallet stamping hook
 - `backend/src/routes/claim.ts` — the HTTP surface

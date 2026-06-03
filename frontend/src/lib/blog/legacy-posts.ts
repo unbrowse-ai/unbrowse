@@ -59,33 +59,11 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     category: "Benchmark",
   },
   {
-    slug: "proof-of-indexing",
-    title:
-      "Google Indexed the Web for Humans. Here's Who Indexes It for Agents.",
-    description:
-      "The agentic web needs its own index — machine-readable routes, not HTML pages. Unbrowse lets anyone contribute to this index and earn from it. Proof of indexing is to the agentic web what proof of work was to Bitcoin.",
-    canonicalPath: "/proof-of-indexing",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Economics",
-    draft: true,
-  },
-  {
-    slug: "proof-of-indexing-vs-proof-of-work",
-    title: "Proof of Indexing: The Consensus Mechanism for the Agentic Web",
-    description:
-      "Bitcoin burns electricity to secure transactions. Unbrowse burns browsing effort to secure routes. One built a ledger. The other is building the index.",
-    canonicalPath: "/proof-of-indexing-vs-proof-of-work",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Economics",
-  },
-  {
     slug: "routing-layer",
     title:
       "Google Indexed the Web for Humans. Who Indexes It for Agents?",
     description:
-      "Google captured $2T in value by indexing HTML pages for human eyeballs. The agentic web needs its own index. Not an index of pages, but an index of machine-readable API routes. Unbrowse is building it, collectively, through proof of indexing.",
+      "Google captured $2T in value by indexing HTML pages for human eyeballs. The agentic web needs its own index. Not an index of pages, but an index of machine-readable API routes. Unbrowse is building it, collectively, from the routes agents discover as they work.",
     canonicalPath: "/routing-layer",
     published_at: "2026-04-02",
     author: "Lewis Tham",
@@ -100,45 +78,5 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     published_at: "2026-04-02",
     author: "Lewis Tham",
     category: "Product",
-  },
-  {
-    slug: "openclaw-earn",
-    title: "Your OpenClaw Agent Can Earn Money While It Works For You",
-    description:
-      "You already use your OpenClaw agent to browse the web, search, book things, and research. With one plugin, every web interaction your agent makes starts earning you USDC.",
-    canonicalPath: "/openclaw-earn",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Product",
-  },
-  {
-    slug: "mine-the-internet",
-    title: "Mine the Internet",
-    description:
-      "The agentic web needs a new kind of index — not HTML pages, but machine-readable API routes. Unbrowse turns normal web browsing into mining: every site you visit contributes routes to a shared graph. When AI agents use those routes, you earn USDC micropayments.",
-    canonicalPath: "/mine-the-internet",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Economics",
-  },
-  {
-    slug: "top-domains-to-mine",
-    title: "The 50 Most Valuable Domains to Mine (And Why)",
-    description:
-      "Not all domains are equal for mining. We benchmarked 94 domains in our paper — 61 had no bot detection at all, and even WAF-protected sites yielded a 2.1x speedup over headless browsers. This is the definitive list of the 50 most valuable domains to mine with Unbrowse.",
-    canonicalPath: "/top-domains-to-mine",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Guide",
-  },
-  {
-    slug: "agent-fleet-economics",
-    title: "Your Agent Fleet Can Fund Itself",
-    description:
-      "If you're running 10, 50, or 100 AI agents that interact with websites, each one is a cost center burning $0.53 per browser action. With Unbrowse, every agent passively discovers API routes that get shared to a marketplace.",
-    canonicalPath: "/agent-fleet-economics",
-    published_at: "2026-04-02",
-    author: "Lewis Tham",
-    category: "Economics",
   },
 ];

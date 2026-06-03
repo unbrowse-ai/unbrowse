@@ -18,7 +18,7 @@ The problem was never AI. The problem was making normal people become developers
 
 ## Why this matters for Unbrowse
 
-Aiko is the existence proof for the Unbrowse thesis at the consumer edge. If a non-technical user can hand a web task to an agent and get a result in plain language, with no browser theater and no key management, then the layer underneath (shared route lookup, reuse, the maintenance network) is doing exactly the job it was designed for. Aiko surfaces the outcome; Unbrowse is the execution substrate that makes the outcome cheap and fast.
+Aiko is the existence proof for the Unbrowse thesis at the consumer edge. If a non-technical user can hand a web task to an agent and get a result in plain language, with no browser theater and no key management, then the layer underneath (shared route lookup, reuse, accountable maintenance) is doing exactly the job it was designed for. Aiko surfaces the outcome; Unbrowse is the execution substrate that makes the outcome cheap and fast.
 
 ## Where to go
 

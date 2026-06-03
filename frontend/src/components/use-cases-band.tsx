@@ -215,12 +215,12 @@ export function UseCasesBand() {
               published bench measures the read path (modelled after WebArena&apos;s
               information-retrieval category); the write path rides the same
               primitive with the same auth. Browse{" "}
-              <Link href="/leaderboard" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]">/leaderboard</Link>{" "}
+              <Link href="/search" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]">the marketplace</Link>{" "}
               for the authenticated routes the community has already captured.
             </p>
           </div>
           <Link
-            href="/leaderboard"
+            href="/search"
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-all whitespace-nowrap"
           >
             See the live marketplace →
