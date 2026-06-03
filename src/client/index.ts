@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
+import { cachedResolution } from "../values/cached-resolution.js";
 import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
@@ -1515,18 +1516,59 @@ export async function searchIntentInDomain(
   return data.results;
 }
 
-export async function searchIntentResolve(
-  intent: string,
-  domain?: string,
-  domainK = 5,
-  globalK = 10,
-): Promise<{
+type SearchResolveResult = {
   domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   skipped_global: boolean;
   actual_cost_uc?: number;
   exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>;
-}> {
+};
+
+/**
+ * Signature-keyed resolution cache for the search path (the covenant
+ * putBlob/resolvePointer + ledger-of-resolutions primitive, src/values/resolution-ledger.ts).
+ * A repeated identical query resolves the cached POINTER instead of re-paying the
+ * backend's web-search enrichment — "capture once, replay everywhere" for search.
+ *
+ * Default-on in normal mode with a TTL (search results are time-sensitive, so a
+ * stale entry is recomputed). DISABLED under UNBROWSE_STATELESS=1 (no local state)
+ * and when the TTL is 0. Only NON-EMPTY results are cached; errors/degraded-empty
+ * results are never cached, so a miss honestly retries.
+ */
+function searchResolveCacheTtlMs(): number {
+  if (process.env.UNBROWSE_STATELESS === "1") return 0;
+  const raw = process.env.UNBROWSE_SEARCH_CACHE_TTL_MS;
+  if (raw != null) return Math.max(0, Number(raw) || 0);
+  return 600_000; // 10 minutes
+}
+function isCacheableResolve(r: SearchResolveResult): boolean {
+  return (r.global_results?.length ?? 0) > 0
+    || (r.domain_results?.length ?? 0) > 0
+    || (r.exa_results?.length ?? 0) > 0;
+}
+
+export async function searchIntentResolve(
+  intent: string,
+  domain?: string,
+  domainK = 5,
+  globalK = 10,
+): Promise<SearchResolveResult> {
+  if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
+  const { value } = await cachedResolution<SearchResolveResult>({
+    key: `search-resolve ${intent} | ${domain ?? ""} | ${domainK} | ${globalK}`,
+    ttlMs: searchResolveCacheTtlMs(),
+    recompute: () => searchIntentResolveUncached(intent, domain, domainK, globalK),
+    cacheable: isCacheableResolve,
+  });
+  return value;
+}
+
+async function searchIntentResolveUncached(
+  intent: string,
+  domain?: string,
+  domainK = 5,
+  globalK = 10,
+): Promise<SearchResolveResult> {
   if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
   try {
     const { data, headers } = await apiRequest<{

@@ -35,6 +35,7 @@ NODES=(
   "backend-reveng-endpoint:tests/backend-reveng-endpoint.test.ts" # end-to-end: client obfuscates+audits → backend returns ONLY {skeleton,holes} (no secret/engine on the wire) → client fills sealed-to-wallet locally → round-trips the exact request; bound holes verify attested w/o the secret
   "kv-fallback-pipe:tests/kv-fallback-pipe.test.ts"      # the descent ladder walked highest-capable-first, each layer content-addressed/cached, falling through to the next on miss — "everything is a fallback kv-cached to a pipe"
   "resolution-ledger:tests/resolution-ledger.test.ts"    # signatures as kv-cache → pointers that resolve on truth resolution, recomputable like a docker layer, recorded in an append-only hash-chained ledger of resolutions (covenant putBlob/resolvePointer)
+  "cached-resolution:tests/cached-resolution.test.ts"    # the reusable one-call resolution cache (fs-backed, TTL'd, clean-results-only, off under stateless) — wired into search/resolve so a repeated query replays the pointer instead of re-paying enrichment
 )
 
 todo=0; done=0; pending_tests=()
