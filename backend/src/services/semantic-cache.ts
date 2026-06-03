@@ -158,12 +158,28 @@ function namespaceFor(env: CacheEnv, kind: string): string {
  * the instant `compute` resolves and let the cache populate in the background. If
  * no `waitUntil` is given (tests / non-Worker), the write-through is fire-and-forget.
  */
+/** Wrap a value with an expiry when ttlMs is set; plain JSON otherwise (a stored
+ *  entry without `__semexp` is back-compat: never expires). */
+function wrapTtl(value: unknown, ttlMs?: number): string {
+  return ttlMs && ttlMs > 0 ? JSON.stringify({ __semexp: Date.now() + ttlMs, __semv: value }) : JSON.stringify(value);
+}
+/** Unwrap a stored entry: returns the value and whether it has expired. */
+function unwrapTtl<T>(raw: string): { value: T; expired: boolean } {
+  const parsed = JSON.parse(raw) as unknown;
+  if (parsed && typeof parsed === "object" && "__semexp" in parsed) {
+    const o = parsed as { __semexp: number; __semv: T };
+    return { value: o.__semv, expired: typeof o.__semexp === "number" && o.__semexp < Date.now() };
+  }
+  return { value: parsed as T, expired: false };
+}
+
 export async function getOrComputeSemantic<T>(
   env: CacheEnv,
   kind: string,
   query: string,
   compute: () => Promise<T>,
   waitUntil?: (p: Promise<unknown>) => void,
+  ttlMs?: number,
 ): Promise<{ value: T; cached: boolean }> {
   const edbKey = env.EMERGENTDB_API_KEY;
   const nebiusKey = env.NEBIUS_API_KEY;
@@ -187,7 +203,8 @@ export async function getOrComputeSemantic<T>(
     const rawExact = await qdkvGet(exactKey, edbKey);
     if (rawExact) {
       try {
-        return { value: remember(JSON.parse(rawExact) as T), cached: true };
+        const { value: v, expired } = unwrapTtl<T>(rawExact);
+        if (!expired) return { value: remember(v), cached: true };
       } catch { /* corrupt — fall through */ }
     }
   } catch { /* hashing/get error → skip L1 */ }
@@ -202,7 +219,8 @@ export async function getOrComputeSemantic<T>(
         const raw = await qdkvGet(`veccache:${ns}:${hit.id}`, edbKey);
         if (raw) {
           try {
-            return { value: remember(JSON.parse(raw) as T), cached: true };
+            const { value: v, expired } = unwrapTtl<T>(raw);
+            if (!expired) return { value: remember(v), cached: true };
           } catch { /* corrupt entry — fall through to recompute */ }
         }
       }
@@ -216,7 +234,7 @@ export async function getOrComputeSemantic<T>(
   // the L2 vector + its payload (fuzzy path for rewordings).
   if (vector || exactKey) {
     const vec = vector;
-    const payload = JSON.stringify(value);
+    const payload = wrapTtl(value, ttlMs);
     const writeThrough = (async () => {
       try {
         if (exactKey) await qdkvSet(exactKey, payload, edbKey);
