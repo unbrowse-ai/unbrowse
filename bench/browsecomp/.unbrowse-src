@@ -6,4 +6,5 @@
 # actually run its multi-search loop within timeout. Measures real source code.
 export UNBROWSE_SKIP_REHYDRATE=1
 export UNBROWSE_NO_TELEMETRY=1
+export UNBROWSE_EXA_RAW=1
 exec bun "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/cli.ts" "$@"

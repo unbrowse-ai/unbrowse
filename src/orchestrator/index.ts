@@ -3946,10 +3946,19 @@ export async function resolveAndExecute(
         })();
         const maxScore = exaHits.reduce((m, h) => Math.max(m, h.score ?? 0), 0);
         const hasRichHit = exaHits.some((r) => (r.highlights ?? []).join(" ").length >= 150);
-        const exaPassesQualityGate = maxScore > 0 || bestHitRate >= 0.34 || hasRichHit;
+        // UNBROWSE_EXA_RAW=1 returns raw exa candidates and lets the CALLER judge
+        // relevance instead of pre-filtering with the quality gate. The gate
+        // discards low-score hits — but BrowseComp's answer entities are obscure
+        // (low exa score by nature), so the gate threw away the very candidates a
+        // deep-research agent needed, starving it to DDG junk (WAVE-19). When the
+        // caller is a judging agent, raw recall beats a precision pre-filter.
+        const exaRaw = process.env.UNBROWSE_EXA_RAW === "1";
+        const exaPassesQualityGate = exaRaw || maxScore > 0 || bestHitRate >= 0.34 || hasRichHit;
         if (!exaPassesQualityGate) {
           console.log(`[exa] probe-fallback discarded — quality gate failed (max_score=${maxScore}, hit_rate=${bestHitRate.toFixed(2)}, rich=${hasRichHit}); falling through to serial path`);
           exaHits = [];
+        } else if (exaRaw && !(maxScore > 0 || bestHitRate >= 0.34 || hasRichHit)) {
+          console.log(`[exa] raw-candidate mode (UNBROWSE_EXA_RAW=1): keeping ${exaHits.length} low-score hits for the agent to judge`);
         }
       }
       if (exaHits.length > 0) {
