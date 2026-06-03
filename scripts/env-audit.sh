@@ -15,7 +15,9 @@ for v in UNBROWSE_API_KEY EXA_API_KEY NEBIUS_API_KEY EMERGENTDB_API_KEY; do row 
 echo "== PAYMENTS / x402 =="
 for v in PAYMENT_RECIPIENT FLEX_PLATFORM_RECIPIENT_USDC_ATA STRIPE_SECRET_KEY PLATFORM_SPONSOR_WALLET_KEY IQ_SIGNER_SECRET_KEY PRIVY_APP_SECRET; do row "$v"; done
 echo "== INFRA / PROD =="
-for v in DATABASE_URL R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY SOLANA_RPC_URL CLOUDFLARE_API_TOKEN; do row "$v"; done
+for v in SOLANA_RPC_URL CLOUDFLARE_API_TOKEN; do row "$v"; done
+echo "== OPTIONAL (EmergentDB/IQ substrate covers these; legacy only) =="
+for v in DATABASE_URL R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do row "$v"; done
 echo
 [ "$miss" -eq 0 ] && { echo "[env-audit] PASS — all CORE envs present."; exit 0; }
 echo "[env-audit] $miss CORE env(s) missing."; exit 1
