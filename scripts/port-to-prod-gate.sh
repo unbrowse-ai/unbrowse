@@ -13,6 +13,10 @@
 #   INDEX_MIN_ROWS     min indexed rows expected in prod DB (default 1603 = real 10k oks)
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# Source project .env so the witness is deterministic regardless of caller env
+# (the Stop-hook runs this bare — without this, node 4's prod probes have no
+# UNBROWSE_API_KEY and falsely report 0/20). Same recipe as run.sh.
+set -a; . ./.env 2>/dev/null || true; set +a
 fail=0
 note() { printf '  %s\n' "$1"; }
 
