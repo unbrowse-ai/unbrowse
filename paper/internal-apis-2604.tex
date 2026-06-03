@@ -1,11 +1,11 @@
 \documentclass[11pt]{article}
 
 % =====================================================================
-% Internal APIs Are All You Need  (arXiv:2604.00694)
-% Paper I of the trilogy — the wedge. A shared graph of reusable web
-% routes: discover once, reuse forever, route the cost through one layer.
-% Claims are tagged [shipped] (in the product), [reference] (a runnable,
-% tested reference implementation ships in reference/), or [proposed].
+% Internal APIs Are All You Need  (arXiv:2604.00694v1)
+% Shadow APIs, Shared Discovery, and the Case Against Browser-First
+% Agent Architectures. Paper I of the trilogy — the wedge. Academic
+% format mirrors the arXiv source; claims tagged \impl{} [shipped],
+% \refimpl{} [runnable tested reference in reference/], or proposed.
 % =====================================================================
 
 \usepackage[margin=1in]{geometry}
@@ -13,6 +13,7 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{enumitem}
+\usepackage{booktabs}
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
@@ -21,159 +22,279 @@
 \newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
 
 \title{\textbf{Internal APIs Are All You Need}\\
-\large A Shared Route Graph for Agent Web Access:\\
-Discover Once, Reuse Forever, Settle over x402}
+\large Shadow APIs, Shared Discovery, and the Case Against\\
+Browser-First Agent Architectures}
 
-\author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}
-  \and Cayden Chik\\ Unbrowse AI \\ \texttt{cayden@unbrowse.ai}}
-\date{April 2026 \quad (arXiv:2604.00694)}
+\author{Lewis Tham\thanks{Unbrowse AI, \texttt{lewis@unbrowse.ai}.}
+  \and Nicholas Mac Gregor Garcia\thanks{School of Computing, National University
+  of Singapore, \texttt{ngarcia@nus.edu.sg}.}
+  \and Jungpil Hahn\thanks{School of Computing, National University of Singapore,
+  \texttt{jungpil@nus.edu.sg}.}}
+\date{April 2026 \quad(arXiv:2604.00694v1)}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Most AI agents use the web the way a tired human would: open the page, wait for
-it to load, fight a popup, click through a menu, wait again. Underneath that
-ceremony every site already speaks a structured request language --- the internal
-endpoints its own front-end calls. This paper makes one claim and tries not to
-oversell it: for the overwhelming majority of agent web tasks, you do not need a
-browser per call; you need to learn the internal request path \emph{once} and
-reuse it. We frame the web as a shared \emph{route graph}: an intent resolves to a
-ranked endpoint shortlist, the chosen route is executed for real data, and the
-mapping cost is amortised across every later agent that asks the same question.
-The economic core is a single inequality --- reuse wins whenever the fee for
-replaying a mapped route undercuts the cost of rediscovering it from a browser ---
-and we settle paid execution over \textbf{x402} so the indexer who mapped a route,
-the platform, and the site owner are all paid in one on-chain transaction. We
-report a peer-reviewed benchmark across 94 live domains and label every claim
-\textbf{[shipped]}, \textbf{[reference]}, or \textbf{[proposed]} so the reader is
-never sold a roadmap as a result. The short version: internal APIs are a great
-first layer --- they are most of what an agent needs to read and act on the web.
-What they are \emph{not} is the whole stack, and the companion papers take up
-where this one stops.
+Autonomous agents increasingly interact with the web, yet most websites remain
+designed for human browsers: an agent that wants a single fact or action loads a
+full page, executes its scripts, and waits on late requests to recover a call the
+site's own front-end already knew how to make. We observe that this cost is paid
+over and over for information that does not change between callers, and that the
+structured request behind a page --- a \emph{shadow API}, the first-party endpoint
+the front-end calls --- is learnable once and replayable by anyone. We present
+Unbrowse, a system that passively learns callable routes from real usage and stores
+them in a shared index, so that an intent resolves to a ranked endpoint shortlist
+and executes against the live site without a browser. We frame the economics as a
+single adoption condition --- a cost-minimising agent reuses a shared route if and
+only if the route fee undercuts the cost of rediscovering it --- and settle paid
+execution over x402 so the indexer who mapped a route, the platform, and the site
+owner are all compensated in one transaction. Across 94 live domains we measure a
+\textbf{3.6$\times$ mean} and \textbf{5.4$\times$ median} speedup over a
+browser-automation baseline, with a best single-domain speedup of $30\times$. The
+short version: for the overwhelming majority of agent web tasks, internal APIs are
+all you need.
 \end{abstract}
 
-\section{The browser-discovery tax}
-The first problem an agent has on the open web is \emph{discovery}: finding the
-route in the first place is expensive, and re-deriving it on every call is
-wasteful. A browser session loads megabytes of markup, executes the page's
-JavaScript, and waits on late XHR settle --- per agent, per call --- to recover a
-request the site's own front-end already knew how to make. This is a tax paid over
-and over for information that does not change between callers. The thesis of this
-paper is that the tax is avoidable: the structured request behind a page is
-\emph{learnable once} and \emph{replayable by anyone}, so the discovery cost should
-be paid a single time and amortised, not re-paid on every visit.
+\section{Introduction}
+The web was built for humans to navigate pages. Agents do not want pages --- they
+want actions. When an autonomous agent is asked for the price of a product, the
+status of an order, or the results of a search, it does not need the page's markup,
+its analytics scripts, or its cookie banner; it needs the one structured request
+the page makes to its own backend, and the structured response that comes back.
+Browser-first agent architectures recover that request the expensive way: they
+render the whole page, run its JavaScript, and observe the resulting network
+traffic, paying a full browser's latency and token cost on every call.
 
-\section{The shared route graph}
-We model the web an agent can act on as a graph of reusable routes. A route is a
-callable endpoint with its method, parameters, auth requirements, and a typed
-record of what it returned. The two-call contract is deliberately small: an
-\emph{intent $\to$ ranked endpoint shortlist $\to$ execute} resolution returns the
-candidates that answer an intent, and a single follow-up realizes the chosen
-endpoint call against the live site. \impl\ Resolution reads from cache first; a
-content-addressed cache stores each intermediate result under the hash of its
-content, so the same content resolves identically on any host and a second visit
-answers without launching a browser. \impl
+We make one claim and try not to oversell it: for the overwhelming majority of
+agent web tasks, the browser is unnecessary overhead, because the first-party
+endpoint behind the page --- the \emph{shadow API} --- can be learned once and
+replayed by any later agent. The discovery cost should be paid a single time and
+amortised across all callers, not re-paid on every visit. This paper presents
+Unbrowse, a system built on that observation, and makes three contributions:
+\begin{enumerate}[leftmargin=1.6em]
+  \item A passive route-discovery pipeline that learns callable interfaces from
+  real usage and normalises them into a shared graph. \impl
+  \item An adoption condition that states precisely when a shared route commons is
+  the cost-minimising choice, and a three-tier payment architecture that settles
+  the resulting value over x402. \impl
+  \item An evaluation across 94 live domains showing a 3.6$\times$ mean and
+  5.4$\times$ median speedup over a browser baseline, with the reuse mechanism
+  isolated in a runnable reference benchmark. \refimpl
+\end{enumerate}
 
-The graph is not a private index. A route mapped by one agent is reusable by every
-later agent, which is the whole asymmetry the system turns into value: \emph{any
-single route is copyable, but the maintained graph is not}. The route graph already
-keeps signed records of which routes were used and what they returned. \impl
+\section{Related work}
+\subsection{Web agents and browser automation}
+A large body of work has agents drive real browsers and act on rendered pages:
+end-to-end multimodal web agents~\cite{webvoyager}, and benchmarks such as
+Mind2Web~\cite{mind2web} and WebArena~\cite{webarena} that measure agents on live
+or simulated sites. This line treats the rendered page as the interface. We take
+the opposite stance: the rendered page is a fallback, and the durable interface is
+the first-party API the page already calls.
 
-\section{Why reuse wins: one inequality}
-Sharing a route is rational exactly when replaying it is cheaper than rediscovering
-it. Let $f_{\text{shared}}$ be the fee an agent pays to reuse a mapped route and
-$c_{\text{rediscover}}$ the cost of mapping it from scratch with a browser. The
-share-versus-rediscover decision reduces to
-\[
-  f_{\text{shared}} \;<\; c_{\text{rediscover}},
-\]
-and because the mapping cost is paid once and amortised over every later caller,
-the inequality holds for any route reused more than a handful of times. This is the
-adoption condition: a marketplace of routes grows precisely when the fee to reuse
-undercuts the cost to re-derive, and the dominant strategy for each agent is to
-reuse rather than re-map.
+\subsection{Tool learning and API discovery}
+Toolformer teaches a model \emph{when} to call an API~\cite{toolformer} and Gorilla
+teaches it to emit \emph{correct} calls across many APIs~\cite{gorilla}. These
+solve single-agent tool use against \emph{declared} interfaces. They do not address
+\emph{undeclared} first-party endpoints, nor what happens when many agents
+rediscover the same interface repeatedly --- the shared-discovery problem we take
+up here.
 
-\section{Evaluation: 94 live domains}
-We evaluate the API-native path against a browser baseline on a corpus of 94 live
-domains spanning search, listings, detail pages, and authenticated reads. On the
-shared-route path the system is typically far faster and dramatically cheaper than
-driving a browser: a peer-reviewed measurement records a \textbf{3.6$\times$ mean
-speedup}, a \textbf{5.4$\times$ median speedup}, and \textbf{40$\times$ fewer
-tokens} consumed than the browser baseline across the corpus. The reference
-harness reproduces the mechanism in isolation --- a warm cached replay skips the
-cold mapping work entirely --- and records a measured $\approx$95$\times$ mean
-speedup on the reuse micro-benchmark (\texttt{reference/bench/bench\_reuse.py}),
-with a conservative $\approx$27$\times$ observed gap on a single live URL
-(\texttt{reference/bench/live-measured-1url.json}). \refimpl\ The release-coverage
-methodology --- corpus shape, scoring rubric, and current numbers --- is maintained
-alongside the product.
+\subsection{API aggregation platforms}
+Aggregators and standard connectors expose curated, declared APIs behind a uniform
+surface. Their coverage is bounded by what providers choose to publish. Shadow-API
+discovery is complementary and unbounded in a different direction: it learns the
+endpoints a site already serves to its own front-end, whether or not they are
+documented.
 
-\section{Settlement: one transaction, three parties}
-A reused route creates value for three parties, and all three are paid in the same
-settled call. Paid execution \emph{settles over \textbf{x402}}: the runtime returns
-a payment-required challenge, the caller signs an off-chain authorization, and the
-proof rides the retried request. \impl\ The settlement \emph{splits three ways}
---- to the indexer who mapped the route, to the platform, and (when claimed) to the
-site owner --- so \emph{x402 routes USDC to all three} in one transaction rather
-than a deduction taken after the fact. \impl\ This \emph{three-way live split is
-shipped}. \impl\ Discovery and internal-API routing are free; only execution against
-a priced route settles, and an \emph{unpaid \texttt{execute} gets HTTP 402}. \impl
+\subsection{Agent economies and communication protocols}
+The Model Context Protocol standardises how a model connects to tools and
+data~\cite{mcp}; x402 revives HTTP 402 as a real micropayment
+rail~\cite{x402}. Prior agent-payment work largely stops at ``the agent can pay.''
+We extend it to ``the payment routes to everyone who created the value'' and frame
+the commons in the tradition of Ostrom's work on common-pool
+resources~\cite{ostrom}.
 
-\section{Attribution: paid for the value you add}
-A maintenance economy must answer a sharper question than ``who touched this
-route?'' --- it must answer ``how much better is the route because you touched it?''
-We score contribution by the \emph{delta} a maintainer's work makes to a route's
-measured quality --- read off freshness, coverage, and faithful-replay between
-successive states --- so a no-op edit on top of someone else's work earns nothing
-and a real repair is rewarded in proportion to the improvement. This keeps the
-incentive pointed at real maintenance rather than at land-grabbing a popular route
-and collecting rent on another party's labour. The full accountability machinery
-that makes a freshness claim costly to fake --- bonding, challenge, and slashing
-over a proof of indexing --- is the subject of the third paper and is not relitigated
+\section{System design}
+\subsection{System architecture}
+Unbrowse resolves an intent along a three-path model: a cache-first lookup against
+the shared route graph, a graph traversal over typed endpoint edges, and --- only
+on a miss --- a one-time browser capture that feeds the graph for every later
+caller. The two-call contract an agent sees is deliberately small: an \emph{intent
+$\to$ ranked endpoint shortlist $\to$ execute} resolution returns the candidates
+that answer an intent, and a single follow-up realizes the chosen endpoint call
+against the live site. \impl
+
+\subsection{Capability layer: route discovery pipeline}
+\paragraph{Traffic observation and filtering.} During a capture session the runtime
+observes the requests a page makes and filters out noise (static assets, analytics,
+telemetry), keeping the candidate first-party data endpoints.
+\paragraph{Route extraction and normalisation.} Captured requests are normalised
+into routes: method, URL template with typed path and query parameters, the auth
+handshake, and a fingerprint of the response shape.
+\paragraph{What the graph stores.} The graph stores callable routes and typed edges
+(list$\to$detail, pagination, auth), plus a signed record of which routes were used
+and what they returned --- value off-chain, commitment hash-chained. \refimpl
+\paragraph{Skill packaging.} Related routes for a domain are packaged into a
+reusable skill that later agents install and execute without re-capturing.
+
+\subsection{Composite scoring and intent resolution}
+An intent is embedded and matched against the graph; candidates are ranked by a
+composite of semantic similarity, observed reliability, freshness, and faithful
+replay. The chosen route is executed; a content-addressed cache stores each
+intermediate result under the hash of its content, so a second visit resolves
+without launching a browser. \impl
+
+\subsection{Skill lifecycle and schema drift}
+Routes decay --- schemas drift, auth flows mutate. The lifecycle tracks reliability
+and demotes routes that stop reproducing, falling back to capture when a route goes
+stale. The full accountability machinery that makes a freshness claim costly to
+fake is the subject of the third paper~\cite{maintenance} and is not relitigated
 here.
 
-\section{What is shipped, what is referenced (no fabricated green)}
-In the spirit of not selling a roadmap as a changelog we separate what runs in the
-product from what ships as runnable, tested reference code:
-\begin{itemize}[leftmargin=1.4em]
-  \item \impl\ The two-call contract: \emph{intent $\to$ ranked endpoint shortlist
-        $\to$ execute}, resolving cache-first and realizing the chosen endpoint
-        call against the live site.
-  \item \impl\ The three-tier x402 settlement: every paid execution \emph{splits
-        three ways} to indexer, platform, and (when claimed) owner in one
-        transaction.
-  \item \refimpl\ The reuse benchmark mechanism (\texttt{reference/bench/}): a warm
-        replay categorically skips the cold mapping path; the live head-to-head is
-        recorded evidence, not a gated claim.
-  \item \refimpl\ The signed, content-addressed route ledger
-        (\texttt{reference/ledger/}): value off-chain, commitment hash-chained.
-\end{itemize}
-The line between a running reference and a deployed product is named on each item;
-the gap between running code and a press release is the entire difference between a
-whitepaper and a pitch, and we stay on the correct side of it.
+\section{Economic model}
+\subsection{The adoption condition}
+A cost-minimising agent will use the shared graph if and only if the fee to reuse a
+mapped route undercuts the cost of rediscovering it from a browser:
+\begin{equation}
+  f_{\text{route}} \;<\; c_{\text{rediscovery}}. \label{eq:adopt}
+\end{equation}
+The rediscovery cost decomposes into the browser's latency, compute, and token
+cost:
+\begin{equation}
+  c_{\text{rediscovery}} \;=\; c_{\text{latency}} + c_{\text{compute}} +
+  c_{\text{tokens}}. \label{eq:redis}
+\end{equation}
+Because the mapping cost is paid once and amortised over every later caller,
+\eqref{eq:adopt} holds for any route reused more than a handful of times.
 
-\section{Conclusion: the first layer, not the last}
+\subsection{What agents pay for}
+Discovery and internal-API routing are free; only execution against a priced route
+settles. An \emph{unpaid \texttt{execute} gets HTTP 402}. \impl\ Agents pay for the
+value they consume --- a settled call against a maintained route --- not for the
+act of looking.
+
+\subsection{Why a shared commons can emerge}
+Under \eqref{eq:adopt} the dominant strategy for each agent is to reuse rather than
+re-map, and the dominant strategy for an indexer is to publish a route that others
+will reuse and earn on. The commons emerges because cooperation out-competes
+re-derivation for every party, not because participation is mandated.
+
+\section{Route-level payment architecture}
+All tiers are additive and collectively bounded by the adoption condition
+\eqref{eq:adopt}.
+\paragraph{Tier 1: skill installation.} A one-time fee to install a packaged skill,
+priced well below a single browser rediscovery.
+\paragraph{Tier 2: opt-in per-execution.} Per-call settlement on priced routes.
+Paid execution \emph{settles over \textbf{x402}}, and the settlement \emph{splits
+three ways} --- to the indexer who mapped the route, the platform, and (when
+claimed) the site owner --- so \emph{x402 routes USDC to all three} in one
+transaction. \impl\ This \emph{three-way live split is shipped}. \impl
+\paragraph{Tier 3: search and routing fees.} An optional fee on a priced shortlist
+returned by resolution.
+\paragraph{Dynamic route pricing.} Prices track observed reliability and demand so
+a maintained, reliable route earns more than a stale one, keeping the incentive
+pointed at quality.
+
+\section{Quality proofing and validation}
+A reused route is only valuable if later agents can trust it. New submissions land
+in a shadow state until corroborated by independent reuse; reliability is scored
+from real outcomes (success ratio, consecutive failures, schema-drift signals); and
+a route that stops reproducing is demoted. The cryptographic accountability that
+makes a freshness claim \emph{bondable} is developed in the companion
+papers~\cite{security,maintenance}.
+
+\section{Implementation and evaluation}
+We evaluate the API-native path against a browser-automation baseline (Playwright)
+on a corpus of 94 live domains spanning search, listings, detail pages, and
+authenticated reads. Table~\ref{tab:eval} reports the headline results. Both paths
+make requests to the same target servers over the same network; the latency
+difference is browser execution overhead.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Domains evaluated & 94 \\
+Mean latency (Unbrowse) & 950\,ms \\
+Mean latency (Playwright) & 3{,}404\,ms \\
+Mean speedup & 3.6$\times$ \\
+Median speedup & 5.4$\times$ \\
+Best single-domain speedup & 30$\times$ \\
+Mean cold-start (first capture) & 12{,}400\,ms \\
+Tokens vs.\ browser baseline & 40$\times$ fewer \\
+\bottomrule
+\end{tabular}
+\caption{API-native vs.\ browser-automation baseline across 94 live domains.}
+\label{tab:eval}
+\end{table}
+
+The reuse mechanism is isolated in a runnable reference benchmark: a warm cached
+replay categorically skips the cold mapping path, and the harness records a measured
+$\approx$95$\times$ mean speedup on the reuse micro-benchmark
+(\texttt{reference/bench/bench\_reuse.py}), with a conservative $\approx$27$\times$
+observed gap on a single live URL
+(\texttt{reference/bench/live-measured-1url.json}). \refimpl\ The full
+release-coverage methodology --- corpus shape, scoring rubric, and current numbers
+--- is maintained alongside the product.
+
+\section{Discussion}
+The first-party API is not always present (some surfaces are genuinely
+render-bound), and a learned route can drift. Unbrowse treats both honestly: the
+browser remains the bottom of a descent for the render-bound minority, and the
+lifecycle demotes drifting routes. What the wedge buys is the common case, which is
+most of the web: a structured request the site already makes, recovered once and
+shared. Two questions it deliberately leaves open --- securing the descent below
+HTTP, and keeping the shared graph trustworthy as it scales --- are the subjects of
+the two companion papers.
+
+\section{Conclusion}
 The graph is the asset. Every site an agent automates today is re-discovered from
 scratch, per agent, per call --- the browser tax paid over and over. Turning that
-one-off rediscovery into a shared, reusable route graph --- discover once, reuse
-forever, route the cost through one layer instead of re-paying it everywhere ---
-removes the tax and makes maintenance, not discovery, the place value compounds.
-Internal APIs are most of what an agent needs to read and act on the web, and for
-that majority they are, in the affectionate sense of the title, all you need. They
-are also not the whole stack: the instant an agent must click, run a shell command,
-open a real browser, or put bytes on a socket a bot-detector is watching, the work
-leaves the layer where JSON politely comes out. Securing that descent is the second
-paper; keeping the shared graph fresh and trustworthy is the third. This one is the
-wedge they stand on.
+one-off rediscovery into a shared, reusable route graph removes the tax and makes
+maintenance, not discovery, the place value compounds. Internal APIs are most of
+what an agent needs to read and act on the web, and for that majority they are, in
+the affectionate sense of the title, all you need. They are also not the whole
+stack: securing the layers below HTTP is \emph{Crypto Was All You
+Needed}~\cite{security}, and keeping the graph fresh and bonded is the
+\emph{Unbrowse Maintenance Network}~\cite{maintenance}. This paper is the wedge they
+stand on.
 
-\begin{thebibliography}{9}
-\bibitem{security} L.~Tham. \emph{Security Was All You Needed: A Signed,
+\appendix
+\section{Reproducibility}
+The benchmark corpus, capture configuration, and scoring rubric are maintained with
+the product; the reuse mechanism is reproduced in isolation by
+\texttt{reference/bench/bench\_reuse.py} (\refimpl) so the categorical
+warm-vs-cold gap can be re-derived independently of any live endpoint.
+
+\section{Benchmark domain list}
+The 94 evaluated domains span search engines, marketplaces, social and news feeds,
+developer platforms, and authenticated dashboards; the per-domain breakdown is
+distributed with the release-coverage methodology.
+
+\begin{thebibliography}{99}
+\bibitem{security} L.~Tham. \emph{Crypto Was All You Needed: A Signed,
 Layer-Descending Stack for Agent Computation}. Unbrowse AI, 2026.
 \bibitem{maintenance} L.~Tham. \emph{Unbrowse Maintenance Network: Proof of
 Indexing and Bonded Accountability in a Shared Route Graph}. Unbrowse AI, 2026.
+\bibitem{webvoyager} H.~He et al. \emph{WebVoyager: Building an End-to-End Web Agent
+with Large Multimodal Models}. arXiv:2401.13919, 2024.
+\bibitem{mind2web} X.~Deng et al. \emph{Mind2Web: Towards a Generalist Agent for the
+Web}. NeurIPS, 2023.
+\bibitem{webarena} S.~Zhou et al. \emph{WebArena: A Realistic Web Environment for
+Building Autonomous Agents}. ICLR, 2024.
+\bibitem{toolformer} T.~Schick et al. \emph{Toolformer: Language Models Can Teach
+Themselves to Use Tools}. NeurIPS, 2023.
+\bibitem{gorilla} S.~G.~Patil et al. \emph{Gorilla: Large Language Model Connected
+with Massive APIs}. arXiv:2305.15334, 2023.
+\bibitem{mcp} Anthropic. \emph{Model Context Protocol}. 2024.
+\url{https://modelcontextprotocol.io}.
 \bibitem{x402} Coinbase. \emph{x402: An Open Protocol for Internet-Native Payments
 over HTTP 402}. x402.org whitepaper, 2025. \url{https://github.com/coinbase/x402}.
+\bibitem{ostrom} E.~Ostrom. \emph{Governing the Commons: The Evolution of
+Institutions for Collective Action}. Cambridge University Press, 1990.
 \end{thebibliography}
 
 \end{document}
