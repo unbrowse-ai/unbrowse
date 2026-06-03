@@ -327,6 +327,79 @@ export async function readBatch(env: Env, batchId: string): Promise<SettlementBa
 }
 
 // ---------------------------------------------------------------------------
+// Owner earnings — read-only visibility into what a wallet has been paid
+// ---------------------------------------------------------------------------
+
+export interface OwnerEarnings {
+  /** The USDC ATA the payouts settled to. */
+  wallet: string;
+  /** Sum of recipient amounts across EXECUTED batches (paid on-chain). */
+  earned_uc: number;
+  /** Sum across PENDING batches (rolled up, not yet submitted). */
+  pending_uc: number;
+  /** Number of executed batches that paid this wallet. */
+  payout_count: number;
+  /** Solana tx signature of the most recent executed payout, or null. */
+  last_tx: string | null;
+  /** ISO timestamp of the most recent executed payout, or null. */
+  last_settled_at: string | null;
+}
+
+/**
+ * Walk every persisted `settlement:ledger:*` batch and sum the recipient
+ * amounts paid to `wallet`. Executed batches count as earned (real on-chain
+ * payouts); pending batches are reported separately. This is the read behind
+ * the owner-earnings surface: websites do not redeem — the owner lane is paid
+ * directly at settlement — so "earnings" is purely a sum over settled batches.
+ */
+export async function earningsForWallet(env: Env, wallet: string): Promise<OwnerEarnings> {
+  const entries = await statsKV(env).listWithValues(SETTLEMENT_LEDGER_PREFIX);
+  let earned = 0;
+  let pending = 0;
+  let payoutCount = 0;
+  let lastTx: string | null = null;
+  let lastAtMs = -1;
+  let lastAtIso: string | null = null;
+
+  for (const entry of entries) {
+    let batch: SettlementBatch;
+    try {
+      batch = JSON.parse(entry.value) as SettlementBatch;
+    } catch {
+      continue;
+    }
+    if (!batch || !Array.isArray(batch.recipients)) continue;
+    const sum = batch.recipients.reduce(
+      (acc, r) => (r && r.wallet === wallet ? acc + (Number(r.amount_uc) || 0) : acc),
+      0,
+    );
+    if (sum === 0) continue;
+    if (batch.status === "executed") {
+      earned += sum;
+      payoutCount += 1;
+      const atMs = typeof batch.executed_at === "number" ? batch.executed_at : batch.created_at;
+      if (atMs > lastAtMs) {
+        lastAtMs = atMs;
+        lastTx = batch.tx_signature ?? null;
+        lastAtIso = new Date(atMs).toISOString();
+      }
+    } else if (batch.status === "pending") {
+      pending += sum;
+    }
+    // failed batches contribute nothing.
+  }
+
+  return {
+    wallet,
+    earned_uc: earned,
+    pending_uc: pending,
+    payout_count: payoutCount,
+    last_tx: lastTx,
+    last_settled_at: lastAtIso,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Execute (sign + submit + stamp)
 // ---------------------------------------------------------------------------
 
