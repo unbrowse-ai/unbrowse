@@ -35,7 +35,7 @@ The paper’s opt-in site-owner compensation model is `coming soon`:
 The practical reliability model ships today, but these stronger trust primitives are `coming soon`:
 
 - validator attestations
-- validator staking and slashing
+- independent validator markets
 - signed trust evidence beyond current feedback and verification fields
 - cryptographic proof of route verification
 - TEE-backed verification attestation

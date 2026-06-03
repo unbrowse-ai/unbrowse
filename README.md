@@ -17,14 +17,14 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 | Verb | What it is | Examples |
 |---|---|---|
 | `build` | **Declare** what you'll reuse — a skill, a fill-template, a value-source. | `build skill`, `build template` |
-| `breath` | **Act** on the internet — navigate, fill, click, type, submit, execute. | `breath go`, `breath fill`, `breath execute` |
+| `act` | **Act** on the internet — navigate, fill, click, type, submit, execute. | `act go`, `act fill`, `act execute` |
 | `eval` | **Observe** state — snapshot, resolve, read, status, earnings. | `eval snap`, `eval resolve`, `eval text` |
 
-Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `breath fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
+Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/route-internet-layer.md](./docs/route-internet-layer.md).
 
-> The three-verb surface (`unbrowse {build,breath,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
+> The three-verb surface (`unbrowse {build,act,eval}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
 ## Install — pick one
 

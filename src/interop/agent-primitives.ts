@@ -5,7 +5,7 @@
  *   - Agent Skills (agentskills.io) — a SKILL.md folder; name+description+instructions.
  *     Open standard, Anthropic-origin, ~40 client agents. src: https://agentskills.io/specification
  *   - MCP tools (modelcontextprotocol.io) — { name, description, inputSchema }.
- *     src: MCP spec + this repo's src/route-mapping.ts (ROUTE_MAP) + src/mcp.ts.
+ *     src: MCP spec + this repo's src/verb-mapping.ts (ROUTE_MAP) + src/mcp.ts.
  *   - x402 resources (x402 Bazaar) — { resource{url,…}, accepts[{scheme,network,amount,
  *     asset,payTo,…}] }. src: the live 402 envelope from beta-api.unbrowse.ai/v1/llm/*.
  *
@@ -13,13 +13,13 @@
  * So instead of inventing a fourth standard, every external primitive INGESTS into
  * one `AgentPrimitive`, and any AgentPrimitive can be SERVED back AS a skill, an MCP
  * tool, or an x402 resource. That bidirectionality is the drop-in replacement, all
- * the way down: we meet a site in whatever it already speaks (1 Cor 9:22), and we
+ * the way down: we meet a site in whatever it already speaks, and we
  * prioritize the format it already adopted.
  *
  * Pure, zero-dep. Verb classification reuses route-seed's three-verb river.
  */
 // cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the route code inherits the root signature — pointer not payload; verify via (internal))
-import type { RouteVerb } from "../route-mapping.js";
+import type { Verb } from "../verb-mapping.js";
 
 export type PrimitiveKind =
 	| "skill" // agentskills.io SKILL.md
@@ -33,7 +33,7 @@ export type PrimitiveKind =
 /**
  * Standard auth scheme adopted verbatim from the source (OpenAPI/A2A securityScheme
  * shape — OAuth2/OIDC/apiKey/http). We DO NOT invent an auth format: we read the
- * open standard a site already declares (1 Cor 9:22). If our own auth is weaker, we
+ * open standard a site already declares. If our own auth is weaker, we
  * purge it and let the standard be primary.
  */
 export interface AuthScheme {
@@ -51,7 +51,7 @@ export interface AgentPrimitive {
 	what: string; // name (the handle agents match on)
 	why: string; // description / intent the primitive serves
 	where: string; // invoke target — resource URL, tool name, or skill id
-	verb: RouteVerb; // create / act / read
+	verb: Verb; // create / act / read
 	kind: PrimitiveKind; // the ecosystem this was ingested from / served as
 	/** how (optional payment seal) — present for x402-payable primitives. */
 	payment?: { amount: string; asset: string; network?: string; payTo?: string };
@@ -63,29 +63,29 @@ export interface AgentPrimitive {
 	raw?: unknown;
 }
 
-/** HTTP method → route verb: read→eval, delete/act→breath, create/commit→build. */
-function verbOfMethod(method: string): RouteVerb {
+/** HTTP method → route verb: read→eval, delete/act→act, create/commit→build. */
+function verbOfMethod(method: string): Verb {
 	const m = method.toUpperCase();
 	if (m === "GET" || m === "HEAD" || m === "OPTIONS") return "eval";
 	if (m === "POST" || m === "PUT" || m === "PATCH") return "build";
-	return "breath"; // DELETE and anything else: an act on the world
+	return "act"; // DELETE and anything else: an act on the world
 }
 
 // ─── verb classification (cite route-seed VERB_BY_BASE) ───────────────────
-// observe/read → eval; act/fetch → breath; create/commit → build. Default breath
+// observe/read → eval; act/fetch → act; create/commit → build. Default act
 // (the routing default), matching route-seed.verbOfKind.
 const READ_HINT = /\b(get|list|search|read|fetch|query|lookup|view|status|health|info)\b/i;
 const WRITE_HINT = /\b(create|publish|submit|write|post|register|mint|deploy|bond)\b/i;
 
-function inferVerb(name: string, opts?: { readOnly?: boolean; destructive?: boolean }): RouteVerb {
+function inferVerb(name: string, opts?: { readOnly?: boolean; destructive?: boolean }): Verb {
 	if (opts?.readOnly) return "eval";
-	if (opts?.destructive) return "breath";
+	if (opts?.destructive) return "act";
 	// snake_case / kebab-case tool names have no \b between segments (underscore is
 	// a word char), so normalize separators to spaces before the word-boundary test.
 	const tokens = name.replace(/[_\-]+/g, " ");
 	if (WRITE_HINT.test(tokens)) return "build";
 	if (READ_HINT.test(tokens)) return "eval";
-	return "breath";
+	return "act";
 }
 
 // ─── agentskills.io (SKILL.md frontmatter) ───────────────────────────────────
