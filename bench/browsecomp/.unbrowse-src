@@ -1,5 +1,9 @@
 #!/bin/sh
-# Source-backed unbrowse for the BrowseComp harness: the globally-installed
-# /opt/homebrew/bin/unbrowse is stale (no working `search` exa path → 0 retrieval
-# → BrowseComp 0.0). Run the current source so the bench measures real capability.
+# Source-backed unbrowse for the BrowseComp harness. The global binary is stale
+# (no working `search`); the in-process app cold-boots per call, dominated by
+# rehydrating a large browse-session store — skipped here since search/resolve
+# touch no browse session. Cuts ~23s→~7s/call so the deep-research agent can
+# actually run its multi-search loop within timeout. Measures real source code.
+export UNBROWSE_SKIP_REHYDRATE=1
+export UNBROWSE_NO_TELEMETRY=1
 exec bun "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/src/cli.ts" "$@"

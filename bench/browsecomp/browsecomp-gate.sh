@@ -43,6 +43,15 @@ if [ -z "${UNBROWSE_BIN:-}" ]; then
   else
     UNBROWSE_BIN="$REPO/bench/browsecomp/.unbrowse-src"
     echo "[bc-gate] global unbrowse stale/missing 'search' — using source binary $UNBROWSE_BIN" >&2
+    # The source binary cold-boots the in-process app per call (~23s). Per-result
+    # enrichment (5 extra `fetch` cold-boots/query) + high concurrency then blows
+    # past UNBROWSE_TIMEOUT → 0 results → false 0.0. With the source binary, default
+    # enrichment OFF (exa_candidates already carry highlights_excerpt) and serialize
+    # so each ~23s search completes. A warm/daemon binary would lift these later.
+    : "${UNBROWSE_ENRICH_TOP_K:=0}"; export UNBROWSE_ENRICH_TOP_K
+    : "${UNBROWSE_SERP_CONCURRENCY:=2}"; export UNBROWSE_SERP_CONCURRENCY
+    : "${BROWSECOMP_WORKERS:=2}"; export BROWSECOMP_WORKERS
+    : "${UNBROWSE_TIMEOUT:=180}"; export UNBROWSE_TIMEOUT
   fi
   export UNBROWSE_BIN
 fi
