@@ -38,8 +38,8 @@ in the lineage of The Graph's Proof of Indexing~\cite{thegraph} and Filecoin's p
 that storage is held across time~\cite{filecoin2017}. Collateralised accountability
 secures the proof: a maintainer bonds the network's security asset against it, and a
 proof that fails to reproduce under independent re-indexing is slashable~\cite{casper},
-finalised by a threshold quorum~\cite{frost} and adjudicated against a tamper-evident,
-independently auditable log~\cite{rfc6962}. We are explicit about the token this
+designed to finalise by a threshold quorum~\cite{frost} and adjudicated against a
+tamper-evident, independently auditable log~\cite{rfc6962}. We are explicit about the token this
 requires --- why it exists strictly for the security function, why its fair
 distribution is a
 security parameter rather than a marketing choice, and why a coordination asset
@@ -326,11 +326,12 @@ believe --- and \emph{eligibility} to participate at a trust tier. It does
 surface becomes pay-to-win and the asset securing trust degrades into the asset
 buying attention; the two roles are incompatible and we keep them apart by
 construction. Ranking is grounded in route quality (Section on trust tiers); the
-bond is a security deposit against a freshness assertion, nothing more. This entire
-layer --- the bond, the slashing conditions, the threshold finalisation --- ships as
-a runnable, tested reference (\texttt{reference/network/bonding.py}); the
-open and quality-ranked tiers do not depend on it, and we will not present a
-reference implementation as a deployed product.
+bond is a security deposit against a freshness assertion, nothing more. The bond and
+the slashing conditions ship as a runnable, tested reference
+(\texttt{reference/network/bonding.py}); the threshold finalisation it composes with
+(FROST $t$-of-$n$) is a design, not yet implemented in the reference. The open and
+quality-ranked tiers do not depend on either, and we will not present a reference
+implementation as a deployed product.
 
 \section{Challenge and dispute}
 

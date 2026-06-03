@@ -227,10 +227,12 @@ Tokens vs.\ browser baseline & 40$\times$ fewer \\
 \end{table}
 
 The reuse mechanism is isolated in a runnable reference benchmark: a warm cached
-replay categorically skips the cold mapping path, and the harness records a measured
-$\approx$95$\times$ mean speedup on the reuse micro-benchmark
-(\texttt{reference/bench/bench\_reuse.py}), with a conservative $\approx$27$\times$
-observed gap on a single live URL
+replay categorically skips the cold mapping path, and the harness records a large
+mean speedup on the reuse micro-benchmark (\texttt{reference/bench/bench\_reuse.py})
+--- observed runs land in the $\approx$50--90$\times$ range, hardware-dependent, and
+the gate asserts only that reuse is materially faster ($>2\times$) so the floor, not
+a single headline number, is what is verified --- with a conservative
+$\approx$27$\times$ observed gap on a single live URL
 (\texttt{reference/bench/live-measured-1url.json}). The full
 release-coverage methodology --- corpus shape, scoring rubric, and current numbers
 --- is maintained alongside the product.

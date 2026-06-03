@@ -263,17 +263,18 @@ addressed by the hash of its own bytes, an evicted entry rebuilds the \emph{iden
 layer, exactly like a Docker layer cache: a miss rebuilds it, a hit replays it.
 Invalidation is the same discipline run the other way. When an upstream value
 \emph{changes}, its bytes change, so its content hash changes, so the pointer keyed on
-the old hash no longer resolves --- and every downstream layer that named that pointer
-in its \texttt{requires} set now misses and recomputes, cascading through the
-dependency DAG (\texttt{src/orchestrator/dag-feedback.ts}) exactly as changing a base
-layer in a Dockerfile rebuilds every layer above it. Nothing is invalidated by a clock
-or a manual flush; correctness falls out of the addressing, because a changed input is
-\emph{by construction} a different key. The fallback that feeds it walks the descent
-ladder highest-capable-first (\texttt{src/values/kv-fallback-pipe.ts}),
+the old hash no longer resolves, and the layer re-resolves on next access
+(\texttt{src/values/resolution-ledger.ts}). Nothing is invalidated by a clock or a
+manual flush; correctness falls out of the addressing, because a changed input is
+\emph{by construction} a different key --- the same reason changing a base layer in a
+Dockerfile invalidates the layers built on it. The fallback that feeds it walks the
+descent ladder highest-capable-first (\texttt{src/values/kv-fallback-pipe.ts}),
 content-addressing each layer's result, so a cache hit short-circuits the whole descent
-and a changed input re-resolves only the layers genuinely affected. Tests confirm the
-warm path never recomputes, the ledger is tamper-evident, and eviction reproduces the
-same pointer.
+and a changed input re-resolves at the layer it touched. Propagating one changed
+pointer through a \texttt{requires}/\texttt{yields} set to recompute every dependent
+layer in a single pass --- a full content-addressed rebuild DAG --- is the natural next
+step and remains design work. Tests confirm the warm path never recomputes, the ledger
+is tamper-evident, and eviction reproduces the same pointer.
 
 
 The parallel worth naming is to the \emph{KV cache} inside the transformer doing
@@ -391,11 +392,12 @@ asserted.
 \paragraph{Sealed-cache reuse, measured.} We additionally ship a runnable
 micro-benchmark (\texttt{reference/bench/\allowbreak bench\_reuse.py}) that isolates the one
 property the sealed cache rests on --- content-addressed reuse versus re-derivation
---- on the actual cache implementation. Over 60 trials, re-deriving a representative
-$\sim$64\,KB extracted payload averages \textbf{4.48\,ms} while a content-addressed
-cache hit (read + hash re-verify) averages \textbf{0.052\,ms}: a measured
-\textbf{$\approx$95$\times$} mean speedup, wall-clock, deterministic, with a gate
-that fails if reuse is not materially faster. This is a CPU-only
+--- on the actual cache implementation. Over many trials, re-deriving a representative
+$\sim$64\,KB extracted payload costs milliseconds while a content-addressed cache hit
+(read + hash re-verify) costs tens of microseconds: a large mean speedup, wall-clock,
+that lands in the \textbf{$\approx$50--90$\times$} range hardware-dependent, with a gate
+that fails (and is the part actually pinned) if reuse is not materially faster
+($>2\times$). This is a CPU-only
 recompute-versus-reuse demonstration --- it isolates the cache primitive, not the
 network or the browser --- and it establishes exactly one thing: a sealed,
 content-addressed commitment is asymptotically cheaper to re-read than to
@@ -403,11 +405,12 @@ re-derive, which is what makes the cache safe to lean on rather than merely fast
 
 \paragraph{The descent reaches the network interface, shipped.} The security
 discipline is only as deep as its lowest layer, so we are concrete about the bottom
-of the descent. The fingerprint-faithful fetch is not a diagram: it ships as a
-vendored uTLS proxy across four platforms (darwin/linux $\times$ amd64/arm64) driven
-by \texttt{src/chrome-prim/layer1-tls.ts} and \texttt{src/cdp/proxy/utls-daemon.ts},
-so the agent's TLS ClientHello and HTTP/2 settings reproduce a real browser's JA3/JA4
-signature at the \emph{network interface}, not merely a spoofed User-Agent header.
+of the descent. The fingerprint-faithful fetch is not a diagram: it ships as the
+orchestrator's curl-impersonate fetch (\texttt{src/capture/curl-impersonate-fallback.ts})
+backed by a vendored uTLS CONNECT-proxy daemon (\texttt{src/cdp/proxy/utls-daemon.ts})
+across four platforms (darwin/linux $\times$ amd64/arm64), so the agent's TLS
+ClientHello and HTTP/2 settings reproduce a real browser's JA3/JA4 signature at the
+\emph{network interface}, not merely a spoofed User-Agent header.
 This is the packet layer of
 screen$\to$browser$\to$CLI$\to$OS$\to$kernel$\to$packet made real: the same signed
 identity that authorises a route also emits the bytes that carry it, and the bytes
@@ -506,10 +509,13 @@ contribution --- and its capture-boundary wiring (\texttt{src/values/zk-binding.
 (\texttt{src/values/wallet-seal.ts}), the signature-keyed, recomputable resolution
 cache and its ledger of resolutions (\texttt{src/values/resolution-ledger.ts},
 \texttt{src/values/kv-fallback-pipe.ts}), and the hash-chained signed ledger
-(\texttt{src/values/sealed-ledger.ts}). The backend \emph{is} the harness: the client
-surfaces only the holes to fill plus wallet-sealed auth and the backend returns nothing
-but structure (\texttt{src/capture/backend-reveng-endpoint.ts}), and the stateless
-binary writes no local state (only pointers and signatures cross the wire).
+(\texttt{src/values/sealed-ledger.ts}). The intended architecture is
+backend-as-harness --- the client surfacing only the holes to fill plus wallet-sealed
+auth, the backend returning nothing but structure; the composed flow and its sealing
+primitives are implemented (\texttt{src/capture/backend-reveng-endpoint.ts}), while the
+migration that moves the reverse-engineering engine fully server-side (out of the
+client's \texttt{src/reverse-engineer/}) is in progress. The stateless binary writes no
+local state (only pointers and signatures cross the wire).
 \item The runnable reference suite in \texttt{reference/} remains the
 cited foundation for each primitive above and for the parts not yet in the product:
 Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}). The
