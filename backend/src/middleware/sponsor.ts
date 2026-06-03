@@ -80,6 +80,10 @@ export interface SponsorEnv {
   PLATFORM_SPONSOR_WALLET_KEY?: string;
   SPONSOR_CAP_DAILY_USD?: string;
   SPONSOR_GLOBAL_DAILY_USD?: string;
+  /** Free mode: the platform vault covers everything so usage is frictionless. When
+   *  on ("1"/"true"), the per-agent cap is lifted to the global cap — no user hits a
+   *  cap; only the global daily budget (the vault's budget) bounds total spend. */
+  SPONSOR_FREE_MODE?: string;
 }
 
 /** True iff both the public address and the signer key are present. */
@@ -97,12 +101,29 @@ export function sponsorCapDailyUsd(env: SponsorEnv): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1.0;
 }
 
-/** Org-wide daily cap in USD. Defaults to $50.00 when env var is unset/invalid. */
+/** Org-wide daily cap in USD. Defaults to $50.00 when env var is unset/invalid.
+ *  This is the platform vault's budget — the only bound in free mode. */
 export function sponsorGlobalCapDailyUsd(env: SponsorEnv): number {
   const raw = env.SPONSOR_GLOBAL_DAILY_USD?.trim();
   if (!raw) return 50.0;
   const parsed = parseFloat(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 50.0;
+}
+
+/** Free mode: the platform vault takes on all costs so usage is free + frictionless. */
+export function sponsorFreeMode(env: SponsorEnv): boolean {
+  const v = env.SPONSOR_FREE_MODE?.trim().toLowerCase();
+  return v === "1" || v === "true";
+}
+
+/**
+ * The per-agent cap actually enforced. In free mode it is lifted to the global cap, so
+ * a single user never hits a per-agent wall (zero friction) while the global daily cap
+ * — the vault's budget — remains the only bound. The vault can never be drained beyond
+ * that global budget, so free mode is frictionless yet drain-safe.
+ */
+export function sponsorEffectiveAgentCapUsd(env: SponsorEnv): number {
+  return sponsorFreeMode(env) ? sponsorGlobalCapDailyUsd(env) : sponsorCapDailyUsd(env);
 }
 
 export interface SponsorLedgerRow {
@@ -363,7 +384,7 @@ export async function maybeSponsor(
     readSpend(env, globalKey),
   ]);
 
-  const agentCapUsd = sponsorCapDailyUsd(env);
+  const agentCapUsd = sponsorEffectiveAgentCapUsd(env);
   const globalCapUsd = sponsorGlobalCapDailyUsd(env);
   const agentCapUc = Math.round(agentCapUsd * 1_000_000);
   const globalCapUc = Math.round(globalCapUsd * 1_000_000);
