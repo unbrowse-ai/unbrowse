@@ -42,6 +42,7 @@ NODES=(
   "live-registry-adapters:tests/live-registry-adapters.test.ts" # the standards layers wired to the REAL endpoints (official MCP registry verified live; A2A/x402-bazaar/skills.sh/agentskills.dev), fetch-injected + failure-isolated
   "resolution-tier:tests/resolution-tier.test.ts"      # tier selection — resolution cache routes to the R2+IQ remote tier when creds present, local fs otherwise; uncacheable never persisted
   "surface-projector:tests/surface-projector.test.ts"  # the CLI surface is a CONTEXT PROJECTION of the superpattern verb tree — expose only the verbs+holes the moment needs (LLM fills them), lossless in union, minimal per phase
+  "search-with-standards:tests/search-with-standards.test.ts" # unified find-anything — route-graph search merged with the standards-registry (MCP/A2A/skills), standards-half cached + failure-isolated
 )
 
 todo=0; done=0; pending_tests=()
