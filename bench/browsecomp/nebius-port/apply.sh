@@ -9,6 +9,7 @@ V="$HERE/../vendor/search_evals/search_evals"
 [[ -d "$V" ]] || { echo "vendored search_evals not found at $V — clone it first" >&2; exit 1; }
 cp "$HERE/agents/llms/nebius.py"   "$V/agents/llms/nebius.py"
 cp "$HERE/agents/llms/__init__.py" "$V/agents/llms/__init__.py"
+cp "$HERE/agents/llms/openai.py"   "$V/agents/llms/openai.py"
 cp "$HERE/suites/graders.py"       "$V/suites/graders.py"
 echo "✓ Nebius port applied to $V"
 echo
