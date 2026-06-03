@@ -240,6 +240,38 @@ observed gap on a single live URL
 release-coverage methodology --- corpus shape, scoring rubric, and current numbers
 --- is maintained alongside the product.
 
+\paragraph{Cost savings.} The latency advantage is also a dollar advantage. A cold
+browser rediscovery of a route costs an estimated \$0.10--0.53 in compute and tokens
+(Table~\ref{tab:cost}); the shared graph turns that into a one-time
+skill-installation fee of \$0.005--0.02, an order-of-magnitude reduction in the cost
+of obtaining a working route, after which reuse is a content-addressed lookup. The
+marketplace prices reuse below rediscovery by construction (Eq.~\ref{eq:adopt}), so
+the saving is structural, not promotional.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lr}
+\toprule
+Action & Estimated cost \\
+\midrule
+Browser rediscovery (cold, per route) & \$0.10 -- \$0.53 \\
+Tier 1: skill installation (one-time) & \$0.005 -- \$0.02 \\
+Reuse (content-addressed lookup) & $\approx$\$0 \\
+\bottomrule
+\end{tabular}
+\caption{Per-route cost: browser rediscovery vs.\ shared-graph reuse.}
+\label{tab:cost}
+\end{table}
+
+\paragraph{Coverage.} Speed and cost are worthless without coverage, so we measure
+whether the route graph actually returns real results across a broad, diverse intent
+space rather than on cherry-picked domains. A live coverage gate runs the real
+\texttt{unbrowse search} binary over a diverse intent set and counts the fraction
+that return real results; on the current graph it returns results on every probed
+intent (coverage $=1.0$ against a $\geq 0.75$ release threshold). \refimpl\ Coverage
+is a gated, re-runnable measurement (\texttt{scripts/coverage-gate.sh}), not a static
+claim --- it fails honestly when the graph cannot answer.
+
 \subsection{The per-call figure is a floor, not the headline}
 The 3.6$\times$ mean of Table~\ref{tab:eval} is a \emph{per-call} comparison: one
 cached route execution against one cold browser rediscovery. A real agent task is
