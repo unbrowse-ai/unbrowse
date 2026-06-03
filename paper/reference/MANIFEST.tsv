@@ -16,3 +16,4 @@ erc8004-records	paper/crypto-was-all-you-needed.tex	ERC-8004	paper/reference/net
 vault-cycle	paper/unbrowse-maintenance-network.tex	staking by abiding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
 task-cost	paper/internal-apis-are-all-you-need.tex	lower bound, not the end-to-end advantage	paper/reference/bench/task_cost.py	test_task_cost.py
 recompute-invariance	paper/crypto-was-all-you-needed.tex	The recompute boundary is proven runnably	paper/reference/ledger/recompute.py	test_recompute_invariance.py
+frost	paper/unbrowse-maintenance-network.tex	ships as its own runnable, tested reference	paper/reference/network/frost.py	test_frost.py
