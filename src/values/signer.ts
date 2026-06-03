@@ -34,6 +34,7 @@ import {
   createCipheriv,
   createDecipheriv,
   scryptSync,
+  hkdfSync,
 } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -302,6 +303,30 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 // ─── Public surface ─────────────────────────────────────────────────────────
+
+/**
+ * Derive a 32-byte symmetric SEAL key bound to the wallet identity — HKDF-SHA256
+ * over the Ed25519 seed, domain-separated from signing so the seal key can never
+ * be confused with (or reconstruct) a signature. This is the production half of
+ * the whitepaper's sealed-unless-revealed cache (paper/reference/ledger/
+ * sealed_cache.py): values encrypted under this key are readable ONLY by the
+ * holder of this wallet — a different wallet derives a different key and the GCM
+ * tag fails (no fabricated reveal).
+ *
+ * Same posture as sign(): the seed is loaded transiently and zeroed in `finally`;
+ * the seed never lives in process memory beyond this call. The returned key is
+ * the long-lived seal material — the caller should zero it after use.
+ */
+const SEAL_SALT = Buffer.from("unbrowse/seal/v1");
+const SEAL_INFO = Buffer.from("sealed-unless-revealed");
+export function deriveSealKey(): Uint8Array {
+  const seed = ensureWalletKey();
+  try {
+    return new Uint8Array(hkdfSync("sha256", seed, SEAL_SALT, SEAL_INFO, 32));
+  } finally {
+    safeZero(seed);
+  }
+}
 
 /**
  * Sign the v7.0 fill receipt fragment with the x402-wallet-bound Ed25519
