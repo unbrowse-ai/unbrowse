@@ -1017,98 +1017,22 @@ function FlexOnboardingSection({
 }
 
 function TierPicker({
-  apiKey,
-  currentStatus,
-  onAuthError,
+  apiKey: _apiKey,
+  currentStatus: _currentStatus,
+  onAuthError: _onAuthError,
 }: {
   apiKey: string;
   currentStatus: string;
   onAuthError: (err: unknown) => void;
 }) {
-  const [busy, setBusy] = useState<"pro" | "metered" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function upgrade(tier: "pro" | "metered") {
-    setBusy(tier);
-    setError(null);
-    try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "https://unbrowse.ai";
-      const res = await fetch(`/api/billing/checkout`, {
-        // Frontend talks to the worker directly via the api-base; reusing
-        // authed() via account-client would couple this picker to the
-        // account module's fetch helper. Inline call keeps it lean.
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
-      }).catch(async (err) => {
-        // The /api/billing/checkout shim doesn't exist; fall through to a
-        // direct backend POST in that case.
-        throw err;
-      });
-      let url: string | null = null;
-      if (res.ok) {
-        const json = (await res.json()) as { url?: string };
-        url = json.url ?? null;
-      }
-      if (!url) {
-        // Direct backend fallback (no Next.js proxy).
-        const { getConfiguredApiOrigin } = await import("@/lib/api-base");
-        const backend = getConfiguredApiOrigin();
-        const direct = await fetch(`${backend}/v1/billing/checkout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({ tier, return_url: `${origin}/billing/success` }),
-        });
-        if (!direct.ok) {
-          throw new Error(`HTTP ${direct.status}: ${await direct.text()}`);
-        }
-        const json = (await direct.json()) as { url?: string };
-        url = json.url ?? null;
-      }
-      if (!url) throw new Error("checkout returned no url");
-      if (typeof window !== "undefined") window.location.href = url;
-    } catch (err) {
-      onAuthError(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // When there's already an active subscription, hide the tier picker;
-  // the "Manage subscription" link routes the user through Stripe portal.
-  if (currentStatus !== "none") return null;
-
+  // Per-request x402 model — no subscription tiers. Discovery + internal-API
+  // routing are free; paid execution settles per request over x402 (USDC) from
+  // the agent’s wallet as a fair indexer/owner/platform split. Nothing to
+  // "upgrade" — fund a wallet and pay per call.
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => void upgrade("pro")}
-          disabled={busy !== null}
-          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-primary hover:bg-surface-raised transition-all disabled:opacity-50"
-          title="Pro: $20/mo + 200k uc monthly credit grant"
-        >
-          {busy === "pro" ? "..." : "Upgrade to Pro · $20/mo"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void upgrade("metered")}
-          disabled={busy !== null}
-          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
-          title="Metered: pay per execute via Stripe Meter API"
-        >
-          {busy === "metered" ? "..." : "Switch to Metered"}
-        </button>
-      </div>
-      {error && <span className="text-xs text-red-400">{error}</span>}
+    <div className="flex flex-col items-end gap-1 text-xs text-text-muted">
+      <span>Pay per request over x402 — no plan to pick.</span>
+      <a href="https://lobster.cash" className="underline">Fund a wallet →</a>
     </div>
   );
 }
@@ -1181,7 +1105,7 @@ function X402Panel({
           {userCredits && (userCredits.granted_uc > 0 || userCredits.balance_uc > 0) && (
             <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
               <div className="text-xs text-text-muted">
-                Your credit balance (Stripe-tier grants)
+                Your credit balance (sponsor + earned)
               </div>
               <div className="text-sm text-text-primary font-mono">
                 ${(userCredits.balance_uc / 1_000_000).toFixed(4)}
@@ -1223,18 +1147,16 @@ function X402Panel({
             )}
           </div>
           <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
-            <div className="text-xs text-text-muted">Subscription</div>
+            <div className="text-xs text-text-muted">Payments</div>
             <div className="text-sm text-text-primary">
-              {billing && billing.status !== "none"
-                ? `${billing.status}${"quota" in billing && billing.quota ? ` (quota ${billing.quota})` : ""}`
-                : "No active subscription"}
+              Per request over x402 (USDC) — no subscription
             </div>
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <Link
                 href="/billing"
                 className="text-xs text-text-secondary hover:text-text-primary underline"
               >
-                Manage subscription →
+                How payment works →
               </Link>
               <TierPicker
                 apiKey={apiKey}
