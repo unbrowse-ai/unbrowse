@@ -197,5 +197,5 @@ Important runtime paths:
 
 - [MCP workflow guide](../mcp-workflow-guide.md) -- every tool the MCP server exposes
 - [SDK README](../../packages/sdk/README.md) -- TypeScript client, payments, sessions
-- [HOW_UNBROWSE_PAYS.md](../HOW_UNBROWSE_PAYS.md) -- the 50/35/15 split, per-skill markup, payment-provider choice
+- [Fare Splits](../concepts/fare-splits.md) -- the on-chain split, per-skill markup, payment-provider choice
 - [Wallets, escrows, session keys](../wallets.md)

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, Coins, Clock3, SearchCheck, Trophy, WalletCards } from "lucide-react";
+import { ArrowLeft, Coins, Clock3, SearchCheck, Trophy, WalletCards } from "lucide-react";
 import type { DashboardData } from "@/lib/api";
 
 export function ContributorDashboard({
@@ -45,13 +45,6 @@ export function ContributorDashboard({
                 Lookup another wallet
               </Link>
             )}
-            <Link
-              href="/leaderboard"
-              className="inline-flex items-center gap-2 rounded-2xl border border-orange-500/20 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-500 transition-colors hover:border-orange-500/40"
-            >
-              View leaderboard
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
           </div>
         </div>
 
@@ -125,14 +118,6 @@ export function ContributorDashboard({
               <BreakdownRow label="Speedup" value={formatRatio(dashboard.savings.speedup_ratio)} />
               <BreakdownRow label="Contributor ID" value={dashboard.profile.agent_id} mono />
             </Panel>
-
-            <Link
-              href="/leaderboard"
-              className="inline-flex items-center justify-between rounded-2xl border border-border px-4 py-3 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/30 hover:text-orange-500"
-            >
-              Open leaderboard
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
           </section>
         </div>
       </div>

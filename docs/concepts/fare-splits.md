@@ -54,4 +54,3 @@ The current numbers (50/15/35 when claimed, 50/50 when not) are the live constan
 
 - [Claiming a Website](claiming-a-website.md) — how a site owner verifies DNS ownership and earns the 15% lane
 - [Rewards & Economics (SDK)](../sdk/rewards-and-economics.md) — operator-facing pricing + payout details
-- [How Unbrowse Pays](../HOW_UNBROWSE_PAYS.md) — the system narrative (this is the page the `/how-unbrowse-pays` web view renders from)

@@ -15,8 +15,6 @@ settles over \textbf{x402}	backend/src/services/flex.ts
 x402 routes USDC to all three	backend/src/services/flex.ts
 three-way live split is shipped	backend/src/services/flex.ts
 live platform-fee collection	backend/src/services/flex.ts
-FDRY launched fair	docs/THE_FDRY_ECONOMY.md
-staking by abiding	docs/THE_FDRY_ECONOMY.md
 unpaid \texttt{execute} gets HTTP 402	backend/src/middleware/sponsor.ts
 leak-guard.sh and	scripts/leak-guard.sh
 \texttt{paper-gate.sh} run in release CI	scripts/paper-gate.sh
@@ -28,12 +26,7 @@ signed descent through every layer	paper/reference/layers/descent.py
 bound to the wallet without revealing	paper/reference/zk/binding.py
 sealed-unless-revealed	paper/reference/ledger/sealed_cache.py
 no unsigned action crosses	paper/reference/layers/gate.py
-proof of indexing	paper/reference/network/proof_of_indexing.py
-bonding, challenge, and slashing	paper/reference/network/bonding.py
 Merkle-root checkpoint	paper/reference/ledger/checkpoint.py
-Sybil resistance	paper/reference/network/sybil.py
-ERC-8004	paper/reference/network/erc8004.py
-staking by abiding	paper/reference/network/vault_cycle.py
 # --- production primitives shipped this wave (claim = path in \texttt{}, anchor = the real file) ---
 src/values/zk-binding.ts	src/values/zk-binding.ts
 src/capture/zk-bound-hole.ts	src/capture/zk-bound-hole.ts

@@ -7,7 +7,7 @@ const CANONICAL_PATH = "/routing-layer";
 const PUBLISHED_AT = "2026-04-02";
 const ARXIV_URL = "https://arxiv.org/abs/2604.00694";
 
-const description = `Google captured $2T in value by indexing HTML pages for human eyeballs. The agentic web — where AI agents interact with websites on behalf of humans — is growing exponentially and needs its own index. Not an index of pages, but an index of machine-readable API routes. Unbrowse is building it, collectively, through proof of indexing.`;
+const description = `Google captured $2T in value by indexing HTML pages for human eyeballs. The agentic web — where AI agents interact with websites on behalf of humans — is growing exponentially and needs its own index. Not an index of pages, but an index of machine-readable API routes. Unbrowse is building it, collectively, from the routes agents discover as they work.`;
 
 export const metadata: Metadata = {
   title: `${TITLE} | Unbrowse`,
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     "web index for AI",
     "routing layer",
     "shared route graph",
-    "proof of indexing",
+    "collaborative route index",
     "API discovery",
     "Unbrowse",
     "machine-readable web",
@@ -81,7 +81,7 @@ export default function RoutingLayerPage() {
       "AI agent routing",
       "Shared route graph",
       "Web index for AI agents",
-      "Proof of indexing",
+      "Collaborative route index",
     ],
     keywords: metadata.keywords,
     isAccessibleForFree: true,
@@ -322,13 +322,13 @@ export default function RoutingLayerPage() {
             discoverer.
           </p>
           <p className="mt-6 text-base sm:text-lg leading-8 text-text-secondary">
-            We call this{" "}
-            <strong className="text-text-primary">proof of indexing</strong>. It
-            is a contribution model where the act of using the web as an agent
-            produces value for the entire network. No manual curation. No
-            centralized crawling team. The index grows organically, driven by
-            real demand. Routes that agents actually need get discovered first,
-            because agents discover them by needing them.
+            It is a{" "}
+            <strong className="text-text-primary">collaborative index</strong>{" "}
+            where the act of using the web as an agent produces value for the
+            entire network. No manual curation. No centralized crawling team. The
+            index grows organically, driven by real demand. Routes that agents
+            actually need get discovered first, because agents discover them by
+            needing them.
           </p>
         </section>
 

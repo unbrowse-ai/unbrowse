@@ -47,7 +47,7 @@ export function EarnSection() {
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <Link
-                href="/openclaw-earn"
+                href="/how-unbrowse-pays"
                 className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm hover:bg-orange-600 active:translate-y-px transition-all"
               >
                 <span>[ Start earning ]</span>
@@ -57,7 +57,7 @@ export function EarnSection() {
                 href="/how-unbrowse-pays"
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all"
               >
-                Mining quickstart
+                How payouts work
               </Link>
             </div>
 
@@ -90,7 +90,7 @@ export function EarnSection() {
               </div>
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />
-                <span>Public ledger at <Link href="/leaderboard" className="underline decoration-[rgba(255,122,32,0.4)] hover:text-[rgba(255,176,96,1)]">/leaderboard</Link> shows real routes, real wallets, real USDC.</span>
+                <span>Every settled route is a real route, a real wallet, real USDC — paid the moment another agent reuses it.</span>
               </div>
             </div>
             <div className="relative z-10 mt-5 pt-4 border-t border-[rgba(255,122,32,0.15)] text-[11px] font-mono text-text-muted">

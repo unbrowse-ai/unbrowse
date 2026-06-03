@@ -2,7 +2,7 @@
 
 % =====================================================================
 % Internal APIs Were Not All You Needed
-% The signed sovereign computation stack — Unbrowse, ZK identity, FDRY.
+% The signed sovereign computation stack — Unbrowse, ZK identity, fair settlement.
 % A real whitepaper that knows it is a whitepaper. Every technical claim
 % carries a real citation; claims are tagged [shipped] (in the product),
 % [reference] (a runnable, tested reference implementation ships in reference/),
@@ -20,7 +20,6 @@
 \newcommand{\impl}{\textcolor{green!55!black}{\small[shipped]}}
 \newcommand{\refimpl}{\textcolor{blue!70!black}{\small[reference]}}
 \newcommand{\prop}{\textcolor{orange!80!black}{\small[proposed]}}
-\newcommand{\CA}{\texttt{2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL}}
 
 \title{\textbf{Internal APIs Were Not All You Needed}\\
 \large A Signed, Layer-Descending Stack for Agent Computation:\\
@@ -49,9 +48,9 @@ Every layer is signed by one Ed25519 wallet key; credentials are bound to that
 identity by zero-knowledge proof and revealed only under signature; every
 intermediate result is content-addressed and cached, with the signed commitment
 appended to a hash-chained ledger (value off-chain, root on-chain); and nothing
-leaves any layer unsigned. The maintenance economy that keeps those routes fresh
---- bonded accountability and proof of indexing --- is the concern of the companion
-Maintenance Network paper; this paper is about the security, authentication, and
+leaves any layer unsigned. Fair compensation is simple and out of scope here:
+discovery and internal-API routing are free, and paid execution settles over x402.
+This paper is about the security, authentication, and
 privacy of the stack itself. We cite a real primitive for
 each layer instead of inventing one, and we label what is \textbf{[shipped]} in
 the product, what is \textbf{[reference]} (a runnable, tested reference
@@ -65,7 +64,7 @@ great first layer. They were never the last one.
 
 The agent-tooling world converged on a genuinely good wedge: stop paying a browser
 to re-derive the web on every call, and instead look up a reusable route and just
-execute it~\cite{fdry}. Unbrowse does exactly that --- intent $\to$ ranked
+execute it. Unbrowse does exactly that --- intent $\to$ ranked
 endpoint shortlist $\to$ execute --- and it wins on cost, latency, and
 reliability. We are not here to relitigate that. It works. \impl{}
 
@@ -96,7 +95,7 @@ agents drive real browsers: ReAct interleaves reasoning and action~\cite{react},
 and benchmarks such as Mind2Web~\cite{mind2web}, WebArena~\cite{webarena}, and the
 GPT-4V grounding study SeeAct~\cite{seeact} measure agents on live or simulated
 sites. This work treats the rendered page as the interface. We take the opposite
-stance the Maintenance Network paper argues~\cite{fdry}: the browser is a fallback,
+stance: the browser is a fallback,
 and the durable interface is the first-party API the page already calls. Our stack
 keeps the browser as the bottom of a descent, not the default.
 
@@ -120,9 +119,8 @@ identity surface.
 \paragraph{Agent payments and incentives.} x402 revives HTTP 402 as a real
 micropayment rail~\cite{x402}. Prior agent-payment work largely stops at ``the agent
 can pay.'' We extend it to ``the payment routes to everyone who created the value'' ---
-indexer, domain owner, platform --- with the distribution and slashing analysis carried
-by the Maintenance Network paper~\cite{fdry}, and we argue (Section on FDRY) that the
-asset securing this must be fairly distributed for the trust to hold at all. To our
+indexer, domain owner, platform --- as a fair three-way settlement over x402, while
+discovery and internal-API routing stay free. To our
 knowledge the combination --- signed multi-layer descent, a content-addressed-plus-
 ledgered substrate, and a contribution-weighted three-party settlement over x402 --- is
 not present in prior work as a single system.
@@ -176,7 +174,7 @@ aligned them.
 \textbf{layer / atom} & \textbf{primitive} & \textbf{source} \\
 \hline
 descent (walk)       & curl-impersonate / JA3, JA4   & \cite{curlimpersonate,ja3,ja4} \\
-network (economics)  & x402 split settlement / fair three-way compensation & \cite{x402,fdry} \\
+network (economics)  & x402 split settlement / fair three-way compensation & \cite{x402} \\
 agent record (node)  & ERC-8004 trustless agent      & \cite{erc8004} \\
 the stack (tree)     & end-to-end argument / OSI     & \cite{e2e,osi} \\
 witness (no leak)    & zkLogin / Pedersen commit     & \cite{zklogin,pedersen} \\
@@ -184,7 +182,6 @@ cache (value)        & Merkle content-addressing     & \cite{merkle} \\
 \quad $\hookrightarrow$ KV parallel & attention KV cache / PagedAttention & \cite{attention,pagedattention} \\
 seal (no unsigned)   & AEAD / object-capabilities    & \cite{rfc5116,ocap} \\
 ledger (commitment)  & Certificate Transparency / hash chain & \cite{rfc6962,bitcoin} \\
-settle (bonded)      & bonded route trust / FROST quorum & \cite{fdry,frost} \\
 loop (control)       & OODA / proof-of-history clock & \cite{ooda,solana} \\
 descent (walk)       & curl-impersonate / JA3, JA4   & \cite{curlimpersonate,ja3,ja4} \\
 \hline
@@ -209,13 +206,12 @@ model~\cite{erc8004}, which defines three on-chain registries: \textbf{Identity}
 (portable agent IDs), \textbf{Reputation} (signed feedback), and
 \textbf{Validation} (independent re-execution / ZK / TEE checks). An Unbrowse route
 maintainer is precisely one of these agents: a portable identity that can carry
-reputation and be checked by someone who does not trust it yet. \refimpl{}: a
-runnable reference (\texttt{reference/network/erc8004.py}) produces and verifies
-the three ERC-8004 record types --- a portable Identity that is the wallet pubkey,
-signed Reputation feedback, and an independent Validation re-execution record ---
-each signed by a real wallet; binding to the \emph{deployed} on-chain registries
-remains integration work, and we will not pretend otherwise three paragraphs from a
-contract address.
+reputation and be checked by someone who does not trust it yet. The three ERC-8004
+record types map cleanly onto the wallet identity already in play --- a portable
+Identity that is the wallet pubkey, signed Reputation feedback, and an independent
+Validation re-execution record, each signed by a real wallet. \prop{} % gate:prop-ok
+Binding to the \emph{deployed} on-chain registries remains integration work, and we
+will not pretend otherwise.
 
 \section{Witness without disclosure: ZK credential binding}
 
@@ -318,7 +314,7 @@ content-addressed: you fetch a value by the hash of its content and order does n
 matter, so the same hash resolves on any host~\cite{merkle}. A ledger is the
 orthogonal half: append-only, \emph{ordered}, and hash-chained, so the history and
 the order are themselves tamper-evident. A signed entry --- a signed KV result, a
-route attestation, a bonded quality claim --- needs both: the cache holds the
+route attestation, a signed quality claim --- needs both: the cache holds the
 value, the ledger holds the signed commitment to it.
 
 The load-bearing design choice is \emph{value off-chain, root on-chain}. You never
@@ -357,18 +353,17 @@ claim is made costly to fake --- is a separate concern with its own paper. We dr
 the line here deliberately. This paper is the security, authentication, and privacy
 of the stack: one key signs every layer, credentials are bound by zero-knowledge
 proof and revealed only under signature, every result is content-addressed and
-sealed, and nothing ships unsigned. The maintenance economy that sits on top of
-that substrate --- bonded accountability, proof of indexing, the challenge-and-slash
-discipline, and the FDRY security stake --- is developed in full in the companion
-Maintenance Network paper~\cite{fdry}.
+sealed, and nothing ships unsigned. Fair compensation that sits on top of that
+substrate is deliberately simple: discovery and internal-API routing are free, and
+paid execution settles fairly over x402 across the parties who created the value.
 
-Keeping the two concerns in separate papers is itself the discipline. A security
+Keeping security and compensation as separate concerns is itself the discipline. A security
 model must stand on its own, without leaning on a token to be true: the signatures,
 the ZK binding, and the sealed cache are correct or not on cryptographic grounds
 alone, independent of any economics layered above them. Conversely, the economics
 is only worth stating once the substrate it secures is trustworthy. So we settle
-the substrate here and hand the reader, deliberately, to the next paper for the
-question of who keeps it fresh and how that claim is made accountable~\cite{fdry}.
+the substrate here; the compensation rule above is the whole of what sits on top of
+it --- free discovery and routing, paid execution settled fairly over x402.
 \section{The control loop}
 
 The whole stack runs as an OODA loop~\cite{ooda}: observe the layer's state, orient
@@ -385,7 +380,7 @@ glamorous control loops are the ones that do not converge.
 
 This paper's claims are about a security discipline, so we evaluate the security
 substrate it introduces --- not the end-to-end latency win of route reuse, which is
-a discovery and economics result developed in the companion paper~\cite{fdry}. We
+a discovery result established separately. We
 are precise about what the measurements here do and do not establish.
 
 \paragraph{The substrate is correct by executable test.} The local cache+ledger
@@ -413,8 +408,7 @@ establish that the security primitives are correct as implemented; the
 micro-benchmark establishes that sealed-cache reuse is cheap. Neither establishes
 end-to-end task success, cold-start discovery cost, or accuracy on adversarial,
 heavily-JavaScript-gated sites where the descent to the browser layer is forced ---
-those are out of this paper's scope and are taken up, where they belong, in the
-companion Maintenance Network paper~\cite{fdry}.
+those are out of this paper's scope, which is the security substrate alone.
 \section{Threat model}
 
 We state the adversary explicitly, because a trust paper that never names what it
@@ -442,21 +436,18 @@ can still drive their own credentials; we constrain reach, not self-harm.
 
 \paragraph{(A3) The poisoner.} An adversary publishes a false or stale route to
 mislead later agents --- the integrity attack on a shared graph. Resisted at
-\emph{settle} and \emph{witness} together: a trust-tier route carries a slashable
-bond and is challengeable on independent evidence~\cite{fdry}, and finalisation
-needs a $t$-of-$n$ quorum~\cite{frost}, so one dishonest maintainer cannot settle a
-claim. Residual: open (unbonded) routes remain best-effort by design; the model
-moves trust-sensitive traffic to bonded routes, it does not claim the open tier is
-adversary-proof.
+\emph{witness} and \emph{ledger}: every route attestation is signed and appended to
+the hash-chained log~\cite{rfc6962}, and finalisation can require a $t$-of-$n$
+quorum~\cite{frost}, so one dishonest maintainer cannot unilaterally settle a claim
+and any tampered or reordered attestation is detectable. Residual: routes are
+re-derived to verify rather than trusted on sight; the model moves trust-sensitive
+traffic to corroborated routes, it does not claim every route is adversary-proof.
 
-\paragraph{(A4) The free-rider and the Sybil.} An actor consumes the graph without
-paying, or splits into many identities to farm rewards. The \emph{verb} atom binds
-payment to the act: an unpaid \texttt{execute} gets HTTP 402, not
-service~\cite{x402}. Sybil farming is bounded because reward shares derive from
-on-ledger contribution metrics, not headcount --- minting identities does not mint
-contribution. Residual: collusion between an indexer and a domain owner to inflate a
-route's apparent value is a real open problem; we flag it rather than wave it away,
-and it is the strongest argument for the bonded tier's slashing teeth.
+\paragraph{(A4) The free-rider.} An actor consumes paid execution without paying.
+The \emph{verb} atom binds payment to the act: an unpaid \texttt{execute} gets HTTP
+402, not service~\cite{x402}, while discovery and internal-API routing stay free.
+Residual: the free tier is, by design, free to consume; the payment gate sits at
+execution, which is where the cost actually lands.
 
 \paragraph{(A5) The exfiltrator of the moat.} An adversary --- or an honest
 contributor by accident --- leaks the closed capture/integrity engine into a public
@@ -495,12 +486,10 @@ but structure (\texttt{src/capture/backend-reveng-endpoint.ts}), and the statele
 binary writes no local state (only pointers and signatures cross the wire).
 \item \refimpl{} The runnable reference suite in \texttt{reference/} remains the
 cited foundation for each primitive above and for the parts not yet in the product:
-Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}) and the
-ERC-8004 records (\texttt{network/erc8004.py}). The on-chain deployment of the
-checkpoint root, the ERC-8004 registry binding, and a real signed OS/kernel/packet
-descent across platforms remain integration work, honestly labelled. The bonded
-route-trust economy (FDRY bonding / challenge / slashing, and proof of indexing) is
-developed in the companion Maintenance Network paper~\cite{fdry}.
+Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}). The
+on-chain deployment of the checkpoint root, the ERC-8004 registry binding, and a
+real signed OS/kernel/packet descent across platforms remain integration work,
+honestly labelled.
 \item \impl{} Zero-edit drop-in replacements for the libraries an agent would
 otherwise reach for ship as packages backed by the route graph: an \texttt{exa-py}
 drop-in (\texttt{packages/py-exa}) and a \texttt{browser-use} drop-in
@@ -528,8 +517,6 @@ what you needed. It just was never the \emph{stack}.
 \bibitem{ossnotice} Unbrowse AI. \emph{Open Source Notice --- the closed/open boundary}. docs/OPEN-SOURCE-NOTICE.md, 2026.
 \bibitem{x402} Coinbase. \emph{x402: An Open Protocol for Internet-Native
 Payments over HTTP 402}. x402.org whitepaper, 2025. \url{https://github.com/coinbase/x402}.
-\bibitem{fdry} L.~Tham. \emph{Unbrowse Maintenance Network: Proof of Indexing and
-Bonded Accountability in a Shared Route Graph}. Unbrowse AI, 2026.
 \bibitem{e2e} J.~H.~Saltzer, D.~P.~Reed, D.~D.~Clark. \emph{End-to-End Arguments
 in System Design}. ACM TOCS 2(4):277--288, 1984. DOI: 10.1145/357401.357402.
 \bibitem{osi} ITU-T Recommendation X.200 (= ISO/IEC 7498-1), \emph{OSI Basic

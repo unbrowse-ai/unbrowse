@@ -13,7 +13,7 @@ const PRODUCT_LINKS: Array<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },
   { href: "/#install", label: "Install" },
   { href: "/#demo", label: "Demo" },
-  { href: "/miners", label: "Miners" },
+  { href: "/search", label: "Marketplace" },
 ];
 
 const DEVELOPER_LINKS: Array<{ href: string; label: string }> = [
@@ -37,7 +37,7 @@ const RESOURCES_LINKS: Array<{ href: string; label: string }> = [
 const COMPANY_LINKS: Array<{ href: string; label: string }> = [
   { href: "https://discord.gg/VWugEeFNsG", label: "Discord" },
   { href: "https://x.com/getFoundry", label: "X / @getFoundry" },
-  { href: "/openclaw-earn", label: "Earn" },
+  { href: "/how-unbrowse-pays", label: "How Unbrowse pays" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
 ];

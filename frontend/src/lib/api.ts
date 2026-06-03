@@ -315,26 +315,6 @@ export interface DashboardData {
   recent_transactions: DashboardTransaction[];
 }
 
-export interface LeaderboardEntry {
-  agent_id: string;
-  name: string;
-  wallet_address?: string;
-  created_at: string;
-  contribution_score: number;
-  creator_earned_usd: number;
-  attribution_earned_usd: number;
-  total_earned_usd: number;
-  executions: number;
-  skills_discovered: number;
-  time_saved_hours: number | null;
-  cost_saved_usd: number | null;
-  score_components: {
-    earned_norm: number;
-    execution_norm: number;
-    discovery_norm: number;
-  };
-}
-
 interface StoredAuth {
   apiKey?: string;
 }
@@ -530,70 +510,6 @@ export interface CreditBalance {
 
 export async function getCreditBalance(): Promise<CreditBalance> {
   return authApi<CreditBalance>("GET", "/v1/credits/balance");
-}
-
-export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
-  const data = await api<{ entries: LeaderboardEntry[] }>("GET", `/v1/leaderboard?limit=${limit}`);
-  return data.entries;
-}
-
-export interface DomainCoverage {
-  domain: string;
-  skills: number;
-  endpoints: number;
-  updated_at: string;
-}
-
-export interface NetworkStats {
-  total_routes: number;
-  total_skills: number;
-  total_agents: number;
-  total_executions: number;
-  total_earned_usd: number;
-  marketplace_hit_rate: number;
-  total_resolves: number;
-  total_tokens_saved: number;
-}
-
-export interface MinerBounty {
-  id: string;
-  title: string;
-  domain: string;
-  description: string;
-  reward_multiplier: number;
-  difficulty: "easy" | "medium" | "hard";
-  category: string;
-  claimed: boolean;
-}
-
-export interface MinerQuest {
-  id: string;
-  title: string;
-  description: string;
-  target_domain?: string;
-  reward_multiplier: number;
-  type: "first-indexer" | "route-count" | "domain-sprint";
-  deadline: string;
-  progress?: number;
-  goal?: number;
-}
-
-export interface MinerStats {
-  network: NetworkStats;
-  domains: DomainCoverage[];
-  leaderboard: LeaderboardEntry[];
-  bounties: MinerBounty[];
-  quests: MinerQuest[];
-}
-
-export async function getMinerStats(): Promise<MinerStats> {
-  const data = await api<MinerStats>("GET", "/v1/miners/stats");
-  return {
-    ...data,
-    domains: data.domains.filter((domain) => !isSuppressedDomain(domain.domain)),
-    bounties: data.bounties.filter((bounty) => !isSuppressedDomain(bounty.domain)),
-    quests: data.quests.filter((quest) => !isSuppressedDomain(quest.target_domain)),
-  };
 }
 
 // --- Skill Execution ---
