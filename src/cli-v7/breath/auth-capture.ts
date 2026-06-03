@@ -13,9 +13,10 @@
  *   2. Subscribe to Network.responseReceivedExtraInfo / Set-Cookie events
  *      until the page has settled (10s of no-new-cookies, or --timeout
  *      reached). Default timeout 300_000 ms.
- *   3. Snapshot via Network.getCookies. Persist ONLY name + domain + path +
- *      expires (NEVER values) into `auth_profile.json` next to the session
- *      record. The values go to the OS keychain via `security
+ *   3. Snapshot via Network.getCookies. The metadata (name + domain + path +
+ *      expires, NEVER values) is hashed into a sha256 `cookies_inventory_ref`
+ *      on the session record — under stateless mode no cleartext sidecar ever
+ *      touches disk. The values go to the OS keychain via `security
  *      add-generic-password -s unbrowse-auth -a <domain> -w <json>`.
  *   4. Emit a pointer URI of the form `keychain://unbrowse-auth/<domain>`.
  *      Downstream fill / execute reads the keychain on demand — values
@@ -23,11 +24,11 @@
  *
  * Secret-redaction invariants (LOAD-BEARING):
  *   - Cookie values NEVER appear in stdout, stderr, the session record,
- *     the auth_profile.json sidecar, or any audit row. The ONLY surface
+ *     the cookies_inventory_ref, or any audit row. The ONLY surface
  *     that carries them is the OS keychain (`security` CLI).
- *   - The auth_profile.json sidecar is metadata only: cookie names,
- *     domains, paths, expires timestamps, httpOnly/secure/sameSite. No
- *     values. No combined value-blob hash either (that would leak shape).
+ *   - The cookies_inventory_ref is a sha256 over metadata only (cookie names,
+ *     domains, paths, expires timestamps, httpOnly/secure/sameSite) — no
+ *     values, and the cleartext inventory never lands on disk (stateless).
  *   - The pointer URI returned IS the only handle the caller gets. To
  *     read the values at fill-time, downstream resolves the pointer via
  *     the keychain adapter (src/values/adapters/keychain.ts), which goes

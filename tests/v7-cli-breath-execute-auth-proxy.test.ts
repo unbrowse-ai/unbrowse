@@ -372,9 +372,11 @@ describe.if(W5W6_READY)("v7-cli execute / auth-capture (e2e — W5+W6 required)"
       // Session record on disk — canary-clean.
       await assertNoCanaryInSessionsDir(AUTH_CANARY);
 
-      // The auth_profile.json sidecar — metadata only, canary-clean.
-      const sidecar = await readFile(out.auth_profile, "utf8");
-      expect(sidecar).not.toContain(AUTH_CANARY);
+      // Stateless: no cleartext auth_profile.json sidecar — only a sha256 inventory
+      // ref crosses to disk (STATELESS_BOUNDARY §H invariant 7). Assert the sealed
+      // shape and that the canary leaks nowhere (a hash cannot carry it).
+      expect(out.cookies_inventory_ref).toMatch(/^[0-9a-f]{64}$/);
+      expect(out.cookies_inventory_ref).not.toContain(AUTH_CANARY);
 
       // Cleanup the keychain entry we just wrote so re-runs are idempotent.
       try {
