@@ -1,0 +1,13 @@
+# 80/20 head — the high-value sites that cover most agent traffic. The campaign loads
+# a 1000-row list; this seed is the top of the Pareto head (proves the harness shape).
+# One URL per line; '#' comments + blank lines skipped.
+https://news.ycombinator.com
+https://en.wikipedia.org/wiki/Main_Page
+https://www.reddit.com/r/technology
+https://github.com/trending
+https://stackoverflow.com/questions
+https://api.github.com
+https://hacker-news.firebaseio.com/v0/topstories.json
+https://www.weather.gov
+https://duckduckgo.com
+https://www.producthunt.com

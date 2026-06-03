@@ -266,3 +266,4 @@ bench/lib/bun.lock
 
 # folded SDK build output (built on prepack via tsconfig.sdk.json)
 packages/skill/dist-sdk/
+bench/index1000/.artifacts/
