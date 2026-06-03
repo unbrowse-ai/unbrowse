@@ -232,7 +232,7 @@ Six-layer pipeline:
 3. **Cache-first resolution** — In-memory cache → route cache (24h) → domain skill cache (7d) → local skill snapshots → marketplace semantic search → first-pass browser (8s) → live capture (last resort). Second visits resolve in <200 ms with no browser launch.
 4. **Browser replacement API** — `Browser.launch()` + `page.goto()` from the `unbrowse` import resolves from the skill cache first; cache miss falls through to kuri.
 5. **Endpoint graph** — Typed edges (list→detail, pagination, auth) prefetched in the same round-trip. `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.
-6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See `docs/x402-flywheel.md` (developer protocol docs).
+6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md) (payment + sponsor flow).
 
 ## Authentication
 

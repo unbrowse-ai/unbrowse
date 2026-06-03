@@ -83,5 +83,5 @@ If you are scoping an audit, take the **live** items as production behavior and 
 - [Onboarding validators](./onboarding-validators.md)
 - [Whitepaper: network layer](../whitepaper/network-layer.md)
 - [Wallets, escrow, session keys](../wallets.md)
-- [x402 flywheel](../x402-flywheel.md)
+- [Fare splits & x402 payments](../concepts/fare-splits.md)
 - [Open source notice](../OPEN-SOURCE-NOTICE.md): why the engine that does this is closed-source
