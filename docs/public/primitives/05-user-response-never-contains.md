@@ -16,7 +16,7 @@ This document lists those classes, names where the enforcement lives, and is tes
 | Residential proxy credentials | `IPROYAL_USER`, `IPROYAL_PASS`, `UNBROWSE_PROXY_URL` (when it contains user:pass) | Redacted at log line generation; replaced with `***@host:port` form before stderr write |
 | Personal browser history | URLs visited that are not the one resolved in this session | Read-only access to Chrome/Firefox profile for cookie injection on the requested domain only; no enumeration |
 | Personal disk paths | Any path under the user's home that is not the explicit working directory | Only the working directory is written to in trace responses |
-| Substrate identifiers | Internal contract row ids, organ ids, ledger event ids that govern Unbrowse's own self-organization | Filtered out of any response with `--audience public` semantic; documented at the contract leak gate |
+| Platform identifiers | Internal contract row ids, organ ids, ledger event ids that govern Unbrowse's own self-organization | Filtered out of any response with `--audience public` semantic; documented at the contract leak gate |
 
 ## Where the enforcement lives
 
@@ -30,7 +30,7 @@ The capture pipeline (`src/capture/index.ts` and `src/reverse-engineer/index.ts`
 
 The kuri-proxy bridge (`src/env/kuri-proxy-bridge.ts`) redacts the proxy URL before writing to stderr.
 
-The contract-leak gate (`scripts/check-contract-leak.sh`) runs on every commit and blocks the merge when any public surface (README, CHANGELOG, frontend, docs) mentions an internal substrate id or vocabulary.
+The contract-leak gate (`scripts/check-contract-leak.sh`) runs on every commit and blocks the merge when any public surface (README, CHANGELOG, frontend, docs) mentions an internal platform id or vocabulary.
 
 ## The test (the gate that keeps us honest)
 

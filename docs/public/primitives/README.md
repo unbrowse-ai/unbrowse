@@ -39,7 +39,7 @@ If you have an hour: read all of them in order. The numbered files compose into 
 
 Every file in this folder is reflected to the public repository on every release. A CI gate (`scripts/check-primitives-doc-public.sh`) fails the build when:
 
-- a file under `docs/public/primitives/` references an internal substrate identifier
+- a file under `docs/public/primitives/` references an internal platform identifier
 - a primitive named here is not present in the codebase under the named path
 - a primitive present in the codebase under a path that this folder claims to describe is missing from the inventory
 

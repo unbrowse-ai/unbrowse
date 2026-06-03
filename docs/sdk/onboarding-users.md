@@ -50,6 +50,8 @@ If you already have a wallet:
 ```bash
 export AGENT_WALLET_ADDRESS="<your solana address>"
 unbrowse setup
+```
+
 ## See your earnings
 
 ```bash

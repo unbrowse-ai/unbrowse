@@ -10,7 +10,7 @@ You claim a domain once. Future paid calls to any skill whose `domain` matches y
 
 ## What you need
 
-- **A Solana wallet.** [lobster.cash](https://lobster.cash) is the recommended provisioner (the substrate never holds private keys), but any signer that exposes a base58 pubkey and an SPL USDC ATA works. The verify step accepts the wallet pubkey; the USDC ATA derivation is deferred to a follow-up.
+- **A Solana wallet.** [lobster.cash](https://lobster.cash) is the recommended provisioner (the platform never holds private keys), but any signer that exposes a base58 pubkey and an SPL USDC ATA works. The verify step accepts the wallet pubkey; the USDC ATA derivation is deferred to a follow-up.
 - **DNS edit access on the apex domain.** Cloudflare, Route53, Namecheap, Google Domains — anything that lets you publish a TXT record at `_unbrowse-claim.<your-apex>`.
 
 ## The flow

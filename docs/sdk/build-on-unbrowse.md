@@ -1,9 +1,9 @@
 # Build on Unbrowse — A Plan for Developers
 
-Unbrowse is not just a tool you call; it's a substrate your product can stand on. This doc is the opinionated guide to *building* with it: which archetypes work, how to compose, when not to use it.
+Unbrowse is not just a tool you call; it's a platform your product can stand on. This doc is the opinionated guide to *building* with it: which archetypes work, how to compose, when not to use it.
 
 > If you only need to consume APIs from sites, see [developer-recipes.md](./developer-recipes.md).
-> If you want to *build a product or business* on the substrate, this is the plan.
+> If you want to *build a product or business* on the platform, this is the plan.
 
 ## What Unbrowse gives you as a primitive
 
@@ -76,7 +76,7 @@ You leverage:
 - Captured routes as on-the-fly tools
 - `commitment_only` proofs for traceability
 
-Build cost: 2-4 weeks. The novelty is the UX, not the substrate.
+Build cost: 2-4 weeks. The novelty is the UX, not the platform.
 
 ## Composition patterns
 
@@ -141,7 +141,7 @@ Goal: the system is observable and the failure modes are named.
 - Paid x402 routes if your domain is in the marketplace's paid tier
 - (Optional) MCP / OpenClaw exposure to make your wrapper consumable by other agents
 
-Goal: the substrate disappears into your product. Customers don't think about Unbrowse; they think about your agent.
+Goal: the platform disappears into your product. Customers don't think about Unbrowse; they think about your agent.
 
 ## Extension points
 
@@ -165,7 +165,7 @@ If you need any of these, file an issue or email security@unbrowse.ai for an NDA
 
 ## When NOT to build on Unbrowse
 
-Be honest about the misfit cases. Don't pick the substrate if:
+Be honest about the misfit cases. Don't pick the platform if:
 
 - **You only need one site.** If your entire product is "scrape exactly this one API," a hand-built scraper is faster than learning Unbrowse. Unbrowse pays off when you cover dozens to hundreds of sites.
 - **You need millisecond latency.** Cache hits are <200ms but not <10ms. If you're building HFT-adjacent stuff, this is the wrong layer.
