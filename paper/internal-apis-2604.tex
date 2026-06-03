@@ -240,6 +240,24 @@ observed gap on a single live URL
 release-coverage methodology --- corpus shape, scoring rubric, and current numbers
 --- is maintained alongside the product.
 
+\subsection{The per-call figure is a floor, not the headline}
+The 3.6$\times$ mean of Table~\ref{tab:eval} is a \emph{per-call} comparison: one
+cached route execution against one cold browser rediscovery. A real agent task is
+not one call. It is a sequence of browser interactions --- navigate, wait, click,
+wait, fill, submit, paginate --- and each interaction costs latency, can fail and be
+retried, and re-reads a growing page into the agent's context, so token cost
+\emph{compounds} across the heavy DOM reads. The API-native path collapses the same
+task into roughly one structured call: no multi-step navigation, no retry tax, no
+compounding context. Accounting for this honestly, \emph{the per-call figure is a
+lower bound, not the end-to-end advantage}: the per-task cost is the per-call cost
+multiplied by the task's click count, its failure-retry factor, and its token
+compounding. On a representative task (ten interactions, three DOM reads, an 80\%
+per-step success rate) the model recovers $\approx$45$\times$ faster and
+$\approx$300$\times$ fewer tokens end-to-end, bracketing the field-measured
+$\approx$30$\times$ faster / $\approx$90$\times$ cheaper headline. We ship this as a
+deterministic, runnable reference (\texttt{reference/bench/task\_cost.py}) so the
+compounding is provable arithmetic rather than a marketing multiplier. \refimpl
+
 \section{Discussion}
 The first-party API is not always present (some surfaces are genuinely
 render-bound), and a learned route can drift. Unbrowse treats both honestly: the
