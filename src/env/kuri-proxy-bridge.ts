@@ -55,6 +55,45 @@ function redactProxyUrl(url: string): string {
   return url.replace(/\/\/[^@]+@/, "//***@");
 }
 
+// PIDs of auth-forwarders this process spawned. The forwarder is spawned
+// detached+unref'd so it can outlive a transient parent in the long-lived
+// server/broker case — but a one-shot `unbrowse run` CLI invocation has no
+// broker doing shutdown cleanup, so without this the forwarder leaks once per
+// run (8873 orphaned Python processes observed after a 10k-site index campaign,
+// hitting the per-user process ceiling → `fork: Resource temporarily
+// unavailable`). When the spawning process exits, the forwarder is useless
+// anyway (the Chrome that used KURI_PROXY is gone), so reaping it on exit is
+// always correct. Exported for tests.
+const trackedForwarders = new Set<number>();
+let forwarderCleanupRegistered = false;
+
+export function killTrackedForwarders(): void {
+  for (const pid of trackedForwarders) {
+    try { process.kill(pid, "SIGTERM"); } catch { /* already gone */ }
+  }
+  trackedForwarders.clear();
+}
+
+function ensureForwarderCleanupRegistered(): void {
+  if (forwarderCleanupRegistered) return;
+  forwarderCleanupRegistered = true;
+  // 'exit' is sync-only; process.kill is sync, so this is safe. SIGINT/SIGTERM
+  // don't trigger 'exit' on their own, so reap explicitly then re-raise default.
+  process.once("exit", killTrackedForwarders);
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.once(sig, () => {
+      killTrackedForwarders();
+      // Re-raise with default disposition so exit codes / parent semantics hold.
+      process.kill(process.pid, sig);
+    });
+  }
+}
+
+export function trackForwarderPid(pid: number): void {
+  trackedForwarders.add(pid);
+  ensureForwarderCleanupRegistered();
+}
+
 // Whether the proxy URL has inline credentials (user:pass@host).
 // Chrome's --proxy-server flag REJECTS such URLs with
 // ERR_NO_SUPPORTED_PROXIES on every navigation. Bridge spawns a local
@@ -138,6 +177,9 @@ function spawnAuthForwarder(upstreamUrl: string): string | null {
       process.stderr.write("[kuri-proxy] auth-proxy forwarder failed to report ready within 3s\n");
       return null;
     }
+    // Reap-on-exit: track the live forwarder so it dies with the spawning
+    // process (one-shot CLI runs have no broker shutdown to catch it).
+    if (child.pid) trackForwarderPid(child.pid);
     return `http://127.0.0.1:${port}`;
   } catch (err) {
     process.stderr.write(`[kuri-proxy] auth-proxy spawn error: ${err instanceof Error ? err.message : String(err)}\n`);

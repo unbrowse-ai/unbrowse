@@ -30,7 +30,8 @@ export interface DirectDocumentRejection {
     | "challenge_html"
     | "interstitial_detected"
     | "intent_mismatch"
-    | "spa_hydration_required";
+    | "spa_hydration_required"
+    | "dead_or_parked";
   // Optional evidence the agent reads in-thread when judging the rejection.
   // Populated for intent_mismatch / interstitial_detected so the orchestrator's
   // decision_trace can surface WHY direct-document handed off to the browser
@@ -95,6 +96,30 @@ const SPA_HYDRATION_RE =
 // has >2000 chars of visible text after script/style strip; SPA shells
 // pre-hydration collapse to <2000 (often <1000).
 const SPA_HYDRATION_BODY_TEXT_FLOOR = 2_000;
+
+// Marker-less CSR shells. SPA_HYDRATION_RE catches SSR frameworks that inline a
+// state blob (Next/Nuxt/Apollo/Redux). But a pure client-rendered app
+// (Vite / Create-React-App / Angular / Svelte / Vue CLI) ships an EMPTY root
+// container and a single bundle <script> with NONE of those inline markers — the
+// "empty <div id=root>" failure mode. When the visible body is below the
+// hydration floor AND one of these root anchors is present, the page is an
+// un-hydrated CSR shell whose data renders via fetch+render, so the right next
+// step is the browser ladder with a hydration wait — same as the SSR-shell case.
+// Generic across stacks; no per-host arm. Anchored on framework-conventional
+// root ids / hydration attributes, not on emptiness (a thin body already proved
+// the shell is un-hydrated).
+const SPA_ROOT_CONTAINER_RE =
+  /\bid=["'](?:root|app|__next|__nuxt|q-app|svelte|application)["']|\bdata-reactroot\b|\bdata-server-rendered=["']true["']|\bng-version=["']/i;
+
+// Dead / parked / placeholder domains: registrar landers ("buy this domain"),
+// default webserver pages (Apache "It works!", nginx welcome), and for-sale
+// parking pages return 200 + HTML that clears the size gate but carries no
+// real content and no API. Escalating these through the curl → browser ladder
+// burns the whole per-site budget before failing. Detecting them here returns a
+// terminal `dead_or_parked` so the caller can fail fast and spend that budget on
+// the SPA sites that genuinely need a render. Generic across registrars/parkers.
+const PARKED_RE =
+  /\b(this domain (?:name )?is for sale|buy this domain|the domain .{1,40} is for sale|domain (?:is )?parked|parked free, courtesy|domain parking|sedoparking|bodis\.com|hugedomains|parkingcrew|domain for sale|future home of something|apache2? (?:ubuntu|debian)? ?default page|nginx welcome|it works!|default web ?(?:site|page) ?page|under construction)\b/i;
 
 // Stopwords pulled from a generic English list; verbs that signal an intent
 // action are stripped because they are unlikely to appear verbatim in a result
@@ -165,6 +190,22 @@ export function buildDirectDocumentResult(
   const challengeHaystack = `${title} ${bodyText.slice(0, 2_000)}`;
   if (CHALLENGE_RE.test(challengeHaystack)) return { rejected: true, reason: "challenge_html" };
 
+  // Fix 5 — dead/parked fast-fail. A registrar lander / default webserver page
+  // clears the structural gates but has no content and no API; escalating it
+  // through the browser ladder wastes the per-site budget. Fail terminally here.
+  const parkedHit = PARKED_RE.exec(challengeHaystack);
+  if (parkedHit) {
+    return {
+      rejected: true,
+      reason: "dead_or_parked",
+      evidence: {
+        interstitial_signal: parkedHit[0],
+        body_text_chars: bodyText.length,
+        html_bytes: html.length,
+      },
+    };
+  }
+
   // Interstitial / logged-out / SPA-meta-envelope detection. Generic across
   // vendors (cloudflare / datadome / akamai / perimeterx) and across auth-walls
   // (sign-in pages on linkedin / gmail / x.com). Runs BEFORE the intent check
@@ -201,6 +242,15 @@ export function buildDirectDocumentResult(
     while ((m = scanRe.exec(headSlice)) !== null) {
       if (m[0] && !spaMarkers.includes(m[0])) spaMarkers.push(m[0]);
       if (spaMarkers.length >= 4) break;
+    }
+    // Fix 2 — marker-less CSR shell. No inline state blob, but an empty
+    // framework root container (Vite/CRA/Angular/Svelte ship `<div id="root">`
+    // + one bundle script). A thin body already proved it's un-hydrated, so
+    // route it to the render ladder rather than letting it fall to the generic
+    // interstitial path (which may attempt an auth capture instead of a wait).
+    if (spaMarkers.length === 0) {
+      const rootHit = SPA_ROOT_CONTAINER_RE.exec(headSlice);
+      if (rootHit?.[0]) spaMarkers.push(rootHit[0].slice(0, 40));
     }
     if (spaMarkers.length > 0) {
       return {
