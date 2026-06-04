@@ -31,8 +31,15 @@ export function Navbar() {
   return (
     <nav
       data-global-chrome="navbar"
-      className="fixed top-0 inset-x-0 z-50 bg-black/15 backdrop-blur-md"
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+      // Theme-aware opaque-ish surface, not a translucent black scrim. The nav
+      // sits over pages of varying backgrounds (light registry pages AND always-
+      // dark archival pages), so its text must contrast with the HEADER's own
+      // surface, not whatever shows through. var(--surface-raised) is light in the
+      // light theme and dark in the dark theme, so theme-aware nav text reads on
+      // every page in both themes (was bg-black/15 → dark text on dark archival
+      // pages in light mode was unreadable).
+      className="fixed top-0 inset-x-0 z-50 backdrop-blur-md"
+      style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border)" }}
     >
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
         {/* Logo */}
