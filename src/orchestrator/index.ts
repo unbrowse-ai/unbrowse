@@ -68,7 +68,7 @@ import {
   sanitizeRoutingEventBatch,
 } from "../routing-telemetry.js";
 import { runResolveRace } from "./resolve-race.js";
-import { buildBloombergDirectDocumentResult } from "./direct-document.js";
+import { buildBloombergDirectDocumentResult, fetchDirectDocument } from "./direct-document.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -1256,6 +1256,24 @@ export function probeLooksLikeDirectJsonApi(probe: {
   if (!(probe.status >= 200 && probe.status < 400)) return false;
   const ct = (probe.content_type ?? "").toLowerCase();
   return ct.includes("application/json") || ct.includes("+json") || ct.includes("text/json");
+}
+
+/**
+ * Companion to probeLooksLikeDirectJsonApi for HTML documents. When a probe
+ * winner is a 2xx page served as HTML (not JSON — that's handled by the JSON
+ * fast-path), the caller's own URL is the ground truth and a direct-document
+ * fetch beats returning Exa "links about the topic". Thin SPA shells are caught
+ * downstream by buildDirectDocumentResult's rejector and fall through to Exa /
+ * the serial XHR ladder. Content-type signal only — no per-domain heuristic.
+ */
+export function probeLooksLikeFetchableHtmlDocument(probe: {
+  status: number;
+  content_type?: string;
+}): boolean {
+  if (!(probe.status >= 200 && probe.status < 400)) return false;
+  if (probeLooksLikeDirectJsonApi(probe)) return false;
+  const ct = (probe.content_type ?? "").toLowerCase();
+  return ct.includes("text/html") || ct.includes("application/xhtml");
 }
 
 /**
@@ -3898,6 +3916,40 @@ export async function resolveAndExecute(
         // probe — fall through to Exa as the genuine fallback.
         console.log(`[direct-fetch] ${raceContextUrl} probe said JSON but direct fetch yielded no usable JSON — falling through to exa`);
       }
+      // HTML direct-document fast-path — companion to the JSON fast-path above.
+      // The caller gave an exact content URL (raceContextUrl) and the probe says
+      // it returned a usable HTML document. The page itself is the ground truth,
+      // so a direct-document fetch beats returning Exa "links about the topic".
+      // This also removes the non-determinism where the same intent+url returns
+      // direct-document on one call and exa candidates on the next, depending on
+      // who won the budget race. Thin SPA shells are rejected inside
+      // fetchDirectDocument (buildDirectDocumentResult.rejected) and fall through
+      // to Exa / the serial XHR ladder exactly as before — generic, content-type
+      // signal only, no per-domain heuristic.
+      if (w.kind === "probe" && probeLooksLikeFetchableHtmlDocument(w)) {
+        const directDoc = await fetchDirectDocument(raceContextUrl);
+        if (directDoc && !directDoc.rejected) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(),
+            skill_id: "direct-document",
+            endpoint_id: "direct-document",
+            started_at: new Date(t0).toISOString(),
+            completed_at: new Date().toISOString(),
+            success: true,
+          };
+          console.log(`[direct-document] ${raceContextUrl} probe-winner HTML fast path — direct document over exa (ct=${w.content_type})`);
+          return {
+            result: directDoc,
+            trace,
+            source: "direct-document" as const,
+            skill: undefined as any,
+            timing: finalize("direct-document", directDoc, "direct-document", undefined as any, trace),
+          };
+        }
+        // Probe said HTML but the document was rejected/thin (likely an SPA
+        // shell) — fall through to Exa / the serial ladder as the genuine fallback.
+        console.log(`[direct-document] ${raceContextUrl} probe said HTML but direct-document rejected — falling through to exa`);
+      }
       const raceProbeDomain = (() => {
         try { return new URL(raceContextUrl).hostname; } catch { return undefined; }
       })();
@@ -3909,7 +3961,7 @@ export async function resolveAndExecute(
           | { exa_results?: ExaHit[] }
           | null
         >([
-          searchIntentResolve(
+          (options?.exaSearchOverride ?? searchIntentResolve)(
             queryIntent,
             raceProbeDomain,
             MARKETPLACE_DOMAIN_SEARCH_K,

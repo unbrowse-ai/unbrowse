@@ -685,6 +685,15 @@ export interface ExecutionOptions {
   payment_verified?: boolean;
   /** Phase 8.1 — wall-clock budget in ms for the parallel resolve race. Default 8000. */
   budget_ms?: number;
+  /** Test seam: override the Exa probe-fallback search. Production leaves this
+   *  undefined and uses the real searchIntentResolve. Tests inject deterministic
+   *  exa_results to exercise the probe-fallback routing without a live network. */
+  exaSearchOverride?: (
+    intent: string,
+    domain: string | undefined,
+    domainK: number,
+    globalK: number,
+  ) => Promise<{ exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }> }>;
   /** When true, the resolve shortlist is filtered to only independently verified proofs. */
   require_proof?: boolean;
   /** Per-walk session yield cache. Map from binding `key` → cached value + freshness
