@@ -39,6 +39,24 @@ class BrowseCompSuite(AsyncBaseSuite):
         self.grader = DeepResearchGrader()
 
     async def _run_task(self, datum: Datum) -> TaskResult:
-        convo = await self.agent(datum.problem)
-        grader_result = await self.grader(datum, convo)
+        # Guard end-to-end: a transient agent OR grader API error (e.g. an
+        # OpenRouter 429 that exhausts tenacity retries) must score this question
+        # 0, never crash the whole multi-hour eval via the suite's asyncio.gather.
+        from search_evals.suites.types import GradeType, GraderResult
+        try:
+            convo = await self.agent(datum.problem)
+        except Exception as e:
+            logger.warning(f"agent failed on {datum.id}: {e} -> scoring 0")
+            convo = self.agent._giveup(datum.problem)
+        try:
+            grader_result = await self.grader(datum, convo)
+        except Exception as e:
+            logger.warning(f"grader failed on {datum.id}: {e} -> scoring 0")
+            grader_result = GraderResult(
+                grade_type=GradeType.INCORRECT,
+                problem=str(getattr(datum, "problem", "")),
+                answer="",
+                response=convo.last_text() if convo else "",
+                grade_text=f"grader-error: {e}",
+            )
         return TaskResult(datum=datum, convo=convo, grader_result=grader_result)
