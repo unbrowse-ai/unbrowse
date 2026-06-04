@@ -14,6 +14,8 @@ cp "$HERE/suites/graders.py"       "$V/suites/graders.py"
 # Best-of-N orchestration (arXiv:2504.12516): parallel rollout + confidence vote.
 cp "$HERE/agents/best_of_n.py"     "$V/agents/best_of_n.py"
 cp "$HERE/suites/browsecomp.py"    "$V/suites/browsecomp.py"
+# Searcher with Reason-in-Documents distillation (Search-o1, arXiv:2501.05366).
+cp "$HERE/search_engines/unbrowse.py" "$V/search_engines/unbrowse.py"
 echo "✓ Nebius port applied to $V"
 echo
 echo "Run a BrowseComp slice (Kimi agent + Kimi grader):"
