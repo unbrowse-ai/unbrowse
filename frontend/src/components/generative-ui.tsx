@@ -25,6 +25,23 @@ import type { Spec } from "@json-render/core";
 // The default design skill that governs this catalog (jesus-pattern DESIGN method).
 export const DEFAULT_DESIGN_SKILL = "src/skills/design.md";
 
+/**
+ * System prompt that makes the Aiko agent emit generative UI. Sent as a system
+ * message on every chat request, so the model returns a json-render spec for
+ * structured answers (the catalog below = the DESIGN skill, applied by default).
+ */
+export const GENUI_SYSTEM_PROMPT =
+  'You can answer with GENERATIVE UI. When the answer is structured (a comparison, ' +
+  'a ranked list, key stats/metrics, steps, or a card-worthy summary), respond with ' +
+  'a json-render spec in a fenced ```json-ui block INSTEAD of prose. Shape: ' +
+  '{"root":"<id>","elements":{"<id>":{"type":"<Type>","props":{...},"children":["<id>",...]}}}. ' +
+  'Use ONLY these component types: Card{title}, Heading{text}, Text{text}, ' +
+  'Stat{label,value}, Badge{text}, List(children), ListItem{text}, Row(children), ' +
+  'Button{label,href}, Link{label,href}. Every element is {type, props, children?:[ids]}; ' +
+  'children reference other element ids. Keep it under ~15 elements and return ONLY the ' +
+  'fenced ```json-ui block for those cases. For plain conversational answers, reply in ' +
+  'normal markdown with no spec.';
+
 type P = Record<string, unknown>;
 const str = (v: unknown, d = ""): string => (typeof v === "string" ? v : d);
 

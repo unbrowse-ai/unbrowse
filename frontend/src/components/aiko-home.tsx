@@ -21,7 +21,7 @@ import Link from "next/link";
 import { Streamdown } from "streamdown";
 import { useAuth } from "@/lib/auth-context";
 import { searchSkills, type SearchResult } from "@/lib/api";
-import { GenerativeUI, extractUiSpec } from "@/components/generative-ui";
+import { GenerativeUI, extractUiSpec, GENUI_SYSTEM_PROMPT } from "@/components/generative-ui";
 
 const CHAT_ENDPOINT = "https://chat.unbrowse.ai/v1/chat/completions";
 
@@ -31,6 +31,25 @@ const SUGGESTIONS = [
   "Top stories on Hacker News right now",
   "Free local events happening this week",
 ];
+
+// A real json-render spec — proves the generative-UI pipeline end-to-end (the
+// themed catalog rendering through <Renderer>). The live agent will emit specs
+// like this once the chat.unbrowse.ai system prompt is taught to (backend change);
+// this demo renders one now so the capability is visible.
+const DEMO_UI_SPEC = '```json-ui\n' + JSON.stringify({
+  root: "row",
+  elements: {
+    row: { type: "Row", props: {}, children: ["c1", "c2"] },
+    c1: { type: "Card", props: { title: "Memory foam" }, children: ["b1", "s1", "t1"] },
+    b1: { type: "Badge", props: { text: "contouring" } },
+    s1: { type: "Stat", props: { label: "Best for", value: "pressure relief" } },
+    t1: { type: "Text", props: { text: "Sinks and cradles the body; sleeps warmer; slower response." } },
+    c2: { type: "Card", props: { title: "Hybrid" }, children: ["b2", "s2", "t2"] },
+    b2: { type: "Badge", props: { text: "bouncy" } },
+    s2: { type: "Stat", props: { label: "Best for", value: "airflow + support" } },
+    t2: { type: "Text", props: { text: "Coils plus foam; cooler, more responsive, better edge support." } },
+  },
+}) + '\n```';
 
 type Status = "idle" | "loading" | "ok" | "error";
 
@@ -137,6 +156,13 @@ export function AikoHome() {
 
     const tAns = performance.now();
     try {
+      // NOTE: chat.unbrowse.ai prepends its own system prompt and 400s on a
+      // client system message ("System message must be at the beginning"), so
+      // generative UI cannot be triggered from the client. The json-ui
+      // instruction (GENUI_SYSTEM_PROMPT) must be added to the BACKEND system
+      // prompt. Until then we send the conversation as-is and render whatever the
+      // agent returns (markdown today; generative UI the moment the backend emits
+      // a json-ui spec — the frontend already renders it).
       const messages = next.map((t) => ({ role: t.role, content: t.content }));
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
@@ -173,6 +199,19 @@ export function AikoHome() {
     setStatus("idle");
     setError(null);
     setPrompt("");
+  }
+
+  // Generative-UI demo: render a real json-render spec through the themed catalog,
+  // proving the pipeline without depending on the backend emitting specs yet.
+  function showDemo() {
+    setSources([]);
+    setSearchMs(null);
+    setError(null);
+    setTurns([
+      { role: "user", content: "Show me generative UI" },
+      { role: "assistant", content: DEMO_UI_SPEC, answerMs: 0 },
+    ]);
+    setStatus("ok");
   }
 
   // US4 — error recovery: re-run the last user turn without a duplicate append.
@@ -298,6 +337,9 @@ export function AikoHome() {
                     {s}
                   </button>
                 ))}
+                <button type="button" onClick={showDemo} className="flex items-center gap-2 px-3.5 py-2 rounded-full text-[13px]" style={{ border: "1px solid var(--border-strong, rgba(255,82,0,0.32))", color: "var(--orange-400, #FF6A00)", background: "var(--surface-raised, rgba(16,14,12,0.6))" }}>
+                  ✦ See generative UI
+                </button>
               </div>
               <p className="mt-8 text-[12px]" style={{ color: "var(--text-muted)" }}>
                 Answers run live through Unbrowse routes · 10 free queries/day · no key required
