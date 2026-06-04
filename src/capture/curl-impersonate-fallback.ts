@@ -46,6 +46,10 @@ export interface CurlCffiOptions {
    *  gets UNBROWSE_NO_PROXY=1 in its env to suppress auto-detect. Used by
    *  the contract-fetch graceful-degrade path when the proxy fails. */
   forceDirect?: boolean;
+  /** Cookies to send (Cookie header). Lets cookie-gated sites (reddit,
+   *  logged-in pages) return their real content rather than a block page.
+   *  Seeded by the caller from the local browser profile / vault. */
+  cookies?: Array<{ name: string; value: string }>;
 }
 
 /**
@@ -67,6 +71,15 @@ export async function tryCurlImpersonateFetch(opts: CurlCffiOptions): Promise<Cu
   if (proxy) { args.push("--proxy", proxy); }
   if (opts.impersonate) { args.push("--impersonate", opts.impersonate); }
   args.push("--timeout", String(Math.floor(timeoutMs / 1000)));
+  if (opts.cookies && opts.cookies.length > 0) {
+    const cookieHeader = opts.cookies
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .join("; ");
+    if (cookieHeader) args.push("--cookies", cookieHeader);
+  }
 
   return await new Promise<CurlCffiResult | null>((resolveP) => {
     let killed = false;
