@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-// B3 seed (Day 3, the method-loop session 2026-05-13).
+// B3 seed (Day 3, restricted-loop session 2026-05-13).
 // Per .harness-out/session-bugs-20260513T122248Z.json: 13 sessions saw
 // rate_limited surfacing as a "no_endpoints" or generic resolve fallback
 // rather than a structured retry-after handoff.

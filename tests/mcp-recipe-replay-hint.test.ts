@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-// B2 seed (Day 3, the method-loop session 2026-05-13).
+// B2 seed (Day 3, restricted-loop session 2026-05-13).
 // Per .harness-out/session-bugs-20260513T122248Z.json: 30 sessions saw
 // recipe_replay.*fail with no actionable next_step in the trace.
 //

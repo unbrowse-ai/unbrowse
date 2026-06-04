@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import net from "node:net";
 
-// B1 seed (Day 3, the method-loop session 2026-05-13).
+// B1 seed (Day 3, restricted-loop session 2026-05-13).
 // Per docs/mcp-issues + .harness-out/session-bugs-20260513T122248Z.json:
 // 42 sessions across 2026-04-01..now saw EADDRINUSE (port :6969 contention).
 //
