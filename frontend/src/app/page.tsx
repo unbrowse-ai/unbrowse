@@ -12,6 +12,10 @@ import { RegistryCard } from "@/components/registry-card";
 // the front door (the value-narrative the minimal registry had dropped).
 import { SpeedComparison } from "@/components/speed-comparison";
 import { WorksWith } from "@/components/works-with";
+import { UseCasesBand } from "@/components/use-cases-band";
+import { InternetEvolution } from "@/components/internet-evolution";
+import { UniversalProofBand } from "@/components/universal-proof-band";
+import { AdoptersRail } from "@/components/adopters-rail";
 
 export const revalidate = 120;
 
@@ -96,9 +100,15 @@ export default async function Home() {
         )}
       </section>
 
-      {/* Restored value-narrative sections (woven into the registry homepage) */}
+      {/* Restored value-narrative sections (woven into the registry homepage),
+          ordered: why it matters → what you do → the vision → proof → integrations
+          → who runs it. */}
       <SpeedComparison />
+      <UseCasesBand />
+      <InternetEvolution />
+      <UniversalProofBand />
       <WorksWith />
+      <AdoptersRail />
 
       {/* Try Aiko live — the chat is the demo of the registry */}
       <section className="pb-16">
