@@ -1,0 +1,30 @@
+{
+  "trace_id": "SX-grN_wKSB94RUEP0GM0",
+  "skill_id": "LfCiJn1yaFZUKrsgYSeqm",
+  "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+  "started_at": "2026-03-08T01:49:26.204Z",
+  "completed_at": "2026-03-08T01:49:27.752Z",
+  "success": false,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "error": "unexpected_html_response",
+    "message": "Endpoint returned HTML instead of API data for intent \"get trending videos\""
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [
+      "log_pb",
+      "log_pb.impr_id",
+      "status_code",
+      "status_msg",
+      "extra",
+      "extra.fatal_item_ids",
+      "extra.logid",
+      "extra.now"
+    ],
+    "type_changes": []
+  },
+  "error": "unexpected_html_response"
+}

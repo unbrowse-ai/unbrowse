@@ -1,0 +1,1249 @@
+{
+  "page_url": "https://app.slack.com",
+  "final_url": "https://app.slack.com/",
+  "intent": "get direct messages",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://app.slack.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/manifest.d68b24c63341223a3b09.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/otSDKStub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/rollup-style-spacesuit.16b48575c5b48cf4c9fe.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/rollup-style-product-uis-custom.6656c8e4c1160194e6d2.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-page-index-signed-in-users.a12cdb7780876f58c42d.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-page-index-signed-in-users-revamped.48cee59180333b68a852.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/legacy-style-libs-swiper.68da5aa292b00d271877.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-page-expanded-nav-es.da0076ff72e2f4ea3fc7.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-onetrust-banner.80ccb99235027e6690e3.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/38f0e7c/marketing/img/nav/slack-salesforce-logo-nav-white.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/38f0e7c/marketing/img/nav/slack-salesforce-logo-nav-black.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/7d8fca7/marketing/img/nav/ai-sparkles.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/b518216/marketing/img/nav/slackbot-nav-icon.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/fd21de4/marketing/img/nav/download.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/11136b7/marketing/img/nav/img-marketplace-nav.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/e1ed284/marketing/img/nav/feature-template-gallery@2x.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/5903307/marketing/img/thought-leadership/slack-vs-teams/compete-teams-nav-promo@2x.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/08a75f1/marketing/img/nav/mobile-opened.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/6c404/marketing/img/homepage/bold-existing-users/waving-hand.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/80588/img/avatars-teams/ava_0013-88.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://secure.gravatar.com/avatar/8796b7bf62ccaf904d5e2faf0f9a2d4a.jpg?s=48&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0019-48.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://secure.gravatar.com/avatar/96abee254a3119724a452a65a0ab7519.jpg?s=48&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0022-48.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://secure.gravatar.com/avatar/4578ef8d708cf7c58ea6ee990ae415af.jpg?s=48&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0022-48.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/80588/img/avatars-teams/ava_0013-34.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/02ee189/marketing/img/homepage/signed-in-users/card-assets/Templates-small.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/02ee189/marketing/img/homepage/signed-in-users/card-assets/Download-desktop.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/02ee189/marketing/img/homepage/signed-in-users/card-assets/Apps.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/02ee189/marketing/img/homepage/signed-in-users/card-assets/Quick-start-guide.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/38f0e7c/marketing/img/nav/logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/fd21de4/marketing/img/nav/ccpa.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/rollup-marketing.3a4afe4d24c96d0e2bae.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-core.4d0a8af6846e089653dd.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-page-index-signed-in-users.1118acd7fd50cc55d0b9.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-component-workspaces-list.4e081042bb97ebaca09e.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/swiper.c790778cd9fb4f6b41e1.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/expanded-marketing-page-footer.4dc8130328de8c4f4298.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-page-yext-search.f378e3360deaae8f0400.marketing.min.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/expanded-marketing-page-navigation.a86f5e4149b0ddf2c583.marketing.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/3bcd90cf-1e32-46d7-adbd-634f66b65b7d/3bcd90cf-1e32-46d7-adbd-634f66b65b7d.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/icon_chevron_white_nav-2c19f46a1cac78adf216.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/salesforce-sans-bold-edf948a2181aa81e6045.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/salesforce-sans-regular-679547df303acfaf9b97.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/avant-garde-8402dfbd4149ce947d8b.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/lato-bold-31816c24a18fbc659282.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/lato-regular-f1aa7a0753149183efa2.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/salesforce-sans-semi-bold-f3873250b116e522a23d.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube.com/iframe_api",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://slack.com/clog/track/?logs=%5B%7B%22tstamp%22%3A1772998920977%2C%22event%22%3A%22WEBSITE_IMPRESSION%22%2C%22args%22%3A%7B%22trigger%22%3A%22%22%2C%22contexts%22%3A%7B%22ui_context%22%3A%7B%22step%22%3A%22page_home%22%2C%22ui_step%22%3A%22page_home%22%2C%22action%22%3A%22impression%22%2C%22ui_component%22%3A%22%22%7D%7D%2C%22page_url%22%3A%22https%3A%2F%2Fapp.slack.com%2F%22%7D%2C%22team_id%22%3A%22T0AGUUWKV0D%22%2C%22user_id%22%3A%22U0AHSL1B21E%22%2C%22i18n_locale%22%3A%22en-US%22%7D%2C%7B%22tstamp%22%3A1772998920977%2C%22event%22%3A%22KEY_PAGE_IMPRESSION%22%2C%22args%22%3A%7B%22trigger%22%3A%22%22%2C%22contexts%22%3A%7B%22ui_context%22%3A%7B%22step%22%3A%22page_home%22%2C%22ui_step%22%3A%22page_home%22%2C%22action%22%3A%22impression%22%2C%22ui_component%22%3A%22%22%7D%7D%2C%22page_url%22%3A%22https%3A%2F%2Fapp.slack.com%2F%22%7D%2C%22team_id%22%3A%22T0AGUUWKV0D%22%2C%22user_id%22%3A%22U0AHSL1B21E%22%2C%22i18n_locale%22%3A%22en-US%22%7D%5D&o=dotcom",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i1.wp.com/a.slack-edge.com/df10d/img/avatars/ava_0019-48.png?ssl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i2.wp.com/a.slack-edge.com/df10d/img/avatars/ava_0022-48.png?ssl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i2.wp.com/a.slack-edge.com/df10d/img/avatars/ava_0022-48.png?ssl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/otBannerSdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/3bcd90cf-1e32-46d7-adbd-634f66b65b7d/018e3436-d897-70d3-81d4-d46ec788fa52/en.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/otFlat.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/v2/otPcCenter.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/otCommonStyles.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_guard_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-KH2LPK",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/ddb906c9-f57b-40fc-85a1-c8bcbc371b0d/1ce30484-b023-4ff1-a118-3a9dc53fce45/f83dd0bf-3d5c-47ca-b065-8f247adfeacd/rsz_slack_rgb.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/powered_by_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=DC-11463663&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-QTJQME5M5D&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://t.contentsquare.net/uxa/eaf9ce4ae4903.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tag.demandbase.com/n1qTRo0B.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.schemaapp.com/javascript/highlight.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b-code.liadm.com/a-01kd.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.pdst.fm/ping.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.mczbf.com/tags/639879746232/tag.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.redditstatic.com/ads/pixel.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&ae=g&en=page_view&dl=https%3A%2F%2Fapp.slack.com%2F&scrsrc=www.googletagmanager.com&rnd=742726708.1772998921&dt=Welcome%20back%20%7C%20Slack%2C%20Home&auid=1493897725.1772418847&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dYWJhMj&gtm=45He6341v6984921za200zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625640~117835692&apve=1&apvf=f&apvc=1&tft=1772998921080&tfd=769",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://data.schemaapp.com/Slack/aHR0cHM6Ly9hcHAuc2xhY2suY29tLw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.schemaapp.com/highlighter/prod/Slack/v2/aHR0cHM6Ly9hcHAuc2xhY2suY29t",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&en=page_view&dl=https%3A%2F%2Fapp.slack.com%2F&scrsrc=www.googletagmanager.com&rnd=742726708.1772998921&dt=Welcome%20back%20%7C%20Slack%2C%20Home&auid=1493897725.1772418847&navt=n&npa=0&gdid=dYWJhMj&gtm=45fe6341v9189969350z86984921za20gzb6984921zd6984921xec&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938468~116024733~117484252&apve=1&apvf=f&apvc=0&tids=DC-11463663&tid=DC-11463663&tft=1772998921092&tfd=782",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://s.company-target.com/s/sync?exc=lr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://id.rlcdn.com/464526.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.company-target.com/api/v3/ip.json?referrer=&page=https%3A%2F%2Fapp.slack.com%2F&page_title=Welcome%20back%20%7C%20Slack%2C%20Home",
+      "method": "POST",
+      "score": 12,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pixels.spotify.com/v1/config/5dd19887b3ec48d0acebfa7dd1c5c59b",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pixels.spotify.com/v1/ingest",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "blob:https://app.slack.com/68ed3a75-332b-4e3a-b394-e88e80fa836b",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://csxd.contentsquare.net/uxa/xdframe-single-domain-1.3.2.html?pid=5540",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.google.com/g/collect?v=2&tid=G-QTJQME5M5D&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921&_p=1772998921036&_gaz=1&gcs=G111&gcd=13r3r3r3r5l1&npa=0&dma=0&gdid=dYWJhMj&cid=2005815811.1772418847&ul=en-us&sr=1280x720&ir=1&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=EAAACGQ&_s=1&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&dp=%2F&dr=&sid=1772998518&sct=3&seg=1&dl=https%3A%2F%2Fapp.slack.com%2F&dt=Welcome%20back%20%7C%20Slack%2C%20Home&uid=U0AHSL1B21E&en=page_view&ep.is_logged_in=true&ep.sf_page_name=SLACK%3Aus%3Ahomepage&ep.friendly_site_name=Slack.com&ep.page_path_with_query=%2F&ep.site_name_abbreviation=SLACK&ep.locale=us&ep.gtm_tag=GA4%20-%20Pageview%20(G-QTJQME5M5D)&ep.debug_mode=false&up.client_id=2005815811.1772418847&up.visitor_type=customer&up.visitor_category=customer&up.visitor_id=21d9c51bbc8389ae2f7a8613a50c61b5&up.browser_size=1200x600&up.slack_user_id=U0AHSL1B21E&tfd=814",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/882446728/?random=1772998921137&cv=11&fst=1772998921137&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xec&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&_dbg=0&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config%3Bis_logged_in%3Dtrue%3Bsf_page_name%3DSLACK%3Aus%3Ahomepage%3Bfriendly_site_name%3DSlack.com%3Bpage_path_with_query%3D%2F%3Bsite_name_abbreviation%3DSLACK%3Blocale%3Dus%3Bpage_path%3D%2F%3Bgtm_tag%3DGA4%20-%20Pageview%20(G-QTJQME5M5D)&rfmt=3&fmt=4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/882447245/?random=1772998921141&cv=11&fst=1772998921141&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xec&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&_dbg=0&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config%3Bis_logged_in%3Dtrue%3Bsf_page_name%3DSLACK%3Aus%3Ahomepage%3Bfriendly_site_name%3DSlack.com%3Bpage_path_with_query%3D%2F%3Bsite_name_abbreviation%3DSLACK%3Blocale%3Dus%3Bpage_path%3D%2F%3Bgtm_tag%3DGA4%20-%20Pageview%20(G-QTJQME5M5D)&rfmt=3&fmt=4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&ae=g&en=user_id_update&dl=https%3A%2F%2Fapp.slack.com%2F&scrsrc=www.googletagmanager.com&rnd=742726708.1772998921&dt=Welcome%20back%20%7C%20Slack%2C%20Home&auid=1493897725.1772418847&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dYWJhMj&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&gtm=45He6341v6984921za200zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625640~117835692&apve=1&apvf=f&apvc=1&tft=1772998921152&tfd=841",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&en=page_view&dl=https%3A%2F%2Fapp.slack.com%2F&scrsrc=www.googletagmanager.com&rnd=742726708.1772998921&dt=Welcome%20back%20%7C%20Slack%2C%20Home&auid=1493897725.1772418847&navt=n&npa=0&ep.is_logged_in=1&ep.sf_page_name=SLACK%3Aus%3Ahomepage&ep.friendly_site_name=Slack.com&ep.page_path_with_query=%2F&ep.site_name_abbreviation=SLACK&ep.locale=us&ep.page_path=%2F&ep.gtm_tag=GA4%20-%20Pageview%20(G-QTJQME5M5D)&ep.debug_mode=0&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xec&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&apve=1&apvf=f&apvc=0&tids=AW-882446728~AW-882447245&tid=AW-882446728&tft=1772998921152&tfd=841",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://c.contentsquare.net/pageview?ex=&pvt=n&cvars=%7B%221%22%3A%5B%22Visitor%20ID%22%2C%22.21d9c51bbc8389ae2f7a8613a50c61b5%22%5D%2C%222%22%3A%5B%22Is%20Signed%20In%22%2C%22true%22%5D%2C%223%22%3A%5B%22URL%20Path%22%2C%22%2F%22%5D%2C%224%22%3A%5B%22Visitor%20Type%22%2C%22customer%22%5D%2C%225%22%3A%5B%22curr_plan%22%2C%22trial_std_30%22%5D%2C%226%22%3A%5B%22is_paid_plan%22%2C%22true%22%5D%7D&cvarp=%7B%221%22%3A%5B%22Visitor%20ID%22%2C%22.21d9c51bbc8389ae2f7a8613a50c61b5%22%5D%2C%222%22%3A%5B%22Is%20Signed%20In%22%2C%22true%22%5D%2C%223%22%3A%5B%22URL%20Path%22%2C%22%2F%22%5D%2C%224%22%3A%5B%22Visitor%20Type%22%2C%22customer%22%5D%2C%225%22%3A%5B%22curr_plan%22%2C%22trial_std_30%22%5D%2C%226%22%3A%5B%22is_paid_plan%22%2C%22true%22%5D%7D&la=en-US&uc=0&url=https%3A%2F%2Fapp.slack.com%2F&dr=&dw=1280&dh=2142&ww=1280&wh=720&sw=1280&sh=720&uu=efb6ddae-bec4-a65a-8325-6890e214987c&sn=3&hd=1772998921&v=15.193.7&pid=5540&pn=2&ct=0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://c.contentsquare.net/dvar?v=15.193.7&pid=5540&pn=2&sn=3&uu=efb6ddae-bec4-a65a-8325-6890e214987c&dv=H4sIAAAAAAAAA23PzQrCQAwE4Hfp2YuexJcZ0jStS9NNzcY%2FxHd3lYIVvIZvhsmjkduMVm0AXxytZD5O5GPKQ3No2HK4abP5qNkT1zs4qKBPqlWEC8UkORbD5xIgPmGQQAnykA69i4Btvq8DoCXS2TWrUVc71a5I233%2B64oSjwhPpAVhfUVE%2BJ347Sq792CbbPXG8wXBBaph7gAAAA%3D%3D&ct=2&r=190407",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.youtube.com/s/player/6c5cb4f4/www-widgetapi.vflset/www-widgetapi.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/embed/?showinfo=0&cc_load_policy=1&cc_lang_pref=en&rel=0&enablejsapi=1&origin=https%3A%2F%2Fapp.slack.com&widgetid=1&forigin=https%3A%2F%2Fapp.slack.com%2F&aoriginsup=1&vf=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel-config.reddit.com/pixels/a2_f6ww2u6sl1mg/config",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://alb.reddit.com/rp.gif?ts=1772998921178&id=a2_f6ww2u6sl1mg&event=PageVisit&m.itemCount=&m.value=&m.valueDecimal=&m.currency=&m.transactionId=&m.customEventName=&m.products=&m.conversionId=&uuid=84ff63c6-ba82-4a3e-aa82-24f9f1a6950d&aaid=&em=&pn=&external_id=&idfa=&integration=reddit&partner=&partner_version=&opt_out=0&sh=1280&sw=720&v=rdt_4c7f42cc&dpm=&dpcc=&dprc=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.mczbf.com/639879746232/pageInfo",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://rp.liadm.com/j?dtstmp=1772998921210&aid=a-01kd&se=e30&duid=e00b11ac9c9b--01kjp6amb2qf1wm9hk0edmy1zx&tv=v3.13.2&pu=https%3A%2F%2Fapp.slack.com%2F&ext__fbp=fb.1.1772418984012.827273738686977217&wpn=lc-bundle&wpv=v3.13.2&cd=.slack.com&pv=8eefd89d-65ff-471a-b41b-73a17b8a1af8",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tag-logger.demandbase.com/bg9s?x-amz-cf-id=DGWpdnv0Van9O07MiqvaEjkGGDR8GNTr98FZMegMu-0P8fh-63ViKA==&api-version=v3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/882447245/?random=1772998921141&cv=11&fst=1772996400000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xec&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&_dbg=0&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config%3Bis_logged_in%3Dtrue%3Bsf_page_name%3DSLACK%3Aus%3Ahomepage%3Bfriendly_site_name%3DSlack.com%3Bpage_path_with_query%3D%2F%3Bsite_name_abbreviation%3DSLACK%3Blocale%3Dus%3Bpage_path%3D%2F%3Bgtm_tag%3DGA4%20-%20Pageview%20(G-QTJQME5M5D)&rfmt=3&fmt=3&is_vtc=1&cid=CAQSjQEA56J1eQKzVG1sszgL4ffz08nn9nUhxRyrSmMQLrWyq-TVQpQTJLyy4yIotTqVN5juwSyDj2DVPFa3o2QyGjBmS3QWG6mxk3HFZbbrpj0WlHwjC1VcwFtZ-dzdkBk8my5Ekpm4w0iYozTJDVJ5nBaiJqpY3N0o3D5kldg_5exLnI0MMnDvwYDbdZM7RRw&random=1116520389&rmt_tld=0&ipr=y",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/882446728/?random=1772998921137&cv=11&fst=1772996400000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xec&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&_dbg=0&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config%3Bis_logged_in%3Dtrue%3Bsf_page_name%3DSLACK%3Aus%3Ahomepage%3Bfriendly_site_name%3DSlack.com%3Bpage_path_with_query%3D%2F%3Bsite_name_abbreviation%3DSLACK%3Blocale%3Dus%3Bpage_path%3D%2F%3Bgtm_tag%3DGA4%20-%20Pageview%20(G-QTJQME5M5D)&rfmt=3&fmt=3&is_vtc=1&cid=CAQSjQEA56J1edj3xjU9NpdKUvvvvI_VKElSX8y-yaUxMd91898idt97KGT9WIimsaNd0hkauwSv6UhR4YQZQmgF2AUZ2fZcqLmamHrnzC4ihlR3IE5zApFaVnkHSP1_AZTt_vwgjAbX6Hv6_Owiah3PoRD5fHuQ3Cw0HEfdXXYE0mpRCY6uUJGhWvT_KFCXTkc&random=4179717531&rmt_tld=0&ipr=y",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i.liadm.com/sync-container?duid=e00b11ac9c9b--01kjp6amb2qf1wm9hk0edmy1zx&appId=a-01kd&euns=0&s=ChYKBQgKEIwdCgUIDBCQHQoGCPUBEIwdEi8NdEMXzRIoCgYIkwEQih0KBgjFARCMHQoGCPQBEIodCgYIlAEQih0KBgj-ARCMHQ&version=v3.13.2&cd=.slack.com&pv=8eefd89d-65ff-471a-b41b-73a17b8a1af8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/s/player/6c5cb4f4/www-player.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/s/player/6c5cb4f4/player_es6.vflset/en_US/embed.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/s/embeds/688c2683/www-embed-player-es6.vflset/www-embed-player-es6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/s/player/6c5cb4f4/player_es6.vflset/en_US/base.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/s/player/6c5cb4f4/player_es6.vflset/en_US/remote.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.contentsquare.net/dvar?v=15.193.7&pid=5540&pn=2&sn=3&uu=efb6ddae-bec4-a65a-8325-6890e214987c&dv=H4sIAAAAAAAAA22R20rDQBCGX2UJvVRp2nqgd2lrIWBEGsXLskmmYXB3tuyhEMR3dxLUbW1zOd%2BXmX9mP5NsUWxXi21W1%2BCceO32kMwTbIA87hCaLRnaVsEhMU6u%2FnSiIJUopQKXzB8mY%2F4iDA0C1X2jslgkZ3VRQqt5APPFT2cu2QNyhGgv0Xd9B0libSXV6GpzRI3eS%2BrEs9T9nDfCA1jHkTLrRU71sRnI22PTQyNKL%2F3xtEe9V6YDEIOezCfnZCOpHXbSUqn459pYHwhEyidgupPKwQmtwInJRZhTExxnY7I0dm8sZ7pwiZx2xmrp0ZB4ggMo9lfgJSpoolVI%2BwEeqRWZQun%2BHyWKLxa17A%2BS5cuStdtZOpuOz3mZL5neT6d3kW14PIV4i1EqrsUoLaJRhkqc7KU12Bo5xAoctnRhv%2BEtejeLtXeoHA7V8LuFbPGmNjr5%2BgYw%2BiJutQIAAA%3D%3D&ct=2&r=674532",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=710914&_=4&it=4&iv=e8a9c7eb12e37d6dce98b3e4f3fe9868&it=4&iv=9983ffd92f65220986b1cc8418e06c7b72ad121a&it=4&iv=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=710914&_=6&it=4&iv=e8a9c7eb12e37d6dce98b3e4f3fe9868&it=4&iv=9983ffd92f65220986b1cc8418e06c7b72ad121a&it=4&iv=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://io.narrative.io/?companyID=82&company_id=LIID&md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&red=https://px.ads.linkedin.com/db_sync?pid%3D16261%26puuid%3D16223%26rand%3D1772998921",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=710914&_=3&it=4&iv=e8a9c7eb12e37d6dce98b3e4f3fe9868&it=4&iv=9983ffd92f65220986b1cc8418e06c7b72ad121a&it=4&iv=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=710914&_=2&it=4&iv=e8a9c7eb12e37d6dce98b3e4f3fe9868&it=4&iv=9983ffd92f65220986b1cc8418e06c7b72ad121a&it=4&iv=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://live.rezync.com/sync?c=0aa2530f29e4f4a05b5d5d9bb35d60c2&p=93c1662463a616a7155169889dd99651&pid=02ec4296-5324-444f-855b-5ed088d30510",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.bidswitch.net/syncd?dsp_id=256&user_group=2&user_id=02ec4296-5324-444f-855b-5ed088d30510&redir=//i.liadm.com/s/52176?bidder_id%3D5298%26bidder_uuid%3D$%7BBSW_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/db_sync?pid=16261&puuid=16223&rand=1772998921",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p.rfihub.com/cm?pub=39342&in=1&userid=33289985-50b4-461d-8edd-c9cd33bd704c%3A1772418924.6419883&forward=https%3A//i.liadm.com/s/56409%3Fbidder_id%3D200442%26bidder_uuid%3D33289985-50b4-461d-8edd-c9cd33bd704c%253A1772418924.6419883%26pid%3D500040%26it%3D1%26iv%3D33289985-50b4-461d-8edd-c9cd33bd704c%253A1772418924.6419883%26_%3D1772998921.9526324%26gpp_s%3D%26gpp_as%3D%26gdpr%3D%26gdpr_consent%3D&cb=1772998921.9526563",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i.liadm.com/s/52176?bidder_id=5298&bidder_uuid=81b5c729-0ad8-439d-a651-2611a4ae39d6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://aa.agkn.com/adscores/s.pixel?sid=9102279158&lsid=17777&em=e8a9c7eb12e37d6dce98b3e4f3fe9868&lsid=17777&em=c4c49465ab50851bcc2211e234dc707c0d3a879c",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://login.dotomi.com/ucm/UCMController?dtm_com=29&dtm_fid=103&dtm_cid=3167&dtm_cmagic=20c86a&dtm_format=6&cli_promo_id=110&dtmc_pub_id=17777&dtm_email_hash=48a58ac0c5c7732b4feb2f89fd34f9f8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://tr.snapchat.com/cs/r?u_hem=59199e7cd1a5319b69879c13a1b54af5a9758eb67854ece1ec0b0d890c38973e&u_hems=%5B%7B%22u_hem%22%3A%2259199e7cd1a5319b69879c13a1b54af5a9758eb67854ece1ec0b0d890c38973e%22%2C%22pub_id%22%3A%2217777%22%7D%2C%7B%22u_hem%22%3A%22ef83d825d8482c9624183598139269a8f0428dee650e16e51cb2ca236e18c476%22%2C%22pub_id%22%3A%2217777%22%7D%2C%7B%22u_hem%22%3A%227a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151%22%2C%22pub_id%22%3A%2217777%22%7D%2C%7B%22u_hem%22%3A%22d7ae5205baea948c60b20395f17b7f2fb53e66a72fa47398bd2f6d93815e39d7%22%2C%22pub_id%22%3A%2217777%22%7D%5D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://a.tribalfusion.com/i.pxd?md5=e8a9c7eb12e37d6dce98b3e4f3fe9868",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/js/th/ISX_o8hhYuqezwXR4-hs_D79k3oI52phsjPOML8khbE.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://live.rezync.com/pixel?c=bd8618c307ae9885a12561b7191e2cea&cid=1973209994216574444&referrer={encSite}&forward=https%3A%2F%2Fi.liadm.com%2Fs%2F56409%3Fbidder_id%3D200442%26bidder_uuid%3D33289985-50b4-461d-8edd-c9cd33bd704c%253A1772418924.6419883%26pid%3D500040%26it%3D1%26iv%3D33289985-50b4-461d-8edd-c9cd33bd704c%253A1772418924.6419883%26_%3D1772998921.9526324%26gpp_s%3D%26gpp_as%3D%26gdpr%3D%26gdpr_consent%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/generate_204?Rh3RTA",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=710914&_=5&it=4&iv=e8a9c7eb12e37d6dce98b3e4f3fe9868&it=4&iv=9983ffd92f65220986b1cc8418e06c7b72ad121a&it=4&iv=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://i.liadm.com/s/56409?bidder_id=200442&bidder_uuid=33289985-50b4-461d-8edd-c9cd33bd704c%3A1772418924.6419883&pid=500040&it=1&iv=33289985-50b4-461d-8edd-c9cd33bd704c%3A1772418924.6419883&_=1772998921.9526324&gpp_s=&gpp_as=&gdpr=&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ei.rlcdn.com/448046.gif?n=1&partner_site_id=17777&cparams=placement%3D710914&m=e8a9c7eb12e37d6dce98b3e4f3fe9868&s=9983ffd92f65220986b1cc8418e06c7b72ad121a&s256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pippio.com/api/sync?it=1&pid=500040&_=1772998921.9526324&iv=33289985-50b4-461d-8edd-c9cd33bd704c:1772418924.6419883",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.contentsquare.net/v2/events?uu=efb6ddae-bec4-a65a-8325-6890e214987c&sn=3&hd=1772998921&v=15.193.7&pid=5540&pn=2&sr=34&mdh=2142&ct=0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "slack://T0AGUUWKV0D/magic-login/10668542333441-ab6d623aa04e12197e72718aeabb23ee8ebb262f7b42365b78d33edb45d1b020",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/youtubei/v1/log_event?alt=json",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://slack.com/clog/track/?logs=%5B%7B%22tstamp%22%3A1772998921084%2C%22event%22%3A%22WEBSITE_SCROLL%22%2C%22args%22%3A%7B%22trigger%22%3A%2225%22%2C%22contexts%22%3A%7B%22ui_context%22%3A%7B%22action%22%3A%22scroll%22%2C%22step%22%3A%22page_home%22%7D%7D%2C%22page_url%22%3A%22https%3A%2F%2Fapp.slack.com%2F%22%7D%2C%22team_id%22%3A%22T0AGUUWKV0D%22%2C%22user_id%22%3A%22U0AHSL1B21E%22%2C%22i18n_locale%22%3A%22en-US%22%7D%5D&o=dotcom",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=epsilon&google_cm",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/362358.gif?google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/youtubei/v1/log_event?alt=json",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://analytics.google.com/g/collect?v=2&tid=G-QTJQME5M5D&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921&_p=1772998921036&gcs=G111&gcd=13r3r3r3r5l1&npa=0&dma=0&gdid=dYWJhMj&cid=2005815811.1772418847&ul=en-us&sr=1280x720&ir=1&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=EAAAAGQ&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&dp=%2F&dr=&sid=1772998518&sct=3&seg=1&dl=https%3A%2F%2Fapp.slack.com%2F&dt=Welcome%20back%20%7C%20Slack%2C%20Home&uid=U0AHSL1B21E&_s=2&tfd=5835",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/destination?id=DC-12632256&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://snap.licdn.com/li.lms-analytics/insight.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=7324&time=1772998951089&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=7324&time=1772998951089&li_adsId=e6dc2645-0538-4392-a311-ddc4e3c5f4b9&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=7324&time=1772998951090&url=https%3A%2F%2Fapp.slack.com%2F&conversionId=19331817",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=7324&time=1772998951091&url=https%3A%2F%2Fapp.slack.com%2F&conversionId=18092404",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=7324&time=1772998951090&li_adsId=e6dc2645-0538-4392-a311-ddc4e3c5f4b9&conversionId=19331817&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=7324&time=1772998951091&li_adsId=e6dc2645-0538-4392-a311-ddc4e3c5f4b9&conversionId=18092404&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;src=12632256;type=prosp;cat=30son0;ord=3020770696234;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_Ck_rxqIfPhNozwQIxc16U3SXLXDM52iZaA;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "POST",
+      "score": -5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;src=12632256;type=prosp;cat=30son0;ord=3020770696234;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_Ck_rxqIfPhNozwQIxc16U3SXLXDM52iZaA;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;src=12632256;type=cm-en0;cat=engag0;ord=21d9c51bbc8389ae2f7a8613a50c61b5.1772998516;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KAAB;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_LZHD_RiA-5VG4AUOgVYdkdhH_D8uh73AXQ;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "POST",
+      "score": -5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;src=12632256;type=cm-en0;cat=engag0;ord=21d9c51bbc8389ae2f7a8613a50c61b5.1772998516;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KAAB;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_LZHD_RiA-5VG4AUOgVYdkdhH_D8uh73AXQ;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dc.ads.linkedin.com/collect/?fmt=gif&url=slack.com/trialplantype&pid=7324",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;src=12632256;type=sfrefer;cat=sales0;ord=7818244491613;npa=0;auiddc=1493897725.1772418847;u3=customer;u4=.21d9c51bbc8389ae2f7a8613a50c61b5;u5=U0AHSL1B21E;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_sI2Mo9kvO1wrbiG1bwl9K57SqvjvmWoALw;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "POST",
+      "score": -5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;src=12632256;type=sfrefer;cat=sales0;ord=7818244491613;npa=0;auiddc=1493897725.1772418847;u3=customer;u4=.21d9c51bbc8389ae2f7a8613a50c61b5;u5=U0AHSL1B21E;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_sI2Mo9kvO1wrbiG1bwl9K57SqvjvmWoALw;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/wa/?medium=fetch&fmt=g",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;dc_pre=CJLkueWHkZMDFc4b7wIdsZgZzA;src=12632256;type=cm-en0;cat=engag0;ord=21d9c51bbc8389ae2f7a8613a50c61b5.1772998516;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KAAB;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_LZHD_RiA-5VG4AUOgVYdkdhH_D8uh73AXQ;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;dc_pre=CP3uueWHkZMDFac5RAgdcxQACA;src=12632256;type=sfrefer;cat=sales0;ord=7818244491613;npa=0;auiddc=1493897725.1772418847;u3=customer;u4=.21d9c51bbc8389ae2f7a8613a50c61b5;u5=U0AHSL1B21E;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_sI2Mo9kvO1wrbiG1bwl9K57SqvjvmWoALw;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://12632256.fls.doubleclick.net/activityi;dc_pre=CKrnueWHkZMDFdk8RAgdawMKfg;src=12632256;type=prosp;cat=30son0;ord=3020770696234;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_Ck_rxqIfPhNozwQIxc16U3SXLXDM52iZaA;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;dc_pre=CIqGt-WHkZMDFSbIwgQdNnAoHA;src=12632256;type=prosp;cat=30son0;ord=3020770696234;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_Ck_rxqIfPhNozwQIxc16U3SXLXDM52iZaA;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;dc_pre=CMuUt-WHkZMDFeoerQYdtxYhzg;src=12632256;type=cm-en0;cat=engag0;ord=21d9c51bbc8389ae2f7a8613a50c61b5.1772998516;npa=0;auiddc=1493897725.1772418847;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KAAB;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_LZHD_RiA-5VG4AUOgVYdkdhH_D8uh73AXQ;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ad.doubleclick.net/activity;dc_pre=CKOIt-WHkZMDFTsVrQYdp-kYjA;src=12632256;type=sfrefer;cat=sales0;ord=7818244491613;npa=0;auiddc=1493897725.1772418847;u3=customer;u4=.21d9c51bbc8389ae2f7a8613a50c61b5;u5=U0AHSL1B21E;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=3;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.1;dc_random=1772998951_sI2Mo9kvO1wrbiG1bwl9K57SqvjvmWoALw;~oref=https%3A%2F%2Fapp.slack.com%2F?",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://adservice.google.com/ddm/fls/z/dc_pre=CKrnueWHkZMDFdk8RAgdawMKfg;src=12632256;type=prosp;cat=30son0;ord=3020770696234;npa=0;auiddc=*;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.*;dc_random=1772998951_Ck_rxqIfPhNozwQIxc16U3SXLXDM52iZaA;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://adservice.google.com/ddm/fls/z/dc_pre=CJLkueWHkZMDFc4b7wIdsZgZzA;src=12632256;type=cm-en0;cat=engag0;ord=21d9c51bbc8389ae2f7a8613a50c61b5.1772998516;npa=0;auiddc=*;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KAAB;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.*;dc_random=1772998951_LZHD_RiA-5VG4AUOgVYdkdhH_D8uh73AXQ;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://adservice.google.com/ddm/fls/z/dc_pre=CP3uueWHkZMDFac5RAgdcxQACA;src=12632256;type=sfrefer;cat=sales0;ord=7818244491613;npa=0;auiddc=*;u3=customer;u4=.21d9c51bbc8389ae2f7a8613a50c61b5;u5=U0AHSL1B21E;gdid=dYWJhMj;uaa=x86;uab=64;uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6;uamb=0;uam=;uap=macOS;uapv=10_15_7;uaw=0;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6341v9190096797z86984921za20gzb6984921zd6984921xea;gcs=G111;gcd=13r3r3r3r5l1;dma=0;dc_fmt=2;tag_exp=103116026~103200004~115938465~115938468~116024733~117484252~117625639;epver=2;em=tv.*;dc_random=1772998951_sI2Mo9kvO1wrbiG1bwl9K57SqvjvmWoALw;_dc_test=1;~oref=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/destination?id=AW-10889703926&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://connect.facebook.net/en_US/fbevents.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googleadservices.com/pagead/conversion/882446728/?random=1772998981090&cv=11&fst=1772998981090&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=O0ukCJTzxIkDEIij5KQD&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&bttype=purchase&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&ec_mode=a&_tu=KA&gcl_ctr=5~0~0&category=acrcp_v1_512&em=tv.1&fmt=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=7324&time=1772998981098&url=https%3A%2F%2Fapp.slack.com%2F&conversionId=20161065",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=7324&time=1772998981098&url=https%3A%2F%2Fapp.slack.com%2F&conversionId=18092388",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=7324&time=1772998981098&li_adsId=e6dc2645-0538-4392-a311-ddc4e3c5f4b9&conversionId=20161065&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=7324&time=1772998981098&li_adsId=e6dc2645-0538-4392-a311-ddc4e3c5f4b9&conversionId=18092388&url=https%3A%2F%2Fapp.slack.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://connect.facebook.net/signals/config/406609519531182?v=2.9.277&r=stable&domain=app.slack.com&hme=b0ad3da822578fe2b808f13c29c26424c1eec6df21f897230a1f8d7975c03c8e&ex_m=101%2C194%2C143%2C22%2C69%2C70%2C136%2C65%2C64%2C11%2C151%2C87%2C16%2C130%2C123%2C72%2C75%2C129%2C148%2C153%2C8%2C4%2C5%2C7%2C6%2C3%2C88%2C98%2C154%2C159%2C208%2C59%2C175%2C176%2C52%2C262%2C30%2C71%2C220%2C219%2C218%2C23%2C32%2C100%2C58%2C10%2C60%2C94%2C95%2C96%2C102%2C126%2C31%2C29%2C128%2C125%2C124%2C144%2C73%2C147%2C145%2C146%2C47%2C57%2C119%2C15%2C150%2C42%2C249%2C250%2C248%2C26%2C27%2C28%2C45%2C137%2C74%2C109%2C18%2C20%2C41%2C37%2C39%2C38%2C80%2C89%2C93%2C107%2C135%2C138%2C43%2C108%2C24%2C21%2C115%2C66%2C35%2C140%2C139%2C141%2C132%2C131%2C25%2C34%2C56%2C106%2C149%2C67%2C17%2C142%2C111%2C78%2C63%2C19%2C82%2C83%2C112%2C81%2C33%2C277%2C201%2C190%2C191%2C189%2C280%2C272%2C49%2C202%2C104%2C127%2C77%2C117%2C51%2C44%2C46%2C110%2C116%2C122%2C55%2C61%2C50%2C53%2C97%2C152%2C1%2C120%2C14%2C118%2C12%2C2%2C54%2C90%2C62%2C114%2C86%2C85%2C155%2C156%2C91%2C92%2C9%2C121%2C99%2C48%2C133%2C84%2C76%2C68%2C113%2C103%2C40%2C134%2C0%2C79%2C36%2C105%2C13%2C157",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.googleadservices.com/pagead/conversion/10889703926/?random=1772998981135&cv=11&fst=1772998981135&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9105616306z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115616985~115938465~115938469~116024733~117484252&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=fNRSCLmDpNEZEPbjzsgo&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&bttype=purchase&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=KA&gcl_ctr=6~0~0&category=acrcp_v1_512&fmt=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.facebook.com/tr/?id=406609519531182&ev=OnePlusMinOnSite&dl=https%3A%2F%2Fapp.slack.com%2F&rl=&if=false&ts=1772998981160&sw=1280&sh=720&v=2.9.277&r=stable&ec=0&o=12318&fbp=fb.1.1772418984012.827273738686977217&ler=empty&pmd[locale]=en-US&pmd[description]=Slack%20is%20a%20new%20way%20to%20communicate%20with%20your%20team.%20It%E2%80%99s%20faster%2C%20better%20organized%2C%20and%20more%20secure%20than%20email.&plt=667.2999999970198&it=1772998981121&coo=false&expv2[0]=pl0&expv2[1]=el2&expv2[2]=bc1&expv2[3]=ra2&expv2[4]=rp2&expv2[5]=ct2&expv2[6]=hf0&rqm=GET",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10889703926/?random=246212512&cv=11&fst=1772998981135&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9105616306z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115616985~115938465~115938469~116024733~117484252&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=fNRSCLmDpNEZEPbjzsgo&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=KA&gcl_ctr=6~0~0&category=acrcp_v1_512&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQJKB3RyaWdnZXJaAwoBAWIDCgED&cerd=CgEA&eitems=ChAIgNm0zQYQzryI9fmZgKkVEh0AB_N9WOxUawbtcUXd1D_Kyr8zoKrmJr-UlV9qYw&fsk=ChAIgNm0zQYQs4q5q-GxucsBEiwA6hYbV-ASEl9el0Tu8m1lG-kdbxw826P0hkyjZ6ee97M8iODkq1NNQJDDgBoCaZ0&pscrd=IhMIqs_c84eRkwMV78r9BR0dci0XMgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhZodHRwczovL2FwcC5zbGFjay5jb20vQldDaEVJZ05tMHpRWVF2OHJqMXRxOGxOR1pBUklzQU1OUnk3Zk1hLWFwMFJBb3lmWWxWZ3ItMDFYWEZPSjk1OEVRX2x5YVJEbkZ4RTNrMlFzS1dZVzlQNmN6DAgJYggIABAAGAAgAA",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/882446728/?random=2021156198&cv=11&fst=1772998981090&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=O0ukCJTzxIkDEIij5KQD&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&ec_mode=a&_tu=KA&gcl_ctr=5~0~0&category=acrcp_v1_512&em=tv.1&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQIIgt6xAkoHdHJpZ2dlcloDCgEBYgMKAQM&cerd=CgSI3b0t&eitems=ChAIgNm0zQYQzryI9fmZgKkVEh0AB_N9WEcji65OQjGlblCVO35WdUfzUS6esZPI-g&fsk=ChAIgNm0zQYQs4q5q-GxucsBEiwA6hYbV5nmELNZr1sz7Nc2C3UplODLaQ_RUmmY8LnnY7VYt3ajcFrSpf75TBoC7ic&pscrd=IhMIqMnc84eRkwMV98X9BR3FWxODMgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhZodHRwczovL2FwcC5zbGFjay5jb20vQldDaEVJZ05tMHpRWVF2OHJqMXRxOGxOR1pBUklzQU1OUnk3ZmgwV254SXRGeHB3d3FkUGNSNjNaSjlrWS10eUVBX3N4V1ZtMnI4YVZnNzBHMXlWZ2Y5Nmt6DAgJYggIABAAGAAgAA",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-conversion/10889703926/?random=246212512&cv=11&fst=1772998981135&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9105616306z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115616985~115938465~115938469~116024733~117484252&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=fNRSCLmDpNEZEPbjzsgo&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=KA&gcl_ctr=6~0~0&category=acrcp_v1_512&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQJKB3RyaWdnZXJaAwoBAWIDCgED&cerd=CgEA&fsk=ChAIgNm0zQYQs4q5q-GxucsBEiwA6hYbV-ASEl9el0Tu8m1lG-kdbxw826P0hkyjZ6ee97M8iODkq1NNQJDDgBoCaZ0&pscrd=IhMIqs_c84eRkwMV78r9BR0dci0XMgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhZodHRwczovL2FwcC5zbGFjay5jb20vQldDaEVJZ05tMHpRWVF2OHJqMXRxOGxOR1pBUklzQU1OUnk3Zk1hLWFwMFJBb3lmWWxWZ3ItMDFYWEZPSjk1OEVRX2x5YVJEbkZ4RTNrMlFzS1dZVzlQNmN6DAgJYggIABAAGAAgAA&is_vtc=1&cid=CAQSjQEA56J1ef7ppG5Nf8VClF7s6ysVWix-wFrMddY-PaIC1Y2nzn3RLgzdJVf7tiouppdoYpA-YdgBy2nL11Vxi7MWDIJgPeInFJw1R1bUdKvrzSEa8Vx9iRamCssvZ7r9yVvKq8B6sMfhgSffUrqHKSy7b7P_nTJinLk3_WRh1D-RQcv2OFPFbkmm7bztEC8&eitems=ChAIgNm0zQYQzryI9fmZgKkVEh0AB_N9WJshd_B6ILIXnF8xIeyNDWvK0KTcb9hzsw&random=3835093378",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-conversion/882446728/?random=2021156198&cv=11&fst=1772998981090&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45je6341v875916407z86984921za20gzb6984921zd6984921xea&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625639&u_w=1280&u_h=720&url=https%3A%2F%2Fapp.slack.com%2F&label=O0ukCJTzxIkDEIij5KQD&capi=1&frm=0&tiba=Welcome%20back%20%7C%20Slack%2C%20Home&ga_uid=G-QTJQME5M5D.U0AHSL1B21E&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1493897725.1772418847&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&ec_mode=a&_tu=KA&gcl_ctr=5~0~0&category=acrcp_v1_512&em=tv.1&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQIIgt6xAkoHdHJpZ2dlcloDCgEBYgMKAQM&cerd=CgSI3b0t&fsk=ChAIgNm0zQYQs4q5q-GxucsBEiwA6hYbV5nmELNZr1sz7Nc2C3UplODLaQ_RUmmY8LnnY7VYt3ajcFrSpf75TBoC7ic&pscrd=IhMIqMnc84eRkwMV98X9BR3FWxODMgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhZodHRwczovL2FwcC5zbGFjay5jb20vQldDaEVJZ05tMHpRWVF2OHJqMXRxOGxOR1pBUklzQU1OUnk3ZmgwV254SXRGeHB3d3FkUGNSNjNaSjlrWS10eUVBX3N4V1ZtMnI4YVZnNzBHMXlWZ2Y5Nmt6DAgJYggIABAAGAAgAA&is_vtc=1&cid=CAQSjQEA56J1eRxCoQunhZ-Udvimt_Era9XWZQUPGKXj5_IawRgw9FVkXnUVUZq6LFQP1ZnRFHjkHnvHb2jhaE64ikacUf44cVn7fn85smBKhRBaRO9kp3u-oMKYFEMenLNnzCM-Ms9f8DJlL-pZobiOdbujV-JS8t09O54O9Qn3haqiM49LWraL_YAMUFL5gro&eitems=ChAIgNm0zQYQzryI9fmZgKkVEh0AB_N9WBUE-tHCpwD-MOZhq-zIow7rWe82GYypIA&random=371026340",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.youtube-nocookie.com/youtubei/v1/log_event?alt=json",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    }
+  ],
+  "accepted_endpoints": []
+}

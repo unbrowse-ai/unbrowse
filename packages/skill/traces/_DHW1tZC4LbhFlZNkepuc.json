@@ -1,0 +1,204 @@
+{
+  "trace_id": "_DHW1tZC4LbhFlZNkepuc",
+  "skill_id": "_v1SLIUiPDyNrAQBY90d9",
+  "endpoint_id": "ydUqjstMvUe-LPHjXOVzP",
+  "started_at": "2026-03-08T21:11:40.530Z",
+  "completed_at": "2026-03-08T21:11:41.380Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "request": {
+      "params": {
+        "account_id": "18ce55s5sqj"
+      }
+    },
+    "data": {
+      "account": {
+        "name": "lewis",
+        "business_settings_creation_time": null,
+        "businesses": [],
+        "features": [
+          "MIXED_MEDIA_SINGLE_DEST_APP_CAROUSEL",
+          "BRAND_SAFETY_CONTROL_HANDLES",
+          "UNIFIED_CARDS_WEBSITE_CAROUSEL_CREATION",
+          "ENABLE_APO_MAX_BID_STRATEGY",
+          "UNIVERSAL_WEBSITE_TAG",
+          "KEY_CONVERSIONS_METRIC",
+          "RESTRICTED_DATA_USE_LAUNCH",
+          "DYNAMIC_PRODUCT_ADS_CAMPAIGN_URL_PARAMETERS",
+          "LANGUAGE_TARGETING",
+          "SUPPORT_LEVEL_2_JP",
+          "DYNAMIC_PRODUCT_ADS",
+          "UNIVERSAL_WEBSITE_TAG_CREATE_ALLOWED",
+          "RADIUS_TARGETING",
+          "MULTI_DESTINATION_WEBSITE_CAROUSEL",
+          "LINE_ITEM_FREQUENCY_CAP",
+          "WEBSITE_CLICKS_CPM_BILLING",
+          "ONE_CLICK_AD_APPEAL",
+          "SKIP_VALIDATE_SAME_OS_TYPE_DEVICE_MODEL",
+          "NAI_ADS_MANAGER_REBUILD",
+          "UNIFIED_CARDS_APP_CAROUSEL_CREATION",
+          "DCM_CLICK_TRACKER",
+          "MACT_ACROSS_ALL_OBJECTIVES",
+          "SIMPLIFIED_ADS_MANAGER",
+          "DO_NOT_REACH_LISTS",
+          "LIFETIME_VALUE",
+          "REPLIES_INCLUDED_IN_ALL_ON_TWITTER_UI_WEBSITE_CLICKS",
+          "COMBINED_TAILORED_AUDIENCE",
+          "DYNAMIC_PRODUCT_ADS_ENABLE_WEB",
+          "ENFORCE_SKID_LIMIT",
+          "ADS_CAMPAIGN_POWER_TOOLS",
+          "DYNAMIC_PRODUCT_ADS_CAMPAIGN_CREATION",
+          "DEPRECATE_SUPER_COMPOSE_CARD_MANAGER",
+          "WEBSITE_BID_ON_CONVERSION_BILL_ON_CPM",
+          "HASHTAG_AND_BUTTON_CLICK_METRICS",
+          "CREDIT_CARD_PAYMENTS",
+          "TV_ENGAGEMENT_ANALYTICS",
+          "WEBSITE_CONVERSIONS_CPM_BILLING",
+          "IMMERSIVE_VIDEO_ADS",
+          "UNIFIED_ADS_TAB",
+          "ADS_AI_FEATURES",
+          "LEGACY_CARD_EDITING",
+          "AUTOMATED_TARGETING_SMB_REACH",
+          "APP_INSTALLS_SKAN_INFO",
+          "PRODUCT_COLLECTION_WEBSITE",
+          "ACCOUNT_HOME",
+          "WEB_CONVERSION_TRACKING_REBUILD",
+          "LEGACY_VIDEO_UPLOADS",
+          "CITY_TARGETING_API",
+          "UI_ONLY_CONVERSIONS_OBJECTIVE_GA",
+          "CAMPAIGN_TARGETING_STRATEGY",
+          "KEYWORD_TARGETING",
+          "REACH_FREQUENCY_ANALYTICS",
+          "ONE_BUTTON_EXPORT",
+          "TWEET_CONVERSATION_REACH_CAMPAIGN_UI",
+          "CATALOG_AUDIENCES",
+          "NAI_ADS_MANAGER_ENABLE_CONVERSIONS_API",
+          "TAILORED_AUDIENCE_WEB_DIRECT",
+          "OPT_OUT_OF_MAP_DR_TAP_CAMPAIGNS",
+          "ACCESS_TO_SIMPLE_ADS",
+          "TBS_ONBOARDING_ENABLED",
+          "AB_TEST_SIMPLIFIED_UI",
+          "TWEET_PRODUCT_CATEGORY",
+          "SUBJECT_TO_GEO_WHITELIST",
+          "CONVERSATIONAL_CARD_GA",
+          "NATIVE_AD_PREVIEWS",
+          "ADS_TWITTER_DM_SUPPORT",
+          "QUICK_PROMOTE_AUDIENCE_ESTIMATE",
+          "AUDIENCE_MANAGER",
+          "SCF_TARGETING_SET_IMPORT",
+          "MAP_V2_OBJECTIVE",
+          "CREATIVE_NAME",
+          "ACCESS_TO_SIMPLE_ADS_NEXT_RELEASE",
+          "MIXED_MEDIA_MULTI_DEST_WEBSITE_CAROUSEL",
+          "SELFSERVE_AB_TESTING",
+          "SKAN_COUNT_CAMPAIGN_FORM",
+          "PREROLL_PLACEMENTS",
+          "ACCOUNT_SETTINGS_EMAIL_VERIFICATION",
+          "CONTEXTUAL_TARGETING",
+          "SIMPLE_ADS_KEYWORDS_TRAFFIC_OBJECTIVE",
+          "CAN_PROMOTE_SCHEDULED_TWEETS_WITH_OBJECTIVE",
+          "ACCESS_TO_SIMPLE_ADS_DENYLIST",
+          "CUSTOM_AUDIENCE_TARGETING",
+          "NEW_CAMPAIGN_WRITES",
+          "UNIVERSAL_LOOKALIKE",
+          "TWEET_CONVERSATION_WEBSITE_CLICKS_CAMPAIGN_UI",
+          "AUTOMATED_TARGETING",
+          "DPA_PRODUCT_REPORTING",
+          "AUDIENCE_SUMMARY_OBFUSCATION_ENABLED",
+          "WEBSITE_BID_ON_LOWER_FUNNEL_CONVERSION_BILL_ON_CPM",
+          "TAP_VIDEO_WEB_SITE_CARDS_9_16_ENABLED",
+          "WEBSITE_AGGREGATE_ATTRIBUTION_REPORTING",
+          "TAILORED_AUDIENCE_MOBILE",
+          "BRAND_SAFETY_CONTROL",
+          "PAC_IN_TIMELINE",
+          "MEDIA_CREATIVE_REQUIRE_DESTINATION_URL",
+          "MIXED_MEDIA_SINGLE_DEST_WEBSITE_CAROUSEL",
+          "CREATIVE_EDITING",
+          "CITY_TARGETING",
+          "EYEGLASS_OR_ADSGLOBAL_GATED_ADSPY",
+          "ACCOUNT_SELECTOR",
+          "QUICK_PROMOTE_V2",
+          "MAP_CONVERSION_TRACKING_REBUILD",
+          "VIDEO_WEBSITE_CARD",
+          "APP_INSTALLS_PURCHASE_OPTIMIZATION",
+          "REPLIES_INCLUDED_IN_ALL_ON_TWITTER_UI_REACH",
+          "TBS_ACCOUNT_CLAIM_OVERRIDE",
+          "AB_TEST_REPORTING_UI",
+          "NAI_ADS_MANAGER_ENABLE_PEP",
+          "NEW_TAKEOVER_LINE_ITEM_OBJECTIVE",
+          "IN_CAMPAIGN_AD_CREATION",
+          "ENABLE_TARGET_COST_FOR_SITE_VISIT_GA"
+        ],
+        "timezone": "America/Los_Angeles",
+        "timezone_switch_at": "2025-04-12T07:00:00Z",
+        "payment_methods": false,
+        "country_code": "SG",
+        "service_level": "ANALYTICS",
+        "id": "18ce55s5sqj",
+        "promoted_trends_access": false,
+        "approval_status": "VERIFIED"
+      },
+      "target_user": {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/2012355341640736768/awTYCNJn_reasonably_small.jpg",
+        "username": "lekt8_",
+        "employee": false,
+        "permissions": [
+          {
+            "permission": "ACCOUNT_SETTINGS",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "ACCOUNT_USER",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "ANALYTICS",
+            "permission_level": "READ_ONLY"
+          },
+          {
+            "permission": "AUDIENCES",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "BILLING",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "CAMPAIGN",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "CARDS",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "MEASUREMENT_API_PARTNER_ACCESS",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "PROMOTABLE_USER",
+            "permission_level": "READ_WRITE"
+          },
+          {
+            "permission": "TWEET_DRAFTS",
+            "permission_level": "READ_WRITE"
+          }
+        ],
+        "id": "1835873095460225025",
+        "multiple_accounts": false,
+        "subscription_account": false,
+        "promotable_user_type": "FULL"
+      },
+      "viewing_user": {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/2012355341640736768/awTYCNJn_reasonably_small.jpg",
+        "username": "lekt8_",
+        "write_support_mode": false,
+        "id": "1835873095460225025",
+        "read_support_mode": false,
+        "recommend_support_mode": false
+      }
+    }
+  }
+}

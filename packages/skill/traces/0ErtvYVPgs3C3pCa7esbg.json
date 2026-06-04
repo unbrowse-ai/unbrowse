@@ -1,0 +1,11 @@
+{
+  "trace_id": "0ErtvYVPgs3C3pCa7esbg",
+  "skill_id": "4xAYUYAHf8pZIM8SNYvFh",
+  "endpoint_id": "BphMnsQjTw2AsgAN7N2rT",
+  "started_at": "2026-03-08T21:20:43.635Z",
+  "completed_at": "2026-03-08T21:20:59.352Z",
+  "success": false,
+  "status_code": 0,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "error": "HTTP 0"
+}

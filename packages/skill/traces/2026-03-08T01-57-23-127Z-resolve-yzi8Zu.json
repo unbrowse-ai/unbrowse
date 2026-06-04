@@ -1,0 +1,45 @@
+{
+  "intent": "get project details",
+  "params": {
+    "url": "https://www.gitlab.com"
+  },
+  "context": {
+    "url": "https://www.gitlab.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+      "score": 256.6,
+      "description": "Captured page artifact for search projects",
+      "url": "https://www.gitlab.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "gYvmRVmWBsQXN1QS4CRCw",
+      "score": 160.6,
+      "description": "Returns details for En U with aria, blog, forms, oneTrustWarning, langSelector, accordions",
+      "url": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+      "score": 291.6,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "gYvmRVmWBsQXN1QS4CRCw",
+      "score": 255.6,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch (www.gitlab.com)\n    at https://about.gitlab.com/_nuxt/JyAnuRO1.js:17:26346\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "hcoy3KBzvpfGLwvRblzeM"
+}

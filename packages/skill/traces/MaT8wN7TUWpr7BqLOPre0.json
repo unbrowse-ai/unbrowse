@@ -1,0 +1,1733 @@
+{
+  "trace_id": "MaT8wN7TUWpr7BqLOPre0",
+  "skill_id": "Zd1VORa7WWO-Johl6_-Ia",
+  "endpoint_id": "WehjeJEdoO78-1yeOHINt",
+  "started_at": "2026-03-13T07:34:23.781Z",
+  "completed_at": "2026-03-13T07:34:23.820Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "45be650230dd@4fa31a3",
+  "result": {
+    "objects": [
+      {
+        "downloads": {
+          "monthly": 56784356,
+          "weekly": 13407780
+        },
+        "dependents": "9058",
+        "updated": "2026-03-13T07:28:24.474Z",
+        "searchScore": 2340.4094,
+        "package": {
+          "name": "openai",
+          "keywords": [],
+          "version": "6.27.0",
+          "description": "The official TypeScript library for the OpenAI API",
+          "sanitized_name": "openai",
+          "publisher": {
+            "email": "apcha@openai.com",
+            "actor": {
+              "name": "dschnurr-openai",
+              "type": "user",
+              "email": "dschnurr@openai.com"
+            },
+            "username": "apcha-oai"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            },
+            {
+              "email": "schnurr@gmail.com",
+              "username": "dschnurr"
+            },
+            {
+              "email": "jeev.nayak@gmail.com",
+              "username": "jeevnayak"
+            },
+            {
+              "email": "knight@openai.com",
+              "username": "knight-oai"
+            },
+            {
+              "email": "dschnurr@openai.com",
+              "username": "dschnurr-openai"
+            },
+            {
+              "email": "kwhinnery@openai.com",
+              "username": "kwhinnery-openai"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-05T23:20:10.857Z",
+          "links": {
+            "repository": "https://github.com/openai/openai-node.git",
+            "npm": "https://www.npmjs.com/package/openai"
+          }
+        },
+        "score": {
+          "final": 2340.4094,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 7150302,
+          "weekly": 1835692
+        },
+        "dependents": "8",
+        "updated": "2026-03-13T07:32:21.345Z",
+        "searchScore": 513.206,
+        "package": {
+          "name": "@opentelemetry/instrumentation-openai",
+          "keywords": [
+            "instrumentation",
+            "opentelemetry",
+            "observability",
+            "openai",
+            "llm",
+            "genai"
+          ],
+          "version": "0.11.0",
+          "description": "OpenTelemetry instrumentation for the `openai` OpenAI client library",
+          "sanitized_name": "@opentelemetry/instrumentation-openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:460bd0a5-7d95-42c2-8b7a-79eb606ab50a",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dyladan@gmail.com",
+              "username": "dyladan"
+            },
+            {
+              "email": "marc.pichler@dynatrace.com",
+              "username": "pichlermarc"
+            },
+            {
+              "email": "npmjs-account@opentelemetry.io",
+              "username": "npmjs-account"
+            },
+            {
+              "email": "trentm@gmail.com",
+              "username": "trentm"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-04T17:11:44.420Z",
+          "links": {
+            "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-openai#readme",
+            "repository": "git+https://github.com/open-telemetry/opentelemetry-js-contrib.git",
+            "bugs": "https://github.com/open-telemetry/opentelemetry-js-contrib/issues",
+            "npm": "https://www.npmjs.com/package/@opentelemetry/instrumentation-openai"
+          }
+        },
+        "score": {
+          "final": 513.206,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 9634881,
+          "weekly": 2204431
+        },
+        "dependents": "883",
+        "updated": "2026-03-13T07:28:54.224Z",
+        "searchScore": 502.18567,
+        "package": {
+          "name": "@langchain/openai",
+          "keywords": [
+            "llm",
+            "ai",
+            "gpt3",
+            "chain",
+            "prompt",
+            "prompt engineering",
+            "chatgpt",
+            "machine learning",
+            "ml",
+            "openai",
+            "embeddings",
+            "vectorstores"
+          ],
+          "version": "1.2.13",
+          "description": "OpenAI integrations for LangChain.js",
+          "sanitized_name": "@langchain/openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "davidduong",
+              "type": "user",
+              "email": "david@duong.cz"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:ed77278d-7761-47c4-bd36-36102f71bfee",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "hw.chase.17@gmail.com",
+              "username": "hwchase17"
+            },
+            {
+              "email": "jacoblee93@gmail.com",
+              "username": "jacoblee93"
+            },
+            {
+              "email": "braceasproul@gmail.com",
+              "username": "basproul"
+            },
+            {
+              "email": "eric@langchain.dev",
+              "username": "eric_langchain"
+            },
+            {
+              "email": "andrewnguonly@gmail.com",
+              "username": "andrewnguonly"
+            },
+            {
+              "email": "david@duong.cz",
+              "username": "davidduong"
+            },
+            {
+              "email": "madelyn.adams1@gmail.com",
+              "username": "maddyadams"
+            },
+            {
+              "email": "sam@langchain.dev",
+              "username": "sam_noyes"
+            },
+            {
+              "email": "andy@langchain.dev",
+              "username": "andy-langchain"
+            },
+            {
+              "email": "ryan.l.casupanan@gmail.com",
+              "username": "rcasup"
+            },
+            {
+              "email": "hunter@hntrl.io",
+              "username": "hntrl"
+            },
+            {
+              "email": "mail@bromann.dev",
+              "username": "christian-bromann"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-11T18:22:22.244Z",
+          "links": {
+            "homepage": "https://github.com/langchain-ai/langchainjs/tree/main/libs/providers/langchain-openai/",
+            "repository": "git+ssh://git@github.com/langchain-ai/langchainjs.git",
+            "bugs": "https://github.com/langchain-ai/langchainjs/issues",
+            "npm": "https://www.npmjs.com/package/@langchain/openai"
+          }
+        },
+        "score": {
+          "final": 502.18567,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 1079029,
+          "weekly": 206158
+        },
+        "dependents": "116",
+        "updated": "2026-03-13T07:28:06.344Z",
+        "searchScore": 480.51254,
+        "package": {
+          "name": "@azure/openai",
+          "keywords": [
+            "node",
+            "azure",
+            "cloud",
+            "typescript",
+            "browser",
+            "isomorphic",
+            "openai",
+            "ai"
+          ],
+          "version": "2.0.0",
+          "description": "A companion library to openai for Azure OpenAI.",
+          "sanitized_name": "@azure/openai",
+          "publisher": {
+            "email": "npmjs@microsoft.com",
+            "username": "microsoft1es"
+          },
+          "maintainers": [
+            {
+              "email": "azure-sdk-npmjs@microsoft.com",
+              "username": "azure-sdk"
+            },
+            {
+              "email": "npmjs@microsoft.com",
+              "username": "microsoft1es"
+            }
+          ],
+          "license": "MIT",
+          "date": "2024-11-18T12:27:12.854Z",
+          "links": {
+            "homepage": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/openai/openai/README.md",
+            "repository": "github:Azure/azure-sdk-for-js",
+            "bugs": "https://github.com/Azure/azure-sdk-for-js/issues",
+            "npm": "https://www.npmjs.com/package/@azure/openai"
+          }
+        },
+        "score": {
+          "final": 480.51254,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 17758187,
+          "weekly": 3914865
+        },
+        "dependents": "1834",
+        "updated": "2026-03-13T07:30:07.832Z",
+        "searchScore": 465.49377,
+        "package": {
+          "name": "@ai-sdk/openai",
+          "keywords": [
+            "ai"
+          ],
+          "version": "3.0.41",
+          "description": "The **[OpenAI provider](https://ai-sdk.dev/providers/ai-sdk-providers/openai)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the OpenAI chat and completion APIs and embedding model support for the OpenAI embeddings API.",
+          "sanitized_name": "@ai-sdk/openai",
+          "publisher": {
+            "email": "infra+release@vercel.com",
+            "actor": {
+              "name": "vercel-release-bot",
+              "type": "user",
+              "email": "infra+release@vercel.com"
+            },
+            "username": "vercel-release-bot"
+          },
+          "maintainers": [
+            {
+              "email": "infra+release@vercel.com",
+              "username": "vercel-release-bot"
+            },
+            {
+              "email": "matheus.frndes@gmail.com",
+              "username": "matheuss"
+            },
+            {
+              "email": "matt.j.straka@gmail.com",
+              "username": "matt.straka"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-05T01:17:15.438Z",
+          "links": {
+            "homepage": "https://ai-sdk.dev/docs",
+            "repository": "git+https://github.com/vercel/ai.git",
+            "bugs": "https://github.com/vercel/ai/issues",
+            "npm": "https://www.npmjs.com/package/@ai-sdk/openai"
+          }
+        },
+        "score": {
+          "final": 465.49377,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 382505,
+          "weekly": 93348
+        },
+        "dependents": "15",
+        "updated": "2026-03-13T07:28:33.875Z",
+        "searchScore": 427.66437,
+        "package": {
+          "name": "@traceloop/instrumentation-openai",
+          "keywords": [
+            "opentelemetry",
+            "nodejs",
+            "tracing",
+            "openai"
+          ],
+          "version": "0.22.5",
+          "description": "OpenAI Instrumentaion",
+          "sanitized_name": "@traceloop/instrumentation-openai",
+          "publisher": {
+            "email": "gal@traceloop.dev",
+            "actor": {
+              "name": "nirga",
+              "type": "user",
+              "email": "nir@vecinity.io"
+            },
+            "username": "galklm"
+          },
+          "maintainers": [
+            {
+              "email": "tomer@traceloop.com",
+              "username": "tomer-friedman"
+            },
+            {
+              "email": "nir@vecinity.io",
+              "username": "nirga"
+            },
+            {
+              "email": "gal@traceloop.dev",
+              "username": "galklm"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2025-12-17T20:20:58.749Z",
+          "links": {
+            "homepage": "https://github.com/traceloop/openllmetry-js/tree/main/packages/instrumentation-openai",
+            "repository": "traceloop/openllmetry-js",
+            "bugs": "https://github.com/traceloop/openllmetry-js/issues",
+            "npm": "https://www.npmjs.com/package/@traceloop/instrumentation-openai"
+          }
+        },
+        "score": {
+          "final": 427.66437,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 128971,
+          "weekly": 28394
+        },
+        "dependents": "3",
+        "updated": "2026-03-13T07:28:35.360Z",
+        "searchScore": 386.80206,
+        "package": {
+          "name": "@adaline/openai",
+          "keywords": [
+            "AI",
+            "Adaline",
+            "LLM",
+            "Prompt Engineering",
+            "Prompt",
+            "GenAI"
+          ],
+          "version": "1.18.2",
+          "description": "Adaline OpenAI",
+          "sanitized_name": "@adaline/openai",
+          "publisher": {
+            "email": "arsh@dilbagi.com",
+            "username": "dilbagi"
+          },
+          "maintainers": [
+            {
+              "email": "arsh@dilbagi.com",
+              "username": "dilbagi"
+            },
+            {
+              "email": "akshay@adaline.ai",
+              "username": "adaline-akshay"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-03T04:31:25.187Z",
+          "links": {
+            "homepage": "https://www.adaline.ai",
+            "repository": "git+https://github.com/adaline/gateway.git",
+            "bugs": "https://github.com/adaline/gateway/issues",
+            "npm": "https://www.npmjs.com/package/@adaline/openai"
+          }
+        },
+        "score": {
+          "final": 386.80206,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 222631,
+          "weekly": 42723
+        },
+        "dependents": "2",
+        "updated": "2026-03-13T07:31:29.165Z",
+        "searchScore": 374.51407,
+        "package": {
+          "name": "@langfuse/openai",
+          "keywords": [],
+          "version": "5.0.0",
+          "description": "Langfuse integration for OpenAI SDK",
+          "sanitized_name": "@langfuse/openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:3ad10c2f-3504-41ed-a3c0-342e28f73ae9",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "max@langfuse.com",
+              "username": "mdeichmann"
+            },
+            {
+              "email": "marlies@langfuse.com",
+              "username": "marliessophie"
+            },
+            {
+              "email": "hassieb.pakzad@gmail.com",
+              "username": "hassieb"
+            },
+            {
+              "email": "marc@langfuse.com",
+              "username": "marcklingen"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-10T16:28:31.093Z",
+          "links": {
+            "homepage": "https://github.com/langfuse/langfuse-js#readme",
+            "repository": "git+https://github.com/langfuse/langfuse-js.git",
+            "bugs": "https://github.com/langfuse/langfuse-js/issues",
+            "npm": "https://www.npmjs.com/package/@langfuse/openai"
+          }
+        },
+        "score": {
+          "final": 374.51407,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 1585692,
+          "weekly": 380561
+        },
+        "dependents": "3",
+        "updated": "2026-03-13T07:29:34.677Z",
+        "searchScore": 373.28394,
+        "package": {
+          "name": "@openai/agents-openai",
+          "keywords": [
+            "openai",
+            "agents",
+            "ai",
+            "agentic"
+          ],
+          "version": "0.7.0",
+          "description": "The OpenAI Agents SDK is a lightweight yet powerful framework for building multi-agent workflows.",
+          "sanitized_name": "@openai/agents-openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "dkundel-openai",
+              "type": "user",
+              "email": "dkundel@openai.com"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:1992dee9-b823-40c5-9a29-099438e68c98",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-12T08:57:01.838Z",
+          "links": {
+            "homepage": "https://openai.github.io/openai-agents-js/",
+            "repository": "git+https://github.com/openai/openai-agents-js.git",
+            "bugs": "https://github.com/openai/openai-agents-js/issues",
+            "npm": "https://www.npmjs.com/package/@openai/agents-openai"
+          }
+        },
+        "score": {
+          "final": 373.28394,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 344311,
+          "weekly": 76421
+        },
+        "dependents": "7",
+        "updated": "2026-03-13T07:31:26.283Z",
+        "searchScore": 364.77646,
+        "package": {
+          "name": "@metorial/openai-compatible",
+          "keywords": [],
+          "version": "2.0.0",
+          "description": "OpenAI-compatible provider base for Metorial. Provides common functionality for OpenAI-compatible API providers.",
+          "sanitized_name": "@metorial/openai-compatible",
+          "publisher": {
+            "email": "karim.w.rahme@gmail.com",
+            "username": "wenkr"
+          },
+          "maintainers": [
+            {
+              "email": "tobihrbr@gmail.com",
+              "username": "tobihrbr"
+            },
+            {
+              "email": "karim.w.rahme@gmail.com",
+              "username": "wenkr"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-02-26T17:40:57.860Z",
+          "links": {
+            "npm": "https://www.npmjs.com/package/@metorial/openai-compatible"
+          }
+        },
+        "score": {
+          "final": 364.77646,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 1586609,
+          "weekly": 381375
+        },
+        "dependents": "121",
+        "updated": "2026-03-13T07:30:21.871Z",
+        "searchScore": 362.9074,
+        "package": {
+          "name": "@openai/agents",
+          "keywords": [
+            "openai",
+            "agents",
+            "ai",
+            "agentic"
+          ],
+          "version": "0.7.0",
+          "description": "The OpenAI Agents SDK is a lightweight yet powerful framework for building multi-agent workflows.",
+          "sanitized_name": "@openai/agents",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "dkundel-openai",
+              "type": "user",
+              "email": "dkundel@openai.com"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:d0457c3d-cbdc-41cf-b31b-241779516306",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-12T08:57:08.926Z",
+          "links": {
+            "homepage": "https://openai.github.io/openai-agents-js/",
+            "repository": "git+https://github.com/openai/openai-agents-js.git",
+            "bugs": "https://github.com/openai/openai-agents-js/issues",
+            "npm": "https://www.npmjs.com/package/@openai/agents"
+          }
+        },
+        "score": {
+          "final": 362.9074,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 460891,
+          "weekly": 100357
+        },
+        "dependents": "2",
+        "updated": "2026-03-13T07:32:48.335Z",
+        "searchScore": 357.4109,
+        "package": {
+          "name": "@azure/openai-assistants",
+          "keywords": [
+            "node",
+            "azure",
+            "cloud",
+            "typescript",
+            "browser",
+            "isomorphic",
+            "openai",
+            "ai",
+            "assistants"
+          ],
+          "version": "1.0.0-beta.6",
+          "description": "An isomorphic client library for Azure OpenAI Assistants.",
+          "sanitized_name": "@azure/openai-assistants",
+          "publisher": {
+            "email": "npmjs@microsoft.com",
+            "username": "microsoft1es"
+          },
+          "maintainers": [
+            {
+              "email": "npmjs@microsoft.com",
+              "username": "microsoft1es"
+            },
+            {
+              "email": "azure-sdk-npmjs@microsoft.com",
+              "username": "azure-sdk"
+            }
+          ],
+          "license": "MIT",
+          "date": "2024-09-17T19:45:06.203Z",
+          "links": {
+            "homepage": "https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/openai/openai-assistants/README.md",
+            "repository": "github:Azure/azure-sdk-for-js",
+            "bugs": "https://github.com/Azure/azure-sdk-for-js/issues",
+            "npm": "https://www.npmjs.com/package/@azure/openai-assistants"
+          }
+        },
+        "score": {
+          "final": 357.4109,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 6602418,
+          "weekly": 1361325
+        },
+        "dependents": "287",
+        "updated": "2026-03-13T07:30:24.291Z",
+        "searchScore": 355.3468,
+        "package": {
+          "name": "@ai-sdk/openai-compatible",
+          "keywords": [
+            "ai"
+          ],
+          "version": "2.0.35",
+          "description": "This package provides a foundation for implementing providers that expose an OpenAI-compatible API.",
+          "sanitized_name": "@ai-sdk/openai-compatible",
+          "publisher": {
+            "email": "infra+release@vercel.com",
+            "actor": {
+              "name": "vercel-release-bot",
+              "type": "user",
+              "email": "infra+release@vercel.com"
+            },
+            "username": "vercel-release-bot"
+          },
+          "maintainers": [
+            {
+              "email": "infra+release@vercel.com",
+              "username": "vercel-release-bot"
+            },
+            {
+              "email": "matheus.frndes@gmail.com",
+              "username": "matheuss"
+            },
+            {
+              "email": "matt.j.straka@gmail.com",
+              "username": "matt.straka"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-05T01:17:14.906Z",
+          "links": {
+            "homepage": "https://ai-sdk.dev/docs",
+            "repository": "git+https://github.com/vercel/ai.git",
+            "bugs": "https://github.com/vercel/ai/issues",
+            "npm": "https://www.npmjs.com/package/@ai-sdk/openai-compatible"
+          }
+        },
+        "score": {
+          "final": 355.3468,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 9117958,
+          "weekly": 2701088
+        },
+        "dependents": "16",
+        "updated": "2026-03-13T07:29:43.429Z",
+        "searchScore": 350.0884,
+        "package": {
+          "name": "@openai/codex",
+          "keywords": [],
+          "version": "0.114.0",
+          "description": "<p align=\"center\"><code>npm i -g @openai/codex</code><br />or <code>brew install --cask codex</code></p> <p align=\"center\"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer. <p align=\"center\">   <img src=\"https://",
+          "sanitized_name": "@openai/codex",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "trustedPublisher": {
+              "id": "github",
+              "oidcConfigId": "oidc:7b089346-43ee-4dab-b3b6-5427a1537a49"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-11T00:29:28.692Z",
+          "links": {
+            "homepage": "https://github.com/openai/codex#readme",
+            "repository": "git+https://github.com/openai/codex.git",
+            "bugs": "https://github.com/openai/codex/issues",
+            "npm": "https://www.npmjs.com/package/@openai/codex"
+          }
+        },
+        "score": {
+          "final": 350.0884,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 143082,
+          "weekly": 39851
+        },
+        "dependents": "13",
+        "updated": "2026-03-13T07:28:05.109Z",
+        "searchScore": 339.4698,
+        "package": {
+          "name": "@openai/agents-extensions",
+          "keywords": [
+            "openai",
+            "agents",
+            "ai",
+            "agentic"
+          ],
+          "version": "0.7.0",
+          "description": "Extensions for the OpenAI Agents SDK",
+          "sanitized_name": "@openai/agents-extensions",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "dkundel-openai",
+              "type": "user",
+              "email": "dkundel@openai.com"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:2a87b25a-fddb-49bb-9442-51221ed0b6f8",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-12T08:57:12.309Z",
+          "links": {
+            "homepage": "https://openai.github.io/openai-agents-js/",
+            "repository": "git+https://github.com/openai/openai-agents-js.git",
+            "bugs": "https://github.com/openai/openai-agents-js/issues",
+            "npm": "https://www.npmjs.com/package/@openai/agents-extensions"
+          }
+        },
+        "score": {
+          "final": 339.4698,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 1681944,
+          "weekly": 410545
+        },
+        "dependents": "12",
+        "updated": "2026-03-13T07:28:27.906Z",
+        "searchScore": 339.04712,
+        "package": {
+          "name": "@openai/agents-core",
+          "keywords": [
+            "openai",
+            "agents",
+            "ai",
+            "agentic"
+          ],
+          "version": "0.7.0",
+          "description": "The OpenAI Agents SDK is a lightweight yet powerful framework for building multi-agent workflows.",
+          "sanitized_name": "@openai/agents-core",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "dkundel-openai",
+              "type": "user",
+              "email": "dkundel@openai.com"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:a0b4e959-0d5e-4a42-aceb-1a0dc4e06f6b",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dylan.hurd@openai.com",
+              "username": "dylan-hurd-openai"
+            },
+            {
+              "email": "tylersmith@openai.com",
+              "username": "tylersmith-openai"
+            },
+            {
+              "email": "atty@openai.com",
+              "username": "atty-openai"
+            },
+            {
+              "email": "tibo@openai.com",
+              "username": "tibo-openai"
+            },
+            {
+              "email": "dkundel@openai.com",
+              "username": "dkundel-openai"
+            },
+            {
+              "email": "mbolin@openai.com",
+              "username": "mbolin-openai"
+            },
+            {
+              "email": "fouad@openai.com",
+              "username": "fouad-openai"
+            },
+            {
+              "email": "easong@openai.com",
+              "username": "easong-openai"
+            },
+            {
+              "email": "ahmedibrhm32@gmail.com",
+              "username": "aibrahim-openai"
+            },
+            {
+              "email": "apcha@openai.com",
+              "username": "apcha-oai"
+            },
+            {
+              "email": "seratch@openai.com",
+              "username": "seratch-openai"
+            },
+            {
+              "email": "gabor@openai.com",
+              "username": "gabor-openai"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-03-12T08:56:58.286Z",
+          "links": {
+            "homepage": "https://openai.github.io/openai-agents-js/",
+            "repository": "git+https://github.com/openai/openai-agents-js.git",
+            "bugs": "https://github.com/openai/openai-agents-js/issues",
+            "npm": "https://www.npmjs.com/package/@openai/agents-core"
+          }
+        },
+        "score": {
+          "final": 339.04712,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 51876,
+          "weekly": 12023
+        },
+        "dependents": "5",
+        "updated": "2026-03-13T07:33:53.678Z",
+        "searchScore": 316.65738,
+        "package": {
+          "name": "@tanstack/ai-openai",
+          "keywords": [
+            "ai",
+            "openai",
+            "gpt",
+            "tanstack",
+            "adapter"
+          ],
+          "version": "0.6.0",
+          "description": "OpenAI adapter for TanStack AI",
+          "sanitized_name": "@tanstack/ai-openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:d27c1507-1ce1-4709-b7e9-c7cea75bed14",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "tannerlinsley@gmail.com",
+              "username": "tannerlinsley"
+            },
+            {
+              "email": "kevinvandy656@gmail.com",
+              "username": "kevinvandy"
+            },
+            {
+              "email": "dominik@dorfmeister.cc",
+              "username": "tkdodo"
+            },
+            {
+              "email": "meisterpink@gmail.com",
+              "username": "schiller-manuel"
+            },
+            {
+              "email": "lachlan.collins@gmail.com",
+              "username": "lachlancollins"
+            },
+            {
+              "email": "mathews.kyle@gmail.com",
+              "username": "kylemathews"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-02-28T01:15:34.947Z",
+          "links": {
+            "homepage": "https://github.com/TanStack/ai#readme",
+            "repository": "git+https://github.com/TanStack/ai.git",
+            "bugs": "https://github.com/TanStack/ai/issues",
+            "npm": "https://www.npmjs.com/package/@tanstack/ai-openai"
+          }
+        },
+        "score": {
+          "final": 316.65738,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 117611,
+          "weekly": 32429
+        },
+        "dependents": "1",
+        "updated": "2026-03-13T07:28:25.835Z",
+        "searchScore": 315.75363,
+        "package": {
+          "name": "@livekit/agents-plugin-openai",
+          "keywords": [],
+          "version": "1.0.50",
+          "description": "OpenAI plugin for LiveKit Node Agents",
+          "sanitized_name": "@livekit/agents-plugin-openai",
+          "publisher": {
+            "email": "npm-oidc-no-reply@github.com",
+            "actor": {
+              "name": "lukasio",
+              "type": "user",
+              "email": "lukas@livekit.io"
+            },
+            "trustedPublisher": {
+              "oidcConfigId": "oidc:1e6df41d-f1ff-4c70-b653-59d9ac7551ce",
+              "id": "github"
+            },
+            "username": "GitHub Actions"
+          },
+          "maintainers": [
+            {
+              "email": "dsa@livekit.io",
+              "username": "rdsa"
+            },
+            {
+              "email": "david@davidzhao.com",
+              "username": "thedavidzhao"
+            },
+            {
+              "email": "theo@livekit.io",
+              "username": "feepslk"
+            },
+            {
+              "email": "mat@livekit.io",
+              "username": "matkam_livekit"
+            },
+            {
+              "email": "raja@livekit.io",
+              "username": "raja-livekit"
+            },
+            {
+              "email": "herzog@livekit.io",
+              "username": "livekitherzog"
+            },
+            {
+              "email": "lukas@livekit.io",
+              "username": "lukasio"
+            },
+            {
+              "email": "paulwe@gmail.com",
+              "username": "paulwe"
+            },
+            {
+              "email": "dl@livekit.io",
+              "username": "dliulk"
+            },
+            {
+              "email": "hiroshi@livekit.io",
+              "username": "lk_hiroshi"
+            },
+            {
+              "email": "dc@livekit.io",
+              "username": "dc-livekit"
+            },
+            {
+              "email": "jie@livekit.io",
+              "username": "cnderrauber"
+            },
+            {
+              "email": "benjamin@livekit.io",
+              "username": "benjaminlivekit"
+            },
+            {
+              "email": "dan@livekit.io",
+              "username": "danm_livekit"
+            },
+            {
+              "email": "duan@livekit.io",
+              "username": "duanweiwei"
+            },
+            {
+              "email": "jonas@livekit.io",
+              "username": "ocupe_livekit"
+            },
+            {
+              "email": "donhuh@gmail.com",
+              "username": "cacheonly"
+            },
+            {
+              "email": "kat@livekit.io",
+              "username": "sfkat"
+            },
+            {
+              "email": "shayne@livekit.io",
+              "username": "shayps"
+            },
+            {
+              "email": "chris@livekit.io",
+              "username": "chrisackermann"
+            },
+            {
+              "email": "ben@livekit.io",
+              "username": "bcherrylk"
+            },
+            {
+              "email": "kuba@livekit.io",
+              "username": "kuba--"
+            },
+            {
+              "email": "friedtm@gmail.com",
+              "username": "rektdeckard"
+            },
+            {
+              "email": "mike@livekit.io",
+              "username": "lk-mike"
+            },
+            {
+              "email": "bbraunstein@livekit.io",
+              "username": "braunsteinlivekit"
+            },
+            {
+              "email": "hamdan@livekit.io",
+              "username": "s-hamdananwar"
+            },
+            {
+              "email": "anunay@livekit.io",
+              "username": "anunay_lk"
+            },
+            {
+              "email": "tom.ezquerro@livekit.io",
+              "username": "tom.ezquerro"
+            },
+            {
+              "email": "milos.pesic@livekit.io",
+              "username": "mipesic"
+            },
+            {
+              "email": "shubhrakanti.ganguly@livekit.io",
+              "username": "shubhra123"
+            },
+            {
+              "email": "chris.wilson@livekit.io",
+              "username": "yepher"
+            },
+            {
+              "email": "thomas.yuill@livekit.io",
+              "username": "thomasyuill-livekit"
+            },
+            {
+              "email": "adrian.cowham@livekit.io",
+              "username": "adriancowham"
+            },
+            {
+              "email": "dylan.dotolo@livekit.io",
+              "username": "ddotolo"
+            },
+            {
+              "email": "chana.zolty@livekit.io",
+              "username": "czolty"
+            },
+            {
+              "email": "brian.yin@livekit.io",
+              "username": "lk-toubatbrian"
+            },
+            {
+              "email": "kristy@livekit.io",
+              "username": "ikristy"
+            },
+            {
+              "email": "beth.miller@livekit.io",
+              "username": "beth.miller"
+            },
+            {
+              "email": "joaquin.benitez@livekit.io",
+              "username": "joaquin-lk"
+            },
+            {
+              "email": "ryan.gaus@livekit.io",
+              "username": "rgauslivekit"
+            },
+            {
+              "email": "tina.nguyen@livekit.io",
+              "username": "tinalenguyen"
+            },
+            {
+              "email": "nikita.podelenko@livekit.io",
+              "username": "nikita-livekit"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-03-10T23:57:11.050Z",
+          "links": {
+            "homepage": "https://github.com/livekit/agents-js#readme",
+            "repository": "git+ssh://git@github.com/livekit/agents-js.git",
+            "bugs": "https://github.com/livekit/agents-js/issues",
+            "npm": "https://www.npmjs.com/package/@livekit/agents-plugin-openai"
+          }
+        },
+        "score": {
+          "final": 315.75363,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 142868,
+          "weekly": 18270
+        },
+        "dependents": "0",
+        "updated": "2026-03-13T07:33:05.029Z",
+        "searchScore": 314.61563,
+        "package": {
+          "name": "@azure-tools/openai-typespec",
+          "keywords": [],
+          "version": "1.12.0",
+          "description": "The TypeSpec definition is an automatic import of [the OpenAI OpenAPI description](https://github.com/openai/openai-openapi) using [tsp-openapi3](https://www.npmjs.com/package/@typespec/openapi3).",
+          "sanitized_name": "@azure-tools/openai-typespec",
+          "publisher": {
+            "email": "npmjs@microsoft.com",
+            "username": "microsoft1es"
+          },
+          "maintainers": [
+            {
+              "email": "azure-sdk-npmjs@microsoft.com",
+              "username": "azure-sdk"
+            },
+            {
+              "email": "npmjs@microsoft.com",
+              "username": "microsoft1es"
+            },
+            {
+              "email": "xidi@microsoft.com",
+              "username": "azure-powershell"
+            }
+          ],
+          "license": "MIT",
+          "date": "2026-02-26T20:28:11.651Z",
+          "links": {
+            "npm": "https://www.npmjs.com/package/@azure-tools/openai-typespec"
+          }
+        },
+        "score": {
+          "final": 314.61563,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      },
+      {
+        "downloads": {
+          "monthly": 70540,
+          "weekly": 14492
+        },
+        "dependents": "1",
+        "updated": "2026-03-13T07:28:13.614Z",
+        "searchScore": 312.4434,
+        "package": {
+          "name": "genkitx-openai",
+          "keywords": [
+            "genkit",
+            "genkit-plugin",
+            "genkit-embedder",
+            "genkit-model",
+            "openai",
+            "gpt-4",
+            "gpt",
+            "gpt-3.5",
+            "ai",
+            "genai",
+            "generative-ai"
+          ],
+          "version": "0.30.0",
+          "description": "Firebase Genkit AI framework plugin for OpenAI APIs.",
+          "sanitized_name": "genkitx-openai",
+          "publisher": {
+            "email": "fireviewdev@gmail.com",
+            "actor": {
+              "name": "thefirecompany",
+              "type": "user",
+              "email": "fireviewdev@gmail.com"
+            },
+            "username": "thefirecompany"
+          },
+          "maintainers": [
+            {
+              "email": "giorgio@garasto.it",
+              "username": "dabolus"
+            },
+            {
+              "email": "xavierportillaedo@gmail.com",
+              "username": "xavidop"
+            },
+            {
+              "email": "info@epmatt.com",
+              "username": "epmatt"
+            },
+            {
+              "email": "oss@bloom.diy",
+              "username": "thefirecompany"
+            }
+          ],
+          "license": "Apache-2.0",
+          "date": "2026-01-22T18:57:01.055Z",
+          "links": {
+            "homepage": "https://github.com/TheFireCo/genkit-plugins#readme",
+            "repository": "git+https://github.com/BloomLabsInc/genkit-plugins.git",
+            "bugs": "https://github.com/TheFireCo/genkit-plugins/issues",
+            "npm": "https://www.npmjs.com/package/genkitx-openai"
+          }
+        },
+        "score": {
+          "final": 312.4434,
+          "detail": {
+            "popularity": 1,
+            "quality": 1,
+            "maintenance": 1
+          }
+        },
+        "flags": {
+          "insecure": 0
+        }
+      }
+    ],
+    "total": 13975,
+    "time": "2026-03-13T07:34:23.665Z"
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "objects[].package.publisher.email",
+      "objects[].package.publisher.actor",
+      "objects[].package.publisher.actor.name",
+      "objects[].package.publisher.actor.type",
+      "objects[].package.publisher.actor.email",
+      "objects[].package.publisher.username",
+      "objects[].package.publisher.trustedPublisher",
+      "objects[].package.publisher.trustedPublisher.oidcConfigId",
+      "objects[].package.publisher.trustedPublisher.id",
+      "objects[].package.maintainers[].email",
+      "objects[].package.maintainers[].username",
+      "objects[].package.links.repository",
+      "objects[].package.links.npm",
+      "objects[].package.links.homepage",
+      "objects[].package.links.bugs",
+      "objects[].score.detail.popularity",
+      "objects[].score.detail.quality",
+      "objects[].score.detail.maintenance"
+    ],
+    "removed_fields": [],
+    "type_changes": [
+      {
+        "path": "objects[].package.publisher",
+        "was": "string",
+        "now": "object"
+      },
+      {
+        "path": "objects[].package.links",
+        "was": "string",
+        "now": "object"
+      },
+      {
+        "path": "objects[].score.detail",
+        "was": "string",
+        "now": "object"
+      }
+    ]
+  }
+}

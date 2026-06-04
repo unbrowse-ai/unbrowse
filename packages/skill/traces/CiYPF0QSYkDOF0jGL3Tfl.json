@@ -1,0 +1,479 @@
+{
+  "trace_id": "CiYPF0QSYkDOF0jGL3Tfl",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "mASQJ7TlVPdwglt7Uxgxd",
+  "started_at": "2026-03-12T02:09:53.747Z",
+  "completed_at": "2026-03-12T02:09:54.665Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "EFTA02643701",
+          "subject": "Food",
+          "latest_sender_name": "Michael Ross",
+          "formatted_date": "Jul 15, 2017",
+          "preview": "Mr. <b>Epstein</b> - is there any special <b>food</b> requests for your return?\n\nMichael Ross",
+          "avatar_color": "#9c27b0",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 18,
+          "unredactCount": 3
+        },
+        "matchedEmail": {
+          "id": "EFTA02643701-0",
+          "sender": "Michael Ross <unknown>",
+          "content_markdown": "Mr. Epstein - is there any special food requests for your return?\n\nMichael Ross"
+        },
+        "field": "content_markdown",
+        "rank": 21.562208
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02642825",
+          "subject": "Food",
+          "latest_sender_name": "Michael Ross",
+          "formatted_date": "Jul 19, 2017",
+          "preview": "Mr. <b>Epstein</b> - what time can I speak to the guest on their <b>food</b> choices for today",
+          "avatar_color": "#9c27b0",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 8,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02642825-0",
+          "sender": "Michael Ross",
+          "content_markdown": "Mr. Epstein - what time can I speak to the guest on their food choices for today."
+        },
+        "field": "content_markdown",
+        "rank": 21.373121
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02151191",
+          "subject": "Order food",
+          "latest_sender_name": "Lesley Groff",
+          "formatted_date": "Jan 13, 2013",
+          "preview": "Please see below. Jeffrey would like pill to organize the <b>food</b> for tomorrow nights dinner. dr Magnani, dr Lamster and Dean Myers are coming for dinner",
+          "avatar_color": "#9c27b0",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02151191-0",
+          "sender": "Lesley Groff",
+          "content_markdown": "Please see below. Jeffrey would like pill to organize the food for tomorrow nights dinner. dr Magnani, dr Lamster and Dean Myers are coming for dinner at 7pm\n\nSent from my iPhone\n\nBegin forwarded message:\n\nFrom: Jeffrey Epstein <jeevacation@gmail.com>\n\nDate: January 13, 2013, 10:27:28 AM EST To: Lesley Groff■\n\nmake dental appt for approx 330 monday chipped tooth. heidi at 530. \njane to order food."
+        },
+        "field": "content_markdown",
+        "rank": 18.942394
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00530156-pdf",
+          "subject": "Fwd: Food/Spices for island?",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Mar 4, 2013",
+          "preview": "Stephanie Hodges\n* **Context:** The sender is asking if <b>food</b> items need to be purchased and taken to the island via Jeffrey&#x27;s plane, or if <b>food</b> can be",
+          "avatar_color": "#db4437",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": true,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00530156-pdf",
+          "sender": "Jeffrey Epstein <jeevacation@gmail.com>",
+          "content_markdown": "Forwarded message\nFrom: \nDate: Mon, Mar 4, 2013 at 5:44 PM\nSubject: Fwd: Food/Spices for island?\nTo: Jeffrey Epstein <jeevacation@gmail.com>\nCc: Karyna Shuliak\n\nBelow was in email from:\n\nand [REDACTED], Jeffrey just asked that you two coordinate on food...steaks...etc.'\n\nWhen I received this email while in Long Beach I was with her and reminded her to do it. I think I am also at fault though as I should have rather just done it myself. I now have the details of the man we deal with at Lobels and"
+        },
+        "field": "content_markdown",
+        "rank": 17.351383
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02302372",
+          "subject": "Food requests",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Sep 7, 2013",
+          "preview": "Hi Stephanie,\n\nBelow please see the <b>food</b> items, that Mr. <b>Epstein</b> would like to have upon his arrival. He does not wish to have all the items from the",
+          "avatar_color": "#4285f4",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02302372-0",
+          "sender": "Karyna Shuliak <karyna@example.com>",
+          "content_markdown": "Hi Stephanie,\n\nBelow please see the food items, that Mr. Epstein would like to have upon his arrival. He does not wish to have all the items from the list we had before. Thank you, please let me know if there are any requests from NY. Thank you, Karyna.\n\nFor Mr. Epstein:\n\nFuji water\n\nFage yogurt\n\nOrganic half&half\n\nButter spray\n\nOrganic eggs\n\nChicken breasts\n\nHass Avocados\n\nLarge ripe tomatoes\n\nPeanut butter\n\nJelly\n\nRaisin bran granola\n\nMint\n\nDill\n\nBasil\n\nFor\n\nGummy candies (different types)\n\nGr"
+        },
+        "field": "content_markdown",
+        "rank": 17.316593
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00529328-pdf",
+          "subject": "Food list",
+          "latest_sender_name": "Ann Rodriquez",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "Hi Anna,\n\nis coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> list for her:\n\n&gt; Greek yogurt ( as JE&#x27;s favorite brand &quot;fage&quot;but 0% fat",
+          "avatar_color": "#db4437",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00529328-pdf-1",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\n\nis coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n> Greek yogurt ( as JE's favorite brand \"fage\"but 0% fat )\n\n> 2) grapefruits\n\n>3) apples\n\n> 4) pomegranate\n\n> 5) steel cut oatmeal\n\n> 6) baby carrots\n\n>7) broccoli\n\n> 8) cauliflower\n\n>9) spinach\n\n>10) green peas\n\n> 11) mushrooms\n\n> 12) cucumber\n\n> 13) cherry tomatoes\n\n> 14) salmon filet\n\n> 15) keflr ( non fat or if no than low fat )\n\n> The list for Mr. Epstein remains the same.\n\n> Thank you,\n\n> Karyna.\n\n>\n\n"
+        },
+        "field": "content_markdown",
+        "rank": 17.316593
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00538713-pdf",
+          "subject": "Food list",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Nov 23, 2013",
+          "preview": "Hi Anna,\n\nis coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> list for her:\n\n1) Greek yogurt (as JE&#x27;s favorite brand &quot;fage&quot; but 0% fat)\n2",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00538713-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\n\nis coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n1) Greek yogurt (as JE's favorite brand \"fage\" but 0% fat)\n2) grapefruits\n3) apples\n4) pomegranate\n5) steel cut oatmeal\n6) baby carrots\n7) broccoli\n8) cauliflower\n9) spinach\n10) green peas\n11) mushrooms\n12) cucumber\n13) cherry tomatoes\n14) salmon filet\n15) kefir (non fat or if no than low fat)\n\nThe list for Mr. Epstein remains the same.\n\nThank you,\n\nKaryna.\n\nSent from my iPhone"
+        },
+        "field": "content_markdown",
+        "rank": 17.316593
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01953184",
+          "subject": "Food Items for: ?",
+          "latest_sender_name": "Lesley Groff",
+          "formatted_date": "Oct 29, 2013",
+          "preview": "would you like to buy a few <b>food</b> items for ?\n\nOn Oct 29, 2013, at 2:02 PM, Jeffrey <b>Epstein</b> &lt;jeevacation@gmail.com&gt; wrote:\n\n&gt; yes\n\nOn Tue, Oct 29, 2013",
+          "avatar_color": "#9c27b0",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01953184-0",
+          "sender": "Lesley Groff",
+          "content_markdown": "would you like to buy a few food items for ?\n\nOn Oct 29, 2013, at 2:02 PM, Jeffrey Epstein <jeevacation@gmail.com> wrote:\n\n> yes\n\nOn Tue, Oct 29, 2013 at 1:58 PM, Lesley Groff <████████████████████> wrote:\n\n> Did ████████ need an apartment also?"
+        },
+        "field": "content_markdown",
+        "rank": 17.015633
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00380392-pdf",
+          "subject": "Food Items for",
+          "latest_sender_name": "Unknown",
+          "formatted_date": "Oct 29, 2013",
+          "preview": "would you like [x] to buy a few <b>food</b> items for [x]?\n\nOn Oct 29, 2013, at 2:02 PM, Jeffrey <b>Epstein</b> &lt;jeevacation@gmail.com&gt; wrote:\n\n&gt; yes\n\nOn Tue, Oct",
+          "avatar_color": "#db4437",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 1
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00380392-pdf",
+          "sender": null,
+          "content_markdown": "would you like [x] to buy a few food items for [x]?\n\nOn Oct 29, 2013, at 2:02 PM, Jeffrey Epstein <jeevacation@gmail.com> wrote:\n\n> yes\n\nOn Tue, Oct 29, 2013 at 1:58 PM, > wrote:\n\n> Did need an apartment also?"
+        },
+        "field": "content_markdown",
+        "rank": 17.015633
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00564244-pdf",
+          "subject": "No food for Mr. Epstein this trip",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Dec 18, 2017",
+          "preview": "Hi Anna,\n\nMr. <b>Epstein</b> asked that you don&#x27;t make any <b>food</b> for Wednesday please.\n\nThank you and see you soon!\n\nKaryna\n\nEFTA00564244",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00564244-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\n\nMr. Epstein asked that you don't make any food for Wednesday please.\n\nThank you and see you soon!\n\nKaryna\n\nEFTA00564244"
+        },
+        "field": "content_markdown",
+        "rank": 16.956318
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01963676",
+          "subject": "Re: Food tomorrow",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Jul 18, 2013",
+          "preview": "muffins for island, ice cream, .\n\nOn Thu, Jul 18, 2013 at 2:15 PM &gt; wrote:\n\nWhat would you look <b>food</b> wise for tomorrow- airplane and in Boston?\n\nSent",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01963676-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "muffins for island, ice cream, .\n\nOn Thu, Jul 18, 2013 at 2:15 PM > wrote:\n\nWhat would you look food wise for tomorrow- airplane and in Boston?\n\nSent from my iPhone\n\n**********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the property of Jeffrey Epstein Unauthorized use, disclosure or copying of this communication or any part thereof is strictly proh"
+        },
+        "field": "content_markdown",
+        "rank": 16.659142
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01838267",
+          "subject": "Re: Yeah! Food!",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Mar 17, 2011",
+          "preview": "wrote:\n\nOff to the French laundry for dinner! I&#x27;ll tell you allabout it! not that you like <b>food</b> : ) it&#x27;s not quite the same with out you! Miss you",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01838267-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "fun\n\nOn Thu, Mar 17, 2011 at 4:31 PM, ███████████████████████████████████████ > wrote:\n\nOff to the French laundry for dinner! I'll tell you allabout it! not that you like food : ) it's not quite the same with out you! Miss you.\n\nSent from my iPhone\n\n**********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the property of Jeffrey Epstein Unauthorized u"
+        },
+        "field": "content_markdown",
+        "rank": 16.303713
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02345827",
+          "subject": "Re: Food",
+          "latest_sender_name": "Michael Ross",
+          "formatted_date": "Jul 15, 2017",
+          "preview": "Mr. <b>Epstein</b> - is there any special <b>food</b> requests for your return?\n\nMichael Ross\n\nplease note\n\nThe information contained in this communication is",
+          "avatar_color": "#9c27b0",
+          "count": 3,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 24,
+          "unredactCount": 1
+        },
+        "matchedEmail": {
+          "id": "EFTA02345827-2",
+          "sender": "Michael Ross <unknown>",
+          "content_markdown": "Mr. Epstein - is there any special food requests for your return?\n\nMichael Ross\n\nplease note\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the property of JEE Unauthorized use, disclosure or copying of this communication or any part thereof is strictly prohibited and may be unlawful. If you have received this communication in error, please notify us i"
+        },
+        "field": "content_markdown",
+        "rank": 16.064926
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01948953",
+          "subject": "Fwd: Food for LSJ",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Oct 25, 2013",
+          "preview": "&lt;u&gt;Forwarded message&lt;/u&gt;\n\nFrom:\n\nDate: Thu, Oct 24, 2013 at 8:23 PM\n\nSubject: <b>Food</b> for LSJ\n\nTo: Jeffrey <b>Epstein</b> &lt;u&gt;&lt;jeevacation@gmail.com&gt;&lt;/u&gt;\n\nWould",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01948953-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "<u>Forwarded message</u>\n\nFrom:\n\nDate: Thu, Oct 24, 2013 at 8:23 PM\n\nSubject: Food for LSJ\n\nTo: Jeffrey Epstein <u><jeevacation@gmail.com></u>\n\nWould you like mozzarella, knishes or pickles for the trip?\n\nDo you have anything else you would like (besides the usual) for LSJ, I am not sure whether you need to be on your diet.\n\n********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the"
+        },
+        "field": "content_markdown",
+        "rank": 15.766092
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00529324-pdf",
+          "subject": "Re: Food list",
+          "latest_sender_name": "Ann Rodriquez",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "Here is the <b>food</b> list for her:\n\n&gt; Greek yogurt (as JE&#x27;s favorite brand &quot;fage&quot;but 0% fat)\n\n&gt; 2) grapefruits\n\n&gt;3) apples\n\n&gt; 4) pomegranate\n\n&gt; 5) steel",
+          "avatar_color": "#db4437",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00529324-pdf",
+          "sender": "Ann Rodriquez",
+          "content_markdown": "Great, Will do. Thx\n\nAnn R.\n\n> On Nov 23, 2013, at 7:33 PM, Karyna Shuliak ◄ wrote:\n>\n> Hi Anna,\n\n- coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n> Greek yogurt (as JE's favorite brand \"fage\"but 0% fat)\n\n> 2) grapefruits\n\n>3) apples\n\n> 4) pomegranate\n\n> 5) steel cut oatmeal\n\n> 6) baby carrots\n\n>7) broccoli\n\n> 8) cauliflower\n\n>9) spinach\n\n> 10) green peas\n\n>11) mushrooms\n\n> 12) cucumber\n\n> 13) cherry tomatoes\n\n> 14) salmon filet\n\n> 15) kefir ( non fat or if no than "
+        },
+        "field": "content_markdown",
+        "rank": 15.743046
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02136326",
+          "subject": "Re: Food for Pablos Holman?",
+          "latest_sender_name": "Lesley Groff",
+          "formatted_date": "Jun 12, 2013",
+          "preview": "yes\n\nOn Wed, Jun 12, 2013 at 1:34 PM, Lesley Groff wrote:\n\nDid you want a few <b>food</b> items and some water for Pablos Holman arriving june 18?\n\nSent from",
+          "avatar_color": "#9c27b0",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02136326-1",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "yes\n\nOn Wed, Jun 12, 2013 at 1:34 PM, Lesley Groff wrote:\n\nDid you want a few food items and some water for Pablos Holman arriving june 18?\n\nSent from my iPhone"
+        },
+        "field": "content_markdown",
+        "rank": 15.512598
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01844428",
+          "subject": "Fwd: Finger Food with Fingers",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Jan 12, 2012",
+          "preview": "Forwarded message\n\nFrom: Sultan Bin Sulayem -\n\nDate: Thu, Jan 12, 2012 at 7:32 PM\n\nSubject: Finger <b>Food</b> with Fingers\n\nTo: Jeffrey <b>Epstein</b> &lt;jeevacation",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 3,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01844428-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "Forwarded message\n\nFrom: Sultan Bin Sulayem -\n\nDate: Thu, Jan 12, 2012 at 7:32 PM\n\nSubject: Finger Food with Fingers\n\nTo: Jeffrey Epstein <jeevacation@gmail.com>\n\nCheck out this video on YouTube:\n\nhttp://www.youtube.com/watch?v=LG3d79V6xsA&feature=youtube_gdata_player\n\nSent from my iPhone\n\n***********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the "
+        },
+        "field": "content_markdown",
+        "rank": 15.384584
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00567644-pdf",
+          "subject": "Re: Re Food for Mr Epstein",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Mar 20, 2016",
+          "preview": "<b>Epstein</b> please advice us re <b>food</b> to buy for his coming tomorrow Monday.\n&gt;&gt;&gt;&gt;&gt;&gt; Thank you.\n&gt;&gt;&gt;&gt;&gt;&gt; Louella\n&gt;&gt;&gt;&gt;&gt;&gt;\n&gt;&gt;&gt;&gt;&gt;&gt; Sent from my iPhone",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00567644-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "We will not be coming tomorrow\n\n> On Mar 20, 2016, at 10:08 AM, [REDACTED] < [REDACTED] > wrote:\n>\n> Thanks Karyna. What about whole milk eggs for his muffin batter ?\n>\n> Sent from my iPhone\n>\n>>> On Mar 20, 2016, at 9:59 AM, Karyna Shuliak < [REDACTED] > wrote:\n>>>\n>>> No, I will go shopping myself. But I will let you know later if there is anything he wants to have right away.\n>>> Thank you.\n>>>\n>>>> On Mar 20, 2016, at 9:46 AM, Janusz Banasiak < [REDACTED] > wrote:\n>>>>>\n>>>> To make sure- no"
+        },
+        "field": "content_markdown",
+        "rank": 15.199781
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00538715-pdf",
+          "subject": "Re: Food list",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "2013, at 7:33 PM, Karyna Shuliak\n&gt;&gt; wrote:\n&gt;&gt;\n&gt;&gt; Hi Anna,\n&gt;&gt; is coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> list for her:\n&gt;&gt; Greek",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00538715-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\nUsually cabana 1\n\nOn Nov 24, 2013, at 2:23 PM, Ann Rodriquez wrote:\n\n> Hey Karyna,\n>\n> Which cabana do stay in?\n>\n> Ann R.\n>\n>> On Nov 23, 2013, at 7:33 PM, Karyna Shuliak\n>> wrote:\n>>\n>> Hi Anna,\n>> is coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n>> Greek yogurt ( as JE's favorite brand \"fage\"but 0% fat )\n\n» 2) grapefruits\n\n>> 3) apples\n\n» 4) pomegranate\n\n>> 5) steel cut oatmeal\n\n» 6) baby carrots\n\n>> 7) broccoli\n\n» 8) cauliflower\n\n\t>>9) spinach\n\n>> 10) g"
+        },
+        "field": "content_markdown",
+        "rank": 15.13171
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02136209",
+          "subject": "Re: Food for Pablos Holman?",
+          "latest_sender_name": "Lesley Groff",
+          "formatted_date": "Jun 12, 2013",
+          "preview": "his arrival on Tues. June 18th?\n\nBegin forwarded message:\n\nFrom: Jeffrey <b>Epstein</b> &lt;u&gt;&lt;teevacation©qmailcom&gt;&lt;/u&gt; Subject: Re: <b>Food</b> for Pablos &lt;u&gt;Holman",
+          "avatar_color": "#9c27b0",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02136209-0",
+          "sender": "Lesley Groff",
+          "content_markdown": "fabulous! Code for 1 1 P is: You know Pablos...get a few items you think he would like...apples? oranges? bananas? or is he chips, cookies, gummy bears! water, seltzer, O3?\n\nOn Jun 12, 2013, at 12:51 PM, █████████████ wrote:\n\nYes, I can do it on Sunday : ) On Jun 12, 2013, at 12:43 PM, Lesley Groff > wrote:\n\nHIM...will you be in town and available to go and buy a small amount of food/water,etc for Pabols prior to his arrival on Tues. June 18th?\n\nBegin forwarded message:\n\nFrom: Jeffrey Epstein <u"
+        },
+        "field": "content_markdown",
+        "rank": 15.055803
+      }
+    ],
+    "total": 2864,
+    "page": 1,
+    "totalPages": 144,
+    "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjE1LjA1NTgwMywiZG9jX2lkIjoiRUZUQTAyMTM2MjA5In0",
+    "operators": []
+  }
+}

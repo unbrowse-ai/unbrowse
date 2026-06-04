@@ -1,0 +1,61 @@
+{
+  "intent": "jason calacanis net worth dollar amount",
+  "params": {
+    "url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments"
+  },
+  "context": {
+    "url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "W0I7F_wpDWq_rIuSkH9Lc",
+      "score": 806.8,
+      "description": "Captured page artifact for jason calacanis net worth dollar amount",
+      "url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "yEFR-7fuJATYPbSlHMp7r",
+      "score": 69.1,
+      "description": "Returns details for Apollo with data",
+      "url": "https://www.capitaly.vc/.wf_graphql/apollo",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "W0I7F_wpDWq_rIuSkH9Lc",
+      "score": 841.8,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "yEFR-7fuJATYPbSlHMp7r",
+      "score": 144.1,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": null,
+      "error": "confirmation_required"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "gbvedhJwqL6OgxX2CqiO3",
+  "available_endpoints": [
+    {
+      "endpoint_id": "W0I7F_wpDWq_rIuSkH9Lc",
+      "score": 806.8,
+      "description": "Captured page artifact for jason calacanis net worth dollar amount",
+      "url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments"
+    },
+    {
+      "endpoint_id": "yEFR-7fuJATYPbSlHMp7r",
+      "score": 69.1,
+      "description": "Returns details for Apollo with data",
+      "url": "https://www.capitaly.vc/.wf_graphql/apollo"
+    }
+  ],
+  "extra": null
+}

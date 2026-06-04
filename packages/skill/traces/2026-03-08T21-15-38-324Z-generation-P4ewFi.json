@@ -1,0 +1,801 @@
+{
+  "page_url": "https://x.com/lekt8_/analytics",
+  "final_url": "https://x.com/lekt8_/analytics",
+  "intent": "get tweet analytics impressions engagement",
+  "candidate_count": 6,
+  "accepted_count": 1,
+  "decisions": [
+    {
+      "url": "https://x.com/lekt8_/analytics",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/vendor.d74f1a3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/i18n/en.9e33f48a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/main.a907f5ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs-0.twimg.com/emoji/v2/svg/26a0.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://x.com/ac471adb-ac92-4065-b837-9a4d61c52938",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://x.com/57ee47f2-c92b-41d3-9940-5f42abf526c5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.Dropdown.8223052a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.s.7c65532a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/node_modules_pnpm_x-clients_features_5_0_4__emotion_is-prop-valid_0_8_8__types_react-dom_18_2-dc7c18.62e6c35a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables=%7B%22device_id%22%3A%22Mac%2FChrome%22%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.28.4f286f3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.5.60731a5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.26.d629146a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/modules.audio.2664549a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AppModules.13a2bdba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.0.98b7e87a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.10.9372e86a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.9.668b2c6a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/modules.common.6f4e47ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.12.35da180a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.4.3c5bb96a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.20.31b6665a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.24.ace24daa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.25.4a9fcd0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.7.17a674ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.6.012e6cfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.SideNav~bundle.MultiAccount~bundle.JobSearch.3a096cca.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.SideNav.756c52ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.NotFound.ff28478a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.17.6838d3aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.23.444fe36a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.14.a43ffbba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.13.c219c5fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.2.c947532a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.19.cde1673a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.22.7fd7241a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.3.71c4067a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.21.efeb616a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.1.c91218aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~loader.DMDrawer~bundle.GrokDrawer~ondemand.HoverCard~ondemand.Command.50b45f8a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~loader.Typeahead~loader.DMDrawer~bundle.GrokDrawer~ondemand.CommandCe.c0da47ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~bundle.GrokDrawer~ondemand.CommandCenter~bundle.Account~bundle.Reader.6a89913a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.Dock~loader.DashMenu~loaders.video.VideoPlayerDefaultUI~ondemand.CommandCenter.da67175a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AudioDock.c6e5395a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.Articles~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScr.5681d9fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~loaders.video.PlayerBase~bundle.TwitterArticles~bundle.ComposeMedia~bundle.ConnectTab~bund.21b1f53a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.ConnectTab~bundle.DockPeek~bundle.LiveEvent~loader.TimelineFrameHandler~loader.Jetf.36eb822a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.Dock.47112dda.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.SettingsInternals~ondemand.Set.d9efd59a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~bundle.Payments~ond.c4bcd24a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~ondemand.Insights~o.3534e68a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer~.c8b4b05a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.Verified~ondemand.BusinessInsights.a3d5009a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~bundle.AccountAnalytics~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.ba04130a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.c20400aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.ChatDrawer.9ab2972a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.AVCallOverlays.2748222a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.richScribeAction.d5889a2a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.NetworkInstrument.d3ef4fda.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/hashflags.json",
+      "method": "GET",
+      "score": 17,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers=true&include_mention_filter=true&include_nsfw_user_flag=true&include_nsfw_admin_flag=true&include_ranked_timeline=true&include_alt_text_compose=true&include_ext_dm_av_call_settings=true&ext=ssoConnections&include_country_code=true&include_ext_dm_nsfw_media_filter=true",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.TwitterBlue~ondemand.HoverCard~ondemand.XChat~bundle.AudioSpaceDiscovery~bundle.BrandedLikesPre.bcda5b0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~ondemand.Insights~ondemand.Verified~ondeman.1ac3cc3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.Insights~ondemand.BusinessInsights~ondemand.ChatDrawer.4adecb9a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.BusinessInsights~ondemand.ChatDrawer.4ead2dca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.bdc2038a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.ChatDrawer~ondemand.qrcode.f30d858a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.ChatDrawer.a36fc49a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.ChatDrawer.aade360a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.ChatDrawer.58c0a22a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.18.f4a4d97a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.8.298bf28a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Typeahead~loader.DMDrawer~bundle.GrokDrawer~ondemand.HoverCard~bundle.ReaderMode~bundle.AudioSp.3848f3fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose~bundle.Sett.9424b4ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.DMDrawer~bundle.GrokDrawer~bundle.Birdwatch~bundle.Compose~bundle.DirectMessages~bundle.DMRichT.e221981a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Birdwatch~bundle.News~bundle.Grok~ondemand.News~loader.inlineTombstoneHandler.2905ab0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.AccountAnalytics~bundle.News~bundle.Grok~ondemand.News~bundle.Ocf~ondemand.In.d1f0d96a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.AccountAnalytics~bundle.News~bundle.Grok~ondemand.News~ondemand.Insights~onde.1384250a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.TwitterArticles~bundle.Grok~loader.Markdown~loader.TexBlock.6d11127a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.TwitterArticles~bundle.Grok~loader.Markdown.fc14849a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Grok~loader.Markdown.573197ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.DirectMessages~bundle.Grok.e818b94a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Grok.5d7644ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.GrokDrawer.652a4b5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Regular.80fda27a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Birdwatch~bundle..3c861e6a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.Notifications.b477cbaa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Bold.ebb56aba.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2012355341640736768/awTYCNJn_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.InlinePlayer~loader.AudioOnlyVideoPlayer~loader.immersiveTweetHandler.d37a55fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AudioOnlyVideoPlayer.518e24ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.x.com/live_pipeline/events?topic=%2Favcall%2Fcreate%2F1835873095460225025",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zzeLdGlB0ZN6hiOYUIpDcQ/XChatDmSettingsQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zCYojd6h_gVXYjFlaAk4bA/useDirectCallSetupQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/2/badge_count/badge_count.json?supports_ntab_urt=1&include_xchat_count=1",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://proxsee.pscp.tv/api/v2/loginTwitterToken",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://proxsee.pscp.tv/api/v2/authorizeToken",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/i18n/emoji-en.dac878ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.EmojiPicker~ondemand.EmojiPickerData~ondemand.ParticipantReaction.049c653a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/ces/p2",
+      "method": "POST",
+      "score": 7,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/hashflags.json",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables=%7B%22device_id%22%3A%22Mac%2FChrome%22%7D",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers=true&include_mention_filter=true&include_nsfw_user_flag=true&include_nsfw_admin_flag=true&include_ranked_timeline=true&include_alt_text_compose=true&include_ext_dm_av_call_settings=true&ext=ssoConnections&include_country_code=true&include_ext_dm_nsfw_media_filter=true",
+      "method": "GET",
+      "kept": true,
+      "reason": "accepted_endpoint",
+      "endpoint_id": "VZvdnuYOoDT4qkxiFTDaG",
+      "description": "Returns details for Sleep Time with enabled, end_time, start_time using include_ext_sharing_audiospaces_listening_data_with_followers, include_mention_filter, include_nsfw_user_flag, include_nsfw_admin_flag",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zzeLdGlB0ZN6hiOYUIpDcQ/XChatDmSettingsQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zCYojd6h_gVXYjFlaAk4bA/useDirectCallSetupQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/ces/p2",
+      "method": "POST",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "VZvdnuYOoDT4qkxiFTDaG",
+      "method": "GET",
+      "url_template": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers={include_ext_sharing_audiospaces_listening_data_with_followers}&include_mention_filter={include_mention_filter}&include_nsfw_user_flag={include_nsfw_user_flag}&include_nsfw_admin_flag={include_nsfw_admin_flag}&include_ranked_timeline={include_ranked_timeline}&include_alt_text_compose={include_alt_text_compose}&include_ext_dm_av_call_settings={include_ext_dm_av_call_settings}&ext={ext}&include_country_code={include_country_code}&include_ext_dm_nsfw_media_filter={include_ext_dm_nsfw_media_filter}",
+      "description": "Returns details for Sleep Time with enabled, end_time, start_time using include_ext_sharing_audiospaces_listening_data_with_followers, include_mention_filter, include_nsfw_user_flag, include_nsfw_admin_flag",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    }
+  ]
+}

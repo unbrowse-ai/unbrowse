@@ -1,0 +1,208 @@
+import { createHash } from "crypto";
+import { existsSync, readFileSync, readdirSync } from "fs";
+import { dirname, join, parse } from "path";
+import { fileURLToPath } from "url";
+import { execSync } from "child_process";
+import {
+  BUILD_CODE_HASH,
+  BUILD_DEFAULT_BACKEND_URL,
+  BUILD_GIT_SHA,
+  BUILD_RELEASE_MANIFEST_BASE64,
+  BUILD_RELEASE_MANIFEST_SIGNATURE,
+  BUILD_RELEASE_VERSION,
+  BUILD_DEFAULT_PROFILE,
+} from "./build-info.generated.js";
+
+// Deterministic version hash of all src/*.ts files.
+// Computed once at startup. Same code = same hash.
+// Used to stamp every trace so real user sessions become versioned evals.
+
+// Resolve the module directory for the dev-only filesystem code-hash fallback.
+// In a Cloudflare Worker (workerd) `import.meta.url` is undefined, so
+// fileURLToPath(undefined) throws at module-load and the worker fails CF
+// validation (error 10021). Guard it: release builds carry BUILD_CODE_HASH and
+// never touch the filesystem, so an empty dir here is harmless.
+function safeModuleDir(): string {
+  try {
+    return dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return "";
+  }
+}
+
+const MODULE_DIR = safeModuleDir();
+
+function collectTsFiles(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== "node_modules") {
+      results.push(...collectTsFiles(full));
+    } else if (entry.name.endsWith(".ts")) {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
+function hashFiles(srcDir: string, files: string[]): string {
+  const hash = createHash("sha256");
+  for (const file of files) {
+    hash.update(file.slice(srcDir.length));
+    hash.update(readFileSync(file, "utf-8"));
+  }
+  return hash.digest("hex").slice(0, 12);
+}
+
+export function resolveCodeHashSourceDir(moduleDir: string): string | null {
+  const candidates = [
+    moduleDir,
+    join(moduleDir, "runtime-src"),
+    join(moduleDir, "..", "runtime-src"),
+    join(moduleDir, "src"),
+    join(moduleDir, "..", "src"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (!existsSync(candidate)) continue;
+      const files = collectTsFiles(candidate);
+      if (files.length > 0) return candidate;
+    } catch {
+      // ignore candidate
+    }
+  }
+
+  return null;
+}
+
+export function computeCodeHashForDir(srcDir: string): string {
+  const files = collectTsFiles(srcDir).sort();
+  if (files.length === 0) throw new Error(`No TypeScript sources found in ${srcDir}`);
+  return hashFiles(srcDir, files);
+}
+
+function computeCodeHash(): string {
+  try {
+    const srcDir = resolveCodeHashSourceDir(MODULE_DIR);
+    if (srcDir) return computeCodeHashForDir(srcDir);
+  } catch {
+    // fall through
+  }
+
+  const pkgVersion = getPackageVersion();
+  if (pkgVersion !== "unknown") {
+    return createHash("sha256").update(`package:${pkgVersion}`).digest("hex").slice(0, 12);
+  }
+
+  // Compiled binary: filesystem not available, use a static hash
+  return "compiled";
+}
+
+function getGitSha(): string {
+  return BUILD_GIT_SHA?.trim() || "unknown";
+}
+
+function decodeBase64UrlJson<T>(value: string): T | null {
+  try {
+    if (!value) return null;
+    return JSON.parse(Buffer.from(value, "base64url").toString("utf-8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function getEmbeddedReleaseVersion(): string | null {
+  if (BUILD_RELEASE_VERSION?.trim()) return BUILD_RELEASE_VERSION.trim();
+  const manifest = decodeBase64UrlJson<{ release_version?: string }>(BUILD_RELEASE_MANIFEST_BASE64?.trim() || "");
+  return typeof manifest?.release_version === "string" && manifest.release_version.trim()
+    ? manifest.release_version.trim()
+    : null;
+}
+
+export function getPackageVersionForModuleDir(moduleDir: string): string {
+  let dir = moduleDir;
+  const root = parse(dir).root;
+
+  while (true) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf-8")) as { version?: string };
+      return typeof pkg.version === "string" ? pkg.version : "unknown";
+    } catch {
+      // keep walking
+    }
+
+    if (dir === root) return "unknown";
+    dir = dirname(dir);
+  }
+}
+
+function getPackageVersion(): string {
+  const packageVersion = getPackageVersionForModuleDir(MODULE_DIR);
+  if (packageVersion !== "unknown") return packageVersion;
+  return getEmbeddedReleaseVersion() ?? "unknown";
+}
+
+/** 12-char hex hash of all source file contents */
+export const CODE_HASH: string = BUILD_CODE_HASH?.trim() || computeCodeHash();
+
+/** Short git commit SHA */
+export const GIT_SHA: string = getGitSha();
+
+/**
+ * Git SHA of the code ACTUALLY RUNNING, resolved live at process start.
+ * BUILD_GIT_SHA / GIT_SHA above is a release-only baked constant (signed
+ * release provenance) — it goes stale the instant the running code
+ * differs from the last release cut (feature branch, dev, a worktree on
+ * another branch). Health/identity must tell the truth about what is
+ * running, so resolve it from git here; fall back to the baked GIT_SHA
+ * only when there is no git checkout (installed npm package).
+ */
+function getRuntimeGitSha(): string {
+  try {
+    const sha = execSync("git rev-parse --short=12 HEAD", {
+      cwd: MODULE_DIR,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+      timeout: 2000,
+    }).trim();
+    if (!sha) return GIT_SHA;
+    let dirty = false;
+    try {
+      dirty =
+        execSync("git status --porcelain", {
+          cwd: MODULE_DIR,
+          stdio: ["ignore", "pipe", "ignore"],
+          encoding: "utf8",
+          timeout: 2000,
+        }).trim().length > 0;
+    } catch { /* dirty-check best-effort */ }
+    return dirty ? `${sha}-dirty` : sha;
+  } catch {
+    // Not a git checkout (installed npm) — release provenance is the
+    // only identity available.
+    return GIT_SHA;
+  }
+}
+
+/** SHA of the code actually running (live git HEAD, "-dirty" if the
+ * working tree has uncommitted changes); falls back to the baked
+ * release GIT_SHA when not in a git checkout. Use this for "what code
+ * is this process running", NOT GIT_SHA (which is release provenance). */
+export const RUNTIME_GIT_SHA: string = getRuntimeGitSha();
+
+/** package.json version for CLI/runtime mismatch checks */
+export const PACKAGE_VERSION: string = getPackageVersion();
+
+/** Embedded default backend target; preview binaries override this at build time. */
+export const DEFAULT_BACKEND_URL: string = BUILD_DEFAULT_BACKEND_URL?.trim() || "https://beta-api.unbrowse.ai";
+
+/** Embedded default profile name; preview binaries set this to "staging" so the preview-tagged CLI auto-binds to ~/.unbrowse/profiles/staging/. Empty = no profile (default config dir). User can override via UNBROWSE_PROFILE env. */
+export const DEFAULT_PROFILE: string = BUILD_DEFAULT_PROFILE?.trim() || "";
+
+/** Combined version: "{code_hash}@{git_sha}" — stamped on every trace */
+export const TRACE_VERSION: string = `${CODE_HASH}@${GIT_SHA}`;
+
+/** Signed release attestation; embedded in compiled binaries when available. */
+export const RELEASE_MANIFEST_BASE64: string = BUILD_RELEASE_MANIFEST_BASE64?.trim() || "";
+export const RELEASE_MANIFEST_SIGNATURE: string = BUILD_RELEASE_MANIFEST_SIGNATURE?.trim() || "";

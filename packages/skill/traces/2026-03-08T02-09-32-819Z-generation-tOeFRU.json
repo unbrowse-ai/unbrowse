@@ -1,0 +1,171 @@
+{
+  "page_url": "https://www.npmjs.com/search?q=openai",
+  "final_url": "https://www.npmjs.com/search?q=openai",
+  "intent": "search packages",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://www.npmjs.com/search?q=openai",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static-production.npmjs.com/styles.edd18da47fc13927494e.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/1910ec33cf83ceabb2a74a6c60959a12.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9lYWZmYjU4NTczYWYxMDYwYzg2ZTBhMjhhZjE4YmYzOT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.FuPKLCANwr5U7Gao2mATPfLI3Bqx6aIgErlcanPgtfs",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci80NjE4ZTZmMjhkZmY5ZjhjM2NjMTNlYTg0OTU1ZWE2Nj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.ukXIpmz1leILTUQeO__2vDsU1A2vwjY8XCG8QJT7wmY",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9iZWQ5OGQxM2FjOTgwZWViNDNkOGJhNmZiMDg3ZDcwYj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.0kxiEqeUxCQwXw-UDfr2c3IX3PK2WWUd4O8MDcvkolg",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci8yMDZiZTJkMTA1MjJmYjQ2NzU0MTExMWMzNWQyNWUyYT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.ED8BC7rDpMavK0H0sgs9mj1DCtymypiYtZYZYOxre1Q",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9jODg5NzJhNjE2NjliOGVlYWZkMDNmOTczZjMwZTFkMT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.-pALYKBGnF-tApvNHIbojR51bTUlVkkGc9vNdqgq0_g",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci8xZWEzNjExMzZiZDVlMzZiODY1M2IzYTZkN2U5NmYxMz9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.Qju9lQ8QCqyqMJW6X_7XETf07LRIUU_SR5WiBd3Yq-4",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci84YmVmN2Q3ODc2ZGQ4NDA4MzVjY2MyMjBjODNhN2ZkYz9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.19dSP7eB5ftXvQTLBbf5FYz6C7NkfcZ72gNKqEKwkdA",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci81NWJiMDkxMmJlMDM2NjM4ZDlmMzc3OTIwMzExNTkyYj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.6xtAWwykFA5RA2oUj0haUTM0Vqun_PuDfTko2I4lBsA",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static-production.npmjs.com/commons.52be52b5d0d9c4739ad9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/minicssextractbug.80fee48a7bae36f20e7f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/searchv2/search.f7ac8075d5568eaa7f9a.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Fira+Mono",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Poppins:400,500,600",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/sourcesanspro/v23/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLGT9Z1xlFd2JQEk.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/firamono/v16/N0bX2SlFPv1weGeLZDtgJv7Ss9XZYQ.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3i54rwlxdu3cOWxw.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJfecnFHGPc.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    }
+  ],
+  "accepted_endpoints": []
+}

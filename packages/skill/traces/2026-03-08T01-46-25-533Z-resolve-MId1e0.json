@@ -1,0 +1,45 @@
+{
+  "intent": "scroll linkedin feed and get posts",
+  "params": {
+    "url": "https://www.linkedin.com/feed/"
+  },
+  "context": {
+    "url": "https://www.linkedin.com/feed/"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "3ueuhMzyGv_4a40ZLBB7M",
+      "score": -49.8,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.e9b0809465a07db1f02e70a82d455e10?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "OtPw1MKZK6L3sSai9OTuj",
+      "score": -49.8,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.34ead06db82a2cc9a778fac97f69ad6a?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "rPS8kBTTURkj8ihrYYeZ6",
+      "score": -49.8,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.a3de77c32c473719f1c58fae6bff43a5?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "OtPw1MKZK6L3sSai9OTuj",
+      "score": 55.2,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "c_smIxhpzEiTHEd2kAmy-"
+}

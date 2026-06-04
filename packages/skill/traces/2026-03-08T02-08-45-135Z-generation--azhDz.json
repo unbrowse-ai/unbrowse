@@ -1,0 +1,290 @@
+{
+  "page_url": "https://www.npmjs.com/package/openai",
+  "final_url": "https://www.npmjs.com/package/openai",
+  "intent": "get package info",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://www.npmjs.com/package/openai",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static-production.npmjs.com/styles.edd18da47fc13927494e.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/4a2a680dfcadf231172b78b1d3beb975.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://camo.githubusercontent.com/56ce90432afa8665bf9f12781ab8d83dd8fd2fc30e9f579ad36a9176b0cfe639/68747470733a2f2f696d672e736869656c64732e696f2f6e706d2f762f6f70656e61692e7376673f6c6162656c3d6e706d25323028737461626c6529",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://camo.githubusercontent.com/91a7809ab921fe517515da1592f8109ba7a7efb323fd8b339d44e0210daa8979/68747470733a2f2f696d672e736869656c64732e696f2f62756e646c6570686f6269612f6d696e7a69702f6f70656e6169",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://camo.githubusercontent.com/cda43b3878ee75d72a8946185ee24e964c5d324f7ab7a14f33ebf541b13e3958/68747470733a2f2f6a73722e696f2f6261646765732f406f70656e61692f6f70656e6169",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/stainless-api/sdk-assets/refs/heads/main/node.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/stainless-api/sdk-assets/refs/heads/main/bun.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/stainless-api/sdk-assets/refs/heads/main/deno.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci82YmNlZGE3MWI1MTA5MTUwYmQ1ZWJhYTJmNWZiOWU3Nj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.VgGWIumM9yYYyXXVUxQ9z5xuN2ANXDp8vsV7mJ9Nm7M",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9lZTVhM2U5ZWM2MGU4OGM1M2RlY2I5ODhlYzUxOWVhMj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.-j6LmTHD8DAtgeNh2yDnzCyhVAHPQ-ukS_0tX0bk8lE",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci84NzdiOGIxMzUyZjFiN2M3ZWIwYjA0NzA4Zjc2ZmM5OT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.t4kWRoZpjOZP0pkoC5WpkhZad9fq2uBlPrxiWxmUKP8",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9iZTE3ZDlkNWZhMzZjYjNkNTI5ZjBkNmVjY2U1MWI5OT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.R2MZGyRP00ASf_uDSdWnuyYuOyWdldd6jTdCRBkec4M",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9kZDgzNmU4ODFlNmFhYzU2MGZiN2NmNDc4MjcyYzg0Nz9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.DmUpgHpLoCInk3xo9OZ5XvsIRpcLXHSlQAnRanwo-Oo",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci8xYzg5NGM1Y2E2MjY4NzdjMDAwMDE0MmU0NGFlYTMzZD9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.6eiML1l4MDxCJwTtLGB5lNivOGL8-gVdk0sH69vMB0U",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci81ZWNkZTAyMzA0YmE5YmViZjJmNDhlMzc0Y2E1ZmRjMj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.i8PAbqTA34ZwipwzWpP67XEZvr_QjpAaZAMJ0JeNpEc",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci80ZGZkZDAxMGNlOGQwZGE1YWJmNzZlOGUxYzhhYjJkYj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.4pjbaZZvS_wevgjIg9DMqICurE472ok5FLJ0Z8HvWAE",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci8yMWZlNDcyMmZhM2IwM2YyMDU4Yzc1NzNjM2ViM2U1Zj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.SdHW5ynnBEOsxNm7CCW5LCWmKK3VW7IWdi-0umXvHxQ",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9lYWZmYjU4NTczYWYxMDYwYzg2ZTBhMjhhZjE4YmYzOT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.FuPKLCANwr5U7Gao2mATPfLI3Bqx6aIgErlcanPgtfs",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci85ODRkYWE4YmI2ZWY3YzE5ZmE0MWE4MGE2OTk3M2Q4Yj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.PpuoLJ3-7_gcvBcQ5W1RMiM_j4Qqx-RqJSTK-EWEDyk",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci9hOTQwZmI3MjhlYzVjMzg1NDYyNDVjNmEyOTNhODA5MT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.-o-Mj5wo_PQXlbsYdWZnpZMr3nPGLa2UbuwaG9kSD5g",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci83YTA0NmQyN2I5ZjI0OWNiMWFkOTIzYmU1YmQ0ZWM4OT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.ITVUyo4-v3WlczUfwObGrxvJQS0ktanCEwOevpLTmo4",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci8yMTE2ZDExOTFhNjIxM2U5MzZlYTU0MDdjZmI1ZWNkMz9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.DuFfxbPo0EiK6y-llNKgW296Fa2v_Xr9yiZ1E9LYKIA",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci83YjE0NzYxYmY4NjllN2RmNTRiNGNlZGYxNzAwNjQ2OT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.YHAQxusVL4HIYjiLkBnktB7utK46ATxQrUuxbK-k9M0",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci85OWQ0YjhjYzliYjUzNGY5ZTE0ODRmOTQyMWJhNDdlNj9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.9HO9sT7ox3SpEVSHGQriFeEQO8ROKOEB1dEJJ2cmxHw",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.npmjs.com/npm-avatar/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmF0YXJVUkwiOiJodHRwczovL3MuZ3JhdmF0YXIuY29tL2F2YXRhci81YTgzOWMyNWZmOGZkNjQ4YjAyNGIwMTIzZTEyNmMwNT9zaXplPTEwMCZkZWZhdWx0PXJldHJvIn0.UmLhvGZLx-zmkuSiPCm45gQliSY_mZABK1MAofqhF2E",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static-production.npmjs.com/commons.52be52b5d0d9c4739ad9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/minicssextractbug.80fee48a7bae36f20e7f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-production.npmjs.com/package/package.cf3f003f84fb3647ae97.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Fira+Mono",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Poppins:400,500,600",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/sourcesanspro/v23/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLGT9Z1xlFd2JQEk.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/firamono/v16/N0bX2SlFPv1weGeLZDtgJv7Ss9XZYQ.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3i54rwlxdu3cOWxw.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJfecnFHGPc.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.github.com/repos/openai/openai-node/pulls?per_page=1",
+      "method": "GET",
+      "score": 14,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://api.github.com/repos/openai/openai-node/issues?per_page=1",
+      "method": "GET",
+      "score": 14,
+      "kept": false,
+      "reason": "domain_mismatch"
+    }
+  ],
+  "accepted_endpoints": []
+}

@@ -1,0 +1,78 @@
+{
+  "intent": "search projects",
+  "params": {
+    "url": "https://www.gitlab.com"
+  },
+  "context": {
+    "url": "https://www.gitlab.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+      "score": 447.2,
+      "description": "Captured page artifact for search projects",
+      "url": "https://www.gitlab.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "gYvmRVmWBsQXN1QS4CRCw",
+      "score": 59.5,
+      "description": "Returns details for En U with aria, blog, forms, oneTrustWarning, langSelector, accordions",
+      "url": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+      "score": 482.2,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "gYvmRVmWBsQXN1QS4CRCw",
+      "score": 154.5,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "hcoy3KBzvpfGLwvRblzeM",
+  "available_endpoints": [
+    {
+      "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+      "score": 447.2,
+      "description": "Captured page artifact for search projects",
+      "url": "https://www.gitlab.com"
+    },
+    {
+      "endpoint_id": "gYvmRVmWBsQXN1QS4CRCw",
+      "score": 59.5,
+      "description": "Returns details for En U with aria, blog, forms, oneTrustWarning, langSelector, accordions",
+      "url": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json"
+    },
+    {
+      "endpoint_id": "r-TMC21UwEj5QLjNKjVOs",
+      "score": -72.5,
+      "description": "Returns cable data. fields: type, sid, identifier",
+      "url": "wss://ws4.qualified.com/cable?wv=9&token=q2kjzSUxjtgnCEEB&vu=63c1b7f7-6036-4f18-96eb-bb621dfed244&wu=d2a70e3c-7462-411a-ae0c-93b7bf5ae784&ca=2026-03-06T23%3A18%3A48.226Z&tz=America%2FLos_Angeles&bis=5&referrer=&pv=1&fv=2026-03-06-b41e979e18&iml=false&bl=en-US&ic=true"
+    },
+    {
+      "endpoint_id": "rr0UcDd-ITtydk5eez5in",
+      "score": -72.5,
+      "description": "Returns cable data. fields: type, sid, identifier",
+      "url": "wss://ws4.qualified.com/cable?wv=9&token=q2kjzSUxjtgnCEEB&vu=059253b2-8a71-4dfc-bb41-fc39adc30a74&wu=c797e93b-d6c2-4b76-85ae-e8ef5f25efb5&ca=2026-03-08T01%3A54%3A43.697Z&tz=America%2FLos_Angeles&bis=5&referrer=&pv=1&fv=2026-03-08-7ce28f6d25&iml=false&bl=en-US&ic=true"
+    },
+    {
+      "endpoint_id": "AwZixnOqEbIrqzTMA3uXS",
+      "score": -72.5,
+      "description": "Returns cable data. fields: type, sid, identifier",
+      "url": "wss://ws4.qualified.com/cable?wv=9&token=q2kjzSUxjtgnCEEB&vu=c435151f-84a5-4d01-bd7c-bdeec6470379&wu=c5614588-71af-43e2-9bce-d8044cc16c3b&ca=2026-03-08T01%3A55%3A37.072Z&tz=America%2FLos_Angeles&bis=5&referrer=&pv=1&fv=2026-03-08-7ce28f6d25&iml=false&bl=en-US&ic=true"
+    }
+  ],
+  "extra": null
+}

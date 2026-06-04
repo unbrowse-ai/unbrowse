@@ -1,0 +1,19 @@
+[project]
+name = "unbrowse-browser-use"
+version = "0.1.0"
+description = "Zero-edit drop-in for browser-use — same Agent surface, backed by Unbrowse route resolve+replay instead of step-by-step live browsing."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://unbrowse.ai/vs/browser-use"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,61 @@
+{
+  "trace_id": "03lh49TuMQuyBic2rM6Jp",
+  "skill_id": "A-dNInSidWmlnd2Bi-Ff_",
+  "endpoint_id": "meLVH7KUML_ksaLPQWGj1",
+  "started_at": "2026-03-08T01:41:59.614Z",
+  "completed_at": "2026-03-08T01:42:21.370Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "id": "@Mastodon",
+        "url": "/@Mastodon",
+        "text": "Recent searchesNo recent searchesSearch optionsOnly available when logged in.mastodon.social is one of the many independent Mastodon servers you can use to participate in the fediverse.The original server operated by the Mastodon gGmbH non-profitAdministered by:Mastodon @MastodonServer stats:301Kactive usersmastodon.social: About · Status · Profiles directory · Privacy policyMastodon: About · Get the app · Keyboard shortcuts · View source code · v4.6.0-nightly.2026-03-05"
+      },
+      {
+        "id": "@q@glauca.space",
+        "url": "/@q@glauca.space",
+        "text": "Search optionsOnly available when logged in.AllProfilesHashtagsPostsProfilesSee allQ ✨️ @ Uplink @q@glauca.space3.5K followers https://magicalcodewit.ch FollowMadame Q @uichelorraine@piaille.fr4.7K followers FollowYour Boy Q 🤖 @YourboyQ254@sportsbots.xyz25K followers FollowQ @JustAn0therVetFranceResistancE@truthsocial.co.in423 followers FollowHashtagsSee all#q0 people in the past 2 days"
+      },
+      {
+        "id": "@uichelorraine@piaille.fr",
+        "url": "/@uichelorraine@piaille.fr",
+        "text": "Madame Q @uichelorraine@piaille.fr4.7K followers Follow"
+      },
+      {
+        "id": "@YourboyQ254@sportsbots.xyz",
+        "url": "/@YourboyQ254@sportsbots.xyz",
+        "text": "Your Boy Q 🤖 @YourboyQ254@sportsbots.xyz25K followers Follow"
+      },
+      {
+        "id": "@JustAn0therVetFranceResistancE@truthsocial.co.in",
+        "url": "/@JustAn0therVetFranceResistancE@truthsocial.co.in",
+        "text": "Q @JustAn0therVetFranceResistancE@truthsocial.co.in423 followers Follow"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8,
+      "source": "rendered-dom",
+      "final_url": "https://mastodon.social/search?q={q}"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].id",
+      "data[].url",
+      "data[].text",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

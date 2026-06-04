@@ -1,0 +1,36 @@
+{
+  "page_url": "https://ads-api.x.com/11/accounts",
+  "final_url": "https://ads-api.x.com/11/accounts",
+  "intent": "list all advertiser accounts",
+  "candidate_count": 1,
+  "accepted_count": 1,
+  "decisions": [
+    {
+      "url": "https://ads-api.x.com/11/accounts",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "IWQb3yErx5-Sv-WolW0e4",
+      "description": "Returns details for Error with code, message using slug, slug_2",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "IWQb3yErx5-Sv-WolW0e4",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/{slug}/{slug_2}",
+      "description": "Returns details for Error with code, message using slug, slug_2",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    }
+  ]
+}

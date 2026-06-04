@@ -1,0 +1,10 @@
+{
+  "trace_id": "TV2tzpBDgtvlKgFG2eW4G",
+  "skill_id": "zDCUIt2Utv2hbe3S0R7am",
+  "endpoint_id": "2xu9uCwCZcsVlwYYMUXmq",
+  "started_at": "2026-03-08T01:57:04.848Z",
+  "completed_at": "2026-03-08T01:57:04.848Z",
+  "success": false,
+  "error": "confirmation_required",
+  "trace_version": "616f5f215069@3f6f10b"
+}

@@ -1,0 +1,124 @@
+{
+  "intent": "get messages from channels",
+  "params": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "context": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "TntVOLLTT85ya7sXE23_0",
+      "score": 396.7,
+      "description": "Captured page artifact for get messages from channels",
+      "url": "https://discord.com/channels/@me",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "4mZELuqEgdODCq_vThgMu",
+      "score": 98.1,
+      "description": "Returns details for Detectable with aliases, executables, is_launcher, name, os, hook",
+      "url": "https://discord.com/api/v9/applications/non-games/detectable",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "8UNM5Wnpyn_Sp5SF7Yc42",
+      "score": -38.5,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "TntVOLLTT85ya7sXE23_0",
+      "score": 436.7,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "4mZELuqEgdODCq_vThgMu",
+      "score": 193.1,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "8UNM5Wnpyn_Sp5SF7Yc42",
+      "score": 16.5,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": null,
+      "local_reason": "primitive_rows"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "HFqrD2go16qRlO5jpTyTZ",
+  "available_endpoints": [
+    {
+      "endpoint_id": "TntVOLLTT85ya7sXE23_0",
+      "score": 396.7,
+      "description": "Captured page artifact for get messages from channels",
+      "url": "https://discord.com/channels/@me"
+    },
+    {
+      "endpoint_id": "4mZELuqEgdODCq_vThgMu",
+      "score": 98.1,
+      "description": "Returns details for Detectable with aliases, executables, is_launcher, name, os, hook",
+      "url": "https://discord.com/api/v9/applications/non-games/detectable"
+    },
+    {
+      "endpoint_id": "FOpH18YFggA1rQMQPyPpK",
+      "score": 46.3,
+      "description": "Returns details for Subscription with id, type, created_at, canceled_at, current_period_start, current_period_end using user, include_inactive, limit, exclude_unpaid_statuses",
+      "url": "https://discord.com/api/v9/users/{user}/billing/subscriptions?include_inactive={include_inactive}&limit={limit}&exclude_unpaid_statuses={exclude_unpaid_statuses}&subscription_type={subscription_type}"
+    },
+    {
+      "endpoint_id": "L51Qz_RjsAx1VOV8buJzH",
+      "score": 43.3,
+      "description": "Returns details for Entry with content, rank using user, for_game_profile, feature",
+      "url": "https://discord.com/api/v9/content-inventory/users/{user}?for_game_profile={for_game_profile}&feature={feature}"
+    },
+    {
+      "endpoint_id": "tDDyrK20zEK_T2AD4D2dj",
+      "score": 33.2,
+      "description": "Returns details for Quest with id, config, user_status, targeted_content, preview, traffic_metadata_raw using quest",
+      "url": "https://discord.com/api/v9/quests/{quest}"
+    },
+    {
+      "endpoint_id": "Ctl9_gIMPvIEnwxJIIT8B",
+      "score": -30.5,
+      "description": "Returns / data. fields: headers:{Spotify-Connection-Id}, method, type, uri",
+      "url": "wss://dealer.spotify.com/?access_token=BQCfAHEgsUcLTeIDkroGGdzomtXZrRu9TsF9eHg4KbqomvxNOFh_zwxKUAXwE1S0xq8GRqgPhS3E2HpFTtzd9W1xrM-5jChVmipykeHJ65dHUqq-Eft6aQfwMwGw2h0q5M8FAdwox4WZL-5vnlAnEhQVQ7u20n7WcnRgYyIjkkXU5lhnR-lViYmayQcHEjUR3WACKI7z9mJsiGJ2VKlMsW5tNhHw4L0QQnp6PtBrRddF2w"
+    },
+    {
+      "endpoint_id": "q7KWvLrHkJGXsRIJnTvAJ",
+      "score": -38.3,
+      "description": "Returns status for Page with id, name, url, time_zone, updated_at",
+      "url": "https://status.discord.com/api/v2/incidents/unresolved.json"
+    },
+    {
+      "endpoint_id": "u_CpFifasaioqlpV3LQSI",
+      "score": -38.3,
+      "description": "Returns status for Page with id, name, url, time_zone, updated_at",
+      "url": "https://status.discord.com/api/v2/scheduled-maintenances/upcoming.json"
+    },
+    {
+      "endpoint_id": "mjKWC9KRgQvB5tK9JWPWy",
+      "score": -38.3,
+      "description": "Returns status for Page with id, name, url, time_zone, updated_at",
+      "url": "https://status.discord.com/api/v2/scheduled-maintenances/active.json"
+    },
+    {
+      "endpoint_id": "8UNM5Wnpyn_Sp5SF7Yc42",
+      "score": -38.5,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream"
+    }
+  ],
+  "extra": null
+}

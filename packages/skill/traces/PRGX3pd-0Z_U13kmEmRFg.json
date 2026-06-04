@@ -1,0 +1,47 @@
+{
+  "trace_id": "PRGX3pd-0Z_U13kmEmRFg",
+  "skill_id": "Y-bXeJDByZGmjTH7KQ281",
+  "endpoint_id": "0A5g7o1UEEqSzZZQpBBZb",
+  "started_at": "2026-03-08T01:53:17.492Z",
+  "completed_at": "2026-03-08T01:53:40.975Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "full_name": "hashtag/UrsulaNordstrom",
+        "url": "https://github.com/hashtag/UrsulaNordstrom"
+      },
+      {
+        "full_name": "hashtag/nonfictionkidlit",
+        "url": "https://github.com/hashtag/nonfictionkidlit"
+      },
+      {
+        "full_name": "hashtag/abramsbooks",
+        "url": "https://github.com/hashtag/abramsbooks"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8,
+      "source": "rendered-dom",
+      "final_url": "https://bsky.app/"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].full_name",
+      "data[].url",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

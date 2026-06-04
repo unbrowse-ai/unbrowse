@@ -1,0 +1,2139 @@
+{
+  "page_url": "https://x.com/home",
+  "final_url": "https://x.com/home",
+  "intent": "get home timeline",
+  "candidate_count": 22,
+  "accepted_count": 22,
+  "decisions": [
+    {
+      "url": "https://x.com/home",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/vendor.3f55b4da.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/i18n/en.04796b1a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/main.4438e12a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs-0.twimg.com/emoji/v2/svg/26a0.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://x.com/b8e4919f-5df5-4ba5-ae6d-ad64e598c202",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://x.com/0801db92-bfd5-46c4-942d-897a9de1427e",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.Dropdown.8223052a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.s.c5ec1cfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/snvCaalBp51MiDb3-nGblg/HomeTimeline?variables=%7B%22count%22%3A20%2C%22includePromotedContent%22%3Atrue%2C%22requestContext%22%3A%22launch%22%2C%22withCommunity%22%3Atrue%7D&features=%7B%22rweb_video_screen_enabled%22%3Afalse%2C%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22creator_subscriptions_tweet_preview_api_enabled%22%3Atrue%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22premium_content_api_read_enabled%22%3Afalse%2C%22communities_web_enable_tweet_community_results_fetch%22%3Atrue%2C%22c9s_tweet_anatomy_moderator_badge_enabled%22%3Atrue%2C%22responsive_web_grok_analyze_button_fetch_trends_enabled%22%3Afalse%2C%22responsive_web_grok_analyze_post_followups_enabled%22%3Atrue%2C%22responsive_web_jetfuel_frame%22%3Atrue%2C%22responsive_web_grok_share_attachment_enabled%22%3Atrue%2C%22responsive_web_grok_annotations_enabled%22%3Atrue%2C%22articles_preview_enabled%22%3Atrue%2C%22responsive_web_edit_tweet_api_enabled%22%3Atrue%2C%22graphql_is_translatable_rweb_tweet_is_translatable_enabled%22%3Atrue%2C%22view_counts_everywhere_api_enabled%22%3Atrue%2C%22longform_notetweets_consumption_enabled%22%3Atrue%2C%22responsive_web_twitter_article_tweet_consumption_enabled%22%3Atrue%2C%22tweet_awards_web_tipping_enabled%22%3Afalse%2C%22content_disclosure_indicator_enabled%22%3Atrue%2C%22content_disclosure_ai_generated_indicator_enabled%22%3Atrue%2C%22responsive_web_grok_show_grok_translated_post%22%3Atrue%2C%22responsive_web_grok_analysis_button_from_backend%22%3Atrue%2C%22post_ctas_fetch_enabled%22%3Atrue%2C%22freedom_of_speech_not_reach_fetch_enabled%22%3Atrue%2C%22standardized_nudges_misinfo%22%3Atrue%2C%22tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled%22%3Atrue%2C%22longform_notetweets_rich_text_read_enabled%22%3Atrue%2C%22longform_notetweets_inline_media_enabled%22%3Afalse%2C%22responsive_web_grok_image_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_imagine_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_community_note_auto_translation_is_enabled%22%3Afalse%2C%22responsive_web_enhance_cards_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables=%7B%22device_id%22%3A%22Mac%2FChrome%22%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/node_modules_pnpm_x-clients_features_4_1_1__emotion_is-prop-valid_0_8_8__types_react-dom_18_2-e728e0.29a71a4a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.28.4f286f3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.5.60731a5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.26.d629146a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/modules.audio.bdf28b5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AppModules.4cbbb51a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.0.98b7e87a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.10.9372e86a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.9.668b2c6a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/modules.common.6f4e47ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.12.35da180a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.4.3c5bb96a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.20.31b6665a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.24.ace24daa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.25.4a9fcd0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.7.17a674ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.6.012e6cfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.SideNav~bundle.MultiAccount~bundle.JobSearch.3a096cca.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.SideNav.e195ec4a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.17.d6b3145a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.23.444fe36a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.14.a43ffbba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.13.c219c5fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.19.cde1673a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.3.71c4067a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.8.298bf28a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~loader.Typeahead~loader.DMDrawer~bundle.GrokDrawer~ondemand.CommandCe.f90ea7ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.Dock~loader.DashMenu~loaders.video.VideoPlayerDefaultUI~ondemand.CommandCenter.da67175a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.Articles~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScr.1962e82a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.TwitterBlue~ondemand.HoverCard~ondemand.XChat~bundle.AudioSpaceDiscovery~bundle.BrandedLikesPre.bcda5b0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Birdwatch~bundle..3c861e6a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.HomeTimeline~loader.GetVerifiedSidebar.5b4e327a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.HomeTimeline.8dad4efa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.2.c947532a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.22.7fd7241a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.21.037030fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.1.c91218aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~loader.DMDrawer~bundle.GrokDrawer~ondemand.HoverCard~ondemand.Command.fcca9fca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.AudioDock~loader.DashMenu~bundle.GrokDrawer~ondemand.CommandCenter~bundle.Account~bundle.Reader.3791c50a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AudioDock.c6e5395a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~loaders.video.PlayerBase~bundle.TwitterArticles~bundle.ComposeMedia~bundle.ConnectTab~bund.4387197a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.AccountAnalytics~bundle.ConnectTab~ondemand.XChat~bundle.DockPeek~ondemand.Insights.d48a2b8a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.ConnectTab~ondemand.XChat~bundle.DockPeek~bundle.LiveEvent~loader.TimelineFrameHand.49a3032a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Dock~bundle.ConnectTab~bundle.DockPeek~bundle.LiveEvent~loader.TimelineFrameHandler~loader.Jetf.605ad4fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.Dock.914548aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.SettingsInternals~ondemand.Set.d9efd59a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~bundle.Payments~ond.c4bcd24a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~ondemand.Insights~o.8d86e5fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer~.ea733d5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.Verified~ondemand.BusinessInsights.103a03aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~bundle.AccountAnalytics~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.04393b3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.1e2d023a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.AVCallOverlays~ondemand.XChat~ondemand.ChatDrawer.61d8f9aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.AVCallOverlays.3b61acba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.richScribeAction.d5889a2a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.NetworkInstrument.d3ef4fda.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/hashflags.json",
+      "method": "GET",
+      "score": 17,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers=true&include_mention_filter=true&include_nsfw_user_flag=true&include_nsfw_admin_flag=true&include_ranked_timeline=true&include_alt_text_compose=true&include_ext_dm_av_call_settings=true&ext=ssoConnections&include_country_code=true&include_ext_dm_nsfw_media_filter=true",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~bundle.AccountAnalytics~ondemand.XChatShare~ondemand.Insights~ondemand.Verified~ondeman.cfa25cfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.Insights~ondemand.BusinessInsights~ondemand.ChatDrawer.23da810a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.BusinessInsights~ondemand.ChatDrawer.025c515a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.XChatShare~ondemand.ChatDrawer.6bdbd03a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.ChatDrawer~ondemand.qrcode.f30d858a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.AccountAnalytics~ondemand.XChat~ondemand.ChatDrawer.6680dc2a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.XChat~ondemand.ChatDrawer.42da7c1a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.ChatDrawer.c556b96a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/icons.18.f4a4d97a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Typeahead~loader.DMDrawer~bundle.GrokDrawer~ondemand.HoverCard~bundle.ReaderMode~bundle.AudioSp.3848f3fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose~bundle.Sett.b465da4a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.DMDrawer~bundle.GrokDrawer~bundle.Birdwatch~bundle.Compose~bundle.DirectMessages~bundle.DMRichT.e221981a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Birdwatch~bundle.News~bundle.Grok~ondemand.News~loader.inlineTombstoneHandler.2905ab0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.AccountAnalytics~bundle.News~bundle.Grok~ondemand.News~bundle.Ocf~ondemand.In.d1f0d96a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.AccountAnalytics~bundle.News~bundle.Grok~ondemand.News~ondemand.Insights~onde.1384250a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.TwitterArticles~bundle.Grok~loader.Markdown~loader.TexBlock.6d11127a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.TwitterArticles~bundle.Grok~loader.Markdown.fc14849a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Grok~loader.Markdown.36c306ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.DirectMessages~bundle.Grok.a50d278a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.GrokDrawer~bundle.Grok.5d7644ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.GrokDrawer.652a4b5a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Regular.80fda27a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/users/email_phone_info.json",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Bold.ebb56aba.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/cUuRnmF2028ARztoNWgv9w/useSubscriptionsPaymentFailureQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2028617732615221248/7ys8l4rX_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.NewTweetsPill.a16420ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.Typeahead.8bb67a4a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.DMDrawer~bundle.ReaderMode~bundle.Compose~bundle.DirectMessages~bundle.DMRichTextCompose~bundle.d31a952a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.TimelineRenderer.26f2ecfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.JobSearch~bundle.UserJobs~loader.WideLayout.8a3e3b2a.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.WideLayout.8fbf58ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.InlinePlayer~loader.AudioOnlyVideoPlayer~loader.immersiveTweetHandler.d37a55fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AudioOnlyVideoPlayer.518e24ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.Intercom.c9e2e80a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.DividerHandler.bbaf2f8a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.DMDrawer~bundle.Compose~bundle.DirectMessages~bundle.DMRichTextCompose~loader.HWCard~loader.Tim.f59286da.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.TimelineCardHandler.2e9f97ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.inlineTombstoneHandler~loader.tweetHandler.e5528f0a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.tweetHandler.3a7f4b1a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.TimelineFrameHandler.d3bff6fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.ImpressionPlaceholderHandler.9a7efdaa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.DMDrawer~bundle.Compose~bundle.DirectMessages~bundle.DMRichTextCompose~bundle.RichTextCompose.9f6bbc3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.Compose~bundle.ConversationWithRelay~bundle.Conversation~bundle.RichTextCompose.2e854a8a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.TwitterArticles~bundle.Compose~bundle.RichTextCompose.4c5e8fba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~bundle.Compose~bundle.RichTextCompose.2c5d300a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.RichTextCompose.067a512a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.PremiumLoaders.152d767a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.VerifiedOrgSidebarModule.11a9615a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loader.Spacebar~loader.SidebarSpacebar.89b7d82a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.SidebarSpacebar.52bc1d1a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.NewsSidebar.b2f2738a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.ExploreSidebar.22bc7d8a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/SPJ9o9QzEK2l1Bh1vcgX6A/useFetchProductSubscriptionsQuery?variables=%7B%22fetchPrices%22%3Afalse%7D&features=%7B%22subscriptions_management_fetch_next_billing_time%22%3Atrue%7D",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.AbsolutePower.daf953ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery?variables=%7B%22rest_id%22%3A%22For%20You%22%2C%22limit%22%3A3%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/OeetKDpCigK8wSJwl7oWRA/useVerifiedOrgIdentityVerificationConfigQuery?variables=%7B%7D&features=%7B%22responsive_web_verified_organizations_idv_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/fleets/v1/fleetline?only_spaces=true",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/bundle.Notifications.0d99053a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/multi/list.json",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/2/badge_count/badge_count.json?supports_ntab_urt=1&include_xchat_count=1",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/o8dabL5ri3RA6DPrG5Bo_g/useVerifiedOrgFeatureHelperQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/x3JZoNX9ubSzoCIHoYo2NA/UsersVerifiedAvatars?variables=%7B%22userIds%22%3A%5B%221929837739329093632%22%2C%221835873095460225025%22%5D%7D&features=%7B%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/2/badge_count/badge_count.json?supports_ntab_urt=1&include_xchat_count=1",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Medium.f8e2739a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.x.com/live_pipeline/events?topic=%2Flive_content%2F1929837739329093632",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.x.com/live_pipeline/events?topic=%2Favcall%2Fcreate%2F1929837739329093632",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.TweetCurationActionMenu.7f8b920a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.Grok.2496c5da.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loaders.video.PlayerHls1.5.b067014a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.InlinePlayer.7ed44bea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loaders.video.VideoPlayerDefaultUI~loaders.video.VideoPlayerMiniUI~loaders.video.VideoPlayerHashtagHig.e6e6f33a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loaders.video.VideoPlayerDefaultUI~loaders.video.VideoPlayerPrerollUI~loaders.video.VideoPlayerEventsU.49bea09a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loaders.video.VideoPlayerDefaultUI~loaders.video.VideoPlayerEventsUI.25c702ea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~loaders.video.VideoPlayerDefaultUI~loaders.video.VideoPlayerPrerollUI.23b6ac6a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loaders.video.VideoPlayerDefaultUI.71d3414a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.LottieWeb.46a2acda.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/sticky/animations/like.4.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1955359038532653056/OSHY3ewP_bigger.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1982564393524006912/_f27fsdO_bigger.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/DwmNKZXS-QQLRd3_U17X3A/ScheduledPromotionsQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/PFIxTk8owMoZgiMccP0r4g/getAltTextPromptPreference?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables=%7B%7D&features=%7B%22rweb_video_screen_enabled%22%3Afalse%2C%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22creator_subscriptions_tweet_preview_api_enabled%22%3Atrue%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22premium_content_api_read_enabled%22%3Afalse%2C%22communities_web_enable_tweet_community_results_fetch%22%3Atrue%2C%22c9s_tweet_anatomy_moderator_badge_enabled%22%3Atrue%2C%22responsive_web_grok_analyze_button_fetch_trends_enabled%22%3Afalse%2C%22responsive_web_grok_analyze_post_followups_enabled%22%3Atrue%2C%22responsive_web_jetfuel_frame%22%3Atrue%2C%22responsive_web_grok_share_attachment_enabled%22%3Atrue%2C%22responsive_web_grok_annotations_enabled%22%3Atrue%2C%22articles_preview_enabled%22%3Atrue%2C%22responsive_web_edit_tweet_api_enabled%22%3Atrue%2C%22graphql_is_translatable_rweb_tweet_is_translatable_enabled%22%3Atrue%2C%22view_counts_everywhere_api_enabled%22%3Atrue%2C%22longform_notetweets_consumption_enabled%22%3Atrue%2C%22responsive_web_twitter_article_tweet_consumption_enabled%22%3Atrue%2C%22tweet_awards_web_tipping_enabled%22%3Afalse%2C%22content_disclosure_indicator_enabled%22%3Atrue%2C%22content_disclosure_ai_generated_indicator_enabled%22%3Atrue%2C%22responsive_web_grok_show_grok_translated_post%22%3Atrue%2C%22responsive_web_grok_analysis_button_from_backend%22%3Atrue%2C%22post_ctas_fetch_enabled%22%3Atrue%2C%22freedom_of_speech_not_reach_fetch_enabled%22%3Atrue%2C%22standardized_nudges_misinfo%22%3Atrue%2C%22tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled%22%3Atrue%2C%22longform_notetweets_rich_text_read_enabled%22%3Atrue%2C%22longform_notetweets_inline_media_enabled%22%3Afalse%2C%22responsive_web_grok_image_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_imagine_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_community_note_auto_translation_is_enabled%22%3Afalse%2C%22responsive_web_enhance_cards_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/TDtrShaKKs-vFLCuz2jLdA/SidebarUserRecommendations?variables=%7B%22profileUserId%22%3A%221929837739329093632%22%7D&features=%7B%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/HaJt3PXnvM-jRdih6zRSxw/PinnedTimelines?variables=%7B%7D&features=%7B%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/fleets/v1/fleetline?only_spaces=true",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zzeLdGlB0ZN6hiOYUIpDcQ/XChatDmSettingsQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zCYojd6h_gVXYjFlaAk4bA/useDirectCallSetupQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2008546467615580160/57KcqsTA_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2018730233763897346/IM_fZbbT_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/media/HCzwE4pXAAAvlIO?format=png&name=small",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1735150059895902208/kKVmal3L_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2028926930943393795/SPcc8AGn_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2014046721446195200/XuiayC2r_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs-0.twimg.com/emoji/v2/svg/1f52e.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/824354545446719488/E_eni0x9_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1659639846942674945/IgFnafgk_bigger.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1963408271433232384/7v-Lo99o_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2018907315328745472/ZQSw143K_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1714107328134516736/dLZGJPm7_mini.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1869696037709041664/KV7BpbYk_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://proxsee.pscp.tv/api/v2/loginTwitterToken",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/RiB07no7KYovpEZOy3JQpQ/IntercomStarterQuery?variables=%7B%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://pbs.twimg.com/amplify_video_thumb/2030442592920281088/img/SgI2_wF3yKuI700B.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/amplify_video_thumb/2029801394362777600/img/9bAQ5dwyoshR-Atc.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/pl/kjE6hpdW8uWGpYJz.m3u8?variant_version=1&tag=21",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/pl/aSORsUicHRhbY8ME.m3u8?variant_version=1&tag=21&v=841",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Heavy.f44ae4ea.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2007158718484369408/B184dTqK_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2001084397374590978/zEYxZxVb_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2023763111627681797/TCw7gITI_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1969424617732521993/IJhBQF4G_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1970017232089444352/o0L0g2st_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1886166442036580352/0A8vRK4X_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1800171534364856320/PZKiU4Ew_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1914812840927748096/Rchy2ZK2_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1925153197645307904/0paEJX5m_mini.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://widget.intercom.io/widget/jgtierkz",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.ModuleHeader.9485e29a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.TrendHandler.f3e8341a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/loader.FooterLoader.ba27118a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/pl/avc1/480x270/2rc7NkpmeYWuijI9.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/pl/mp4a/32000/VzcBTEFBL_efWJU2.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/pl/avc1/320x568/SiwE5crHUV77cBIX.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/pl/mp4a/32000/_t5qzMgngKFirzPt.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/vid/avc1/0/3000/480x270/Meecs1e2YOX-6BFx.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/0/0/32000/qS_KKzG1QCd04qv2.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/0/3000/320x568/2XYSPQVl6hwTVQO_.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/0/0/32000/hzdFgJ7vUuv0wx6o.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://js.intercomcdn.com/frame-modern.ce52c412.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.intercomcdn.com/vendor-modern.997acec0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api-iam.intercom.io/messenger/web/launcher_settings",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api-iam.intercom.io/messenger/web/ping",
+      "method": "POST",
+      "score": 1,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/0/3000/32000/dQoH1aSXQc7f64db.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/pl/mp4a/128000/UpuhO4YiYPq6UfFt.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/pl/avc1/1280x720/yD_nlcKVQD6yIgYf.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/0/3000/32000/uK8a72yiPJf7WsPl.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/0/0/128000/U99XZATHMyE_iMF6.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/vid/avc1/0/0/1280x720/g2Lg2rND0gPqwtVw.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://proxsee.pscp.tv/api/v2/authorizeToken",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/3000/6000/128000/VGkxvSj75povFmHt.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/vid/avc1/0/3000/1280x720/4wVK7MYudTvLglBN.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1885410181409820672/ztsaR0JW_bigger.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1465691046747283461/3ZtnoH5-_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1985319218397466624/vsbjibeK_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/1904933748015255552/k43GMz63_normal.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/pl/mp4a/128000/6nh92Xsrty11ToSz.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/pl/avc1/720x1280/6vE4lxQ6U-zCm39K.m3u8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/6000/9000/128000/EDC4LgA8XXVZKOR0.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/vid/avc1/3000/6000/1280x720/h4aApyD00u8TpGo_.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/0/0/128000/8stW38mc43kWQjX9.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/0/0/720x1280/47qKeUYCpMTVaXDy.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/aud/mp4a/0/3000/128000/df5pVo4wfXZbwXU-.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2029801394362777600/vid/avc1/6000/9000/1280x720/6nh1zGk_5JTb9KAl.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/3000/6000/128000/ijKIOfcVRKdvZkEc.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/0/3000/720x1280/UZ0riyi5L0aJ_Zll.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/6000/9000/128000/hSFYv14TKRRjIGFy.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/3000/6000/720x1280/8paR0dZKZ5VjEmqa.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/0/3000/128000/l4vWgeKq1MdNkFOr.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/6000/9000/720x1280/CXWSrfOmVTZnamwB.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/9000/12000/720x1280/-PxvEw3S9_5XzXA7.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/vid/avc1/12000/15000/720x1280/oogkn7ou6L8-WPCV.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://video.twimg.com/amplify_video/2030442592920281088/aud/mp4a/9000/12000/128000/HB8VGCkqE_i2sZKd.m4s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api-iam.intercom.io/messenger/web/conversations",
+      "method": "POST",
+      "score": 9,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.x.com/1.1/live_pipeline/update_subscriptions",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://js.intercomcdn.com/vendors~app~tooltips-modern.1210c24d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.intercomcdn.com/vendors~sentry~app-modern.6ffaf6b6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.intercomcdn.com/vendors~app-modern.83c11406.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.intercomcdn.com/app~tooltips-modern.9547f261.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.intercomcdn.com/app-modern.560eae15.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/i18n/emoji-en.dac878ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/shared~ondemand.EmojiPicker~ondemand.EmojiPickerData~ondemand.ParticipantReaction.049c653a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/ondemand.EmojiPicker.6b8c4dba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/graphql/user_flow.json",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/hashflags.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "PYzjXFzMUSBvBXojI5Q6P",
+      "description": "Returns Hashflags Json with hashtag, starting_timestamp_ms, ending_timestamp_ms, asset_url, is_hashfetti_enabled",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/snvCaalBp51MiDb3-nGblg/HomeTimeline?variables=%7B%22count%22%3A20%2C%22includePromotedContent%22%3Atrue%2C%22requestContext%22%3A%22launch%22%2C%22withCommunity%22%3Atrue%7D&features=%7B%22rweb_video_screen_enabled%22%3Afalse%2C%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22creator_subscriptions_tweet_preview_api_enabled%22%3Atrue%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22premium_content_api_read_enabled%22%3Afalse%2C%22communities_web_enable_tweet_community_results_fetch%22%3Atrue%2C%22c9s_tweet_anatomy_moderator_badge_enabled%22%3Atrue%2C%22responsive_web_grok_analyze_button_fetch_trends_enabled%22%3Afalse%2C%22responsive_web_grok_analyze_post_followups_enabled%22%3Atrue%2C%22responsive_web_jetfuel_frame%22%3Atrue%2C%22responsive_web_grok_share_attachment_enabled%22%3Atrue%2C%22responsive_web_grok_annotations_enabled%22%3Atrue%2C%22articles_preview_enabled%22%3Atrue%2C%22responsive_web_edit_tweet_api_enabled%22%3Atrue%2C%22graphql_is_translatable_rweb_tweet_is_translatable_enabled%22%3Atrue%2C%22view_counts_everywhere_api_enabled%22%3Atrue%2C%22longform_notetweets_consumption_enabled%22%3Atrue%2C%22responsive_web_twitter_article_tweet_consumption_enabled%22%3Atrue%2C%22tweet_awards_web_tipping_enabled%22%3Afalse%2C%22content_disclosure_indicator_enabled%22%3Atrue%2C%22content_disclosure_ai_generated_indicator_enabled%22%3Atrue%2C%22responsive_web_grok_show_grok_translated_post%22%3Atrue%2C%22responsive_web_grok_analysis_button_from_backend%22%3Atrue%2C%22post_ctas_fetch_enabled%22%3Atrue%2C%22freedom_of_speech_not_reach_fetch_enabled%22%3Atrue%2C%22standardized_nudges_misinfo%22%3Atrue%2C%22tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled%22%3Atrue%2C%22longform_notetweets_rich_text_read_enabled%22%3Atrue%2C%22longform_notetweets_inline_media_enabled%22%3Afalse%2C%22responsive_web_grok_image_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_imagine_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_community_note_auto_translation_is_enabled%22%3Afalse%2C%22responsive_web_enhance_cards_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "8Vdp59WCAz9MY3zxc9cpK",
+      "description": "Returns details for HomeTimeline with home using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery?variables=%7B%22rest_id%22%3A%22For%20You%22%2C%22limit%22%3A3%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "miM5_NeXFlA2vMaf2CaV2",
+      "description": "Returns details for UseStoryTopicQuery with story_topic using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/DwmNKZXS-QQLRd3_U17X3A/ScheduledPromotionsQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "s3ue62aa3umFnOSn1YDbR",
+      "description": "Returns details for ScheduledPromotionsQuery with viewer using variables",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables=%7B%7D&features=%7B%22rweb_video_screen_enabled%22%3Afalse%2C%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22creator_subscriptions_tweet_preview_api_enabled%22%3Atrue%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22premium_content_api_read_enabled%22%3Afalse%2C%22communities_web_enable_tweet_community_results_fetch%22%3Atrue%2C%22c9s_tweet_anatomy_moderator_badge_enabled%22%3Atrue%2C%22responsive_web_grok_analyze_button_fetch_trends_enabled%22%3Afalse%2C%22responsive_web_grok_analyze_post_followups_enabled%22%3Atrue%2C%22responsive_web_jetfuel_frame%22%3Atrue%2C%22responsive_web_grok_share_attachment_enabled%22%3Atrue%2C%22responsive_web_grok_annotations_enabled%22%3Atrue%2C%22articles_preview_enabled%22%3Atrue%2C%22responsive_web_edit_tweet_api_enabled%22%3Atrue%2C%22graphql_is_translatable_rweb_tweet_is_translatable_enabled%22%3Atrue%2C%22view_counts_everywhere_api_enabled%22%3Atrue%2C%22longform_notetweets_consumption_enabled%22%3Atrue%2C%22responsive_web_twitter_article_tweet_consumption_enabled%22%3Atrue%2C%22tweet_awards_web_tipping_enabled%22%3Afalse%2C%22content_disclosure_indicator_enabled%22%3Atrue%2C%22content_disclosure_ai_generated_indicator_enabled%22%3Atrue%2C%22responsive_web_grok_show_grok_translated_post%22%3Atrue%2C%22responsive_web_grok_analysis_button_from_backend%22%3Atrue%2C%22post_ctas_fetch_enabled%22%3Atrue%2C%22freedom_of_speech_not_reach_fetch_enabled%22%3Atrue%2C%22standardized_nudges_misinfo%22%3Atrue%2C%22tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled%22%3Atrue%2C%22longform_notetweets_rich_text_read_enabled%22%3Atrue%2C%22longform_notetweets_inline_media_enabled%22%3Afalse%2C%22responsive_web_grok_image_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_imagine_annotation_enabled%22%3Atrue%2C%22responsive_web_grok_community_note_auto_translation_is_enabled%22%3Afalse%2C%22responsive_web_enhance_cards_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "KcESpHJSlYKnp_1-kn7sl",
+      "description": "Returns details for ExploreSidebar with explore_sidebar using variables, features",
+      "action_kind": "timeline",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/TDtrShaKKs-vFLCuz2jLdA/SidebarUserRecommendations?variables=%7B%22profileUserId%22%3A%221929837739329093632%22%7D&features=%7B%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "yXsABg6TlBwTqIoRwK0nn",
+      "description": "Returns details for SidebarUserRecommendation with sidebar_user_recommendations, token, user_results using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/HaJt3PXnvM-jRdih6zRSxw/PinnedTimelines?variables=%7B%7D&features=%7B%22profile_label_improvements_pcf_label_in_post_enabled%22%3Atrue%2C%22responsive_web_profile_redirect_enabled%22%3Afalse%2C%22rweb_tipjar_consumption_enabled%22%3Afalse%2C%22verified_phone_label_enabled%22%3Afalse%2C%22responsive_web_graphql_skip_user_profile_image_extensions_enabled%22%3Afalse%2C%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "V9SHr4_-huMaOIGRfTADE",
+      "description": "Returns details for PinnedTimeline with pinned_timelines using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/SPJ9o9QzEK2l1Bh1vcgX6A/useFetchProductSubscriptionsQuery?variables=%7B%22fetchPrices%22%3Afalse%7D&features=%7B%22subscriptions_management_fetch_next_billing_time%22%3Atrue%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "dqqbMF_r6FHicQ9fr_s1J",
+      "description": "Returns details for UseFetchProductSubscriptionsQuery with viewer_v2 using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "product"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables=%7B%22device_id%22%3A%22Mac%2FChrome%22%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "rXZdFK_x5PTeGPXjQoU_h",
+      "description": "Returns details for DataSaverMode with viewer using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers=true&include_mention_filter=true&include_nsfw_user_flag=true&include_nsfw_admin_flag=true&include_ranked_timeline=true&include_alt_text_compose=true&include_ext_dm_av_call_settings=true&ext=ssoConnections&include_country_code=true&include_ext_dm_nsfw_media_filter=true",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "UZtix03ERRcuUHGw5pBk6",
+      "description": "Returns details for Sleep Time with enabled, end_time, start_time using include_ext_sharing_audiospaces_listening_data_with_followers, include_mention_filter, include_nsfw_user_flag, include_nsfw_admin_flag",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/1.1/users/email_phone_info.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "Qffz6YBcGsDYyypP9oMJA",
+      "description": "Returns details for Email with email, email_verified",
+      "action_kind": "detail",
+      "resource_kind": "user"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/cUuRnmF2028ARztoNWgv9w/useSubscriptionsPaymentFailureQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "jud9qCO8E0D90_WfrHlx_",
+      "description": "Returns details for UseSubscriptionsPaymentFailureQuery with viewer_v2 using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/OeetKDpCigK8wSJwl7oWRA/useVerifiedOrgIdentityVerificationConfigQuery?variables=%7B%7D&features=%7B%22responsive_web_verified_organizations_idv_enabled%22%3Afalse%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "7ocGtSGeH-qoUonR4GYl9",
+      "description": "Returns details for UseVerifiedOrgIdentityVerificationConfigQuery with viewer_v2 using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/fleets/v1/fleetline?only_spaces=true",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "w2Q2o4Oyqz855XMJkiV-m",
+      "description": "Returns details for Thread using only_spaces",
+      "action_kind": "detail",
+      "resource_kind": "thread"
+    },
+    {
+      "url": "https://api.x.com/1.1/account/multi/list.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "FodqS4Q_thMVeQHjSN09Z",
+      "description": "Returns details for User with user_id, name, screen_name, avatar_image_url, is_suspended, is_verified",
+      "action_kind": "list",
+      "resource_kind": "user"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/o8dabL5ri3RA6DPrG5Bo_g/useVerifiedOrgFeatureHelperQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "cvS3qvq2Ei-0PDpBI2ZrY",
+      "description": "Returns details for UseVerifiedOrgFeatureHelperQuery with verified_organization_processing_status, viewer using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/x3JZoNX9ubSzoCIHoYo2NA/UsersVerifiedAvatars?variables=%7B%22userIds%22%3A%5B%221929837739329093632%22%2C%221835873095460225025%22%5D%7D&features=%7B%22responsive_web_graphql_timeline_navigation_enabled%22%3Atrue%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "qtQhVP7LnjvsvZmmeQ3CB",
+      "description": "Returns details for UsersVerifiedAvatar with usersResults, result using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zzeLdGlB0ZN6hiOYUIpDcQ/XChatDmSettingsQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "oYojdL2eFzWiNrsdlA4ou",
+      "description": "Returns details for XChatDmSettingsQuery with dm_settings using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/zCYojd6h_gVXYjFlaAk4bA/useDirectCallSetupQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "0b36pRPMAGqKewHSgtZ1D",
+      "description": "Returns details for UseDirectCallSetupQuery with authenticate_periscope using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://x.com/i/api/graphql/RiB07no7KYovpEZOy3JQpQ/IntercomStarterQuery?variables=%7B%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "CTn6uguqnSBDHa_rPTms8",
+      "description": "Returns details for IntercomStarterQuery with get_intercom_user_hash using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://api.x.com/1.1/live_pipeline/update_subscriptions",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "RD070rYLVQBcJ5tqGoKhX",
+      "description": "Returns details for Subscription with errors",
+      "action_kind": "create",
+      "resource_kind": "post"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "PYzjXFzMUSBvBXojI5Q6P",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/1.1/hashflags.json",
+      "description": "Returns Hashflags Json with hashtag, starting_timestamp_ms, ending_timestamp_ms, asset_url, is_hashfetti_enabled",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "8Vdp59WCAz9MY3zxc9cpK",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/snvCaalBp51MiDb3-nGblg/HomeTimeline?variables={variables}&features={features}",
+      "description": "Returns details for HomeTimeline with home using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "miM5_NeXFlA2vMaf2CaV2",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery?variables={variables}",
+      "description": "Returns details for UseStoryTopicQuery with story_topic using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "s3ue62aa3umFnOSn1YDbR",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/DwmNKZXS-QQLRd3_U17X3A/ScheduledPromotionsQuery?variables={variables}",
+      "description": "Returns details for ScheduledPromotionsQuery with viewer using variables",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "endpoint_id": "KcESpHJSlYKnp_1-kn7sl",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables={variables}&features={features}",
+      "description": "Returns details for ExploreSidebar with explore_sidebar using variables, features",
+      "action_kind": "timeline",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "yXsABg6TlBwTqIoRwK0nn",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/TDtrShaKKs-vFLCuz2jLdA/SidebarUserRecommendations?variables={variables}&features={features}",
+      "description": "Returns details for SidebarUserRecommendation with sidebar_user_recommendations, token, user_results using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "V9SHr4_-huMaOIGRfTADE",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/HaJt3PXnvM-jRdih6zRSxw/PinnedTimelines?variables={variables}&features={features}",
+      "description": "Returns details for PinnedTimeline with pinned_timelines using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "dqqbMF_r6FHicQ9fr_s1J",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/SPJ9o9QzEK2l1Bh1vcgX6A/useFetchProductSubscriptionsQuery?variables={variables}&features={features}",
+      "description": "Returns details for UseFetchProductSubscriptionsQuery with viewer_v2 using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "product"
+    },
+    {
+      "endpoint_id": "rXZdFK_x5PTeGPXjQoU_h",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables={variables}",
+      "description": "Returns details for DataSaverMode with viewer using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "UZtix03ERRcuUHGw5pBk6",
+      "method": "GET",
+      "url_template": "https://api.x.com/1.1/account/settings.json?include_ext_sharing_audiospaces_listening_data_with_followers={include_ext_sharing_audiospaces_listening_data_with_followers}&include_mention_filter={include_mention_filter}&include_nsfw_user_flag={include_nsfw_user_flag}&include_nsfw_admin_flag={include_nsfw_admin_flag}&include_ranked_timeline={include_ranked_timeline}&include_alt_text_compose={include_alt_text_compose}&include_ext_dm_av_call_settings={include_ext_dm_av_call_settings}&ext={ext}&include_country_code={include_country_code}&include_ext_dm_nsfw_media_filter={include_ext_dm_nsfw_media_filter}",
+      "description": "Returns details for Sleep Time with enabled, end_time, start_time using include_ext_sharing_audiospaces_listening_data_with_followers, include_mention_filter, include_nsfw_user_flag, include_nsfw_admin_flag",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "Qffz6YBcGsDYyypP9oMJA",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/1.1/users/email_phone_info.json",
+      "description": "Returns details for Email with email, email_verified",
+      "action_kind": "detail",
+      "resource_kind": "user"
+    },
+    {
+      "endpoint_id": "jud9qCO8E0D90_WfrHlx_",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/cUuRnmF2028ARztoNWgv9w/useSubscriptionsPaymentFailureQuery?variables={variables}",
+      "description": "Returns details for UseSubscriptionsPaymentFailureQuery with viewer_v2 using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "7ocGtSGeH-qoUonR4GYl9",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/OeetKDpCigK8wSJwl7oWRA/useVerifiedOrgIdentityVerificationConfigQuery?variables={variables}&features={features}",
+      "description": "Returns details for UseVerifiedOrgIdentityVerificationConfigQuery with viewer_v2 using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "w2Q2o4Oyqz855XMJkiV-m",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/fleets/v1/fleetline?only_spaces={only_spaces}",
+      "description": "Returns details for Thread using only_spaces",
+      "action_kind": "detail",
+      "resource_kind": "thread"
+    },
+    {
+      "endpoint_id": "FodqS4Q_thMVeQHjSN09Z",
+      "method": "GET",
+      "url_template": "https://api.x.com/1.1/account/multi/list.json",
+      "description": "Returns details for User with user_id, name, screen_name, avatar_image_url, is_suspended, is_verified",
+      "action_kind": "list",
+      "resource_kind": "user"
+    },
+    {
+      "endpoint_id": "cvS3qvq2Ei-0PDpBI2ZrY",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/o8dabL5ri3RA6DPrG5Bo_g/useVerifiedOrgFeatureHelperQuery?variables={variables}",
+      "description": "Returns details for UseVerifiedOrgFeatureHelperQuery with verified_organization_processing_status, viewer using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "qtQhVP7LnjvsvZmmeQ3CB",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/x3JZoNX9ubSzoCIHoYo2NA/UsersVerifiedAvatars?variables={variables}&features={features}",
+      "description": "Returns details for UsersVerifiedAvatar with usersResults, result using variables, features",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "oYojdL2eFzWiNrsdlA4ou",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/zzeLdGlB0ZN6hiOYUIpDcQ/XChatDmSettingsQuery?variables={variables}",
+      "description": "Returns details for XChatDmSettingsQuery with dm_settings using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "0b36pRPMAGqKewHSgtZ1D",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/zCYojd6h_gVXYjFlaAk4bA/useDirectCallSetupQuery?variables={variables}",
+      "description": "Returns details for UseDirectCallSetupQuery with authenticate_periscope using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "CTn6uguqnSBDHa_rPTms8",
+      "method": "GET",
+      "url_template": "https://x.com/i/api/graphql/RiB07no7KYovpEZOy3JQpQ/IntercomStarterQuery?variables={variables}",
+      "description": "Returns details for IntercomStarterQuery with get_intercom_user_hash using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "RD070rYLVQBcJ5tqGoKhX",
+      "method": "POST",
+      "url_template": "https://api.x.com/1.1/live_pipeline/update_subscriptions",
+      "description": "Returns details for Subscription with errors",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "SWyyXkcGb-IPzhEiklY1O",
+      "method": "WS",
+      "url_template": "wss://nexus-websocket-a.intercom.io/pubsub/5-xHYRvduXXDYJ8VOkXxZb0jsZKuXd5M7jJHHptcp9wToRFmnPxiBwEp6IMuR5nIgf6xjSPYfupLBg3qSF6V9r86Ig8Q_i-eS9uzYy?X-Nexus-New-Client=true&X-Nexus-Version=0.18.5&user_role=user",
+      "action_kind": "fetch",
+      "resource_kind": "user"
+    }
+  ]
+}

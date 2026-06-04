@@ -1,4 +1,4 @@
-# Unbrowse security model: official-package binding + anti-reverse-engineering
+# Unbrowse security model: official-package binding + anti-tamper
 
 This document is the honest threat model. It says what the platform
 enforces, what it cannot, and why the design still holds.
@@ -14,7 +14,7 @@ wall.
 
 The design goal is therefore NOT "the code is unreadable." It is:
 
-> A modified or reverse-engineered build is **useless** -- it cannot
+> A modified or tampered build is **useless** -- it cannot
 > authenticate to the unbrowse index, so it loses the marketplace, the
 > graph, the ranking, and the x402 economics. The value lives on the
 > servers; the client is a transport.

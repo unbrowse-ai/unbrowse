@@ -1,0 +1,1570 @@
+{
+  "page_url": "https://jup.ag",
+  "final_url": "https://jup.ag/",
+  "intent": "get JUP token price",
+  "candidate_count": 14,
+  "accepted_count": 11,
+  "decisions": [
+    {
+      "url": "https://jup.ag/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.jup.ag/tv/charting_library/charting_library.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/css/6e05d3ecc0f41204.css?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/css/145ce67facd74e4d.css?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/webpack-22c8dae798fb40bd.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/framework-c2e4ff56fa44cb66.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-758f073081d8ceb7.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/main-4c7cf529b98a8468.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-dndkit-c731afd4e4c54260.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-tradingview-3a118fcbe3cbfac1.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-sonarwatch-2194eeef1397ce44.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-wallet-adapter-a39e9306e504c4c1.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/pages/_app-3786d37e45a0cf9f.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/6792-90838a7d73905558.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/983-5a88884ef257c0fb.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8706-f951f9d8161e59b3.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/2393-f3bf19af33e271f4.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8297-ffb86f44c8985bc7.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/9557-ed48256437cd7603.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/2705-a81b84232faea1ef.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/4342-4d05808a5a2b8da6.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7459-780de3e0d47c6e84.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/pages/index-644b915fa8fef842.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/y36JsJZcqGdr2Hmjo2iSm/_buildManifest.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/y36JsJZcqGdr2Hmjo2iSm/_ssgManifest.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/image?url=%2Fsvg%2Fjupiter-logo.png&w=96&q=75",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tiplink.io/api/wallet_adapter_ancestors/eyJjbGllbnRJZCI6ImY5NTliNjkzLWJiNjMtNDI0Zi05OWIyLTg3YWNlMWVkYmIxZCIsInJlZmVycmVyVXJsIjoiaHR0cHM6Ly9qdXAuYWcifQ==",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://tiplink.io/embedded_wallet?c=f959b693-bb63-424f-99b2-87ace1edbb1d&ref=https://jup.ag&v=2.1.13",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://jup.ag/_next/static/css/145ce67facd74e4d.css?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/cdn-cgi/rum?",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.web3modal.org/getWallets?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16&page=1&entries=44&include=fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa%2Cc57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96%2C4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0%2C971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709%2C38f5d18bd8522c244bdd70cb4a68e0e718865155811c043f052fb9f1c51de662%2C8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4%2Cc03dfee351b6fcc421b4494ea33b9d4b92a984f87aa76d1663bb28705e95034a%2C0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b3ba16381d0562150%2C1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369%2C15c8b91ade1a4e58f3ce4e7a0dd7f42b47db0c8df7e0d84f63eb39bcb96c4e0f%2C20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66%2C19177a98252e07ddfc9af2083ba8e07ef627cb6103467ffebb3f8f4205fd7927%2C344d0e58b139eb1b6da0c29ea71d52a8eace8b57897c6098cb9b46012665c193%2C225affb176778569276e484e1b92637ad061b01e13a048b35a9d280c3b58970f%2Cecc4036f814562b41a5268adc86270fba1365471402006302e70169465b7ac18%2Cc286eebc742a537cd1d6818363e9dc53b21759a1e8e5d9b263d0c03ec7703576%2Cf2436c67184f158d1beda5df53298ee84abfc367581e4505134b5bcf5f46697d%2Cef333840daf915aafdc4a004525502d6d49d77bd9c65e0642dbaefb3c2893bef%2C18450873727504ae9315a084fa7624b5297d2fe5880f0982979c17345a138277%2C541d5dcd4ede02f3afaf75bf8e3e4c4f1fb09edb5fa6c4377ebf31c2785d9adf%2C8837dd9413b1d9b585ee937d27a816590248386d9dbf59f5cd3422dbbb65683e%2Ce9ff15be73584489ca4a66f64d32c4537711797e30b6660dbcb71ea72a42b1f4%2Cbc949c5d968ae81310268bf9193f9c9fb7bb4e1283e1284af8f2bd4992535fd6%2C0ef262ca2a56b88d179c93a21383fee4e135bd7bc6680e5c2356ff8e38301037%2C1ca0bdd4747578705b1939af023d120677c64fe6ca76add81fda36e350605e79%2Ca797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393%2C2a3c89040ac3b723a1972a33a125b1db11e258a6975d3a61252cd64e6ea5ea01%2C8b830a2b724a9c3fbab63af6f55ed29c9dfa8a55e732dc88c80a196a2ba136c6%2C2bd8c14e035c2d48f184aaa168559e86b0e3433228d3c4075900a221785019b0%2C85db431492aa2e8672e93f4ea7acf10c88b97b867b0d373107af63dc4880f041%2C2a87d74ae02e10bdd1f51f7ce6c4e1cc53cd5f2c0b6b5ad0d7b3007d2b13de7b%2C483afe1df1df63daf313109971ff3ef8356ddf1cc4e45877d205eee0b7893a13%2C719bd888109f5e8dd23419b20e749900ce4d2fc6858cf588395f19c82fd036b3%2C2c81da3add65899baeac53758a07e652eea46dbb5195b8074772c62a77bbf568%2Cb4678fefcc469583ed4ef58a5bd90ce86208b82803f3c45f2de3e0973d268835%2Ca9104b630bac1929ad9ac2a73a17ed4beead1889341f307bff502f89b46c8501%2C163d2cf19babf05eb8962e9748f9ebe613ed52ebf9c8107c9a0f104bfcf161b3%2Cbcaec16e531fb5f6dc690d7b70d570421e0209af9a0fe77c6419d516fe0098c2%2C56bec983b47c8b6eb774890c1c8ae9d95334e10bdb126ab6c11dfaf56fb2b31c%2C9654c004e02e492c30904a820154e239886edbf4d66bc5d372060809ef4c9111%2Caf9a6dfff9e63977bbde28fb23518834f08b696fe8bff6dd6827acad1814c6be%2C5e4a8cc31d062b78a7ad9e017135574809b01c4dbbf30e4dbb467ddd43025618%2Cd01c7758d741b363e637a817a09bcf579feae4db9f5bb16f599fdd1f66e2f974%2C9414d5a85c8f4eabc1b5b15ebe0cd399e1a2a9d35643ab0ad22a6e4a32f596f0",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://auth.privy.io/api/v1/apps/cm8pkejey0052l1ljvgxjztau",
+      "method": "GET",
+      "score": 14,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/cf-fonts/v/inter/5.0.16/latin/wght/normal.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/512.36bab4e9f8476684.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8614.0fd3599a41ffe5fd.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/1219.c1ce1feb0f925b15.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/4237.3469b81d5f1cc23b.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7707.0fd6f9e5f8767bff.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/6221.e59bbad2b8a40323.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/css/1c1572b80ca6966c.css?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8295.6e69d62f4d1cebd8.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://worker.jup.ag/lst-apys-v2",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=cf__reactTurnstileOnLoad&render=explicit",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.jup.ag/remoteConfig/metadata.json",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://datapi.jup.ag/v2/assets/toptrending/24h?limit=20",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://static.jup.ag/banner/metadata.json",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://remote-api.jup.ag/public/active/web",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ultra-api.jup.ag/order/routers",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://jup.ag/_next/image?url=%2Fsvg%2Fjupiter-logo.png&w=32&q=75",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/logos/assets/unknown-fallback.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://wsrv.nl/?w=24&h=24&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FEPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2Flogo.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=24&h=24&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=28&h=28&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FEPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2Flogo.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=28&h=28&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ultra-api.jup.ag/shield?mints=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&isJupiter=true",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ultra-api.jup.ag/shield?mints=So11111111111111111111111111111111111111112&isJupiter=true",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://datapi.jup.ag/v1/assets/search?query=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2CSo11111111111111111111111111111111111111112",
+      "method": "GET",
+      "score": 17,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://fe-api.jup.ag/api/v1/chain/status",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://mercuria-fronten-1cd8.mainnet.rpcpool.com/",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/2718.943b765d17e40f4c.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.web3modal.org/appkit/v1/config?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsolana-labs%2Ftoken-list%2Fmain%2Fassets%2Fmainnet%2FSo11111111111111111111111111111111111111112%2Flogo.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fstatic.jup.ag%2Fjup%2Ficon.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://datapi.jup.ag/v1/assets/search?query=JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "method": "GET",
+      "score": 17,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://datapi.jup.ag/v2/assets/toptrending/24h?limit=10",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/ebac7b39-688c-41e3-7912-a4fefba74600?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/eebe4a7f-7166-402f-92e0-1f64ca2aa800?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/252753e7-b783-4e03-7f77-d39864530900?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/7677b54f-3486-46e2-4e37-bf8747814f00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/45f2f08e-fc0c-4d62-3e63-404e72170500?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/cfe00608-cb9e-45e3-0d08-5ffc7f5ad200?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/2b569b7f-e6c6-4faa-8e5a-ecd4dec8cf00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/bff9cf1f-df19-42ce-f62a-87f04df13c00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/a7f416de-aa03-4c5e-3280-ab49269aef00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/73f6f52f-7862-49e7-bb85-ba93ab72cc00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/88388eb4-4471-4e72-c4b4-852d496fea00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/3e60118c-b9a9-43df-7975-33ebc8014400?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/c84b4d9d-9525-4bb5-b373-934b46eafc00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/553e8fff-37c9-4a62-5bfe-02ff22e1e200?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/bd78de7e-36da-4552-ebdd-2e420ba05900?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/3913df81-63c2-4413-d60b-8ff83cbed500?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/b9e64f74-0176-44fd-c603-673a45ed5b00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/4c16cad4-cac9-4643-6726-c696efaf5200?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/79285c9f-2630-451e-0680-c71b42fb7400?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/71ca9daf-a31e-4d2a-fd01-f5dc2dc66900?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/7a33d7f1-3d12-4b5c-f3ee-5cd83cb1b500?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/dfe0e3e3-5746-4e2b-12ad-704608531500?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/7601bec3-144f-4c9d-30a1-2d4a372ede00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/8909e826-63e4-42b3-60b2-8a6a54060900?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/b6ec7b81-bb4f-427d-e290-7631e6e50d00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/62040f22-2ffd-4942-92fc-71ce68c64300?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/04c88bf0-f115-4686-8c29-90a3d018a400?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/215158d2-614b-49c9-410f-77aa661c3900?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/34c0e38d-66c4-470e-1aed-a6fabe2d1e00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/a03bfa44-ce98-4883-9b2a-75e2b68f5700?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/6133c399-ae32-4eba-0c5a-0fb84492bf00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/a78c4d48-32c1-4a9d-52f2-ec7ee08ce200?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/e7c6d5d0-b986-4348-de22-fc940e1aee00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/8cecad66-73e3-46ee-f45f-01503c032f00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/b2a00908-f144-4a49-cc0a-9d7422ad5e00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/2fc9a263-56c0-4e00-2fd8-dadb9d9ad400?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/8fa87652-b043-4992-3a45-78e438d1cd00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/95c9f957-b1e4-4619-fa7c-a77569d2fe00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/0153454e-9313-4441-b6cf-838e3d023000?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/785e20ef-c68c-4a85-6cb9-053443871e00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/9ba07b43-3db1-4e8d-100e-8c91d8430c00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/92f1ead4-0bc4-4932-10d3-761c509b4d00?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/getWalletImage/ee242aea-3ffd-4ad8-db88-e29a1ccd2000?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.web3modal.org/appkit/v1/project-limits?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/turnstile/v0/g/ea2d291c0fdc/api.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/ov2/av0/rch/c854b/0x4AAAAAACLdwqcQmrGKUMLg/dark/fbE/new/normal?lang=auto",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/cmg/1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2Fbafkreibyb3hcn7gglvdqpmklfev3fut3eqv3kje54l3to3xzxxbgpt5wjm&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fmetadata.rapidlaunch.io%2Fimages%2F5058a272-31c9-4244-8670-31e9094ad1a2.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://jup.ag/logos/launchpads/pump.fun.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2FQmdcvSSBg7gWD4tvfXv3PuLtAiPyDZ5Z9w4LQVeRJKL3Lz&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2FQmQawHb6am4Atrs8jW7GsXtGbjWqFe8P1q6okhAb4Jajma&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2Fbafkreigqw7mtfgq6t6tuznl6gl2mv6qiz6ysjow5cgsr3p56wvgf2kw5sa&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fraw.githubusercontent.com%2FmetaDAOproject%2Ffutarchy%2Frefs%2Fheads%2Fdevelop%2Fscripts%2Fassets%2FAVICI%2FAVICI.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://jup.ag/logos/launchpads/metadao.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fshdw-drive.genesysgo.net%2F5zseP54TGrcz9C8HdjZwJJsZ6f3VbP11p1abwKWGykZH%2Frndr.png&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2Fbafybeieukfwe5dz5m7d7pocyogm2sd3bzr6ajxefav7mcvpbf53yl3cn6u&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2Fbafkreibth2yh4jlehmf5nmfgy763z4yvwxlz7zmuohmhp53un6wrho5t2q&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wsrv.nl/?w=32&h=32&url=https%3A%2F%2Fipfs.io%2Fipfs%2Fbafkreihwza7w5beltipr5qdkhjv7rqzt3idmdo24m32qaj7xtg3rcrhohm&dpr=2&quality=80",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://jup.ag/_next/data/y36JsJZcqGdr2Hmjo2iSm/tokens/pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn.json?tokenId=pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/747feb04-be33-4bc1-8ead-361566c0c9c8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/flow/ov1/1983118094:1772929305:u7coLS-XcpDRrJ90xLae2Ii46vcXYQn6I_4WTqeJa7M/9d8e21d94b91fa26/OaWrK7xL3QuHpHgB_HW9rquczUZ_WOi0tnMwIFplxWE-1772934030-1.2.1.1-KvQc.HeIH.bk8RGkje2Zl_XBpwlAv0Bt3K.JqDe4Uv1X4plBUHJOS6aIYAzGs9ZQ",
+      "method": "POST",
+      "score": -5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-tanstack-table-216c57a162116a18.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8773-3a7fe465a7ae388a.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7378-67f228adf87a6e17.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/961-df9a8e897e82c684.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7650-18c31a6277b3470b.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/pages/tokens/%5BtokenId%5D-e649fc2a14ae9926.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/apps/cm8pkejey0052l1ljvgxjztau/embedded-wallets?caid=4bcba8b5-d745-43e4-b5b4-538f1480f31f",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://privy.jup.ag/api/v1/analytics_events",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.web3modal.org/projects/v1/origins?projectId=4a4e231c4004ef7b77076a87094fba61&st=appkit&sv=react-solana-1.8.16",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://jup.ag/_next/image?url=https%3A%2F%2Fremote-api.jup.ag%2Fpublic%2Fimages%2F300d8077-c32a-49b3-a8b8-ea5d685627cd%2Fimage-web.6d488d4fd563.webp&w=256&q=75",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/lib-tanstack-table-216c57a162116a18.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/8773-3a7fe465a7ae388a.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7378-67f228adf87a6e17.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/961-df9a8e897e82c684.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/7650-18c31a6277b3470b.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/chunks/pages/tokens/%5BtokenId%5D-e649fc2a14ae9926.js?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jup.ag/_next/static/css/204ac61de4382969.css?dpl=dpl_GJDupxue9nSXamNEAp6LRTgjMd4J",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTeka-Medium.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTeka-Regular.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTeka-Light.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTekaMono-Regular.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTeka-Light.woff",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTeka-Regular.woff",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.reown.com/KHTekaMono-Regular.woff",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/pat/9d8e21d94b91fa26/1772934030548/c9fc67eef1c544c4452206a89541408932e83a5b910af53f6a38fab166c122ca/WowoffIXVLdy4xQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "blob:https://challenges.cloudflare.com/18eb6af1-e2fc-4247-b142-a7f3e734b71d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/d/9d8e21d94b91fa26/1772934030548/dkKNTd8a2Sly5mT",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/css/e4bfb2e444317d85.css?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/webpack-113d1e63429f1a01.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/framework-f00fddb9800f9292.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/main-13478fcc5306f552.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/pages/_app-a74db7369c072c47.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/4f2f7108-89261840bb8c9d21.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/d2479e06-7d0fe6eea6bf0846.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/50ad770a-f07e677401d92a7a.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/683-4e69ef3a2f627be9.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/6813-961d01904fa78bb0.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/6806-f2754266281c146d.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/5676-bce9f8646d82760a.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/2231-d70eba655a2623d1.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/7578-9775f73fbce08e2b.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/310-8aed527c3eb4182d.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/3048-712a08f0227e1c62.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/7361-2330537bf4915b96.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/5974-de0cd8d606d9089a.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/350-14ec09f9cd4c8419.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/3285-3e75ab5b508be5cf.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/9681-233961e892ad946d.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/chunks/pages/apps/%5Bapp_id%5D/embedded-wallets-4f7f4b139ce13711.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/XsGJr_-YVELr8iOyBxmfo/_buildManifest.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://privy.jup.ag/_next/static/XsGJr_-YVELr8iOyBxmfo/_ssgManifest.js?dpl=dpl_6ZjobSoXjYrJMT57Na5ovgcCMVBv",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/flow/ov1/1983118094:1772929305:u7coLS-XcpDRrJ90xLae2Ii46vcXYQn6I_4WTqeJa7M/9d8e21d94b91fa26/OaWrK7xL3QuHpHgB_HW9rquczUZ_WOi0tnMwIFplxWE-1772934030-1.2.1.1-KvQc.HeIH.bk8RGkje2Zl_XBpwlAv0Bt3K.JqDe4Uv1X4plBUHJOS6aIYAzGs9ZQ",
+      "method": "POST",
+      "score": -5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://datapi.jup.ag/v1/assets/search?query=",
+      "method": "GET",
+      "score": 17,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://metrics-api.jup.ag/v1/collect",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://mixpanel.jup.ag/track/?verbose=1&ip=1&_=1772934034679",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://datapi.jup.ag/v1/assets/search?query=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v%2CSo11111111111111111111111111111111111111112",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "PkexzkslEA0lPzTcA_qR3",
+      "description": "Searches Asset with id, name, symbol, icon, decimals, twitter using query",
+      "action_kind": "search",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://datapi.jup.ag/v2/assets/toptrending/24h?limit=20",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "JxaRd0xhbHV0Cr6bugyP5",
+      "description": "Returns details for Asset with id, name, symbol, icon, decimals, dev using limit",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://worker.jup.ag/lst-apys-v2",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "L-ShT1fYa59lz-9_i3bYu",
+      "description": "Returns details for SctmgdZMTz1Mfg87S2b9tFF2U7RSwU1HRTipqCAQhfp with sctmgdZMTz1Mfg87S2b9tFF2U7RSwU1HRTipqCAQhfp, sctmPT9yMFXpogyWEZs34sEpmPRLYSxEYQ5jm6zAAt9, sctmsTkcQpwSmumiPFaF57MUNk8Kjt5u8bWSsXQEwV9, sctmfoDW2aJL686B8JPUiRb7f7s2HPvQkE93KR5NLTt, rad8NdseJYbjJUFLsv5SuBU9g29N3m4SyYndSbwoKH3, sctmHzp3oVkXG1FZ1AbAgL1bvYFJdtrtgxoHYycbybm",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ultra-api.jup.ag/order/routers",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "ZVuDgY_ZJRzjXABnQZ8OG",
+      "description": "Returns details for Router with id, name, icon",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://fe-api.jup.ag/api/v1/chain/status",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "zDyg2whhsKLRNy2JW_RqF",
+      "description": "Returns status for Statu with status, epoch, tps",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "url": "https://static.jup.ag/remoteConfig/metadata.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "-nFTeKMRj_Fr5yqYm8iYP",
+      "description": "Returns details for SwapSetting with excludedAmms, bannedTokens",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://static.jup.ag/banner/metadata.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "ImFryLIxiiwcLSeBPsFy7",
+      "description": "Returns details for ActiveBanner with activeBanner",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://remote-api.jup.ag/public/active/web",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "QWTvSCh5eC9P2Hn_xonry",
+      "description": "Returns details for Paragraph with text",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ultra-api.jup.ag/shield?mints=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&isJupiter=true",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "1L2Fa0ZpK0jV_ShZJva-h",
+      "description": "Returns details for Warning with EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v using mints, isJupiter",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://mixpanel.jup.ag/track/?verbose=1&ip=1&_=1772934034679",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "VTyRq1706aoovRCQDVzeb",
+      "description": "Returns details for Error with error, status",
+      "action_kind": "status",
+      "resource_kind": "post"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "L-ShT1fYa59lz-9_i3bYu",
+      "method": "GET",
+      "url_template": "https://worker.jup.ag/lst-apys-v2",
+      "description": "Returns details for SctmgdZMTz1Mfg87S2b9tFF2U7RSwU1HRTipqCAQhfp with sctmgdZMTz1Mfg87S2b9tFF2U7RSwU1HRTipqCAQhfp, sctmPT9yMFXpogyWEZs34sEpmPRLYSxEYQ5jm6zAAt9, sctmsTkcQpwSmumiPFaF57MUNk8Kjt5u8bWSsXQEwV9, sctmfoDW2aJL686B8JPUiRb7f7s2HPvQkE93KR5NLTt, rad8NdseJYbjJUFLsv5SuBU9g29N3m4SyYndSbwoKH3, sctmHzp3oVkXG1FZ1AbAgL1bvYFJdtrtgxoHYycbybm",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "1L2Fa0ZpK0jV_ShZJva-h",
+      "method": "GET",
+      "url_template": "https://ultra-api.jup.ag/shield?mints={mints}&isJupiter={isJupiter}",
+      "description": "Returns details for Warning with EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v using mints, isJupiter",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "VTyRq1706aoovRCQDVzeb",
+      "method": "POST",
+      "url_template": "https://mixpanel.jup.ag/track/",
+      "description": "Returns details for Error with error, status",
+      "action_kind": "status",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "PkexzkslEA0lPzTcA_qR3",
+      "method": "GET",
+      "url_template": "https://datapi.jup.ag/v1/assets/search?query={query}",
+      "description": "Searches Asset with id, name, symbol, icon, decimals, twitter using query",
+      "action_kind": "search",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "JxaRd0xhbHV0Cr6bugyP5",
+      "method": "GET",
+      "url_template": "https://datapi.jup.ag/v2/assets/toptrending/24h?limit={limit}",
+      "description": "Returns details for Asset with id, name, symbol, icon, decimals, dev using limit",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "ZVuDgY_ZJRzjXABnQZ8OG",
+      "method": "GET",
+      "url_template": "https://ultra-api.jup.ag/order/routers",
+      "description": "Returns details for Router with id, name, icon",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "zDyg2whhsKLRNy2JW_RqF",
+      "method": "GET",
+      "url_template": "https://fe-api.jup.ag/api/v1/chain/status",
+      "description": "Returns status for Statu with status, epoch, tps",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "endpoint_id": "-nFTeKMRj_Fr5yqYm8iYP",
+      "method": "GET",
+      "url_template": "https://static.jup.ag/remoteConfig/metadata.json",
+      "description": "Returns details for SwapSetting with excludedAmms, bannedTokens",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "ImFryLIxiiwcLSeBPsFy7",
+      "method": "GET",
+      "url_template": "https://static.jup.ag/banner/metadata.json",
+      "description": "Returns details for ActiveBanner with activeBanner",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "QWTvSCh5eC9P2Hn_xonry",
+      "method": "GET",
+      "url_template": "https://remote-api.jup.ag/public/active/web",
+      "description": "Returns details for Paragraph with text",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "e9JfmAfC3ii9ZyCLMVr0n",
+      "method": "WS",
+      "url_template": "wss://trench-stream.jup.ag/ws",
+      "action_kind": "timeline",
+      "resource_kind": "resource"
+    }
+  ]
+}

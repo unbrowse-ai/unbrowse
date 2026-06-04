@@ -1,0 +1,404 @@
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {
+  checkPaymentRequirement,
+  resolveUnpaidAccess,
+  interpretPaymentResult,
+} from "../src/payments/index.js";
+import { getLocalWalletContext } from "../src/client/index.js";
+import { checkWalletConfigured } from "../src/payments/wallet.js";
+import type { PaymentGateResult } from "../src/payments/index.js";
+
+const PAID_ROUTE = { price_usd: "0.001" } as const;
+
+// ---------------------------------------------------------------------------
+// checkPaymentRequirement — real function tests
+// ---------------------------------------------------------------------------
+
+describe("checkPaymentRequirement", () => {
+  const origEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...origEnv };
+  });
+
+  test("returns free for local: skills", async () => {
+    const result = await checkPaymentRequirement("local:my-skill", "ep-1");
+    expect(result.status).toBe("free");
+  });
+
+  test("returns free when UNBROWSE_SKIP_PAYMENT=1", async () => {
+    process.env.UNBROWSE_SKIP_PAYMENT = "1";
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    expect(result.status).toBe("free");
+  });
+
+  test("returns free when UNBROWSE_FREE_TIER=1", async () => {
+    process.env.UNBROWSE_FREE_TIER = "1";
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    expect(result.status).toBe("free");
+  });
+
+  test("returns free when skip_payment option is true", async () => {
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+      skip_payment: true,
+    });
+    expect(result.status).toBe("free");
+  });
+
+  test("returns free when price_usd is zero", async () => {
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+      price_usd: "0",
+    });
+    expect(result.status).toBe("free");
+  });
+
+  test("returns payment_required for marketplace skills with explicit price", async () => {
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", PAID_ROUTE);
+    expect(result.status).toBe("payment_required");
+    expect(result.requirement).toBeDefined();
+    expect(result.requirement!.amount).toBe("0.001");
+    expect(result.requirement!.currency).toBe("USDC");
+  });
+
+  test("returns wallet_not_configured when wallet_configured is false", async () => {
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+    // wallet_not_configured is the correct status only for a TRULY anonymous
+    // caller (no account key AND no wallet) under the account-or-x402 gate.
+    delete process.env.UNBROWSE_API_KEY;
+    process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(path.join(os.tmpdir(), "ubpw-anon-cfg-"));
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+      ...PAID_ROUTE,
+      wallet_configured: false,
+    });
+    expect(result.status).toBe("wallet_not_configured");
+    expect(result.requirement).toBeDefined();
+    expect(result.requirement!.required).toBe(true);
+  });
+
+  test("requirement includes correct memo format", async () => {
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+    const result = await checkPaymentRequirement("my-skill", "search-ep", PAID_ROUTE);
+    expect(result.requirement!.memo).toBe("unbrowse:my-skill:search-ep");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkWalletConfigured — real function tests
+// ---------------------------------------------------------------------------
+
+describe("checkWalletConfigured", () => {
+  const origEnv = { ...process.env };
+  const originalHome = process.env.HOME;
+
+  function setEmptyHome(): void {
+    process.env.HOME = mkdtempSync(path.join(os.tmpdir(), "unbrowse-wallet-home-"));
+  }
+
+  afterEach(() => {
+    process.env = { ...origEnv };
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+  });
+
+  test("returns configured=false when no wallet env vars set", () => {
+    setEmptyHome();
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_ADDRESS;
+    const result = checkWalletConfigured();
+    expect(result.configured).toBe(false);
+    expect(result.provider).toBeUndefined();
+  });
+
+  test("detects lobster.cash wallet", () => {
+    setEmptyHome();
+    process.env.LOBSTER_WALLET_ADDRESS = "So11111111111111111111111111111111111111112";
+    const result = checkWalletConfigured();
+    expect(result.configured).toBe(true);
+    expect(result.provider).toBe("lobster.cash");
+  });
+
+  test("detects generic agent wallet", () => {
+    setEmptyHome();
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    process.env.AGENT_WALLET_ADDRESS = "0xdeadbeef";
+    process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
+    const result = checkWalletConfigured();
+    expect(result.configured).toBe(true);
+    expect(result.provider).toBe("custom-wallet");
+  });
+
+  test("lobster.cash takes priority over generic wallet", () => {
+    setEmptyHome();
+    process.env.LOBSTER_WALLET_ADDRESS = "lobster-addr";
+    process.env.AGENT_WALLET_ADDRESS = "generic-addr";
+    const result = checkWalletConfigured();
+    expect(result.provider).toBe("lobster.cash");
+  });
+
+  test("exports generic wallet context for payout sync and payment proof", () => {
+    setEmptyHome();
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    process.env.AGENT_WALLET_ADDRESS = "0xfeedface";
+    process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
+    expect(getLocalWalletContext()).toEqual({
+      wallet_address: "0xfeedface",
+      wallet_provider: "custom-wallet",
+    });
+  });
+
+  test("detects lobster.cash wallet from local agent config", () => {
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_PROVIDER;
+    // Re-enable local wallet probe; it gets disabled by lobster-payments
+    // setup if that file ran first in the suite.
+    delete process.env.UNBROWSE_DISABLE_LOCAL_WALLET;
+
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-lobster-"));
+    process.env.HOME = homeDir;
+    const lobsterDir = path.join(homeDir, ".lobster");
+    mkdirSync(lobsterDir, { recursive: true });
+    writeFileSync(path.join(lobsterDir, "agents.json"), JSON.stringify({
+      activeAgentId: "agent-1",
+      agents: {
+        "agent-1": {
+          authorizedWallets: {
+            solana: "So11111111111111111111111111111111111111112",
+          },
+        },
+      },
+    }));
+
+    expect(checkWalletConfigured()).toEqual({
+      configured: true,
+      provider: "lobster.cash",
+    });
+    expect(getLocalWalletContext()).toEqual({
+      wallet_address: "So11111111111111111111111111111111111111112",
+      wallet_provider: "lobster.cash",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveUnpaidAccess — real function tests
+// ---------------------------------------------------------------------------
+
+describe("resolveUnpaidAccess", () => {
+  test("returns indexing_fallback for wallet_not_configured", () => {
+    const gateResult: PaymentGateResult = {
+      status: "wallet_not_configured",
+      message: "No wallet",
+      requirement: {
+        required: true,
+        amount: "0.001",
+        currency: "USDC",
+        reason: "test",
+      },
+    };
+    const fallback = resolveUnpaidAccess(gateResult);
+    expect(fallback.status).toBe("indexing_fallback");
+    expect(fallback.message).toContain("No wallet");
+  });
+
+  test("returns indexing_fallback for insufficient_balance", () => {
+    const gateResult: PaymentGateResult = {
+      status: "insufficient_balance",
+      message: "Not enough",
+      requirement: {
+        required: true,
+        amount: "0.001",
+        currency: "USDC",
+        reason: "test",
+      },
+    };
+    const fallback = resolveUnpaidAccess(gateResult);
+    expect(fallback.status).toBe("indexing_fallback");
+  });
+
+  test("returns indexing_fallback for payment_failed", () => {
+    const gateResult: PaymentGateResult = {
+      status: "payment_failed",
+      message: "Tx failed",
+    };
+    const fallback = resolveUnpaidAccess(gateResult);
+    expect(fallback.status).toBe("indexing_fallback");
+  });
+
+  test("passes through free status unchanged", () => {
+    const gateResult: PaymentGateResult = {
+      status: "free",
+      message: "No payment required.",
+    };
+    const result = resolveUnpaidAccess(gateResult);
+    expect(result.status).toBe("free");
+  });
+
+  test("passes through paid status unchanged", () => {
+    const gateResult: PaymentGateResult = {
+      status: "paid",
+      message: "Payment confirmed.",
+    };
+    const result = resolveUnpaidAccess(gateResult);
+    expect(result.status).toBe("paid");
+  });
+
+  test("passes through payment_required unchanged", () => {
+    const gateResult: PaymentGateResult = {
+      status: "payment_required",
+      message: "Payment needed",
+    };
+    const result = resolveUnpaidAccess(gateResult);
+    expect(result.status).toBe("payment_required");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// interpretPaymentResult — real function tests
+// ---------------------------------------------------------------------------
+
+describe("interpretPaymentResult", () => {
+  const requirement = {
+    required: true,
+    amount: "0.001",
+    currency: "USDC",
+    reason: "test",
+  };
+
+  test("maps confirmed to paid", () => {
+    const result = interpretPaymentResult("confirmed", requirement);
+    expect(result.status).toBe("paid");
+  });
+
+  test("maps success to paid", () => {
+    const result = interpretPaymentResult("success", requirement);
+    expect(result.status).toBe("paid");
+  });
+
+  test("maps pending to awaiting_confirmation", () => {
+    const result = interpretPaymentResult("pending", requirement);
+    expect(result.status).toBe("awaiting_confirmation");
+  });
+
+  test("maps insufficient_balance correctly", () => {
+    const result = interpretPaymentResult("insufficient_balance", requirement);
+    expect(result.status).toBe("insufficient_balance");
+  });
+
+  test("maps no_wallet to wallet_not_configured", () => {
+    const result = interpretPaymentResult("no_wallet", requirement);
+    expect(result.status).toBe("wallet_not_configured");
+  });
+
+  test("maps unknown status to payment_failed", () => {
+    const result = interpretPaymentResult("something_weird", requirement);
+    expect(result.status).toBe("payment_failed");
+    expect(result.message).toContain("something_weird");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payment gate integration — wallet check + payment check + fallback
+// ---------------------------------------------------------------------------
+
+describe("payment gate integration", () => {
+  const origEnv = { ...process.env };
+  const originalHome = process.env.HOME;
+
+  afterEach(() => {
+    process.env = { ...origEnv };
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+  });
+
+  test("full flow: no wallet -> wallet_not_configured -> indexing_fallback", async () => {
+    process.env.HOME = mkdtempSync(path.join(os.tmpdir(), "unbrowse-wallet-home-"));
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_ADDRESS;
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+    // The new account-or-wallet gate: this test asserts the genuinely
+    // ANONYMOUS path (no account credential AND no wallet). Establish it
+    // deterministically so an ambient dev api key cannot leak in.
+    delete process.env.UNBROWSE_API_KEY;
+    process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(path.join(os.tmpdir(), "ubpw-anon-cfg2-"));
+
+    const walletCheck = checkWalletConfigured();
+    expect(walletCheck.configured).toBe(false);
+
+    const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
+      ...PAID_ROUTE,
+      wallet_configured: walletCheck.configured,
+    });
+    expect(paymentCheck.status).toBe("wallet_not_configured");
+
+    const fallback = resolveUnpaidAccess(paymentCheck);
+    expect(fallback.status).toBe("indexing_fallback");
+    expect(fallback.message).toContain("No wallet");
+  });
+
+  test("full flow: wallet configured -> payment_required (no block)", async () => {
+    process.env.LOBSTER_WALLET_ADDRESS = "test-wallet-addr";
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+
+    const walletCheck = checkWalletConfigured();
+    expect(walletCheck.configured).toBe(true);
+
+    const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
+      ...PAID_ROUTE,
+      wallet_configured: walletCheck.configured,
+    });
+    expect(paymentCheck.status).toBe("payment_required");
+    // Payment does NOT block — the orchestrator continues
+    expect(paymentCheck.requirement!.amount).toBe("0.001");
+  });
+
+  test("full flow: local skill is always free regardless of wallet", async () => {
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    delete process.env.UNBROWSE_SKIP_PAYMENT;
+    delete process.env.UNBROWSE_FREE_TIER;
+
+    const paymentCheck = await checkPaymentRequirement("local:my-tool", "ep-1");
+    expect(paymentCheck.status).toBe("free");
+  });
+
+  test("UNBROWSE_SKIP_PAYMENT bypasses everything", async () => {
+    process.env.UNBROWSE_SKIP_PAYMENT = "1";
+    const paymentCheck = await checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
+    expect(paymentCheck.status).toBe("free");
+  });
+
+  test("UNBROWSE_FREE_TIER bypasses everything", async () => {
+    process.env.UNBROWSE_FREE_TIER = "1";
+    const paymentCheck = await checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
+    expect(paymentCheck.status).toBe("free");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OrchestratorResult payment field shape
+// ---------------------------------------------------------------------------
+
+describe("OrchestratorResult payment field", () => {
+  test("payment field is typed correctly from PaymentGateResult", async () => {
+    // Verify the payment module exports are importable and well-typed
+    const gate: PaymentGateResult = await checkPaymentRequirement("test", "ep", PAID_ROUTE);
+    expect(gate).toHaveProperty("status");
+    expect(gate).toHaveProperty("message");
+    // The status should be one of the valid PaymentStatus values
+    const validStatuses = [
+      "paid", "payment_required", "wallet_not_configured",
+      "insufficient_balance", "payment_failed", "awaiting_confirmation",
+      "indexing_fallback", "free",
+    ];
+    expect(validStatuses).toContain(gate.status);
+  });
+});

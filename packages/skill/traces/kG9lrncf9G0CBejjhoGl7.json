@@ -1,0 +1,50 @@
+{
+  "trace_id": "kG9lrncf9G0CBejjhoGl7",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "mASQJ7TlVPdwglt7Uxgxd",
+  "started_at": "2026-03-12T02:10:20.341Z",
+  "completed_at": "2026-03-12T02:10:21.426Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [],
+    "total": 0,
+    "page": 1,
+    "totalPages": 0,
+    "nextCursor": null,
+    "operators": []
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [
+      "results[].thread",
+      "results[].thread.doc_id",
+      "results[].thread.subject",
+      "results[].thread.latest_sender_name",
+      "results[].thread.formatted_date",
+      "results[].thread.preview",
+      "results[].thread.avatar_color",
+      "results[].thread.count",
+      "results[].thread.attachments",
+      "results[].thread.latest_is_from_epstein",
+      "results[].thread.isRedacted",
+      "results[].thread.starCount",
+      "results[].thread.unredactCount",
+      "results[].matchedEmail",
+      "results[].matchedEmail.id",
+      "results[].matchedEmail.sender",
+      "results[].matchedEmail.content_markdown",
+      "results[].field",
+      "results[].rank"
+    ],
+    "type_changes": [
+      {
+        "path": "nextCursor",
+        "was": "string",
+        "now": "null"
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "intent": "jason calacanis net worth",
+  "params": {
+    "url": "https://www.google.com/search?q=jason+calacanis+net+worth"
+  },
+  "context": {
+    "url": "https://www.google.com/search?q=jason+calacanis+net+worth"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "Wf0_xeFeznhwswArWu3a-",
+      "score": 628.6,
+      "description": "Captured page artifact for jason calacanis net worth",
+      "url": "https://www.google.com/search?q={q}",
+      "dom_extraction": true
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "Wf0_xeFeznhwswArWu3a-",
+      "score": 698.6,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "0naQHv2SqQRc7E3rJNvhN"
+}

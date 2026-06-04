@@ -1,0 +1,10 @@
+{
+  "trace_id": "q-h_tjSFoabgZ_SOPO0OV",
+  "skill_id": "3HPAEJZHj5NTb-KxFfbTF",
+  "endpoint_id": "kJt7YgJWr26QlVQZWAmHw",
+  "started_at": "2026-02-25T08:05:23.355Z",
+  "completed_at": "2026-02-25T08:05:25.353Z",
+  "success": false,
+  "status_code": 404,
+  "error": "HTTP 404"
+}

@@ -1,0 +1,17 @@
+{
+  "page_url": "https://ads.x.com/analytics_overview/18ce55s5sqj",
+  "final_url": "https://ads.x.com/analytics_overview/18ce55s5sqj",
+  "intent": "get tweet analytics impressions engagement overview",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://ads.x.com/analytics_overview/18ce55s5sqj",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    }
+  ],
+  "accepted_endpoints": []
+}

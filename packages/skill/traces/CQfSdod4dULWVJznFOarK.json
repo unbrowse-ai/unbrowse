@@ -1,0 +1,199 @@
+{
+  "trace_id": "CQfSdod4dULWVJznFOarK",
+  "skill_id": "bESxwc8qxl37Et02NBZjZ",
+  "endpoint_id": "68f2rapHDG2aBXcrr02hl",
+  "started_at": "2026-03-08T01:53:54.671Z",
+  "completed_at": "2026-03-08T01:54:01.047Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "type": "json-ld",
+        "data": {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "@id": "https://discord.com/#website",
+          "url": "https://discord.com/",
+          "name": "Discord",
+          "publisher": {
+            "@id": "https://discord.com/company"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://discord.com/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          },
+          "inLanguage": "en"
+        },
+        "relevance_score": 4.1
+      },
+      {
+        "type": "json-ld",
+        "data": {
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "@id": "https://discord.com/#webpage",
+          "url": "https://discord.com/",
+          "name": "Discord Home Page",
+          "about": {
+            "@id": "https://discord.com/company"
+          },
+          "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://discord.com/"
+              }
+            ]
+          },
+          "lastReviewed": "2024-05-24",
+          "mainContentOfPage": {
+            "@type": "WebPageElement",
+            "@id": "https://discord.com/#maincontent"
+          },
+          "primaryImageOfPage": {
+            "@type": "ImageObject",
+            "@id": "https://discord.com/#primaryimage",
+            "url": "https://assets-global.website-files.com/6257adef93867e50d84d30e2/6286368c5f5cc306ac2a4672_Jobs%20and%20Career%20Opportunities%20at%20Discord-2%201.svg",
+            "contentUrl": "https://assets-global.website-files.com/6257adef93867e50d84d30e2/6286368c5f5cc306ac2a4672_Jobs%20and%20Career%20Opportunities%20at%20Discord-2%201.svg",
+            "caption": "Discord Logo"
+          },
+          "relatedLink": [
+            "https://discord.com/company",
+            "https://discord.com/terms",
+            "https://discord.com/privacy"
+          ],
+          "reviewedBy": {
+            "@type": "Organization",
+            "@id": "https://discord.com/#organization",
+            "name": "Discord"
+          },
+          "significantLink": [
+            "https://discord.com/features",
+            "https://discord.com/download",
+            "https://discord.com/nitro"
+          ]
+        },
+        "relevance_score": 3.1
+      },
+      {
+        "type": "json-ld",
+        "data": {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "@id": "https://discord.com/#organization",
+          "name": "Discord",
+          "url": "https://discord.com/",
+          "sameAs": [
+            "https://x.com/discord",
+            "https://www.instagram.com/discord/",
+            "https://www.facebook.com/discord/",
+            "https://www.youtube.com/discord",
+            "https://www.tiktok.com/@discord"
+          ],
+          "logo": {
+            "@type": "ImageObject",
+            "inLanguage": "en",
+            "@id": "https://discord.com/#schema/logo/image",
+            "url": "https://assets-global.website-files.com/6257adef93867e50d84d30e2/6286368c5f5cc306ac2a4672_Jobs%20and%20Career%20Opportunities%20at%20Discord-2%201.svg",
+            "contentUrl": "https://assets-global.website-files.com/6257adef93867e50d84d30e2/6286368c5f5cc306ac2a4672_Jobs%20and%20Career%20Opportunities%20at%20Discord-2%201.svg",
+            "width": 600,
+            "height": 400,
+            "caption": "Discord Logo"
+          },
+          "image": {
+            "@id": "https://discord.com/#schema/logo/image"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Support",
+            "email": "support@discord.com",
+            "url": "https://discord.com/support"
+          }
+        },
+        "relevance_score": 3.1
+      }
+    ],
+    "_extraction": {
+      "method": "multiple",
+      "confidence": 0.63,
+      "source": "rendered-dom",
+      "final_url": "https://discord.com/"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].type",
+      "data[].data",
+      "data[].data.@context",
+      "data[].data.@type",
+      "data[].data.@id",
+      "data[].data.url",
+      "data[].data.name",
+      "data[].data.publisher",
+      "data[].data.publisher.@id",
+      "data[].data.potentialAction",
+      "data[].data.potentialAction.@type",
+      "data[].data.potentialAction.target",
+      "data[].data.potentialAction.query-input",
+      "data[].data.inLanguage",
+      "data[].data.about",
+      "data[].data.about.@id",
+      "data[].data.breadcrumb",
+      "data[].data.breadcrumb.@type",
+      "data[].data.breadcrumb.itemListElement",
+      "data[].data.breadcrumb.itemListElement[].@type",
+      "data[].data.breadcrumb.itemListElement[].position",
+      "data[].data.breadcrumb.itemListElement[].name",
+      "data[].data.breadcrumb.itemListElement[].item",
+      "data[].data.lastReviewed",
+      "data[].data.mainContentOfPage",
+      "data[].data.mainContentOfPage.@type",
+      "data[].data.mainContentOfPage.@id",
+      "data[].data.primaryImageOfPage",
+      "data[].data.primaryImageOfPage.@type",
+      "data[].data.primaryImageOfPage.@id",
+      "data[].data.primaryImageOfPage.url",
+      "data[].data.primaryImageOfPage.contentUrl",
+      "data[].data.primaryImageOfPage.caption",
+      "data[].data.relatedLink",
+      "data[].data.reviewedBy",
+      "data[].data.reviewedBy.@type",
+      "data[].data.reviewedBy.@id",
+      "data[].data.reviewedBy.name",
+      "data[].data.significantLink",
+      "data[].data.sameAs",
+      "data[].data.logo",
+      "data[].data.logo.@type",
+      "data[].data.logo.inLanguage",
+      "data[].data.logo.@id",
+      "data[].data.logo.url",
+      "data[].data.logo.contentUrl",
+      "data[].data.logo.width",
+      "data[].data.logo.height",
+      "data[].data.logo.caption",
+      "data[].data.image",
+      "data[].data.image.@id",
+      "data[].data.contactPoint",
+      "data[].data.contactPoint.@type",
+      "data[].data.contactPoint.contactType",
+      "data[].data.contactPoint.email",
+      "data[].data.contactPoint.url",
+      "data[].relevance_score",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

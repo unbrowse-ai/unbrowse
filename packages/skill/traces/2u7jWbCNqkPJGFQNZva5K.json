@@ -1,0 +1,109 @@
+{
+  "trace_id": "2u7jWbCNqkPJGFQNZva5K",
+  "skill_id": "zDCUIt2Utv2hbe3S0R7am",
+  "endpoint_id": "Sl6aBeNeUXzpTcFKqvRwV",
+  "started_at": "2026-03-08T01:57:36.228Z",
+  "completed_at": "2026-03-08T01:57:40.117Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "title": "Machine Learning & AI",
+        "heading_1": "tensorflow/tensorflow",
+        "heading_2": "pytorch/pytorch",
+        "heading_3": "langchain/langchain",
+        "heading_4": "python",
+        "link": "/r/tensorflow/tensorflow",
+        "image": "https://www.gravatar.com/avatar/12bb888b1d946b128037abc877e93bc7?s=80&r=g&d=mm",
+        "description": "Official Docker images for the machine learning framework TensorFlow (http://www.tensorflow.org)"
+      },
+      {
+        "title": "Trending this week",
+        "heading_1": "ai/qwen3",
+        "heading_2": "arm32v7/redis",
+        "heading_3": "hylang",
+        "heading_4": "atlassian/confluence",
+        "link": "/r/ai/qwen3",
+        "image": "https://djeqr6to3dedg.cloudfront.net/repo-logos/ai/qwen3/live/logo-1746463132955.png",
+        "description": "Qwen3 is the latest Qwen LLM, built for top-tier coding, math, reasoning, and language tasks."
+      },
+      {
+        "title": "Most pulled images",
+        "heading_1": "memcached",
+        "heading_2": "nginx",
+        "heading_3": "busybox",
+        "heading_4": "alpine",
+        "link": "/search?badges=official&type=image",
+        "image": "https://www.gravatar.com/avatar/7510e100f7ebeca4a0b8c3c617349295?s=80&r=g&d=mm",
+        "description": "Free & open source, high-performance, distributed memory object caching system."
+      },
+      {
+        "title": "Databases & storage",
+        "heading_1": "postgres",
+        "heading_2": "mysql",
+        "heading_3": "neo4j",
+        "heading_4": "mongo",
+        "link": "/_/postgres",
+        "image": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/postgres/live/logo-1763770361454.png",
+        "description": "The PostgreSQL object-relational database system provides reliability and data integrity."
+      },
+      {
+        "title": "Monitoring & observability",
+        "heading_1": "traefik",
+        "heading_2": "influxdb",
+        "heading_3": "telegraf",
+        "heading_4": "grafana/grafana",
+        "link": "/_/traefik",
+        "image": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/traefik/live/logo-1763770402896.png",
+        "description": "Traefik, The Cloud Native Edge Router"
+      },
+      {
+        "title": "Developer tools",
+        "heading_1": "gradle",
+        "heading_2": "bash",
+        "heading_3": "selenium/video",
+        "heading_4": "localstack/localstack-pro",
+        "link": "/_/gradle",
+        "image": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/gradle/live/logo-1772543533491.png",
+        "description": "Gradle is a fast, reliable, and flexible open-source build tool with an elegant, extensible DSL."
+      },
+      {
+        "title": "New extensions",
+        "heading_1": "docker/labs-k8s-toolkit-extension",
+        "link": "/r/docker/labs-k8s-toolkit-extension",
+        "image": "https://www.gravatar.com/avatar/56b6e15d486f6407690a6cb56e3fa68e?s=80&r=g&d=mm"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://hub.docker.com/",
+      "selector": "div.MuiStack-root.css-1hqz9cp"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].title",
+      "data[].heading_1",
+      "data[].heading_2",
+      "data[].heading_3",
+      "data[].heading_4",
+      "data[].link",
+      "data[].image",
+      "data[].description",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

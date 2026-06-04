@@ -1,0 +1,63 @@
+{
+  "name": "unbrowse",
+  "version": "8.0.1",
+  "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
+  "mcpName": "io.github.unbrowse-ai/unbrowse",
+  "type": "module",
+  "bin": {
+    "unbrowse": "bin/unbrowse-wrapper.mjs"
+  },
+  "exports": {
+    "./sdk": {
+      "types": "./dist-sdk/index.d.ts",
+      "import": "./dist-sdk/index.js"
+    },
+    "./sdk/wallet-standard": {
+      "types": "./dist-sdk/wallet-standard.d.ts",
+      "import": "./dist-sdk/wallet-standard.js"
+    }
+  },
+  "files": [
+    "runtime",
+    "bin",
+    "dist-sdk",
+    "vendor/kuri",
+    "vendor/utls-proxy",
+    "scripts/release-assets.mjs",
+    "scripts/postinstall.mjs",
+    "scripts/postinstall-ping.mjs",
+    "scripts/verify-release-assets.mjs",
+    "README.md",
+    "SKILL.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
+    "build:sdk": "tsc -p tsconfig.sdk.json",
+    "prepack": "npm run build:runtime && npm run build:sdk && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
+    "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "build:runtime": "bun build ../../src/cli.ts --target=bun --outdir runtime"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@solana/kit": "^6.6.0",
+    "@x402/fetch": "^2.9.0",
+    "bs58": "^6.0.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.7.4",
+    "nanoid": "^5.1.6",
+    "tsx": "^4.20.6",
+    "ws": "^8.19.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0",
+    "@faremeter/flex-solana": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1"
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "intent": "list bases and tables",
+  "params": {
+    "url": "https://airtable.com"
+  },
+  "context": {
+    "url": "https://airtable.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "B4fAzK_dD3xrse7WImJpD",
+      "score": 627.4,
+      "description": "Captured page artifact for list bases and tables",
+      "url": "https://airtable.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "lQB6TuTRebmKUIAf4Q7AS",
+      "score": 124.6,
+      "description": "Returns details for ListApplicationsAndPageBundlesForDisplay with workspaceRecordById, applicationRecordById, pageBundles, id, applicationId, color using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/listApplicationsAndPageBundlesForDisplay?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "ceC9Z4t71MQLgRFLqk62N",
+      "score": 51.5,
+      "description": "Returns details for GetMostRecentlyViewed with recentlyViewedApplicationIds, recentlyViewedApplicationScopedPageBundleIds, applicationId, id, recentlyViewedApplicationIdsAndTimestamps, applicationId using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/getMostRecentlyViewed?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "B4fAzK_dD3xrse7WImJpD",
+      "score": 662.4,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "html_payload"
+    },
+    {
+      "endpoint_id": "lQB6TuTRebmKUIAf4Q7AS",
+      "score": 219.6,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at https://www.airtable.com/_next/static/chunks/pages/_app-f0972009a3461a15.js:5:4392\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    },
+    {
+      "endpoint_id": "ceC9Z4t71MQLgRFLqk62N",
+      "score": 146.5,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at https://www.airtable.com/_next/static/chunks/pages/_app-f0972009a3461a15.js:5:4392\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "3QrTu47EA5z3IIWKB_jVQ",
+  "available_endpoints": [
+    {
+      "endpoint_id": "B4fAzK_dD3xrse7WImJpD",
+      "score": 627.4,
+      "description": "Captured page artifact for list bases and tables",
+      "url": "https://airtable.com"
+    },
+    {
+      "endpoint_id": "lQB6TuTRebmKUIAf4Q7AS",
+      "score": 124.6,
+      "description": "Returns details for ListApplicationsAndPageBundlesForDisplay with workspaceRecordById, applicationRecordById, pageBundles, id, applicationId, color using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/listApplicationsAndPageBundlesForDisplay?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}"
+    },
+    {
+      "endpoint_id": "tVp5t12FRZon4J40XERR4",
+      "score": 55.5,
+      "description": "Returns details for Origin using pageLoadId, t",
+      "url": "https://airtable.com/rt3/sockjs_with_compression/info?pageLoadId={pageLoadId}&t={t}"
+    },
+    {
+      "endpoint_id": "ceC9Z4t71MQLgRFLqk62N",
+      "score": 51.5,
+      "description": "Returns details for GetMostRecentlyViewed with recentlyViewedApplicationIds, recentlyViewedApplicationScopedPageBundleIds, applicationId, id, recentlyViewedApplicationIdsAndTimestamps, applicationId using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/getMostRecentlyViewed?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}"
+    },
+    {
+      "endpoint_id": "xe3eXTk97-hyZPFNtOPaM",
+      "score": 51.5,
+      "description": "Returns details for GetPageBundleIdsSharedViaIntent with applicationScopedPageBundleIdWithSharingMetadatas, applicationId, id, timestamp, sharedBy, isPossiblyMissingData using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/getPageBundleIdsSharedViaIntent?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}"
+    },
+    {
+      "endpoint_id": "xt6ggTmTrZz-Ds-HSLQUx",
+      "score": 51.5,
+      "description": "Returns details for GetFavorite with sortOrder, favorites using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/getFavorites?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}"
+    },
+    {
+      "endpoint_id": "UrDWM-d_0OqRTNJ-kQdWf",
+      "score": 51.5,
+      "description": "Returns details for GetMostRecentlyOpenedWorkspace with wspvNAK3C78J3LMJk using stringifiedObjectParams, requestId",
+      "url": "https://airtable.com/v0.3/user/usr95PBpfL2Onpe9P/getMostRecentlyOpenedWorkspaces?stringifiedObjectParams={stringifiedObjectParams}&requestId={requestId}"
+    },
+    {
+      "endpoint_id": "kGRLhBf5YTG_2yhgRhusQ",
+      "score": 23.5,
+      "description": "Returns details for Gemini with gemini, libra, lynx, orion, leo, hydra",
+      "url": "https://airtable.com/v0.3/getUserProperties"
+    },
+    {
+      "endpoint_id": "8DS-fVQvNjm85KkBnrhYS",
+      "score": 21.5,
+      "description": "Returns websocket data",
+      "url": "wss://airtable.com/rt3/sockjs_with_compression/597/1wv5xsu3/websocket?pageLoadId=pglLg5eF5MpHSHuP5"
+    }
+  ],
+  "extra": null
+}

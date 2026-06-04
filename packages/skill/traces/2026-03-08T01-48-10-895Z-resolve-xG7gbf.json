@@ -1,0 +1,61 @@
+{
+  "intent": "search videos",
+  "params": {
+    "url": "https://www.tiktok.com"
+  },
+  "context": {
+    "url": "https://www.tiktok.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+      "score": 106.5,
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&permissionList={permissionList}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}&msToken={msToken}&X-Bogus={X-Bogus}&X-Gnarly={X-Gnarly}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+      "score": 105.5,
+      "description": "Returns details for Eligibility List with decision_code, id_value, is_eligible",
+      "url": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+      "score": 55.5,
+      "description": "Returns details for Log Pb with impr_id using region, priority_region, aid, device_id",
+      "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region={region}&priority_region={priority_region}&aid={aid}&device_id={device_id}&app_language={app_language}&device_platform={device_platform}&WebIdLastTime={WebIdLastTime}&scene={scene}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+      "score": 145.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 200,
+      "error": "unexpected_html_response"
+    },
+    {
+      "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+      "score": 180.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": null,
+      "error": "confirmation_required"
+    },
+    {
+      "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+      "score": 56.5,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "LfCiJn1yaFZUKrsgYSeqm"
+}

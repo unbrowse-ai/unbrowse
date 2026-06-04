@@ -1,0 +1,381 @@
+{
+  "trace_id": "qWPEX01ozVpuFiO2kKM_P",
+  "skill_id": "B4HqZbj1rvyq-UgD2z6VE",
+  "endpoint_id": "jiSMpdfz35VFbX67h9a6K",
+  "started_at": "2026-03-14T19:23:02.209Z",
+  "completed_at": "2026-03-14T19:23:19.225Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "2ad284fd8984@3742efe",
+  "result": {
+    "data": [
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "link": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US",
+            "title": "1\nBathing - Topic\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/g/11x9371pcq&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11x9371pcq&date=today+12-m&geo=US",
+            "title": "2\nPurina Kitten Chow Dry Food - Cat food\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/g/11j7kqb8mf&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11j7kqb8mf&date=today+12-m&geo=US",
+            "title": "3\nCoach Ip Holdings LLC - Company\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/m/0s9mxly&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/m/0s9mxly&date=today+12-m&geo=US",
+            "title": "4\nCoach - Fashion brand\n\n  +500%"
+          },
+          {
+            "link": "/trends/explore?q=/g/11wh6jyx6q&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11wh6jyx6q&date=today+12-m&geo=US",
+            "title": "5\nFancy Feast - Cat food\n\n  +300%"
+          },
+          {
+            "link": "/trends/explore?q=kitten+bowl+2026&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=kitten+bowl+2026&date=today+12-m&geo=US",
+            "title": "1\nkitten bowl 2026\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=rainbow+kitten+surprise+dang&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=rainbow+kitten+surprise+dang&date=today+12-m&geo=US",
+            "title": "2\nrainbow kitten surprise dang\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=liila's+chef+kitten&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=liila's+chef+kitten&date=today+12-m&geo=US",
+            "title": "3\nliila's chef kitten\n\n  +1,250%"
+          },
+          {
+            "link": "/trends/explore?q=coach+kitten+heels+sparkle&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=coach+kitten+heels+sparkle&date=today+12-m&geo=US",
+            "title": "4\ncoach kitten heels sparkle\n\n  +1,150%"
+          },
+          {
+            "link": "/trends/explore?q=coach+kitten+heels&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=coach+kitten+heels&date=today+12-m&geo=US",
+            "title": "5\ncoach kitten heels\n\n  +600%"
+          }
+        ],
+        "relevance_score": 26
+      },
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "link": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US",
+            "title": "1\nBathing - Topic\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/g/11x9371pcq&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11x9371pcq&date=today+12-m&geo=US",
+            "title": "2\nPurina Kitten Chow Dry Food - Cat food\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/g/11j7kqb8mf&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11j7kqb8mf&date=today+12-m&geo=US",
+            "title": "3\nCoach Ip Holdings LLC - Company\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=/m/0s9mxly&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/m/0s9mxly&date=today+12-m&geo=US",
+            "title": "4\nCoach - Fashion brand\n\n  +500%"
+          },
+          {
+            "link": "/trends/explore?q=/g/11wh6jyx6q&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=/g/11wh6jyx6q&date=today+12-m&geo=US",
+            "title": "5\nFancy Feast - Cat food\n\n  +300%"
+          },
+          {
+            "link": "/trends/explore?q=kitten+bowl+2026&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=kitten+bowl+2026&date=today+12-m&geo=US",
+            "title": "1\nkitten bowl 2026\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=rainbow+kitten+surprise+dang&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=rainbow+kitten+surprise+dang&date=today+12-m&geo=US",
+            "title": "2\nrainbow kitten surprise dang\n\n  Breakout"
+          },
+          {
+            "link": "/trends/explore?q=liila's+chef+kitten&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=liila's+chef+kitten&date=today+12-m&geo=US",
+            "title": "3\nliila's chef kitten\n\n  +1,250%"
+          },
+          {
+            "link": "/trends/explore?q=coach+kitten+heels+sparkle&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=coach+kitten+heels+sparkle&date=today+12-m&geo=US",
+            "title": "4\ncoach kitten heels sparkle\n\n  +1,150%"
+          },
+          {
+            "link": "/trends/explore?q=coach+kitten+heels&date=today+12-m&geo=US",
+            "url": "/trends/explore?q=coach+kitten+heels&date=today+12-m&geo=US",
+            "title": "5\ncoach kitten heels\n\n  +600%"
+          }
+        ],
+        "relevance_score": 26
+      },
+      {
+        "type": "table",
+        "data": [
+          {
+            "x": "‪Mar 9, 2025‬",
+            "y1": "51"
+          },
+          {
+            "x": "‪Mar 16, 2025‬",
+            "y1": "50"
+          },
+          {
+            "x": "‪Mar 23, 2025‬",
+            "y1": "53"
+          },
+          {
+            "x": "‪Mar 30, 2025‬",
+            "y1": "56"
+          },
+          {
+            "x": "‪Apr 6, 2025‬",
+            "y1": "56"
+          },
+          {
+            "x": "‪Apr 13, 2025‬",
+            "y1": "64"
+          },
+          {
+            "x": "‪Apr 20, 2025‬",
+            "y1": "67"
+          },
+          {
+            "x": "‪Apr 27, 2025‬",
+            "y1": "75"
+          },
+          {
+            "x": "‪May 4, 2025‬",
+            "y1": "77"
+          },
+          {
+            "x": "‪May 11, 2025‬",
+            "y1": "86"
+          },
+          {
+            "x": "‪May 18, 2025‬",
+            "y1": "88"
+          },
+          {
+            "x": "‪May 25, 2025‬",
+            "y1": "89"
+          },
+          {
+            "x": "‪Jun 1, 2025‬",
+            "y1": "93"
+          },
+          {
+            "x": "‪Jun 8, 2025‬",
+            "y1": "94"
+          },
+          {
+            "x": "‪Jun 15, 2025‬",
+            "y1": "92"
+          },
+          {
+            "x": "‪Jun 22, 2025‬",
+            "y1": "93"
+          },
+          {
+            "x": "‪Jun 29, 2025‬",
+            "y1": "89"
+          },
+          {
+            "x": "‪Jul 6, 2025‬",
+            "y1": "98"
+          },
+          {
+            "x": "‪Jul 13, 2025‬",
+            "y1": "91"
+          },
+          {
+            "x": "‪Jul 20, 2025‬",
+            "y1": "100"
+          },
+          {
+            "x": "‪Jul 27, 2025‬",
+            "y1": "94"
+          },
+          {
+            "x": "‪Aug 3, 2025‬",
+            "y1": "91"
+          },
+          {
+            "x": "‪Aug 10, 2025‬",
+            "y1": "95"
+          },
+          {
+            "x": "‪Aug 17, 2025‬",
+            "y1": "85"
+          },
+          {
+            "x": "‪Aug 24, 2025‬",
+            "y1": "82"
+          },
+          {
+            "x": "‪Aug 31, 2025‬",
+            "y1": "88"
+          },
+          {
+            "x": "‪Sep 7, 2025‬",
+            "y1": "82"
+          },
+          {
+            "x": "‪Sep 14, 2025‬",
+            "y1": "81"
+          },
+          {
+            "x": "‪Sep 21, 2025‬",
+            "y1": "84"
+          },
+          {
+            "x": "‪Sep 28, 2025‬",
+            "y1": "86"
+          },
+          {
+            "x": "‪Oct 5, 2025‬",
+            "y1": "86"
+          },
+          {
+            "x": "‪Oct 12, 2025‬",
+            "y1": "87"
+          },
+          {
+            "x": "‪Oct 19, 2025‬",
+            "y1": "85"
+          },
+          {
+            "x": "‪Oct 26, 2025‬",
+            "y1": "75"
+          },
+          {
+            "x": "‪Nov 2, 2025‬",
+            "y1": "78"
+          },
+          {
+            "x": "‪Nov 9, 2025‬",
+            "y1": "80"
+          },
+          {
+            "x": "‪Nov 16, 2025‬",
+            "y1": "83"
+          },
+          {
+            "x": "‪Nov 23, 2025‬",
+            "y1": "80"
+          },
+          {
+            "x": "‪Nov 30, 2025‬",
+            "y1": "72"
+          },
+          {
+            "x": "‪Dec 7, 2025‬",
+            "y1": "76"
+          },
+          {
+            "x": "‪Dec 14, 2025‬",
+            "y1": "70"
+          },
+          {
+            "x": "‪Dec 21, 2025‬",
+            "y1": "73"
+          },
+          {
+            "x": "‪Dec 28, 2025‬",
+            "y1": "73"
+          },
+          {
+            "x": "‪Jan 4, 2026‬",
+            "y1": "68"
+          },
+          {
+            "x": "‪Jan 11, 2026‬",
+            "y1": "68"
+          },
+          {
+            "x": "‪Jan 18, 2026‬",
+            "y1": "62"
+          },
+          {
+            "x": "‪Jan 25, 2026‬",
+            "y1": "61"
+          },
+          {
+            "x": "‪Feb 1, 2026‬",
+            "y1": "62"
+          },
+          {
+            "x": "‪Feb 8, 2026‬",
+            "y1": "70"
+          },
+          {
+            "x": "‪Feb 15, 2026‬",
+            "y1": "68"
+          },
+          {
+            "x": "‪Feb 22, 2026‬",
+            "y1": "66"
+          },
+          {
+            "x": "‪Mar 1, 2026‬",
+            "y1": "62"
+          },
+          {
+            "x": "‪Mar 8, 2026‬",
+            "y1": "62"
+          }
+        ],
+        "relevance_score": 4
+      },
+      {
+        "type": "key-value",
+        "data": {
+          "title": "Interest over time\n      \n  help_outline",
+          "heading_1": "Interest by subregion\n      \n  help_outline",
+          "heading_3": "Related topics\n      \n  help_outline",
+          "heading_4": "Related queries\n      \n  help_outline",
+          "message": "Interest by subregion\n      \n  help_outline",
+          "link": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US",
+          "url": "/trends/explore?q=/g/120mbsz0&date=today+12-m&geo=US"
+        },
+        "relevance_score": -138.9
+      }
+    ],
+    "_extraction": {
+      "method": "multiple",
+      "confidence": 0.595,
+      "source": "rendered-dom",
+      "final_url": "https://trends.google.com/trends/explore?geo=US&q=kitten&hl=en-US",
+      "selector": "div.item"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].type",
+      "data[].data",
+      "data[].relevance_score",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

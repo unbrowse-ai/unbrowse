@@ -1,0 +1,14 @@
+{
+  "trace_id": "LzG0GtZuyWBtpmeGNbqmB",
+  "skill_id": "LfCiJn1yaFZUKrsgYSeqm",
+  "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+  "started_at": "2026-03-08T01:48:10.959Z",
+  "completed_at": "2026-03-08T01:48:11.103Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "statusCode": 0,
+    "statusMsg": ""
+  }
+}
