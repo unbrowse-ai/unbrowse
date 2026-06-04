@@ -77,6 +77,26 @@ describe("renderSkillMd — per-website agentskills package", () => {
     expect(holes.every((h) => h.fill === "zk:private-key")).toBe(true);
   });
 
+  test("response fields render from JSON-Schema properties (object + array shapes)", () => {
+    const objSkill = {
+      ...publicSkill(),
+      endpoints: [{
+        endpoint_id: "ep_obj", method: "GET", url_template: "https://x.com/o",
+        response_schema: { type: "object", properties: { result: {}, rates: {} } },
+      }],
+    } as unknown as SkillManifest;
+    expect(renderSkillMd(objSkill)).toContain("**Response fields**: `result`, `rates`");
+
+    const arrSkill = {
+      ...publicSkill(),
+      endpoints: [{
+        endpoint_id: "ep_arr", method: "GET", url_template: "https://x.com/a",
+        response_schema: { type: "array", items: { type: "object", properties: { id: {}, score: {} } } },
+      }],
+    } as unknown as SkillManifest;
+    expect(renderSkillMd(arrSkill)).toContain("**Response fields**: `id`, `score`");
+  });
+
   test("exposed defaults to false; opt-in flips it true", () => {
     expect(renderSkillMd(publicSkill())).toContain("exposed: false");
     const exposed = { ...publicSkill(), exposed: true } as unknown as SkillManifest;

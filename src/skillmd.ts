@@ -24,6 +24,17 @@ function endpointTitle(ep: EndpointDescriptor): string {
   } catch { return `${ep.method} ${ep.url_template}`; }
 }
 
+/** Extract response field names from a captured response_schema. Handles the
+ * JSON-Schema shape actually stored (object → properties, array → items.properties)
+ * plus a legacy sample_field_names fallback. Returns [] when none are known. */
+function responseFields(rs: any): string[] {
+  if (!rs || typeof rs !== "object") return [];
+  if (Array.isArray(rs.sample_field_names) && rs.sample_field_names.length) return rs.sample_field_names;
+  const node = rs.type === "array" && rs.items && typeof rs.items === "object" ? rs.items : rs;
+  if (node.properties && typeof node.properties === "object") return Object.keys(node.properties);
+  return [];
+}
+
 /** Render one call parameter as `name` (source[, required]) — source from the
  * captured semantic shape so an agent knows where the value goes. */
 function renderParam(r: any): string {
@@ -49,8 +60,9 @@ function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): st
   lines.push(`- **Endpoint ID**: \`${ep.endpoint_id}\``);
   if (ep.idempotency) lines.push(`- **Idempotency**: ${ep.idempotency}`);
   if (ep.verification_status) lines.push(`- **Verified**: ${ep.verification_status} (reliability ${(ep.reliability_score ?? 0).toFixed(2)})`);
-  if ((ep.response_schema as any)?.sample_field_names?.length) {
-    lines.push(`- **Response fields**: ${(ep.response_schema as any).sample_field_names.slice(0, 12).map((f: string) => `\`${f}\``).join(", ")}`);
+  const respFields = responseFields(ep.response_schema);
+  if (respFields.length) {
+    lines.push(`- **Response fields**: ${respFields.slice(0, 12).map((f) => `\`${f}\``).join(", ")}`);
   }
   if ((ep as any).semantic?.requires?.length) {
     // These are call PARAMETERS (path/query/body) the agent supplies — distinct
