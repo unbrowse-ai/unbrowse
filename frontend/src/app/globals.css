@@ -33,7 +33,9 @@
   --border-strong: #D4C9BE;
   --text-primary: #1A1207;
   --text-secondary: #6B5C4D;
-  --text-muted: #9C8E7E;
+  /* muted text must still pass WCAG AA on white: #756857 on #FFF ≈ 5.5:1
+     (was #9C8E7E ≈ 3.05:1, FAIL) — the dark theme was already AA-tuned; light was not. */
+  --text-muted: #756857;
   --code-bg: #FFF8F0;
   --glow: rgba(255, 109, 0, 0.12);
   --glow-azure: rgba(59, 130, 246, 0.10);
