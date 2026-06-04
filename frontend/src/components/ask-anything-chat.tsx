@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import { AIKO_MODELS, AIKO_METHOD_SYSTEM_PROMPT, defaultAikoModel, resolveAikoModel } from "@/lib/aiko-method";
+import { AIKO_MODELS, AIKO_METHOD_SYSTEM_PROMPT, aikoChatStream, defaultAikoModel, resolveAikoModel } from "@/lib/aiko-method";
 
 const O = "#FF7A20";
 const O_DIM = "rgba(255,122,32,0.40)";
@@ -81,6 +81,43 @@ export function AskAnythingChat() {
       // Aiko's method is baked in as the system message for every model; the
       // toggle routes local tiers to the Mac's Ollama, cloud to the unbrowse endpoint.
       const model = resolveAikoModel(modelId);
+
+      // Local tier streams tokens live — the chat paints as the model thinks
+      // instead of dead air, then one blob. (Cloud keeps the billing-aware path
+      // below so 402 / remaining-credits handling is preserved.)
+      if (model.tier === "local") {
+        setTurns([...next, { role: "assistant", content: "" }]);
+        scrollToBottom();
+        let acc = "";
+        for await (const delta of aikoChatStream({
+          messages: next.map((t) => ({ role: t.role, content: t.content })),
+          modelId,
+          maxTokens: 1500,
+        })) {
+          acc += delta;
+          setTurns((cur) => {
+            const copy = cur.slice();
+            copy[copy.length - 1] = { role: "assistant", content: acc };
+            return copy;
+          });
+          scrollToBottom();
+        }
+        const elapsedLocal = Math.round(performance.now() - started);
+        setTurns((cur) => {
+          const copy = cur.slice();
+          copy[copy.length - 1] = {
+            role: "assistant",
+            content: acc || "(empty response)",
+            latencyMs: elapsedLocal,
+          };
+          return copy;
+        });
+        setBillingMode("free");
+        setStatus("ok");
+        scrollToBottom();
+        return;
+      }
+
       const messages = [
         { role: "system", content: AIKO_METHOD_SYSTEM_PROMPT },
         ...next.map((t) => ({ role: t.role, content: t.content })),

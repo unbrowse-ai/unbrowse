@@ -90,11 +90,6 @@ export interface AikoChatResult {
  */
 export async function aikoChat(opts: AikoChatOptions): Promise<AikoChatResult> {
   const model = resolveAikoModel(opts.modelId);
-  const hasSystem = opts.messages.some((m) => m.role === "system");
-  const messages: AikoChatMessage[] = hasSystem
-    ? opts.messages
-    : [{ role: "system", content: AIKO_METHOD_SYSTEM_PROMPT }, ...opts.messages];
-
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (model.tier === "cloud" && opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`;
 
@@ -103,7 +98,7 @@ export async function aikoChat(opts: AikoChatOptions): Promise<AikoChatResult> {
     headers,
     body: JSON.stringify({
       model: model.model,
-      messages,
+      messages: aikoMessages(opts),
       temperature: opts.temperature ?? 0.3,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
     }),
@@ -115,4 +110,65 @@ export async function aikoChat(opts: AikoChatOptions): Promise<AikoChatResult> {
   const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   const text = data.choices?.[0]?.message?.content ?? "";
   return { text, model };
+}
+
+function aikoMessages(opts: AikoChatOptions): AikoChatMessage[] {
+  const hasSystem = opts.messages.some((m) => m.role === "system");
+  return hasSystem
+    ? opts.messages
+    : [{ role: "system", content: AIKO_METHOD_SYSTEM_PROMPT }, ...opts.messages];
+}
+
+/**
+ * Streaming chat: yields content deltas as they arrive (OpenAI-compatible SSE),
+ * so the UI paints tokens live instead of waiting for the whole answer — the felt
+ * difference between "it's thinking" and dead air. Same local-first routing + baked
+ * method as aikoChat. Works in the browser and in node/bun.
+ */
+export async function* aikoChatStream(opts: AikoChatOptions): AsyncGenerator<string, AikoModel, void> {
+  const model = resolveAikoModel(opts.modelId);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (model.tier === "cloud" && opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`;
+
+  const res = await fetch(`${model.endpoint}/chat/completions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: model.model,
+      messages: aikoMessages(opts),
+      temperature: opts.temperature ?? 0.3,
+      stream: true,
+      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+    }),
+    signal: opts.signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`aiko stream ${model.id} failed: HTTP ${res.status}`.slice(0, 200));
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // SSE frames are separated by blank lines; each carries one `data:` payload.
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (payload === "[DONE]") return model;
+      try {
+        const delta = (JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> })
+          .choices?.[0]?.delta?.content;
+        if (delta) yield delta;
+      } catch {
+        /* keep partial frame in buf for the next chunk */
+      }
+    }
+  }
+  return model;
 }
