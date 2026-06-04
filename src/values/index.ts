@@ -108,7 +108,7 @@ function tokenize(s: string | undefined): string[] {
 /**
  * Keyword-overlap score between a candidate and the (intent, slotName) query
  * tokens. Counts how many query tokens appear as a substring of any candidate
- * token (label/pointer/hint). NO embedding — the EBM ranking is W31-A's
+ * token (label/pointer/hint). NO embedding — the ranking ranking is W31-A's
  * route-side job; this is just a cheap stable pre-filter sort key.
  */
 function overlapScore(

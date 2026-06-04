@@ -96,7 +96,7 @@ describe("W33-B op-kind — no route-mechanism leak in the public surface", () =
     );
     // The route-SPECIFIC mechanism names must NOT appear. Generic
     // actuate/observe/build as op_class VALUES are acceptable; the
-    // suffixed forms + diffusion/ebm/context_fetch are not.
+    // suffixed forms + diffusion/ranking/context_fetch are not.
     const FORBIDDEN = [
       "route_kind",
       "route_base_kind",

@@ -103,7 +103,7 @@ export interface AdapterContext {
  * A candidate value-POINTER surfaced by `enumerate()`. POINTER-ONLY: it
  * names *where* a value lives + metadata-derived labels, but NEVER the value
  * itself. This is the load-bearing invariant of the enumeration surface —
- * the candidate set must be rankable (by W31-A's route-side EBM) and
+ * the candidate set must be rankable (by W31-A's route-side ranking) and
  * fillable (by W31-A's multi-slot populate) without ever dereferencing a
  * secret. The label/hint come from the store's non-secret metadata (item
  * title, account name), never from the cleartext.

@@ -349,7 +349,7 @@ dependencies: {
 Symbiotic pairs get co-verified: when one fails, both are flagged.
 When one re-captures, both are re-verified. Saves orphan-cell noise.
 
-### 9. Metabolism / per-call energy budget (missing — no cost primitive)
+### 9. Metabolism / per-call confidence budget (missing — no cost primitive)
 
 Cells need ATP to run; ours don't declare cost. Router picks by
 success rate without knowing if cell A costs $0.001 to call vs cell B
@@ -365,7 +365,7 @@ metabolism: {
 
 Cells that exhaust their budget enter a cool-down until the next
 budget window. Router prefers cheaper cells when quality is
-equivalent. Contributors can fund a cell's energy budget from their
+equivalent. Contributors can fund a cell's confidence budget from their
 revenue share — pay to stay active.
 
 ### 10. Cambrian explosion / composition trigger (missing — no
@@ -2061,12 +2061,12 @@ Every compute-heavy task has a matching credit payout. Agents
 with spare cycles opt in for the credits; the server's compute
 footprint stays flat as traffic grows.
 
-### Parallels with the body's own energy distribution
+### Parallels with the body's own confidence distribution
 
 Biology does exactly this: the brain is 2% of body mass but uses
 20% of calories. It does the coordination (routing, ranking,
 memory) but outsources the heavy work to muscles, organs, and
-immune cells that have their own energy stores. Our server is the
+immune cells that have their own confidence stores. Our server is the
 brain; the agents are the muscles; the compute stays distributed.
 
 ### Parallels audit (short)
@@ -2091,7 +2091,7 @@ strained entries:
 - **Apoptosis, tolerance, homeostasis, chemotaxis, Hebbian**:
   tight parallels, no strain.
 - **Metabolism = compute budget**: tight parallel, keep it. Every
-  cell has an energy cost per call; contributors fund the budget
+  cell has an confidence cost per call; contributors fund the budget
   from revenue share.
 
 One parallel that is MISSING and worth adding:
