@@ -25,6 +25,7 @@ import {
   resetFlexFacilitatorCacheForTests,
   platformRecipientUsdcAta,
   flexRefundTimeoutSlots,
+  resolveFlexNetwork,
   type FlexFacilitatorHandler,
 } from "../src/services/flex-facilitator.js";
 import type { Env } from "../src/types.js";
@@ -305,5 +306,31 @@ describe("flex-facilitator — Day 3 helpers preserved", () => {
   test("flexRefundTimeoutSlots: passes through valid", () => {
     const env = makeEnv({ FLEX_REFUND_TIMEOUT_SLOTS: "500" });
     expect(flexRefundTimeoutSlots(env)).toBe(500n);
+  });
+});
+
+describe("flex-facilitator — resolveFlexNetwork (config-driven, not hardcoded)", () => {
+  const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+  test("X402_NETWORK_MODE=mainnet -> mainnet + mainnet USDC", () => {
+    expect(resolveFlexNetwork({ X402_NETWORK_MODE: "mainnet", ENVIRONMENT: "staging" }))
+      .toEqual({ network: "mainnet", usdcMint: MAINNET_USDC });
+  });
+
+  test("X402_NETWORK_MODE=testnet -> devnet + devnet USDC (where the FLEX program lives)", () => {
+    expect(resolveFlexNetwork({ X402_NETWORK_MODE: "testnet", ENVIRONMENT: "production" }))
+      .toEqual({ network: "devnet", usdcMint: DEVNET_USDC });
+  });
+
+  test("production default (no mode) -> mainnet", () => {
+    expect(resolveFlexNetwork({ ENVIRONMENT: "production" }))
+      .toEqual({ network: "mainnet", usdcMint: MAINNET_USDC });
+  });
+
+  test("non-production default (no mode) -> devnet (so settlement can actually succeed)", () => {
+    expect(resolveFlexNetwork({ ENVIRONMENT: "staging" }))
+      .toEqual({ network: "devnet", usdcMint: DEVNET_USDC });
+    expect(resolveFlexNetwork({}).network).toBe("devnet");
   });
 });
