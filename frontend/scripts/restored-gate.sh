@@ -26,17 +26,16 @@ COMPONENTS=(
   cursor-particles
 )
 
-# Deleted pages to restore at their routes.
-PAGES=(
-  mine-the-internet
-  miners
-  leaderboard
-  proof-of-indexing
-  proof-of-indexing-vs-proof-of-work
-  top-domains-to-mine
-  agent-fleet-economics
-  openclaw-earn
-)
+# Deleted "mining / proof-of-indexing / fleet-economics" pages: intentionally NOT
+# restored. They were deleted on 2026-06-03 (b68fc63b) ON PURPOSE — moved to the
+# gitignored internal/ tree so the public surface aligns on free-discovery + x402,
+# off the mining/tokenomics narrative. User decision (2026-06-04): "harvest cool
+# visuals only" from them, not restore the pages. Investigation found NO separable
+# cool visuals — they are deprecated economic content (revenue/savings/cost tables),
+# exactly the internal-tier story the moat discipline keeps off the public site.
+# So there is nothing to harvest and nothing to restore here; the genuinely cool
+# VISUALS were the components above, all now reused on the live homepage.
+PAGES=()
 
 fail=0
 
@@ -64,10 +63,14 @@ for c in "${COMPONENTS[@]}"; do
   if is_wired "$c"; then echo "  WIRED    $c"; else echo "  ORPHAN   $c"; fail=1; fi
 done
 
-echo "== pages (must be restored at their route) =="
-for p in "${PAGES[@]}"; do
-  if [ -f "src/app/$p/page.tsx" ]; then echo "  RESTORED $p"; else echo "  MISSING  $p"; fail=1; fi
-done
+echo "== pages =="
+if [ "${#PAGES[@]}" -eq 0 ]; then
+  echo "  (none required — mining/economics pages intentionally kept internal; see note above)"
+else
+  for p in "${PAGES[@]}"; do
+    if [ -f "src/app/$p/page.tsx" ]; then echo "  RESTORED $p"; else echo "  MISSING  $p"; fail=1; fi
+  done
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo "RESTORED: all targeted cool stuff is back and reused."
