@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { PopularSkillSummary, StatsPerf } from "@/lib/api";
 
-const EXAMPLES = ["top stories on hacker news", "questions on stackoverflow", "search beatsaver maps"];
+// Curated to REAL high-usage indexed domains whose distinctive token is the domain
+// itself, so every example (and the placeholder) is a clean first-try win — never a
+// near-miss. Verified against /v1/skills/popular: stackoverflow (65 calls, 15 routes),
+// beatsaver (42, 5), openlibrary (31, 8). Naive token-overlap ranking can't match
+// multi-word brands like "hacker news" → news.ycombinator.com, so we don't suggest them.
+const EXAMPLES = ["questions on stackoverflow", "search beatsaver maps", "books on openlibrary"];
 const nf = new Intl.NumberFormat("en-US");
 
 /** Tokenize an intent / skill record into lowercased word stems for overlap scoring. */
@@ -94,7 +99,7 @@ export function RegistrySearch({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Type an intent — “top stories on hacker news”"
+          placeholder="Type an intent — “questions on stackoverflow”"
           aria-label="Resolve an intent to an indexed route"
           className="flex-1 bg-transparent focus:outline-none text-[15px]"
           style={{ color: "var(--text-primary)", caretColor: "var(--orange-500)" }}
