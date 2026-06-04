@@ -9,7 +9,7 @@
 
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
-import { bridgeKuriProxyEnv } from "./env/kuri-proxy-bridge.js";
+import { bridgeKuriProxyEnv, kuriProxyTraceEnabled } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
@@ -53,14 +53,18 @@ loadEnv({ path: ".env.runtime", quiet: true });
 
 (() => {
   const outcome = bridgeKuriProxyEnv();
+  // Happy-path outcomes are diagnostic noise on every command (incl. --help);
+  // surface them only under the opt-in kuri trace flag. Misconfiguration
+  // warnings below stay unconditional — those are actionable.
+  const trace = kuriProxyTraceEnabled();
   if (outcome.wired) {
-    console.error(`[kuri-proxy] wired KURI_PROXY (source=${outcome.source}, url=${outcome.redacted})`);
+    if (trace) console.error(`[kuri-proxy] wired KURI_PROXY (source=${outcome.source}, url=${outcome.redacted})`);
   } else if (outcome.reason === "already_set") {
-    console.error(`[kuri-proxy] respected pre-existing KURI_PROXY (${outcome.existing})`);
+    if (trace) console.error(`[kuri-proxy] respected pre-existing KURI_PROXY (${outcome.existing})`);
   } else if (outcome.reason === "opt_out") {
     // UNBROWSE_DIRECT_EGRESS=1 or UNBROWSE_KURI_PROXY=0/false — explicit
     // opt-out from the residential-proxy-default policy.
-    console.error("[kuri-proxy] direct egress (opt-out); kuri runs without --proxy-server");
+    if (trace) console.error("[kuri-proxy] direct egress (opt-out); kuri runs without --proxy-server");
   } else if (outcome.reason === "creds_missing") {
     // Unreachable under the new default — resolveEgressProxy always
     // returns ProxyKingdom when nothing else is configured. Keep the
@@ -3448,9 +3452,9 @@ async function cmdBilling(args: string[], flags: Record<string, string | boolean
     const r = await fetch(`${base}/v1/billing/me`, { headers });
     const body = (await r.json()) as Record<string, unknown>;
     if (jsonOnly) {
-      console.log(JSON.stringify(body));
+      process.stdout.write(JSON.stringify(body) + "\n");
     } else {
-      console.log(formatBillingStatus(body));
+      process.stdout.write(formatBillingStatus(body) + "\n");
     }
     return;
   }
@@ -3459,9 +3463,9 @@ async function cmdBilling(args: string[], flags: Record<string, string | boolean
     const r = await fetch(`${base}/v1/billing/checkout`, { method: "POST", headers, body: "{}" });
     const body = (await r.json()) as { url?: string; error?: string };
     if (jsonOnly) {
-      console.log(JSON.stringify(body));
+      process.stdout.write(JSON.stringify(body) + "\n");
     } else if (body.url) {
-      console.log(body.url);
+      process.stdout.write(body.url + "\n");
     } else {
       console.error(body.error ?? "unknown error");
       process.exit(1);
@@ -3473,9 +3477,9 @@ async function cmdBilling(args: string[], flags: Record<string, string | boolean
     const r = await fetch(`${base}/v1/billing/portal`, { headers });
     const body = (await r.json()) as { url?: string; error?: string };
     if (jsonOnly) {
-      console.log(JSON.stringify(body));
+      process.stdout.write(JSON.stringify(body) + "\n");
     } else if (body.url) {
-      console.log(body.url);
+      process.stdout.write(body.url + "\n");
     } else {
       console.error(body.error ?? "unknown error");
       process.exit(1);
@@ -3938,7 +3942,7 @@ async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
   }) as { snapshot?: string };
   if (result.snapshot && !flags.pretty) {
-    console.log(result.snapshot);
+    process.stdout.write(result.snapshot + "\n");
   } else {
     output(result, !!flags.pretty);
   }
@@ -4014,7 +4018,7 @@ async function cmdScreenshot(flags: Record<string, string | boolean>): Promise<v
 async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
   const result = await api("GET", "/v1/browse/text", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { text?: string };
   if (result.text && !flags.pretty) {
-    console.log(result.text);
+    process.stdout.write(result.text + "\n");
   } else {
     output(result, !!flags.pretty);
   }
@@ -4023,7 +4027,7 @@ async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
 async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<void> {
   const result = await api("GET", "/v1/browse/markdown", typeof flags.session === "string" ? { session_id: flags.session } : undefined) as { markdown?: string };
   if (result.markdown && !flags.pretty) {
-    console.log(result.markdown);
+    process.stdout.write(result.markdown + "\n");
   } else {
     output(result, !!flags.pretty);
   }
@@ -4565,7 +4569,7 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
     case "tools":
     case "help": {
       const out = await call("/v1/contract/tools");
-      console.log(JSON.stringify(out, null, 2));
+      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
       return;
     }
     case "declare": {
@@ -4578,7 +4582,7 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
       const body: Record<string, unknown> = { plan, action };
       if (typeof flags["parent"] === "string") body.parent_id = flags["parent"];
       const out = await call("/v1/contract/declare", { method: "POST", body });
-      console.log(JSON.stringify(out, null, 2));
+      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
       return;
     }
     case "status": {
@@ -4588,7 +4592,7 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
         process.exit(2);
       }
       const out = await call("/v1/contract/status", { query: { id } });
-      console.log(JSON.stringify(out, null, 2));
+      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
       return;
     }
     case "plan-for-intent":
@@ -4601,7 +4605,7 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
       const body: Record<string, unknown> = { intent };
       if (typeof flags["limit"] === "string") body.limit = Number(flags["limit"]);
       const out = await call("/v1/contract/plan-for-intent", { method: "POST", body });
-      console.log(JSON.stringify(out, null, 2));
+      process.stdout.write(JSON.stringify(out, null, 2) + "\n");
       return;
     }
     default:
@@ -4615,11 +4619,15 @@ async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
   const cliParams = parsed.params;
-  // Agent-UX / contract-harness invariant: under --json, stdout MUST contain
-  // ONLY the final JSON payload (emitted via process.stdout.write in output()).
-  // Reroute every console.log (orchestrator progress, [perf]/[lifecycle]/[direct-document]
-  // chatter) to stderr so a /contract --action can consume KEY 1 cleanly.
-  if (flags.json) {
+  // Agent-UX / contract-harness invariant: when stdout is MACHINE-CONSUMED
+  // (piped to an agent/subprocess, or explicit --json), it MUST carry ONLY the
+  // payload. Every payload is emitted via process.stdout.write (output() and the
+  // snap/text/markdown/billing/contract handlers), so it is immune to this
+  // reroute. All console.log/info/warn is diagnostic chatter
+  // ([trace]/[perf]/[lifecycle]/[exa]/[probe]/…) → send it to stderr so a naive
+  // `unbrowse resolve … | jq` works without --json. A human at a TTY still sees
+  // the chatter inline (no reroute when stdout is a TTY).
+  if (flags.json || !process.stdout.isTTY) {
     const _stderrLog = (...rest: unknown[]) => process.stderr.write(rest.map(String).join(" ") + "\n");
     console.log = _stderrLog;
     console.info = _stderrLog;
