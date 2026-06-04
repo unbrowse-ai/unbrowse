@@ -187,7 +187,9 @@ export function Constellation() {
     <canvas
       ref={canvasRef}
       className="absolute inset-0 w-full h-full"
-      style={{ opacity: 0.7, pointerEvents: "auto" }}
+      // pointer-events none so the particle backdrop never intercepts clicks on the
+      // hero search/buttons it sits behind.
+      style={{ opacity: 0.55, pointerEvents: "none" }}
     />
   );
 }

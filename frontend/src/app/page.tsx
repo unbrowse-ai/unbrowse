@@ -18,6 +18,7 @@ import { UniversalProofBand } from "@/components/universal-proof-band";
 import { AdoptersRail } from "@/components/adopters-rail";
 import { TrustStrip } from "@/components/trust-strip";
 import { CursorParticles } from "@/components/cursor-particles";
+import { Constellation } from "@/components/constellation";
 
 export const revalidate = 120;
 
@@ -48,8 +49,10 @@ export default async function Home() {
         <p>Search skills by intent, resolve to a ranked endpoint, execute for real data. MCP setup: npx unbrowse setup --mcp. Conversational demo at /aiko. Full overview at /classic.</p>
       </section>
 
-      {/* Hero — search over the grid */}
-      <section className="pt-16 sm:pt-24 pb-10 text-center">
+      {/* Hero — search over the grid, with the restored particle-network backdrop */}
+      <section className="relative overflow-hidden pt-16 sm:pt-24 pb-10 text-center">
+        <Constellation />
+        <div className="relative z-10">
         <h1 className="text-[30px] sm:text-[42px] font-semibold tracking-tight text-text-primary mb-3" style={{ letterSpacing: "-0.02em" }}>
           Any website, instantly an API for your agent
         </h1>
@@ -73,6 +76,7 @@ export default async function Home() {
           </Link>
           {" "}· 3.6× mean speedup (5.4× median), 100% win rate
         </p>
+        </div>
       </section>
 
       {/* Categories */}
