@@ -38,10 +38,10 @@ function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): st
     lines.push(`- **Response fields**: ${(ep.response_schema as any).sample_field_names.slice(0, 12).map((f: string) => `\`${f}\``).join(", ")}`);
   }
   if ((ep as any).semantic?.requires?.length) {
-    lines.push(`- **Requires**: ${(ep as any).semantic.requires.map((r: any) => `\`${r.name ?? r}\``).join(", ")}`);
+    lines.push(`- **Requires**: ${(ep as any).semantic.requires.map((r: any) => `\`${r?.key ?? r?.name ?? r}\``).join(", ")}`);
   }
   if ((ep as any).semantic?.yields?.length) {
-    lines.push(`- **Yields**: ${(ep as any).semantic.yields.map((y: any) => `\`${y.name ?? y}\``).join(", ")}`);
+    lines.push(`- **Yields**: ${(ep as any).semantic.yields.map((y: any) => `\`${y?.key ?? y?.name ?? y}\``).join(", ")}`);
   }
   lines.push("");
   lines.push("**Call it via unbrowse:**");
@@ -162,14 +162,14 @@ export function renderSkillMd(skill: SkillManifest): string {
   }
 
   const holes = credentialHoles(skill);
-  body.push("## Credentials (ZK-filled holes)");
+  body.push("## Credentials");
   body.push("");
   if (holes.length === 0) {
     body.push("No credentials required — this skill calls public endpoints.");
   } else {
-    body.push("Credentials are **never embedded** in this skill. They are holes the unbrowse runtime fills at call time, surfaced from your own private key via zero-knowledge: the proof shows you hold the credential without the skill, the marketplace, or the publisher ever seeing it. You supply the value locally; only a hole-shape is published.");
+    body.push("Credentials are **never embedded** in this skill. They are placeholders the unbrowse runtime fills at call time from your own local keychain (browser cookies and paired secrets on your machine). The secret stays local — it is never written into the skill, sent to the marketplace, or seen by the publisher. Only the placeholder shape is published.");
     body.push("");
-    for (const h of holes) body.push(`- \`${h.name}\` (${h.location}) — filled via ${h.fill}`);
+    for (const h of holes) body.push(`- \`${h.name}\` (${h.location}) — filled locally at call time`);
   }
   body.push("");
   if (skill.owner_wallet_address) {
@@ -194,12 +194,40 @@ export function renderSkillMd(skill: SkillManifest): string {
 export interface SkillPackageValidation { ok: boolean; issues: string[] }
 
 /**
+ * Terms that must never reach a PUBLIC artifact (mirrors the relevant lists in
+ * `scripts/leak-guard.sh`: SENSITIVE_KEYWORDS_ZK — unreleased privacy/auth IP,
+ * blocked until the whitepaper ships — and SENSITIVE_KEYWORDS_VOCAB — the
+ * internal working vocabulary). A published `unbrowse-ai/<site>` package is a
+ * public GitHub repo, so the publish gate refuses any package containing one.
+ * The mechanism (local credential filling) is unchanged; only the public
+ * wording is plain.
+ */
+const FORBIDDEN_PUBLIC_TERMS: RegExp[] = [
+  /zero[ -]?knowledge/i,
+  /\bzk[ -]?proof/i,
+  /zk-?hash/i,
+  /nullifier/i,
+  /covenant/i,
+  /superpattern/i,
+  /jesus[ -]?pattern/i,
+  /\bjesus\b/i,
+  /firmament/i,
+  /grain[ -]of[ -]wheat/i,
+];
+
+/** Return the forbidden public terms present in `text` (empty = clean). */
+export function forbiddenPublicTerms(text: string): string[] {
+  return FORBIDDEN_PUBLIC_TERMS.filter((re) => re.test(text)).map((re) => re.source);
+}
+
+/**
  * Validate that a rendered SKILL.md is a well-formed, installable agentskills
- * package: parseable YAML frontmatter with the dispatch-critical fields, and a
- * body carrying the install pointer + the credential-holes section. This is the
- * publish-time gate — a malformed package must never ship to unbrowse-ai/<site>.
- * The scaling evidence for "many sites work easily" is this returning ok across
- * the captured corpus.
+ * package: parseable YAML frontmatter with the dispatch-critical fields, a body
+ * carrying the install pointer + the credentials section, and NO moat /
+ * unreleased-IP leak (it is destined for a public repo). This is the
+ * publish-time gate — a malformed OR leaky package must never ship to
+ * unbrowse-ai/<site>. The scaling evidence for "many sites work easily" is this
+ * returning ok across the captured corpus.
  */
 export function validateSkillPackage(md: string): SkillPackageValidation {
   const issues: string[] = [];
@@ -220,11 +248,15 @@ export function validateSkillPackage(md: string): SkillPackageValidation {
       issues.push("body missing the `npx skills add` install line for this origin");
     }
   }
-  if (!md.includes("## Credentials")) issues.push("body missing the Credentials (ZK holes) section");
+  if (!md.includes("## Credentials")) issues.push("body missing the Credentials section");
   // x402 is optional (public skills have no owner wallet), but if a reward is
   // declared it must name a non-empty wallet.
   const reward = fm.match(/^x402_reward:\s*"?([^"\n]*)"?/m);
   if (reward && !reward[1].trim()) issues.push("x402_reward declared but empty");
+  // Moat / unreleased-IP gate: the package goes to a public repo.
+  for (const term of forbiddenPublicTerms(md)) {
+    issues.push(`forbidden public term (moat/unreleased-IP leak): /${term}/`);
+  }
   return { ok: issues.length === 0, issues };
 }
 

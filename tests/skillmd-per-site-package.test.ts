@@ -45,19 +45,25 @@ function publicSkill(): SkillManifest {
 }
 
 describe("renderSkillMd — per-website agentskills package", () => {
-  test("authed skill: origin install pointer, x402 reward, ZK credential holes", () => {
+  test("authed skill: origin install pointer, x402 reward, credential holes (public-safe wording)", () => {
     const md = renderSkillMd(authedSkill());
     expect(md).toContain('origin: "unbrowse-ai/reddit.com"');
     expect(md).toContain("exposed: true");
     expect(md).toContain('x402_reward: "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"');
     expect(md).toContain("npx skills add unbrowse-ai/reddit.com");
-    expect(md).toContain("## Credentials (ZK-filled holes)");
-    expect(md).toContain("zero-knowledge");
+    expect(md).toContain("## Credentials");
+    expect(md).toContain("filled locally at call time");
+    // Public artifact: the unreleased-IP / internal vocabulary must NOT appear.
+    expect(md).not.toContain("zero-knowledge");
+    expect(md).not.toContain("ZK-filled");
+    expect(md).not.toContain("zk:private-key");
     expect(md).toContain("`authorization`");      // secret header hole
     expect(md).toContain("`x-csrf-token`");        // auth_tokens hole
     expect(md).toContain("`session`");             // auth_profile_ref hole
     expect(md).not.toContain("`accept`");          // non-secret header is NOT a hole
     expect(md).toContain("## Rewards (x402)");
+    // Regression: requires/yields must render the param key, never "[object Object]".
+    expect(md).not.toContain("[object Object]");
   });
 
   test("credentialHoles extracts only the secret/auth holes", () => {
@@ -104,5 +110,43 @@ describe("validateSkillPackage — publish-time gate", () => {
   test("empty x402_reward fails", () => {
     const md = renderSkillMd(authedSkill()).replace(/x402_reward: "[^"]*"/, 'x402_reward: ""');
     expect(validateSkillPackage(md).ok).toBe(false);
+  });
+});
+
+import { forbiddenPublicTerms } from "../src/skillmd.js";
+
+describe("publish gate — moat / unreleased-IP leak protection", () => {
+  test("rendered packages are leak-clean (no ZK/internal vocab)", () => {
+    expect(forbiddenPublicTerms(renderSkillMd(authedSkill()))).toEqual([]);
+    expect(forbiddenPublicTerms(renderSkillMd(publicSkill()))).toEqual([]);
+  });
+  test("forbiddenPublicTerms catches a ZK / vocab leak", () => {
+    expect(forbiddenPublicTerms("filled via zero-knowledge proof").length).toBeGreaterThan(0);
+    expect(forbiddenPublicTerms("the covenant superpattern").length).toBeGreaterThan(0);
+    expect(forbiddenPublicTerms("plain installable skill")).toEqual([]);
+  });
+  test("validateSkillPackage rejects a leaky package", () => {
+    const leaky = renderSkillMd(authedSkill()).replace("filled locally at call time", "filled via zero-knowledge proof");
+    const v = validateSkillPackage(leaky);
+    expect(v.ok).toBe(false);
+    expect(v.issues.some((i) => i.includes("forbidden public term"))).toBe(true);
+  });
+});
+
+describe("renderSkillMd — requires/yields serialization", () => {
+  test("path-param requires render the key, not [object Object]", () => {
+    const skill = {
+      skill_id: "sk_param", domain: "example.com", name: "Example",
+      description: "x", version: "1.0.0", updated_at: "2026-06-04T00:00:00Z",
+      intent_signature: "get thing", intents: ["get thing"],
+      endpoints: [{
+        endpoint_id: "ep1", method: "GET",
+        url_template: "https://example.com/{id}/feed",
+        semantic: { requires: [{ key: "id", required: false, source: "path_params" }] },
+      }],
+    } as unknown as SkillManifest;
+    const md = renderSkillMd(skill);
+    expect(md).toContain("**Requires**: `id`");
+    expect(md).not.toContain("[object Object]");
   });
 });
