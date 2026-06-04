@@ -33,18 +33,28 @@ if [ "${LIVE:-0}" = "1" ]; then
   echo "[gate] LIVE PASS: published repo installs and the listed endpoint returns real data"
 fi
 
-# x402 owner-credit leg — the one genuinely-open node of the north star.
+# x402 reward — ACCOUNTING leg (real, free): the settlement split that credits the
+# owner/contributors is the actual prod code, witnessed by real tests. This proves
+# the reward MATH credits the owner correctly (the collective-learning payout:
+# computeContributorShares weights by cumulative_delta — uniquely-valuable routes
+# earn more). Distinct from the live mainnet transfer below.
+echo "[gate] x402 accounting: split/owner-credit math (real settlement code)"
+bun test backend/tests/splits.test.ts backend/tests/flex-splits-50-50.test.ts
+
+# x402 reward — LIVE SETTLEMENT leg — the one genuinely-open node of the north star.
 # RED until a real owner-credit fill is WITNESSED (a wallet-owning skill + a real
-# paid execution whose settlement credits the owner, observed in `unbrowse earnings`).
-# Never faked: a proof file recording the observed credit is the only way to green.
+# paid execution whose on-chain settlement credits the owner, observed in
+# `unbrowse earnings`). Never faked: a proof file recording the observed fill is
+# the only way to green. The accounting above is proven; only the mainnet transfer
+# is money-gated.
 PROOF="${X402_PROOF:-$HOME/.unbrowse/x402-owner-credit-proof.json}"
 if [ -f "$PROOF" ]; then
   echo "[gate] x402 PASS: owner-credit witnessed — $PROOF"
   echo "[gate] GREEN — full north star settled (format + install + execute + scale + x402 owner-credit)"
   exit 0
 fi
-echo "[gate] CORE GREEN (format + install + execute + scale + leak-safety) — but x402 owner-credit is OPEN."
-echo "[gate] x402 RED: owner-credit not yet witnessed. A public skill has no owner wallet to credit."
+echo "[gate] CORE GREEN (format + install + execute + scale + leak-safety + x402 accounting) — but x402 LIVE settlement is OPEN."
+echo "[gate] x402 RED: live owner-credit not yet witnessed. The split math is proven; the mainnet transfer is not."
 echo "[gate]   To settle: authorize a real paid execution of a wallet-owning skill, observe the owner"
 echo "[gate]   credit land in 'unbrowse earnings', and record the observed fill at:"
 echo "[gate]     $PROOF"
