@@ -182,9 +182,8 @@ async function main() {
   requireCommand("gh");
   requireCommand("git");
 
-  // Strict gate: refuse to cut a preview if the npm tarball would leak
-  // bundled JS or TypeScript source. Fails fast before any binary build.
-  run("node", ["packages/skill/scripts/assert-opaque-tarball.mjs"]);
+  // The client ships a readable, auditable runtime by design — the opaque-tarball
+  // gate is removed. The moat is server-side and still protected by leak-guard.
 
   const rootPkg = readJson(path.join(ROOT, "package.json"));
   const skillPkg = readJson(path.join(ROOT, "packages", "skill", "package.json"));

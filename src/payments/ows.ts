@@ -101,6 +101,17 @@ function asString(v: unknown): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
+// OWS wallet accounts come in two shapes: the spec's camelCase TS types and the
+// `ows` CLI's snake_case JSON. Read either form defensively.
+function accountChainId(a: unknown): string | undefined {
+  const o = a as { chainId?: unknown; chain_id?: unknown } | null | undefined;
+  return asString(o?.chainId) ?? asString(o?.chain_id);
+}
+function accountAddress(a: unknown): string | undefined {
+  const o = a as { address?: unknown } | null | undefined;
+  return asString(o?.address);
+}
+
 /** Read the public wallet descriptors from the OWS vault (no secret material). */
 export function listOwsWallets(dir: string = join(owsHome(), "wallets")): WalletDescriptor[] {
   let files: string[];
@@ -132,8 +143,11 @@ export function resolveOwsWalletAddress(opts?: { probeVault?: boolean }): string
   if (opts?.probeVault === false) return undefined;
   const wallets = listOwsWallets();
   for (const w of wallets) {
-    const evm = w.accounts.find((a) => a.chainId.startsWith("eip155:"));
-    const addr = asString(evm?.address) ?? asString(w.accounts[0]?.address);
+    const accounts = Array.isArray(w.accounts) ? w.accounts : [];
+    // The `ows` CLI writes snake_case JSON (chain_id/account_id); the spec's TS types
+    // are camelCase. Read both so a real OWS wallet actually resolves.
+    const evm = accounts.find((a) => accountChainId(a)?.startsWith("eip155:"));
+    const addr = accountAddress(evm) ?? accountAddress(accounts[0]);
     if (addr) return addr;
   }
   return undefined;

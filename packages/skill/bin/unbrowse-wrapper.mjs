@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Thin wrapper — execs the compiled binary if available,
- * falls back to the package-managed Node launcher if not.
+ * Thin wrapper — runs an explicitly-provided compiled binary if present (the
+ * UNBROWSE_INSTALL_BINARY_PATH opt-in, used by CI smoke tests), else the package's
+ * readable, unsigned runtime via the launcher. There is NO auto-download fallback —
+ * the readable runtime is the default; the runtime IS the client.
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -14,21 +15,8 @@ import { unbrowseBinaryName } from "../scripts/release-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
-// Windows ships `unbrowse.exe`; postinstall installs it under that name, so the
-// wrapper must look for the same name (a plain `unbrowse` never exists on win).
 const binaryPath = join(__dirname, unbrowseBinaryName(process.platform));
 const launcherPath = join(__dirname, "unbrowse.js");
-const require = createRequire(import.meta.url);
-
-const REQUIRED_FALLBACK_PACKAGES = [
-  "tsx",
-  "bs58",
-  "@solana/kit",
-];
-
-const KNOWN_BAD_FALLBACK_VERSIONS = new Set([
-  "2.10.2",
-]);
 
 function readInstalledVersion() {
   try {
@@ -52,18 +40,6 @@ function printRepairHelp(reason) {
 function failInstall(reason, exitCode = 1) {
   printRepairHelp(reason);
   process.exit(exitCode);
-}
-
-function missingFallbackPackages() {
-  const missing = [];
-  for (const specifier of REQUIRED_FALLBACK_PACKAGES) {
-    try {
-      require.resolve(specifier);
-    } catch {
-      missing.push(specifier);
-    }
-  }
-  return missing;
 }
 
 function spawnEntrypoint(command, args) {
@@ -91,19 +67,11 @@ if (process.argv.includes("--version") || process.argv.includes("-v")) {
 }
 
 if (existsSync(binaryPath)) {
+  // an explicitly-injected binary (UNBROWSE_INSTALL_BINARY_PATH) — not a fallback
   spawnEntrypoint(binaryPath, process.argv.slice(2));
 } else {
-  const installedVersion = readInstalledVersion();
-  if (KNOWN_BAD_FALLBACK_VERSIONS.has(installedVersion)) {
-    failInstall(
-      `Installed package version ${installedVersion} is known-bad in source fallback mode and shipped an incomplete runtime dependency set.`,
-    );
-  }
-
-  const missing = missingFallbackPackages();
-  if (missing.length > 0) {
-    failInstall(`Fallback runtime is missing required packages: ${missing.join(", ")}.`);
-  }
-
+  // the default: the readable, unsigned runtime via the launcher. The source IS the
+  // runtime, so the client is auditable on disk — security lives in the wallet-sealed
+  // crypto, not in hiding the client. The hole fills any internet gap.
   spawnEntrypoint(process.execPath, [launcherPath, ...process.argv.slice(2)]);
 }

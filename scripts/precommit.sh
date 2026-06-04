@@ -70,10 +70,6 @@ if has_match '^(src/execution/|src/orchestrator/|src/capture/|src/intent-match\.
 fi
 
 
-if has_match '^(packages/skill/package\.json|packages/skill/scripts/|scripts/publish-preview-cli\.mjs|\.release-it\.json)$'; then
-  echo "[pre-commit] asserting opaque npm tarball"
-  bun run check:opaque-tarball
-fi
 
 if has_match '^(docs/|README\.md|packages/skill/README\.md|packages/skill/SKILL\.md|scripts/leak-guard\.sh|src/|packages/|backend/src/)'; then
   echo "[pre-commit] leak-guard: scanning public surface for alpha + covenant mechanism leaks"

@@ -12,7 +12,8 @@
  * The transport is injectable. The default routes through the `Unbrowse` SDK client
  * (`.search`); tests and embedders pass their own transport for hermetic, offline use.
  */
-import { Unbrowse, type UnbrowseClientOptions } from "./client.js";
+import { Unbrowse } from "./client.js";
+import type { UnbrowseClientOptions } from "./types.js";
 
 /** What the caller hands the hole: an intent, optionally scoped to a URL. */
 export interface HoleRequest {
@@ -108,7 +109,7 @@ export interface HoleOptions {
 
 function bytesToHex(b: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, "0");
+  for (let i = 0; i < b.length; i++) s += (b[i] ?? 0).toString(16).padStart(2, "0");
   return s;
 }
 
@@ -142,7 +143,7 @@ export function defaultDescribe(intent: string, skill: HoleSkill, items: HoleIte
       .join("-") || "route";
   const name = skill.name ?? (domain ? `${domain.split(".")[0]}-${verb}` : `${verb}-${slug}`);
   const where = domain ? ` on ${domain}` : "";
-  const description = `${verb[0].toUpperCase()}${verb.slice(1)} route${where} — ${intent}`.slice(0, 140);
+  const description = `${verb.charAt(0).toUpperCase()}${verb.slice(1)} route${where} — ${intent}`.slice(0, 140);
   return { name, description };
 }
 
@@ -163,7 +164,7 @@ function makeDefaultTransport(clientOpts?: UnbrowseClientOptions): HoleTransport
     // ACT → execute the intent (perform the action); READ → search (fill from knowledge).
     const res = (req.act
       ? await client.execute({ intent: req.intent, url: req.url, params: req.params } as never)
-      : await client.search({ query: req.intent } as never)) as Record<string, unknown>;
+      : await client.search({ query: req.intent } as never)) as unknown as Record<string, unknown>;
     const rawItems =
       (res.results as unknown[]) ??
       (res.endpoints as unknown[]) ??
@@ -248,7 +249,7 @@ export class Hole {
           const gen = await this.generate(prompt);
           if (typeof gen === "string" && gen.trim()) {
             const [name, ...rest] = gen.split(" — ");
-            skill = { ...skill, name: skill.name ?? name.trim(), description: rest.join(" — ").trim() || gen.trim() };
+            skill = { ...skill, name: skill.name ?? (name ?? "").trim(), description: rest.join(" — ").trim() || gen.trim() };
           }
         } else {
           const d = defaultDescribe(req.intent, skill, base.items);

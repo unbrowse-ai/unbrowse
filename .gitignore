@@ -268,3 +268,4 @@ bench/lib/bun.lock
 packages/skill/dist-sdk/
 bench/index1000/.artifacts/
 .cf-deploy-token.env
+packages/skill/runtime/
