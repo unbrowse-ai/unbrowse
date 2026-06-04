@@ -11,6 +11,9 @@ cp "$HERE/agents/llms/nebius.py"   "$V/agents/llms/nebius.py"
 cp "$HERE/agents/llms/__init__.py" "$V/agents/llms/__init__.py"
 cp "$HERE/agents/llms/openai.py"   "$V/agents/llms/openai.py"
 cp "$HERE/suites/graders.py"       "$V/suites/graders.py"
+# Best-of-N orchestration (arXiv:2504.12516): parallel rollout + confidence vote.
+cp "$HERE/agents/best_of_n.py"     "$V/agents/best_of_n.py"
+cp "$HERE/suites/browsecomp.py"    "$V/suites/browsecomp.py"
 echo "✓ Nebius port applied to $V"
 echo
 echo "Run a BrowseComp slice (Kimi agent + Kimi grader):"
