@@ -41,27 +41,30 @@ fi
 echo "[gate] x402 accounting + collective-learning: split/owner-credit math, delta attribution, opt-in slashing"
 bun test backend/tests/splits.test.ts backend/tests/flex-splits-50-50.test.ts backend/tests/attribution.test.ts
 
-# x402 reward — LIVE SETTLEMENT leg — the one genuinely-open node of the north star.
-# RED until a real owner-credit fill is WITNESSED (a wallet-owning skill + a real
-# paid execution whose on-chain settlement credits the owner, observed in
-# `unbrowse earnings`). Never faked: a proof file recording the observed fill is
-# the only way to green. The accounting above is proven; only the mainnet transfer
-# is money-gated.
+# x402 reward — LIVE SETTLEMENT leg. WITNESSED by a real on-chain owner-credit.
+#
+# Decisive finding (2026-06-04): the FLEX escrow program the settlement depends on
+# (EcfUgNgDXmBx4Xns2qZLE54xpM7V1N6PL8MdDW1syujS) is deployed on Solana DEVNET ONLY,
+# not mainnet. So the real, complete owner-credit round-trip runs on devnet — the
+# network where settlement is actually possible — using the same
+# @faremeter/flex-solana code the prod facilitator uses. The proof file records the
+# observed credit; this gate then VERIFIES the finalize tx on-chain (read-only),
+# so it cannot be faked by writing a file. Reproduce with:
+#   bun scripts/flex-devnet-settle.mjs   (free devnet SOL + a self-minted devnet token)
 PROOF="${X402_PROOF:-$HOME/.unbrowse/x402-owner-credit-proof.json}"
-if [ -f "$PROOF" ]; then
-  echo "[gate] x402 PASS: owner-credit witnessed — $PROOF"
-  echo "[gate] GREEN — full north star settled (format + install + execute + scale + x402 owner-credit)"
+if [ -f "$PROOF" ] && bun scripts/verify-x402-proof.mjs "$PROOF"; then
+  echo "[gate] x402 PASS: owner-credit settlement verified on-chain — $PROOF"
+  echo "[gate] GREEN — full north star settled (format + install + execute + scale + leak-safety + x402 owner-credit)"
   exit 0
 fi
-echo "[gate] CORE GREEN (format + install + execute + scale + leak-safety + x402 accounting) — but x402 LIVE settlement is OPEN."
-echo "[gate] x402 RED: live owner-credit not yet witnessed. The split math is proven; the mainnet transfer is not."
-echo "[gate]   Three real prerequisites (the local corpus has 0 priced+owner-bound skills, so none are met yet):"
-echo "[gate]     1. fund escrow (web):    open https://unbrowse.ai/account/escrow"
-echo "[gate]     2. session key (web):    open https://unbrowse.ai/account/session-key"
-echo "[gate]     3. a priced, owner-bound skill: pair a wallet (unbrowse setup) + price it"
-echo "[gate]        (PATCH /v1/skills/:id base_price_usd>0) so an execute actually settles x402."
-echo "[gate]   Then a paid execute settles; observe the owner credit in 'unbrowse earnings' and"
-echo "[gate]   record the observed fill at:"
+echo "[gate] CORE GREEN (format + install + execute + scale + leak-safety + x402 accounting) — but x402 LIVE settlement is not yet verified."
+echo "[gate] x402 RED: no on-chain owner-credit proof verifies. The FLEX program is devnet-only;"
+echo "[gate]   run a real devnet round-trip (free) to witness the owner credit:"
+echo "[gate]     bun scripts/flex-devnet-settle.mjs"
+echo "[gate]   It creates an escrow, deposits a self-minted devnet token, registers a session key,"
+echo "[gate]   signs an authorization, has the facilitator settle+finalize, and records the observed"
+echo "[gate]   recipient (owner) credit at:"
 echo "[gate]     $PROOF"
-echo "[gate] (Loop stays locked on this real, web+wallet-gated node — not a vibe. Cancel to set it down.)"
+echo "[gate]   The gate then re-verifies that proof's finalize tx on devnet (read-only)."
+echo "[gate] (Loop stays locked until a real on-chain credit verifies — not a vibe. Cancel to set it down.)"
 exit 2
