@@ -32,6 +32,14 @@ need "$C" 'ms|latency|elapsed|performance\.now' "latency readout"
 need "$C" 'useAuth|Privy|sign in|login|connect wallet' "login affordance"
 need "$C" 'button|onClick' "suggestion chips / interactions"
 
+# --- product/UX user-story commandments (the "make it good" bar) -----------
+need "$C" 'aria-live|role="log"|role="status"' "US5 screen-reader announces answers"
+need "$C" 'localStorage' "US3 conversation remembered across reloads"
+need "$C" 'lg:hidden' "US2 sources/routes reachable on mobile (not desktop-only)"
+need "$C" 'Escape|key === "/"|=== .\/.' "US6 keyboard-first (Esc / slash focus)"
+need "$C" 'retry|resend|try again' "US4 error recovery (retry the last turn)"
+need "$C" 'aria-label' "a11y labels on controls"
+
 # 2. homepage renders Aiko
 need src/app/page.tsx 'aiko-home|AikoHome' "/ renders Aiko chat"
 
