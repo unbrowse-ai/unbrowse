@@ -47,6 +47,16 @@ export default async function Home() {
             : "Resolve an intent to a ranked endpoint. Execute for real data. No per-site setup."}
         </p>
         <RegistrySearch pool={resolvePool} perf={stats?.perf ?? null} />
+        {/* Peer-reviewed credibility — the paper's strongest citable proof, surfaced
+            on the front door. Numbers are the published benchmark (arXiv:2604.00694);
+            link goes to the full deep-dive. Kept subordinate to the live search. */}
+        <p className="mt-5 text-[12px] text-text-muted">
+          Peer-reviewed ·{" "}
+          <Link href="/benchmark-deep-dive" className="underline decoration-dotted underline-offset-2 hover:text-text-secondary transition-colors">
+            94-domain benchmark
+          </Link>
+          {" "}· 3.6× mean speedup (5.4× median), 100% win rate
+        </p>
       </section>
 
       {/* Categories */}
