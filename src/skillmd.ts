@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { SkillManifest, EndpointDescriptor } from "./types/skill.js";
+import type { Hole } from "./capture/hole-template.js";
 import { sanitizeDomain } from "./extraction/domain-notes.js";
 
 function escapeYaml(s: string): string {
@@ -86,6 +87,17 @@ export function credentialHoles(skill: SkillManifest): CredentialHole[] {
   }
   if (skill.auth_profile_ref) add("session", "cookie");
   return [...holes.values()];
+}
+
+/**
+ * Bridge a declared credential hole into a runtime hole-template Hole, so the
+ * format's "ZK-filled holes" connect to the real bind/prove/verify round-trip
+ * (zk-bound-hole.ts). Credentials are secrets filled from the wallet-backed
+ * vault (the private key); a cookie credential rides the `cookie` header.
+ */
+export function credentialHoleToRuntimeHole(h: CredentialHole): Hole {
+  const headerName = h.location === "cookie" ? "cookie" : h.name;
+  return { location: { in: "header", name: headerName }, name: h.name, kind: "secret", fill: "vault" };
 }
 
 export function renderSkillMd(skill: SkillManifest): string {
