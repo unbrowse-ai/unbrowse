@@ -8,6 +8,10 @@ import Link from "next/link";
 import { listPopularSkills, getStatsSummary, type PopularSkillSummary, type StatsSummary } from "@/lib/api";
 import { RegistrySearch } from "@/components/registry-search";
 import { RegistryCard } from "@/components/registry-card";
+// Restored cool sections from the pre-registry homepage — woven back in to enrich
+// the front door (the value-narrative the minimal registry had dropped).
+import { SpeedComparison } from "@/components/speed-comparison";
+import { WorksWith } from "@/components/works-with";
 
 export const revalidate = 120;
 
@@ -91,6 +95,10 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {/* Restored value-narrative sections (woven into the registry homepage) */}
+      <SpeedComparison />
+      <WorksWith />
 
       {/* Try Aiko live — the chat is the demo of the registry */}
       <section className="pb-16">
