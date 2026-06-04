@@ -19,6 +19,13 @@ need src/components/generative-ui.tsx 'export function GenerativeUI|export const
 need src/components/generative-ui.tsx 'export function extractUiSpec' "exports the spec extractor"
 need src/components/aiko-home.tsx 'GenerativeUI|extractUiSpec' "chat renders generative UI when a spec is returned"
 
+# 2b. generative UI is witnessed rendering a real spec (demo, since the live agent
+#     can't emit specs yet — backend prompt change required, see aiko-home note)
+need src/components/aiko-home.tsx 'DEMO_UI_SPEC' "a real json-ui demo spec exists"
+need src/components/aiko-home.tsx 'showDemo|See generative UI' "the demo is triggerable in-UI"
+# the embedded spec must be valid json-render (root + elements)
+node -e 'const s=require("fs").readFileSync("src/components/aiko-home.tsx","utf8"); const m=s.match(/JSON\.stringify\((\{[\s\S]*?\})\)\s*\+\s*.\\n```/); if(!m){console.error("no demo spec object");process.exit(1)} const o=eval("("+m[1]+")"); if(!o.root||!o.elements){console.error("demo spec missing root/elements");process.exit(1)} console.log("[aiko-render-gate] demo spec valid:",Object.keys(o.elements).length,"elements");' || FAIL=1
+
 # 3. jesus-pattern DESIGN shipped as the default design skill
 [ -f src/skills/design.md ] || { echo "  ✗ missing src/skills/design.md (default design skill)"; FAIL=1; }
 grep -q 'name: design' src/skills/design.md 2>/dev/null || { echo "  ✗ design skill missing frontmatter"; FAIL=1; }
