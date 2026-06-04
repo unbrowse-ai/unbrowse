@@ -152,7 +152,7 @@ describe("renderSkillMd — requires/yields serialization", () => {
       }],
     } as unknown as SkillManifest;
     const md = renderSkillMd(skill);
-    expect(md).toContain("**Requires**: `id`");
+    expect(md).toContain("**Parameters**: `id` (path)");  // labeled by source, not bare "Requires"
     expect(md).not.toContain("[object Object]");
   });
 });
