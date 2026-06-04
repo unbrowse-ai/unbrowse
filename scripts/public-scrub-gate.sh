@@ -23,20 +23,13 @@ PUBLIC_SCAN=(
   "frontend/src/components"
 )
 
-# Deferred-for-later terms — the coin + the maintenance-network economics. Targeted to
-# the economic layer, not generic security vocabulary (signing/ZK/x402 stay public).
+# 2026-06-04: the FDRY economy + maintenance network are PUBLIC now (token live; the
+# paper trilogy + THE_FDRY_ECONOMY.md ship publicly). Removed FDRY, $FDRY, the token
+# address, maintenance network, slashing, staking-mechanics, fair launch, bonded route
+# trust and proof-of-indexing from the deferred list. This gate now guards only the
+# internal working-method vocabulary — never the public economic layer.
 DEFERRED=(
-  "FDRY"
-  "[$]FDRY"
-  "2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL"   # the token contract address
-  "maintenance network"
-  "maintenance-network"
   "grain[ -]of[ -]wheat"
-  "proof of indexing"
-  "slashing"
-  "slash a"
-  "bonded route trust"
-  "fair[ -]launch"
 )
 
 fail=0

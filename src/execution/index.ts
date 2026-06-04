@@ -6,6 +6,8 @@ import { extractEndpoints, type ExtractionContext } from "../reverse-engineer/in
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
+import { LEDGER_NEUTRAL } from "../ranking/signals/ledger-energy.js";
+import { routeEnergy } from "../ranking/signals/learned-energy.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
@@ -4215,6 +4217,39 @@ export async function executeEndpoint(
         log("exec", `4xx ssr-fastpath fallback errored: ${err instanceof Error ? err.message : String(err)}`);
         decisionTrace.push({ step: "4xx_ssr_fastpath_fallback_error", reason: err instanceof Error ? err.message : String(err) });
       }
+      // Client → server iProyal fallback for an IP-level block. A 403 is often
+      // the upstream blocking the egress IP outright (anti-bot / geo-fence). When
+      // the agent has consented to the paid residential path, point to the
+      // server's /v1/proxy residential route — a fresh server-side iProyal IP
+      // commonly clears the block where the local SSR fastpath could not.
+      if (options?.paid_proxy_fallback === true) {
+        const blockTargetUrl = endpoint.trigger_url || url;
+        try {
+          decisionTrace.push({ step: "4xx_server_proxy_fallback_attempted", target: blockTargetUrl, original_status: status });
+          const { serverProxyFallback } = await import("./server-proxy-fallback.js");
+          const sp = await serverProxyFallback({ url: blockTargetUrl, method: endpoint.method });
+          if (!sp) {
+            decisionTrace.push({ step: "4xx_server_proxy_fallback_unavailable" });
+          } else if (sp.status >= 200 && sp.status < 300) {
+            const blockIntent = options?.intent || skill.intent_signature || "";
+            const extracted = extractFromDOM(sp.body, blockIntent, blockTargetUrl);
+            if (extracted.data) {
+              decisionTrace.push({ step: "4xx_server_proxy_fallback_success", status: sp.status, bytes: sp.body.length, egress_ip: sp.egress_ip });
+              trace.success = true;
+              trace.status_code = sp.status;
+              trace.error = undefined;
+              data = flattenExtracted(extracted.data);
+              trace.result = data;
+              return { trace, result: data };
+            }
+            decisionTrace.push({ step: "4xx_server_proxy_fallback_extract_empty", status: sp.status });
+          } else {
+            decisionTrace.push({ step: "4xx_server_proxy_fallback_no_unblock", status: sp.status });
+          }
+        } catch (err) {
+          decisionTrace.push({ step: "4xx_server_proxy_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+        }
+      }
     }
     // B3: honor Retry-After before treating 429 as stale.
     if (status === 429) {
@@ -4296,6 +4331,34 @@ export async function executeEndpoint(
         }
       } catch (err) {
         decisionTrace.push({ step: "429_proxy_fallback_error", reason: err instanceof Error ? err.message : String(err) });
+      }
+      // Client → server iProyal fallback. When the local residential proxy is
+      // unavailable (no creds) or itself rate-limited (the local egress IP is
+      // the one being throttled), point to the unbrowse server's /v1/proxy
+      // residential route. The server holds the canonical iProyal egress and a
+      // fresh residential IP pool; the client RELIES ON it to get unblocked.
+      try {
+        decisionTrace.push({ step: "429_server_proxy_fallback_attempted", target: targetUrl });
+        const { serverProxyFallback } = await import("./server-proxy-fallback.js");
+        const sp = await serverProxyFallback({ url: targetUrl, method: endpoint.method });
+        if (!sp) {
+          decisionTrace.push({ step: "429_server_proxy_fallback_unavailable" });
+        } else if (sp.status >= 200 && sp.status < 300) {
+          const parsed: unknown = (() => {
+            try { return JSON.parse(sp.body); } catch { return sp.body; }
+          })();
+          decisionTrace.push({ step: "429_server_proxy_fallback_success", status: sp.status, bytes: sp.body.length, egress_ip: sp.egress_ip });
+          trace.success = true;
+          trace.status_code = sp.status;
+          trace.error = undefined;
+          const recoveredData = parsed as typeof data;
+          trace.result = recoveredData;
+          return { trace, result: recoveredData };
+        } else {
+          decisionTrace.push({ step: "429_server_proxy_fallback_no_unblock", status: sp.status });
+        }
+      } catch (err) {
+        decisionTrace.push({ step: "429_server_proxy_fallback_error", reason: err instanceof Error ? err.message : String(err) });
       }
       // Fall through to existing Retry-After / staleEndpointResult below.
       const retryAfterMs = parseRetryAfter(result?.response_headers ?? {});
@@ -6340,6 +6403,16 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     else if (ep.verification_status === "failed") score -= 40;
     else if (ep.verification_status === "pending") score -= 10;
     if (ep.method === "WS" && ep.response_schema) score += 3;
+
+    // === Ledger energy: the learned "what-worked" signal (EBM layers 1+3) ===
+    // P(success | domain, endpoint, source), blended from the layer-1 back-off statistic
+    // folded from the agent's own ledger (~/.unbrowse/traces) AND the layer-3 learned
+    // contrastive head shipped by scripts/ebm/layer3_train.py (bench/ebm/energy-head.latest.json).
+    // The learned head generalises to COLD cells the back-off statistic is blind to (proven
+    // to beat it on held-out + cold cells: scripts/ebm-layers-gate.py). Centered on neutral so
+    // a route with no signal gets ZERO net effect. Magnitude matches reliability (±40). Fails
+    // neutral; disable layer 1 with UNBROWSE_LEDGER_ENERGY=0, layer 3 with UNBROWSE_LEARNED_ENERGY=0.
+    score += (routeEnergy(skillDomain, ep.endpoint_id, ep.source) - LEDGER_NEUTRAL) * 80;
 
     // === Domain affinity ===
     if (skillDomain) {
