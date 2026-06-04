@@ -7,7 +7,7 @@
 //
 // Requires Ollama running on this Mac with the default model pulled
 // (ollama pull qwen2.5:1.5b). No cloud, no key — proves the local path.
-import { aikoChat, defaultAikoModel, AIKO_METHOD_SYSTEM_PROMPT } from "../src/lib/aiko-method.ts";
+import { aikoChat, defaultAikoModel, AIKO_METHOD_SYSTEM_PROMPT } from "../src/lib/aiko-method";
 
 const STEPS = ["plan", "build", "test", "judge"];
 
