@@ -65,7 +65,19 @@ function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): st
   lines.push("**Call it via unbrowse:**");
   lines.push("");
   lines.push("```bash");
-  lines.push(`unbrowse execute --skill ${skill.skill_id} --endpoint ${ep.endpoint_id}`);
+  // Show a --params template when the endpoint takes parameters, so a consuming
+  // agent knows HOW to supply the values it was just told about (above).
+  const reqs = (ep as any).semantic?.requires;
+  let cmd = `unbrowse execute --skill ${skill.skill_id} --endpoint ${ep.endpoint_id}`;
+  if (Array.isArray(reqs) && reqs.length) {
+    const tmpl = reqs
+      .map((r: any) => r?.key ?? r?.name)
+      .filter((k: any) => typeof k === "string" && k)
+      .map((k: string) => `"${k}":"<${k}>"`)
+      .join(",");
+    if (tmpl) cmd += ` --params '{${tmpl}}'`;
+  }
+  lines.push(cmd);
   lines.push("```");
   lines.push("");
   return lines.join("\n");

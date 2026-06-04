@@ -154,5 +154,7 @@ describe("renderSkillMd — requires/yields serialization", () => {
     const md = renderSkillMd(skill);
     expect(md).toContain("**Parameters**: `id` (path)");  // labeled by source, not bare "Requires"
     expect(md).not.toContain("[object Object]");
+    // The example invocation shows HOW to pass the parameter it just documented.
+    expect(md).toContain(`--params '{"id":"<id>"}'`);
   });
 });
