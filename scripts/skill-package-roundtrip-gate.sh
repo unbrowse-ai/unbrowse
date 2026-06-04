@@ -55,8 +55,11 @@ if [ -f "$PROOF" ]; then
 fi
 echo "[gate] CORE GREEN (format + install + execute + scale + leak-safety + x402 accounting) — but x402 LIVE settlement is OPEN."
 echo "[gate] x402 RED: live owner-credit not yet witnessed. The split math is proven; the mainnet transfer is not."
-echo "[gate]   To settle: authorize a real paid execution of a wallet-owning skill, observe the owner"
-echo "[gate]   credit land in 'unbrowse earnings', and record the observed fill at:"
+echo "[gate]   Blocked on Flex escrow onboarding (web flows, real wallet — cannot be done from the CLI):"
+echo "[gate]     1. fund escrow:   open https://unbrowse.ai/account/escrow"
+echo "[gate]     2. session key:   open https://unbrowse.ai/account/session-key"
+echo "[gate]   Then a paid execute of a wallet-owning skill settles; observe the owner credit in"
+echo "[gate]   'unbrowse earnings' and record the observed fill at:"
 echo "[gate]     $PROOF"
-echo "[gate] (Loop stays locked on this one real, open node — not a vibe. Cancel to set it down.)"
+echo "[gate] (Loop stays locked on this one real, web-gated node — not a vibe. Cancel to set it down.)"
 exit 2
