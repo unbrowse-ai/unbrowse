@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { commitment proof, ProofCommitment, ProofVerificationResult } from "../src/types/proof.js";
+import type { commitmentProof, ProofCommitment, ProofVerificationResult } from "../src/types/proof.js";
 import type { EndpointDescriptor } from "../src/types/skill.js";
 
-describe("commitment proof types", () => {
-  test("commitment proof has required fields", () => {
-    const proof: commitment proof = {
+describe("commitmentProof types", () => {
+  test("commitmentProof has required fields", () => {
+    const proof: commitmentProof = {
       proof_type: "tlsnotary",
       proof_data: "base64-encoded-proof",
       commitment: {

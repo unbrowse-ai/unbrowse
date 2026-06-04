@@ -1,5 +1,5 @@
 import { createCommitment } from "./commitment.js";
-import type { commitment proof } from "../types/proof.js";
+import type { commitmentProof } from "../types/proof.js";
 
 export interface NotaryClient {
   notaryUrl: string;
@@ -10,8 +10,8 @@ export interface NotaryClient {
     responseStatus: number;
     domain: string;
     timestamp: string;
-  }): Promise<commitment proof>;
-  verifyTlsProof(proof: commitment proof): Promise<boolean>;
+  }): Promise<commitmentProof>;
+  verifyTlsProof(proof: commitmentProof): Promise<boolean>;
 }
 
 export function isNotaryAvailable(): boolean {
@@ -54,7 +54,7 @@ export function createNotaryClient(notaryUrl: string): NotaryClient {
       };
     },
 
-    async verifyTlsProof(proof: commitment proof): Promise<boolean> {
+    async verifyTlsProof(proof: commitmentProof): Promise<boolean> {
       if (!proof.commitment.response_body_hash.startsWith("sha256:")) return false;
       if (!proof.commitment.domain) return false;
       return true;

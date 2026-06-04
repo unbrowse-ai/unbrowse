@@ -19,7 +19,7 @@ describe("zk-bound-hole", () => {
   it("binds a hole carrying NO secret", async () => {
     const h = await bindHole(baseHole, enc(SECRET));
     expect(h.bound).toBeTruthy();
-    expect(h.bound).not.toContain("sk_live");      // commitment-bound: secret never in the tag
+    expect(h.bound).not.toContain("sk_live");      // commitmentBound: secret never in the tag
     expect(h.bound).not.toContain("BOUND_HOLE");
   });
 

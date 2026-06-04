@@ -3,7 +3,7 @@ import { generateProof, generateProofsForCapture, isProofEnabled } from "../src/
 import { verifyCommitmentAgainstResponse, hashResponseBody } from "../src/proof/commitment.js";
 import { createNotaryClient, isNotaryAvailable } from "../src/proof/notary.js";
 
-describe("ZK proof smoke test — full pipeline", () => {
+describe("commitmentProof smoke test — full pipeline", () => {
   const apiResponse = JSON.stringify({
     data: { users: [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }] },
     meta: { total: 2, page: 1 },

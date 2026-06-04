@@ -54,7 +54,7 @@ describe("renderSkillMd — per-website agentskills package", () => {
     expect(md).toContain("## Credentials");
     expect(md).toContain("filled locally at call time");
     // Public artifact: the unreleased-IP / internal vocabulary must NOT appear.
-    expect(md).not.toContain("commitment-bound");
+    expect(md).not.toContain("commitmentBound");
     expect(md).not.toContain("ZK-filled");
     expect(md).not.toContain("zk:private-key");
     expect(md).toContain("`authorization`");      // secret header hole
@@ -147,12 +147,12 @@ describe("publish gate — moat / unreleased-IP leak protection", () => {
     expect(forbiddenPublicTerms(renderSkillMd(publicSkill()))).toEqual([]);
   });
   test("forbiddenPublicTerms catches a ZK / vocab leak", () => {
-    expect(forbiddenPublicTerms("filled via commitment-bound proof").length).toBeGreaterThan(0);
+    expect(forbiddenPublicTerms("filled via commitmentBound proof").length).toBeGreaterThan(0);
     expect(forbiddenPublicTerms("the route architecture").length).toBeGreaterThan(0);
     expect(forbiddenPublicTerms("plain installable skill")).toEqual([]);
   });
   test("validateSkillPackage rejects a leaky package", () => {
-    const leaky = renderSkillMd(authedSkill()).replace("filled locally at call time", "filled via commitment-bound proof");
+    const leaky = renderSkillMd(authedSkill()).replace("filled locally at call time", "filled via commitmentBound proof");
     const v = validateSkillPackage(leaky);
     expect(v.ok).toBe(false);
     expect(v.issues.some((i) => i.includes("forbidden public term"))).toBe(true);

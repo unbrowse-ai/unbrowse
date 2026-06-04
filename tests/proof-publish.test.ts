@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { EndpointDescriptor } from "../src/types/index.js";
-import type { commitment proof } from "../src/types/proof.js";
+import type { commitmentProof } from "../src/types/proof.js";
 
 describe("proof publishing", () => {
   test("endpoint with zk_proof serializes proof in JSON payload", () => {
-    const proof: commitment proof = {
+    const proof: commitmentProof = {
       proof_type: "commitment_only",
       proof_data: "base64data",
       commitment: {
