@@ -1945,6 +1945,31 @@ export function applyFlashMode(
       flash_mode: true,
     };
   }
+  // Direct-document shape (cold page-content fallback). The payload carries BOTH
+  // a plaintext text_excerpt AND a full markdown render of the page — the
+  // markdown is the heavy duplicate (e.g. ~13KB of link-laden markdown for a
+  // 34KB HN page). A flash caller wants the minimal answer, so keep
+  // title/url/text_excerpt (bounded)/extraction/tables and drop the verbose
+  // markdown + html_bytes + content_type. Without this, flash=true returned the
+  // full multi-KB markdown on every cold page resolve.
+  if (
+    inner &&
+    typeof inner.markdown === "string" &&
+    typeof inner.text_excerpt === "string" &&
+    isPlainObject(inner.extraction) &&
+    inner.extraction.source === "direct-document"
+  ) {
+    let excerpt = inner.text_excerpt;
+    if (excerpt.length > 2000) excerpt = `${excerpt.slice(0, 1997)}...`;
+    const trimmed: Record<string, unknown> = {
+      title: inner.title,
+      url: inner.url,
+      text_excerpt: excerpt,
+      extraction: inner.extraction,
+    };
+    if (Array.isArray(inner.tables) && inner.tables.length > 0) trimmed.tables = inner.tables;
+    return { ...result, result: trimmed, flash_mode: true };
+  }
   return result;
 }
 

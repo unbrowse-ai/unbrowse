@@ -164,3 +164,52 @@ describe("applyFlashMode — Exa / probe-fallback shape", () => {
     expect(out, "no flash => unchanged reference").toBe(input);
   });
 });
+
+// Cold page-content resolves land on the direct-document shape:
+// { result: { title, url, text_excerpt, markdown, tables, extraction } }.
+// markdown is the heavy duplicate of text_excerpt — flash must drop it.
+function directDocumentResolveResult() {
+  return {
+    source: "direct-document",
+    result: {
+      rejected: false,
+      title: "Hacker News",
+      url: "https://news.ycombinator.com",
+      content_type: "text/html; charset=utf-8",
+      html_bytes: 34514,
+      text_excerpt: "Story one. Story two. Story three.",
+      markdown: "[Story one](https://a) [Story two](https://b) ".repeat(400),
+      tables: [],
+      extraction: { source: "direct-document", rejected: false },
+    },
+  };
+}
+
+describe("applyFlashMode — direct-document shape", () => {
+  test("flash=true drops the heavy markdown render, keeps the excerpt + dispatch keys", () => {
+    const out = applyFlashMode(directDocumentResolveResult(), { flash: true });
+    expect(out.flash_mode, "flash_mode flag set").toBe(true);
+    const inner = out.result as Record<string, unknown>;
+    expect(inner.markdown, "full markdown dropped").toBeUndefined();
+    expect(inner.html_bytes, "html_bytes dropped").toBeUndefined();
+    expect(inner.title, "title preserved").toBe("Hacker News");
+    expect(inner.url, "url preserved").toBe("https://news.ycombinator.com");
+    expect(inner.text_excerpt, "text_excerpt preserved").toBe("Story one. Story two. Story three.");
+    expect((inner.extraction as Record<string, unknown>).source, "extraction tag preserved").toBe("direct-document");
+  });
+
+  test("flash caps an oversized text_excerpt so the response stays bounded", () => {
+    const big = directDocumentResolveResult();
+    (big.result as Record<string, unknown>).text_excerpt = "x".repeat(5000);
+    const out = applyFlashMode(big, { flash: true });
+    const inner = out.result as Record<string, unknown>;
+    expect((inner.text_excerpt as string).length, "text_excerpt capped at 2000").toBeLessThanOrEqual(2000);
+    expect((inner.text_excerpt as string).endsWith("..."), "over-long excerpt elided").toBe(true);
+  });
+
+  test("flash=false leaves the direct-document shape untouched", () => {
+    const input = directDocumentResolveResult();
+    const out = applyFlashMode(input, { flash: false });
+    expect(out, "no flash => unchanged reference").toBe(input);
+  });
+});
