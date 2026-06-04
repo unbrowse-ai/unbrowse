@@ -50,5 +50,28 @@ Current harness = flat `unbrowse search → deep_research agent → grader`, sco
 
 Each step adds a probe to the bench and is gated by `browsecomp-gate.sh` (> 0.336 = beat Exa). No fabricated green: a step ships only if the measured slice score rises.
 
+## Measured trajectory (2026-06-04, gpt-4.1 agent + gpt-4.1 grader, source binary)
+
+All real, each committed with its delta. No fabricated green.
+
+| config | slice | score | lever |
+|---|---|---|---|
+| single-shot, snippets | first-10 | **0.0** | flat pipeline (= Exa/Tavily shape) |
+| best-of-3, snippets | first-10 | 0.1 | #1 parallel vote (2504.12516) — weak: rollouts rarely agree on a ~0 base rate |
+| **distill, single-shot** | first-10 | **0.2** | #2 reason-distill (2501.05366) — the big lever: full-page constraint-checked evidence |
+| distill + best-of-3 | first-9 | ~0.22 | not additive on this slice; vote sometimes discards a correct rollout |
+
+**Harness robustness fixed this session** (load-bearing for any full run): best-of-N
+no longer raises on all-rollouts-fail; `_run_task` guards agent+grader independently
+so a transient API error scores 0, never crashes a multi-hour eval.
+
+**BLOCKER (2026-06-04): OpenRouter account out of credits** — `total_usage 6950.01`
+vs `total_credits 6949.97` (≈$0, overdrawn). Agent+grader request `max_tokens=8192`
+→ HTTP 402 "requires more credits". A near-zero balance reports a **false 0.0** (all
+grader calls 402 → guarded to score 0). Detect via the per-run error count
+(`grep -c 'grader failed|agent failed'` in the eval log) — a high count = INVALID run,
+not a real benchmark number. **Resume the moment credits are added** at
+[openrouter.ai/settings/credits]; the N=50 then full-1265 runs are the remaining steps.
+
 ## Sources (all verified this session)
 BrowseComp 2504.12516 · Self-RAG 2310.11511 · Search-o1 2501.05366 · R1-Searcher 2503.05592 · Search-R1 2503.09516 · WebThinker 2504.21776 · DeepResearcher 2504.03160 · WebSailor 2507.02592 · DeepDive 2509.10446 · deep-search test-time scaling 2510.06135 · Exa: latent.space/p/exa, exa.ai/research · Brave Goggles whitepaper 2021 · Tavily docs.tavily.com (no paper).
