@@ -61,6 +61,25 @@ All real, each committed with its delta. No fabricated green.
 | **distill, single-shot** | first-10 | **0.2** | #2 reason-distill (2501.05366) — the big lever: full-page constraint-checked evidence |
 | distill + best-of-3 | first-9 | ~0.22 | not additive on this slice; vote sometimes discards a correct rollout |
 
+### Robust gate measurement (N=50, the honest number)
+
+The first-10 slice was favorable noise. On a robust **N=50** slice, gpt-4.1 agent +
+gpt-4.1 grader + unbrowse-search + distill, single-shot, scores **0.08 (4/50)**,
+0 API errors. That is **~1/4 of Exa's 0.336** — the gate is NOT met, and not close.
+
+| config | slice | score |
+|---|---|---|
+| distill, single-shot, gpt-4.1 | first-10 | 0.2 (noise) |
+| distill, single-shot, gpt-4.1 | **N=50 (robust)** | **0.08** |
+| distill, single-shot, Kimi-K2.6 | N=10 | 0.1 |
+
+**Honest conclusion:** the cited orchestration levers (distill, best-of-N) lift a
+flat search+LLM pipeline from ~0 to ~0.08 — real but modest. Closing the gap to
+0.336 is NOT a prompt/orchestration tweak: the published SOTA at this level comes
+from RL-trained browsing policies (DeepResearcher 2504.03160, WebSailor 2507.02592)
+and much deeper agentic loops, which this flat pipeline cannot reach. Beating Exa on
+BrowseComp needs that class of system, not a better single retrieval call + N samples.
+
 **Harness robustness fixed this session** (load-bearing for any full run): best-of-N
 no longer raises on all-rollouts-fail; `_run_task` guards agent+grader independently
 so a transient API error scores 0, never crashes a multi-hour eval.
