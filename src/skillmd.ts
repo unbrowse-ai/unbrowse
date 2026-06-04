@@ -24,6 +24,21 @@ function endpointTitle(ep: EndpointDescriptor): string {
   } catch { return `${ep.method} ${ep.url_template}`; }
 }
 
+/** Render one call parameter as `name` (source[, required]) — source from the
+ * captured semantic shape so an agent knows where the value goes. */
+function renderParam(r: any): string {
+  const name = r?.key ?? r?.name ?? r;
+  const srcMap: Record<string, string> = {
+    path_params: "path", path: "path",
+    query_params: "query", query: "query",
+    body_params: "body", body: "body",
+    header: "header", headers: "header",
+  };
+  const src = typeof r?.source === "string" ? (srcMap[r.source] ?? r.source) : undefined;
+  const annots = [src, r?.required === true ? "required" : undefined].filter(Boolean);
+  return annots.length ? `\`${name}\` (${annots.join(", ")})` : `\`${name}\``;
+}
+
 function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): string {
   const title = endpointTitle(ep);
   const lines: string[] = [];
@@ -38,10 +53,13 @@ function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): st
     lines.push(`- **Response fields**: ${(ep.response_schema as any).sample_field_names.slice(0, 12).map((f: string) => `\`${f}\``).join(", ")}`);
   }
   if ((ep as any).semantic?.requires?.length) {
-    lines.push(`- **Requires**: ${(ep as any).semantic.requires.map((r: any) => `\`${r?.key ?? r?.name ?? r}\``).join(", ")}`);
+    // These are call PARAMETERS (path/query/body) the agent supplies — distinct
+    // from the Credentials section (filled locally). Label the source so an agent
+    // reading the skill knows where each value goes.
+    lines.push(`- **Parameters**: ${(ep as any).semantic.requires.map((r: any) => renderParam(r)).join(", ")}`);
   }
   if ((ep as any).semantic?.yields?.length) {
-    lines.push(`- **Yields**: ${(ep as any).semantic.yields.map((y: any) => `\`${y?.key ?? y?.name ?? y}\``).join(", ")}`);
+    lines.push(`- **Returns**: ${(ep as any).semantic.yields.map((y: any) => `\`${y?.key ?? y?.name ?? y}\``).join(", ")}`);
   }
   lines.push("");
   lines.push("**Call it via unbrowse:**");
