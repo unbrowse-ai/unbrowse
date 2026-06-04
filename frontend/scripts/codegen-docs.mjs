@@ -19,13 +19,11 @@ import { gfm, gfmHtml } from "micromark-extension-gfm";
 const REPO_ROOT = resolve(process.cwd(), "..");
 const OUT_DIR = resolve(process.cwd(), "src/lib/generated");
 
-const DOCS = [
-	{
-		md: resolve(REPO_ROOT, "docs/HOW_UNBROWSE_PAYS.md"),
-		out: resolve(OUT_DIR, "how-unbrowse-pays.html.ts"),
-		exportName: "HOW_UNBROWSE_PAYS_HTML",
-	},
-];
+// The /how-unbrowse-pays page is now a real React component
+// (src/app/how-unbrowse-pays/page.tsx) that renders the split visually and
+// reads live earnings, so it no longer consumes a generated HTML constant.
+// Add an entry here when another doc needs the same fs-bypass treatment.
+const DOCS = [];
 
 mkdirSync(OUT_DIR, { recursive: true });
 
