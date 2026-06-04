@@ -4697,7 +4697,16 @@ export async function resolveAndExecute(
       // (direct-document) result, or null to fall through unchanged.
       const curlRescueDirect = async (): Promise<OrchestratorResult | null> => {
         try {
-          const cffi = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 15_000, forceDirect: true });
+          // Seed the local browser-profile cookies for this host so cookie-gated
+          // sites (reddit, logged-in pages) return their real content instead of a
+          // block page — the same reason the `fetch` command seeds cookies.
+          let rescueCookies: Array<{ name: string; value: string }> = [];
+          try {
+            const host = new URL(ctxUrl).hostname;
+            const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+            rescueCookies = extractBrowserCookies(host).cookies.map((c) => ({ name: c.name, value: c.value }));
+          } catch { /* no cookies available — proceed cookieless */ }
+          const cffi = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 15_000, forceDirect: true, cookies: rescueCookies });
           if (cffi?.html && cffi.status >= 200 && cffi.status < 400) {
             const trimmed = cffi.html.trimStart();
             if (trimmed.startsWith("{") || trimmed.startsWith("[")) {

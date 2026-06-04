@@ -41,6 +41,10 @@ def main() -> int:
     p.add_argument("--impersonate", default="chrome131")
     p.add_argument("--timeout", type=int, default=30)
     p.add_argument("--max-bytes", type=int, default=5_000_000)
+    # Optional Cookie header (e.g. "sess=abc; csrf=xyz") so cookie-gated sites
+    # (reddit, logged-in pages) return their real content instead of a block
+    # page. Seeded by the TS caller from the local browser profile / vault.
+    p.add_argument("--cookies", default="")
     args = p.parse_args()
 
     try:
@@ -62,6 +66,8 @@ def main() -> int:
         proxy_url = f"http://{u}:{pw}@{host}:{port}"
         proxies = {"http": proxy_url, "https": proxy_url}
 
+    headers = {"Cookie": args.cookies} if args.cookies else None
+
     try:
         r = cc_requests.get(
             args.url,
@@ -69,6 +75,7 @@ def main() -> int:
             proxies=proxies,
             timeout=args.timeout,
             allow_redirects=True,
+            headers=headers,
         )
     except Exception as e:
         print(json.dumps({"error": f"{type(e).__name__}: {str(e)[:200]}"}))
