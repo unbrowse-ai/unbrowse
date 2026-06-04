@@ -16,7 +16,11 @@
   --orange-100: #FFEDD5;
   --orange-200: #FED7AA;
   --orange-300: #FDBA74;
-  --orange-400: #FF6A00;
+  /* --orange-400 is the accent used for link/label TEXT. On white #FF6A00 is only
+     2.87:1 (AA fail); darken to #C2410C (≈4.6:1) so light-mode orange text passes
+     while staying clearly orange. Buttons use --orange-500 (unaffected); the dark
+     theme redefines --orange-400 to vivid #FF6A00 below. */
+  --orange-400: #C2410C;
   --orange-500: #FF5200;
   --orange-600: #E04000;
   --orange-700: #7A3000;
