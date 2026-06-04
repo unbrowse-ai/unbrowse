@@ -21,6 +21,11 @@ CREDITS_ENABLED = "1"
 X402_SEARCH_ENABLED = "false"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "8n7QzgDuEiQUxCXNb7VSiq3fenA2UjeMTUhoiPK7QGR8"
+# Publish gates opened for max coverage — any agent may publish any domain.
+# Code defaults stay ON; these prod bindings open verification + reserved-domain.
+# Takedown + first-publisher ownership remain as reactive moderation.
+REQUIRE_DOMAIN_VERIFICATION = "0"
+RESERVED_DOMAIN_GATE = "0"
 
 [env.staging]
 name = "unbrowse-backend-staging"
