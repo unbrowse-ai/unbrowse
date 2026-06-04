@@ -38,9 +38,8 @@ done
 log() { echo "[release-verify] $(date +%H:%M:%S) $*"; }
 die() { echo "[release-verify] FATAL: $*" >&2; exit 1; }
 
-# ── Step 0: Strict gate; refuse to release if the npm tarball is not opaque ──
-log "asserting opaque npm tarball..."
-node packages/skill/scripts/assert-opaque-tarball.mjs || die "opaque-tarball gate failed; fix files[] or override with UNBROWSE_ALLOW_BUNDLED_TARBALL=1 (do not commit)"
+# ── Step 0: the client ships a readable, auditable runtime by design (the moat is
+# server-side; leak-guard still protects it). The opaque-tarball gate is removed.
 
 # ── Step 1: Local tests ──
 log "running local tests..."
