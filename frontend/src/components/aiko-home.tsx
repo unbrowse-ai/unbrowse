@@ -18,8 +18,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Streamdown } from "streamdown";
 import { useAuth } from "@/lib/auth-context";
 import { searchSkills, type SearchResult } from "@/lib/api";
+import { GenerativeUI, extractUiSpec } from "@/components/generative-ui";
 
 const CHAT_ENDPOINT = "https://chat.unbrowse.ai/v1/chat/completions";
 
@@ -236,7 +238,16 @@ export function AikoHome() {
                   </li>
                 ) : (
                   <li key={i} className="grid gap-2">
-                    <div className="text-[15px] leading-[1.7] whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>{t.content}</div>
+                    {(() => {
+                      const spec = extractUiSpec(t.content);
+                      return spec ? (
+                        <GenerativeUI spec={spec} />
+                      ) : (
+                        <div className="aiko-md text-[15px] leading-[1.7]" style={{ color: "var(--text-primary)" }}>
+                          <Streamdown>{t.content}</Streamdown>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-3 text-[11px] font-mono" style={{ color: "var(--text-muted)" }}>
                       <span style={{ color: "#4ADE80" }}>● {t.answerMs}ms</span>
                       {t.traceId && <span>trace {t.traceId}</span>}
