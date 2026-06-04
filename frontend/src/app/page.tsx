@@ -50,9 +50,13 @@ export default async function Home() {
         {/* Peer-reviewed credibility — the paper's strongest citable proof, surfaced
             on the front door. Numbers are the published benchmark (arXiv:2604.00694);
             link goes to the full deep-dive. Kept subordinate to the live search. */}
-        <p className="mt-5 text-[12px] text-text-muted">
+        <p className="mt-5 text-[12px] text-text-secondary">
           Peer-reviewed ·{" "}
-          <Link href="/benchmark-deep-dive" className="underline decoration-dotted underline-offset-2 hover:text-text-secondary transition-colors">
+          <Link
+            href="/benchmark-deep-dive"
+            className="font-medium underline underline-offset-2 transition-colors hover:opacity-80"
+            style={{ color: "var(--orange-400, #FF6A00)" }}
+          >
             94-domain benchmark
           </Link>
           {" "}· 3.6× mean speedup (5.4× median), 100% win rate
