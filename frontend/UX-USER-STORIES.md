@@ -108,7 +108,14 @@ ships. Ordered cheapest-first to the first felt win.
   `/how-unbrowse-pays` rewritten: visual pay→earn split, USDC settles usage, token only
   bonds trust (de-emphasised), earnings are live `/v1/claim/earnings` reads or honestly
   labelled. All three: tsc 0 errors, dev-server-rendered real data, no moat-vocab leak.
-- **[next]** deploy CF Pages preview (`wrangler.preview.jsonc`, `unbrowse-aiko-preview`);
-  hand the link to Lewis to relay to the product-taste reviewer.
-- **[gate]** the UX is "done" only when the real reviewer signs off on the felt
-  experience — not on this document, not on a green build.
+- **[shipped 2026-06-04]** CF Pages preview live at
+  `https://unbrowse-aiko-preview.lewis-6d8.workers.dev` (`wrangler.preview.jsonc`,
+  `unbrowse-aiko-preview`); link handed to Lewis to relay (Aiko msg 2062). This session
+  also fixed the S1 front door on that preview: search no longer renders "Untitled"
+  graph rows (`isIdentifiable` + anonymous `/v1/skills/popular` catalog + token match +
+  Aiko-routed honest empty state), and registry cards read as brands not the domain ×3.
+  Puppeteer-verified on the live preview.
+- **[gate — OPEN]** the UX is "done" only when the real reviewer (Algamer) signs off on
+  the felt experience — not on this document, not on a green build. Blocked on reaching
+  her: @gignite_bot can't cold-DM her; need her chat_id (after she `/start`s the bot) or
+  Lewis to forward the preview.
