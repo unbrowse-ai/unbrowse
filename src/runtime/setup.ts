@@ -195,6 +195,21 @@ export async function runSetup(options?: {
   const browser = options?.installBrowser === false
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
+  // Ensure a local self-custody identity wallet exists in ~/.unbrowse before
+  // anything else. This is the agent's stable identity (and x402 signing key) —
+  // minted once, reused forever. Distinct from the lobster.cash PAYOUT wallet
+  // below: the user always gets a local wallet even if they never pair lobster.
+  // Gated by the same flag tests use to assert a pristine "no wallet" machine.
+  if (process.env.UNBROWSE_DISABLE_LOCAL_WALLET !== "1") {
+    try {
+      const { ensureLocalWalletAddress } = await import("../values/signer.js");
+      const localAddr = ensureLocalWalletAddress();
+      log("setup", `local identity wallet ready in ~/.unbrowse: ${localAddr}`);
+    } catch (err) {
+      log("setup", `local identity wallet ensure skipped: ${(err as Error).message}`);
+    }
+  }
+
   const walletCheck = checkWalletConfigured();
   const skipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP === "1";
   let lobsterInstalled = hasBinary("lobstercash") ||

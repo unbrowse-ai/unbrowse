@@ -55,7 +55,7 @@ Unbrowse today is a local-first web capability layer for agents:
 
 - local CLI plus local server
 - browser capture through Kuri
-- reverse-engineering of internal API endpoints from observed traffic
+- route discovery that maps a site's internal API endpoints into reusable routes
 - marketplace-backed reuse of discovered skills
 - route cache plus marketplace search plus live-capture fallback
 - local credential storage and auth reuse

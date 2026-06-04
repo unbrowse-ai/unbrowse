@@ -1,12 +1,14 @@
 # Unbrowse
 
-> **Heads up: this OSS repo is a 2025 snapshot.** Current production builds are closed-source for safety reasons. The TypeScript SDK (imported from `unbrowse/sdk`) is MIT and is the supported integration surface. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for what's open vs. proprietary.
+> **The full Unbrowse client is open and auditable.** The entire client runtime — capture, route inference, indexing, execution, the SDK, and the wallet/auth/signing layer — is MIT and readable here, so you can verify what it does on your machine rather than trust a black box. Only the backend (marketplace, settlement) and the web app stay private. The CLI ships unsigned and readable by design: trust comes from being able to read the code, not from a signature. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
 One agent learns a site once. Every later agent gets the fast path.
 
 On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694). For the release-coverage methodology (corpus shape, rubric, current numbers), see [docs/benchmarks.md](./docs/benchmarks.md).
+
+On adversarial, JavaScript-challenge-gated anti-bot content, a reproducible nine-post retrieval benchmark across three communities of a major social platform — ground-truthed against the platform's own data — recovers the real content on **9/9 posts where a naive HTTP client is blocked on every request (HTTP 403)**. The benchmark is re-runnable and reports the naive-vs-Unbrowse head-to-head directly.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 

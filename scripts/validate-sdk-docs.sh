@@ -28,7 +28,6 @@ DOCS=(
   docs/sdk/developer-recipes.md
   docs/sdk/onboarding-users.md
   docs/sdk/developer-recipes.md
-  docs/frontend-dashboard-plan.md
   docs/sdk/build-on-unbrowse.md
   packages/sdk/docs/README.md
   packages/sdk/docs/getting-started/installation.md

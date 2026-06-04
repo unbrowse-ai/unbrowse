@@ -14,13 +14,13 @@ This document lists those classes, names where the enforcement lives, and is tes
 | Authorization headers | `Authorization: Bearer <token>`, `X-Api-Key:`, `X-Auth-Token:` | Stripped at capture time before merge into endpoint manifest; replaced with provenance pointer |
 | Vault keys | API keys stored in the local vault; the private wallet keys in `.env` files | Loaded only on demand from the named env or file; never serialized into any response payload |
 | Residential proxy credentials | `IPROYAL_USER`, `IPROYAL_PASS`, `UNBROWSE_PROXY_URL` (when it contains user:pass) | Redacted at log line generation; replaced with `***@host:port` form before stderr write |
-| Personal browser history | URLs visited that are not the one resolved in this session | Read-only access to Chrome/Firefox profile for cookie injection on the requested domain only; no enumeration |
+| Personal browser history | URLs visited that are not the one resolved in this session | Read-only access to your existing browser session for the requested domain only; no enumeration |
 | Personal disk paths | Any path under the user's home that is not the explicit working directory | Only the working directory is written to in trace responses |
 | Platform identifiers | Internal contract row ids, organ ids, ledger event ids that govern Unbrowse's own self-organization | Filtered out of any response with `--audience public` semantic; documented at the contract leak gate |
 
 ## Where the enforcement lives
 
-The capture pipeline (`src/capture/index.ts` and `src/reverse-engineer/index.ts`) strips sensitive headers at extraction time:
+The capture pipeline (the capture and route-discovery modules under `src/capture/`) strips sensitive headers at extraction time:
 
 - `STRIP_HEADERS` (set of exact header names)
 - `STRIP_HEADER_PREFIXES` (prefixes for vendor-specific auth headers)

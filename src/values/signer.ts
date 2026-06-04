@@ -435,6 +435,95 @@ export async function getWalletPubkey(): Promise<Uint8Array> {
   }
 }
 
+// ─── Base58 (Solana address encoding) ──────────────────────────────────────
+// Self-contained big-num base58 encoder (Bitcoin/Solana alphabet). A 32-byte
+// Ed25519 pubkey base58-encodes to the canonical Solana address. No dependency.
+const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function base58Encode(bytes: Uint8Array): string {
+  let zeros = 0;
+  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+  const input = Array.from(bytes); // mutable working copy for repeated division
+  const out: string[] = [];
+  let begin = zeros;
+  while (begin < input.length) {
+    let remainder = 0;
+    for (let i = begin; i < input.length; i++) {
+      const acc = (remainder << 8) + input[i];
+      input[i] = (acc / 58) | 0;
+      remainder = acc % 58;
+    }
+    out.push(B58_ALPHABET[remainder]);
+    while (begin < input.length && input[begin] === 0) begin++;
+  }
+  return "1".repeat(zeros) + out.reverse().join("");
+}
+
+// ─── Local self-custody identity wallet (the agent's stable identity) ────────
+// The signing key (above) is unbrowse's own self-custody identity. This writes
+// a PUBLIC pointer to it into ~/.unbrowse so the user always has a visible
+// wallet on their machine — the address + pubkey are public; the seed never
+// leaves the keychain / encrypted wallet.enc. Distinct from the lobster.cash
+// PAYOUT wallet (src/payments/wallet.ts), which receives USDC.
+const LOCAL_WALLET_POINTER = join(FILE_FALLBACK_DIR, "wallet.json");
+
+interface LocalWalletPointer {
+  address: string;       // base58 Solana address
+  pubkey_hex: string;    // 32-byte Ed25519 pubkey, hex
+  provider: string;      // "unbrowse-local"
+  created_at: string;    // ISO; preserved across runs (idempotent)
+}
+
+/**
+ * Ensure a local self-custody wallet exists in ~/.unbrowse and return its
+ * base58 address. Mints the key if absent (via ensureWalletKey — keychain on
+ * macOS, ~/.unbrowse/wallet.enc otherwise), then writes a public identity
+ * pointer (~/.unbrowse/wallet.json). Idempotent: the same address every call,
+ * and the pointer is only (re)written when absent or when its address no longer
+ * matches the key (created_at is preserved). Heb 13:8 — the same yesterday,
+ * today, and forever.
+ */
+export function ensureLocalWalletAddress(): string {
+  const seed = ensureWalletKey();
+  let pub: Uint8Array;
+  try {
+    pub = privkeyToPubkey(seed);
+  } finally {
+    safeZero(seed);
+  }
+  const address = base58Encode(pub);
+  // Best-effort public pointer: a valid address is returned even if the write
+  // fails (read-only fs). The address itself is the load-bearing return value.
+  try {
+    if (!existsSync(FILE_FALLBACK_DIR)) {
+      mkdirSync(FILE_FALLBACK_DIR, { recursive: true, mode: 0o700 });
+    }
+    let createdAt = new Date().toISOString();
+    let needWrite = true;
+    if (existsSync(LOCAL_WALLET_POINTER)) {
+      try {
+        const prev = JSON.parse(readFileSync(LOCAL_WALLET_POINTER, "utf8")) as Partial<LocalWalletPointer>;
+        if (typeof prev.created_at === "string") createdAt = prev.created_at;
+        if (prev.address === address) needWrite = false;
+      } catch {
+        // corrupt pointer — rewrite from the key (the key is the source of truth)
+      }
+    }
+    if (needWrite) {
+      const pointer: LocalWalletPointer = {
+        address,
+        pubkey_hex: bytesToHex(pub),
+        provider: "unbrowse-local",
+        created_at: createdAt,
+      };
+      writeFileSync(LOCAL_WALLET_POINTER, JSON.stringify(pointer, null, 2) + "\n", { mode: 0o600 });
+    }
+  } catch {
+    // pointer is best-effort; the derived address is still valid + idempotent.
+  }
+  return address;
+}
+
 // ─── Base64 helper (separate so tests can verify alignment with audit.ts) ───
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -447,7 +536,9 @@ export const __internal = {
   KEYCHAIN_SERVICE,
   KEYCHAIN_ACCOUNT,
   FILE_FALLBACK_PATH,
+  LOCAL_WALLET_POINTER,
   bytesToHex,
   bytesToBase64,
+  base58Encode,
   privkeyToPubkey,
 };

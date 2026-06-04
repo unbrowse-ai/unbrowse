@@ -104,7 +104,7 @@ gap, not a runtime product gap.
 100% coverage except for the blocked sites" is dishonest when the
 blocked sites are exactly where Unbrowse needs to differentiate
 (libcurl-impersonate, residential proxy fallback, JA4 spoof, real-Chrome
-cookie injection, headful fallback). Counting them as a failure mode
+session reuse, headful fallback). Counting them as a failure mode
 makes the bench tell the truth.
 
 ### Action-verification override

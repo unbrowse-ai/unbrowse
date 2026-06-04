@@ -19,6 +19,10 @@
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { sha256hex } from "./content-address.js";
+import { signBytes, getWalletPubkey } from "./signer.js";
+import { verifyEd25519 } from "./zk-binding.js";
+
+const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
 /** sha256(plaintext) hex — the content address; identical bytes → identical key
  *  on any host (the property the seal must preserve). */
@@ -76,4 +80,67 @@ export function revealValue(hash: string, sealed: Uint8Array, key: Uint8Array): 
     throw new SealReveal("revealed plaintext does not match content hash");
   }
   return new Uint8Array(pt);
+}
+
+// ---------------------------------------------------------------------------
+// Public boundary — the OUTWARD complement of sealValue.
+//
+// sealValue keeps a value private at rest (inward). publishValue is the rule for
+// what may cross the PUBLIC boundary: only a content-addressed COPY of the value,
+// signed by the wallet and verifiable against its PUBLIC key. The private key is
+// loaded, used once to sign the content hash, and zeroed inside signBytes — it
+// never crosses; what leaves is a copy the world can check but cannot forge and
+// cannot reverse into the secret. Production port of
+// paper/reference/layers/key_mobility.py.
+// ---------------------------------------------------------------------------
+
+/** A value copy that has crossed the public boundary. Carries ONLY public
+ *  material: the content address, the value copy, the wallet PUBLIC key, and a
+ *  signature. There is no field for, and no way to recover, the private key. */
+export interface PublishedValue {
+  /** sha256(value) hex — the content address. */
+  contentHash: string;
+  /** A COPY of the value bytes (hex). */
+  value: string;
+  /** The wallet PUBLIC key (hex). Never any private material. */
+  pub: string;
+  /** Wallet Ed25519 signature over the content hash (hex). */
+  sig: string;
+}
+
+/**
+ * Publish a value across the public boundary: emit only a wallet-signed value
+ * copy, verifiable under the PUBLIC key. The private key never leaves.
+ */
+export async function publishValue(data: Uint8Array): Promise<PublishedValue> {
+  const hash = contentHash(data);
+  const { signature, walletPubkey } = await signBytes(new TextEncoder().encode(hash));
+  return {
+    contentHash: hash,
+    value: bytesToHex(data),       // a copy of the value bytes, not the source
+    pub: bytesToHex(walletPubkey), // the PUBLIC key only
+    sig: bytesToHex(signature),
+  };
+}
+
+/**
+ * Verify a published value copy: the content hash matches the value bytes and the
+ * signature verifies under the expected PUBLIC key. No private material is needed
+ * (or present) to check it. A foreign key, a tampered value, or a tampered hash
+ * all fail closed.
+ */
+export function verifyPublished(p: PublishedValue, expectPub: string): boolean {
+  if (p.pub !== expectPub) return false;
+  const value = Buffer.from(p.value, "hex");
+  if (contentHash(new Uint8Array(value)) !== p.contentHash) return false;
+  return verifyEd25519(
+    Buffer.from(expectPub, "hex"),
+    new TextEncoder().encode(p.contentHash),
+    Buffer.from(p.sig, "hex"),
+  );
+}
+
+/** The wallet public key (hex) — the identity a published copy verifies against. */
+export async function publishedPub(): Promise<string> {
+  return bytesToHex(await getWalletPubkey());
 }
