@@ -29,6 +29,28 @@
  */
 
 import type { Env } from "../types.js";
+import { x402UseTestnet } from "../middleware/x402-gate.js";
+
+/** USDC SPL mints per cluster (mirror packages/sdk/src/flex.ts). */
+const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+/**
+ * Resolve the Solana network + USDC mint the Flex facilitator should target,
+ * from config — NOT a hardcode. The FLEX escrow program
+ * (EcfUgNgDXmBx4Xns2qZLE54xpM7V1N6PL8MdDW1syujS) is deployed on DEVNET; it is
+ * NOT on mainnet today, so non-production environments must target devnet for
+ * settlement to actually succeed. Production keeps mainnet by default (gated by
+ * X402_NETWORK_MODE / ENVIRONMENT via `x402UseTestnet`); the cluster name maps
+ * to the value `@faremeter/payment-solana`'s `createFacilitatorHandler` expects.
+ */
+export function resolveFlexNetwork(
+  env: Pick<Env, "ENVIRONMENT" | "X402_NETWORK_MODE">,
+): { network: "devnet" | "mainnet"; usdcMint: string } {
+  return x402UseTestnet(env)
+    ? { network: "devnet", usdcMint: USDC_MINT_DEVNET }
+    : { network: "mainnet", usdcMint: USDC_MINT_MAINNET };
+}
 
 /**
  * Minimal structural type for the Faremeter `FlexFacilitator` runtime
@@ -187,12 +209,13 @@ export async function createFlexFacilitator(
   const rpc = kit.createSolanaRpc(rpcUrl);
   const signer = await kit.createKeyPairSignerFromBytes(await decodeSecretKey(key));
 
-  // Mainnet USDC. Matches `USDC_MINT_MAINNET` in services/flex.ts. Devnet
-  // override happens here on Day-7+ when staging gets its own facilitator key.
-  const usdcMintMainnet = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  // Network + USDC mint are config-driven (NOT hardcoded): the FLEX program is
+  // deployed on devnet only, so non-production targets devnet where settlement
+  // can actually succeed; production keeps mainnet. See `resolveFlexNetwork`.
+  const { network, usdcMint } = resolveFlexNetwork(env);
 
-  const handler = await flexFac.createFacilitatorHandler("mainnet", rpc, signer, {
-    supportedMints: [kit.address(usdcMintMainnet)],
+  const handler = await flexFac.createFacilitatorHandler(network, rpc, signer, {
+    supportedMints: [kit.address(usdcMint)],
     defaultSplits: [{ recipient: platformAta, bps: 1000 }], // 10% platform default
     maxSubmitRetries: 30,
     submitRetryDelayMs: 1000,
