@@ -1,0 +1,32 @@
+{
+  "intent": "search posts",
+  "params": {
+    "url": "https://www.reddit.com/r/AI_Agents/search/?q=web+MCP+browser+use+scraping&restrict_sr=1&sort=relevance&t=year"
+  },
+  "context": {
+    "url": "https://www.reddit.com/r/AI_Agents/search/?q=web+MCP+browser+use+scraping&restrict_sr=1&sort=relevance&t=year"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "lRX8kMhhUcAnofzkiym4v",
+      "score": 517.7,
+      "description": "Canonical document replay for search posts",
+      "url": "https://www.reddit.com/r/AI_Agents/search/?q=web+MCP+browser+use+scraping&restrict_sr=1&sort=relevance&t=year",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "lRX8kMhhUcAnofzkiym4v",
+      "score": 527.7,
+      "trace_success": true,
+      "judge": "pass",
+      "status_code": 200,
+      "local_reason": "post_rows"
+    }
+  ],
+  "outcome": "autoexec_success",
+  "source": "live-capture",
+  "skill_id": "44y9tIGvNWC6HuvJkG5DV",
+  "selected_endpoint_id": "lRX8kMhhUcAnofzkiym4v"
+}

@@ -1,0 +1,249 @@
+{
+  "trace_id": "RRB-gC6rutf1OpupmGMkI",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "mASQJ7TlVPdwglt7Uxgxd",
+  "started_at": "2026-03-12T02:10:05.816Z",
+  "completed_at": "2026-03-12T02:10:06.979Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00529328-pdf",
+          "subject": "Food list",
+          "latest_sender_name": "Ann Rodriquez",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "Hi Anna,\n\nis coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> <b>list</b> for her:\n\n&gt; Greek yogurt ( as JE&#x27;s favorite brand &quot;fage&quot;but 0% fat",
+          "avatar_color": "#db4437",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00529328-pdf-1",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\n\nis coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n> Greek yogurt ( as JE's favorite brand \"fage\"but 0% fat )\n\n> 2) grapefruits\n\n>3) apples\n\n> 4) pomegranate\n\n> 5) steel cut oatmeal\n\n> 6) baby carrots\n\n>7) broccoli\n\n> 8) cauliflower\n\n>9) spinach\n\n>10) green peas\n\n> 11) mushrooms\n\n> 12) cucumber\n\n> 13) cherry tomatoes\n\n> 14) salmon filet\n\n> 15) keflr ( non fat or if no than low fat )\n\n> The list for Mr. Epstein remains the same.\n\n> Thank you,\n\n> Karyna.\n\n>\n\n"
+        },
+        "field": "content_markdown",
+        "rank": 29.854979
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00538713-pdf",
+          "subject": "Food list",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Nov 23, 2013",
+          "preview": "Hi Anna,\n\nis coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> <b>list</b> for her:\n\n1) Greek yogurt (as JE&#x27;s favorite brand &quot;fage&quot; but 0% fat)\n2",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00538713-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\n\nis coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n1) Greek yogurt (as JE's favorite brand \"fage\" but 0% fat)\n2) grapefruits\n3) apples\n4) pomegranate\n5) steel cut oatmeal\n6) baby carrots\n7) broccoli\n8) cauliflower\n9) spinach\n10) green peas\n11) mushrooms\n12) cucumber\n13) cherry tomatoes\n14) salmon filet\n15) kefir (non fat or if no than low fat)\n\nThe list for Mr. Epstein remains the same.\n\nThank you,\n\nKaryna.\n\nSent from my iPhone"
+        },
+        "field": "content_markdown",
+        "rank": 29.854979
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00529324-pdf",
+          "subject": "Re: Food list",
+          "latest_sender_name": "Ann Rodriquez",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "Here is the <b>food</b> <b>list</b> for her:\n\n&gt; Greek yogurt (as JE&#x27;s favorite brand &quot;fage&quot;but 0% fat)\n\n&gt; 2) grapefruits\n\n&gt;3) apples\n\n&gt; 4) pomegranate\n\n&gt; 5) steel",
+          "avatar_color": "#db4437",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00529324-pdf",
+          "sender": "Ann Rodriquez",
+          "content_markdown": "Great, Will do. Thx\n\nAnn R.\n\n> On Nov 23, 2013, at 7:33 PM, Karyna Shuliak ◄ wrote:\n>\n> Hi Anna,\n\n- coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n\n> Greek yogurt (as JE's favorite brand \"fage\"but 0% fat)\n\n> 2) grapefruits\n\n>3) apples\n\n> 4) pomegranate\n\n> 5) steel cut oatmeal\n\n> 6) baby carrots\n\n>7) broccoli\n\n> 8) cauliflower\n\n>9) spinach\n\n> 10) green peas\n\n>11) mushrooms\n\n> 12) cucumber\n\n> 13) cherry tomatoes\n\n> 14) salmon filet\n\n> 15) kefir ( non fat or if no than "
+        },
+        "field": "content_markdown",
+        "rank": 27.095274
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00538715-pdf",
+          "subject": "Re: Food list",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Nov 24, 2013",
+          "preview": "2013, at 7:33 PM, Karyna Shuliak\n&gt;&gt; wrote:\n&gt;&gt;\n&gt;&gt; Hi Anna,\n&gt;&gt; is coming to the LSJ with Mr. <b>Epstein</b> tomorrow. Here is the <b>food</b> <b>list</b> for her:\n&gt;&gt; Greek",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00538715-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Hi Anna,\nUsually cabana 1\n\nOn Nov 24, 2013, at 2:23 PM, Ann Rodriquez wrote:\n\n> Hey Karyna,\n>\n> Which cabana do stay in?\n>\n> Ann R.\n>\n>> On Nov 23, 2013, at 7:33 PM, Karyna Shuliak\n>> wrote:\n>>\n>> Hi Anna,\n>> is coming to the LSJ with Mr. Epstein tomorrow. Here is the food list for her:\n>> Greek yogurt ( as JE's favorite brand \"fage\"but 0% fat )\n\n» 2) grapefruits\n\n>> 3) apples\n\n» 4) pomegranate\n\n>> 5) steel cut oatmeal\n\n» 6) baby carrots\n\n>> 7) broccoli\n\n» 8) cauliflower\n\n\t>>9) spinach\n\n>> 10) g"
+        },
+        "field": "content_markdown",
+        "rank": 26.135653
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02312102",
+          "subject": "Food list for arrival",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Feb 8, 2019",
+          "preview": "HI Stephanie,\n\nPlease find below the basic <b>list</b> of <b>food</b> items to have prior to Mr. <b>Epstein</b>&#x27;s arrival. I might have some additions/changes later and",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02312102-0",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "HI Stephanie,\n\nPlease find below the basic list of food items to have prior to Mr. Epstein's arrival. I might have some additions/changes later and will keep you informed.\n\nThank you.\n\nKaryna\n\nVoss still water\nCoffee beans: Lavazza top class\nSweet&low\nLemons\nLimes\nGinger\nBreakstones sour cream\nFaje yogurt (full fat)\nButterspray\nOrganic valley whole milk\nOrganic valley half and half\nOrganic valley heavy whipping cream\nOrganic eggs\nKerrygold butter: salted and unsalted\nSalad greens (arugula or mix"
+        },
+        "field": "content_markdown",
+        "rank": 23.275148
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02314372",
+          "subject": "Food list for arrival",
+          "latest_sender_name": "Stephanie Remington",
+          "formatted_date": "Feb 8, 2019",
+          "preview": "HI Stephanie,\n\nPlease find below the basic <b>list</b> of <b>food</b> items to have prior to Mr. <b>Epstein</b>&#x27;s arrival. I might have some additions/changes later and",
+          "avatar_color": "#db4437",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 4,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02314372-1",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "HI Stephanie,\n\nPlease find below the basic list of food items to have prior to Mr. Epstein's arrival. I might have some additions/changes later and will keep you informed.\n\nThank you.\n\nKaryna\n\nVoss still water\nCoffee beans: Lavazza top class\nSweet&low\nLemons\nLimes\nGinger\nBreakstones sour cream\nFaje yogurt (full fat)\nButterspray\nOrganic valley whole milk\nOrganic valley half and half\nOrganic valley heavy whipping cream\nOrganic eggs\nKerrygold butter: salted and unsalted\nSalad greens (arugula or mix"
+        },
+        "field": "content_markdown",
+        "rank": 23.275148
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02302372",
+          "subject": "Food requests",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Sep 7, 2013",
+          "preview": "Hi Stephanie,\n\nBelow please see the <b>food</b> items, that Mr. <b>Epstein</b> would like to have upon his arrival. He does not wish to have all the items from the",
+          "avatar_color": "#4285f4",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02302372-0",
+          "sender": "Karyna Shuliak <karyna@example.com>",
+          "content_markdown": "Hi Stephanie,\n\nBelow please see the food items, that Mr. Epstein would like to have upon his arrival. He does not wish to have all the items from the list we had before. Thank you, please let me know if there are any requests from NY. Thank you, Karyna.\n\nFor Mr. Epstein:\n\nFuji water\n\nFage yogurt\n\nOrganic half&half\n\nButter spray\n\nOrganic eggs\n\nChicken breasts\n\nHass Avocados\n\nLarge ripe tomatoes\n\nPeanut butter\n\nJelly\n\nRaisin bran granola\n\nMint\n\nDill\n\nBasil\n\nFor\n\nGummy candies (different types)\n\nGr"
+        },
+        "field": "content_markdown",
+        "rank": 21.66177
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00525596-pdf",
+          "subject": "Basic food list",
+          "latest_sender_name": "Karyna Shuliak",
+          "formatted_date": "Nov 29, 2017",
+          "preview": "Good afternoon Arlene, Carluz and Renato,\n\nArlene and I have gone through the <b>list</b> of groceries to have before Mr. <b>Epstein</b>&#x27;s arrivals. Attached is the",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00525596-pdf",
+          "sender": "Karyna Shuliak",
+          "content_markdown": "Good afternoon Arlene, Carluz and Renato,\n\nArlene and I have gone through the list of groceries to have before Mr. Epstein's arrivals. Attached is the copy for your records. I will keep you posted if there are changes.\n\nThanks a lot!\n\nKaryna\n\nEFTA00525596"
+        },
+        "field": "content_markdown",
+        "rank": 21.43011
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02178957",
+          "subject": "Re: ███████-Food List",
+          "latest_sender_name": "Bella Klein",
+          "formatted_date": "Nov 30, 2011",
+          "preview": "approaches we will figure out.\n\nBella, wanted you to see that JE has approved buying the <b>food</b> for\n\nBegin forwarded message:\n\nFrom: Jeffrey <b>Epstein</b> &lt;u",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02178957-0",
+          "sender": "Bella Klein",
+          "content_markdown": "thank you\n\nOn Nov 30, 2011, at 9:39 AM, ███████████ wrote:\n\nJust giving you both the heads up we will need to purchase food for arrival to the apartments on Dec. 12th...not sure who will be enlisted as of yet to do the shopping, but wanted to let you know now.. When the date approaches we will figure out.\n\nBella, wanted you to see that JE has approved buying the food for\n\nBegin forwarded message:\n\nFrom: Jeffrey Epstein <u><jeevacation(Wornail.com></u>\nDate: <u>November 30. 2011 9:31:03 AM EST</u"
+        },
+        "field": "content_markdown",
+        "rank": 19.760458
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta00423033-pdf",
+          "subject": "Re: Food List",
+          "latest_sender_name": "Bella Klein",
+          "formatted_date": "Nov 30, 2011",
+          "preview": "Bella, wanted you to see that JE has approved buying the <b>food</b> for Linda.\n\nBegin forwarded message:\n\nFrom: Jeffrey <b>Epstein</b> &lt;\nDate: November 30, 2011 9",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta00423033-pdf",
+          "sender": "Bella Klein",
+          "content_markdown": "thank you\n\nOn Nov 30, 2011, at 9:39 AM, wrote:\n\nJust giving you both the heads up we will need to purchase food for arrival to the apartments on Dec. 12th...not sure who will be enlisted as of yet to do the shopping, but wanted to let you know now.. When the date approaches we will figure out.\n\nBella, wanted you to see that JE has approved buying the food for Linda.\n\nBegin forwarded message:\n\nFrom: Jeffrey Epstein <\nDate: November 30, 2011 9:31:03 AM EST\nTo:\nSubject: Re:\n\nyes\n\nOn Wed, Nov 30, 20"
+        },
+        "field": "content_markdown",
+        "rank": 19.760458
+      }
+    ],
+    "total": 269,
+    "page": 1,
+    "totalPages": 27,
+    "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjE5Ljc2MDQ1OCwiZG9jX2lkIjoidm9sMDAwMDktZWZ0YTAwNDIzMDMzLXBkZiJ9",
+    "operators": []
+  }
+}

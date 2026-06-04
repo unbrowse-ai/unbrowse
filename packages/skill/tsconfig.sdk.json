@@ -1,0 +1,19 @@
+{
+  "comment": "Builds the folded HTTP-first SDK surface (src/sdk → dist-sdk), exported from the `unbrowse` package at ./sdk. Zero runtime deps; browser + Node 18+.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": true,
+    "declaration": true,
+    "outDir": "./dist-sdk",
+    "rootDir": "./src/sdk",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/sdk/**/*"]
+}

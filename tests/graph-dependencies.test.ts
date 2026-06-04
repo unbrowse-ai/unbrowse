@@ -1,0 +1,470 @@
+import { describe, expect, it } from "bun:test";
+import { buildSkillOperationGraph, inferEndpointSemantic } from "../src/graph/index.js";
+import type { EndpointDescriptor } from "../src/types/index.js";
+
+describe("graph dependency inference", () => {
+  it("creates dependency edges when one operation provides the binding another requires", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "repo-search",
+        method: "GET",
+        url_template: "https://api.example.com/search/repositories?q={q}",
+        description: "Search repositories",
+        query: { q: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "search",
+          resource_kind: "repository",
+          description_in: "Requires q",
+          description_out: "Returns repositories",
+          response_summary: "repository_name, repo_id",
+          example_fields: ["items[].full_name", "items[].id"],
+          requires: [{ key: "q", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [
+            { key: "repo_id", source: "response", semantic_type: "repository_identifier" },
+            { key: "repository_name", source: "response", semantic_type: "repository_name" },
+          ],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "repo-detail",
+        method: "GET",
+        url_template: "https://api.example.com/repositories/{repo_id}",
+        description: "Get repository details",
+        path_params: { repo_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "repository",
+          description_in: "Requires repo_id",
+          description_out: "Returns repository details",
+          response_summary: "repository fields",
+          example_fields: ["id", "full_name"],
+          requires: [{ key: "repo_id", required: true, source: "path_params", semantic_type: "repository_identifier" }],
+          provides: [{ key: "repo_id", source: "response", semantic_type: "repository_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "repo-search:repo-detail:repo_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("dependency");
+    expect(edge?.binding_key).toBe("repo_id");
+    expect(graph.entry_operation_ids).toContain("repo-search");
+    expect(graph.entry_operation_ids).not.toContain("repo-detail");
+  });
+
+  it("creates hint edges on semantic-type matches and rejects reverse-time edges", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "profile-search",
+        method: "GET",
+        url_template: "https://api.example.com/search/people?q={q}",
+        description: "Search people",
+        query: { q: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "search",
+          resource_kind: "person",
+          description_in: "Requires q",
+          description_out: "Returns people",
+          response_summary: "public_identifier",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "q", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "profile-detail",
+        method: "GET",
+        url_template: "https://api.example.com/profile/{profile_id}",
+        description: "Get profile",
+        path_params: { profile_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "person",
+          description_in: "Requires profile_id",
+          description_out: "Returns profile",
+          response_summary: "profile fields",
+          example_fields: ["id", "name"],
+          requires: [{ key: "profile_id", required: true, source: "path_params", semantic_type: "profile_identifier" }],
+          provides: [{ key: "profile_id", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+      {
+        endpoint_id: "late-search",
+        method: "GET",
+        url_template: "https://api.example.com/search/people?q={q}",
+        description: "Late search",
+        query: { q: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "search",
+          resource_kind: "person",
+          description_in: "Requires q",
+          description_out: "Returns people",
+          response_summary: "public_identifier",
+          example_fields: ["elements[].public_identifier"],
+          requires: [{ key: "q", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:02.000Z",
+        },
+      },
+      {
+        endpoint_id: "early-detail",
+        method: "GET",
+        url_template: "https://api.example.com/profile/{profile_id}",
+        description: "Early profile",
+        path_params: { profile_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "person",
+          description_in: "Requires profile_id",
+          description_out: "Returns profile",
+          response_summary: "profile fields",
+          example_fields: ["id", "name"],
+          requires: [{ key: "profile_id", required: true, source: "path_params", semantic_type: "profile_identifier" }],
+          provides: [{ key: "profile_id", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const hintEdge = graph.edges.find((candidate) => candidate.edge_id === "profile-search:profile-detail:profile_id");
+    const reverseTimeEdge = graph.edges.find((candidate) => candidate.edge_id === "late-search:early-detail:profile_id");
+
+    expect(hintEdge).toBeDefined();
+    expect(hintEdge?.kind).toBe("hint");
+    expect(hintEdge?.confidence).toBe(0.6);
+    expect(reverseTimeEdge).toBeUndefined();
+  });
+
+  it("rejects generic id-only dependency edges", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "generic-source",
+        method: "GET",
+        url_template: "https://api.example.com/source",
+        description: "Returns ids",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "list",
+          resource_kind: "resource",
+          description_out: "Returns ids",
+          requires: [],
+          provides: [{ key: "id", source: "response", semantic_type: "identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "generic-target",
+        method: "GET",
+        url_template: "https://api.example.com/target/{id}",
+        description: "Needs id",
+        path_params: { id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "resource",
+          description_out: "Needs id",
+          requires: [{ key: "id", required: true, source: "path_params", semantic_type: "identifier" }],
+          provides: [],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    expect(graph.edges).toHaveLength(0);
+  });
+
+  it("creates hint edges for alias-linked identifier families across surfaces", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "people-dom-search",
+        method: "GET",
+        url_template: "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+        description: "Captured page artifact for search people",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        semantic: {
+          action_kind: "search",
+          resource_kind: "profile",
+          description_out: "Returns people search rows",
+          response_summary: "public_identifier, name, headline",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "keywords", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "member-api-detail",
+        method: "GET",
+        url_template: "https://www.linkedin.com/voyager/api/identity/profiles/{member_id}",
+        description: "Returns member profile detail",
+        path_params: { member_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "member",
+          description_out: "Returns member profile detail",
+          response_summary: "member_id, headline",
+          example_fields: ["id", "headline"],
+          requires: [{ key: "member_id", required: true, source: "path_params", semantic_type: "member_identifier" }],
+          provides: [{ key: "member_id", source: "response", semantic_type: "member_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "people-dom-search:member-api-detail:member_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+    expect(edge?.confidence).toBeGreaterThan(0.6);
+  });
+
+  it("accepts unix timestamp strings when ordering dependency hints", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "profile-search-unix",
+        method: "GET",
+        url_template: "https://api.example.com/search/people?q={q}",
+        description: "Search people",
+        query: { q: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "search",
+          resource_kind: "profile",
+          description_out: "Returns people search rows",
+          response_summary: "public_identifier, name",
+          example_fields: ["elements[].public_identifier", "elements[].name"],
+          requires: [{ key: "q", required: false, source: "query", semantic_type: "query_text" }],
+          provides: [{ key: "public_identifier", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "1775299755",
+        },
+      },
+      {
+        endpoint_id: "member-detail-unix",
+        method: "GET",
+        url_template: "https://api.example.com/profile/{member_id}",
+        description: "Returns member profile detail",
+        path_params: { member_id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "member",
+          description_out: "Returns member profile detail",
+          response_summary: "member_id, headline",
+          example_fields: ["id", "headline"],
+          requires: [{ key: "member_id", required: true, source: "path_params", semantic_type: "member_identifier" }],
+          provides: [{ key: "member_id", source: "response", semantic_type: "member_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "1775299756",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "profile-search-unix:member-detail-unix:member_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+  });
+
+  it("raises hint confidence when source response values overlap downstream request values", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "ads-account-context",
+        method: "GET",
+        url_template: "https://ads.example.com/api/context",
+        description: "Returns current ads account context",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "profile",
+          description_out: "Returns selected ads account context",
+          response_summary: "selected profile, account name",
+          example_request: {},
+          example_response_compact: {
+            selected_profile: "18ce55s5sqj",
+            account_name: "Lewis Ads",
+          },
+          example_fields: ["selected_profile", "account_name"],
+          requires: [],
+          provides: [{ key: "selected_profile", source: "response", semantic_type: "profile_identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "ads-campaign-draft",
+        method: "POST",
+        url_template: "https://ads.example.com/api/campaigns",
+        description: "Creates campaign draft",
+        idempotency: "unsafe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "create",
+          resource_kind: "campaign",
+          description_in: "Requires user_id",
+          description_out: "Creates campaign draft",
+          response_summary: "campaign_id, state",
+          example_request: {
+            user_id: "18ce55s5sqj",
+            objective: "reach",
+          },
+          example_fields: ["campaign_id", "state"],
+          requires: [{ key: "user_id", required: true, source: "body", semantic_type: "profile_identifier" }],
+          provides: [{ key: "campaign_id", source: "response", semantic_type: "identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    const edge = graph.edges.find((candidate) => candidate.edge_id === "ads-account-context:ads-campaign-draft:user_id");
+
+    expect(edge).toBeDefined();
+    expect(edge?.kind).toBe("hint");
+    expect(edge?.confidence).toBeGreaterThan(0.72);
+  });
+
+  it("infers dropdown bindings from DOM-extracted form nodes and links them into downstream api steps", () => {
+    const formEndpoint: EndpointDescriptor = {
+      endpoint_id: "jobs-form-options",
+      method: "GET",
+      url_template: "https://jobs.example.com/roles",
+      description: "Job search form with department and location dropdowns",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      dom_extraction: {
+        extraction_method: "form-options",
+        confidence: 0.95,
+        selector: "form[data-role='job-search']",
+      },
+      semantic: inferEndpointSemantic({
+        endpoint_id: "jobs-form-options",
+        method: "GET",
+        url_template: "https://jobs.example.com/roles",
+        description: "Job search form with department and location dropdowns",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        dom_extraction: {
+          extraction_method: "form-options",
+          confidence: 0.95,
+          selector: "form[data-role='job-search']",
+        },
+      }, {
+        sampleResponse: {
+          department_options: [{ label: "Engineering", value: "eng" }],
+          location_options: [{ label: "Remote", value: "remote" }],
+        },
+        sampleRequestUrl: "https://jobs.example.com/roles",
+        observedAt: "2026-03-09T10:00:00.000Z",
+      }),
+    };
+
+    const searchEndpoint: EndpointDescriptor = {
+      endpoint_id: "jobs-search",
+      method: "GET",
+      url_template: "https://jobs.example.com/api/jobs?department={department}&location={location}",
+      description: "Search jobs",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      semantic: {
+        action_kind: "search",
+        resource_kind: "job",
+        description_in: "Requires department and location",
+        description_out: "Searches jobs using selected filters",
+        response_summary: "jobs[].job_id, jobs[].title",
+        example_fields: ["jobs[].job_id", "jobs[].title"],
+        requires: [
+          { key: "department", required: true, source: "query", semantic_type: "department_option" },
+          { key: "location", required: true, source: "query", semantic_type: "location_option" },
+        ],
+        provides: [{ key: "job_id", source: "response", semantic_type: "job_identifier" }],
+        negative_tags: [],
+        confidence: 0.95,
+        observed_at: "2026-03-09T10:00:01.000Z",
+      },
+    };
+
+    expect(formEndpoint.semantic?.resource_kind).toBe("form");
+    expect(formEndpoint.semantic?.provides?.map((binding) => binding.key)).toContain("department");
+    expect(formEndpoint.semantic?.provides?.map((binding) => binding.key)).toContain("location");
+
+    const graph = buildSkillOperationGraph([formEndpoint, searchEndpoint]);
+    expect(graph.entry_operation_ids).toContain("jobs-form-options");
+    expect(graph.edges.some((edge) => edge.edge_id === "jobs-form-options:jobs-search:department")).toBe(true);
+    expect(graph.edges.some((edge) => edge.edge_id === "jobs-form-options:jobs-search:location")).toBe(true);
+    expect(graph.edges).toHaveLength(2);
+  });
+});

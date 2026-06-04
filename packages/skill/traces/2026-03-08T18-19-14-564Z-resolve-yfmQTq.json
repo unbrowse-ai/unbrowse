@@ -1,0 +1,32 @@
+{
+  "intent": "search posts about agentic routing layer",
+  "params": {
+    "url": "https://www.reddit.com/search/?q=agentic+routing+layer"
+  },
+  "context": {
+    "url": "https://www.reddit.com/search/?q=agentic+routing+layer"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "fCYDZof7XyYILKsFbSavR",
+      "score": 912.9,
+      "description": "Canonical document replay for search posts about agentic routing layer",
+      "url": "https://www.reddit.com/search/?q=agentic+routing+layer",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "fCYDZof7XyYILKsFbSavR",
+      "score": 922.9,
+      "trace_success": true,
+      "judge": "pass",
+      "status_code": 200,
+      "local_reason": "post_rows"
+    }
+  ],
+  "outcome": "autoexec_success",
+  "source": "live-capture",
+  "skill_id": "2WALU4DK1W6JY_-34_FSw",
+  "selected_endpoint_id": "fCYDZof7XyYILKsFbSavR"
+}

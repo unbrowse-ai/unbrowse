@@ -1,0 +1,24 @@
+{
+  "intent": "search hacker news",
+  "params": {
+    "url": "https://hn.algolia.com/",
+    "q": "openai"
+  },
+  "context": {
+    "url": "https://hn.algolia.com/"
+  },
+  "search_candidates": [],
+  "autoexec_attempts": [],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "wUuo2n6rlN_JUSwOcv4pC",
+  "available_endpoints": [
+    {
+      "endpoint_id": "4IPDrgs0GpiAgZUbrHo20",
+      "score": 656,
+      "description": "Structured replay for search hacker news",
+      "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story"
+    }
+  ],
+  "extra": null
+}

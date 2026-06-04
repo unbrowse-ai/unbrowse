@@ -1,0 +1,29 @@
+{
+  "trace_id": "qODBMY3Ok--Vr-lqS6vp2",
+  "skill_id": "npETXG-5DvzZCwrCRS0UM",
+  "endpoint_id": "sc-CjEs5tvowRyhiz6ZPj",
+  "started_at": "2026-02-23T15:34:41.194Z",
+  "completed_at": "2026-02-23T15:34:42.819Z",
+  "success": true,
+  "status_code": 200,
+  "result": [
+    {
+      "artNo": 1084,
+      "artDate": "2026-02-17T00:00:00",
+      "tickers": "HST CAR ICUI WIX GLPI",
+      "title": "Signals",
+      "summary": "The S&P 500 remains range-bound until shown otherwise, but there are signs that it is about to change, while everyone knows the Energy story by now. ",
+      "imageName": null,
+      "artType": "WR"
+    },
+    {
+      "artNo": 269,
+      "artDate": "2026-02-16T17:46:49",
+      "tickers": "HL WMT PANW KGC OPEN CVNA",
+      "title": "The Most Anticipated Earnings Releases for the Week of February 16, 2026",
+      "summary": "The most anticipated earnings releases for the week of February 16, 2026, are Hecla Mining #HL, Walmart #WMT, Palo Alto Networks #PANW, Kinross Gold #KGC, Opendoor Technologies #OPEN, Carvana #CVNA, Analog Devices #ADI, Coeur D'Alene Mines #CDE, Pan American Silver #PAAS, and Energy Transfer #ET.",
+      "imageName": "topcal20260216b.png",
+      "artType": "GV"
+    }
+  ]
+}

@@ -1,0 +1,203 @@
+{
+  "trace_id": "zYnAl16UuaucHzF51R270",
+  "skill_id": "9DjyjibrfBTKrPihFvmqA",
+  "endpoint_id": "yfkoBJtSL9MQen1AGakQ2",
+  "started_at": "2026-03-12T01:25:23.998Z",
+  "completed_at": "2026-03-12T01:25:25.363Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "vol00009-efta01201835-pdf",
+          "subject": "(no subject)",
+          "latest_sender_name": "Unknown",
+          "formatted_date": "Oct 29, 2014",
+          "preview": "<b>Mouse</b> on it. She is smiling and holding a <b>Mickey</b> <b>Mouse</b>-shaped ice cream bar. The background appears to be an outdoor seating area, possibly at a theme",
+          "avatar_color": "#db4437",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta01201835-pdf",
+          "sender": null,
+          "content_markdown": "lane-Images: IMG_4686.JPG\n\nEFTA01201835\n\nSent from my iPhone\n\nEFTA01201836\n\nA young woman is wearing Minnie Mouse ears and a blue t-shirt with Mickey Mouse on it. She is smiling and holding a Mickey Mouse-shaped ice cream bar. The background appears to be an outdoor seating area, possibly at a theme park, with colorful umbrellas and chairs.\n\nEFTA01201837"
+        },
+        "field": "content_markdown",
+        "rank": 29.177921
+      },
+      {
+        "thread": {
+          "doc_id": "vol00009-efta01189604-pdf",
+          "subject": "Re: G650 Air Gasper",
+          "latest_sender_name": "jeevacation@gmail.com",
+          "formatted_date": "Nov 5, 2013",
+          "preview": "Ok , thanks trip . Entertainment <b>Mickey</b> <b>Mouse</b> . Blue tooth failed , speakers distorted , buzz , screen - Larry has video for you",
+          "avatar_color": "#db4437",
+          "count": 3,
+          "attachments": 0,
+          "latest_is_from_epstein": true,
+          "isRedacted": false,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "vol00009-efta01189604-pdf",
+          "sender": "jeevacation@gmail.com",
+          "content_markdown": "Ok , thanks trip . Entertainment Mickey Mouse . Blue tooth failed , speakers distorted , buzz , screen - Larry has video for you"
+        },
+        "field": "content_markdown",
+        "rank": 26.946976
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02368107",
+          "subject": "RE: Like dat?!",
+          "latest_sender_name": "Terry Kafka",
+          "formatted_date": "Sep 22, 2015",
+          "preview": "Hey, I was in Europ= educating myself and seeing the world and you were printin= fucken <b>mickey</b> <b>mouse</b> shirts at the YMCA. Warren was at the height of",
+          "avatar_color": "#f39c12",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 6,
+          "unredactCount": 1
+        },
+        "matchedEmail": {
+          "id": "EFTA02368107-1",
+          "sender": "Terry Kafka",
+          "content_markdown": "Hey, I was in Europ= educating myself and seeing the world and you were printin= fucken mickey mouse shirts at the YMCA. Warren was at the height of his acne problem while working the fryers a Nathans dishing o=t FF's."
+        },
+        "field": "content_markdown",
+        "rank": 23.67787
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02153663",
+          "subject": "Disney Live! Mickey's Music Festival: Get Presale Tickets NOW",
+          "latest_sender_name": "The Theater at Madison Square Garden",
+          "formatted_date": "Nov 29, 2012",
+          "preview": "Performers:** <b>Mickey</b> <b>Mouse</b> and friends, stars from The Little Mermaid, Aladdin, and Disney/Pixar&#x27;s Toy Story.\n**Presale Ticket Availability:** Now",
+          "avatar_color": "#9c27b0",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 2
+        },
+        "matchedEmail": {
+          "id": "EFTA02153663-0",
+          "sender": "The Theater at Madison Square Garden",
+          "content_markdown": "**Event:** Mickey's Music Festival\n**Presented by:** Disney Live!\n**Venue:** The Theater at Madison Square Garden\n**Dates:** March 21 - 31, 2013\n**Performers:** Mickey Mouse and friends, stars from The Little Mermaid, Aladdin, and Disney/Pixar's Toy Story.\n**Presale Ticket Availability:** Now through Thursday, December 17 at 11:59 PM\n**General Public Sale:** Tuesday, December 18 at 10 AM\n**Promotional Code:** MUSIC\n\n| Event Name                  | Venue                                 | Dates   "
+        },
+        "field": "content_markdown",
+        "rank": 21.241585
+      },
+      {
+        "thread": {
+          "doc_id": "42cc032344de22610b12f932137602c9",
+          "subject": "The Most Magical Gift for Valentine's Day - See Your 2 Names \"Carved\" on a Tree ❤️",
+          "latest_sender_name": "The Bradford Exchange",
+          "formatted_date": "Jan 15, 2021",
+          "preview": "\n<b>Mickey</b> <b>Mouse</b> and Minnie <b>Mouse</b> Plate with Your 2 NamesMickey <b>Mouse</b> and Minnie <b>Mouse</b> Plate with Your 2 Names \n \n \n\nhttp://click.sf.bradfordexchange.com",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 1,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "e8f38cf23732b5b3322719a8c8462d3b",
+          "sender": "The Bradford Exchange <TheBradfordExchange@sf.bradfordexchange.com>",
+          "content_markdown": "\nMickey Mouse and Minnie Mouse Plate with Your 2 NamesMickey Mouse and Minnie Mouse Plate with Your 2 Names \n \n \n\nhttp://click.sf.bradfordexchange.com/?qs=31418d6a32195a45d8fb1b9b47f0ca8fdddb7752f52bfcdc43ae0d3cf96aea1222fb9caaa9adbe371887d9946c34fa13c3e77c83ecaf42e8c59b20f819752fe2 \n \n \n \n\nhttp://click.sf.bradfordexchange.com/?qs=31418d6a32195a45525aefd00a173024ee3f8480e7845349a4b1d68da8e7f5918d8a4c3ae4e7bbb3b6746ed5001ea8149048daf9b500510e5fd0e9ed981a9907 \n\nThe Bradford Exchange offers generou"
+        },
+        "field": "content_markdown",
+        "rank": 18.97566
+      },
+      {
+        "thread": {
+          "doc_id": "a93f4263e5874a0f419662850a901075",
+          "subject": "Let This Disney Duo Make the Perfect Expression to Celebrate Your Love This Valentine's Day",
+          "latest_sender_name": "The Bradford Exchange",
+          "formatted_date": "Jan 4, 2021",
+          "preview": "that will never fade. Just like your love! And because a sculptural <b>Mickey</b> <b>Mouse</b> and Minnie <b>Mouse</b> strike a passionate pose on the base, they will",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 3,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "f12c24a5a097e66c46a03b0d1f7cf719",
+          "sender": "The Bradford Exchange <TheBradfordExchange@sf.bradfordexchange.com>",
+          "content_markdown": "\nPersonalized Disney Romantic Handmade Rose BouquetPersonalized Disney Romantic Handmade Rose Bouquet \n \n \n\nhttp://click.sf.bradfordexchange.com/?qs=8bece61b434f8554ce14771d75208742ac1d76ff8fb6b2cc5b5a06ba9b5710e47df8e0bb29cfe0b06d4b432685b449981d8fc46e3e3ce9b6 \n \n \n \n\nhttp://click.sf.bradfordexchange.com/?qs=8bece61b434f85541f2c2a99820da7fa14d448c674bedbc0ea4e38ff793fb5d3040a8dbb4d0433955aed8739e9b5316575c6c6f231fdc470 \n\nhttp://click.sf.bradfordexchange.com/?qs=8bece61b434f85541f2c2a99820da7fa1"
+        },
+        "field": "content_markdown",
+        "rank": 16.96495
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02319277",
+          "subject": "Glittered Record Sleeve Art, Vintage Bikes, Curious Reconfigured Curios, '90s Fashion Finds, Haute Couture Scarves & More Vintage Finds With Free Shipping.",
+          "latest_sender_name": "Fab",
+          "formatted_date": "Jan 28, 2013",
+          "preview": "Danish bike from the 30s, an agate skull jewelry box and a <b>Mickey</b> <b>Mouse</b> sweatshirt from the 90s.\n\nArthaz\nFine Art On Paper\n\nmmm designs\nGlamorous",
+          "avatar_color": "#00acc1",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 1
+        },
+        "matchedEmail": {
+          "id": "EFTA02319277-0",
+          "sender": "Fab <reminder@fab.com>",
+          "content_markdown": "If you are unable to see this message, click here to view.\nTo ensure delivery to your inbox, please add reminder@fab.com.\nPrefer shiny and new to scratch and dent? Opt out of Vintage emails here.\n\nShop Now\n\nVintage Monday\nSales start today at 7 pm ET = 4 pm PT\n\nShopping is mindless. Making discoveries isn't. Welcome to our treasure chest of amazing finds like a signed Chagall lithograph, a bedazzled Madonna album cover, a refurbished Danish bike from the 30s, an agate skull jewelry box and a Mic"
+        },
+        "field": "content_markdown",
+        "rank": 12.353499
+      },
+      {
+        "thread": {
+          "doc_id": "87809c954948d8a20507bee3648281b3",
+          "subject": "New York",
+          "latest_sender_name": "Cecilia Steen",
+          "formatted_date": "Mar 22, 2008",
+          "preview": "this desert-<b>Mickey</b>-<b>Mouse</b>-wanna-be-town.\n\n*Miraj - an illusion*\nI went to Miraj, an Islamic museum where all objects are for sale.\nSupposedly, it&#x27;s",
+          "avatar_color": "#00acc1",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": false,
+          "starCount": 26,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "8518aef0f844f12471ef9e977ae3dabe",
+          "sender": "Cecilia Steen <cecilia.steen@gmail.com>",
+          "content_markdown": "Dear JE,\nI need to give MAC Capital 12-18 months to have something solid on my CV,\nbut then I'm out of here. As of now, my plan is to return to New York or go\nto London.\n\n\n\n*Dubai diary:*\n +30 C so still a bit on the chilly side...\n\n*New York, New York*\nI don't want to hear \"what did I tell you\".\n\nI woke up in anxiety: I miss New York! I want to move back to New York! This\ntown is suffocating me. I can't stay in this desert-town with its\n50-levels, futuristic towers; oversized SUVs; and Arabs wh"
+        },
+        "field": "content_markdown",
+        "rank": 9.771527
+      }
+    ],
+    "total": 17,
+    "page": 1,
+    "totalPages": 3,
+    "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjkuNzcxNTI3LCJkb2NfaWQiOiI4NzgwOWM5NTQ5NDhkOGEyMDUwN2JlZTM2NDgyODFiMyJ9",
+    "operators": []
+  }
+}

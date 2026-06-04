@@ -1,0 +1,108 @@
+{
+  "trace_id": "mTNZQVnjOakcVcbLU4zyv",
+  "skill_id": "AMNxNPu5WDcJxu5l-o5wb",
+  "endpoint_id": "CtUrWDhK4RDQ9KE7dcD5E",
+  "started_at": "2026-03-08T01:42:43.034Z",
+  "completed_at": "2026-03-08T01:43:04.780Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "full_name": "microsoft/qsharp-compiler",
+        "url": "https://github.com/microsoft/qsharp-compiler",
+        "description": "Q# compiler, command line tool, and Q# language server",
+        "language": "C#",
+        "stargazers_count": "696"
+      },
+      {
+        "full_name": "ialbert/biostar-central",
+        "url": "https://github.com/ialbert/biostar-central",
+        "description": "Biostar Q&amp;A",
+        "language": "Python",
+        "stargazers_count": "587"
+      },
+      {
+        "full_name": "yenchenlin/DeepLearningFlappyBird",
+        "url": "https://github.com/yenchenlin/DeepLearningFlappyBird",
+        "description": "Flappy Bird hack using Deep Reinforcement Learning (Deep Q-learning).",
+        "language": "Python",
+        "stargazers_count": "6792"
+      },
+      {
+        "full_name": "microsoft/QuantumKatas",
+        "url": "https://github.com/microsoft/QuantumKatas",
+        "description": "Tutorials and programming exercises for learning Q# and quantum computing",
+        "language": "Jupyter Notebook",
+        "stargazers_count": "4836"
+      },
+      {
+        "full_name": "caelum/mamute",
+        "url": "https://github.com/caelum/mamute",
+        "description": "Q&amp;A Engine",
+        "language": "Java",
+        "stargazers_count": "341"
+      },
+      {
+        "full_name": "pskrunner14/trading-bot",
+        "url": "https://github.com/pskrunner14/trading-bot",
+        "description": "Stock Trading Bot using Deep Q-Learning",
+        "language": "Jupyter Notebook",
+        "stargazers_count": "1144"
+      },
+      {
+        "full_name": "tambetm/simple_dqn",
+        "url": "https://github.com/tambetm/simple_dqn",
+        "description": "Simple deep Q-learning agent.",
+        "language": "HTML",
+        "stargazers_count": "702"
+      },
+      {
+        "full_name": "wang4yu6peng13/MaterialQQLite",
+        "url": "https://github.com/wang4yu6peng13/MaterialQQLite",
+        "description": "已挂Q_Q",
+        "language": "Java",
+        "stargazers_count": "128"
+      },
+      {
+        "full_name": "spragunr/deep_q_rl",
+        "url": "https://github.com/spragunr/deep_q_rl",
+        "description": "Theano-based implementation of Deep Q-learning",
+        "language": "Python",
+        "stargazers_count": "1093"
+      },
+      {
+        "full_name": "edwardhdlu/q-trader",
+        "url": "https://github.com/edwardhdlu/q-trader",
+        "description": "Deep Q-learning driven stock trader bot",
+        "language": "Python",
+        "stargazers_count": "904"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://github.com/search?q={q}&type={type}"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].full_name",
+      "data[].url",
+      "data[].description",
+      "data[].language",
+      "data[].stargazers_count",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

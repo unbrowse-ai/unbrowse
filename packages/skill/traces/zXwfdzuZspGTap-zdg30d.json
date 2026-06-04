@@ -1,0 +1,75 @@
+{
+  "trace_id": "zXwfdzuZspGTap-zdg30d",
+  "skill_id": "linkedin-voyager-profile-v1",
+  "endpoint_id": "li-me",
+  "started_at": "2026-02-25T02:16:00.533Z",
+  "completed_at": "2026-02-25T02:16:00.865Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": {
+      "plainId": 501185070,
+      "publicContactInfo": {
+        "$type": "com.linkedin.voyager.identity.shared.PublicContactInfo"
+      },
+      "premiumSubscriber": false,
+      "*miniProfile": "urn:li:fs_miniProfile:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA",
+      "$type": "com.linkedin.voyager.common.Me"
+    },
+    "included": [
+      {
+        "customPronoun": null,
+        "memorialized": false,
+        "lastName": "Tham",
+        "dashEntityUrn": "urn:li:fsd_profile:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA",
+        "standardizedPronoun": null,
+        "occupation": "Problems seed opportunity.",
+        "objectUrn": "urn:li:member:501185070",
+        "$anti_abuse_metadata": {
+          "$anti_abuse_uuid": "468bf736-2081-498e-af96-8dee6b6d8806"
+        },
+        "backgroundImage": null,
+        "picture": {
+          "digitalmediaAsset": "urn:li:digitalmediaAsset:D5603AQFPvIBqmeDL4Q",
+          "artifacts": [
+            {
+              "width": 100,
+              "fileIdentifyingUrlPathSegment": "100_100/profile-displayphoto-shrink_100_100/0/1710350584699?e=1773878400&v=beta&t=YinmqWh8RFInltxnPF2aSUbGu50D5ojS2xRuR3aQyeA",
+              "expiresAt": 1773878400000,
+              "height": 100,
+              "$type": "com.linkedin.common.VectorArtifact"
+            },
+            {
+              "width": 200,
+              "fileIdentifyingUrlPathSegment": "200_200/profile-displayphoto-shrink_200_200/0/1710350584699?e=1773878400&v=beta&t=IC98vVTTXarKHGIVzJ3erj2z4kLtX1bi_ydUUAaKdEQ",
+              "expiresAt": 1773878400000,
+              "height": 200,
+              "$type": "com.linkedin.common.VectorArtifact"
+            },
+            {
+              "width": 400,
+              "fileIdentifyingUrlPathSegment": "400_400/profile-displayphoto-shrink_400_400/0/1710350584699?e=1773878400&v=beta&t=Y20yUzmo4q7B9aMPmDK_4fa-g2w_bsqPJIDLwPQdwOw",
+              "expiresAt": 1773878400000,
+              "height": 400,
+              "$type": "com.linkedin.common.VectorArtifact"
+            },
+            {
+              "width": 540,
+              "fileIdentifyingUrlPathSegment": "800_800/profile-displayphoto-shrink_800_800/0/1710350584699?e=1773878400&v=beta&t=dnj4KMeDeOrPBjhe_EFNBUqcHQk6JheH6zPBkgDTe0w",
+              "expiresAt": 1773878400000,
+              "height": 540,
+              "$type": "com.linkedin.common.VectorArtifact"
+            }
+          ],
+          "rootUrl": "https://media.licdn.com/dms/image/v2/D5603AQFPvIBqmeDL4Q/profile-displayphoto-shrink_",
+          "$type": "com.linkedin.common.VectorImage"
+        },
+        "$type": "com.linkedin.voyager.identity.shared.MiniProfile",
+        "firstName": "Lewis",
+        "entityUrn": "urn:li:fs_miniProfile:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA",
+        "publicIdentifier": "lewistham",
+        "trackingId": "kkhlFLWVSJ2LGB0Rv8Qu4w=="
+      }
+    ]
+  }
+}

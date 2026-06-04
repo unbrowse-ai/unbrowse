@@ -1,0 +1,23 @@
+{
+  "intent": "search docs",
+  "params": {
+    "url": "https://developer.mozilla.org/en-US/search?q=fetch"
+  },
+  "context": {
+    "url": "https://developer.mozilla.org/en-US/search?q=fetch"
+  },
+  "search_candidates": [],
+  "autoexec_attempts": [],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "CmvOOAosa3Ec0XR208wb7",
+  "available_endpoints": [
+    {
+      "endpoint_id": "kTiUwnCO96nz094qYSSKL",
+      "score": 511.7,
+      "description": "Structured replay for search docs",
+      "url": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US"
+    }
+  ],
+  "extra": null
+}

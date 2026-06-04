@@ -9,11 +9,11 @@ Unbrowse is not just a tool you call; it's a platform your product can stand on.
 
 Five capabilities you can compose, not just one:
 
-1. **Intent → API resolution.** `resolve(intent, url)` returns a ranked shortlist of callable endpoints. Cache hit: <200ms. Miss: live capture, reverse-engineer, publish, return.
+1. **Intent → API resolution.** `resolve(intent, url)` returns a ranked shortlist of callable endpoints. Cache hit: <200ms. Miss: live capture, map the internal API routes, publish, return.
 2. **Marketplace of captured routes.** Every successful capture is reusable by any other agent. You inherit the routes other operators captured; they inherit yours.
 3. **x402 micro-payments.** Per-execution USDC settlement on Solana. Earnings auto-attribute to your wallet; spending pulls from the same wallet.
 4. **Local-first runtime.** Captures, auth, and replays stay on the operator's box by default. Marketplace publishes only the route shape, never response bodies.
-5. **Headless Chrome with cookie injection.** Auth is reused from the user's real Chrome/Firefox profile, so gated sites work without re-logging in.
+5. **Headless Chrome using your existing browser session.** Auth is reused from the user's real Chrome/Firefox profile, so gated sites work without re-logging in.
 
 Treat these as five independent legos. The interesting products combine 2-4 of them.
 

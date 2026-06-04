@@ -1,0 +1,18 @@
+{
+  "trace_id": "YCSUAJX-bHeR__M43yeDq",
+  "skill_id": "GZDQd1YpRtod3RsL4kz4i",
+  "endpoint_id": "b1z2YwLbyNsGB3T6y14Nt",
+  "started_at": "2026-03-14T13:45:42.675Z",
+  "completed_at": "2026-03-14T13:45:43.154Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "2ad284fd8984@3742efe",
+  "result": {
+    "finance": {
+      "result": {
+        "earnings": []
+      },
+      "error": null
+    }
+  }
+}

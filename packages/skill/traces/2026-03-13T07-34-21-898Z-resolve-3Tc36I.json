@@ -1,0 +1,23 @@
+{
+  "intent": "search projects",
+  "params": {
+    "url": "https://gitlab.com/explore/projects?name=openai"
+  },
+  "context": {
+    "url": "https://gitlab.com/explore/projects?name=openai"
+  },
+  "search_candidates": [],
+  "autoexec_attempts": [],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "k4S3B8zR7C2iDyPGm84j0",
+  "available_endpoints": [
+    {
+      "endpoint_id": "bCSDaN7HrykIkocQ7AhAH",
+      "score": 486.4,
+      "description": "Structured replay for search projects",
+      "url": "https://gitlab.com/api/v4/projects?search={name}&simple=true&per_page=20"
+    }
+  ],
+  "extra": null
+}

@@ -1,0 +1,27 @@
+{
+  "trace_id": "gbrAJgVqN1DSBr47JsWMM",
+  "skill_id": "3rvgINtjR025_jSzitEp_",
+  "endpoint_id": "RkSzIWXufsggLY_wcIaXC",
+  "started_at": "2026-02-25T02:21:10.350Z",
+  "completed_at": "2026-02-25T02:21:10.460Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": {
+      "metadata": {
+        "numUnseen": 0,
+        "latestPublishedAt": 1,
+        "$type": "com.linkedin.voyager.identity.me.NotificationsMetadata"
+      },
+      "entityUrn": "urn:li:collectionResponse:sEpR//eyUZldHde37d6xIHYWLz7b3giD6Mjo+o3FS8g=",
+      "elements": [],
+      "paging": {
+        "count": 10,
+        "start": 0,
+        "links": []
+      },
+      "$type": "com.linkedin.restli.common.CollectionResponse"
+    },
+    "included": []
+  }
+}

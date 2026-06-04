@@ -1,0 +1,123 @@
+{
+  "intent": "search posts",
+  "params": {
+    "url": "https://mastodon.social/search?q=openai"
+  },
+  "context": {
+    "url": "https://mastodon.social/search?q=openai"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "meLVH7KUML_ksaLPQWGj1",
+      "score": 624,
+      "description": "Captured page artifact for search posts",
+      "url": "https://mastodon.social/search?q={q}",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "aYA3o-jNQb75BjnwzzmHA",
+      "score": 143.5,
+      "description": "Searches Account with id, username, acct, display_name, locked, bot using q, resolve, limit",
+      "url": "https://mastodon.social/api/v2/search?q={q}&resolve={resolve}&limit={limit}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "EvOSji0Yh1v25LWB44pj9",
+      "score": 33.3,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/streaming",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "aYA3o-jNQb75BjnwzzmHA",
+      "score": 233.5,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "empty_array"
+    },
+    {
+      "endpoint_id": "meLVH7KUML_ksaLPQWGj1",
+      "score": 659,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "wrong_entity_type"
+    },
+    {
+      "endpoint_id": "EvOSji0Yh1v25LWB44pj9",
+      "score": 48.3,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "A-dNInSidWmlnd2Bi-Ff_",
+  "available_endpoints": [
+    {
+      "endpoint_id": "meLVH7KUML_ksaLPQWGj1",
+      "score": 624,
+      "description": "Captured page artifact for search posts",
+      "url": "https://mastodon.social/search?q={q}"
+    },
+    {
+      "endpoint_id": "2qg4d1HXYRlLVTXin73n6",
+      "score": 167.3,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/accounts/lookup?q={q}"
+    },
+    {
+      "endpoint_id": "aYA3o-jNQb75BjnwzzmHA",
+      "score": 143.5,
+      "description": "Searches Account with id, username, acct, display_name, locked, bot using q, resolve, limit",
+      "url": "https://mastodon.social/api/v2/search?q={q}&resolve={resolve}&limit={limit}"
+    },
+    {
+      "endpoint_id": "pVMTbqGKqkA6eqTwTGdhx",
+      "score": 136.5,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v2/filters"
+    },
+    {
+      "endpoint_id": "9Y07sty4WjsPzDCHDgmid",
+      "score": 135.7,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/accounts/update_credentials"
+    },
+    {
+      "endpoint_id": "RtXN5x0XBQNrv2E46p3WH",
+      "score": 95.7,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v2/search?q={q}"
+    },
+    {
+      "endpoint_id": "s_kwolfLk8qWR8ciGmuL-",
+      "score": 95.7,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/accounts/search?q={q}"
+    },
+    {
+      "endpoint_id": "EvOSji0Yh1v25LWB44pj9",
+      "score": 33.3,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/streaming"
+    },
+    {
+      "endpoint_id": "dCCXcixqKDiyFIF8cGAZZ",
+      "score": 33.3,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/reports"
+    },
+    {
+      "endpoint_id": "W-R7lDyNM2HtLZv3btLfu",
+      "score": 33.3,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://mastodon.social/api/v1/accounts"
+    }
+  ],
+  "extra": null
+}

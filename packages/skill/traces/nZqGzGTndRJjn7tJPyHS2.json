@@ -1,0 +1,177 @@
+{
+  "trace_id": "nZqGzGTndRJjn7tJPyHS2",
+  "skill_id": "hcoy3KBzvpfGLwvRblzeM",
+  "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+  "started_at": "2026-03-08T01:56:46.749Z",
+  "completed_at": "2026-03-08T01:56:52.024Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "title": "Define how teams and AI agents work together",
+        "heading_1": "Your end-to-end DevOps process in one place",
+        "heading_2": "Be proactive with security built in, not bolted on",
+        "link": "/gitlab-duo-agent-platform/",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769011778/wptltgnfxjwuljdy07fs.png",
+        "description": "Customize your workflows for development, testing, security, and deployment. Teams orchestrate from above the software lifecycle while AI agents execute within it, automating repetitive tasks based on the rules and guardrails you set. Your agents turn issues into merge requests, remediate vulnerabilities, and review code — your team remains in control."
+      },
+      {
+        "title": "Define how teams and AI agents work together",
+        "heading_1": "Your end-to-end DevOps process in one place",
+        "heading_2": "Be proactive with security built in, not bolted on",
+        "link": "/gitlab-duo-agent-platform/",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769011778/wptltgnfxjwuljdy07fs.png",
+        "description": "Customize your workflows for development, testing, security, and deployment. Teams orchestrate from above the software lifecycle while AI agents execute within it, automating repetitive tasks based on the rules and guardrails you set. Your agents turn issues into merge requests, remediate vulnerabilities, and review code — your team remains in control."
+      },
+      {
+        "title": "Define how teams and AI agents work together",
+        "link": "/gitlab-duo-agent-platform/",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769011778/wptltgnfxjwuljdy07fs.png",
+        "description": "Customize your workflows for development, testing, security, and deployment. Teams orchestrate from above the software lifecycle while AI agents execute within it, automating repetitive tasks based on the rules and guardrails you set. Your agents turn issues into merge requests, remediate vulnerabilities, and review code — your team remains in control."
+      },
+      {
+        "title": "Define how teams and AI agents work together",
+        "link": "/gitlab-duo-agent-platform/",
+        "description": "Customize your workflows for development, testing, security, and deployment. Teams orchestrate from above the software lifecycle while AI agents execute within it, automating repetitive tasks based on the rules and guardrails you set. Your agents turn issues into merge requests, remediate vulnerabilities, and review code — your team remains in control."
+      },
+      {
+        "title": "Your end-to-end DevOps process in one place",
+        "link": "/platform/",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769195293/qsofzzb8rawp0tmjhqiq.png",
+        "description": "From planning to source code management to CI/CD, everything you need to build and ship software faster in one platform. All your data — projects, releases, code — in a single data plane, so your team and agents can work from one source of truth."
+      },
+      {
+        "title": "Your end-to-end DevOps process in one place",
+        "link": "/platform/",
+        "description": "From planning to source code management to CI/CD, everything you need to build and ship software faster in one platform. All your data — projects, releases, code — in a single data plane, so your team and agents can work from one source of truth."
+      },
+      {
+        "title": "Be proactive with security built in, not bolted on",
+        "link": "/solutions/application-security-testing/",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769195293/kdkx1wwhhxlu0krrmy1f.png",
+        "description": "Build secure products with fewer security products. Consolidate scanners like SAST, SCA, Secret Detection, and DAST into one platform. Security findings appear directly in merge requests and IDEs. Apply controls for compliance and collect audit-ready evidence automatically in every pipeline."
+      },
+      {
+        "title": "Be proactive with security built in, not bolted on",
+        "link": "/solutions/application-security-testing/",
+        "description": "Build secure products with fewer security products. Consolidate scanners like SAST, SCA, Secret Detection, and DAST into one platform. Security findings appear directly in merge requests and IDEs. Apply controls for compliance and collect audit-ready evidence automatically in every pipeline."
+      },
+      {
+        "title": "Financial Services",
+        "heading_1": "Public Sector",
+        "heading_2": "Telecommunications",
+        "heading_3": "Automotive",
+        "heading_4": "Education",
+        "heading_5": "Aerospace",
+        "link": "/solutions/finance/",
+        "description": "Meet strict regulatory requirements without sacrificing delivery speed. Maintain audit trails, access controls, and comprehensive security testing."
+      },
+      {
+        "title": "Financial Services",
+        "link": "/solutions/finance/",
+        "description": "Meet strict regulatory requirements without sacrificing delivery speed. Maintain audit trails, access controls, and comprehensive security testing."
+      },
+      {
+        "title": "Public Sector",
+        "link": "/solutions/public-sector/",
+        "description": "Build software that meets federal security standards. Deploy in air-gapped environments, maintain government compliance, and secure software by design."
+      },
+      {
+        "title": "Telecommunications",
+        "link": "/solutions/telecommunications/",
+        "description": "Scale network infrastructure with confidence. Support complex deployment pipelines, strict uptime requirements, and distributed edge environments."
+      },
+      {
+        "title": "Automotive",
+        "link": "/solutions/automotive/",
+        "description": "Accelerate the automotive software lifecycle. Automate compliance workflows for safety standards, speed embedded development, and coordinate global teams."
+      },
+      {
+        "title": "Education",
+        "link": "/solutions/education/",
+        "description": "Empower students and researchers while protecting institutional data. Choose from flexible deployment options and enable research collaboration."
+      },
+      {
+        "title": "Aerospace",
+        "link": "/solutions/aerospace/",
+        "description": "Accelerate development from flight-critical firmware to customer applications. Maintain safety standards, track SBOMs, and deploy in airgap environments."
+      },
+      {
+        "title": "13x",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769450239/yq1txbagg6awzbvxysgu.svg"
+      },
+      {
+        "title": "20x",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769450468/tbytyc3ipymcnwxxhvcx.svg"
+      },
+      {
+        "title": "100",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769451189/y9yy3uinw04fallf50fv.svg"
+      },
+      {
+        "title": "6x",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769451508/lzkhfgggxliugbzwbhgn.svg"
+      },
+      {
+        "title": "17%",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1768498187/pue6dvw8gfv5f2y9u49t.svg"
+      },
+      {
+        "title": "97%",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769532440/rytlpdqegy0mtknswro7.png"
+      },
+      {
+        "title": "80x",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1755887560/u8h1wygsaoesusiws0z8.svg"
+      },
+      {
+        "title": "30%",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1751317477/ywbjhp3fyrczts8jbjgx.png"
+      },
+      {
+        "title": "4 hours",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1755887545/atbx42tpsb1vtmodxe0p.svg"
+      },
+      {
+        "title": "82%",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769454009/ukt3hrgbwc28krdcr9dl.svg"
+      },
+      {
+        "title": "50%",
+        "image": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_auto,q_80,w_800/v1769453374/kzndao7yczpkb0s6xy4q.svg"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://about.gitlab.com/",
+      "selector": "[class*='card']"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].title",
+      "data[].heading_1",
+      "data[].heading_2",
+      "data[].link",
+      "data[].image",
+      "data[].description",
+      "data[].heading_3",
+      "data[].heading_4",
+      "data[].heading_5",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

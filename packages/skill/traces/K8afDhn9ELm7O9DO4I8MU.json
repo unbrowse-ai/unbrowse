@@ -1,0 +1,123 @@
+{
+  "trace_id": "K8afDhn9ELm7O9DO4I8MU",
+  "skill_id": "KFkH1w2Y-PGRjRX_Cep2A",
+  "endpoint_id": "QxJCw-pwXP9EGRiXeXKGQ",
+  "started_at": "2026-03-12T01:43:42.909Z",
+  "completed_at": "2026-03-12T01:43:58.931Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "data": [
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "title": "Muhammad Wasif\n              \n                \n                  Premium • 3rd+",
+            "link": "https://www.linkedin.com/in/mwasifanwar?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAADy5Hz0BjZB9_cFPtgdye7Hq25QHo2DulxQ",
+            "url": "https://www.linkedin.com/in/mwasifanwar?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAADy5Hz0BjZB9_cFPtgdye7Hq25QHo2DulxQ",
+            "image": "https://media.licdn.com/dms/image/v2/D4D03AQHLH7IoHECcRQ/profile-displayphoto-scale_100_100/B4DZpFljE4IEAc-/0/1762104063082?e=1775088000&v=beta&t=l8mOaf0z_CwiEnDsZVPQF_Xdx1PyeLOJ2um8xaPlviA",
+            "description": "Quietly building the future, you’ll soon be using.",
+            "date": "Muhammad Wasif\n              \n                \n                  Premium • 3rd+\n                \n            \n\n              \n                Quietly building the future, you’ll soon be using."
+          },
+          {
+            "title": "Amazon Web Services (AWS)",
+            "link": "https://www.linkedin.com/company/amazon-web-services/posts",
+            "url": "https://www.linkedin.com/company/amazon-web-services/posts",
+            "image": "https://media.licdn.com/dms/image/v2/D4E0BAQFqdm1TZ-RZKQ/company-logo_100_100/B4EZgOay6gHEAY-/0/1752588562343/amazon_web_services_logo?e=1775088000&v=beta&t=mk54x1OiXKBLC2cR4iXqU2hVAHnprCIa-0BQ6s2Objc",
+            "description": "10,708,262 followers",
+            "date": "Amazon Web Services (AWS)\n              \n            \n\n              \n                10,708,262 followers\n              \n\n          \n            \n              Promoted"
+          },
+          {
+            "title": "Equip agents with real-time AI insights",
+            "heading_1": "pages.awscloud.com",
+            "date": "Equip agents with real-time AI insights"
+          },
+          {
+            "title": "Patsnap",
+            "link": "https://www.linkedin.com/company/patsnap/posts",
+            "url": "https://www.linkedin.com/company/patsnap/posts",
+            "image": "https://media.licdn.com/dms/image/v2/D4E0BAQFfUzGw2nyd6A/company-logo_100_100/company-logo_100_100/0/1702907747349/patsnap_logo?e=1775088000&v=beta&t=6EnnyzLs5rRBBZdbG-tV4kigID_1SU5MPWZUa3Ubt3I",
+            "description": "55,801 followers",
+            "date": "Patsnap\n              \n            \n\n              \n                55,801 followers\n              \n\n          \n            \n              9 hours ago • Edited • Visible to anyone on or off LinkedIn"
+          }
+        ],
+        "relevance_score": 37.4
+      },
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "title": "Start a post",
+            "link": "/in/lewistham/",
+            "url": "/in/lewistham/",
+            "image": "https://media.licdn.com/dms/image/v2/D5603AQFPvIBqmeDL4Q/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1710350584699?e=1775088000&v=beta&t=EWKtMYdS8NRFslcCgVsvPTuv3ZdpfVJ_iedMj43MJH8"
+          },
+          {
+            "title": "Feed post number 1",
+            "heading_1": "Muhammad Wasif\n              \n                \n                  Premium • 3rd+",
+            "link": "https://www.linkedin.com/in/mwasifanwar?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAADy5Hz0BjZB9_cFPtgdye7Hq25QHo2DulxQ",
+            "url": "https://www.linkedin.com/in/mwasifanwar?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAADy5Hz0BjZB9_cFPtgdye7Hq25QHo2DulxQ",
+            "image": "https://media.licdn.com/dms/image/v2/D4D03AQHLH7IoHECcRQ/profile-displayphoto-scale_100_100/B4DZpFljE4IEAc-/0/1762104063082?e=1775088000&v=beta&t=l8mOaf0z_CwiEnDsZVPQF_Xdx1PyeLOJ2um8xaPlviA",
+            "description": "Quietly building the future, you’ll soon be using.",
+            "date": "Suggested"
+          },
+          {
+            "title": "Feed post number 2",
+            "heading_1": "Amazon Web Services (AWS)",
+            "heading_2": "Equip agents with real-time AI insights",
+            "heading_3": "pages.awscloud.com",
+            "link": "/in/tanshunyuan/",
+            "url": "/in/tanshunyuan/",
+            "image": "https://media.licdn.com/dms/image/v2/D5603AQE3YO1dl2EfiA/profile-displayphoto-scale_100_100/B56ZjqKDUyH8Ac-/0/1756275161996?e=1775088000&v=beta&t=Mi0hG7WSTYZdr8RrjmNkoB7T9n5xZP6Fuv1nusot8oM",
+            "description": "10,708,262 followers",
+            "date": "Tan Shun Yuan\n        \n    \n  \n            \n            \n              \n    \n\n          \n    \n  \n            \n        \n\n          Tan Shun Yuan"
+          },
+          {
+            "title": "Feed post number 3",
+            "heading_1": "Patsnap",
+            "link": "https://www.linkedin.com/company/patsnap/posts",
+            "url": "https://www.linkedin.com/company/patsnap/posts",
+            "image": "https://media.licdn.com/dms/image/v2/D4E0BAQFfUzGw2nyd6A/company-logo_100_100/company-logo_100_100/0/1702907747349/patsnap_logo?e=1775088000&v=beta&t=6EnnyzLs5rRBBZdbG-tV4kigID_1SU5MPWZUa3Ubt3I",
+            "description": "55,801 followers",
+            "date": "Patsnap\n              \n            \n\n              \n                55,801 followers\n              \n\n          \n            \n              9 hours ago • Edited • Visible to anyone on or off LinkedIn"
+          }
+        ],
+        "relevance_score": 35.4
+      }
+    ],
+    "_extraction": {
+      "method": "multiple",
+      "confidence": 0.5599999999999999,
+      "source": "rendered-dom",
+      "final_url": "https://www.linkedin.com/feed/",
+      "selector": "button.artdeco-button.artdeco-button--muted.artdeco-button--4.artdeco-button--tertiary"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].type",
+      "data[].data",
+      "data[].data[].title",
+      "data[].data[].link",
+      "data[].data[].url",
+      "data[].data[].image",
+      "data[].data[].description",
+      "data[].data[].date",
+      "data[].data[].heading_1",
+      "data[].data[].heading_2",
+      "data[].data[].heading_3",
+      "data[].relevance_score",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

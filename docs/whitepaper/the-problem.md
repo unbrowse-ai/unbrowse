@@ -12,7 +12,7 @@ Even when it works, it creates a maintenance burden:
 
 - site changes break the integration
 - long-tail site coverage stays poor
-- every team repeats the same reverse-engineering work
+- every team repeats the same route-discovery work
 
 ## 2. GUI Automation Is Too High-Friction
 

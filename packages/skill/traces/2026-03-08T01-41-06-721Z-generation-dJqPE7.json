@@ -1,0 +1,2269 @@
+{
+  "page_url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+  "final_url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+  "intent": "search people",
+  "candidate_count": 43,
+  "accepted_count": 2,
+  "decisions": [
+    {
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/style-DnHUtgUd.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://media.licdn.com/media/AAYQAQSeAAgAAQAAAAAAACH6ASeEB8EDRR2oq_bHcZDA4Q.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/vendor-CsMhJeaI.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/como-82fXHSsJ.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/delux-sortable-dxxh_Rsh.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/video.es-AS1y07n3.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/delux-editor-5kNanUmT.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/ui-D5fG4oCh.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/video-js-BOis2aix.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/sdui-BN9KKwVV.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/media-editor-kL3qS4TO.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/client-components-I8Q_zrFZ.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/entry-point-CIWFMvS-.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/security/csp?a=flagship-web",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/security/csp?a=flagship-web",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/chart-impl-CfGH9dPU.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/highcharts-yzpcuQ8Y.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/rsc-action/actions/server-request?sduiid=com.linkedin.sdui.search.requests.updateSearchHistoryRequest&parentSpanId=2XnoT8mpTMo%3D",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/rsc-action/actions/component?componentId=com.linkedin.sdui.generated.search.dsl.impl.lazyLoadedFilterBar&sduiid=com.linkedin.sdui.generated.search.dsl.impl.lazyLoadedFilterBar&parentSpanId=6MUlG89ddV4%3D",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendClientConnectivityTracking?action=sendHeartbeat",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/connect?rc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/system-icons-ByiKIj1K.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/logos-bugs-DrbpJfW2.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/entity-ghosts-DG37r_Gt.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/rsc-action/actions/server-stream-request?sduiid=com.linkedin.sdui.realtimeDefaultHandler&payload=%7B%22requestId%22%3A%22com.linkedin.sdui.realtimeDefaultHandler%22%2C%22serverRequest%22%3A%7B%22%24type%22%3A%22proto.sdui.actions.core.ServerRequest%22%2C%22requestId%22%3A%22com.linkedin.sdui.realtimeDefaultHandler%22%2C%22requestedArguments%22%3A%7B%22%24type%22%3A%22proto.sdui.actions.requests.RequestedArguments%22%2C%22payload%22%3A%7B%22sessionId%22%3A%7B%22key%22%3A%22realtimeSessionId%22%2C%22namespace%22%3A%22MemoryNamespace%22%7D%2C%22lastHeartbeatTimestamp%22%3A%7B%22key%22%3A%22realtimeHeartbeat%22%2C%22namespace%22%3A%22MemoryNamespace%22%7D%7D%2C%22requestedStateKeys%22%3A%5B%7B%22%24type%22%3A%22proto.sdui.StateKey%22%2C%22value%22%3A%22realtimeSessionId%22%2C%22key%22%3A%7B%22%24type%22%3A%22proto.sdui.Key%22%2C%22value%22%3A%7B%22%24case%22%3A%22id%22%2C%22id%22%3A%22realtimeSessionId%22%7D%7D%2C%22namespace%22%3A%22MemoryNamespace%22%2C%22isEncrypted%22%3Afalse%7D%2C%7B%22%24type%22%3A%22proto.sdui.StateKey%22%2C%22value%22%3A%22realtimeHeartbeat%22%2C%22key%22%3A%7B%22%24type%22%3A%22proto.sdui.Key%22%2C%22value%22%3A%7B%22%24case%22%3A%22id%22%2C%22id%22%3A%22realtimeHeartbeat%22%7D%7D%2C%22namespace%22%3A%22MemoryNamespace%22%2C%22isEncrypted%22%3Afalse%7D%5D%2C%22requestMetadata%22%3A%7B%22%24type%22%3A%22proto.sdui.common.RequestMetadata%22%7D%7D%2C%22isStreaming%22%3Atrue%2C%22rumPageKey%22%3A%22%22%2C%22maxRetries%22%3A0%2C%22backOffMultiplier%22%3A0%2C%22maxSeconds%22%3A0%2C%22isApfcEnabled%22%3Afalse%7D%2C%22states%22%3A%5B%5D%2C%22requestedArguments%22%3A%7B%22%24type%22%3A%22proto.sdui.actions.requests.RequestedArguments%22%2C%22payload%22%3A%7B%22sessionId%22%3A%7B%22key%22%3A%22realtimeSessionId%22%2C%22namespace%22%3A%22MemoryNamespace%22%7D%2C%22lastHeartbeatTimestamp%22%3A%7B%22key%22%3A%22realtimeHeartbeat%22%2C%22namespace%22%3A%22MemoryNamespace%22%7D%7D%2C%22requestedStateKeys%22%3A%5B%7B%22%24type%22%3A%22proto.sdui.StateKey%22%2C%22value%22%3A%22realtimeSessionId%22%2C%22key%22%3A%7B%22%24type%22%3A%22proto.sdui.Key%22%2C%22value%22%3A%7B%22%24case%22%3A%22id%22%2C%22id%22%3A%22realtimeSessionId%22%7D%7D%2C%22namespace%22%3A%22MemoryNamespace%22%2C%22isEncrypted%22%3Afalse%7D%2C%7B%22%24type%22%3A%22proto.sdui.StateKey%22%2C%22value%22%3A%22realtimeHeartbeat%22%2C%22key%22%3A%7B%22%24type%22%3A%22proto.sdui.Key%22%2C%22value%22%3A%7B%22%24case%22%3A%22id%22%2C%22id%22%3A%22realtimeHeartbeat%22%7D%7D%2C%22namespace%22%3A%22MemoryNamespace%22%2C%22isEncrypted%22%3Afalse%7D%5D%2C%22requestMetadata%22%3A%7B%22%24type%22%3A%22proto.sdui.common.RequestMetadata%22%7D%2C%22states%22%3A%5B%5D%2C%22screenId%22%3A%22com.linkedin.sdui.flagshipnav.search.SearchResults%22%7D%7D",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/tscp-serving/dtag?z=search_people&c=1&li_theme=light&pk=d_flagship3_search_srp_people&pz=BR&p=1&sz=300x250&ti=1",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/index-CTSJkBXY.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFPvIBqmeDL4Q/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1710350584699?e=1774483200&v=beta&t=utXRJy48plRQ7FlnMoCzIUd6lINM29pGHmB5GGHzTpQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQHH9B97vxRGnw/profile-displayphoto-scale_100_100/B56ZfFAyO2HEAc-/0/1751357008432?e=1774483200&v=beta&t=aca9p08ZFQzl2BH4HNCc4j4fON8PcBgn-hzsfa5AozI",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQEWfE09hBx3PA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1680719543106?e=1774483200&v=beta&t=HNA6fduiu1ftVd4wNiLVjMsxRv5Ttxk1EMkTwvKFt9s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFSt2tBg7MSZg/profile-displayphoto-scale_100_100/B56Zq0aXYPKsAc-/0/1763963402232?e=1774483200&v=beta&t=Frm0t2X6Wb7rCz61bxp2gV2cYjT1thoK61wWccM-WbE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C4E03AQGCfU_8e5N0zA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1517363131825?e=1774483200&v=beta&t=o81rGHOIbU3VMQ_ymdW4obzA1WxDOR9Yvcutwg8p5o8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQG2_7im3cx7sw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1671358027803?e=1774483200&v=beta&t=tNHRTxNRYu69c_4nKn20m5Lcb33y22J-FRHyX_lyExY",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQEip6K_z2AJSQ/profile-displayphoto-shrink_100_100/B4EZVlSDUfHgAY-/0/1741160986565?e=1774483200&v=beta&t=cyVAe-HrSDEzi0ubxoR7AStBtiik7VTb2Mv29oxjIkc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQEZMiNbqu2SYw/profile-displayphoto-scale_100_100/B56ZsklvagHYAk-/0/1765845433183?e=1774483200&v=beta&t=wqmXRi9l4ZT5a1hHM27wZEoxbk5RpfSVGXSwwFCwMnM",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQGakySDOvMjsg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1715172660511?e=1774483200&v=beta&t=ZdIn3CNCV_9_jkaIZhElOfItN5HjXQcaDl8QbCMzLr8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C5603AQF8TYMUffx3jQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1608699083887?e=1774483200&v=beta&t=D8UNORdsvYC-fJ8Rw9S4WtTzjaIo57fuglDpQyBi76A",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQGrly6Ciyjkeg/profile-displayphoto-scale_100_100/B56Zy5cw1FJMAg-/0/1772637851639?e=1774483200&v=beta&t=rXfOTIhx313uYvFEq-6htQ3R65Wlz05Pn5TIVnhma7c",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/feed/",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/rsc-action/actions/server-request?sduiid=com.linkedin.sdui.search.requests.lazyLoadedActionsRequest&parentSpanId=zM2bXLCGdso%3D",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/flagship-web/rsc-action/actions/server-request?sduiid=com.linkedin.sdui.impl.homenav.requests.getThirdPartyTrackingPixels&parentSpanId=w1XRG%2BRWtHU%3D",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/assets/@linkedin/litms-lib-TQiQ-egs.es.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/litms/api/metadata/user",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://platform.linkedin.com/litms/utag/voyager-web-search/utag.js?cb=1772934000000",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendTimestamp",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/preload/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ej9rjpq97s0pixotzxwd90a06",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D561BAQHCAnLWBV-X4A/company-background_400/B56ZXWLNIaHoAg-/0/1743055019233/fongs_engineering_and_manufacturing_cover?e=1773540000&v=beta&t=SqE7AK0dRKcPm9E2YY7PqHM5bJmMOo76q5T4RQ4W7sU",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFPvIBqmeDL4Q/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1710350584699?e=1774483200&v=beta&t=utXRJy48plRQ7FlnMoCzIUd6lINM29pGHmB5GGHzTpQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C510BAQHgtzW3_nufWg/company-logo_100_100/company-logo_100_100/0/1630610067924?e=1774483200&v=beta&t=5O3QbHNEdD5qXv2dO7XRRpAaeAjoaUx4vyEkbI4teg0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/396djv1wo84s74eb60qz1d6xc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/li/tscp/sct",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ev3prx6qwul6j3me07vap4ui1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/aukoz4odnf7kc6nk7ds8gowwm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1q3zr5e1f3k4dcxls1v868kmx",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/cf81l9arko32hx03aoj78vld9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ep7lv466vmkjzvje2yk243it4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dkqptqkufsczzkw9wjbf0ehk9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/f1axihyckcs1cf3gsj9h8z1iy",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bei51ukr9iqmrn6a37ukyt651",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/e2xeyqdopvwv0q7kzfsej7wmn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4oh9r66yxuaqvezedncxmyowe",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9fnf0zxam20jiygk3ad0mb76s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/988vmt8bv2rfmpquw6nnswc5t",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/12zju4wl5lyon0a4yeoxkfskq",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/6xit43scc04ns3vx47p7zv81u",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/27mg5gklf5epfenoyyqeobc99",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/341pdts3stpso0u3vaqlcwg4p",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/a8i9w57wqoyi8fjxs9ulzk14e",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ceg6yuxj06s98drqjyvgw3yzi",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/2h4xy003yxy80i6ollfdiclhi",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/edwnyeiibuirliic1tt89vk5x",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/cix756mbl9hhb8yfkcj7qhbr4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/6pdsky0zwy3gwnnrjv18yr2zj",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/72u1egmn90ivhpg5jnup34d77",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4ur6t5uvny86mgw5st5hs6s3n",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9dwum97qcxqo6xbwrbzn4pl7r",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/litms/api/events/tms-load",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/2brfqc2ezdcl00afxrykl5mid",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1in3pc1t0wpautwwjm42i1j6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9nqadw726otfyi1ra7zzxq7me",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/3g5ezt4bib6qi05al4utdugdj",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/7rz1hcfji6yvusskslpbrzru4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/7rhe6k1clutvm99c1j0fr6b7x",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendClientConnectivityTracking?action=sendHeartbeat",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/connect?rc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/coa7f3ykpl4n59lxspa6n42h5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/e1vofevhy7e82wjn22d7jdgmb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1sufbxo3bbo9nde70jwltz7dr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4apd5rbxnf3ftfqym11i88zsb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/5lnyvudccjciubbi8ltx6evx1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/8li7bh3x0vjl6eog3k6gdnec8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ef39sghhx4i1soiumxxzi31lm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/eydbhrafanei62ugqvgws4xyd",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4kqemjz6wnrwxht8otc1zstb5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/2qo06b0yji7gk9r0emy6ews0e",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dlc1yax05z8xf5w4np48osvp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/7p9hda4efjrxyum3mcoyi9ec",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/3o46pahpsvlgywm445w8gxsrb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dgs9f87wf0j3dspjxhhne7mcp",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/47pimc6xad5a2wd0sybze3siw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/hkr1ael2kk9y5v57h1bnu52g",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ah84a4kcg2akgyt6296nd7cp6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1c5u578iilxfi4m4dvc4q810q",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/5evqawjoaug944iq4v5495cbe",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bv2rnsp1pkp7dh9aa2d6yqjsa",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/epft11zgxt5ez5w7g4shmnmzu",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://platform.linkedin.com/litms/allowlist/voyager-web-global",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerGlobalAlerts?adHocAlerts=true&alertWithActions=true&q=findAlerts",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/psettings/policy/notices?types=COMMENTS_VISIBILITY&types=TRACK_LIKE_FOR_PERSONALIZATION&types=SHARING_POST_VISIBILITY_FOR_PERSONALIZATION&types=POST_VISBILE_ON_GROUP&types=EASY_APPLY_PHONE_NUMBER&types=RESUME_UPLOAD&types=MESSAGE_CONTROL&types=SMART_REPLIES&types=MANAGE_CONTACT_PAGE&types=MY_NETWORK_PAGE&types=REGISTRATION_FLOW_PROFILE_VISIBILITY&types=EDIT_FEED_ACTIVITY&types=SAVE_SEARCH_FOR_PERSONALIZATION&types=FIELDS_VISIBLE_ON_PROFILE&types=PUBLIC_VISIBILITY_ON_PROFILE&types=LOCATION_VISIBLE_ON_PROFILE&types=CONTROL_PROFILE_PHOTO&types=KEEPING_ORIGINAL_PHOTO_ON_PROFILE&types=CONTROL_DOWNLOADABLE_PROFILE_SECTIONS&types=CONTACT_INFO_VISIBILITY&types=CONTROL_PROFILE_VISIBILITY",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerFeedDashGlobalNavs.250bb4d999ff9443357d2c67df7f9067",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(memberIdentity:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)&queryId=voyagerIdentityDashProfiles.b5c27c04968c409fc0ed3546575b9b7a",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerFeedDashThirdPartyIdSyncs.e9d3044f7ad311ff359561b405629210",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerIdentityDashNotificationCards?decorationId=com.linkedin.voyager.dash.deco.identity.notifications.CardsCollectionWithInjectionsNoPills-24&count=10&q=filterVanityName",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerFeedDashIdentityModule.803fe19f843a4d461478049f70d7babd",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(supportedEntityTypes:List(TOPIC,PROFESSIONAL_EVENT,GROUP))&queryId=voyagerFeedDashPackageRecommendations.a17e2926893fd3ff632c189cd61176d1",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/publishing/editorFirstPartyArticles?q=author&author=urn%3Ali%3Afs_miniProfile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA&state=DRAFT&count=0",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(count:6,viewerPermissions:(canReadOrganizationUpdateAnalytics:true))&queryId=voyagerOrganizationDashCompanies.2fce873504d824e22294f312f718b4c7",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(start:0,count:3,sortOrder:MEMBER_SETTING)&queryId=voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerContentcreationDashClosedSharebox?feedType=MAIN_FEED&q=feedType&decorationId=com.linkedin.voyager.dash.deco.contentcreation.closedSharebox-8",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(count:10)&queryId=voyagerFeedDashTopics.9075cab8b59e14d62b497b48f77d5e12",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerLaunchpadDashLaunchpadViews?decorationId=com.linkedin.voyager.dash.deco.launchpad.LaunchpadView-96&q=context&launchpadContext=FEED",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerJobsDashJobSeekerPreferences.53d4a0b454b82ce339abf8afc2c65190",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerDashMySettings.7ea6de345b41dfb57b660a9a4bebe1b8",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(pageKey:messaging_realtime,slotId:onboarding)&queryId=voyagerLegoDashPageContents.6e5607181411f5835938e105d18564e2",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(featureAccessTypes:List(CAN_ACCESS_AWAY_MESSAGES))&queryId=voyagerPremiumDashFeatureAccess.c87b20dac35795f9920f2a8072fd7af5",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(pageKey:messaging_presence,slotId:onboarding)&queryId=voyagerLegoDashPageContents.6e5607181411f5835938e105d18564e2",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFPvIBqmeDL4Q/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1710350584699?e=1774483200&v=beta&t=utXRJy48plRQ7FlnMoCzIUd6lINM29pGHmB5GGHzTpQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/6zfqsqdfp53o9pknjn82ml6ih",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/705hel6mskshzvy9apa34olfb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bv8tdasmxt9m1cfia016rron6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerMessagingDashMessagingSettings.a555e413ad439d1d3f58ceef31ff0728",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(featureAccessTypes:List(CAN_ACCESS_RECRUITER_MAILBOX,CAN_ACCESS_HIRING_MANAGER_MAILBOX))&queryId=voyagerPremiumDashFeatureAccess.c87b20dac35795f9920f2a8072fd7af5",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerOrganizationDashPageMailbox/?count=3&q=admin",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendClientConnectivityTracking?action=sendHeartbeat",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.0d5e6781bbee71c3e51c8843c6519f48&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.google.com/recaptcha/enterprise.js?render=6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://merchantpool1.linkedin.com/mdt.js?session_id=9401860f-ca81-4f4b-8b8e-974979e1929a&instanceId=fb6bbd47-fa7c-4264-b4e9-b25948407586",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://li.protechts.net/index.html?ts=1772934042597&r_id=AAZMeV%2FJLyK26PScAK31Kg%3D%3D&app_id=PXdOjV695v&uc=scraping&d_id=af836161d5deb460db227e8157173d9fca513505958a38a41c429a8930c366de",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://li.protechts.net/index_stg.html?ts=1772934042598&r_id=AAZMeV%2FJLyK26PScAK31Kg%3D%3D&app_id=PXdOjV695v&uc=postAction&d_id=af836161d5deb460db227e8157173d9fca513505958a38a41c429a8930c366de",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/security/csp?a=voyager-web",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/recaptcha/enterprise/anchor?ar=1&k=6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC&co=aHR0cHM6Ly93d3cubGlua2VkaW4uY29tOjQ0Mw..&hl=en&v=QvLuXwupqtKMva7GIh5eGl3U&size=invisible&anchor-ms=20000&execute-ms=30000&cb=s2azv46yrphg",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendTimestamp",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ev3prx6qwul6j3me07vap4ui1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/cf81l9arko32hx03aoj78vld9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dkqptqkufsczzkw9wjbf0ehk9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/f1axihyckcs1cf3gsj9h8z1iy",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bei51ukr9iqmrn6a37ukyt651",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/e2xeyqdopvwv0q7kzfsej7wmn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4oh9r66yxuaqvezedncxmyowe",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9fnf0zxam20jiygk3ad0mb76s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/12zju4wl5lyon0a4yeoxkfskq",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1sufbxo3bbo9nde70jwltz7dr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/8li7bh3x0vjl6eog3k6gdnec8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4kqemjz6wnrwxht8otc1zstb5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/3o46pahpsvlgywm445w8gxsrb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/47pimc6xad5a2wd0sybze3siw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ah84a4kcg2akgyt6296nd7cp6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/epft11zgxt5ez5w7g4shmnmzu",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ev3prx6qwul6j3me07vap4ui1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/cf81l9arko32hx03aoj78vld9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dkqptqkufsczzkw9wjbf0ehk9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/f1axihyckcs1cf3gsj9h8z1iy",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bei51ukr9iqmrn6a37ukyt651",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/e2xeyqdopvwv0q7kzfsej7wmn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4oh9r66yxuaqvezedncxmyowe",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9fnf0zxam20jiygk3ad0mb76s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/12zju4wl5lyon0a4yeoxkfskq",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1sufbxo3bbo9nde70jwltz7dr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/8li7bh3x0vjl6eog3k6gdnec8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4kqemjz6wnrwxht8otc1zstb5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/3o46pahpsvlgywm445w8gxsrb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/47pimc6xad5a2wd0sybze3siw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ah84a4kcg2akgyt6296nd7cp6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/epft11zgxt5ez5w7g4shmnmzu",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ev3prx6qwul6j3me07vap4ui1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/cf81l9arko32hx03aoj78vld9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/dkqptqkufsczzkw9wjbf0ehk9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/f1axihyckcs1cf3gsj9h8z1iy",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bei51ukr9iqmrn6a37ukyt651",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/e2xeyqdopvwv0q7kzfsej7wmn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4oh9r66yxuaqvezedncxmyowe",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/9fnf0zxam20jiygk3ad0mb76s",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/12zju4wl5lyon0a4yeoxkfskq",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/1sufbxo3bbo9nde70jwltz7dr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/8li7bh3x0vjl6eog3k6gdnec8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/4kqemjz6wnrwxht8otc1zstb5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/3o46pahpsvlgywm445w8gxsrb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/47pimc6xad5a2wd0sybze3siw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/ah84a4kcg2akgyt6296nd7cp6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/epft11zgxt5ez5w7g4shmnmzu",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://client.protechts.net/PXdOjV695v/main.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client.protechts.net/PXdOjV695v/main.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerMessagingDashAffiliatedMailboxes.da7e8047e61ae87c4b97ee31fed7d934",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/17xwbrvtbek2ev8pxmxqpwio4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/bafo73dapb2ndlnzvvu108l9n",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/89cilib1dy37osugpd0jhybjf",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/28dki44pe9dwzlqn49qbmvbcl",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.0d5e6781bbee71c3e51c8843c6519f48&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerMessagingDashAwayStatusV2.ee0ba3add6f8a58c35df3e08daa87b11",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/sensorCollect/?action=reportMetrics",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+      "method": "POST",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?variables=(featureAccessTypes:List(CAN_ACCESS_SALES_NAV_BADGE,CAN_ACCESS_ADVERTISE_BADGE))&queryId=voyagerPremiumDashFeatureAccess.c87b20dac35795f9920f2a8072fd7af5",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerNotificationsDashBadgingItemCounts",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://static.licdn.com/aero-v1/sc/h/7xzqezqluw2xxiq36lx7guyex",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D560BAQFxj3gzMbNM3A/company-logo_100_100/B56Zo5LaPxG4AQ-/0/1761895885659?e=1774483200&v=beta&t=nkvObrXTFCef9rI1GOopVIfh7xVZM1NkRFZNNnmz09E",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://tzm.protechts.net/ns?c=d1c59b30-1a8f-11f1-8f3a-d75be2ad423b",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tzm.protechts.net/ns?c=d23796e0-1a8f-11f1-8b27-df78bbab5e20",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://merchantpool1.linkedin.com/?session_id=9401860f-ca81-4f4b-8b8e-974979e1929a&CustomerId=fb6bbd47-fa7c-4264-b4e9-b25948407586&PageId=&w=8DE7CB3B676E949&mdt=1772934043595&rticks=1772934043542&u1=&u3=10_15_7&u4=x86&u5=64&u2=(Not%3AA-Brand%2C99.0.0.0)%2C(HeadlessChrome%2C145.0.7632.6)%2C(Chromium%2C145.0.7632.6)",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/styles__ltr.css",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/recaptcha/enterprise/webworker.js?hl=en&v=QvLuXwupqtKMva7GIh5eGl3U",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client.protechts.net/PXdOjV695v/main.min.js",
+      "method": "HEAD",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client.protechts.net/PXdOjV695v/main.min.js",
+      "method": "HEAD",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMailboxCounts.fc528a5a81a76dff212a4a3d2d48e84b&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashSecondaryInbox?q=previewBanner",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashConversationNudges",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?variables=(pageKey:message_inbox,slotId:eu)&queryId=voyagerLegoDashPageContents.6e5607181411f5835938e105d18564e2",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?variables=(pageKey:message_inbox,slotId:no-filter-banner)&queryId=voyagerLegoDashPageContents.6e5607181411f5835938e105d18564e2",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMailboxCounts.fc528a5a81a76dff212a4a3d2d48e84b&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C5603AQF4L53Ia5LjzQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1622852741451?e=1774483200&v=beta&t=GOa7-fXEjUJZzv0dtdMTelir17MMBG7-tOMFTTZnZYE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQE0eso-noNCPQ/profile-displayphoto-shrink_100_100/B4EZa5J5PzHYAU-/0/1746863101376?e=1774483200&v=beta&t=nUXqJ59F9_HK-mHRSCwrYHFJWU7f0HAHXG5BDRJmdUU",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQGpKWztC7tLZA/profile-displayphoto-scale_100_100/B56ZzFaH.HKUAk-/0/1772838487089?e=1774483200&v=beta&t=boBDRHsb9hXeXSBDYDa3Q7WcZt2PJPXkWecSrp9RbII",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQHeYTNVTHJizg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1714070193668?e=1774483200&v=beta&t=TcbXED288tAHMYXEHc5D4hzK1y7cPNfLgg6g-c3jHGo",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFTPjWU-SJWbQ/profile-displayphoto-scale_100_100/B56ZminJKwG4Ac-/0/1759369795042?e=1774483200&v=beta&t=EGDKMQwpm4TqXxHT7ZilrpJ32BlVqINJQEXFuBz0CpM",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFpxGmr7Rlbqw/profile-displayphoto-shrink_100_100/B56ZXYb47sGsAU-/0/1743092945078?e=1774483200&v=beta&t=F0HtgiXPGbkU7PnKJ4Ijnx_mrWtmGWiw3PlXN3SOfGo",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQE8j4LjBg3IpQ/profile-displayphoto-scale_100_100/B56Zr8pcRgIcAk-/0/1765175315343?e=1774483200&v=beta&t=pab4-Yij5yF5zNAwhlTKKvKQIfupITcEpjUNFzY1_Zo",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQEAjbB6H5cQZw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1732827432600?e=1774483200&v=beta&t=2fiINKtvhQzTINNjvzUOwcCR2CWcbKmQ14Ah-bP3xaE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C560BAQG0E40zOGFlFw/company-logo_100_100/company-logo_100_100/0/1630593540163/menlo_ventures_logo?e=1774483200&v=beta&t=Czu-nGIhbpQ0r6IV_93qb9bit0k0Lq9ftqIuJK5YyhI",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C4D03AQEFKdFFHCUwoQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1517527807977?e=1774483200&v=beta&t=nmEBuCuaAw1QSmwj3ZNio7A8KfsvFDl23yujp5E4tno",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQEubXr0zkcAXQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1699691590894?e=1774483200&v=beta&t=Z9rh4rPb81iqmPCsg4VIZido-D-Uoo0jIcbc55olyu8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQG1QLGmATCQbA/profile-displayphoto-scale_100_100/B4EZoTIj_VKcAc-/0/1761257603678?e=1774483200&v=beta&t=zFeAWm1klYeVaTDcpq-ovsepc6hbavG7G36vPx9hvBw",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFEkAvsyoBhsg/profile-displayphoto-shrink_100_100/B56ZTy4W1bGsAY-/0/1739241647919?e=1774483200&v=beta&t=eQ4YdVIO9yGo41_o6cDE6G0HneI3PrUmBWtitj_6h3M",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQEkICq0dB-aMQ/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1726544504584?e=1774483200&v=beta&t=N2UcgX1pb0PbsL8uFdbTOa1gwji6Vj3UOggWLPDJpsE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQHINnJiKjOKTw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1681658536695?e=1774483200&v=beta&t=ACBUoftO2FoS2ju3VOIX3HK37vnBguvTa8H8V0I36bE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D5603AQFAUMCQTo8F7A/profile-displayphoto-shrink_100_100/B56ZRtfBtSG8AU-/0/1737003638151?e=1774483200&v=beta&t=ThaJoehLc3-a0Nt6Csm0B-bSsgUjBPdf164j1LeUzCE",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/C4E03AQFegLufzjhPZw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1517058624504?e=1774483200&v=beta&t=7xdR3Yx7R4iVyIEUvUkTOc6xOFo3YVctLHzIy_xeNHU",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4E03AQFGwjrxyEZKiA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1731362890571?e=1774483200&v=beta&t=YvSSD0U0EPvWfCgill_kAIqS6xDuQlxUI9gAXtqlEss",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/dms/image/v2/D4D03AQG6iKBhSDcsvQ/profile-displayphoto-scale_100_100/B4DZikeEdsH8Ag-/0/1755106006048?e=1774483200&v=beta&t=nHWywlELwki-ADHhZd45uGOM1tCzjJFmY-x6U6EFDOA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+      "method": "POST",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://collector-pxdojv695v.protechts.net/api/v2/msft",
+      "method": "POST",
+      "score": 10,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendSubscriptions?ids=List((clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAQC1Z4BeGqEMADYjI0GL79FHqKeDtH1mI4),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAVt-t8Bt4soWw76sZLvxDW7OIDmnjr9PBs),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAADFetAwBa3aCNbB2rHiv7My7gDAKGDZGQL8),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAACzgvR4BdqowlLnOY0WoF5Nd6NZ0XJyXQVc),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAACcLvQIBL4uVgtUuDSf6E1DgvweRdyDNXEM),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAADlnknQBri1VWtZPftGhTMfzE0HGHfrFpKk),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAB8ltcUBBLcXrcr_bGXIwgj2eUL_7-s4y3s))",
+      "method": "PUT",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackObserveApi/trackObserve",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/bAMsPeIe_Uur9HBm0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackingApiService/track",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackObserveApi/trackObserve",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cs.ns1p.net/u.html?a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cs.ns1p.net/p.js?a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cs.ns1p.net/u.html?a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.ns1p.net/?v=1695317842&a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://media.licdn.com/cdo/cdxs/r20.gif?t=g99yug",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cs.ns1p.net/p.js?a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.ns1p.net/?v=1695317842&a=1516sqc",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://dms-akam.licdn.com/cdo/cdxs/r20.gif?t=s0efxy",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dms-akam.licdn.com/cdo/cdxs/r20.gif?t=gakkfb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dms-akam.licdn.com/cdo/cdxs/r20.gif?t=aeoeei",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-akam.licdn.com/cdo/cdxs/r20.gif?t=k7l7py",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-akam.licdn.com/cdo/cdxs/r20.gif?t=m0yeud",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static-akam.licdn.com/cdo/cdxs/r20.gif?t=1vepbx",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://rum22.perf.linkedin.com/l0/ep/clr.gif?t=cv18gp",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://rum22.perf.linkedin.com/l0/ep/clr.gif?t=56owrh",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://rum22.perf.linkedin.com/l0/ep/clr.gif?t=gcj2lr",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.ns1p.net/?v=1695317842&x=3krcs3&r=1516sqc,1bh0lgw,3n57h3:i5k,ec,bs,bs,b3,b3,9t,q,q|i5k,q5,u,u|i5k,r0,v,u!1516sqc,1ajqmg4,3n57h3:i5k,rv,bo,bo,ax,ax,a4,z,z|i5k,13j,u,u,1|i5k,14e,k,k!1516sqc,1pw0440,3n57h3:i5k,14y,43,43,v|i5k,191,3b,3b,1|i5k,1cc,36,36,1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.linkedin.com/sensorCollect/?action=reportMetrics",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackO11yApi/trackO11y",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.linkedin.com/sensorCollect/?action=reportMetrics",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.linkedin.com/psettings/policy/notices?types=COMMENTS_VISIBILITY&types=TRACK_LIKE_FOR_PERSONALIZATION&types=SHARING_POST_VISIBILITY_FOR_PERSONALIZATION&types=POST_VISBILE_ON_GROUP&types=EASY_APPLY_PHONE_NUMBER&types=RESUME_UPLOAD&types=MESSAGE_CONTROL&types=SMART_REPLIES&types=MANAGE_CONTACT_PAGE&types=MY_NETWORK_PAGE&types=REGISTRATION_FLOW_PROFILE_VISIBILITY&types=EDIT_FEED_ACTIVITY&types=SAVE_SEARCH_FOR_PERSONALIZATION&types=FIELDS_VISIBLE_ON_PROFILE&types=PUBLIC_VISIBILITY_ON_PROFILE&types=LOCATION_VISIBLE_ON_PROFILE&types=CONTROL_PROFILE_PHOTO&types=KEEPING_ORIGINAL_PHOTO_ON_PROFILE&types=CONTROL_DOWNLOADABLE_PROFILE_SECTIONS&types=CONTACT_INFO_VISIBILITY&types=CONTROL_PROFILE_VISIBILITY",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerFeedDashGlobalNavs.250bb4d999ff9443357d2c67df7f9067",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerIdentityDashNotificationCards?decorationId=com.linkedin.voyager.dash.deco.identity.notifications.CardsCollectionWithInjectionsNoPills-24&count=10&q=filterVanityName",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerFeedDashIdentityModule.803fe19f843a4d461478049f70d7babd",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(supportedEntityTypes:List(TOPIC,PROFESSIONAL_EVENT,GROUP))&queryId=voyagerFeedDashPackageRecommendations.a17e2926893fd3ff632c189cd61176d1",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(count:6,viewerPermissions:(canReadOrganizationUpdateAnalytics:true))&queryId=voyagerOrganizationDashCompanies.2fce873504d824e22294f312f718b4c7",
+      "method": "GET",
+      "kept": true,
+      "reason": "accepted_endpoint",
+      "endpoint_id": "YIjE9sgUw_gzVsrFBaVFC",
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "action_kind": "search",
+      "resource_kind": "person"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(start:0,count:3,sortOrder:MEMBER_SETTING)&queryId=voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerContentcreationDashClosedSharebox?feedType=MAIN_FEED&q=feedType&decorationId=com.linkedin.voyager.dash.deco.contentcreation.closedSharebox-8",
+      "method": "GET",
+      "kept": true,
+      "reason": "accepted_endpoint",
+      "endpoint_id": "3ffnSa3k7cYDjeOaIT1Dt",
+      "description": "Searches VoyagerContentcreationDashClosedSharebox with entityUrn, elements, primaryShareboxEntrypointCtaText, $recipeTypes, shareboxMediaButtons, $type using feedType, q, decorationId",
+      "action_kind": "search",
+      "resource_kind": "person"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(count:10)&queryId=voyagerFeedDashTopics.9075cab8b59e14d62b497b48f77d5e12",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerLaunchpadDashLaunchpadViews?decorationId=com.linkedin.voyager.dash.deco.launchpad.LaunchpadView-96&q=context&launchpadContext=FEED",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(pageKey:messaging_realtime,slotId:onboarding)&queryId=voyagerLegoDashPageContents.6e5607181411f5835938e105d18564e2",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.0d5e6781bbee71c3e51c8843c6519f48&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerMessagingDashAffiliatedMailboxes.da7e8047e61ae87c4b97ee31fed7d934",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerMessagingDashAwayStatusV2.ee0ba3add6f8a58c35df3e08daa87b11",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/litms/api/metadata/user",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(memberIdentity:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)&queryId=voyagerIdentityDashProfiles.b5c27c04968c409fc0ed3546575b9b7a",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryId=voyagerFeedDashThirdPartyIdSyncs.e9d3044f7ad311ff359561b405629210",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerJobsDashJobSeekerPreferences.53d4a0b454b82ce339abf8afc2c65190",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerDashMySettings.7ea6de345b41dfb57b660a9a4bebe1b8",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=(featureAccessTypes:List(CAN_ACCESS_AWAY_MESSAGES))&queryId=voyagerPremiumDashFeatureAccess.c87b20dac35795f9920f2a8072fd7af5",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&variables=()&queryId=voyagerMessagingDashMessagingSettings.a555e413ad439d1d3f58ceef31ff0728",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerOrganizationDashPageMailbox/?count=3&q=admin",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+      "method": "POST",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerNotificationsDashBadgingItemCounts",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMailboxCounts.fc528a5a81a76dff212a4a3d2d48e84b&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA)",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashConversationNudges",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerGlobalAlerts?adHocAlerts=true&alertWithActions=true&q=findAlerts",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/publishing/editorFirstPartyArticles?q=author&author=urn%3Ali%3Afs_miniProfile%3AACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA&state=DRAFT&count=0",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashSecondaryInbox?q=previewBanner",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendSubscriptions?ids=List((clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAQC1Z4BeGqEMADYjI0GL79FHqKeDtH1mI4),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAVt-t8Bt4soWw76sZLvxDW7OIDmnjr9PBs),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAADFetAwBa3aCNbB2rHiv7My7gDAKGDZGQL8),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAACzgvR4BdqowlLnOY0WoF5Nd6NZ0XJyXQVc),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAACcLvQIBL4uVgtUuDSf6E1DgvweRdyDNXEM),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAADlnknQBri1VWtZPftGhTMfzE0HGHfrFpKk),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ),(clientConnectionId:e4c368fc-3759-46c8-abf2-564b7740a40c,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAB8ltcUBBLcXrcr_bGXIwgj2eUL_7-s4y3s))",
+      "method": "PUT",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendTimestamp",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://platform.linkedin.com/litms/allowlist/voyager-web-global",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackingApiService/track",
+      "method": "POST",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    },
+    {
+      "url": "https://www.linkedin.com/rest/trackO11yApi/trackO11y",
+      "method": "POST",
+      "kept": false,
+      "reason": "semantic_negative_url"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "YIjE9sgUw_gzVsrFBaVFC",
+      "method": "GET",
+      "url_template": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerOrganizationDashCompanies.2fce873504d824e22294f312f718b4c7?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "action_kind": "search",
+      "resource_kind": "person"
+    },
+    {
+      "endpoint_id": "3ffnSa3k7cYDjeOaIT1Dt",
+      "method": "GET",
+      "url_template": "https://www.linkedin.com/voyager/api/voyagerContentcreationDashClosedSharebox?feedType={feedType}&q={q}&decorationId={decorationId}",
+      "description": "Searches VoyagerContentcreationDashClosedSharebox with entityUrn, elements, primaryShareboxEntrypointCtaText, $recipeTypes, shareboxMediaButtons, $type using feedType, q, decorationId",
+      "action_kind": "search",
+      "resource_kind": "person"
+    }
+  ]
+}

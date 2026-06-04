@@ -1,0 +1,103 @@
+{
+  "intent": "get home timeline",
+  "params": {
+    "url": "https://x.com/home"
+  },
+  "context": {
+    "url": "https://x.com/home"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "jUTGA0Fnc9_S4LNNRmE_H",
+      "score": 367.6,
+      "description": "Captured page artifact for get home timeline",
+      "url": "https://x.com/home",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "KcESpHJSlYKnp_1-kn7sl",
+      "score": 35.5,
+      "description": "Returns details for ExploreSidebar with explore_sidebar using variables, features",
+      "url": "https://x.com/i/api/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables={variables}&features={features}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "jUTGA0Fnc9_S4LNNRmE_H",
+      "score": 402.6,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "KcESpHJSlYKnp_1-kn7sl",
+      "score": 130.5,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "E_099begbcvZteS7e7-Pp",
+  "available_endpoints": [
+    {
+      "endpoint_id": "jUTGA0Fnc9_S4LNNRmE_H",
+      "score": 367.6,
+      "description": "Captured page artifact for get home timeline",
+      "url": "https://x.com/home"
+    },
+    {
+      "endpoint_id": "8Vdp59WCAz9MY3zxc9cpK",
+      "score": 214.8,
+      "description": "Returns details for HomeTimeline with home using variables, features",
+      "url": "https://x.com/i/api/graphql/snvCaalBp51MiDb3-nGblg/HomeTimeline?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "PYzjXFzMUSBvBXojI5Q6P",
+      "score": 93.5,
+      "description": "Returns Hashflags Json with hashtag, starting_timestamp_ms, ending_timestamp_ms, asset_url, is_hashfetti_enabled",
+      "url": "https://x.com/i/api/1.1/hashflags.json"
+    },
+    {
+      "endpoint_id": "miM5_NeXFlA2vMaf2CaV2",
+      "score": 85.5,
+      "description": "Returns details for UseStoryTopicQuery with story_topic using variables",
+      "url": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery?variables={variables}"
+    },
+    {
+      "endpoint_id": "jud9qCO8E0D90_WfrHlx_",
+      "score": 85.5,
+      "description": "Returns details for UseSubscriptionsPaymentFailureQuery with viewer_v2 using variables",
+      "url": "https://x.com/i/api/graphql/cUuRnmF2028ARztoNWgv9w/useSubscriptionsPaymentFailureQuery?variables={variables}"
+    },
+    {
+      "endpoint_id": "dqqbMF_r6FHicQ9fr_s1J",
+      "score": 85.5,
+      "description": "Returns details for UseFetchProductSubscriptionsQuery with viewer_v2 using variables, features",
+      "url": "https://x.com/i/api/graphql/SPJ9o9QzEK2l1Bh1vcgX6A/useFetchProductSubscriptionsQuery?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "7ocGtSGeH-qoUonR4GYl9",
+      "score": 85.5,
+      "description": "Returns details for UseVerifiedOrgIdentityVerificationConfigQuery with viewer_v2 using variables, features",
+      "url": "https://x.com/i/api/graphql/OeetKDpCigK8wSJwl7oWRA/useVerifiedOrgIdentityVerificationConfigQuery?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "KcESpHJSlYKnp_1-kn7sl",
+      "score": 35.5,
+      "description": "Returns details for ExploreSidebar with explore_sidebar using variables, features",
+      "url": "https://x.com/i/api/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "yXsABg6TlBwTqIoRwK0nn",
+      "score": 25.4,
+      "description": "Returns details for SidebarUserRecommendation with sidebar_user_recommendations, token, user_results using variables, features",
+      "url": "https://x.com/i/api/graphql/TDtrShaKKs-vFLCuz2jLdA/SidebarUserRecommendations?variables={variables}&features={features}"
+    }
+  ],
+  "extra": null
+}

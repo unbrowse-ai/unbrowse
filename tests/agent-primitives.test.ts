@@ -16,7 +16,7 @@ import {
 } from "../src/interop/agent-primitives.js";
 
 describe("agentskills.io skill ↔ primitive", () => {
-	it("ingests a SKILL.md frontmatter into the shared shape", () => {
+	it("ingests a SKILL.md frontmatter into the route shape", () => {
 		const p = skillToPrimitive({ name: "pdf-fill", description: "Fill PDF forms from a data map" });
 		expect(p.kind).toBe("skill");
 		expect(p.what).toBe("pdf-fill");

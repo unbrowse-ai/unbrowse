@@ -1,0 +1,55 @@
+{
+  "trace_id": "zOQ5NyxnaRPIAh79-_PI9",
+  "skill_id": "_v1SLIUiPDyNrAQBY90d9",
+  "endpoint_id": "fOr_-gszhYbaFCTNrorgI",
+  "started_at": "2026-03-08T21:11:41.570Z",
+  "completed_at": "2026-03-08T21:11:41.869Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "request": {
+      "params": {
+        "account_id": "18ce55s5sqj"
+      }
+    },
+    "next_cursor": null,
+    "data": [
+      {
+        "embed_code": "<script src=\"//platform.twitter.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('qvzts',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.twitter.com/i/adsct?txn_id=qvzts&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=qvzts&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "qvzts",
+        "tag_type": "UNIVERSAL",
+        "allow_1p_cookie": true,
+        "deleted": false
+      },
+      {
+        "embed_code": "<script src=\"//platform.twitter.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('qvztt',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.twitter.com/i/adsct?txn_id=qvztt&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=qvztt&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "qvztt",
+        "tag_type": "SINGLE_EVENT",
+        "allow_1p_cookie": true,
+        "deleted": false
+      },
+      {
+        "embed_code": "<script src=\"//platform.twitter.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('qvztu',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.twitter.com/i/adsct?txn_id=qvztu&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=qvztu&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "qvztu",
+        "tag_type": "SINGLE_EVENT",
+        "allow_1p_cookie": true,
+        "deleted": false
+      },
+      {
+        "embed_code": "<script src=\"//platform.twitter.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('qvztv',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.twitter.com/i/adsct?txn_id=qvztv&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=qvztv&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "qvztv",
+        "tag_type": "SINGLE_EVENT",
+        "allow_1p_cookie": true,
+        "deleted": false
+      },
+      {
+        "embed_code": "<script src=\"//platform.twitter.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('qvztw',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.twitter.com/i/adsct?txn_id=qvztw&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=qvztw&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "qvztw",
+        "tag_type": "SINGLE_EVENT",
+        "allow_1p_cookie": true,
+        "deleted": false
+      }
+    ]
+  }
+}

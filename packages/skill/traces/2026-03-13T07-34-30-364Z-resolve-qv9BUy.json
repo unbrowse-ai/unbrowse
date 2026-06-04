@@ -1,0 +1,23 @@
+{
+  "intent": "get image tags",
+  "params": {
+    "url": "https://hub.docker.com/r/library/nginx/tags"
+  },
+  "context": {
+    "url": "https://hub.docker.com/r/library/nginx/tags"
+  },
+  "search_candidates": [],
+  "autoexec_attempts": [],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "017beTrdVhh4_4xY5LQGW",
+  "available_endpoints": [
+    {
+      "endpoint_id": "8SSaVl3ALBb7hJBItWXV_",
+      "score": 416.7,
+      "description": "Structured replay for get image tags",
+      "url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25"
+    }
+  ],
+  "extra": null
+}

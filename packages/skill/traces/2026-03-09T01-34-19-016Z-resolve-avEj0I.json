@@ -1,0 +1,46 @@
+{
+  "intent": "list my discord servers",
+  "params": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "context": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "DGl6F7aUC-H2XRlXyK5ie",
+      "score": 650.3,
+      "description": "Captured page artifact for list my discord servers",
+      "url": "https://discord.com/channels/@me",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "2Gyp1EgV8ChrYJ0QyyRzE",
+      "score": -35.8,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "DGl6F7aUC-H2XRlXyK5ie",
+      "score": 720.3,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "2Gyp1EgV8ChrYJ0QyyRzE",
+      "score": 19.2,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": null,
+      "local_reason": "primitive_rows"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "6wHOIFgje_v4od3HA_Y4Q"
+}

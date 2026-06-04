@@ -1,0 +1,16 @@
+{
+  "trace_id": "giNQ0qGnwvo9cxmE4_PCL",
+  "skill_id": "hcoy3KBzvpfGLwvRblzeM",
+  "endpoint_id": "r-TMC21UwEj5QLjNKjVOs",
+  "started_at": "2026-03-08T01:55:26.503Z",
+  "completed_at": "2026-03-08T01:55:26.809Z",
+  "success": true,
+  "result": [
+    {
+      "type": "disconnect",
+      "reason": "unauthorized",
+      "reconnect": false
+    }
+  ],
+  "trace_version": "616f5f215069@3f6f10b"
+}

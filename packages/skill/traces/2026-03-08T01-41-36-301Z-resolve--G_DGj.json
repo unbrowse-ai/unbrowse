@@ -1,0 +1,124 @@
+{
+  "intent": "search tweets",
+  "params": {
+    "url": "https://x.com/search?q=openai&src=typed_query&f=live"
+  },
+  "context": {
+    "url": "https://x.com/search?q=openai&src=typed_query&f=live"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "MpfgTTa9tZ2JB_gZvPpir",
+      "score": 460.1,
+      "description": "Captured page artifact for search tweets",
+      "url": "https://x.com/search?q={q}&src={src}&f={f}",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "yrm9qddFmYHsObh48L2Ip",
+      "score": 308.1,
+      "description": "Captured page artifact for search tweets",
+      "url": "https://x.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "IlsJ3Zo7ZiAT9ly4wh9ib",
+      "score": -95.5,
+      "description": "Returns details for HomeTimeline with home using variables, features",
+      "url": "https://x.com/i/api/graphql/snvCaalBp51MiDb3-nGblg/HomeTimeline?variables={variables}&features={features}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "IlsJ3Zo7ZiAT9ly4wh9ib",
+      "score": -0.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 403,
+      "error": "HTTP 403 (stale credentials — re-authenticate via /v1/auth/login)"
+    },
+    {
+      "endpoint_id": "MpfgTTa9tZ2JB_gZvPpir",
+      "score": 495.1,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "empty_text"
+    },
+    {
+      "endpoint_id": "yrm9qddFmYHsObh48L2Ip",
+      "score": 338.1,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "html_payload"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "q6KylhPCiqlOCR4ANUeqD",
+  "available_endpoints": [
+    {
+      "endpoint_id": "MpfgTTa9tZ2JB_gZvPpir",
+      "score": 460.1,
+      "description": "Captured page artifact for search tweets",
+      "url": "https://x.com/search?q={q}&src={src}&f={f}"
+    },
+    {
+      "endpoint_id": "yrm9qddFmYHsObh48L2Ip",
+      "score": 308.1,
+      "description": "Captured page artifact for search tweets",
+      "url": "https://x.com"
+    },
+    {
+      "endpoint_id": "O6zNk9-v-UjIsZg5E1Fkt",
+      "score": 201,
+      "description": "Returns details for Error with message, code using variables, features",
+      "url": "https://api.x.com/graphql/nWemVnGJ6A5eQAR5-oQeAg/SearchTimeline?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "4LXGV7KHGANRCMpDVkxGT",
+      "score": 191.8,
+      "description": "Returns details for Error with message, code using variables, features",
+      "url": "https://api.x.com/graphql/X3WQ-9Sjj1mz7BChTCzMiA/ExploreSidebar?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "6jQosHijg7o1rYMA4c6CW",
+      "score": 191,
+      "description": "Returns details for Error with message, code using variables, features",
+      "url": "https://api.x.com/graphql/TDtrShaKKs-vFLCuz2jLdA/SidebarUserRecommendations?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "zf6UKcsBVbKt5PoiYiaz_",
+      "score": 161.4,
+      "description": "Returns details for SearchTimeline with search_by_raw_query using variables, features",
+      "url": "https://x.com/i/api/graphql/nWemVnGJ6A5eQAR5-oQeAg/SearchTimeline?variables={variables}&features={features}"
+    },
+    {
+      "endpoint_id": "v4xDQ-AC_7x-38Gm0ci43",
+      "score": -35.5,
+      "description": "Captured page artifact for get trending topics",
+      "url": "https://x.com/explore/tabs/trending"
+    },
+    {
+      "endpoint_id": "XJrA698ebviQRDtq6vmrd",
+      "score": -35.5,
+      "description": "Returns details for User with id, id_str, name, screen_name, location, description using include_profile_interstitial_type, include_blocking, include_blocked_by, include_followed_by",
+      "url": "https://x.com/i/api/1.1/friends/following/list.json?include_profile_interstitial_type={include_profile_interstitial_type}&include_blocking={include_blocking}&include_blocked_by={include_blocked_by}&include_followed_by={include_followed_by}&include_want_retweets={include_want_retweets}&include_mute_edge={include_mute_edge}&include_can_dm={include_can_dm}&include_can_media_tag={include_can_media_tag}&include_ext_is_blue_verified={include_ext_is_blue_verified}&include_ext_verified_type={include_ext_verified_type}&include_ext_profile_image_shape={include_ext_profile_image_shape}&skip_status={skip_status}&cursor={cursor}&user_id={user_id}&count={count}&with_total_count={with_total_count}"
+    },
+    {
+      "endpoint_id": "WIuPyeE7TAQ6R_vOmXloH",
+      "score": -56.4,
+      "description": "Returns details for UserTweet with user using variables, features, fieldToggles",
+      "url": "https://x.com/i/api/graphql/ix7iRrsAvfXyGUQ06Z7krA/UserTweets?variables={variables}&features={features}&fieldToggles={fieldToggles}"
+    },
+    {
+      "endpoint_id": "mkgt4DxsmoM9z-s5egoDT",
+      "score": -68.5,
+      "description": "Returns details for UseStoryTopicQuery with story_topic using variables",
+      "url": "https://x.com/i/api/graphql/I3V_Tt32aTZdw7cBdKUJbg/useStoryTopicQuery?variables={variables}"
+    }
+  ],
+  "extra": null
+}

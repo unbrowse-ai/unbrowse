@@ -1,0 +1,14 @@
+{
+  "trace_id": "tmUNQhSAOFQvCc2rq6AkC",
+  "skill_id": "TMV-ifsWWV4y7scn28OGW",
+  "endpoint_id": "xVzGgznr3Vg-1KZZAiLEt",
+  "started_at": "2026-02-25T01:19:09.375Z",
+  "completed_at": "2026-02-25T01:19:09.686Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "status": "OK",
+    "epoch": 931,
+    "tps": 4081
+  }
+}

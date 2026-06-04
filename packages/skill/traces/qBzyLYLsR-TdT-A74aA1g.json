@@ -1,0 +1,102 @@
+{
+  "trace_id": "qBzyLYLsR-TdT-A74aA1g",
+  "skill_id": "_v1SLIUiPDyNrAQBY90d9",
+  "endpoint_id": "qHhuTlvoJStMGQor0iy3G",
+  "started_at": "2026-03-08T21:11:43.815Z",
+  "completed_at": "2026-03-08T21:11:44.085Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "request": {
+      "params": {
+        "is_keywords_objective_variant": false,
+        "objective": "WEBSITE_CLICKS",
+        "account_id": "18ce55s5sqj",
+        "include_client_creation_source": true,
+        "is_conversions_objective": true
+      }
+    },
+    "data": {
+      "name": null,
+      "budget_optimization": "LINE_ITEM",
+      "reasons_not_servable": [],
+      "servable": null,
+      "purchase_order_number": null,
+      "effective_status": null,
+      "daily_budget_amount_local_micro": null,
+      "funding_instrument_id": "1943it",
+      "duration_in_days": null,
+      "standard_delivery": null,
+      "total_budget_amount_local_micro": null,
+      "entity_status": "ACTIVE",
+      "client_creation_source": "UNKNOWN",
+      "frequency_cap": null,
+      "currency": "SGD",
+      "created_at": null,
+      "updated_at": null,
+      "line_items": [
+        {
+          "advertiser_user_id": null,
+          "name": null,
+          "placements": [
+            "ALL_ON_TWITTER"
+          ],
+          "start_time": "2026-03-08T21:11:44Z",
+          "bid_amount_local_micro": null,
+          "advertiser_domain": null,
+          "target_cpa_local_micro": null,
+          "raw_categories": [],
+          "primary_web_event_tag": null,
+          "goal": "WEBSITE_CONVERSIONS",
+          "daily_budget_amount_local_micro": 127790000,
+          "product_type": "PROMOTED_TWEETS",
+          "end_time": "2026-04-03T21:11:44Z",
+          "bid_strategy": "AUTO",
+          "duration_in_days": null,
+          "standard_delivery": null,
+          "total_budget_amount_local_micro": null,
+          "objective": "WEBSITE_CLICKS",
+          "media_creatives": [],
+          "id": null,
+          "entity_status": "ACTIVE",
+          "automatic_tweet_promotion": null,
+          "product_set_id": null,
+          "targeting_criteria": [
+            {
+              "line_item_id": null,
+              "name": "Singapore",
+              "raw_negated": false,
+              "raw_targeting_value": "5v",
+              "id": null,
+              "raw_targeting_type": "GEO",
+              "raw_operator_type": "EQUAL_TO",
+              "operator_type": "EQ",
+              "created_at": null,
+              "targeting_value": "2509b9adc1fedfd2",
+              "updated_at": null,
+              "deleted": false,
+              "targeting_type": "LOCATION"
+            }
+          ],
+          "ad_units": [],
+          "frequency_cap": null,
+          "android_app_store_identifier": null,
+          "categories": [],
+          "currency": "SGD",
+          "pay_by": "IMPRESSION",
+          "catalog_id": null,
+          "created_at": null,
+          "tracking_tags": [],
+          "ios_app_store_identifier": null,
+          "updated_at": null,
+          "preroll_call_to_action": null,
+          "campaign_id": null,
+          "creative_source": null,
+          "audience_expansion": "EXPANDED",
+          "deleted": false
+        }
+      ]
+    }
+  }
+}

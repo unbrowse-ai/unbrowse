@@ -1,0 +1,3126 @@
+{
+  "trace_id": "2Mey1qFGJIV_XvM-LcGo6",
+  "skill_id": "fh-8m-4Rb0-ngeQdwM8kn",
+  "endpoint_id": "yX_n4xgQ-VPgBWtBgmz4T",
+  "started_at": "2026-02-23T15:42:23.558Z",
+  "completed_at": "2026-02-23T15:42:28.165Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "vendorData": [
+      {
+        "name": "AboveNet",
+        "provider_type": [
+          "telco_carrier"
+        ],
+        "geographic_region": [],
+        "url": "mailto:enquiries@above.net",
+        "contact": [
+          [
+            "eu",
+            "enquiries@above.net",
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>AboveNet is revolutionising the approach to building metropolitan, global and IP Networks and is the leading provider of fibre optic connectivity solutions for businesses and carriers. AboveNet operates metropolitan fibre networks in and between London and 14 cities in the US, as well as a global Tier-1 IP Transit network to deliver high performance Internet to 20 cities in 7 countries. Leveraging these assets, AboveNet provides dark fibre, IP Transit and a range of managed services predominately within the finance, media and carrier sectors.</p>",
+        "logo": "above.png",
+        "twitter": null,
+        "slug_name": "abovenet",
+        "filters": [
+          "telco_carrier"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/above.png"
+      },
+      {
+        "name": "ACCREDITEX Technologies Inc.",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.accreditex.com/",
+        "contact": [
+          [
+            "any",
+            "info@accreditex.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "ACCCREDITEX is a real-time intelligence platform that transforms raw regulatory filings into living, searchable insight — mapping every meaningful relationship across the capital markets.",
+        "logo": "20251024134229122516-accreditex-brand-cboe.png",
+        "twitter": null,
+        "slug_name": "accreditex-technologies-inc",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024134229122516-accreditex-brand-cboe.png"
+      },
+      {
+        "name": "Advanced Technology Solutions",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.atscom.it/sito/EN/index.php",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Since 1993 ATS-Advanced Technology Solutions provides ICT solutions for financial markets.</p><p>ATS's competence is strongly expressed in the Front Office and Middle Office area. Our offering is based on a sophisticated combination of solutions and products that meet the needs of all financial operators:</p><p>EXP (Exchange port) is an advanced technological platform for front-office and middle-office process, fully compliant with the MIFID directive. EXP takes the greatest care to the aspects that characterize and qualify the services of financial intermediation (low latency, high system reliability, dynamic best execution, algo trading).</p><p>EXTRA-Connectivity is the gateway/feed handler product suite for market connectivity, order collection and data dissemination through either proprietary protocols or FIX protocol.</p><p>EXS (Exchange Services) is the solution for market data acquisition, data normalization, data distribution and order routing systems.</p>",
+        "logo": "advanced-technology-solutions.png",
+        "twitter": null,
+        "slug_name": "advanced-technology-solutions",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/advanced-technology-solutions.png"
+      },
+      {
+        "name": "Alpha Vantage",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.alphavantage.co/",
+        "contact": [
+          [
+            "any",
+            "sales@alphavantage.co",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Alpha Vantage provides realtime and historical financial market data through a set of powerful and developer-friendly data APIs and spreadsheets. From traditional asset classes (e.g., stocks, indices, ETFs, mutual funds) to economic indicators, from foreign exchange rates to commodities, from fundamental data to technical indicators, Alpha Vantage is your one-stop-shop for enterprise-grade global market data delivered through cloud-based APIs, MCP servers, spreadsheets, and more. Our success is driven by rigorous research, cutting edge technology, and a singular focus on democratizing access to data.",
+        "logo": "20251203101545330459-Alpha Vantage.png",
+        "twitter": null,
+        "slug_name": "alpha-vantage",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251203101545330459-Alpha Vantage.png"
+      },
+      {
+        "name": "Anova Technologies, LLC",
+        "provider_type": [
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.anova-tech.com",
+        "contact": [
+          [
+            "us",
+            "sales@anova-tech.com",
+            "+1 (312) 540-9594 x1104"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Anova Technologies is the preeminent fiber and wireless exchange connectivity provider, exclusively focused on electronic and algorithmic trading clients. With a dedicated team of engineers and physicists, Anova invented today's millimeter wave design and deployment standards for trading networks. A champion of self-disruption, Anova continues to push the boundaries of technology for the financial markets with major new developments that improve availability, capacity and round trip latency in the wireless space. Anova's proprietary networks span all major exchanges throughout the US & Europe.",
+        "logo": "anova.png",
+        "twitter": null,
+        "slug_name": "anova-technologies-llc",
+        "filters": [
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/anova.png"
+      },
+      {
+        "name": "ARQA Technologies",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.arqatech.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Founded in 2000, ARQA Technologies is the largest trading software vendor in Russia and CIS serving 300+ client base. The company offers integrated 'front-to-back' solutions for automation of trade and post-trade operations, infrastructure optimization and risk management (RISQ).</p><p>The front-end trading platform 'QUIK' spans OMS and EMS functionality providing access to 30+ major trading venues.'RISQ solutions' are applied for thorough pre-trade control of client and proprietary order flow. ARQA's solutions are flexibly configured from modules and are also available on 'managed service' basis.</p><p>ARQA Technologies has corporate presence in Novosibirsk, Moscow, London, and Kiev.</p>",
+        "logo": "20201208101646506627-arqa-logo.png",
+        "twitter": null,
+        "slug_name": "arqa-technologies",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201208101646506627-arqa-logo.png"
+      },
+      {
+        "name": "baha GmbH",
+        "provider_type": [
+          "market_data",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.baha.com/",
+        "contact": [
+          [
+            "any",
+            "support@baha.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "baha is a leading provider of real-time market data, financial news and innovative solutions for the financial industry for more than 25 years.\r\nBased in Vienna, Austria, we offer both a modern, web-based market data terminal called baha wealth as well as easy-to-use, yet powerful APIs so our customers can easily integrate all available data sources within their own systems, apps and websites.\r\nbaha wealth is used by banks, insurance companies, wealth and asset managers, pension funds and family offices around the world.\r\nWith our dedicated team of software engineers, data scientists and AI experts we make sure to deliver cutting edge solutions across all major asset classes, covering global financial market data with over 12 million financial instruments on more than 180 exchanges.",
+        "logo": "20251211112619637442-baha.png",
+        "twitter": null,
+        "slug_name": "baha-gmbh",
+        "filters": [
+          "market_data",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251211112619637442-baha.png"
+      },
+      {
+        "name": "Barchart.com, Inc.",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.barchart.com/solutions/",
+        "contact": [
+          [
+            "us",
+            "solutions@barchart.com",
+            "+1 (312) 566-9235"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Barchart is a leading provider of market data and services to the global financial, media and commodity industries. Our diversified client base trusts Barchart's innovative Solutions across data, software, and technology to power their operation from front to back office, while our Media brands enable financial and commodity professionals to make decisions through web content, news and publications. Barchart connects directly to the markets we service, which include equities, futures, options, indices and foreign exchange, as well as dozens of news providers and other sources of data. Our client base is diverse, ranging from financial services (exchange, brokers and banks) to trading and investment firms, commodity firms (agricultural, energy and metals) to the media. Barchart is focused on developming strong client relationships, providing superior customer service, and tailoring solutions to our clients' specific business needs. Led by industry veternals in both technology and finance, Barchart offers impressive in-depth knowledge that is sure to benefit you and your organization.",
+        "logo": "barchart.png",
+        "twitter": null,
+        "slug_name": "barchartcom-inc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/barchart.png"
+      },
+      {
+        "name": "BIQH",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "https://www.biqh.com/",
+        "contact": [
+          [
+            "any",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "BIQH centralizes, optimizes and transforms financial data into information. Our clients are banks, brokers, custodians, and asset managers who provide private investors with financial markets information. We help our customers save time, effort, and costs by collecting, storing, processing, and distributing large quantities of data from various sources to the right applications, systems, and processes. This way, centralized data is transformed into actionable information.",
+        "logo": "20201208101915945900-BIQH_logo_sc_tm-blue-word.png",
+        "twitter": null,
+        "slug_name": "biqh",
+        "filters": [
+          "market_data",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201208101915945900-BIQH_logo_sc_tm-blue-word.png"
+      },
+      {
+        "name": "Bloomberg",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.bloomberg.com",
+        "contact": [
+          [
+            "eu",
+            "exchanges@bloomberg.net",
+            "+1 (212) 617-2000"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Bloomberg, the global business and financial information and news leader, gives influential decision makers a critical edge by connecting them to a dynamic network of information, people and ideas. The company's strength  delivering data, news and analytics through innovative technology, quickly and accurately  is at the core of the Bloomberg Professional service, which provides real time financial information to more than 325,000 subscribers globally. Bloomberg's enterprise solutions build on the company's core strength, leveraging technology to allow customers to access, integrate, distribute and manage data and information across organizations more efficiently and effectively.</p>",
+        "logo": "20251023142043668774-logoBBGblck_600x600.png",
+        "twitter": null,
+        "slug_name": "bloomberg",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023142043668774-logoBBGblck_600x600.png"
+      },
+      {
+        "name": "Bloomberg PolarLake",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.bloomberg.com/professional/product/bloomberg-data-management-services/",
+        "contact": [
+          [
+            "any",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "At Bloomberg PolarLake, our Data Management Utility uses cloud based computing technology to simplify data management for our clients by absorbing the complexity of multiple data sets and improving data quality across the investment process. For over ten years, we’ve handled complex data, creating golden copies for asset managers, banks, custodians, hedge funds, and third party administrators alike all with ease and scalability.",
+        "logo": "20201204132704535499-BloombergPolarLake_logo.png",
+        "twitter": null,
+        "slug_name": "bloomberg-polarlake",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201204132704535499-BloombergPolarLake_logo.png"
+      },
+      {
+        "name": "Boerse Stuttgart",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.boerse-stuttgart.de/en/stock-exchange/securities-and-markets/",
+        "contact": [
+          [
+            "any",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Boerse Stuttgart is the exchange for retail investors, and is also the leading trading floor in Germany. At the Stuttgart Exchange, retail investors trade equities, securitised derivatives, debt instruments (bonds), investment fund units and profit participation certificates – all at the highest quality of execution and the best prices. Boerse Stuttgart is the German market leader for exchange trading in corporate bonds, and the European market leader for trading in securitised derivatives. With Boerse Stuttgart’s hybrid market model, trading experts are integrated into the electronic trading system. They provide additional liquidity when needed, and ensure fast and reliable execution of orders. Investor protection and transparency are ensured by all the regulatory and control mechanisms of a public exchange. Retail investors can contact Stuttgart’s exchange via a free customer hotline (when calling from Germany ) and take advantage of a wide range of educational resources. With a trading volume of more than EUR 80 billion across all asset classes in 2016, Boerse Stuttgart is ranked tenth among European exchanges. A total of 77 trading participants from several European countries are linked to the Stuttgart Exchange. Boerse Stuttgart has been active on the Scandinavian market since 2008 through its subsidiary Nordic Growth Market (NGM).",
+        "logo": "20201204132547747441-logo_boerse_stgt.png",
+        "twitter": null,
+        "slug_name": "boerse-stuttgart",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201204132547747441-logo_boerse_stgt.png"
+      },
+      {
+        "name": "BSO Network Solutions",
+        "provider_type": [
+          "telco_carrier"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.bsonetwork.com/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>BSO Network Solutions (BSO) is a global Ethernet network, cloud and hosting provider specialising in low-latency connectivity for the financial trading industry. The company's global network spans 20 countries and 70 data centre locations. BSO provides its customers with the most direct, fastest and most reliable network paths available to ensure stable, secure connectivity to the world's leading exchanges and marketplaces.</p><p>As experts in both emerging and core trading markets, BSO provides connectivity routes between key locations across Europe, North America, the Middle East and APAC. The company continually strives to innovate and invest in its own services to ensure its solutions evolve in parallel with the finance community.</p><p>For more information, please visit <a href=\"http://www.bsonetwork.com\" target=\"_blank\">http://www.bsonetwork.com</a>. Follow BSO on <a href=\"https://twitter.com/bsonetwork\" target=\"_blank\">Twitter</a> and <a href=\"https://www.linkedin.com/company/bso-network-solutions\" target=\"_blank\">LinkedIn</a>. </p>",
+        "logo": "bso.png",
+        "twitter": "@bsonetwork",
+        "slug_name": "bso-network-solutions",
+        "filters": [
+          "telco_carrier",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/bso.png"
+      },
+      {
+        "name": "BT Radianz",
+        "provider_type": [
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.btradianz.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>BT's RadianzNet is the leading secure, reliable, scalable connectivity and hosting platform for the global financial services community. Connecting more than 10,400 financial sites around the world, RadianzNet is optimised for the time-critical demands unique to financial services. BT provides connectivity to Cboe for financial firms across Europe and the UK for market data and order entry through RadianzNet. BT also provides ultra-low latency connectivity to Cboe in metropolitan London through Radianz Ultra Access.</p>",
+        "logo": "bt.png",
+        "twitter": null,
+        "slug_name": "bt-radianz",
+        "filters": [
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/bt.png"
+      },
+      {
+        "name": "Cboe Hanweck",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [],
+        "url": "https://www.hanweck.com/",
+        "contact": [
+          [
+            "any",
+            "isgsales@cboe.com",
+            "646 414 7330"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Cboe Hanweck is the leading provider of real-time risk analytics on global derivatives markets, focusing on the large-scale risk problems of banks, broker/dealers, hedge funds, central counterparties, and exchanges — where the number of instruments and positions number in the millions. Cboe Hanweck delivers risk analytics as a real-time service in flexible ways, from feeds to APIs, that dramatically simplify integration with customers' risk architecture.",
+        "logo": "20240806144452128091-Hanweck Logo 600x600 1.png",
+        "twitter": null,
+        "slug_name": "cboe-hanweck",
+        "filters": [
+          "market_data"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20240806144452128091-Hanweck Logo 600x600 1.png"
+      },
+      {
+        "name": "Celoxica",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.celoxica.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Celoxica's solutions include a full range of market data feed handlers for the main US and European Equities, Options, Futures exchanges and FX.</p><p>Celoxica's range of services are designed to deliver unique business advantage through a combination of leading edge software and hardware acceleration using FPGA-based technology to offer ultra-low latency measured in single digit microsecond and ultra-high throughput, together with accelerated Market Data,  Market Access and hardware Accelerated In-Line Risk. </p><p>Celoxica's clients are typically trading firms who co-locate (or proximity host) their strategic applications in high frequency trading environments, market making, liquidity provision, algorithmic trading and smart order routing.</p>",
+        "logo": "celoxica.png",
+        "twitter": null,
+        "slug_name": "celoxica",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/celoxica.png"
+      },
+      {
+        "name": "CloudQuote.io",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "north_america"
+        ],
+        "url": "https://www.cloudquote.io/",
+        "contact": [
+          [
+            "us",
+            "info@financialcontent.com",
+            "888-688-9880"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FinancialContent Services, Inc. operates a cloud-based platform CloudQuote.io to assist emerging companies and established enterprises handle their financial data needs. The platform is unique in that it combines high quality APIs, data, and visualizations from different sources, providing both easy integration and enormous flexibility, empowering media sites, financial analysts, financial advisors, hedge funds, asset managers and investment banks with all the tools needed to build immersive financial products. Global financial data, news, and expertise coupled with data integration, management and sourcing.",
+        "logo": "20210426120918762630-fclogo_cloudquote.png",
+        "twitter": null,
+        "slug_name": "cloudquoteio",
+        "filters": [
+          "market_data",
+          "north_america"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20210426120918762630-fclogo_cloudquote.png"
+      },
+      {
+        "name": "Colt",
+        "provider_type": [
+          "telco_carrier",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.colt.net",
+        "contact": [
+          [
+            "eu",
+            "capitalmarkets@colt.net",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Colt provides on-demand network and communications services to information-intensive businesses across Europe, Asia and North America. Founded in 1992, there are over 5000 Colt people in local offices across 21 countries.</p><p>Customers include 18 of the top 25 bank and diversified financial groups and 19 out of the top 25 companies in both global media and telecoms industries (Forbes 2000 list, 2014). In addition, Colt works with over 50 exchange venues and 13 European central banks.</p><p>Colt provides businesses with reliable business grade services backed by the right choice of technology, service and commercials. When it matters, customers choose Colt.</p><p>For more information, please visit <a href=\"http://www.colt.net\">www.colt.net</a></p>",
+        "logo": "20251023142720013027-Colt_logo_Teal_RGB_600x600.png",
+        "twitter": null,
+        "slug_name": "colt",
+        "filters": [
+          "telco_carrier",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023142720013027-Colt_logo_Teal_RGB_600x600.png"
+      },
+      {
+        "name": "CQG",
+        "provider_type": [
+          "extranet",
+          "managed_service_provider",
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.cqg.com",
+        "contact": [
+          [
+            "us",
+            "askcqg@cqg.com",
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "CQG provides the industry’s highest performing solutions for trading, global market data, and advanced technical analysis. The firm partners with the vast majority of futures brokerage and clearing firms and provides Direct Market Access (DMA) to more than 45 exchanges through its global network of co-located Hosted Exchange Gateways. CQG's server-side order management tools for spreading, market aggregation, and smart orders are unsurpassed for speed and ease of use. Its market data feed consolidates more than 75 sources, including exchanges worldwide for futures, options, fixed income, foreign exchange, and equities, as well as data on debt securities, industry reports, and financial indices. CQG has received the Prop Traders' ISV of the Year award from FOW (now Global Investor Group), the Best Technical Analysis Platform award from The Technical Analyst, and the Best Product for Traders award from Finance Magnates for its multi-asset trading platform.  CQG is headquartered in Denver, Colorado, with sales and support offices worldwide.",
+        "logo": "cqg.png",
+        "twitter": null,
+        "slug_name": "cqg",
+        "filters": [
+          "extranet",
+          "managed_service_provider",
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/cqg.png"
+      },
+      {
+        "name": "Custom Connect",
+        "provider_type": [
+          "telco_carrier"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.custom-connect.net",
+        "contact": [
+          [
+            "eu",
+            "info@custom-connect.net",
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Custom Connect is a global reseller of high-performance network solutions. Custom Connect&lsquo;s services offer carrier-neutral, reliable and integrated connectivity while simplifying network management, support and sourcing through a single point of contact. We design, deliver and support high-performance networks with a strong focus on the Financial Industry, since we operate carrier neutral we're able to develop bespoke services for our clients that are always tailor-made to fulfill any type of connectivity-need. We&lsquo;re not bound to any network, carrier or technology resulting in real objective advice, design and delivery of connectivity services. Our services can be summarized in the following categories:</p><ul class=\"default\"><li>Dark-fibre</li><li>Wavelengths</li><li>Ethernet</li><li>IP</li><li>Colocation</li><li>24x7 Support</li><li>Consultancy</li></ul><p>All our services are delivered and 24 x 7 supported on a global scale. For more information visit <a href=\"http://www.custom-connect.net\" target=\"_blank\">www.custom-connect.net</a> or email to <br/><a href=\"mailto:info@custom-connect.net\">info@custom-connect.net.</a></p>",
+        "logo": "custom-connect.png",
+        "twitter": null,
+        "slug_name": "custom-connect",
+        "filters": [
+          "telco_carrier",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/custom-connect.png"
+      },
+      {
+        "name": "Databento",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://databento.com",
+        "contact": [
+          [
+            "any",
+            "sales@databento.com",
+            "617-553-4000"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Databento makes it simpler and faster to access institutional-grade financial data. With Databento's APIs and no-code browser platform, users can instantly access petabytes of market data—and only pay for what they use. As an official distributor of data from over 45 venues, Databento's servers are hosted in the colocation facilities of each trading venue for low-latency and high-fidelity data capture directly from the source.\r\nBoth real-time and historical data are available in over 15 formats, including L1, L2, and L3, with nanosecond-resolution timestamps. Databento has pioneered many industry firsts, including usage-based pricing and the delivery of full-exchange L3 feeds over the internet.",
+        "logo": "20251024160015823413-databento-cboe-vendor-list-v2.png",
+        "twitter": null,
+        "slug_name": "databento",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024160015823413-databento-cboe-vendor-list-v2.png"
+      },
+      {
+        "name": "DTN",
+        "provider_type": [
+          "market_data",
+          "extranet",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.dtn.com/",
+        "contact": [
+          [
+            "us",
+            "prosales@dtn.com",
+            "+1 (800) 652-2291"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Actionable Insight to the Nth Degree.<br /><br />We are the independent, trusted source of insights to our customers, who are dedicated to feeding, fueling and protecting our world. We are proud to empower you with intelligent and actionable insights that exceed your expectations and enable your success daily. You rely on us to make sense of the data, look at it differently and deliver it through innovative, real-time solutions. Whether it is weather, commodity market information, or process improvements, you can trust that we always deliver with precision and accuracy to the Nth Degree. When you prosper, we all win.</p>",
+        "logo": "20251023145315193411-DTN_color_300dpi.png",
+        "twitter": null,
+        "slug_name": "dtn",
+        "filters": [
+          "market_data",
+          "extranet",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023145315193411-DTN_color_300dpi.png"
+      },
+      {
+        "name": "dxFeed",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.dxfeed.com/",
+        "contact": [
+          [
+            "any",
+            "sales@dxfeed.com",
+            "+1 (201) 685-9280"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>DdxFeed is a leading market data and services provider and calculation agent for the capital markets industry and, according to the WatersTechnology 2020 IMD & IRD awards honors, the Best Analytics and Technology Provider. dxFeed’s primary focus is delivering financial market data and services to buy- and sell-side institutions in the global financial industry. This includes brokerages, prop traders, exchanges, individuals (traders, quants, portfolio managers), and academia (educational institutions and researchers).</p>",
+        "logo": "20210903154206964276-dxFeed-logo-horizontal-white.png",
+        "twitter": null,
+        "slug_name": "dxfeed",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20210903154206964276-dxFeed-logo-horizontal-white.png"
+      },
+      {
+        "name": "EliData",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.elidata.it/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>EliData offers complete and modular multi-market and multi-asset class STP solutions to banks, investment firms, asset management and insurance companies. The suite offers access to international markets, circuits and brokers for trading, order collection and transmission for all asset classes including functionality for Order Management, Algorithmic Trading, Smart Order Routing, Market Making, Internal Matching, Portfolio Management, Risk Management, Middle Office and through other products from CAD IT group also Back Office, Market Abuse, Money Laundry, Trading Online etc.</p>",
+        "logo": "eli-data.png",
+        "twitter": null,
+        "slug_name": "elidata",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/eli-data.png"
+      },
+      {
+        "name": "EODHD APIs (Unicorn Data Services SAS)",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "https://eodhd.com/",
+        "contact": [
+          [
+            "any",
+            "support@eodhistoricaldata.com",
+            "+33769651250"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "EODHD APIs (Unicorn Data Services SAS) provide fast and reliable access to stock market data, including end-of-day prices, intraday data, fundamentals, technical indicators, and more with via easy-to-use RESTful APIs.",
+        "logo": "20250721175524233736-EODHD-APIs_600x600.png",
+        "twitter": null,
+        "slug_name": "eodhd-apis-unicorn-data-services-sas",
+        "filters": [
+          "market_data",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250721175524233736-EODHD-APIs_600x600.png"
+      },
+      {
+        "name": "euNetworks",
+        "provider_type": [
+          "telco_carrier"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.eunetworks.com/contact.html",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>euNetworks delivers Europe's lowest latency networking solutions, which are contractually guaranteed. They own a &euro;1bn all-optical network, and therefore have total control of performance and high availability. Services can be delivered on-demand, to over 100 leading European datacentres, and customers can have freedom to move datacentres within the contract. Ideally suited to trading, euNetworks&lsquo; mission-critical services are fully transparent, highly scalable, and extremely cost effective. </p>",
+        "logo": "eu-networks.png",
+        "twitter": null,
+        "slug_name": "eunetworks",
+        "filters": [
+          "telco_carrier",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/eu-networks.png"
+      },
+      {
+        "name": "Exegy",
+        "provider_type": [
+          "software",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.exegy.com",
+        "contact": [
+          [
+            "eu",
+            "sales@exegy.com",
+            "314-218-3600"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Exegy provides best-of-breed technology and managed services for real-time market data and trading access to firms in the financial services industry. Exegy has expanded its market data offerings to historical on-demand recordings sourced from direct and Securities Information Processor (SIP) data feeds to further serve the industry's needs for analytics, compliance, and strategy testing.  Exegy serves as a strategic partner to exchanges, market makers, sell-side banks, buy-side asset managers, and proprietary traders. At the heart of Exegy's product line are purpose-built, hardware-accelerated appliances derived from an extensive portfolio of patented and patent-pending technology. Exegy promotes the design of robust electronic markets through its MarketDataPeaks service that reports real-time market data feed rates.</p>",
+        "logo": "exegy.png",
+        "twitter": null,
+        "slug_name": "exegy",
+        "filters": [
+          "software",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/exegy.png"
+      },
+      {
+        "name": "Exponential-e",
+        "provider_type": [
+          "extranet"
+        ],
+        "geographic_region": [],
+        "url": "https://www.exponential-e.com/contact-us",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Exponential-e's trading data solution gives you access to multiple sources of liquidity over one pipe. You can connect to ECNs, MTFs, other financial exchange feeds, financial applications as well as data applications (eg, VoIP & Internet) all over a single low-latency Ethernet connection. Thereby, you can simplify, consolidate and lower the cost of data distribution and trade execution. Benefits include; uninterrupted uptime, trading capabilities with tight service levels, cost-efficiency, high security and end-to-end fault management.</p>",
+        "logo": "exponential-e.png",
+        "twitter": null,
+        "slug_name": "exponential-e",
+        "filters": [
+          "extranet"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/exponential-e.png"
+      },
+      {
+        "name": "FactSet",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.factset.com",
+        "contact": [
+          [
+            "us",
+            "support@factset.com",
+            "877-322-8738"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FactSet creates flexible, open data and software solutions for tens of thousands of investment professionals around the world, providing instant access to financial data and analytics that investors use to make crucial decisions.  For 40 years, through market changes and technological progress, our focus has always been to provide exceptional client service. From more than 60 offices in 23 countries, we're all working together toward the goal of creating value for our clients, and we're proud that 95% of asset managers who use FactSet continue to use FactSet, year after year.",
+        "logo": "factset.png",
+        "twitter": null,
+        "slug_name": "factset",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/factset.png"
+      },
+      {
+        "name": "FE (Financial Express)",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.fefundinfo.com/en-gb/",
+        "contact": [
+          [
+            "any",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FE is a leading provider of data, ratings and investment research, to the investment management industry.\r\n We use our expertise to help our clients unlock the potential in their data, and connect and communicate\r\n more effectively with their customers, whilst ensuring regulatory compliance and transparency. \r\n This in turn helps the industry make better informed and superior investment decisions. Founded in 1996, \r\nFE is a private company with a strong presence in the UK, Europe, and the Asia Pacific. E/ enquiries@financialexpress.net",
+        "logo": "20201204132828744993-FE_Main_Strap.jpg",
+        "twitter": null,
+        "slug_name": "fe-financial-express",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201204132828744993-FE_Main_Strap.jpg"
+      },
+      {
+        "name": "Fidessa",
+        "provider_type": [
+          "market_data",
+          "managed_service_provider",
+          "service_bureau",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.fidessa.com",
+        "contact": [
+          [
+            "any",
+            "info@fidessa.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Fidessa is one of the industry's leading technology providers with more than 30 years' experience delivering complex mission-critical solutions through a combination of market-leading technology, deep business knowledge and precision of execution. Fidessa solutions support the core workflow of many of the world's largest financial institutions, from global institutions and investment banks to boutique brokers and niche hedge funds and its global network processes more than $20 trillion worth of transactions annually.",
+        "logo": "fidessa.png",
+        "twitter": null,
+        "slug_name": "fidessa",
+        "filters": [
+          "market_data",
+          "managed_service_provider",
+          "service_bureau",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/fidessa.png"
+      },
+      {
+        "name": "Financial Modeling Prep",
+        "provider_type": [
+          "market_data",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://site.financialmodelingprep.com/enterprise#contact",
+        "contact": [
+          [
+            "any",
+            "info@financialmodelingprep.com",
+            "+1 647 250 7264"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FMP (Financial Modeling Prep) delivers managed and customized client solutions for fundamentals, historical, and real-time financial market data across stocks, ETFs, mutual funds, indexes, cryptocurrencies, forex, and commodities. FMP offers over 100 API endpoints with reliable, developer-friendly financial market datasets that scale for startups and enterprises.",
+        "logo": "20251203155447431266-FMP.png",
+        "twitter": null,
+        "slug_name": "financial-modeling-prep",
+        "filters": [
+          "market_data",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251203155447431266-FMP.png"
+      },
+      {
+        "name": "FINSMART SOLUTION LIMITED",
+        "provider_type": [
+          "market_data",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.finsmart.sg",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FINSMART is a technology company engaged in securities trading and related system development under the uSMART Group. Its core technical team comes from technology giants and well-known financial companies, including famous IT companies and financial institutions such as Tencent, Alibaba, Yahoo, and Ping An. It has more than 100 employees, and technical personnel account for more than 80%.",
+        "logo": "20250807133556129987-FINSMART_600x600.png",
+        "twitter": null,
+        "slug_name": "finsmart-solution-limited",
+        "filters": [
+          "market_data",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250807133556129987-FINSMART_600x600.png"
+      },
+      {
+        "name": "FIS Global",
+        "provider_type": [
+          "market_data",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.fisglobal.com",
+        "contact": [
+          [
+            "any",
+            "MarketMap.Support@fisglobal.com",
+            "855-468-2534"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FIS is a global leader in financial services technology, with a focus on retail and institutional banking, payments, asset and wealth management, risk and compliance, consulting and outsourcing solutions. Through the depth and breadth of our solutions portfolio, global capabilities and domain expertise, FIS serves more than 20,000 clients in over 130 countries. Headquartered in Jacksonville, Florida, FIS employs more than 55,000 people worldwide and holds leadership positions in payment processing, financial software and banking solutions. Providing software, services and outsourcing of the technology that empowers the financial world, FIS is a Fortune 500 company and is a member of Standard & Poor's 500R Index. For more information about FIS, visit www.fisglobal.com       ",
+        "logo": "fis-global.png",
+        "twitter": null,
+        "slug_name": "fis-global",
+        "filters": [
+          "market_data",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/fis-global.png"
+      },
+      {
+        "name": "Fixnetix",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.fixnetix.com/",
+        "contact": [
+          [
+            "any",
+            "sales@fixnetix.com",
+            "0 (203) 008 8990"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Fixnetix is the leading provider of ultra low latency data and trading connectivity to many of the worlds leading Investment Bank Proprietary trading desks, Stat Arb Hedge Funds, Market Makers and Exchanges (including Cboe Europe). Fixnetix provide connectivity within Exchange Colo&lsquo;s coupled with access to every other major alternative trading venue over our dedicated point to point 10Gb+ DWDM network. We deliver data in multiple formats with sub-millisecond transformation if required, with services provided on the wire for reduced support costs, delivery times and ease of integration.</p>",
+        "logo": "fixnetix_b408af6686ef5cf212a9abaa47bbb89e.png",
+        "twitter": null,
+        "slug_name": "fixnetix",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/fixnetix_b408af6686ef5cf212a9abaa47bbb89e.png"
+      },
+      {
+        "name": "FOURTUNE & INFORMATION UNION LIMITED",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.szfiu.com",
+        "contact": [
+          [
+            "any",
+            "info@szfiu.com",
+            "+86 755 83855235"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "FORTUNE AND INFORMATION UNION LIMITED (FIU) is a leading and professional service provider of financial data, market information and digitization solutions. FIU has been building up digital and technology infrastructure quickly and efficiently with reasonable cost through its \"multi-site + hybrid cloud + SAAS + one-stop\" service model. \r\nFIU also is one of the few suppliers in the market that can provide fast market information and in-depth market information to support diversified product systems. Not only does it meet with the business needs of brokerage firms, but it can also provide comprehensive data product support in the proprietary trading, investment research and quantitative trading.",
+        "logo": "20251024133637047505-logo-szfiu.png",
+        "twitter": null,
+        "slug_name": "fourtune-information-union-limited",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024133637047505-logo-szfiu.png"
+      },
+      {
+        "name": "FTEN",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.FTEN.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>FTEN, a NASDAQ OMX company, offers real-time, cross-market risk management solutions that provide market participants with transparency and control over their global trading activity.  Our mission is to help firms build and grow their electronic trading businesses - allowing for more efficient use of capital while maintaining full regulatory compliance.</p><p>FTEN's patented technology allows users to monitor their aggregate intraday risk profile on a global basis.  We have a highly scalable and reliable market access platform that connects to all major pools of liquidity and supports multiple asset classes. Our systems provide pre-, at- and post-trade risk, compliance and reporting solutions that satisfy even the most latency sensitive users.</p><p>FTEN has established itself as a catalyst for our clients continued growth.  We are committed to providing unmatched customer service and flexible deployment options to prime brokerage, clearing firms, hedge funds, proprietary trading firms and exchanges.</p>",
+        "logo": "ften.png",
+        "twitter": null,
+        "slug_name": "ften",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ften.png"
+      },
+      {
+        "name": "GTN",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.gtngroup.com/",
+        "contact": [
+          [
+            "eu",
+            "info@gtngroup.com",
+            "+97145246444"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "We are a global fintech providing the investment and trading solutions that powers brokers, banks, asset managers, and fintech’s. With a team of over 500 professionals across 14 countries, we offer a single gateway to over 90 global markets and multiple asset classes, enabling partners to scale their businesses and provide innovative investment solutions. Trusted by leading financial institutions and backed by strategic investors, including IFC, a member of the World Bank Group, and SBI Group, we hold broker-dealer and capital markets services licences in multiple jurisdictions and are committed to making investment and trading accessible to all through our partners.",
+        "logo": "20251023161530585513-GTN Logo_2025-resized2.png",
+        "twitter": null,
+        "slug_name": "gtn",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023161530585513-GTN Logo_2025-resized2.png"
+      },
+      {
+        "name": "GuavaTech, Inc.",
+        "provider_type": [
+          "market_data",
+          "extranet",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.guavatech.com",
+        "contact": [
+          [
+            "us",
+            "sales@guavatech.com",
+            "+1 312-604-4300"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "GuavaTech, Inc. is a Global Managed Services Provider focused on customized IT solutions for proprietary trading firms, investment banks, hedge funds, broker-dealers, and FCMs.",
+        "logo": "guavatech_logo_d33b3a56513a51459c2dcd7de8ba1841.png",
+        "twitter": null,
+        "slug_name": "guavatech-inc",
+        "filters": [
+          "market_data",
+          "extranet",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/guavatech_logo_d33b3a56513a51459c2dcd7de8ba1841.png"
+      },
+      {
+        "name": "IBM",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "north_america"
+        ],
+        "url": "http://ibm.com/financialmarkets/fasterdata",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>WebSphere Front Office for Financial Markets is a fully-integrated, vendor-neutral front office platform that offers not only security, interoperability and scalability but also high-performance, high capacity and ultra-low latency with end-to-end latency across the whole platform of less than 150 microseconds for a typical market data feed. WebSphere Front Office also offers the ability to combine multiple order book feeds, such as ARCA, ITCH, OpenBook, DirectEdge, and Cboe, into a single consolidated view of the market.</p>",
+        "logo": "ibm.png",
+        "twitter": null,
+        "slug_name": "ibm",
+        "filters": [
+          "software",
+          "north_america"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ibm.png"
+      },
+      {
+        "name": "ICE-NYSE",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.theice.com/data-services/connect-and-deliver",
+        "contact": [
+          [
+            "us",
+            "iceglobalnetwork-info@theice.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "As a vital backbone for financial and commodity market information flow, the ICE Data Service’s ICE Global Network (IGN) connects the global market community to important content, supporting trading and risk management across asset classes via an ultra-secure infrastructure. The ICE Global Network provides access to 150+ global markets including proprietary data from NYSE and ICE Exchanges, and 600+ market data sources delivered in a fast, flexible and secure manner. Engineered to handle high volume requirements, ICE Global Network has scalable bandwidth (top-tier capacity with 100Gbps native backbone in the US and 20Gbps in EMEA), a wide variety of connectivity options - Including Fiber, Wireless, Colocation and Hosting, and, utilizes private line connectivity to securely route orders and access hundreds of liquidity venues, data feeds, clearing and other trading services.",
+        "logo": "ice-nyse.png",
+        "twitter": null,
+        "slug_name": "ice-nyse",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ice-nyse.png"
+      },
+      {
+        "name": "ICF Systems AG",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.icfsystems.de/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>ICF Systems AG is a full-service provider specialized in high-availability IT services for the financial industry:</p><ul class=\"default\"><li>Individual hosting for mission critical trading and information systems</li><li>High-speed market access and market information systems</li><li>Full lifecycle for all IT systems (plan, build, operate)</li><li>Reporting solutions and risk compliance systems</li><li>One-stop full IT service with own employees and HA data centre locations</li></ul>",
+        "logo": "icf.png",
+        "twitter": null,
+        "slug_name": "icf-systems-ag",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/icf.png"
+      },
+      {
+        "name": "IF Informatica",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.ifinformatica.it/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>The Yado Suite from IF Informatica offers an ESMA compliant, low latency, multi-venue, multi-asset class modular system. It delivers pricing, position keeping, algo trading and risk monitoring functionalities. Highlights include:</p><ul><li>Distributed architecture</li><li>Server side strategies</li><li>High performance open source scripting language</li><li>Tradable position keeping with on-line portfolios evaluation</li><li>Real-time limits management  (position, risk, P&L, VaR)</li><li>System behavior control (resources usage, TPS, stock exchange fees monitoring)</li><li>Ease of integration with legacy and third parties solutions</li></ul>",
+        "logo": "if-informatica.png",
+        "twitter": null,
+        "slug_name": "if-informatica",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/if-informatica.png"
+      },
+      {
+        "name": "IFS LiquidMetrix",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.liquidmetrix.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>IFS LiquidMetrix are based in London, and are experts in financial market data research and execution quality analysis. </p><p>The IFS LiquidMetrix Pre and Post-Trade Analysis services provide the sophisticated analytics required for performance measurement, and are made possible through its suite of proprietary tools for optimal storage and retrieval of trades, and full depth order book data from multi-terabyte databases of equity venue data. The TCA methods that IFS developed are uniquely suited to reflect modern multi-venue trading realities. </p><p>The LiquidMetrix products allow brokers as well as trading firms to monitor and compare the performance of their order routing technology / algorithms / broker DMAs and to make informed decisions on achieving the best possible prices by taking full advantage of the opportunities available.</p>",
+        "logo": "ifs-liquid-metrix.png",
+        "twitter": null,
+        "slug_name": "ifs-liquidmetrix",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ifs-liquid-metrix.png"
+      },
+      {
+        "name": "IHS Markit",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.ihsmarkit.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "IHS Markit is a world leader in critical information, analytics and solutions for the major industries and markets that drive economies worldwide. We deliver next-generation information, analytics and solutions to customers in business, finance and government, improving their operational efficiency and providing deep insights that lead to well-informed, confident decisions. IHS Markit has more than 50,000 key business and government customers, including 85 percent of the Fortune Global 500 and the world’s leading financial institutions. Headquartered in London, IHS Markit is listed on the Nasdaq under the symbol INFO and committed to sustainable, profitable growth. For more information please visit www.ihsmarkit.com.",
+        "logo": "IHSM_Logo_H_b8515f627691a38543cc7dfeb4f79d5c.png",
+        "twitter": null,
+        "slug_name": "ihs-markit",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/IHSM_Logo_H_b8515f627691a38543cc7dfeb4f79d5c.png"
+      },
+      {
+        "name": "Infocast Limited",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": "http://www.infocast.com.hk/en",
+        "contact": [
+          [
+            "us",
+            "content@infocast.com.hk",
+            "(852) 2589 9507"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Infocast Limited is a leading supplier of financial information technology (FinTech) products and services in Hong Kong. Infocast has over 20 years' experience supplying securities trading platforms, banking enterprise solutions, financial content services and investor applications to over 150 banks and brokerages in Hong Kong and across Asia. Infocast is also a licensed information vendor for multiple exchanges and news media firms. Employing over 100 IT professionals, Infocast is committed to be your trusted trading solutions provider.",
+        "logo": "infocast.png",
+        "twitter": null,
+        "slug_name": "infocast-limited",
+        "filters": [
+          "market_data",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/infocast.png"
+      },
+      {
+        "name": "Infront",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://goinfront.com/contact",
+        "contact": [
+          [
+            "eu",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Financial professionals across Europe and South Africa rely on Infront for flexible financial market solutions.\r\nWe offer a powerful combination of global market data, news, analytics and trading together with integrated solutions for data feeds, portfolio management and advisory, and regulatory compliance and calculations.\r\nOur solutions serve 3,600 customers with over 90,000 professional users. With support for their complete workflow, financial professionals can manage investment decisions, reduce costs, adapt to fast-changing market requirements and work more efficiently with ever-increasing amounts of information – quickly, easily and flexibly.\r\nMore than 500 employees in 13 countries across Europe and South Africa apply their expertise to meet the challenges of our clients, ensuring they continuously receive the best solutions and services. Infront is listed on the Oslo Stock Exchange.\r\n</p>",
+        "logo": "20210609115153802866-Infront_logo_color_RGB.png",
+        "twitter": null,
+        "slug_name": "infront",
+        "filters": [
+          "market_data",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20210609115153802866-Infront_logo_color_RGB.png"
+      },
+      {
+        "name": "Interoute",
+        "provider_type": [
+          "telco_carrier"
+        ],
+        "geographic_region": [],
+        "url": "mailto:Joe.Marano@interoute.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Interoute are a pan-European provider of network services. Our 56,000km of wholly owned fibre network connects 93 cities in 22 countries spanning from New York to Moscow and from the Nordics down to North Africa. Interoute can provide connectivity in to Cboe from E1 to STM64 SDH and from 10Mb to 10Gigabit Ethernet. Our service also includes the last mile to your location in any country on our network.</p>",
+        "logo": "interoute.png",
+        "twitter": null,
+        "slug_name": "interoute",
+        "filters": [
+          "telco_carrier"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/interoute.png"
+      },
+      {
+        "name": "IPC",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.ipc.com/",
+        "contact": [
+          [
+            "any",
+            "Mike.Smith@ipc.com",
+            "+1 (201) 253-2305"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "IPC is a technology and service leader powering the global financial markets. We help clients anticipate change and solve problems, setting the standard with industry expertise, exceptional service and comprehensive technology. With a customer-first mentality, IPC brings together one of the largest and most diverse global financial ecosystems spanning all asset classes and market participants. As the enabler of this ecosystem, IPC empowers the community to interact, transact and react to market changes and challenges, and we collaborate with our customers to help make them secure, productive, compliant and connected.",
+        "logo": "ipc.png",
+        "twitter": null,
+        "slug_name": "ipc",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ipc.png"
+      },
+      {
+        "name": "IRESS",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.iress.com/",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>IRESS is an independent software partner providing integrated trading, market data, wealth management and mortgage solutions. A top 150 ASX listed company, it covers the globe with offices in Australia, Asia, Canada, New Zealand, South Africa and the UK. IRESS operates a continuous product investment program backed by international knowledge and localised on-the-ground teams.</p>\r\n\r\n<p>Some of the world’s leading financial services businesses choose IRESS for the breadth of functionality and the efficiency IRESS systems enable. At its core, IRESS combines leading software solutions, technical expertise and a profound understanding of financial services domains. www.iress.com</p>",
+        "logo": "20201204133005607334-IRESS.jpg",
+        "twitter": null,
+        "slug_name": "iress",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201204133005607334-IRESS.jpg"
+      },
+      {
+        "name": "ITG",
+        "provider_type": [
+          "market_data",
+          "service_bureau"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.itg.com",
+        "contact": [
+          [
+            "eu",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>ITG is an independent research broker partnering with global portfolio managers and traders throughout the investment process, from investment decision through to settlement.  With our launch of the POSIT&reg; crossing network in 1987, we founded ITG with a strong commitment to empower buyside investors.  And over the years, we've continued to deepen that commitment by creating a powerful network of intellectual capital, true industry experience, and market-leading technology to offer the unmatched insights that seek to help clients generate and preserve alpha.</p>",
+        "logo": "itg.png",
+        "twitter": null,
+        "slug_name": "itg",
+        "filters": [
+          "market_data",
+          "service_bureau",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/itg.png"
+      },
+      {
+        "name": "Itiviti",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.itiviti.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Itiviti is a world-leading technology provider for the capital markets industry. Trading firms, banks, brokers and institutional clients rely on Itiviti technology, solutions and expertise for streamlining their daily operations, while gaining a sustainable competitive edge in global markets.</p><p>With 13 offices and serving more than 400 clients worldwide, Itiviti has a track record of delivering innovative financial infrastructure solutions covering all asset classes, across geographies and regulatory landscapes. We offer highly adaptable platforms and solutions, enabling clients to stay ahead of competitive and regulatory challenges.</p>",
+        "logo": "itiviti.png",
+        "twitter": null,
+        "slug_name": "itiviti",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/itiviti.png"
+      },
+      {
+        "name": "Lime Trading",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://lime.co/",
+        "contact": [
+          [
+            "us",
+            "sales@limebrokerage.com",
+            "+1 (781) 370-2518"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Lime was founded when a sophisticated hedge fund couldn’t find a brokerage firm to meet their needs for volume, speed, and privacy — so they created one. For over 20 years Lime has catered to a demanding group of financial institutions and is now expanding access to independent traders who value quality execution.",
+        "logo": "20230628100839046645-lime.png",
+        "twitter": null,
+        "slug_name": "lime-trading",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20230628100839046645-lime.png"
+      },
+      {
+        "name": "LIST SpA",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.list-group.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>LIST is a leader in the design and development of software for capital markets. The company has been producing innovative solutions for the financial industry for more than 25 years.</p><p>LIST offers projects and solutions for:</p><ul class=\"default\"><li>Electronic markets (regulated, MTF, internal) real time settlement systems (pre settlement, gross and net settlement, registry and custody) that are completed integrated into e-markets;</li><li>Advanced trading systems for financial markets, algorithmic trading, risk management, risk monitoring, assisted trading and automatic quoting, order management systems, position keeping, and integrated analytical tools for pricing;</li><li>Operational risk, audit &amp; compliance for the integrated management for:  Operational Risk, General Compliance, Internal Audits and Business Continuity, in compliance with Basel III and supervisory regulations.</li></ul>",
+        "logo": "list.png",
+        "twitter": null,
+        "slug_name": "list-spa",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/list.png"
+      },
+      {
+        "name": "Longbridge Group",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": "http://www.longbridge.com",
+        "contact": [
+          [
+            "any",
+            "sheng.qian@longbridge.sg",
+            "+86 19106852495"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Longbridge Group is a leading fintech company with three core business segments: Securities, Technology, and Community. Its flagship platform, Longbridge (longbridge.com), is an AI-driven online brokerage offering global investors seamless trading experiences. Longbridge Whale (longbridgewhale.com) provides comprehensive digital trading and wealth management solutions for financial institutions and high-net-worth individuals. LongPort (longportapp.com) is a global investor community platform offering market data, advanced tools, and AI-powered investment support through PortAI.",
+        "logo": "20250707095747976041-Longbridge_600x600.png",
+        "twitter": null,
+        "slug_name": "longbridge-group",
+        "filters": [
+          "market_data",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250707095747976041-Longbridge_600x600.png"
+      },
+      {
+        "name": "LSEG",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.lseg.com",
+        "contact": [
+          [
+            "any",
+            "innovation@thomsonreuters.com",
+            "+1 (646) 223-4000"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>LSEG, formerly Refinitiv, is one of the world’s largest providers of financial markets data and infrastructure, serving over 40,000 institutions in over 190 countries. It provides leading data and insights, trading platforms, and open data and technology platforms that connect a thriving global financial markets community - driving performance in trading, investment, wealth management, regulatory compliance, market data management, enterprise risk and fighting financial crime.\"</p>",
+        "logo": "20250701134902682431-LSEG Logo.png",
+        "twitter": null,
+        "slug_name": "lseg",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250701134902682431-LSEG Logo.png"
+      },
+      {
+        "name": "Lumen",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.lumen.com/en-us/home.html",
+        "contact": [
+          [
+            "any",
+            "gems@lumen.com",
+            "+1 (973) 650-1107"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Lumen is a global leader in cloud infrastructure and hosted IT solutions for enterprise customers.  Our flexible Hybrid IT approach allows clients to tailor solutions incorporating a broad range of capabilities, from colocation to managed hosting to cloud, with supplementary compute, storage, security and network services.  Our global footprint of 60+ data centers and ultra-low latency and extremely resilient network connectivity underpins these solutions, reinforced by an unmatched depth of experience in supporting the financial markets. For more information, visit https://www.lumen.com/en-us/home.html.",
+        "logo": "20250220153929595033-Lumen_logo_test 1.png",
+        "twitter": null,
+        "slug_name": "lumen",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250220153929595033-Lumen_logo_test 1.png"
+      },
+      {
+        "name": "Markit",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.markit.com/",
+        "contact": [
+          [
+            "us",
+            "sales@markit.com",
+            "+1 (212) 931-4910"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Markit is a leading global provider of financial information services. We provide products that enhance transparency, reduce risk and improve operational efficiency. Our customers include banks, hedge funds, asset managers, central banks, regulators, auditors, fund administrators and insurance companies. Founded in 2003, we employ over 4,000 people in 11 countries. Markit shares are listed on Nasdaq under the symbol MRKT. For more information, please see www.markit.com.",
+        "logo": "markit.png",
+        "twitter": null,
+        "slug_name": "markit",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/markit.png"
+      },
+      {
+        "name": "Massive.com, Inc.",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://massive.com/",
+        "contact": [
+          [
+            "any",
+            "sales@massive.com",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "Massive is a developer-centric market data platform built for scale, delivering fast, reliable access to institutional-grade financial data across global markets, including equities, options, indices, futures, forex, and cryptocurrencies. Massive empowers developers, fintechs, and enterprises to create the next generation of financial applications with powerful real-time and historical data.",
+        "logo": "20251104124901057994-Massive-600x600.png",
+        "twitter": null,
+        "slug_name": "massivecom-inc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251104124901057994-Massive-600x600.png"
+      },
+      {
+        "name": "MDX Inc.",
+        "provider_type": [
+          "market_data",
+          "managed_service_provider",
+          "service_bureau",
+          "software"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": "https://md-x.ai/",
+        "contact": [
+          [
+            "any",
+            "mksong@md-x.ai",
+            "+82 10 46417737"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>MDX provides global financial data and solutions for traditional finance and cryptocurrency markets. We provide market data and services to financial institutions including brokers, prop traders, and vendors, and operate data services based on risk management, loan brokerage automation, and collateral evaluation solutions. Currently, through B2B and B2C partnerships, we support approximately 20 million end-users and provide over 4 million financial data 24/7 including equities, futures, options, forex, and cryptocurrencies.\r\n<p>Our headquarters is in Seoul, with a PoP in Hong Kong. We provide data regardless of time and location, including customized, real-time, and historical market data through cloud and dedicated lines. MDX provides high-performance services with efficiency, stability, and speed based on collaboration with the world's top big data experts and programmers.\r\n</p><ul class=\"document-list\"><li>Address: 302, 6, Yeouidaebang-ro 65-gil, Yeongdeungpo-gu, Seoul, 07333 Korea</li><li>Tel: +82 10 4641 7737</li><li>Email: mdx_ot@md-x.ai</li></ul>",
+        "logo": "20251028124014791589-MDX_logo.png",
+        "twitter": null,
+        "slug_name": "mdx-inc",
+        "filters": [
+          "market_data",
+          "managed_service_provider",
+          "service_bureau",
+          "software",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251028124014791589-MDX_logo.png"
+      },
+      {
+        "name": "MegaHub Limited",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": "http://www.megahubhk.com",
+        "contact": [
+          [
+            "us",
+            "cs@megahubhk.com",
+            "+852 2584 3820"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "MegaHub Limited is a leading provider of financial market information and analytics, delivered through customized technology solutions for business organizations, as well as professional and retail investors. MegaHub offers a range of services that includes: real-time market data products, financial data and analytics terminals, trading interface development, mobile applications development, and market data integration.",
+        "logo": "megahub.png",
+        "twitter": null,
+        "slug_name": "megahub-limited",
+        "filters": [
+          "market_data",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/megahub.png"
+      },
+      {
+        "name": "Millistream",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.millistream.com",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Millistream is a leading Nordic provider of real-time market data and content services.</p><p>Through its modern and unique architecture, the Millistream platform produces excellent services in terms of speed, accuracy and flexibility. Customers of Millistream's services are banks, brokers, media and other companies in the financial sector.</p>",
+        "logo": "millistream.png",
+        "twitter": null,
+        "slug_name": "millistream",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/millistream.png"
+      },
+      {
+        "name": "Morningstar",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.morningstar.com",
+        "contact": [
+          [
+            "any",
+            "realtimesales@morningstar.com",
+            "+1 (312) 696-6726"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Morningstar delivers fast, reliable market data and extensive histories from over 260 global exchanges, index providers, banks, and inter-dealer brokers, covering more than 20 million instruments. We operate a high-capacity, resilient global network based in key financial centers worldwide. Data is delivered through a choice of flexible delivery mechanisms, including streaming feeds, request/response & streaming web services, and snapshot files. Global banks, brokerages, asset managers, media outlets and software providers rely on Morningstar Global Market Data Solutions to power their business-critical applications.</p><ul class=\"document-list\"><li>U.S. Sales: +1 312 244-7281</li><li>Worldwide Sales: +44 (0) 20 3194 1332</li><li>Email: realtimesales@morningstar.com</li></ul>",
+        "logo": "morningstar.png",
+        "twitter": null,
+        "slug_name": "morningstar",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/morningstar.png"
+      },
+      {
+        "name": "Nasdaq OMX",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.nasdaqtrader.com",
+        "contact": [
+          [
+            "us",
+            "coloadmin@nasdaq.com",
+            "+1 (212) 231-5180"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Nasdaq (Nasdaq: NDAQ) is a leading provider of trading, exchange technology, listing, information and public company services across six continents. Through its diverse portfolio of solutions, Nasdaq enables customers to plan, optimize and execute their business vision with confidence, using proven technologies that provide transparency and insight for navigating today's global capital markets.",
+        "logo": "nasdaq.png",
+        "twitter": null,
+        "slug_name": "nasdaq-omx",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/nasdaq.png"
+      },
+      {
+        "name": "NB Trader",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.nbtrader.co.uk/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>NBTrader provide total flexibility for Order Management Systems, and market data solutions as both Software As A Service and Enterprise Systems. Fully integrated order and market data flow coupled with multiple levels of workflow management provides unparalleled levels of execution measurement and automation in real-time.</p><p>NBTrader's highly configurable automatic order routing and extensible work-flow schemes ensure that the order flow and order-routing decision process from Wealth Manager to Settlement is completely automated. Execution quality is measured in real-time, ensuring that poor quality trades are not just quantified in real-time, but actively avoided.</p><p>The unique one-platform architecture of NBTrader permits multiple layers of automation, auditing, market replay and departmental sign-off, provides a comprehensive suite of market examination tools and total order-flow oversight to compliance in real-time as well as creation and inclusion of the Best Execution Analysis in with the Contract Note.</p>",
+        "logo": "nb-trader.png",
+        "twitter": null,
+        "slug_name": "nb-trader",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/nb-trader.png"
+      },
+      {
+        "name": "OneZero Financial Systems",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.onezero.com",
+        "contact": [
+          [
+            "us",
+            "sales@onezero.com",
+            "8887034285"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "oneZero Financial Systems has been a leading trading technology developer for the global financial markets for a decade. Their mission is to empower all brokerages, prime brokers and banks to accelerate their growth to compete effectively in the foreign exchange, equities, commodities, cryptocurrency and futures markets. They deliver the most reliable connectivity, technology, infrastructure and market access through a globally compliant, liquidity-neutral multi-asset solution.",
+        "logo": "one-zero.png",
+        "twitter": null,
+        "slug_name": "onezero-financial-systems",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/one-zero.png"
+      },
+      {
+        "name": "OptionMetrics",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global",
+          "apac",
+          "north_america",
+          "emea"
+        ],
+        "url": "https://optionmetrics.com/",
+        "contact": [
+          [
+            "any",
+            "info@optionmetrics.com",
+            "(212) 707-8370"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "With over 25 years as the premier provider of historical options and implied volatility data, we distribute our IvyDB databases to leading portfolio managers, traders, quantitative researchers at 350+ corporate and academic institutions worldwide to construct and test investment strategies, perform empirical research, and assess risk.",
+        "logo": "20251024133928440809-OM_logo_fullcolor-Dark.png",
+        "twitter": null,
+        "slug_name": "optionmetrics",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024133928440809-OM_logo_fullcolor-Dark.png"
+      },
+      {
+        "name": "Options IT",
+        "provider_type": [
+          "market_data",
+          "extranet",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.options-it.com",
+        "contact": [
+          [
+            "any",
+            "sales@options-it.com",
+            "020 7070 5156"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Options IT is a global leader in capital markets infrastructure, trusted by the world’s leading investment firms to deliver ultra-low-latency connectivity, market data, and managed services. With a focus on performance, security, and innovation, Options powers the technology that drives modern trading.",
+        "logo": "20251023142632861784-Options Logo Navy High Res.png",
+        "twitter": null,
+        "slug_name": "options-it",
+        "filters": [
+          "market_data",
+          "extranet",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023142632861784-Options Logo Navy High Res.png"
+      },
+      {
+        "name": "Orbis Systems",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.orbisfn.com/",
+        "contact": [
+          [
+            "us",
+            "support@orbisfn.com",
+            "+1 (201) 215-9805"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Orbis Systems provides innovative software applications and technological services. Our mission is to bring reliable and secure electronic trading systems that operate at the fastest speeds possible. We're the provider of choice for a growing number of prominent financial institutions, independent registered advisors, and our clients range from fintech and small brokerages to international multi-desk trading corporations.</p><p>Orbis gives you direct online access to the global markets, complete with real-time market information, rapid execution times, and valuable tools to help you manage your portfolio and evaluate market trends. We know your business isn't the same as everyone else's, and so we customize our products to suit your individual requirements. We build the features you need, give your software the look and the feel you want, then make it work with the systems you already have. Unlike many providers, we develop and maintain the products we sell, so we can quickly deliver updates when you need them, along with service from the experts who created your software.</p><p>In addition, Orbis offers a wide-range of supplementary services to keep you ahead of the game. Do you find yourself burdened by increasingly complicated audit and compliance requirements? Do you worry about how to protect your clients against identity theft? We stay on top of changing regulations so you don't have to, and our experienced security advisers can show you how to avoid becoming a victim of fraud.</p><p>At Orbis, our success is driven by our commitment to incorporating the latest technology into everything we do. We provide trading tools and market connectivity you can count on  &mdash; fast, safe, and dependable.</p>",
+        "logo": "orbis.png",
+        "twitter": null,
+        "slug_name": "orbis-systems",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/orbis.png"
+      },
+      {
+        "name": "Pico Quantitative Trading",
+        "provider_type": [
+          "extranet",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.picotrading.com",
+        "contact": [
+          [
+            "any",
+            "sales@picotrading.com",
+            "+1 (646) 362-4420"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Pico is a leading provider of technology services for the financial markets community. Pico provides a best-in-class portfolio of innovative, transparent, low-latency markets solutions coupled with an agile and expert service delivery model. Instant access to financial markets is provided via PicoNet&trade;, a globally comprehensive network platform instrumented natively with Corvil analytics and telemetry. Clients choose Pico when they want the freedom to move fast and create an operational edge in the fast-paced world of financial markets.</p>",
+        "logo": "pico.png",
+        "twitter": null,
+        "slug_name": "pico-quantitative-trading",
+        "filters": [
+          "extranet",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/pico.png"
+      },
+      {
+        "name": "PowerOptions",
+        "provider_type": [
+          "market_data",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.poweropt.com/",
+        "contact": [
+          [
+            "any",
+            "support@poweropt.com",
+            "302-992-7971"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "PowerOptions is online software offering you the ability to automatically sort, filter and analyze all 5,700+ optionable stocks and 1,570,000+ options to find investments to meet your profit goals. PowerOptions brings together timely essential data, extensive analysis, and comprehensive option information... All the online tools you need for a competitive edge. Plus a 14-day free trial, toll-free support and coaching.",
+        "logo": "20251024134039936480-poweroptions.png",
+        "twitter": null,
+        "slug_name": "poweroptions",
+        "filters": [
+          "market_data",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024134039936480-poweroptions.png"
+      },
+      {
+        "name": "QuantHouse SAS",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.quanthouse.com",
+        "contact": [
+          [
+            "any",
+            "webrequests@quanthouse.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "QuantHouse provides end-to-end systematic trading solutions including advanced market data technologies with QuantFEED, AI and algorithmic-trading development frameworks with QuantFACTORY, infrastructure services with QuantLINK and a global API platform for the Quants with the QuantHouse API Ecosystem. We help hedge funds, market makers, brokers and trading venues achieve optimal trading performance, develop and integrate new trading strategies, comply with regulatory requirements and rationalise operating costs.",
+        "logo": "20251211113621244714-logo-quanthouse-600px (002).png",
+        "twitter": null,
+        "slug_name": "quanthouse-sas",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251211113621244714-logo-quanthouse-600px (002).png"
+      },
+      {
+        "name": "QUODD",
+        "provider_type": [
+          "market_data",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.quodd.com/",
+        "contact": [
+          [
+            "any",
+            "sales@quodd.com",
+            "1-866-537-5518"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Leading global market data provider, QUODD offers tailor-made data products on demand for institutions and startups.",
+        "logo": "20240724124827997573-QUODD Logo (1).png",
+        "twitter": null,
+        "slug_name": "quodd",
+        "filters": [
+          "market_data",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20240724124827997573-QUODD Logo (1).png"
+      },
+      {
+        "name": "Quotemedia, Inc.",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.quotemedia.com",
+        "contact": [
+          [
+            "us",
+            "sales@quotemedia.com",
+            "+1 (844) 485-8200"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "QuoteMedia is a leading software developer and cloud-based syndicator of financial market information and streaming financial data solutions to media, corporations, online brokerages, and financial services companies. The Company licenses interactive stock research tools such as streaming real-time quotes, market research, news, charting, option chains, filings, corporate financials, insider reports, market indices, portfolio management systems, and data feeds. QuoteMedia provides data and services for companies such as the NASDAQ Stock Exchange, TMX Group (TSX Stock Exchange), Dow Jones & Company, SunGard, U.S. Bank, Broadridge Financial Systems, Ridge Clearing, JP Morgan, JitneyTrade, Southwest Securities, IBM, HD Vest, Intrinsic Research Systems, ING Investment Management, Stockhouse, Zacks Investment Research, General Electric, Dow Chemical, Boeing, Bombardier, Business Wire, PR Newswire, Marketwired, FolioFN, ChoiceTrade, Qtrade Financial, Jordan Capital, CNW Group, Schaeffer's Investment Research, Brean Capital, TradeKing, Suncor, Nexa Technologies, American Financial Group, Virtual Brokers, Captivate Network, Leede Financial, Motif Investing, First Financial, Stock-Trak and others. For more info go to www.quotemedia.com.",
+        "logo": "quotemedia.png",
+        "twitter": null,
+        "slug_name": "quotemedia-inc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/quotemedia.png"
+      },
+      {
+        "name": "Reaktor",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.reaktor.fi/en/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Reaktor is a Finnish software company founded in 2000. We help our customers to succeed by delivering high-quality software solutions, fast.</p><p>Reaktor offers reliable and robust technology that allows investments firms to establish DMA connectivity to various trading venues such as MTFs, primary exchanges, and dark pools. Investment firms employing Reaktor's technology can also access a consolidated view of the market for a better picture of available liquidity. We also offer technology and implementation expertise for demanding exchange connectivity projects.</p>",
+        "logo": "reaktor.png",
+        "twitter": null,
+        "slug_name": "reaktor",
+        "filters": [
+          "software",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/reaktor.png"
+      },
+      {
+        "name": "Redline Trading Solutions",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.redlinetrading.com/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Redline Trading Solutions empowers your trading with the fastest and most reliable market data and order execution solutions globally. Our solutions support over 150 equities, options, futures, FX and fixed income markets. We accelerate the full trading life cycle, tick-to-trade, delivering improved fill rates, lower operational costs and exceptional reliability. With offices in Boston, New York, London, Hong Kong and Belfast, Redline's customers include leading investment banks, brokers, exchanges, capital management firms, hedge funds, and proprietary trading firms. Our solutions are offered as self-managed applications or may be deployed with Redline Managed Service expertise.</p>",
+        "logo": "redline.png",
+        "twitter": null,
+        "slug_name": "redline-trading-solutions",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/redline.png"
+      },
+      {
+        "name": "Rimes Technologies Corporation",
+        "provider_type": [
+          "market_data",
+          "managed_service_provider"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.rimes.com",
+        "contact": [
+          [
+            "eu",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Rimes provides transformative enterprise data management solutions to the global investment community. Driven by our passion for solving the most complex data problems, we provide our clients with investment intelligence that powers more than US$75 trillion in AUM annually. The world’s leading institutional investors, asset managers and service providers rely on Rimes to help them make better investment decisions using accurate information and industry-leading technology. For more information, please visit www.rimes.com.",
+        "logo": "20250903122554378404-rimes Logo color.png",
+        "twitter": null,
+        "slug_name": "rimes-technologies-corporation",
+        "filters": [
+          "market_data",
+          "managed_service_provider",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250903122554378404-rimes Logo color.png"
+      },
+      {
+        "name": "RTS",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.rtsgroup.net",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>RTS (<a href=\"http://www.rtsgroup.net\" target=\"_blank\">www.rtsgroup.net</a>) delivers high-performance, end-to-end technology products and services across asset classes and continents to elite financial institutions and commodity trading houses. The firm is a global leader in robust electronic trading software, connectivity, hosting, matching and risk management solutions. With standardized low latency connectivity gateways to 135+ exchanges and execution venues worldwide, the firm provides proximity hosting and co-location services to 80+ venues via its global data center network. The RTS infrastructure enables clients to deploy sophisticated trading strategies quickly, securely and cost-effectively throughout multiple trading desks and sites. RTS has offices in Amsterdam, Chicago, Frankfurt, Hong Kong, London, Mumbai, New York, Pune, Shanghai, Singapore and Sydney.</p>",
+        "logo": "rts.png",
+        "twitter": null,
+        "slug_name": "rts",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/rts.png"
+      },
+      {
+        "name": "SIA",
+        "provider_type": [
+          "extranet"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.sia.eu/Engine/RAServePG.php/P/295610011600/M/256010011617",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>SIA is European leader in the design, creation and management of technology infrastructures and services for Financial and Central Institutions, Corporates and Public Administration bodies, in the areas of payments, e-money, network services and capital markets. SIAnet Financial Ring is the connectivity solution enabling financial brokers to access European and international financial marketplaces and their trading partners in the simplest and most flexible manner. A one-stop solution designed for the financial community that consolidates all connectivity accesses to international markets into one reliable, secure and fast connection, allowing for reductions in the costs attributable to complexity. For more information: <a href=\"http://www.sia.eu\" target=\"_blank\">www.sia.eu</a></p>",
+        "logo": "sia.png",
+        "twitter": null,
+        "slug_name": "sia",
+        "filters": [
+          "extranet",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/sia.png"
+      },
+      {
+        "name": "SIX Financial Information",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.six-group.com/en/products-services/financial-information.html",
+        "contact": [
+          [
+            "any",
+            "Global_Sales_BFI@six-group.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "SIX Financial Information is a leading global provider of data and value-added services for the wealth and asset management industry. Aggregated directly and in real-time from 1500 worldwide sources - covering all the major trading venues - SIX's database includes reference and market data, corporate actions, regulatory data and pricing information for over 31 million instruments. With offices in 18 countries, SIX combines the advantages of local expertise with global reach to offer financial specialists comprehensive data services for asset servicing and administration, middle office, and investment and portfolio management",
+        "logo": "20251023162159910112-SIX_logo_a4_rgb.png",
+        "twitter": null,
+        "slug_name": "six-financial-information",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251023162159910112-SIX_logo_a4_rgb.png"
+      },
+      {
+        "name": "Smarts Broker Compliance",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.nasdaqomx.com/SMARTS",
+        "contact": [
+          [
+            "eu",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Proven in the world's fastest and largest markets, SMARTS Broker is a managed service designed for brokers, FCMs and other market participants to ensure they can easily comply with market rules, regulations and internal market surveillance policies. Delivered via a browser based application, SMARTS Broker is fast to implement, requires no on-site installation or maintenance, and comes with little or no hardware costs. More than 60 market participants across 55 markets depend on SMARTS Broker to meet their global compliance requirements.</p>",
+        "logo": "smarts-broker.png",
+        "twitter": null,
+        "slug_name": "smarts-broker-compliance",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/smarts-broker.png"
+      },
+      {
+        "name": "SpiderRock Gateway technologies, LLC",
+        "provider_type": [
+          "market_data",
+          "extranet"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.spiderrock.net",
+        "contact": [
+          [
+            "us",
+            "gwtsales@spiderrock.net",
+            "+1 (312) 256-9603"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "The SpiderRock Market Data & Analytics offering supports multiple delivery mechanisms, providing great flexibility for our clients to interact with our framework. Through the combination of advanced kernel bypass technology and the latest FPGA hardware, SpiderRock can deliver ultra-low latency multicast exchange feeds, converting the various native protocol layouts into a normalized binary format. A full C++/C# API is offered for our streaming data feeds. SpiderRock also supports a MySQL database (SRSE) for clients who are interested in polling/querying mechanism. Historical data is also offered in flat files and an Elasticsearch database. Contact SpiderRock to explore innovative hosted and remote solutions for clients looking to access low latency market data covering all U.S. equities, futures and options products.",
+        "logo": "20210920164850142604-SpiderRock-Vertical-Logo.png",
+        "twitter": null,
+        "slug_name": "spiderrock-gateway-technologies-llc",
+        "filters": [
+          "market_data",
+          "extranet",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20210920164850142604-SpiderRock-Vertical-Logo.png"
+      },
+      {
+        "name": "Stellar Trading Systems",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.stellartradingsystems.com/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Stellar Trading Systems specializes in producing fast and powerful trading systems for the high frequency, high volume trader. Stellar provides a complete trading system solution with an intuitive front end, comprehensive order and risk management, combined with industry leading performance. All this is achieved without compromise. Stellar is easy to use, robust and scalable. Whether deployed in a 20 or 200+ trader operation, Stellar delivers excellent performance through even the busiest of market conditions.</p><p>Stellar also acts as a consolidator, removing the need for multiple legacy systems by delivering a broad, scalable architecture that meets the needs of the whole trading organization, from risk manager, to IT, to the individual and specialist needs of each trader. Stellar recognize that trading system technology continues to evolve and are committed to remaining at the forefront of this process by embracing new techniques and challenging conventional solutions.</p>",
+        "logo": "stellar.png",
+        "twitter": null,
+        "slug_name": "stellar-trading-systems",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/stellar.png"
+      },
+      {
+        "name": "Sterling Trading Tech",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.sterlingtradingtech.com",
+        "contact": [
+          [
+            "us",
+            "support@sterlingtradingtech.com",
+            "(312) 346-9600 x290"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "STT provides the global professional trading community with trading platforms, risk and compliance tools, and infrastructure solutions. STT platforms are available for equity markets globally, and currently process 5% of the daily US equity volume. STT products are used in over 30 countries to trade international financial markets around the world.",
+        "logo": "sterling.png",
+        "twitter": null,
+        "slug_name": "sterling-trading-tech",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/sterling.png"
+      },
+      {
+        "name": "Stock Analysis",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "north_america"
+        ],
+        "url": "https://stockanalysis.com/",
+        "contact": [
+          [
+            "any",
+            "contact@stockanalysis.com",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Stock Analysis offers free online stock information for investors. Our focus is on providing more accurate data, faster site speed, and a better user experience than other investing websites.",
+        "logo": "20251028124550671167-Stock Analysis2.png",
+        "twitter": null,
+        "slug_name": "stock-analysis",
+        "filters": [
+          "market_data",
+          "north_america"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251028124550671167-Stock Analysis2.png"
+      },
+      {
+        "name": "Tele-Trend Konson (Hong Kong) Limited",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": null,
+        "contact": [
+          [
+            "us",
+            "sales@tradego8.com",
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Tele-Trend Konson (Hong Kong) Limited is one of the leading integrated securities trading platform service providers, mainly serving Hong Kong securities companies and their customers. Our Hong Kong brokerage clients are all Class B and C exchange participants. Our integrated securities trading platform services mainly include front desk trading system services, market data services and value-added services. With proprietary software that we have independently developed, improved, and enhanced over the years, we believe that we are an early adopter of an integrated model that provides Hong Kong securities companies with front-end transaction system services and market data services. Among Hong Kong brokers, we have a huge market share among domestic securities brokers in Hong Kong. Our main services are divided into three categories:  (i) front desk trading system services; (ii) market data services; and (iii) value-added services (such as simulated trading platform services, online booking opening services, and cloud infrastructure services). Our services are mainly delivered through the securities trading platform software we have developed, which is the customer software and delivery channels that we mainly serve, such as the TradeGo public version.</p></p>Our customers and end-users can access our developed securities trading platform software through multiple channels including major operating systems (including Microsoft Windows, MacOS, Android, and iOS) and mainstream platforms (such as web browsers). As of June 30, 2017, we provided integrated securities market trading platform and system solutions to 61 Hong Kong securities companies. Regarding the coverage of the securities trading platform software for the supportable operating systems and platforms, based on the revenue for the year ending March 31, 2017, we served five major non-transnational companies in Hong Kong. Among the suppliers are market leaders. Our front desk trading system services can support the trading of various financial instruments, including stocks, exchange-traded funds, futures, options, warrants and derivatives. We also hold market data vendor licenses for five stock and futures exchanges (ie Hong Kong Stock Exchange, Hong Kong Futures Exchange, Shanghai Stock Exchange, Shenzhen Stock Exchange, and Cboe) and through our developed securities transactions. The platform software provides various real-time market data pushes for these exchanges.</p></p>Our mission is to provide support to investors and financial intermediaries through the provision of best tools and platforms so that they can use all mainstream channels to access real-time market data and trade anywhere in the world. Since its establishment in 2010, we have always been committed to developing and providing integrated securities trading platform and market data services.</p>",
+        "logo": "tele-trend-konson.png",
+        "twitter": null,
+        "slug_name": "tele-trend-konson-hong-kong-limited",
+        "filters": [
+          "market_data",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/tele-trend-konson.png"
+      },
+      {
+        "name": "Thesys Technologies, LLC",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.thesystech.com",
+        "contact": [
+          [
+            "us",
+            null,
+            "+1 (646) 499-3586"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Thesys Technologies, LLC is the infrastructure affiliate of Tradeworx, serving the high-performance technology needs of equity market participants, including institutional investors, professional traders, brokerage firms, exchanges, and regulatory agencies. Founded in 2009, Thesys Technologies is headquartered in the Columbus Circle area of New York City, with an additional office in Charleston, SC. Our technology handles approximately 5% of the daily volume in US.",
+        "logo": "thesys.png",
+        "twitter": null,
+        "slug_name": "thesys-technologies-llc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/thesys.png"
+      },
+      {
+        "name": "Theta Data",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "north_america"
+        ],
+        "url": "https://www.thetadata.net/",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "To learn more about Theta Data visit https://www.thetadata.net/.",
+        "logo": "20250805130215969213-thetadata_600x600.png",
+        "twitter": null,
+        "slug_name": "theta-data",
+        "filters": [
+          "market_data",
+          "north_america"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250805130215969213-thetadata_600x600.png"
+      },
+      {
+        "name": "TradingView INC.",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.tradingview.com/",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "The world's most popular charting platform and the industry's forefront for financial visualization solutions. 100M+ traders worldwide use our platform as a go-to destination to chart, chat, and trade financial markets. Our product portfolio includes best-in-class charts, versatile commercial libraries, a social network, and many more tools for retail and business audiences. With 200M+ monthly visits, we are the #1 all-things investing website, and our solutions are used by fintech leaders such as Revolut, Binance, and CME Group.",
+        "logo": "20250806094119970655-TradingView-logo.png",
+        "twitter": null,
+        "slug_name": "tradingview-inc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250806094119970655-TradingView-logo.png"
+      },
+      {
+        "name": "Transaction Network Services Inc.",
+        "provider_type": [
+          "telco_carrier",
+          "market_data",
+          "extranet",
+          "managed_service_provider",
+          "software"
+        ],
+        "geographic_region": [
+          "global",
+          "apac",
+          "north_america",
+          "emea"
+        ],
+        "url": "http://www.tnsi.com",
+        "contact": [
+          [
+            "any",
+            "jnicklas@tnsi.com",
+            "+1-703-453-8473"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Transaction Network Services (TNS) provides financial institutions with flexible, robust and secure CONNECTIVITY FOR MARKET DATA & electronic trading solutions. Our low latency private network provides access to a global FINANCIAL community which includes a large number of MARKETS,  buy-side AND SELL SIDE FIRMS, as well as APPLICATION AND market data providers. The quality of the managed TNS service is second to none, ensuring our customers get everything they need for electronic trading. Connections to other on-net trading partners can be up and running in three days or less. Global connectivity at a local price. Please visit our website <a href=\"http://www.tnsi.com/\" target=\"_blank\">www.tnsi.com</a> or email <a href=\"mailto:jnicklas@tnsi.com\">jnicklas@tnsi.com</a> for further information</p>",
+        "logo": "20250730072949415031-TNS Logo.png",
+        "twitter": null,
+        "slug_name": "transaction-network-services-inc",
+        "filters": [
+          "telco_carrier",
+          "market_data",
+          "extranet",
+          "managed_service_provider",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250730072949415031-TNS Logo.png"
+      },
+      {
+        "name": "TrendSpider",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://trendspider.com",
+        "contact": [
+          [
+            "any",
+            "hello@trendspider.com",
+            "+1 (312) 273-9789"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "TrendSpider is an industry-leading all-in-one trading and market research platform built for serious active traders, analysts and investors. It combines automated charting, AI-driven automations, backtesting, and real-time data to streamline market analysis and decision-making. Designed to level the playing field, TrendSpider gives traders the tools once reserved for institutions.",
+        "logo": "20251024133746344799-Trendspider_black_Logo.png",
+        "twitter": null,
+        "slug_name": "trendspider",
+        "filters": [
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20251024133746344799-Trendspider_black_Logo.png"
+      },
+      {
+        "name": "ULLINK",
+        "provider_type": [
+          "service_bureau"
+        ],
+        "geographic_region": [
+          "emea"
+        ],
+        "url": "http://www.ullink.com/",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Ullink is revolutionizing electronic trading across all asset classes globally, through low latency, algorithmic and direct market access (DMA) trading; connectivity and order routing; order management and trading ultra low latency risk management solutions.</p><p>Ullink offers a menu of solutions deployable in-house, via the UL Net global routing network, or as a fully-managed service (UL Net+).  Fiber-optic connectivity and co-location with select execution venues gives UL Net+ a low latency performance record, while the system's full redundancy and ongoing monitoring by Ullink ensures high availability.  UL Net+ also includes an advanced pre-trade risk component to filter orders, and monitor positions globally across all asset classes.  For more information, please contact: <a href=\"mailto:sales@ullink.com\">sales@ullink.com</a> or visit <a target=\"_blank\" href=\"http://www.ullink.com\">www.ullink.com</a>.</p>",
+        "logo": "ullink.png",
+        "twitter": null,
+        "slug_name": "ullink",
+        "filters": [
+          "service_bureau",
+          "emea"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/ullink.png"
+      },
+      {
+        "name": "Ultumus Limited",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.ultumus.com/",
+        "contact": [
+          [
+            "any",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": false,
+        "description": "ULTUMUS specializes in the distribution of Exchange Traded Fund (ETF) & INDEX data using market-leading technology. ULTUMUS capture, normalize and distribute ‘near real time’ global daily ETF and INDEX composition, performance and reference data. Working in partnership with ETF providers and employing innovative data design has enabled ULTUMUS as the primary data provider to accurately represent ETF instruments, format and structure with the aim of industry-wide adoption. INDEX data is captured from the major benchmark providers, including MSCI, STOXX and NYSE down to the smaller niche players, all enhanced with current corporate action and rebalance information as required. ULTUMUS publish via a proven, robust, yet flexible established platform, with an integration process to meet each client’s bespoke requirement. For more information please visit www.ultumus.com",
+        "logo": "20201204133116071093-ULTUMUS-Long-Logo.png",
+        "twitter": null,
+        "slug_name": "ultumus-limited",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20201204133116071093-ULTUMUS-Long-Logo.png"
+      },
+      {
+        "name": "Vela",
+        "provider_type": [
+          "market_data",
+          "service_bureau",
+          "software"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "https://www.tradevela.com",
+        "contact": [
+          [
+            "any",
+            "sales@tradevela.com",
+            "+1 (646) 713 2773"
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>Vela is a leading independent provider of trading and market access technology for global multi-asset electronic trading. Our software enables clients to successfully execute on their trading strategies and manage risk across multiple fragmented markets, liquidity pools, and data sources. We help firms successfully differentiate and innovate in an ever-changing, increasingly-regulated and fiercely-competitive landscape, while also reducing total cost of ownership.</p><p>Vela's ticker plant, execution gateways, trading platform, and risk and analytics software deliver a unique, ultra-low latency technology stack for electronic low-touch and Direct Market Access (DMA) execution and pricing. We leverage the latest innovations in technology to deliver cutting-edge performance, features and reliability. Our modular stack is accessed through a single set of trading, data and risk APIs and can be delivered as-a-Service from multiple co-location data centers globally.</p><p>With access to more than 200 venues, Vela provides global coverage across all major asset classes. Clients are supported by an award-winning team of technical and business experts available 24x7 from our multiple offices in the US, Europe, and Asia. Vela's clients include traders, market makers, brokers, banks, investment firms, exchanges, and other market participants.</p><p>Visit us at <a href=\"https://www.tradevela.com/\">www.tradevela.com</a>. Follow us on Twitter @TradeVela.</p><ul><li>Sales Contact Details</li><li>Address: Level 1, 107 Cannon Street, London, EC4N 5AF</li><li>Tel: 0044 203 608 4720</li><li>Email: sales@tradevela.com</li></ul>",
+        "logo": "vela.png",
+        "twitter": "@TradeVela",
+        "slug_name": "vela",
+        "filters": [
+          "market_data",
+          "service_bureau",
+          "software",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/vela.png"
+      },
+      {
+        "name": "Webstock Information Systems Co., Ltd.",
+        "provider_type": [
+          "software"
+        ],
+        "geographic_region": [
+          "apac"
+        ],
+        "url": "https://www.wenhua.com.cn",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Webstock was founded in 1996 and is the largest futures software service provider in China.",
+        "logo": "20250805130620998375-Webstock_600x600.png",
+        "twitter": null,
+        "slug_name": "webstock-information-systems-co-ltd",
+        "filters": [
+          "software",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20250805130620998375-Webstock_600x600.png"
+      },
+      {
+        "name": "Webull Financial",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          ""
+        ],
+        "url": "http://www.webull.com",
+        "contact": [
+          [
+            "any",
+            "",
+            ""
+          ]
+        ],
+        "has_html_description": true,
+        "description": "Webull is a digital trading platform built upon a next-generation, global infrastructure. We provide our customers with extensive features and functions that go beyond what is offered by most entry-level internet trading platforms. Our engaging and reliable products, coupled with our high-quality back-end execution, are specifically designed and developed for our target demographic of young and informed retail investors. To learn more, visit <a href=\"http://www.webull.com\">www.webull.com</a>.",
+        "logo": "20230113110752084631-Webull-VertLogo_600x600.png",
+        "twitter": null,
+        "slug_name": "webull-financial",
+        "filters": [
+          "market_data",
+          ""
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/20230113110752084631-Webull-VertLogo_600x600.png"
+      },
+      {
+        "name": "X2M",
+        "provider_type": [
+          "extranet"
+        ],
+        "geographic_region": [],
+        "url": "http://www.lseg.com/markets-products-and-services/technology/x2m",
+        "contact": [
+          [
+            "eu",
+            null,
+            null
+          ]
+        ],
+        "has_html_description": true,
+        "description": "<p>X2M, part of London Stock Exchange Group, is a growing service providing access to a community of interconnected trading firms, venues and financial networks. X2M aims to develop innovative tools and service models, integrating the value chains and expertise of its partners. Through data centres located in London, Milan, Rome and Frankfurt, X2M is connected to the markets of Borsa Italiana, LMAX Exchange, London Stock Exchange, MTS, Cboe Chi-X Europe, CME Group, e-MID, Eurex, Hi-mtf, ICE Futures Europe, LMAX Exchange, Euronext, EuroTLX and Xetra. For more information: <a href=\"http://www.lseg.com/markets-products-and-services/technology/x2m\" target=\"_blank\">www.lseg.com/markets-products-and-services/technology/x2m</a></p>",
+        "logo": "x2m.png",
+        "twitter": null,
+        "slug_name": "x2m",
+        "filters": [
+          "extranet"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/x2m.png"
+      },
+      {
+        "name": "Xignite, Inc.",
+        "provider_type": [
+          "market_data"
+        ],
+        "geographic_region": [
+          "global"
+        ],
+        "url": "http://www.xignite.com",
+        "contact": [
+          [
+            "any",
+            "sales@xignite.com",
+            "(650) 655-3700"
+          ]
+        ],
+        "has_html_description": false,
+        "description": "Named one of the ten coolest brands in banking, Xignite, Inc. provides cloud-based financial market data APIs to help emerging companies and established enterprises deliver real-time and reference market data to their digital assets, such as websites and apps.",
+        "logo": "xignite.png",
+        "twitter": null,
+        "slug_name": "xignite-inc",
+        "filters": [
+          "market_data",
+          "north_america",
+          "emea",
+          "apac"
+        ],
+        "logo_url": "https://cdn.cboe.com/service_provider_logos/xignite.png"
+      }
+    ],
+    "marketTotals": {
+      "fx": 63571233333.33333,
+      "usOptions": 13247299.863636363
+    },
+    "marketShare": [
+      {
+        "venue": "Cboe Europe",
+        "total": 24.211460969481436
+      },
+      {
+        "venue": "Euronext",
+        "total": 23.173330740537377
+      },
+      {
+        "venue": "Xetra",
+        "total": 11.595551400018746
+      }
+    ],
+    "vix": [
+      [
+        "2026-02-23T09:27:31.323000-06:00",
+        20.71
+      ],
+      [
+        "2026-02-23T09:27:46.321000-06:00",
+        20.75
+      ],
+      [
+        "2026-02-23T09:28:01.315000-06:00",
+        20.76
+      ],
+      [
+        "2026-02-23T09:28:16.320000-06:00",
+        20.8
+      ],
+      [
+        "2026-02-23T09:28:31.314000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:28:46.313000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:29:01.314000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:29:16.323000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:29:31.315000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:29:46.328000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:30:01.314000-06:00",
+        20.78
+      ],
+      [
+        "2026-02-23T09:30:16.323000-06:00",
+        20.79
+      ],
+      [
+        "2026-02-23T09:30:31.314000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:30:46.312000-06:00",
+        20.77
+      ],
+      [
+        "2026-02-23T09:31:01.320000-06:00",
+        20.74
+      ],
+      [
+        "2026-02-23T09:31:16.276000-06:00",
+        20.79
+      ],
+      [
+        "2026-02-23T09:31:31.322000-06:00",
+        20.79
+      ],
+      [
+        "2026-02-23T09:31:46.332000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:32:01.318000-06:00",
+        20.77
+      ],
+      [
+        "2026-02-23T09:32:16.327000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:32:31.321000-06:00",
+        20.86
+      ],
+      [
+        "2026-02-23T09:32:46.324000-06:00",
+        20.83
+      ],
+      [
+        "2026-02-23T09:33:01.321000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:33:16.315000-06:00",
+        20.76
+      ],
+      [
+        "2026-02-23T09:33:31.324000-06:00",
+        20.66
+      ],
+      [
+        "2026-02-23T09:33:46.319000-06:00",
+        20.7
+      ],
+      [
+        "2026-02-23T09:34:01.323000-06:00",
+        20.8
+      ],
+      [
+        "2026-02-23T09:34:16.321000-06:00",
+        20.75
+      ],
+      [
+        "2026-02-23T09:34:31.326000-06:00",
+        20.85
+      ],
+      [
+        "2026-02-23T09:34:46.340000-06:00",
+        20.89
+      ],
+      [
+        "2026-02-23T09:35:01.312000-06:00",
+        20.91
+      ],
+      [
+        "2026-02-23T09:35:16.320000-06:00",
+        20.93
+      ],
+      [
+        "2026-02-23T09:35:31.318000-06:00",
+        20.96
+      ],
+      [
+        "2026-02-23T09:35:46.304000-06:00",
+        20.94
+      ],
+      [
+        "2026-02-23T09:36:01.326000-06:00",
+        20.97
+      ],
+      [
+        "2026-02-23T09:36:16.321000-06:00",
+        20.99
+      ],
+      [
+        "2026-02-23T09:36:31.321000-06:00",
+        20.98
+      ],
+      [
+        "2026-02-23T09:36:46.315000-06:00",
+        20.99
+      ],
+      [
+        "2026-02-23T09:37:01.323000-06:00",
+        20.93
+      ],
+      [
+        "2026-02-23T09:37:16.315000-06:00",
+        20.88
+      ],
+      [
+        "2026-02-23T09:37:31.322000-06:00",
+        20.8
+      ],
+      [
+        "2026-02-23T09:37:46.313000-06:00",
+        20.81
+      ],
+      [
+        "2026-02-23T09:38:01.314000-06:00",
+        20.8
+      ],
+      [
+        "2026-02-23T09:38:16.316000-06:00",
+        20.77
+      ],
+      [
+        "2026-02-23T09:38:31.314000-06:00",
+        20.86
+      ],
+      [
+        "2026-02-23T09:38:46.320000-06:00",
+        20.83
+      ],
+      [
+        "2026-02-23T09:39:01.321000-06:00",
+        20.86
+      ],
+      [
+        "2026-02-23T09:39:16.321000-06:00",
+        20.92
+      ],
+      [
+        "2026-02-23T09:39:31.320000-06:00",
+        20.88
+      ],
+      [
+        "2026-02-23T09:39:46.313000-06:00",
+        20.82
+      ],
+      [
+        "2026-02-23T09:40:01.322000-06:00",
+        20.85
+      ],
+      [
+        "2026-02-23T09:40:16.319000-06:00",
+        20.88
+      ],
+      [
+        "2026-02-23T09:40:31.320000-06:00",
+        20.91
+      ],
+      [
+        "2026-02-23T09:40:46.321000-06:00",
+        20.86
+      ],
+      [
+        "2026-02-23T09:41:01.323000-06:00",
+        20.85
+      ],
+      [
+        "2026-02-23T09:41:16.313000-06:00",
+        20.83
+      ],
+      [
+        "2026-02-23T09:41:31.311000-06:00",
+        20.86
+      ],
+      [
+        "2026-02-23T09:41:46.329000-06:00",
+        20.85
+      ],
+      [
+        "2026-02-23T09:42:01.311000-06:00",
+        20.85
+      ],
+      [
+        "2026-02-23T09:42:16.331000-06:00",
+        20.91
+      ]
+    ]
+  }
+}

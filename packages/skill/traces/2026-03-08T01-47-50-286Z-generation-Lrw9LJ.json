@@ -1,0 +1,2318 @@
+{
+  "page_url": "https://www.tiktok.com",
+  "final_url": "https://www.tiktok.com/explore",
+  "intent": "search videos",
+  "candidate_count": 17,
+  "accepted_count": 16,
+  "decisions": [
+    {
+      "url": "https://www.tiktok.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.tiktok.com/explore",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok_privacy_protection_framework/loader/2.0.0.302/index.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/tiktok-infra/csp/sdk-pre/slardar.web.pre.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/experimental/webapp-desktop/explore-prefetch.f33ea915.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/builder-runtime.21ab8a26.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/npm-rxjs.e1c0812e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/npm-react.c4ee0173.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/npm-sigi.fdf0b52b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/npm-dp-byted-tea-sdk-oversea.7e89fb32.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/player.init.760b9419.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/emotion.init.a2a45726.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/slardar.b3c5dc7a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/cache.tux.a1b09721.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/biz.shared.init.319f266e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/atom.init.4ec1ed42.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/biz.common.lib.7599d0fe.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/i18n.a515ce47.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/18407.d125263f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/webapp-desktop.061c0f86.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/45179.6f7e5db9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/95047.a2239ab6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/20853.3e9007dd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/29497.f2ba5d81.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/44144.03e1f622.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/28300.1537765b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/11993.58f06aa5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/16119.380eec08.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/56294.8f873002.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/4231.73f61aaa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/10494.44e31b45.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/88841.d209c222.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/64842.53d893d7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/90481.dbfb4bc3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/83212.af0e39c4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/99445.e6fdde1f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/86249.241570a8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/85788.b56a7fa4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/70791.8e871f2d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/7280.76ca8004.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/5287.d6cebfc9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/77334.64f1e128.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/94473.f5216bdf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/8373.418bfb41.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/74544.f1057936.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/12354.f3e805bc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/53077.9d7d53c0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/66182.96e4eff3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/explore.e3dc2561.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok_privacy_protection_framework/loader/2.0.0.302/core.js?globalName=__PNS_RUNTIME__",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/slardar/fe/sdk-web/browser.oci.js?bid=tiktok_webapp&globalName=SlardarClient",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktok.com/api/explore/item_list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&categoryType=120&channel=tiktok_web&clientABVersions=70508271%2C73547759%2C73720541%2C75136854%2C75204947%2C75294820%2C75331215%2C75350405%2C75362515%2C75381135%2C75381398%2C75413557%2C75429913%2C75436986%2C75440143%2C75492091%2C75520329%2C75528341%2C75560659%2C75581386%2C75602454%2C75613603%2C75637792%2C70405643%2C71057832%2C71200802%2C72361743%2C73171280%2C73208420%2C74276218%2C74413136%2C74844724%2C75330961&cookie_enabled=true&count=8&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&enable_cache=true&focus_state=true&history_len=2&is_fullscreen=false&is_page_visible=true&language=en&odinId=7614695533291324446&os=mac&priority_region=&pullType=1&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&video_encoding=mp4&webcast_language=en",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok_privacy_protection_framework/loader/2.0.0.302/devtools.js?globalName=__PNS_RUNTIME__&__PNS_SW_CACHE__=1&__PNS_SW_CACHE_KEY__=to-json-schema",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/o0SguJSDpBStCiEFEKe0xAQMEDnHfRAgXRQRBb~tplv-photomode-zoomcover:720:720.jpeg?dr=9616&x-expires=1773104400&x-signature=jK9EJL%2F5x0RpRBRKurx2p0MVHOs%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8&ftpl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/os3IeEQDAZ7C374FfESjIHA7IPxJ5eQzOlxzgq~tplv-photomode-zoomcover:720:720.jpeg?dr=9616&x-expires=1773104400&x-signature=1fQV8lrAdxE0Wf1fyzFXPS%2BcG0o%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8&ftpl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/oEAABCa0JiWAAITIDnxfBiAmAB22tIE78EmMEw~tplv-photomode-zoomcover:720:720.jpeg?dr=9616&x-expires=1773104400&x-signature=RGaHTATmKhTmjBjWTAhWWRJTH%2Bs%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8&ftpl=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/item-list-cache.ec20df36.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_web/settings/browser-settings?bid=tiktok_webapp&store=1",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
+      "method": "POST",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/webapp-desktop/playback1.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/index.b5f3c689.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/styles.fe072e9c.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/index.e797d568.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/user/webid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_web/settings/browser-settings?bid=pns_communication_service&store=1",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/64887.616a53c2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/webmssdk/2.0.0.460/webmssdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/sibyl-ai-core.d0e7bc7f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/35111.89be5cc6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/secsdk/secsdk-lastest.umd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/76880.43988d84.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/fixed-bottom.56a3be0d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/video-player.7470febe.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/video-card-header.263d1e40.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/card-desc.2ec668cf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/4132.a43bde8b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/29716.153e2ca0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/63574.01904638.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/97020.40f91712.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/86154.7d4e4ea8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/53152.a68f93ed.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/search-live-item.ed0f1ed2.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/footer-side-effects-island.63c3a2a0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/interaction-side-effects-island.0f3fcb12.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/pa_prompt.08a5744b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region=US&priority_region=US&aid=1988&device_id=7614695531759453727&app_language=en&device_platform=web_pc&WebIdLastTime=1772934464&scene=0",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok_fonts/TikTokFont-Regular.woff2?_default_font=1&v=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok_fonts/TikTokFont-Semibold.woff2?_default_font=1&v=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/api/record/impression/action/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&clientABVersions=70508271%2C73547759%2C73720541%2C75136854%2C75204947%2C75294820%2C75331215%2C75350405%2C75362515%2C75381135%2C75381398%2C75413557%2C75429913%2C75436986%2C75440143%2C75492091%2C75520329%2C75528341%2C75560659%2C75581386%2C75602454%2C75613603%2C75637792%2C70405643%2C71057832%2C71200802%2C72361743%2C73171280%2C73208420%2C74276218%2C74413136%2C74844724%2C75330961&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&isForYouFeedImpression=false&is_fullscreen=false&is_page_visible=true&itemIds=7586112300378033422%2C7600087972297395487%2C7579841364599328013%2C7583713151724571934%2C7588299202992639287%2C7610736223761599774%2C7596114833477537054%2C7605936714254667039&language=en&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&video_encoding=mp4&webcast_language=en",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/user/webid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://v16m-webapp.tiktokcdn-us.com/1c51538f1d062cb8617a9ed758053490/69af7661/video/tos/useast5/tos-useast5-ve-0068c003-tx/o0JopINEBz1Q6ASBwifRAPQFiimLC0BCn2JIuH/?a=1988&bti=ODszNWYuMDE6&ch=0&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C&cv=1&br=3150&bt=1575&cs=0&ds=3&ft=aEKq_qT0mIoPD12fH65s3wUVmwAbMeF~O5&mime_type=video_mp4&qs=0&rc=ZmQ6M2RkOzw8NjY3NTYzaEBpajRoNXA5cjluODMzZzczNEAyMl40NDYuXy4xLi9iMmAyYSMxMXJnMmRzZDBhLS1kMS9zcw%3D%3D&vvpl=1&l=20260308013935A5BA9FFCBA1B2C46F0BF&btag=e000b0000",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/o0SguJSDpBStCiEFEKe0xAQMEDnHfRAgXRQRBb~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=QbbtJJE95STU%2BU1xZuYVxANiO64%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/os3IeEQDAZ7C374FfESjIHA7IPxJ5eQzOlxzgq~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=fL5ELwXlNo31bCX4kbGLG3fEVIo%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/oEAABCa0JiWAAITIDnxfBiAmAB22tIE78EmMEw~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=f3eyFlxxgYnfq4q0Sr3MAkp99Kc%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/oULYxsbkfASUQfPDIyRYZGwFU2eeQgKsRNsAQG~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=9WnXu3CmtNby9srVDPkEV93%2F6eE%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/ooYRiUD9imuGzgPE4EAB4Ba88BIGv4CjqEhNU~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=ozWBjvZG%2FyKfaYXejbenZT7IOuE%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/ocIJDjCTpPexmXemEe0MNABIq6I8AZShnQHZQY~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=sSVwrXsAsZyI8ndhc0DSGPhHHWE%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/o8yrvdqlERR0Bi9BAAXEkAjiAKaWSnISSkPAB~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=N9t%2B2mk8rw9YYLJJlOWDD9RyzUo%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/osAAtIAKN90AmIWtqTiwBixCIipBGAtK3EfCbH~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=5HH3nD8UxF1fEUuwGPkDdPqzq8Q%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/foryou.5f079f2e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_web/settings/browser-settings?bid=webmssdk&store=1",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "score": 7,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/api/explore/item_list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&categoryType=120&channel=tiktok_web&clientABVersions=70508271%2C73547759%2C73720541%2C75136854%2C75204947%2C75294820%2C75331215%2C75350405%2C75362515%2C75381135%2C75381398%2C75413557%2C75429913%2C75436986%2C75440143%2C75492091%2C75520329%2C75528341%2C75560659%2C75581386%2C75602454%2C75613603%2C75637792%2C70405643%2C71057832%2C71200802%2C72361743%2C73171280%2C73208420%2C74276218%2C74413136%2C74844724%2C75330961&cookie_enabled=true&count=8&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&enable_cache=false&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&language=en&odinId=7614695533291324446&os=mac&priority_region=&pullType=2&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&video_encoding=mp4&webcast_language=en&msToken=&X-Bogus=DFSzsIROk8GANV0MCiEvBIDZrfKx&X-Gnarly=McVrCe2ahzpRn0aumYXO7uX2dUU4c4Rmu9/t-aLO-r/pH/BKzq2oo76-4czx//QQMYFfmmsjdOzN-edpXASZOuG8URCw08IGwPQ5I6Zs0m1-Nj23wWnb43VPn/AdZYTR6aGCBBqPATxwR57rrErOISz-fAxVvH0s/luTtRXKc0TPTDMbKGGhn2ZjBMxW4sfD1ajtpUkhODifXObTlnbpNdxL4bCErIUtkblMvzUKVu6jwErmGT1diw4RrUHsOeIIZHStWS/MglX4DpW-Pyx1x2xz36h9UhcQB/W6eh3zHb3MfGWCROoMPMWH9AoukWtF8pk=",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://webcast.us.tiktok.com/webcast/wallet_api_tiktok/recharge/check_external_entry?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_experiment_group=false&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&page_source=0&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzsIROAltANV0MCiEvBIDZrfsG&X-Gnarly=MksNEeUp5uBl7-0eivVlUt0ssg9FK5jbOCATQiA2pRD4ODW0FVDC2jH69eZ/d29s/oR3zV3-uetQP4M-8n8m0ssd1y55L5hSC3fEUXsEADnydmh31D3BxOjO4095FWJHK5F8MXmM5kUp/6mRNbS98n2YYK2TqTvgn3n7cPKkJBSqQlhnbimMdLbUeeqJTwz9DPz5cgP/bhrTL4/kFk3YbzR7k0JhCzrW4Kyq5EBpprd3L1jI6TAr5sOmoGVdfFIW-J8v22-kYG8TUXIn1ibii/JCUl-VpWqjcFVnJ3Gl9Qw5zkExaORotOr/BTx06WfaGKA=",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/41381.ba591f00.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/explore-card-desc.af01515c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/explore-card-info.e224015d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/question-card-desc.f6db33b1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/search-card-desc.4e0c0a49.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/7030.3651030f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/84128.9ec34744.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/95029.85924b51.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/96228.f43d2ebc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/21865.650d1167.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/71799.e24e64ee.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/84581.255835b3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/19768.c5806c93.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/47577.6fa73954.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/tag-card-desc.29bd9571.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/card-avatar.3029c4ff.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/mute-button.51b7344e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktok.com/ttwid/check/",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/a62448ffa22525831d106f3213b56318~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=ea52daab&x-expires=1773104400&x-signature=jfhvYmS8tH1LCTKQdvHuyfM2lcI%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/131b380d7e60a0099ff563977779596c~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=e9d92e81&x-expires=1773104400&x-signature=Wsc0kQeHcWkiMAtYcKfn%2FHa9ktQ%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/7315501663089852459~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=ca1a9c76&x-expires=1773104400&x-signature=7hovP391O08AX%2B9VuNSt2D100lc%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/8f8a014f9193b7bce1541d3993e671b6~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=49c07548&x-expires=1773104400&x-signature=e%2BzQUgg4aj6xEbpmqdLU9j4y3nA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/b4a7cfa7ace9856faf6df203b5bf1389~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=c40c80e6&x-expires=1773104400&x-signature=EyZ5r9jlBZ%2Bg7jEpenzucNNSGaU%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/b7f119513ffb3810fe74bf3ac8055567~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=013dd2ee&x-expires=1773104400&x-signature=pAQClioB4vuDLdpslmFlNGIfemg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/7c9239be0b38447babea67294def078b~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=7e021c6a&x-expires=1773104400&x-signature=73yDCoaOTnP8T85VXhRQxdPHTf8%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/820ac35adfec7e8fad93b0ca26f15220~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=fbb20adb&x-expires=1773104400&x-signature=QwHQIVm6xr5MW2ic8qEO0FBRfRw%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/slardar/fe/sdk-web/plugins/common-monitors.1.16.6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/slardar/fe/sdk-web/plugins/common-monitors.1.14.1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/slardar/fe/sdk-web/plugins//common-monitors.1.16.5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/536.58816f3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/66754.344d4bf5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/34807.768c39e1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/99302.8597dc3c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/59097.7902a45d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/25152.2c085243.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/67142.bde8eef4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/49349.2c6b3b8f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/52482.38151e01.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/24810.1a75f70b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/14262.b5364fae.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/82245.41954270.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/header-island.4ec7a44d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/60778.221258f1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/88859.74e9396f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/69965.ef169455.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/41956.dbcf91ce.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/96464.320d2603.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/18942.d4f961ca.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/side-nav-island.275e43ae.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/npm-lottie.29812993.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/22615.07769c0f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/59331.f2e6620c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/85016.724653bd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/17796.f71c227b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/63839.13f03dea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/bottom-side-effect-island.aff8e1d1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/98007.6b01496f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/66302.3950f561.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/head-side-effect-island.83f472dc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/notification-side-effect-island.411f264a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/48807.9d1920f7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/89028.3f0a9b2e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/66808.ab47850c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/39724.d2252a35.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/84660.2a49eb79.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/29937.6346e9b5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/stories-player.538bd630.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/92142.90ee9c37.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/87438.e81542b6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/73921.9721215a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/47664.e68cb6a8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/53522.81861160.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/22831.1b3f6307.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/61633.00ddd7a4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/29509.9a6ebd1a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/4826.00210467.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/41659.724107ba.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/44899.979fc6e1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/64068.f0782422.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/10894.56a02a53.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/47104.ff4517cd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/22556.ee1fc78c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/instance.f617d191.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/93369.5a6ff221.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/23648.e2218a48.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/live-top-modules-live-browser-mode-live-browser-mode.a26ff7f9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/actions.11184913.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/5152.1453dc08.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/96095.de60e64e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/73186.fabe82cf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/3162.9c13be7c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/share.fd497836.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/assets/perf_images/performance.jpeg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/17814.a1ed9489.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/multi-account-controller.43d9ad6e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/17458.f2142221.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/52763.9ffcd591.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/79061.2f85064b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/17814.a1ed9489.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/24640.e8cb39f7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/52750.6df6b581.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/modal-side-effect-island.90c0bbdf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config?locale=en&appId=1988&theme=default&tea=1",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&permissionList=001004%2C001005&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzsIRODmGANV0MCiEvBIDZrfK3&X-Gnarly=M80ztt0BlKmgng8OJsdhJvFan3kbR8uhyiQcsbxvZzSBCSN1Xme8EwIzZiU7yVxcW/MTkysoSQ6rWUULSLX4A4RQTWqhIO69GvOn28sLlYJPCYPa/BCEBHrFH1CwLOT21L5IA52tP/0cUoZ0Clv6ZVy/TJ3BzTp6p-yH6JyDjS1SLIHZZ0dAcsHn9r7eWmhdnVhdG/9m1F4i1lwNty1fhJFMLdM5fOoG3IiDjNu5LOp8SoIsKRQktFgCQxp4vpfwETKzqc9myskBPRwHYXhXkfPvMCKa9mLax4xSoP1PBawzXvRIguh868zwd4sgePOr5Ne=",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktokw.us/api/global-footer/graphql",
+      "method": "POST",
+      "score": 12,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&permissionList=001004%2C001005&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzsIRODmGANV0MCiEvBIDZrfK3&X-Gnarly=M8EV2Z45w87MEVqc7Px9kN/4hz-Kcdb5a8ukgHCNkD9ZmARMT22lwPAtwJuFVP1e9VQo-LDRhR3iAPz7r95ApqM/WSYwsVX9JsEoW0giXBYGBqTpzziDNFKUP8v2SJtBYcXpi73mDRWJDgl71kFQV2TQghzcQSbflL5GzsYkqyM07RmfV3--IUsuav3R7DTlHGrMFhHriQh5Hj9ZJQp0AAjZeJFKPhpCJ7sHhI3yBbKaBdDJZ6UB4bkw-VncFlzyUKdgs32bOZMV4UeZvfjfBrArs6dtA20DXT2xRLUO5wmThs1U9gM3gphZ0cKvH4f1uWW=",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/api/inbox/notice_count/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/aweme/v1/report/inbox/notice?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&carrier_region=US&channel=tiktok_web&cookie_enabled=true&current_region=US&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&locale=en&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&request_tag_from=pc&screen_height=720&screen_width=1280&sys_region=US&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok_fonts/TikTokFont-Bold.woff2?_default_font=1&v=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/19aa5a7c61458f924682a9cc59dc1a9f~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=ba99cf34&x-expires=1773104400&x-signature=34BsToSdGYaIdvY3aLrNDPQKhOc%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-maliva-avt-0068/81dd03ab48e571529193c93e79d59201~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=8272dde1&x-expires=1773104400&x-signature=buTNIRgvW3ApYTt8w5v84jQkLzg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/b5ce8794ffa7b117d7fdb6a9ec0ad5fe~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=57e52f73&x-expires=1773104400&x-signature=pbgKi8sFWGGqRqDmb0DO%2BoUY0xk%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/f79d3e1dae0b427a7e3984c6b82dfd27~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=ab24d288&x-expires=1773104400&x-signature=YBytK4tRfoxP073VqPPQi5i%2Ff90%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/19ca22fd1311c826edf0cb648baa8a95~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=8435df33&x-expires=1773104400&x-signature=VY%2Bm6%2FSszeehvAZgeA6z7QTlxT0%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-alisg-avt-0068/4365d22bb9ca6f8f491f08f21a43a3bc~tplv-tiktokx-cropcenter:100:100.jpeg?dr=9640&refresh_token=949be0ef&x-expires=1773104400&x-signature=2FimV0hGjTVxKqQH%2BVPJ5Z9iErU%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/oUyzgDUMkFWme2uWQZeWnAIFRQe989cAxGQ5Yf~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=xMHvi%2B%2FoWmvy9d9JKRFZnry4BVo%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/oEx0wEBNIiAimy7EfCAAIxqiUdDg5Tpm92SIqs~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=N3Hbv01xtFQOWpPuC2mNGIx220M%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/oofSKyeVZBEiCoREAITX0sAE4SgAEp1BBERnih~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=sSVRKrQe19ftQjclEvPH%2FiR8bg4%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-p-0068-tx2/ogpAVWENnC7IkAFRiEnQPsfAAQEqAVfCVViDEC~tplv-tiktokx-origin.image?dr=9636&x-expires=1773104400&x-signature=F8N674taIuW13JuMaqIRh3mn2zU%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=43f4a2f9&idc=useast5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/7676.e8498372.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/photo-content-side-effect.e0a63f1b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/common-side-effect.de0ce86f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/video-content-side-effect.f56bd5bb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/tiktok-fe-shared-dist-live-top-modules-column-recommend-live-card-column-recommend-live-card.3e3d7bdb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/content-live-card.5c1fb4a7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/photo-content-side-effect-switch-opt.f6b78ab8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/video-content-side-effect-switch-opt.dfc02124.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/index.3e2dea2d.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/assets/banner_ads.1fbab8a2.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/footnotes-modal.d7da9ff3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/login-side-effect-island.cd7dee14.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://starling-ttp2.tiktokv.us/check_and_get_text/2e1fcc60aeaa11e99ef535aeebd27c9b/normal/account_server?lang=en,zh",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://starling-ttp2.tiktokv.us/check_and_get_text/5dc26cf008d511e9b571e1bc0c9e23b5/normal/WebApp_Login?lang=en,zh",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/screen_time/list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&count=1&data_collection_enabled=false&date=20519&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/api/share/settings/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=webapp_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&mode=1&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/app_open_times/upload/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&app_open_times=%5Bobject%20Object%5D&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&upload_timestamp=1772934466&upload_type=1&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/seo-expanded-section.2a455023.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://mcs.tiktokv.us/v1/user/webid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/pns/tiktok-cookie-banner/2.0.0.77/default.ttp.esm.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/26782.9736bacd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/1420.bde8b907.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/impl.5c7b42bd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/58115.96a4c808.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/14418.6c913eee.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/55789.27d5b563.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/tiktok/webapp/main/vdp-bad/webapp-desktop/static/js/async/login-modal.f87c63ad.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/aweme/v1/report/inbox/notice/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&carrier_region=US&channel=tiktok_web&cookie_enabled=true&current_region=US&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&locale=en&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&request_tag_from=pc&screen_height=720&screen_width=1280&sys_region=US&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/node-webapp/api/login-config",
+      "method": "GET",
+      "score": 12,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/client",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokv.us/v1/user/webid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_web/settings/browser-settings?bid=pns_cookie_banner_slardar&store=1",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-cdn-tos.tiktokcdn-us.com/obj/static-tx/slardar/fe/sdk-web/plugins/common-monitors.1.14.5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_web/settings/browser-settings?bid=pns_consent_system&store=1",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mcs.tiktokv.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok_fonts/TikTokFont-Bold.woff2?_default_font=1&v=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.tiktokw.us/api/global-footer/graphql",
+      "method": "POST",
+      "score": 12,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/screen_time/upload/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&time_usage=%5Bobject%20Object%5D&tz_name=America%2FLos_Angeles&upload_timestamp=1772934466&upload_type=3&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok_fonts/TikTokDisplayFont-Bold.woff2?_default_font=1&v=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokv.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mcs.tiktokv.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mssdk-ttp2.tiktokw.us/web/resource?eq=4/h6T4ECyrXmA0fOmAaTh-nc1BM0hF035rX4vSvwC/0PcKzYIJcSwUVaoPxRhp6O9O90/CL=",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lf16-tiktok-web.tiktokcdn-us.com/obj/tiktok-web-tx/webmssdk_ex/2.0.0.821/webmssdk_ex.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_browser/collect/batch/?biz_id=pns_communication_service",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/style",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://google.com/.well-known/web-identity",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm.json",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mcs.tiktokw.us/v1/list",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_browser/collect/batch/?biz_id=pns_consent_system",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_browser/collect/batch/?biz_id=tiktok_webapp",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://mssdk-ttp2.tiktokw.us/web/report?msToken=VUDhrebP10s9Ed0Js6aO0mol68GNlHbukws2fncoJ8nmoq2QS0hZUKgNoGsDw-I06Rmgln6kjV_eymWZtMKh4sRn78AUifCDva_Om1ImNdGIOdtuNAt7D36GzBwUIw==&X-Bogus=DFSzsIROVt9tXR0MCiEvQ9DZrfBC&X-Gnarly=MK0eAxQqG3WvtOOAGZ4JtbI5ll0vc2Oe5wqdN5k-06Hmdx4-so/PGHTmdEiMrFlEeqEEyV3YLHjKD0CoCQzLkhi0VMApfokm1EFZqKuvhEdLAIg8M8EMmfYx-wd415dETmClgLmyFduBlFjbBJCuCGP3JlJcvePutBfhH1u/iFRv3xhCWq7sKxgyJM2w5wsIX-S6bYPh-cbMKGM9M632BtwIJIie1ifm21-y4PBoIZ-rWoB6I8XVMpSjVo/Anaz59Ynl9AGyk8HS8upzldvlWhGrdpwOdUbyNA0NODacZ6Kw82yEBMI/pN6Bpudd5YvFPsk=",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_browser/collect/batch/?biz_id=webmssdk",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://mon16-normal-useast5.tiktokv.us/monitor_browser/collect/batch/?bid=tiktok_pns_web_runtime",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.tiktok.com/api/explore/item_list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&categoryType=120&channel=tiktok_web&clientABVersions=70508271%2C73547759%2C73720541%2C75136854%2C75204947%2C75294820%2C75331215%2C75350405%2C75362515%2C75381135%2C75381398%2C75413557%2C75429913%2C75436986%2C75440143%2C75492091%2C75520329%2C75528341%2C75560659%2C75581386%2C75602454%2C75613603%2C75637792%2C70405643%2C71057832%2C71200802%2C72361743%2C73171280%2C73208420%2C74276218%2C74413136%2C74844724%2C75330961&cookie_enabled=true&count=8&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&enable_cache=true&focus_state=true&history_len=2&is_fullscreen=false&is_page_visible=true&language=en&odinId=7614695533291324446&os=mac&priority_region=&pullType=1&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&video_encoding=mp4&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "gMk0q8vGljl6AkzaY53aF",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config?locale=en&appId=1988&theme=default&tea=1",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "Rc5-loBvCndOVqtClMQRx",
+      "description": "Returns details for Body with i18n, appProps, cookieBanner, consent, tea, tenantId using locale, appId, theme, tea",
+      "action_kind": "detail",
+      "resource_kind": "user"
+    },
+    {
+      "url": "https://www.tiktok.com/api/share/settings/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=webapp_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&mode=1&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "3zHymaPceiZHDqBwA0b9C",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/node-webapp/api/login-config",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "IxU-HLvJrURZFX8iPWMqO",
+      "description": "Returns details for Config with emailSuffixConfig, platformConfig, platformConfigV2, signupConfig, forceLogin, emailConsent",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&permissionList=001004%2C001005&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzsIRODmGANV0MCiEvBIDZrfK3&X-Gnarly=M80ztt0BlKmgng8OJsdhJvFan3kbR8uhyiQcsbxvZzSBCSN1Xme8EwIzZiU7yVxcW/MTkysoSQ6rWUULSLX4A4RQTWqhIO69GvOn28sLlYJPCYPa/BCEBHrFH1CwLOT21L5IA52tP/0cUoZ0Clv6ZVy/TJ3BzTp6p-yH6JyDjS1SLIHZZ0dAcsHn9r7eWmhdnVhdG/9m1F4i1lwNty1fhJFMLdM5fOoG3IiDjNu5LOp8SoIsKRQktFgCQxp4vpfwETKzqc9myskBPRwHYXhXkfPvMCKa9mLax4xSoP1PBawzXvRIguh868zwd4sgePOr5Ne=",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "CVCzQOKPce9VpZrs_psTe",
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "list",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/api/inbox/notice_count/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "4xsK2MW998wULwosXc2V8",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "timeline",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "7dVYRjJV6GU23JEfKrdEe",
+      "description": "Returns details for Eligibility List with decision_code, id_value, is_eligible",
+      "action_kind": "list",
+      "resource_kind": "post"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region=US&priority_region=US&aid=1988&device_id=7614695531759453727&app_language=en&device_platform=web_pc&WebIdLastTime=1772934464&scene=0",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "rq2ku0uXYiOOGp1MDk9_2",
+      "description": "Returns details for Extra with now, fatal_item_ids, logid using region, priority_region, aid, device_id",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/screen_time/list/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&count=1&data_collection_enabled=false&date=20519&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "1o2f7QbQxXLX0yabozNLR",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "list",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/aweme/v1/report/inbox/notice/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&carrier_region=US&channel=tiktok_web&cookie_enabled=true&current_region=US&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&locale=en&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&request_tag_from=pc&screen_height=720&screen_width=1280&sys_region=US&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "gFgoNs3F2Xad9p96vKMPX",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "timeline",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "HVc69-QS4xTMVM3GUcrX9",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "url": "https://webcast.us.tiktok.com/webcast/wallet_api_tiktok/recharge/check_external_entry?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_experiment_group=false&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&page_source=0&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzsIROAltANV0MCiEvBIDZrfsG&X-Gnarly=MksNEeUp5uBl7-0eivVlUt0ssg9FK5jbOCATQiA2pRD4ODW0FVDC2jH69eZ/d29s/oR3zV3-uetQP4M-8n8m0ssd1y55L5hSC3fEUXsEADnydmh31D3BxOjO4095FWJHK5F8MXmM5kUp/6mRNbS98n2YYK2TqTvgn3n7cPKkJBSqQlhnbimMdLbUeeqJTwz9DPz5cgP/bhrTL4/kFk3YbzR7k0JhCzrW4Kyq5EBpprd3L1jI6TAr5sOmoGVdfFIW-J8v22-kYG8TUXIn1ibii/JCUl-VpWqjcFVnJ3Gl9Qw5zkExaORotOr/BTx06WfaGKA=",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "ZhtgjYFDd8FaFa3-JZcso",
+      "description": "Returns details for Check External Entry with frequency_control_type, is_live_consumption_user, show_external_entry",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "url": "https://www.tiktok.com/ttwid/check/",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "3Z4s6LNzJcOHyates56Xh",
+      "description": "Returns details for Status Code with status_code, message, sub_status_code",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/app_open_times/upload/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&app_open_times=%5Bobject%20Object%5D&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&tz_name=America%2FLos_Angeles&upload_timestamp=1772934466&upload_type=1&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "aq4mgJjE0cLFYmSKqTZxF",
+      "description": "Returns details for Log Pb with impr_id",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "url": "https://www.tiktok.com/tiktok/v1/screen_time/upload/?WebIdLastTime=1772934464&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&data_collection_enabled=false&device_id=7614695531759453727&device_platform=web_pc&focus_state=true&from_page=&history_len=2&is_fullscreen=false&is_page_visible=true&odinId=7614695533291324446&os=mac&priority_region=&referer=&region=US&screen_height=720&screen_width=1280&time_usage=%5Bobject%20Object%5D&tz_name=America%2FLos_Angeles&upload_timestamp=1772934466&upload_type=3&user_is_login=false&webcast_language=en",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "-UuVxCUbFgfCe34XEbpyN",
+      "description": "Returns details for Log Pb with impr_id",
+      "action_kind": "create",
+      "resource_kind": "post"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "gMk0q8vGljl6AkzaY53aF",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/api/explore/item_list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&categoryType={categoryType}&channel={channel}&clientABVersions={clientABVersions}&cookie_enabled={cookie_enabled}&count={count}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&enable_cache={enable_cache}&focus_state={focus_state}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&language={language}&odinId={odinId}&os={os}&priority_region={priority_region}&pullType={pullType}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&video_encoding={video_encoding}&webcast_language={webcast_language}",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "Rc5-loBvCndOVqtClMQRx",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/api/v1/web-cookie-privacy/config?locale={locale}&appId={appId}&theme={theme}&tea={tea}",
+      "description": "Returns details for Body with i18n, appProps, cookieBanner, consent, tea, tenantId using locale, appId, theme, tea",
+      "action_kind": "detail",
+      "resource_kind": "user"
+    },
+    {
+      "endpoint_id": "3zHymaPceiZHDqBwA0b9C",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/api/share/settings/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&mode={mode}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "IxU-HLvJrURZFX8iPWMqO",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/node-webapp/api/login-config",
+      "description": "Returns details for Config with emailSuffixConfig, platformConfig, platformConfigV2, signupConfig, forceLogin, emailConsent",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "CVCzQOKPce9VpZrs_psTe",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&permissionList={permissionList}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}&msToken={msToken}&X-Bogus={X-Bogus}&X-Gnarly={X-Gnarly}",
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "list",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "4xsK2MW998wULwosXc2V8",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/api/inbox/notice_count/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}",
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "timeline",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "7dVYRjJV6GU23JEfKrdEe",
+      "method": "POST",
+      "url_template": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2",
+      "description": "Returns details for Eligibility List with decision_code, id_value, is_eligible",
+      "action_kind": "list",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "rq2ku0uXYiOOGp1MDk9_2",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region={region}&priority_region={priority_region}&aid={aid}&device_id={device_id}&app_language={app_language}&device_platform={device_platform}&WebIdLastTime={WebIdLastTime}&scene={scene}",
+      "description": "Returns details for Extra with now, fatal_item_ids, logid using region, priority_region, aid, device_id",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "1o2f7QbQxXLX0yabozNLR",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/tiktok/v1/screen_time/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&count={count}&data_collection_enabled={data_collection_enabled}&date={date}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "list",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "gFgoNs3F2Xad9p96vKMPX",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/aweme/v1/report/inbox/notice/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&carrier_region={carrier_region}&channel={channel}&cookie_enabled={cookie_enabled}&current_region={current_region}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&locale={locale}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&request_tag_from={request_tag_from}&screen_height={screen_height}&screen_width={screen_width}&sys_region={sys_region}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "timeline",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "HVc69-QS4xTMVM3GUcrX9",
+      "method": "GET",
+      "url_template": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}",
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "action_kind": "detail",
+      "resource_kind": "channel"
+    },
+    {
+      "endpoint_id": "ZhtgjYFDd8FaFa3-JZcso",
+      "method": "POST",
+      "url_template": "https://webcast.us.tiktok.com/webcast/wallet_api_tiktok/recharge/check_external_entry",
+      "description": "Returns details for Check External Entry with frequency_control_type, is_live_consumption_user, show_external_entry",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "3Z4s6LNzJcOHyates56Xh",
+      "method": "POST",
+      "url_template": "https://www.tiktok.com/ttwid/check/",
+      "description": "Returns details for Status Code with status_code, message, sub_status_code",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "aq4mgJjE0cLFYmSKqTZxF",
+      "method": "POST",
+      "url_template": "https://www.tiktok.com/tiktok/v1/app_open_times/upload/",
+      "description": "Returns details for Log Pb with impr_id",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "-UuVxCUbFgfCe34XEbpyN",
+      "method": "POST",
+      "url_template": "https://www.tiktok.com/tiktok/v1/screen_time/upload/",
+      "description": "Returns details for Log Pb with impr_id",
+      "action_kind": "create",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "Xsyx7AdRJlicKZaAOiGNC",
+      "method": "WS",
+      "url_template": "wss://im-ws.tiktok.com/ws/v2?fpid=32&service=33554513&method=2&aid=1988&device_id=7614695531759453727&access_key=0af4180f47626e427b4959bc1fb2db08&device_platform=web",
+      "action_kind": "fetch",
+      "resource_kind": "resource"
+    }
+  ]
+}

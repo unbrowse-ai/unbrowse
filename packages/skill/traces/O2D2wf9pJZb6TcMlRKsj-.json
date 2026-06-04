@@ -1,0 +1,111 @@
+{
+  "trace_id": "O2D2wf9pJZb6TcMlRKsj-",
+  "skill_id": "pb_IIHwqXD0KsGcAXyWpb",
+  "endpoint_id": "32DmuegTnOhbvY0fdknrV",
+  "started_at": "2026-02-25T01:51:16.952Z",
+  "completed_at": "2026-02-25T01:51:17.771Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "pool_address": "4no1hzWN4YYhmWNzyKt9k7hGw87R4hRsBhTr6nc8rv55",
+        "pool_token_mints": [
+          "FdrYEVs1bjLucpoqhtdf8Px15t7uxUdFzjsYt1fLoxsY",
+          "So11111111111111111111111111111111111111112"
+        ],
+        "pool_token_amounts": [
+          "10809655.169816",
+          "0.000526828"
+        ],
+        "pool_token_usd_amounts": [
+          "0",
+          "0"
+        ],
+        "vaults": [
+          "FPBuygZWN8nUYZFVxzdxZ9mu24oT5ntCauVAVJFYzvnd",
+          "FERjPVNEa7Udq8CEv68h6tPL46Tq7ieE49HrE2wea3XT"
+        ],
+        "vault_lps": [
+          "4sieDPMVKFGU7gatDy6hcE96TNJAaj94EE55vBPEB9jV",
+          "DuhFjZ1L4BpJ1x8p8anQsSJA27vA7d1mkyALMFDWLftN"
+        ],
+        "lp_mint": "5tpvikhfibajtzJW2kECRWrGuWEzRBaQwYiYq8RaqL1M",
+        "pool_tvl": "0",
+        "farm_tvl": "0",
+        "farming_pool": null,
+        "farming_apy": "0",
+        "is_monitoring": false,
+        "pool_order": 0,
+        "farm_order": 0,
+        "pool_version": 2,
+        "pool_name": "moondoge-SOL",
+        "lp_decimal": 9,
+        "farm_reward_duration_end": 0,
+        "farm_expire": false,
+        "pool_lp_price_in_usd": "0",
+        "trading_volume": 0,
+        "fee_volume": 0,
+        "weekly_trading_volume": 0,
+        "weekly_fee_volume": 0,
+        "yield_volume": "0.000003",
+        "accumulated_trading_volume": "44.068610",
+        "accumulated_fee_volume": "0.110172",
+        "accumulated_yield_volume": "0.001997",
+        "trade_apy": "0",
+        "weekly_trade_apy": "0",
+        "daily_base_apy": "1.456491",
+        "weekly_base_apy": "1.363286",
+        "apr": 0,
+        "farm_new": false,
+        "permissioned": false,
+        "unknown": true,
+        "total_fee_pct": "0.25",
+        "is_lst": false,
+        "is_forex": false,
+        "created_at": 1748534668,
+        "is_meme": false,
+        "pool_type": "volatile",
+        "tags": [
+          "launchpad",
+          "unknown"
+        ],
+        "launchpad": "met-dbc"
+      }
+    ],
+    "page": 0,
+    "total_count": 1
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [],
+    "type_changes": [
+      {
+        "path": "data[].trading_volume",
+        "was": "number",
+        "now": "integer"
+      },
+      {
+        "path": "data[].fee_volume",
+        "was": "number",
+        "now": "integer"
+      },
+      {
+        "path": "data[].weekly_trading_volume",
+        "was": "number",
+        "now": "integer"
+      },
+      {
+        "path": "data[].weekly_fee_volume",
+        "was": "number",
+        "now": "integer"
+      },
+      {
+        "path": "data[].apr",
+        "was": "number",
+        "now": "integer"
+      }
+    ]
+  }
+}

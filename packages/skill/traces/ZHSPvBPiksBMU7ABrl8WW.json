@@ -1,0 +1,10 @@
+{
+  "trace_id": "ZHSPvBPiksBMU7ABrl8WW",
+  "skill_id": "yH64k8GuCT_SwbiHgPAOU",
+  "endpoint_id": "wr-2ePqfQUSfXMDrx6pse",
+  "started_at": "2026-02-23T14:36:49.791Z",
+  "completed_at": "2026-02-23T14:36:51.202Z",
+  "success": true,
+  "status_code": 200,
+  "result": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\">\n  <title>Options AI</title>\n  <base href=\"/\" />\n  <link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\" />\n  <script type=\"module\" crossorigin src=\"/entries/index.B-vWyYPA.js\"></script>\n  <link rel=\"stylesheet\" crossorigin href=\"/assets/index.j0FqFjSq.css\">\n</head>\n<body>\n  <div id=\"root\"></div>\n</body>\n</html>"
+}

@@ -1,0 +1,2651 @@
+{
+  "page_url": "https://hub.docker.com",
+  "final_url": "https://hub.docker.com/",
+  "intent": "search images",
+  "candidate_count": 2,
+  "accepted_count": 2,
+  "decisions": [
+    {
+      "url": "https://hub.docker.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/12bb888b1d946b128037abc877e93bc7?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/adbb6a6ef575033973b59b9f96348d34?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/python/live/logo-1763770362992.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/ai/qwen3/live/logo-1746463132955.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/7510e100f7ebeca4a0b8c3c617349295?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/hylang/live/logo-1763770323584.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/14a1dfcf20cb05fbb75ea0a163d34acc?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/nginx/live/logo-1763770349851.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/busybox/live/logo-1763770272161.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/alpine/live/logo-1771481459727.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/postgres/live/logo-1763770361454.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/mysql/live/logo-1767802337609.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/neo4j/live/logo-1763770347862.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/traefik/live/logo-1763770402896.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/influxdb/live/logo-1763770326010.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/telegraf/live/logo-1763770400888.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/31cea69afa424609b2d83621b4d47f1d?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/gradle/live/logo-1772543533491.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/library/bash/live/logo-1763770269957.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/b2a8a002fd393d0cfd1158319054a026?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://djeqr6to3dedg.cloudfront.net/repo-logos/localstack/localstack-pro/live/logo-1719665078450.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/56b6e15d486f6407690a6cb56e3fa68e?s=80&r=g&d=mm",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b7q0sh59.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iw45vdqe.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bu48di2q.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/on7o26lr.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c1txpqim.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c2heove9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/sckmih3q.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lvor6ia6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fq3geccv.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/km2t237d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gjupmyyj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g83pwa7x.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/icn7vhac.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/z4w5n0qm.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hmo4wy1i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k7e0iy55.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hhd4swle.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nrsf2txa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ksqd8wyd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/be8rwmkc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ipsmdhri.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/galyil7v.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/obo5abii.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mve2tcif.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o7xn61iu.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fil9c6au.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m98jyd93.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m12b7gs4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/chhwgkyw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/n98uzmxq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lmc8h8py.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/d3hkyh18.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fm0ztcbe.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e2xumd76.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gczexp56.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ifdfgrma.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fgrh3em6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/3skcli0z.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cog875zc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bzdgezj1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ffm8a01i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dkm2qjw2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fkxy32yf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i6uxbv1y.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ixoha9s2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dbg4ugqw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/oe9bg39j.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/rivpgrku.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iknbvdrh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ibwxweb5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dgye9qmu.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dxe5oaxj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c2z4eqkk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nap984bv.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/j2lum5n5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mfz2ggvr.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gh45y583.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/doouyyoy.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e4ofqcj1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/effsgy3n.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kaho5obd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bdg8312i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iycpyoal.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gxr2cae3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bwtull1d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b81t3sgi.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jsxq7z9p.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iifpi1iu.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/detkwr9j.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o58gzn7h.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/f80ft0bu.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kl74giwr.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/h6avv8pc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cn0mn8n4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bj2d3fxd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bwgpyml2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k46ip8b6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/d6r7yzw6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dztknmy2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o3wz89wl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/j23x5f1x.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g3ou1x9d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/j61k7dpp.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hmirp45d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bw6glj36.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g3r07ri5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i1done9i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dygtgd0c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/zbyteonq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dj1h0lr0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ghkv8ec1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bk7ixlaa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ealgr4y2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/oat2b3jh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/msiw1kq3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jdlz3jfl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/muku9gmr.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nwlzll67.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e5n3lsct.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lxfkchea.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jnbyafq1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bol2npkd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k3ey2edf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e09o9b24.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i8z12e59.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gy1lpvuo.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/yah4p02m.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mfgljxfr.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mu0qymxe.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/f66orhit.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jfc65vlx.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b1ynh83b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/h1em0bjk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iyvsjels.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dfc1qvoa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/h4zy7ns9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o7o2qsr2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ol5yldpg.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dt28r9kx.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b2jfo38i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i2zbvux8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bcvm7bhn.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/odh0yz7x.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o3ddgayp.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m1ekdpnh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gccoq32s.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hnu6g21a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c9ixks0r.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/l5llucom.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/huxpnrdf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ftbf5o5v.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lohy4phq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fd8myf5e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ffycq8s6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/edttj80p.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/crsd05ek.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/pbytn10h.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cisc9r52.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o85pt7dw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/joyo2cu5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g3essf8t.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c415soxo.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m93ms6j0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/zt7mfet9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bthmkr3x.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cj1n4e7c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bcph50eh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ejh0m4id.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gwpm1iru.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/n692if2u.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ii77w9xj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kki62395.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mg5blcgk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cvmn4ceh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nv9t1kuz.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/eym7twkb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kjff4ql0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fsj84o3j.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o0uozu2i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/951j84kw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ij3umk1y.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nwwe4s16.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/koie55h9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fr3stkr3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/es02htmk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bfuq39px.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/oar7bq2b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/n048tqgg.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/fhfgpx48.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k5os1d6s.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ggvbaq4g.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nyk2fh9d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hzbfainw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/l0wtcazj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/j0ldus7h.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/pfok6mie.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jgtt4g2i.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jjx8cjxt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/h60ueqql.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/oue0wtmj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/evr5wnou.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dewm9q9e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dgvx0slb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b2qz6tvq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cn2mrooy.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/brik0n97.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/c29hhq2p.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cjh1csys.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nbxtkvih.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/uv1tly3r.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b1b27nrl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/limpb33f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kkeja52t.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nl33iyi9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kg02tv3e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hqvx5fe7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g811ww8h.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/juwga711.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bzfyh6s2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jjvxtmz8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jm38h29w.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/mqs7lb7e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kpsmb0i8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gs43yrt7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nvlrsnru.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ct8cdznl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lm1ompwf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gj6g24a5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/haf4pf5b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/2zfs94mp.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/onlear3a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dg3lyz3l.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/d8agvdgn.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/bocsaxjq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/d6ybnc43.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/l7450jwk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/let3fwwz.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/esk8y75d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/go0z54sp.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/miv4gkhj.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/9ywdhqnl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m3e92d7m.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cnc215zt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/b2gm8odt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gken9t8g.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/n2n5upmh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/j2t5rzyb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/droqw37q.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i9lc51hh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/oe31wd59.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dlvappeb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ins2z4av.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lqze3wxh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/hic2e6pl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m2581w9k.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nbakya9g.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/kyf8sq5j.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i2djq9bf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/o2a8damx.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lti93j4c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g2lind5z.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/n0n1i9y1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jacouhga.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k0o4j2ht.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/ipu1vast.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cyrox2zx.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gzol1hy8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/i6gcgpb1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e8ln89r0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/eapuns0y.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/nkxh0ixk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/cmhvve2c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/e4uo8q7v.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/jbuyoosi.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/m9h0nf3d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/h6jmw20w.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/g59v9bwg.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/dl3v8mm4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/isu1lsdt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/gsyzq037.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/iwmhkx4s.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/lgym9xrs.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dockerstatic.com/hub-ui/k058s4rh.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Comfortaa:300,400,400i,600,600i,700",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;900&display=swap",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/otSDKStub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://prod-publishers-content.s3.us-east-1.amazonaws.com/media/dhi-hero.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMaxKUBHMdazTgWw.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://sessions-bugsnag.docker.com/",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-WL2QLG5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://hub.docker.com/__manifest?paths=%2F%2C%2F_%2Falpine%2C%2F_%2Fbash%2C%2F_%2Fbusybox%2C%2F_%2Fgradle%2C%2F_%2Fhylang%2C%2F_%2Finfluxdb%2C%2F_%2Fmemcached%2C%2F_%2Fmongo%2C%2F_%2Fmysql%2C%2F_%2Fneo4j%2C%2F_%2Fnginx%2C%2F_%2Fpostgres%2C%2F_%2Fpython%2C%2F_%2Ftelegraf%2C%2F_%2Ftraefik%2C%2Fcatalogs%2Fmodels%2C%2Fcategories%2Fapi-management%2C%2Fcategories%2Fcontent-management-system%2C%2Fcategories%2Fdata-science%2C%2Fcategories%2Fdatabases-and-storage%2C%2Fcategories%2Fdeveloper-tools%2C%2Fcategories%2Fintegration-and-delivery%2C%2Fcategories%2Finternet-of-things%2C%2Fcategories%2Flanguages-and-frameworks%2C%2Fcategories%2Fmachine-learning-and-ai%2C%2Fcategories%2Fmessage-queues%2C%2Fcategories%2Fmonitoring-and-observability%2C%2Fcategories%2Fnetworking%2C%2Fcategories%2Foperating-systems%2C%2Fcategories%2Fsecurity%2C%2Fcategories%2Fweb-analytics%2C%2Fcategories%2Fweb-servers%2C%2Fhardened-images%2Fcatalog%2C%2Fmcp%2C%2Fr%2Fai%2Fqwen3%2C%2Fr%2Farm32v7%2Fredis%2C%2Fr%2Fatlassian%2Fconfluence%2C%2Fr%2Fdocker%2Flabs-k8s-toolkit-extension%2C%2Fr%2Fgrafana%2Fgrafana%2C%2Fr%2Flangchain%2Flangchain%2C%2Fr%2Flocalstack%2Flocalstack-pro%2C%2Fr%2Fpytorch%2Fpytorch%2C%2Fr%2Fselenium%2Fvideo%2C%2Fr%2Ftensorflow%2Ftensorflow%2C%2Frepository%2Fcreate%2C%2Fsearch%2C%2Fsupport%2Fcontact%2C%2Fu%2Fai%2C%2Fu%2Farm32v7%2C%2Fu%2Fatlassian%2C%2Fu%2Fdocker%2C%2Fu%2Fgrafana%2C%2Fu%2Flangchain%2C%2Fu%2Flibrary%2C%2Fu%2Flocalstack%2C%2Fu%2Fpytorch%2C%2Fu%2Fselenium%2C%2Fu%2Ftensorflow&version=1a448af8",
+      "method": "GET",
+      "score": -1,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://hub.docker.com/v2/feature-flags/proxy?sessionId=84103224&appName=hub-ui&environment=production&properties%5Bversion%5D=v7930",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://prod-publishers-content.s3.us-east-1.amazonaws.com/media/spotlight-compose.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://prod-publishers-content.s3.us-east-1.amazonaws.com/media/spotlight-e2b.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://prod-publishers-content.s3.us-east-1.amazonaws.com/media/spotlight-dhi.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/65425fb0-7b36-4317-9f10-7b3e08039af0/65425fb0-7b36-4317-9f10-7b3e08039af0.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://hub.docker.com/__manifest?paths=%2F%2C%2F_%2Falpine%2C%2F_%2Fbash%2C%2F_%2Fbusybox%2C%2F_%2Fgradle%2C%2F_%2Fhylang%2C%2F_%2Finfluxdb%2C%2F_%2Fmemcached%2C%2F_%2Fmongo%2C%2F_%2Fmysql%2C%2F_%2Fneo4j%2C%2F_%2Fnginx%2C%2F_%2Fpostgres%2C%2F_%2Fpython%2C%2F_%2Ftelegraf%2C%2F_%2Ftraefik%2C%2Fcatalogs%2Fmodels%2C%2Fcategories%2Fapi-management%2C%2Fcategories%2Fcontent-management-system%2C%2Fcategories%2Fdata-science%2C%2Fcategories%2Fdatabases-and-storage%2C%2Fcategories%2Fdeveloper-tools%2C%2Fcategories%2Fintegration-and-delivery%2C%2Fcategories%2Finternet-of-things%2C%2Fcategories%2Flanguages-and-frameworks%2C%2Fcategories%2Fmachine-learning-and-ai%2C%2Fcategories%2Fmessage-queues%2C%2Fcategories%2Fmonitoring-and-observability%2C%2Fcategories%2Fnetworking%2C%2Fcategories%2Foperating-systems%2C%2Fcategories%2Fsecurity%2C%2Fcategories%2Fweb-analytics%2C%2Fcategories%2Fweb-servers%2C%2Fhardened-images%2Fcatalog%2C%2Fmcp%2C%2Fr%2Fai%2Fqwen3%2C%2Fr%2Farm32v7%2Fredis%2C%2Fr%2Fatlassian%2Fconfluence%2C%2Fr%2Fdocker%2Flabs-k8s-toolkit-extension%2C%2Fr%2Fgrafana%2Fgrafana%2C%2Fr%2Flangchain%2Flangchain%2C%2Fr%2Flocalstack%2Flocalstack-pro%2C%2Fr%2Fpytorch%2Fpytorch%2C%2Fr%2Fselenium%2Fvideo%2C%2Fr%2Ftensorflow%2Ftensorflow%2C%2Frepository%2Fcreate%2C%2Fsearch%2C%2Fsupport%2Fcontact%2C%2Fu%2Fai%2C%2Fu%2Farm32v7%2C%2Fu%2Fatlassian%2C%2Fu%2Fdocker%2C%2Fu%2Fgrafana%2C%2Fu%2Flangchain%2C%2Fu%2Flibrary%2C%2Fu%2Flocalstack%2C%2Fu%2Fpytorch%2C%2Fu%2Fselenium%2C%2Fu%2Ftensorflow&version=1a448af8",
+      "method": "GET",
+      "score": -1,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.docker.com/app/uploads/2024/01/icon-new.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202306.2.0/otBannerSdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/65425fb0-7b36-4317-9f10-7b3e08039af0/6ba60b9d-a838-4332-afc9-b242fcd23842/en.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://zn2trismmfljkalnq-docker.siteintercept.qualtrics.com/SIE/?Q_ZID=ZN_2triSMMfLjkAlNQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-XJWPQMJYHQ&cx=c&gtm=4e6341h1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://munchkin.marketo.net/munchkin.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202306.2.0/assets/otFlat.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202306.2.0/assets/v2/otPcCenter.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202306.2.0/assets/otCommonStyles.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://j.6sc.co/j/857e6084-0317-4e66-85d2-f91b28100c2b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.zi-scripts.com/zi-tag.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/analytics.js/v1/PkiQ99OVaGVevM33khgOK18hXwwFSoPT/analytics.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_close.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_guard_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_company_logo.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/powered_by_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/destination?id=AW-842916875&cx=c&gtm=4e6341h1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.google.com/g/collect?v=2&tid=G-XJWPQMJYHQ&gtm=45je6341h1v878434219z8812562318za20gzb812562318zd812562318&_p=1772934989861&_gaz=1&gcd=13l3l3l3l1l1&npa=0&dma=0&cid=459751945.1772934992&ul=en-us&sr=1280x720&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAGA&_s=1&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252&sid=1772934991&sct=1&seg=0&dl=https%3A%2F%2Fhub.docker.com%2F&dt=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&en=page_view&_fv=1&_nsi=1&_ss=1&tfd=2990",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://stats.g.doubleclick.net/g/collect?v=2&tid=G-XJWPQMJYHQ&cid=459751945.1772934992&gtm=45je6341h1v878434219z8812562318za20gzb812562318zd812562318&aip=1&dma=0&gcd=13l3l3l3l1l1&npa=0&frm=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://siteintercept.qualtrics.com/dxjsmodule/18.fee276edae72e18c9b4e.chunk.js?Q_CLIENTVERSION=2.43.1&Q_CLIENTTYPE=web&Q_BRANDID=hub.docker.com",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://siteintercept.qualtrics.com/dxjsmodule/10.87761ff840bc8efda4ad.chunk.js?Q_CLIENTVERSION=2.43.1&Q_CLIENTTYPE=web&Q_BRANDID=hub.docker.com",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://munchkin.marketo.net/164/munchkin.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://790-ssb-375.mktoresp.com/webevents/visitWebPage?_mchNc=1772934991835&_mchCn=&_mchId=790-SSB-375&_mchTk=_mch-docker.com-8b2be28ae58c245a5b08d3235844d4d9&_mchHo=hub.docker.com&_mchPo=&_mchRu=%2F&_mchPc=https%3A&_mchVr=164&_mchEcid=&_mchHa=&_mchRe=&_mchQp=",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.zi-scripts.com/unified/v1/master/getSubscriptions",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://j.6sc.co/6si.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://siteintercept.qualtrics.com/WRSiteInterceptEngine/Targeting.php?Q_ZoneID=ZN_2triSMMfLjkAlNQ&Q_CLIENTVERSION=2.43.1&Q_CLIENTTYPE=web",
+      "method": "POST",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://c.6sc.co/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ipv6.6sc.co/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=c8db3be0ad6cbadc34eedc565e974ecf&svisitor=null&visitor=e166f50c-f488-4f1a-84f1-77689744cd93&session=de8be625-cb79-4151-8361-c1104cc93554&event=a_pageload&q=%7B%22pageLoadTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%22%7D&isIframe=false&m=%7B%22description%22%3A%22Welcome%20to%20the%20world%27s%20largest%20container%20registry%20built%20for%20developers%20and%20open%20source%20contributors%20to%20find%2C%20use%2C%20and%20share%20their%20container%20images.%20Build%2C%20push%20and%20pull.%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fhub.docker.com%2F&pageViewId=2cea29c2-8192-4335-88b5-0626afd93d98&webTagId=857e6084-0317-4e66-85d2-f91b28100c2b&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=c8db3be0ad6cbadc34eedc565e974ecf&svisitor=null&visitor=e166f50c-f488-4f1a-84f1-77689744cd93&session=de8be625-cb79-4151-8361-c1104cc93554&event=ni%3AasyncSettingsAudit&q=%7B%22settings%22%3A%22%5B%7B%5C%22name%5C%22%3A%5C%22setToken%5C%22%2C%5C%22value%5C%22%3A%5C%22c8db3be0ad6cbadc34eedc565e974ecf%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22disableCookies%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setEpsilonKey%5C%22%2C%5C%22value%5C%22%3A%5C%22ed9a1b7539c5a521e20118b6b5c983250515f59a%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableIPv6Ping%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableIgnorePageUrlHash%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableRetargeting%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setWhiteListFields%5C%22%2C%5C%22value%5C%22%3A%5C%22%5B%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setCustomMetatags%5C%22%2C%5C%22value%5C%22%3A%5C%22%5B%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22storeTagId%5C%22%2C%5C%22value%5C%22%3A%5C%22857e6084-0317-4e66-85d2-f91b28100c2b%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableEventTracking%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setCompanyDetailsExpiration%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableMapCookieCapture%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableCompanyDetails%5C%22%2C%5C%22value%5C%22%3A%5C%22%5Btrue%2Cnull%2C3%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%5D%22%7D&isIframe=false&m=%7B%22description%22%3A%22Welcome%20to%20the%20world%27s%20largest%20container%20registry%20built%20for%20developers%20and%20open%20source%20contributors%20to%20find%2C%20use%2C%20and%20share%20their%20container%20images.%20Build%2C%20push%20and%20pull.%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fhub.docker.com%2F&pageViewId=2cea29c2-8192-4335-88b5-0626afd93d98&webTagId=857e6084-0317-4e66-85d2-f91b28100c2b&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/842916875/?random=1772934991982&cv=11&fst=1772934991982&bg=ffffff&guid=ON&async=1&gtm=45be6341h1v9178902153z8812562318za20gzb812562318zd812562318xea&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115616985~115938466~115938468~116024733~117484252~117835692&u_w=1280&u_h=720&url=https%3A%2F%2Fhub.docker.com%2F&frm=0&tiba=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=955328761.1772934992&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=CA&rfmt=3&fmt=4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&ae=g&dl=https%3A%2F%2Fhub.docker.com%2F&scrsrc=www.googletagmanager.com&rnd=122252678.1772934992&dt=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&auid=955328761.1772934992&navt=n&npa=0&_tu=CA&gtm=45be6341h1v9178902153z8812562318za20gzb812562318zd812562318xea&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115616985~115938466~115938468~116024733~117484252~117835692&apve=1&apvf=f&apvc=0&tids=AW-842916875&tid=AW-842916875&tft=1772934992000&tfd=3303",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cdn.segment.com/v1/projects/PkiQ99OVaGVevM33khgOK18hXwwFSoPT/settings",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://epsilon.6sense.com/v3/company/details",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://c.6sc.co/refresh",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.6sc.co/?m=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ws.zoominfo.com/pixel/6849b757adc4ec0541e040e3/?iszitag=true",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/analytics-next/bundles/ajs-destination.bundle.8e6b895db75187c55313.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://hub.docker.com/v2/feature-flags/proxy/client/metrics",
+      "method": "POST",
+      "score": -8,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/analytics-next/bundles/schemaFilter.bundle.1b218d13fed021531d4e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/actions/heap/25332f68022eb6525604.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/actions/google-analytics-4-web/d1382a1644c4e8069d3e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/actions/3962/1faa179dfb20d0a3f5a0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/integrations/google-analytics/2.18.6/google-analytics.dynamic.js.gz",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/integrations/wootric/2.5.1/wootric.dynamic.js.gz",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.us.heap-api.com/config/4204607514/heap_config.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-XJWPQMJYHQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/next-integrations/integrations/vendor/commons.59560acdd69ed701c941.js.gz",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/842916875/?random=1772934991982&cv=11&fst=1772931600000&bg=ffffff&guid=ON&async=1&gtm=45be6341h1v9178902153z8812562318za20gzb812562318zd812562318xea&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115616985~115938466~115938468~116024733~117484252~117835692&u_w=1280&u_h=720&url=https%3A%2F%2Fhub.docker.com%2F&frm=0&tiba=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=955328761.1772934992&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=CA&rfmt=3&fmt=3&is_vtc=1&cid=CAQSfwDnonV5taeJiuHaOD0ignN0V2IEY19hElrnCnD17XaxomBaiOeWL71POVMSG0aH8cjI0ZBDNepro4KM7OOMgeQyodQrKdRzagnTuZ9GoXa62HzViAi8BTqnpRAWIjPn5v_DdEY1K9OkRQ3zlVZ3t0sNO1Q5h_sZgDVwbk0Xfk0&random=67726998&rmt_tld=0&ipr=y",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google-analytics.com/analytics.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.wootric.com/wootric-sdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.us.heap-api.com/v5/heapjs-static/5.3.9/core/heap.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://t.contentsquare.net/uxa/f25fcb4187a87.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=c8db3be0ad6cbadc34eedc565e974ecf&svisitor=d194d8179578000050d7ac69d900000029980c00&visitor=e166f50c-f488-4f1a-84f1-77689744cd93&session=de8be625-cb79-4151-8361-c1104cc93554&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A32%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A31%20GMT%22%2C%22timeSpent%22%3A%221003%22%2C%22totalTimeSpent%22%3A%221003%22%7D&isIframe=false&m=%7B%22description%22%3A%22Welcome%20to%20the%20world%27s%20largest%20container%20registry%20built%20for%20developers%20and%20open%20source%20contributors%20to%20find%2C%20use%2C%20and%20share%20their%20container%20images.%20Build%2C%20push%20and%20pull.%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fhub.docker.com%2F&pageViewId=2cea29c2-8192-4335-88b5-0626afd93d98&webTagId=857e6084-0317-4e66-85d2-f91b28100c2b&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google-analytics.com/plugins/ua/linkid.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://hub.docker.com/4a7513ac-212e-45bc-9c72-3305a335a6dd",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.segment.io/v1/p",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google-analytics.com/j/collect?v=1&_v=j102&a=325721086&t=pageview&_s=1&dl=https%3A%2F%2Fhub.docker.com%2F&dp=%2F&ul=en-us&dt=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&sr=1280x720&vp=1280x720&_u=aDDAiEAjBAAAACgCIAB~&jid=196536442&gjid=1803814827&cid=459751945.1772934992&tid=UA-6096819-11&_gid=1532402296.1772934993&_slc=1&cd1=2026%2F03%2F07%2017%3A56%3A33.026&cd2=https%3A%2F%2Fhub.docker.com%2F&cd4=459751945.1772934992&cd5=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36&z=1228996766",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stats.g.doubleclick.net/j/collect?t=dc&aip=1&_r=3&v=1&_v=j102&tid=UA-6096819-11&cid=459751945.1772934992&jid=196536442&gjid=1803814827&_gid=1532402296.1772934993&_u=aDDAiEAjBAAAAGgCIAD~&z=1658291449",
+      "method": "POST",
+      "score": -11,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://hub.docker.com/498d3292-8f06-4b0d-97dc-d6e176c011e6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-7WEJJP8QVN&cx=c&_slc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.contentsquare.net/pageview?cw=2&happid=4204607514&hl=hub.docker.com%2F&hpd=hub.docker.com&hpp=%2F&t=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&ex=&pvt=n&la=en-US&uc=1&url=https%3A%2F%2Fhub.docker.com%2F&dr=&dw=1280&dh=4718&ww=1280&wh=720&sw=1280&sh=720&uu=30901728-fc47-aa3c-f0ae-139123b73b4e&sn=1&hd=1772934993&v=15.193.7&pid=154204&pn=1&hsid=8366497944398920&huu=5846241737621390&hpvid=2090668782960272&ct=0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://c.us.heap-api.com/api/capture/v2/add_user_properties",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.us.heap-api.com/api/capture/v2/track",
+      "method": "POST",
+      "score": 3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://heapanalytics.com/api/telemetry?a=4204607514&te=type&te=data&te=cm&te=eventPropertiesTelemetry%20-%20added%20new%20properties&te=val&te=1&st=1772934993127&hv=5.3.9&ld=cdn.us.heap-api.com",
+      "method": "GET",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.google.com/g/collect?v=2&tid=G-7WEJJP8QVN&gtm=45je6350h2v9172812590za20g&_p=1772934989861&_gaz=1&gcd=13l3l3l3l2l1&npa=0&dma=0&ul=en-us&sr=1280x720&cid=459751945.1772934992&ir=1&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=EBAIAGA&_s=1&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117625637~117835692&dl=https%3A%2F%2Fhub.docker.com%2F&dp=%2F&dt=Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization&sid=1772934993&sct=1&seg=0&_tu=yAQ&en=page_view&_fv=1&_ss=1&_ee=1&ep.ua_dimension_1=2026%2F03%2F07%2017%3A56%3A33.026&ep.ua_dimension_2=https%3A%2F%2Fhub.docker.com%2F&ep.ua_dimension_4=459751945.1772934992&ep.ua_dimension_5=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36&tfd=4556",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://stats.g.doubleclick.net/g/collect?v=2&tid=G-7WEJJP8QVN&cid=459751945.1772934992&gtm=45je6350h2v9172812590za20g&aip=1&dma=0&gcd=13l3l3l3l2l1&npa=0&frm=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117625637~117835692",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=c8db3be0ad6cbadc34eedc565e974ecf&svisitor=d194d8179578000050d7ac69d900000029980c00&visitor=e166f50c-f488-4f1a-84f1-77689744cd93&session=de8be625-cb79-4151-8361-c1104cc93554&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A33%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A32%20GMT%22%2C%22timeSpent%22%3A%221003%22%2C%22totalTimeSpent%22%3A%222006%22%7D&isIframe=false&m=%7B%22description%22%3A%22Welcome%20to%20the%20world%27s%20largest%20container%20registry%20built%20for%20developers%20and%20open%20source%20contributors%20to%20find%2C%20use%2C%20and%20share%20their%20container%20images.%20Build%2C%20push%20and%20pull.%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Docker%20Hub%20Container%20Image%20Library%20%7C%20App%20Containerization%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fhub.docker.com%2F&pageViewId=2cea29c2-8192-4335-88b5-0626afd93d98&webTagId=857e6084-0317-4e66-85d2-f91b28100c2b&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://hub.docker.com/v2/feature-flags/proxy?sessionId=84103224&appName=hub-ui&environment=production&properties%5Bversion%5D=v7930",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "NS805p_Uof42yuMg29TgY",
+      "description": "Returns details for Toggle with name, enabled, variant, impressionData using appName, environment, properties[version]",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://sessions-bugsnag.docker.com/",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "lcNVgutDng-TLdlHhZ1qO",
+      "description": "Returns Statu with status",
+      "action_kind": "status",
+      "resource_kind": "post"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "lcNVgutDng-TLdlHhZ1qO",
+      "method": "POST",
+      "url_template": "https://sessions-bugsnag.docker.com/",
+      "description": "Returns Statu with status",
+      "action_kind": "status",
+      "resource_kind": "post"
+    },
+    {
+      "endpoint_id": "NS805p_Uof42yuMg29TgY",
+      "method": "GET",
+      "url_template": "https://hub.docker.com/v2/feature-flags/proxy?appName={appName}&environment={environment}&properties%5Bversion%5D={properties[version]}",
+      "description": "Returns details for Toggle with name, enabled, variant, impressionData using appName, environment, properties[version]",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    }
+  ]
+}

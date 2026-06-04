@@ -1,0 +1,16 @@
+{
+  "trace_id": "gGi5_Z4sUoyGtPhX9Ql_o",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "dO7UWcJ0DBcmr5GYMhH9H",
+  "started_at": "2026-03-09T13:57:34.157Z",
+  "completed_at": "2026-03-09T13:57:34.475Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "99f379fcf0a4@4a97489",
+  "result": {
+    "results": [],
+    "total": 0,
+    "page": 1,
+    "totalPages": 0
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "intent": "search pins",
+  "params": {
+    "url": "https://www.pinterest.com"
+  },
+  "context": {
+    "url": "https://www.pinterest.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "3ZNmpE8DVz4P5qXIv7J5W",
+      "score": 489.9,
+      "description": "Captured page artifact for search pins",
+      "url": "https://www.pinterest.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "H0-PyU3gopWq-EirMpcNG",
+      "score": 44.5,
+      "description": "Returns details for Message with message",
+      "url": "https://www.pinterest.com/_/_/trace/trace/",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "3ZNmpE8DVz4P5qXIv7J5W",
+      "score": 524.9,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "html_payload"
+    },
+    {
+      "endpoint_id": "H0-PyU3gopWq-EirMpcNG",
+      "score": 119.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": null,
+      "error": "confirmation_required"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "mhauK35FiTMdZ8RfPUZDv",
+  "available_endpoints": [
+    {
+      "endpoint_id": "3ZNmpE8DVz4P5qXIv7J5W",
+      "score": 489.9,
+      "description": "Captured page artifact for search pins",
+      "url": "https://www.pinterest.com"
+    },
+    {
+      "endpoint_id": "VkgbUIwHg_RbSTkdAXeYH",
+      "score": 84.6,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, thematic_deal_module using source_url, data, _",
+      "url": "https://www.pinterest.com/resource/SearchTabResource/get/?source_url={source_url}&data={data}&_={_}"
+    },
+    {
+      "endpoint_id": "JeqFjPyRQjU8IUKWt3cRU",
+      "score": 55.5,
+      "description": "Returns details for Resource Response with error, data using source_url, data, _",
+      "url": "https://www.pinterest.com/resource/ApiResource/get/?source_url={source_url}&data={data}&_={_}"
+    },
+    {
+      "endpoint_id": "wDdZ6mO1V-_7GD_IzIGbE",
+      "score": 55.5,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "url": "https://www.pinterest.com/resource/AdvancedTypeaheadResource/get/?source_url={source_url}&data={data}&_={_}"
+    },
+    {
+      "endpoint_id": "todH25NcApjWGKTXg6uhW",
+      "score": 55.5,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "url": "https://www.pinterest.com/resource/UserExperienceResource/get/?source_url={source_url}&data={data}&_={_}"
+    },
+    {
+      "endpoint_id": "6rcJx-0V-zvu9AqaB6l8u",
+      "score": 55.5,
+      "description": "Returns details for Resource Response with status, http_status, data using source_url, data, _",
+      "url": "https://www.pinterest.com/resource/UnauthUserDataResource/get/?source_url={source_url}&data={data}&_={_}"
+    },
+    {
+      "endpoint_id": "pWRNjT27UlKhIxpU_4Klk",
+      "score": 50.5,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name",
+      "url": "https://www.pinterest.com/resource/ApiResource/create/"
+    },
+    {
+      "endpoint_id": "XTxtQfjEkkJza0WOaF7_m",
+      "score": 50.5,
+      "description": "Returns details for Resource Response with status, http_status, data",
+      "url": "https://www.pinterest.com/resource/ApiSResource/create/"
+    },
+    {
+      "endpoint_id": "VYOlqnhrIzY5UkHYgeN4Y",
+      "score": 50.5,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name",
+      "url": "https://www.pinterest.com/resource/UserRegisterTrackActionResource/update/"
+    },
+    {
+      "endpoint_id": "XNaFiQsXGQM23Kfs-q0T9",
+      "score": 50.5,
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, group",
+      "url": "https://www.pinterest.com/resource/ActivateExperimentResource/create/"
+    }
+  ],
+  "extra": null
+}

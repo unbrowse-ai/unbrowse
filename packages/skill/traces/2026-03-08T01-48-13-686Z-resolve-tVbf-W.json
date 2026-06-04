@@ -1,0 +1,32 @@
+{
+  "intent": "search reddit",
+  "params": {
+    "url": "https://www.reddit.com/search/?q=openai"
+  },
+  "context": {
+    "url": "https://www.reddit.com/search/?q=openai"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "exbsN00RmpAqoKZFGxumx",
+      "score": 397.4,
+      "description": "Canonical document replay for search reddit",
+      "url": "https://www.reddit.com/search/?q=openai",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "exbsN00RmpAqoKZFGxumx",
+      "score": 407.4,
+      "trace_success": true,
+      "judge": "pass",
+      "status_code": 200,
+      "local_reason": "reddit_post_rows"
+    }
+  ],
+  "outcome": "autoexec_success",
+  "source": "live-capture",
+  "skill_id": "Ih548tota8imCtT7XH9xn",
+  "selected_endpoint_id": "exbsN00RmpAqoKZFGxumx"
+}

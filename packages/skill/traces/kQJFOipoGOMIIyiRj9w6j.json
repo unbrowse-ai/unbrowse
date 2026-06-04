@@ -1,0 +1,10 @@
+{
+  "trace_id": "kQJFOipoGOMIIyiRj9w6j",
+  "skill_id": "9tt6loUyXDqPFhDgcJ4UU",
+  "endpoint_id": "hzrgJXgHcx48_kwWfEoBa",
+  "started_at": "2026-02-25T06:08:55.399Z",
+  "completed_at": "2026-02-25T06:08:57.875Z",
+  "success": false,
+  "status_code": 403,
+  "error": "HTTP 403 (stale credential deleted)"
+}

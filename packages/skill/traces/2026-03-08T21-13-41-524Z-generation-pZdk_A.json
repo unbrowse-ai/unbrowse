@@ -1,0 +1,1507 @@
+{
+  "page_url": "https://ads.x.com",
+  "final_url": "https://ads.x.com/campaign_form/18ce55s5sqj/campaign/new?objective=14",
+  "intent": "get campaign performance stats impressions clicks spend conversions",
+  "candidate_count": 10,
+  "accepted_count": 10,
+  "decisions": [
+    {
+      "url": "https://ads.x.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ads.x.com/campaign_form/18ce55s5sqj/campaign/new?objective=14",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-16708923213",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/i18n/en/navbars-ads.300992eba65a1a06f4c7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/i18n/en/app-main.3505f468c0c1675db9df.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.taboola.com/libtrc/unip/1778285/tfa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.ads-twitter.com/uwt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://psb.taboola.com/topics_api",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://trc.taboola.com/1778285/trc/3/json?tim=1773004417314&data=%7B%22id%22%3A284%2C%22ii%22%3A%22%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%22%2C%22it%22%3A%22video%22%2C%22sd%22%3A%22v2_1f96723511f61e52e036d6c423059587_db948931-d159-46a6-a0bf-dc0d5e78851c-tuct10a56936_1773004174_1773004388_CNawjgYQ7cRsGJvyr_rMMyACKAMwsQE4g9wMUP___________wFYAGAAaKL0zojrmaaBG3ABgAEAiAEA%22%2C%22ui%22%3A%22db948931-d159-46a6-a0bf-dc0d5e78851c-tuct10a56936%22%2C%22vi%22%3A1773004417311%2C%22cv%22%3A%2220260301-3-RELEASE%22%2C%22uiv%22%3A%22default%22%2C%22u%22%3A%22https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14%22%2C%22e%22%3Anull%2C%22cb%22%3A%22TFASC.trkCallback%22%2C%22qs%22%3A%22%3Fobjective%3D14%22%2C%22r%22%3A%5B%7B%22li%22%3A%22rbox-tracking%22%2C%22s%22%3A0%2C%22uim%22%3A%22rbox-tracking%3Apub%3Dxcorp-sc%3Aabp%3D0%22%2C%22uip%22%3A%22rbox-tracking%22%2C%22orig_uip%22%3A%22rbox-tracking%22%7D%5D%2C%22mpvd%22%3A%7B%22en%22%3A%22page_view%22%2C%22tim%22%3A1773004417314%2C%22ref%22%3Anull%2C%22item-url%22%3A%22https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14%22%2C%22tos%22%3A0%2C%22ssd%22%3A1%2C%22scd%22%3A0%2C%22it%22%3A%22JS_PIXEL%22%2C%22supv%22%3Atrue%7D%2C%22pa%22%3A%7B%22su%22%3Atrue%7D%2C%22psb%22%3Atrue%7D&pubit=i",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16708923213/?random=1773004417337&cv=11&fst=1773004417337&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be6341v9198362201za200zd9198362201xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625641&u_w=1280&u_h=720&url=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&frm=0&tiba=Campaign%20Form&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=944956500.1773004175&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googleadservices.com/pagead/conversion/16708923213/?random=1773004417344&cv=11&fst=1773004417344&bg=ffffff&guid=ON&async=1&en=page_view&gtm=45be6341v9198362201za200zd9198362201xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625641&u_w=1280&u_h=720&url=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&capi=1&gtm_ee=1&frm=0&tiba=Campaign%20Form&npa=0&pscdl=noapi&auid=944956500.1773004175&label=V6SfCMuKv-gZEM3et58-&hn=www.googleadservices.com&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&ec_mode=a&gcl_ctr=3~0~0&data=event%3Dgtag.config&category=acrcp_v1_512&em=tv.1&fmt=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&en=page_view&dl=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew&scrsrc=www.googletagmanager.com&rnd=1246362732.1773004417&dt=Campaign%20Form&auid=944956500.1773004175&navt=n&npa=0&gtm=45be6341v9198362201za200zd9198362201xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625641&apve=1&apvf=f&apvc=1&tids=AW-16708923213&tid=AW-16708923213&tft=1773004417345&tfd=893",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://t.co/1/i/adsct?bci=4&dv=America%2FLos_Angeles%26en-US%26Google%20Inc.%26MacIntel%26127%261280%26720%2616%2624%261280%26720%260%26na&eci=3&event=%7B%7D&event_id=f59427b6-a0e5-4ab5-8d42-ec05cc26652a&integration=advertiser&p_id=Twitter&p_user_id=0&pl_id=83f3708c-6c4e-479e-b815-822dd13e68f8&pt=Campaign%20Form&tw_document_href=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&tw_iframe_status=0&tw_pid_src=2&twpid=tw.1773004174185.721290733715931685&txn_id=num2q&type=javascript&version=2.3.41",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.x.com/1/i/adsct?bci=4&dv=America%2FLos_Angeles%26en-US%26Google%20Inc.%26MacIntel%26127%261280%26720%2616%2624%261280%26720%260%26na&eci=3&event=%7B%7D&event_id=f59427b6-a0e5-4ab5-8d42-ec05cc26652a&integration=advertiser&p_id=Twitter&p_user_id=0&pl_id=83f3708c-6c4e-479e-b815-822dd13e68f8&pt=Campaign%20Form&tw_document_href=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&tw_iframe_status=0&tw_pid_src=2&twpid=tw.1773004174185.721290733715931685&txn_id=num2q&type=javascript&version=2.3.41",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/16708923213/?random=1773004417337&cv=11&fst=1773003600000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be6341v9198362201za200zd9198362201xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625641&u_w=1280&u_h=720&url=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&frm=0&tiba=Campaign%20Form&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=944956500.1773004175&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=3&is_vtc=1&cid=CAQSjQEA56J1eZYp0-ExoUO-wsQX5sLOOEhgXhSlVTccQT45YyXlKmZa0G4Io1PDtqaiSB-aSmIRagqORD-kYwsNzymANpCCRHuqoFMyW_yZn-7nfoJQOyx2sHVHFPG1qavBr5MNvx_m5-pdhTg-4fSbLI37cOkOmrBttJIE3RfvolMaNFA-sKFM_AJ9HRO03DA&random=2279238902&rmt_tld=0&ipr=y",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://twitter.com/i/csp_report?a=O5SWEYLG&ro=false",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-conversion/16708923213/?random=1498991807&cv=11&fst=1773004417344&bg=ffffff&guid=ON&async=1&en=page_view&gtm=45be6341v9198362201za200zd9198362201xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=103116026~103200004~115938465~115938469~116024733~117477893~117484252~117625641&u_w=1280&u_h=720&url=https%3A%2F%2Fads.x.com%2Fcampaign_form%2F18ce55s5sqj%2Fcampaign%2Fnew%3Fobjective%3D14&capi=1&gtm_ee=1&frm=0&tiba=Campaign%20Form&npa=0&pscdl=noapi&auid=944956500.1773004175&label=V6SfCMuKv-gZEM3et58-&hn=www.googleadservices.com&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&ec_mode=a&gcl_ctr=3~0~0&data=event%3Dgtag.config&category=acrcp_v1_512&em=tv.1&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQJKK25vdC1ldmVudC1zb3VyY2UsIHRyaWdnZXI9bmF2aWdhdGlvbi1zb3VyY2VaAwoBAWIDCgED&cerd=CgEA&fsk=ChAIgNm0zQYQs4q5q-GxucsBEiwA6hYbVyshvjtj8ZlA_LwlVsDe7wpaKB2u9OnwILdltQa-iukw5WYvhnqSpBoC3FI&pscrd=IhMIruyHlJyRkwMVM6daBR2_ngH7MgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhJodHRwczovL2Fkcy54LmNvbS9CWENoRUlnTm0welFZUXY4cmoxdHE4bE5HWkFSSXRBTU5SeTdjdG9tZmp5eW93dUpLUjNRNVNmWnotS1hyb1FjMUUyRUtfYk43WHJpZWZOTGUtTF9UQk9SOXp6DAgJYggIABAAGAAgAA&gcp=3",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/18950.bfadd3c42891a066c3f7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/71790.18a36d833d4b20ec523e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/42968.37a81455a0ce1dc14dc9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/92263.8f1951ba3452a40c09fa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/2784.0906ae2ee929a1b271cd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/73520.cec6716bf61a261297c4.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/85255.fd1582c1512dca5e47b4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/28316.fa656fbf3a3ce4ed84f9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/96903.c9fd880a4d7872291564.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/11305.f0a843d343ac151f8e1c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/20253.bc65d6018ba6f8bcb244.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/14878.5ea0c5cbae3085b1757c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/33473.b2e6ea22b141941da643.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/87354.992828c27aae9e40ee5c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/6294.aa120231468d61b8fbc7.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/6294.4f4d71562a673b65bf3d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/10859.15535030809f2263acfb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/18184.1d1d060d58f472db1798.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/18184.85c69154dfa81455c6ec.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/8399.85b957119b27f64468b4.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/8399.428709098fa5f1da05d5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/21269.cd1482aa39a3d8d57485.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/21269.b98cef7add31ca338af5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/4345.0684c44a568f97788b2a.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/56485.4952ea34d119b097058d.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/56485.b790b2eedd78f8b4631a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/10703.338df48312758a66a751.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/13931.405dac3a99c515091574.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/92956.6ccc8da0b0c23d74ea67.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/96455.8d2a9176569d94a98c5b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/96455.3cf3fe4b6eb6baa29d46.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/37697.567d4c57800f9ede04ec.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/52339.9fbb22cbce20b08db84b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/72231.c76add339bba738aac39.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/3735.1133606235036daa61c0.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/3735.7d98b1d4e59225638992.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/28968.2764cbc4a3bcf8e48ade.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/28968.2b5768abd8b57de848f5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/8145.d071bc3986112c80e69b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/8145.a6617e5afbde3e10f1f9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/58977.cef6944eb58818a0b92d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/41468.46e9675b3be3227d0f59.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/25648.1a672168abe2bee81fd0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/css/56471.c9e0c70332299517aa72.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/navbars/js/56471.cd2d7992f515fc46f330.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/9863.c6b9df24330b2bb17a7d.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1200.9fbc73f32e9c60a056b3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4905.3eeceaf6f8d5669e197b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6030.5eecd306253cda5c65c5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/9749.8d44cad26184a05f7360.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9749.a7a5e5e354fe711fdbc8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8632.cf86ed067c80c2193ad0.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6666.9223ad1c54cee00d9f74.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/2784.fa142bcd81448d7b966a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5255.b10bd10c8503d093fc92.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/6559.ace56c0d164c0c5d3a09.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1305.0018938693d05b9c4f28.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/8968.6e2995d75a228d4ded00.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8968.9d33414ca57101e0fe06.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/7338.6f990e0053fc06456e02.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7338.000ba328674cc5c1e1aa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/8261.b39886081c9e2f84b4e3.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7354.31215e05d1852ebc7395.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/6294.0d20a284a7a83a4eda6e.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6294.11e66a664589131b5790.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/859.1226f6060785a5c0bf15.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8316.29f7d0cf71c6deb13427.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7320.a2fa3eb21c8bd1668088.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/8184.0697b772b138bd0b0d2c.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8184.39907f7ab9450fe2e2d7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5462.be6fa8d02ea2c17a5667.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5462.2029c4112f076acecf24.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/503.e334bbf3a9b6c03d48a9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4878.048bf2f08dcb1ec986f8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/1269.82ed5da533c4ec2b8598.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1269.ef9666b8db6ef0026e8e.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/9777.18ed43d601a1996e6d32.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9777.83c91c619234a17b654f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/916.d3138ef46413d54fe1d9.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/916.3d682ed633b6fa2c1922.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/4971.2984070cdceb0cc4fd18.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4971.c7fc4fa5c50ff6a1673f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6318.4aab23e8c5223df7e0bd.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/7084.a04a4d0415a603d387d5.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7084.12cc67dfdf3e4412050f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/3579.36d65fc4908f3c9a8f94.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/3579.5a36efa32b6bceb3b3e2.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7697.61f896600a4e8f487627.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/3533.a55548d1bb7429d07788.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/3533.ccf92154070f64563cf5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/9264.b6f780da7202596657c8.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7883.c9ac3caeeda8e20abb66.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/3942.006fffd8d19e0ff8ebda.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/3942.97b44df96800cd48aef7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5761.2058e87630a311c51a45.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5761.90dd40da3e7dc4fcfdb3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/1194.140543ebeef3cef7d41e.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1194.51d0c0ef9d6c8f9c373c.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/6859.13b4ee5f4f8fc8f0021f.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6859.14e0ae59ddc6983f9ad5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/2677.c664a009c29180c2d39f.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/2677.3c1ec0a2c59fdf62ab4d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5017.6fba83eeb522836a9302.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5017.42d01e5522a736ea67f5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5470.0e806fdafdace340516d.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5470.7f7414702109bb3952cc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/8145.72cee72f77de4d766082.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8145.add18196fb164a845f18.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/6269.58ea5125e1a5adf20e66.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6269.95ce612935b7a65ab1a7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9244.f7eb441aff3242ad0003.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/4304.3cdad9880b05844ccdf6.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4304.dfd83e51e5ee9e0a5b64.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/3817.c834087851ecab9cc6e7.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/3817.71965007e9f6dbfde920.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1778.5b7831079e30d473d070.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/4441.6d37d252112c0f264bc9.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4441.c29ebc6d4820b99f529b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/1389.4e3eb82a9f9429715630.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1389.931e8e2a3f9a58153794.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9358.4b6d8a00a45b9ce0cc36.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/4362.025680d7822cc83c681b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4362.20f813a4fd6cb91f1213.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/6485.cb4bea3eb5fee39411a6.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/6485.0b31d5e52c93481dc54d.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/3735.4f0a72f604cbf8e1a5c1.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/3735.f71fb48125148d692e71.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/8838.3a363a23549e169ebfdc.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/8838.637920fcdfa2eaf3b250.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/39.9aca913a4c6a5bad52bd.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/39.bd192452835d09aa8783.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5594.6e34fb16016a4e0ec61d.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5594.4029d8694718c3364bbb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/1524.ed4a07a55c2d65e48a29.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/1524.8927715032a3dd48c3a9.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/7386.a273a60e52e7ea69349b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/2805.a90fdff47e58090be085.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/2805.4bafeea55fa15df2bf0b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/5317.ff24ba191377e771741c.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/118.20d55d89c888af41302f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/9208.7a6113de047e5de7137b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9208.8ec11da238c8908f8087.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/5526.78b9290806f7664bdd13.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/9338.052c85f2a5f54d6df09f.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/css/4003.a3a0c9284593ecc4bc5b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/4003.c24b6864d9ff8b79999b.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.taboola.com/scripts/cds-pips.js?dc=us&d=d",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.taboola.com/scripts/eid.es5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pips.taboola.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Heavy.f44ae4ea.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Medium.f8e2739a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/font/edge-icons-Regular.aeb76adc173cab7fec2e.woff",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.x.com/graphql/tHFFF_ulR5ftrqDQxaOyrA/useAdvertiserAccountQuery?variables=%7B%22account_id%22%3A4503599744139451%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/perspective",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/js/ondemand.Dropdown.80cc4ebe1c41bca4eaa5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads.x.com/user/i/scriber/pageload",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ton.twimg.com/web-app-framework/advertiser-interface/img/spinner-rosetta-blue-32x32@2x.707448add32f97d38b57.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Regular.80fda27a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/funding_instruments?sort_by=created_at-desc",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/dynamic_spend_profiles",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.x.com/graphql/bGDSKyTOrLnnERjMTbPtkA/AdAccountDataProviderQuery?variables=%7B%22account_id%22%3A4503599744139451%7D",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://cds.taboola.com/?uid=db948931-d159-46a6-a0bf-dc0d5e78851c-tuct10a56936&ptf=bWFjT1M=&ptfv=MTBfMTVfNw==&ufv=MTQ1LjAuNzYzMi42&bnd=Tm90OkEtQnJhbmQ=&bndv=OTk=&bnd=SGVhZGxlc3NDaHJvbWU=&bndv=MTQ1&bnd=Q2hyb21pdW0=&bndv=MTQ1&mbl=ZmFsc2U=&dc=us",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://api.x.com/graphql/Uh2BUfZ4clM9X2OfWOcWzw/ShopifyShopsQuery?variables=%7B%22user_id%22%3A%221835873095460225025%22%7D",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/default_campaign?objective=WEBSITE_CLICKS&include_client_creation_source=true&is_conversions_objective=true&is_keywords_objective_variant=false",
+      "method": "GET",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://pbs.twimg.com/profile_images/2012355341640736768/awTYCNJn_reasonably_small.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads.x.com/user/i/scriber/track",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/website_tags",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.x.com/graphql/1hvExat2Fxt-cPdaNlcwmQ/TargetingCatalogDataProviderQuery",
+      "method": "POST",
+      "score": 7,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://abs.twimg.com/responsive-web/client-web/Chirp-Bold.ebb56aba.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/web_event_tags",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://api.x.com/graphql/bGDSKyTOrLnnERjMTbPtkA/AdAccountDataProviderQuery?variables=%7B%22account_id%22%3A4503599744139451%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "BphMnsQjTw2AsgAN7N2rT",
+      "description": "Returns details for AdAccountDataProviderQuery with advertiser_account_by_account_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/perspective",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "U9q4ONt6mdkYgP3hCB2WH",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/website_tags",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "qh09me0z-9sju0k6rSjFF",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/web_event_tags",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "WhXs4-2-AxgRIqSApORcj",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://api.x.com/graphql/tHFFF_ulR5ftrqDQxaOyrA/useAdvertiserAccountQuery?variables=%7B%22account_id%22%3A4503599744139451%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "YMoOSVJDCPG-zPSsVmlZO",
+      "description": "Returns details for UseAdvertiserAccountQuery with advertiser_account_by_account_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/funding_instruments?sort_by=created_at-desc",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "M7GPa-6rpMe5xz9BObIiD",
+      "description": "Returns details for Request with params using sort_by",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://api.x.com/graphql/Uh2BUfZ4clM9X2OfWOcWzw/ShopifyShopsQuery?variables=%7B%22user_id%22%3A%221835873095460225025%22%7D",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "PfmutOnBgO5GJlm_wPf3V",
+      "description": "Returns details for ShopifyShopsQuery with fetch_all_shops_by_twitter_user_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/default_campaign?objective=WEBSITE_CLICKS&include_client_creation_source=true&is_conversions_objective=true&is_keywords_objective_variant=false",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "WyqrFFbp9hV6VnGhtmLBC",
+      "description": "Returns details for Request with params using objective, include_client_creation_source, is_conversions_objective, is_keywords_objective_variant",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "url": "https://api.x.com/graphql/1hvExat2Fxt-cPdaNlcwmQ/TargetingCatalogDataProviderQuery",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "mWoR6E668rBhNtaeGuijg",
+      "description": "Returns details for TargetingCatalogDataProviderQuery with targeting_catalog_by_criteria, api_targeting_type, api_targeting_value, audience_size, label, metadata",
+      "action_kind": "list",
+      "resource_kind": "post"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/dynamic_spend_profiles",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "6ueKVGWYBwGVP3R2BifGM",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "BphMnsQjTw2AsgAN7N2rT",
+      "method": "GET",
+      "url_template": "https://api.x.com/graphql/bGDSKyTOrLnnERjMTbPtkA/AdAccountDataProviderQuery?variables={variables}",
+      "description": "Returns details for AdAccountDataProviderQuery with advertiser_account_by_account_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "U9q4ONt6mdkYgP3hCB2WH",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/perspective",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "qh09me0z-9sju0k6rSjFF",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/website_tags",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "WhXs4-2-AxgRIqSApORcj",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/web_event_tags",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "M7GPa-6rpMe5xz9BObIiD",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/funding_instruments?sort_by={sort_by}",
+      "description": "Returns details for Request with params using sort_by",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "WyqrFFbp9hV6VnGhtmLBC",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/default_campaign?objective={objective}&include_client_creation_source={include_client_creation_source}&is_conversions_objective={is_conversions_objective}&is_keywords_objective_variant={is_keywords_objective_variant}",
+      "description": "Returns details for Request with params using objective, include_client_creation_source, is_conversions_objective, is_keywords_objective_variant",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "6ueKVGWYBwGVP3R2BifGM",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/11/accounts/18ce55s5sqj/dynamic_spend_profiles",
+      "description": "Returns details for Request with params",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "YMoOSVJDCPG-zPSsVmlZO",
+      "method": "GET",
+      "url_template": "https://api.x.com/graphql/tHFFF_ulR5ftrqDQxaOyrA/useAdvertiserAccountQuery?variables={variables}",
+      "description": "Returns details for UseAdvertiserAccountQuery with advertiser_account_by_account_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "PfmutOnBgO5GJlm_wPf3V",
+      "method": "GET",
+      "url_template": "https://api.x.com/graphql/Uh2BUfZ4clM9X2OfWOcWzw/ShopifyShopsQuery?variables={variables}",
+      "description": "Returns details for ShopifyShopsQuery with fetch_all_shops_by_twitter_user_id using variables",
+      "action_kind": "detail",
+      "resource_kind": "resource"
+    },
+    {
+      "endpoint_id": "mWoR6E668rBhNtaeGuijg",
+      "method": "POST",
+      "url_template": "https://api.x.com/graphql/1hvExat2Fxt-cPdaNlcwmQ/TargetingCatalogDataProviderQuery",
+      "description": "Returns details for TargetingCatalogDataProviderQuery with targeting_catalog_by_criteria, api_targeting_type, api_targeting_value, audience_size, label, metadata",
+      "action_kind": "list",
+      "resource_kind": "post"
+    }
+  ]
+}
