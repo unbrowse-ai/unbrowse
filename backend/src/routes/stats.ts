@@ -359,6 +359,31 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
         }),
       );
     }
+  } else if ((c.env as { ATTRIBUTION_SLASHING?: string }).ATTRIBUTION_SLASHING === "1") {
+    // Opt-in slashing: a FAILED execution where a viable alternative existed
+    // reduces the publisher's standing (mirror of the success-path credit).
+    // Default-off — live payout economics are unchanged unless ATTRIBUTION_SLASHING=1.
+    let indexerId = body.indexer_id;
+    if (!indexerId) {
+      const storedSkill = await getSkill(c.env, skill_id);
+      indexerId = storedSkill?.indexer_id;
+    }
+    if (indexerId) {
+      const { recordFailureAttribution } = await import("../services/attribution.js");
+      c.executionCtx.waitUntil(
+        recordFailureAttribution(c.env, {
+          execution_id: trace.trace_id,
+          skill_id,
+          endpoint_id,
+          indexer_id: indexerId,
+          next_best_score: body.next_best_score ?? 0,
+        }).then((res) =>
+          res.slash_delta !== 0
+            ? updateContributorDelta(c.env, skill_id, indexerId!, res.slash_delta)
+            : undefined,
+        ),
+      );
+    }
   }
   return c.json({ ok: true });
 });

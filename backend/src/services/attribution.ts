@@ -60,6 +60,8 @@ export interface IndexerAttributionLedger {
   cumulative_delta: number;
   /** Average delta per execution [0, 1]. */
   avg_delta: number;
+  /** Count of failed-execution slashes applied (opt-in slashing). */
+  slashed_count?: number;
   first_attributed_at: string;
   last_attributed_at: string;
 }
@@ -145,6 +147,71 @@ export async function recordAttribution(
   }
 
   return fullEvent;
+}
+
+// ─── Slashing (opt-in) ─────────────────────────────────────────────────────────
+//
+// Mirror image of the reward path: when an indexed route FAILS where a viable
+// alternative from another indexer existed, the publisher's standing is reduced
+// — a route that wastes other agents' calls should not keep earning. Gated two
+// ways so it never punishes noise: (1) min-sample (no slash until the route has
+// a real track record), (2) only when an alternative actually existed
+// (next_best > 0 — there was an opportunity cost). The adjustment is floored at
+// the caller so cumulative standing never goes negative.
+
+/** Minimum attributed executions before slashing applies — guards against noise. */
+export const SLASH_MIN_SAMPLE = 5;
+/** Fraction of the alternative's reliability charged as the penalty per failure. */
+export const SLASH_WEIGHT = 0.5;
+
+/**
+ * Compute the (negative) delta adjustment for a FAILED execution. Pure function.
+ * Returns 0 unless the route has enough history (min-sample) AND a viable
+ * alternative existed. Magnitude scales with how good the displaced alternative
+ * was — failing where a great alternative existed costs more.
+ */
+export function computeSlashAdjustment(
+  nextBestScore: number,
+  executionCount: number,
+  opts?: { minSample?: number },
+): { slash_delta: number } {
+  const minSample = opts?.minSample ?? SLASH_MIN_SAMPLE;
+  if (executionCount < minSample) return { slash_delta: 0 };
+  const opportunity = Math.max(0, Math.min(1, nextBestScore));
+  if (opportunity === 0) return { slash_delta: 0 }; // no alternative → no opportunity cost (avoids -0)
+  return { slash_delta: -(opportunity * SLASH_WEIGHT) };
+}
+
+/**
+ * Record a failed-execution slash against an indexer's ledger. The mirror of
+ * `recordAttribution`. Does NOT credit earnings (it is a penalty). Floors the
+ * ledger's cumulative_delta at 0. Returns the applied slash_delta (0 = no-op,
+ * e.g. below min-sample or no alternative).
+ *
+ * Caller-gated: only invoked when ATTRIBUTION_SLASHING is enabled, so the live
+ * payout economics are unchanged until the operator opts in.
+ */
+export async function recordFailureAttribution(
+  env: Env,
+  event: { execution_id: string; skill_id: string; endpoint_id: string; indexer_id: string; next_best_score: number },
+): Promise<{ slash_delta: number }> {
+  const kv = statsKV(env);
+  const key = ledgerKey(event.indexer_id);
+  const raw = await kv.get(key) as string | null;
+  if (!raw) return { slash_delta: 0 }; // nothing accumulated yet — nothing to slash
+
+  let ledger: IndexerAttributionLedger;
+  try { ledger = JSON.parse(raw) as IndexerAttributionLedger; } catch { return { slash_delta: 0 }; }
+
+  const { slash_delta } = computeSlashAdjustment(event.next_best_score, ledger.execution_count);
+  if (slash_delta === 0) return { slash_delta: 0 };
+
+  ledger.cumulative_delta = Math.max(0, ledger.cumulative_delta + slash_delta);
+  ledger.slashed_count = (ledger.slashed_count ?? 0) + 1;
+  ledger.avg_delta = ledger.execution_count > 0 ? ledger.cumulative_delta / ledger.execution_count : 0;
+  ledger.last_attributed_at = new Date().toISOString();
+  await kv.put(key, JSON.stringify(ledger));
+  return { slash_delta };
 }
 
 /** Read the attribution ledger for a specific indexer. */
