@@ -178,6 +178,10 @@ export function AskAnythingChat() {
   }
 
   const showStarters = turns.length === 0 && status === "idle";
+  // Once tokens are streaming into the last assistant turn, the growing text IS
+  // the "it's alive" affordance — don't also show a redundant "thinking" row.
+  const last = turns[turns.length - 1];
+  const streamingNow = last?.role === "assistant" && last.content.length > 0;
 
   return (
     <div
@@ -261,7 +265,7 @@ export function AskAnythingChat() {
                 )}
               </li>
             ))}
-            {status === "loading" && (
+            {status === "loading" && !streamingNow && (
               <li className="flex items-center gap-2 pl-4 sm:pl-5 text-[12px] font-mono" style={{ color: O_DIM }}>
                 <span className="inline-block w-1.5 h-3 align-middle" style={{ background: O, animation: "blink 1s steps(2, end) infinite" }} />
                 <span>thinking</span>
