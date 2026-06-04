@@ -77,10 +77,14 @@ class BestOfNAgent(AsyncBaseAgent):
             search_engine, model, max_steps=max_steps, contamination_filter=contamination_filter
         )
 
-    async def __call__(self, prompt: str) -> Conversation:
-        if self.n == 1:
-            return await self.inner(prompt)
+    def _giveup(self, prompt: str) -> Conversation:
+        """A degraded 'I don't know' transcript (score 0) — NEVER raise, or one
+        question's total failure crashes the whole eval via the suite's gather."""
+        convo = self.inner.llm.create_conversation()
+        convo.add_user(prompt).add_assistant("Exact Answer: I don't know\nConfidence: 0%")
+        return convo
 
+    async def __call__(self, prompt: str) -> Conversation:
         async def _one(i: int) -> Conversation | None:
             try:
                 return await self.inner(prompt)
@@ -88,9 +92,13 @@ class BestOfNAgent(AsyncBaseAgent):
                 logger.warning(f"best-of-{self.n} rollout {i} failed: {e}")
                 return None
 
+        if self.n == 1:
+            return (await _one(0)) or self._giveup(prompt)
+
         convos = [c for c in await asyncio.gather(*[_one(i) for i in range(self.n)]) if c is not None]
         if not convos:
-            raise RuntimeError("all best-of-N rollouts failed")
+            logger.warning(f"best-of-{self.n}: all rollouts failed — returning I-don't-know")
+            return self._giveup(prompt)
 
         # Confidence-weighted vote over normalised Exact Answers.
         weight: dict[str, float] = {}
