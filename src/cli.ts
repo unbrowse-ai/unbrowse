@@ -2915,6 +2915,28 @@ async function cmdSandboxReplay(args: string[], flags: Record<string, string | b
 //                Runs your custom JS in the sandbox; prints full envelope
 //                (cookies, post_eval, routes_observed). Use this for
 //                anti-bot bundle replay, signed-URL HMAC compute, etc.
+/**
+ * Decide whether a `fetch` result is a success or a failure the caller should
+ * see in the exit code. Pure + exported so it is unit-testable. Without this,
+ * `fetch` exited 0 on a 404 (empty stdout) and on a DNS/network failure (printed
+ * "null") — an agent or shell script could not distinguish success from failure
+ * on the primary content tool. Mirrors `curl --fail`: a reached-but-errored
+ * status (>=400) and a no-response network failure are both failures.
+ */
+export function fetchOutcome(status: unknown, body: unknown): { ok: boolean; reason?: string } {
+  const numStatus = typeof status === "number" ? status : Number(status);
+  if (!Number.isFinite(numStatus) || numStatus === 0) {
+    // No usable HTTP status — a network/DNS failure or unreachable host. Only a
+    // present body (rare body-sniff path without status) counts as success.
+    if (body == null || body === "") {
+      return { ok: false, reason: "no response (network/DNS failure or unreachable host)" };
+    }
+    return { ok: true };
+  }
+  if (numStatus >= 400) return { ok: false, reason: `HTTP ${numStatus}` };
+  return { ok: true };
+}
+
 async function cmdFetch(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const requestedUrl = args[0] ?? (flags.url as string);
   const customBundle = !!(flags["bundle-source"] || flags["bundle-url"] || flags["stdin"]);
@@ -2993,6 +3015,15 @@ async function cmdFetch(args: string[], flags: Record<string, string | boolean>)
     if (!body.endsWith("\n")) process.stdout.write("\n");
   } else {
     output(body, !!flags.pretty);
+  }
+  // Surface failure in the exit code so an agent/script can detect it. The body
+  // (an error page or error JSON) is still printed above; only the exit status
+  // and a one-line stderr note change. Without this, fetch exited 0 on a 404 or
+  // a DNS failure and the caller could not tell it failed.
+  const outcome = fetchOutcome(status, body);
+  if (!outcome.ok) {
+    info(`[fetch] failed: ${outcome.reason}`);
+    process.exitCode = 1;
   }
 }
 // ---------------------------------------------------------------------------
@@ -4953,7 +4984,10 @@ if (isMainModule(import.meta.url)) {
       // loop alive past the budget. The comment above says "exits anyway"
       // — make that literally true. Bench probes were SIGKILLed at 90s
       // because this exit never fired.
-      process.exit(0);
+      // Honor a command-set exit code (e.g. `fetch` sets process.exitCode=1 on
+      // a 404 / network failure). A bare exit(0) here silently swallowed it, so
+      // an agent/script could not detect failure via the exit status.
+      process.exit(typeof process.exitCode === "number" ? process.exitCode : 0);
     })
     .catch((err) => {
       die((err as Error).message);
