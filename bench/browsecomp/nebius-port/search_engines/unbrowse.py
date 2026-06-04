@@ -183,10 +183,12 @@ async def _distill(query: str, title: str, page_text: str, cap: int = 6000) -> s
         f"QUESTION: {query}\n\nPAGE TITLE: {title}\n\nPAGE:\n{body}\n\nRELEVANT FACTS:"
     )
     try:
+        # Reasoning models (e.g. Kimi-K2.6) spend tokens on internal reasoning
+        # before emitting content, so the budget must be generous or content=None.
         resp = await _distill_client().chat.completions.create(
             model=_DISTILL_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
+            max_tokens=int(os.environ.get("UNBROWSE_DISTILL_MAXTOK", "2048")),
             temperature=0.0,
         )
         out = (resp.choices[0].message.content or "").strip()
