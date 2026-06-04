@@ -26,6 +26,20 @@ Receipts are Ed25519-signed today. Stronger authorization and provenance schemes
 
 > The three-verb surface (`unbrowse {create,act,read}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
+## Drop-in client adapters
+
+Already using a search or browsing client? Swap one import. Unbrowse ships **drop-in
+adapters** that mirror the call shapes of `exa-js`, `@tavily/core`, and `browser-use`, all
+routed through a single streaming `fill` tool (resolve → execute → capture; a browser opens
+only as a fallback) that can be wallet-bound so each request is Ed25519-signed:
+
+```ts
+import Exa from "@unbrowse/sdk/adapters/exa";        // was: import Exa from "exa-js"
+const { results } = await new Exa(key).search("anthropic news", { numResults: 5 });
+```
+
+Full surface (exa / tavily / browser-use + the wallet-protected `fill` tool): [docs/adapters.md](./docs/adapters.md).
+
 ## Install — pick one
 
 ### Option 1 — MCP (drop-in for any MCP host)
