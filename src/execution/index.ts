@@ -553,6 +553,34 @@ export function projectResultForIntent(data: unknown, intent?: string): unknown 
   return projectIntentData(data, intent);
 }
 
+/**
+ * Bound a long-running execute against an indefinite hang. Resolves to the work
+ * result if it settles within `ms`; otherwise resolves to `onTimeout()` — it
+ * never rejects and never hangs. The work is abandoned, not cancelled (the
+ * execute route builds a fresh response object, so a leaked in-flight fetch is
+ * harmless). This is the route-level backstop guaranteeing an agent calling
+ * execute always gets a response within a bounded time: replayRecipe,
+ * serverFetch, and the browser fallback can each stall on a server that accepts
+ * the connection but never completes the body (observed live: a public GET
+ * geojson hung >90s across the replay + server paths while a plain curl of the
+ * same URL returned 200 in ~1.2s). Generic — no per-endpoint logic.
+ */
+export async function withExecuteDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  onTimeout: () => T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(onTimeout()), ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function inferActionKindFromIntent(intent: string): string {
   const lower = intent.toLowerCase();
   if (/\b(search|find|lookup)\b/.test(lower)) return "search";
@@ -5239,6 +5267,7 @@ export async function replayRecipe(
   cookies: Array<{ name: string; value: string; domain?: string }>,
   authHeaders: Record<string, string>,
   params: Record<string, unknown>,
+  timeoutMs = 15_000,
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
   const headers: Record<string, string> = { ...recipe.headers, ...authHeaders };
   if (cookies.length > 0) {
@@ -5261,11 +5290,20 @@ export async function replayRecipe(
   }
 
   try {
+    // Bound the replay fetch. Without a timeout this hangs indefinitely when the
+    // server accepts the connection but never completes the response for this
+    // exact captured-header/cookie shape (observed live: a proven_recipe replay
+    // of a public GET geojson hung >60s while a plain curl of the same URL
+    // returned 200 in ~1.2s). On timeout the catch below returns status 0, which
+    // fails matchResponseSignal and falls through to the timed serverFetch path —
+    // a bounded, honest failure instead of an infinite hang. 15s matches the
+    // other server-side replay fetches (tryDirectJsonFetch, fetchDirectDocument).
     const res = await fetch(url, {
       method: recipe.method,
       headers,
       body,
       redirect: "follow",
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();
     let data: unknown = text;
