@@ -32,11 +32,17 @@ export function RegistryCard({ skill }: { skill: PopularSkillSummary }) {
           <p className="truncate text-[12px] font-mono text-text-muted">{skill.domain}</p>
         </div>
       </div>
-      <p className="mb-4 line-clamp-2 flex-grow text-[13px] leading-relaxed text-text-secondary">
-        {skill.description && !skill.description.startsWith("API skill for")
-          ? skill.description
-          : "Captured routes you replay as a direct API — no browser, no scraping."}
-      </p>
+      {/* Only show a description when it's a REAL per-skill one. The generic
+          "API skill for <domain>" placeholder is repeated filler — the catalog's
+          one-line explanation lives once above the grid, and each card carries its
+          own real signals below. A flex-grow spacer keeps card heights equal. */}
+      {skill.description && !skill.description.startsWith("API skill for") ? (
+        <p className="mb-4 line-clamp-2 flex-grow text-[13px] leading-relaxed text-text-secondary">
+          {skill.description}
+        </p>
+      ) : (
+        <div className="flex-grow" aria-hidden />
+      )}
       <div className="flex items-center gap-4 border-t border-border pt-3 text-[11px] font-mono text-text-muted">
         <span title="Total calls">▸ {nf.format(skill.total_executions || 0)} calls</span>
         <span title="Quality score">★ {quality}</span>

@@ -70,10 +70,13 @@ export default async function Home() {
 
       {/* Popular skills grid — the catalog is the proof of value */}
       <section className="pb-16">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-1">
           <h2 className="text-[18px] font-semibold text-text-primary">Most-used skills</h2>
           <Link href="/search" className="text-[13px]" style={{ color: "var(--orange-400, #FF6A00)" }}>Browse all →</Link>
         </div>
+        {/* Explain the catalog once here, not on every card — the cards then carry
+            only their own real signals (domain, routes, calls, reliability). */}
+        <p className="mb-5 text-[13px] text-text-secondary">Captured routes you replay as a direct API — no browser, no scraping.</p>
         {skills.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface-raised p-8 text-center text-[14px] text-text-muted">
             Registry warming up — <Link href="/search" className="underline">search by intent</Link> or <Link href="/aiko" className="underline">ask Aiko</Link>.
