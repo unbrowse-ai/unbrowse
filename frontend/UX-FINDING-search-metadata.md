@@ -54,9 +54,35 @@ the metadata-less graph path for every query.
 The same curl loop must show `empty-metadata = 0`, and each result's metadata must
 carry a `skill_id` (or `domain`/`intent`) that `search-results.tsx` can render and link.
 
+## Deepened root cause (confirmed against code + tests)
+
+- The metadata-less path is **graceful by design** — contract 8b2f65ea
+  (`backend/tests/search-metadata-less-graceful.test.ts`) made `rescoreWithComposite`
+  attach an empty `{}` instead of crashing. So empty metadata is *expected* when BM25
+  is cold; it is not a crash, it is an unidentifiable-but-non-fatal result.
+- EmergentDB `/graph/search` returns **id-only** even with `include_metadata: true`
+  (stated at discovery.ts:486), so there is **no server-side enrichment path from the
+  graph `id`** — the numeric node id has no skill mapping. The *only* metadata source
+  is the BM25 index.
+- Therefore the fix is necessarily **"make `bm25-idx:global` non-empty in the store the
+  read path queries."** The index IS written on every skill index
+  (discovery.ts:185/191, `STATS_KV.put('bm25-idx:'+domain)`), so its emptiness on prod
+  points to a **data/migration issue** — note `backend/migrate-cf-kv-to-neon.mjs`: a
+  KV→Neon migration likely left `bm25-idx:global` stranded, or the read path
+  (`STATS_KV.get`) no longer points at where the data now lives.
+
+## Concrete next action (needs prod/deploy access — not solo-shippable)
+1. Check whether `STATS_KV` `bm25-idx:global` exists in prod and is non-empty; if the
+   KV→Neon migration moved it, repoint the read at the new store or backfill the key.
+2. Re-run the verification curl loop; require `empty-metadata = 0`.
+3. (Optional, gated by a backend test) add `searchIntent` resilience: if a query yields
+   only metadata-less results, trigger a background reindex of `global` so the BM25
+   index self-heals rather than staying cold.
+
 ## Status
 
-`[diagnosed]` — root-caused and reproducible against the live API. `[blocked]` on a
-backend index/deploy; not shippable from the frontend alone. This is the #1 first-
-impression blocker for story S1 (the front door must *show* it works, not render
-"Untitled").
+`[diagnosed]` — root-caused to the empty global BM25 index, confirmed against the
+code + the 8b2f65ea test; reproducible against the live API. `[blocked]` on backend
+data/deploy access (no code-level enrichment exists, by EmergentDB's id-only design).
+The #1 first-impression blocker for story S1 — a preview is not worth sending while the
+front door renders "Untitled."
