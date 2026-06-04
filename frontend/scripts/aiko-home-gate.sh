@@ -35,10 +35,15 @@ need "$C" 'button|onClick' "suggestion chips / interactions"
 # --- product/UX user-story commandments (the "make it good" bar) -----------
 need "$C" 'aria-live|role="log"|role="status"' "US5 screen-reader announces answers"
 need "$C" 'localStorage' "US3 conversation remembered across reloads"
-need "$C" 'lg:hidden' "US2 sources/routes reachable on mobile (not desktop-only)"
 need "$C" 'Escape|key === "/"|=== .\/.' "US6 keyboard-first (Esc / slash focus)"
 need "$C" 'retry|resend|try again' "US4 error recovery (retry the last turn)"
 need "$C" 'aria-label' "a11y labels on controls"
+
+# --- Konmari reconstruction invariants (one pattern per job) ----------------
+need "$C" 'function SourcesCard' "KONMARI one responsive sources pattern (not rail+details)"
+grep -q 'lg:block' "$C" && { echo "  ✗ $C: desktop-only sources rail still present (Konmari it)"; FAIL=1; }
+COMPOSERS=$(grep -cE '<Composer ' "$C" || true)   # JSX usage has a space; ignores comment mentions
+[ "$COMPOSERS" -eq 1 ] || { echo "  ✗ $C: <Composer> instantiated $COMPOSERS times (need exactly 1 continuous composer)"; FAIL=1; }
 
 # 2. homepage renders Aiko
 need src/app/page.tsx 'aiko-home|AikoHome' "/ renders Aiko chat"
