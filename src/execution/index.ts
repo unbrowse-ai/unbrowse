@@ -5268,6 +5268,7 @@ export async function replayRecipe(
   authHeaders: Record<string, string>,
   params: Record<string, unknown>,
   timeoutMs = 15_000,
+  curlFallback: typeof tryCurlImpersonateFetch = tryCurlImpersonateFetch,
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
   const headers: Record<string, string> = { ...recipe.headers, ...authHeaders };
   if (cookies.length > 0) {
@@ -5294,10 +5295,11 @@ export async function replayRecipe(
     // server accepts the connection but never completes the response for this
     // exact captured-header/cookie shape (observed live: a proven_recipe replay
     // of a public GET geojson hung >60s while a plain curl of the same URL
-    // returned 200 in ~1.2s). On timeout the catch below returns status 0, which
-    // fails matchResponseSignal and falls through to the timed serverFetch path —
-    // a bounded, honest failure instead of an infinite hang. 15s matches the
-    // other server-side replay fetches (tryDirectJsonFetch, fetchDirectDocument).
+    // returned 200 in ~1.2s). On timeout the catch below tries a curl-impersonate
+    // rescue (GET/HEAD) and only then returns status 0 — which fails
+    // matchResponseSignal and falls through to the timed serverFetch path: a
+    // bounded, honest failure instead of an infinite hang. 15s matches the other
+    // server-side replay fetches (tryDirectJsonFetch, fetchDirectDocument).
     const res = await fetch(url, {
       method: recipe.method,
       headers,
@@ -5310,6 +5312,29 @@ export async function replayRecipe(
     try { data = JSON.parse(text); } catch { /* keep text */ }
     return { status: res.status, data, trace_id: nanoid() };
   } catch (err) {
+    // Native fetch stalled or errored. Bun's fetch can hang/fail on certain
+    // servers' TLS/HTTP configuration where curl succeeds — observed live:
+    // plain `fetch` of a public usgs.gov geojson times out, while curl-impersonate
+    // returns 200 in ~1.2s. For a safe (GET/HEAD) replay, fall back to the
+    // curl-impersonate fetcher before giving up so the agent gets real data
+    // instead of a bounded failure. Only on curl miss (helper absent, non-GET,
+    // non-2xx, empty body) do we return status 0 → caller falls through to
+    // serverFetch / the route deadline backstop. No per-domain heuristic.
+    if (recipe.method === "GET" || recipe.method === "HEAD") {
+      try {
+        // forceDirect: the native fetch already failed on the direct route, so the
+        // rescue tries curl-impersonate DIRECTLY (no residential proxy) — this is
+        // the path verified to work on the stalling server. Routing the rescue
+        // through the proxy would add a second failure mode for a public endpoint.
+        const curl = await curlFallback({ url, timeoutMs, forceDirect: true });
+        if (curl && curl.status >= 200 && curl.status < 400 && curl.html) {
+          let data: unknown = curl.html;
+          try { data = JSON.parse(curl.html); } catch { /* keep text */ }
+          log("exec", `recipe-replay curl-impersonate rescue: ${url.substring(0, 120)} → ${curl.status} ${curl.bytes}B (native fetch failed: ${(err as Error).message})`);
+          return { status: curl.status, data, trace_id: nanoid() };
+        }
+      } catch { /* curl helper unavailable — fall through to status 0 */ }
+    }
     return {
       status: 0,
       data: { error: (err as Error).message || "network_error" },
