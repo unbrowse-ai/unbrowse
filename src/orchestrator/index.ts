@@ -4686,6 +4686,48 @@ export async function resolveAndExecute(
     // real response fetched. Content-type is checked on the response; no URL
     // pattern heuristic gates it.
     if (context?.url) {
+      const ctxUrl = context.url;
+      // Shared curl-impersonate rescue for the direct-fetch path. bun's native
+      // fetch can stall (TLS/HTTP hang — usgs.gov) OR be hard-refused with a
+      // bot-block status (reddit .json returns 403 to native fetch even with a
+      // Chrome UA, but 200 to curl-impersonate's full JA4 spoof). In both cases
+      // curl-impersonate (direct, no proxy) recovers the data; without it the
+      // PRIMARY run/resolve path fell through to the slow browser ladder and
+      // timed out with cli_timeout. Returns a JSON (direct-fetch) or document
+      // (direct-document) result, or null to fall through unchanged.
+      const curlRescueDirect = async (): Promise<OrchestratorResult | null> => {
+        try {
+          const cffi = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 15_000, forceDirect: true });
+          if (cffi?.html && cffi.status >= 200 && cffi.status < 400) {
+            const trimmed = cffi.html.trimStart();
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+              try {
+                const parsed = JSON.parse(cffi.html);
+                if (parsed !== null && typeof parsed === "object") {
+                  const trace: ExecutionTrace = {
+                    trace_id: nanoid(), skill_id: "direct-fetch", endpoint_id: "direct-fetch",
+                    started_at: new Date().toISOString(), completed_at: new Date().toISOString(), success: true,
+                  };
+                  console.log(`[direct-fetch] ${ctxUrl} curl-impersonate rescue (native fetch blocked/stalled): ${cffi.bytes}B`);
+                  return { result: parsed, trace, source: "direct-fetch" as any, skill: undefined as any, timing: finalize("direct-fetch", parsed, "direct-fetch", undefined as any, trace) };
+                }
+              } catch { /* not JSON — try document below */ }
+            }
+            const rescuedDoc = buildBloombergDirectDocumentResult(ctxUrl, cffi.html, "text/html", intent);
+            if (!rescuedDoc.rejected) {
+              const trace: ExecutionTrace = {
+                trace_id: nanoid(), skill_id: "direct-document", endpoint_id: "direct-document",
+                started_at: new Date().toISOString(), completed_at: new Date().toISOString(), success: true,
+              };
+              console.log(`[direct-document] ${ctxUrl} curl-impersonate rescue (native fetch blocked/stalled): ${cffi.bytes}B`);
+              return { result: rescuedDoc, trace, source: "direct-document" as any, skill: undefined as any, timing: finalize("direct-document", rescuedDoc, "direct-document", undefined as any, trace) };
+            }
+          }
+        } catch (rescueErr) {
+          console.log(`[direct-fetch] curl-impersonate rescue failed: ${rescueErr instanceof Error ? rescueErr.message : String(rescueErr)}`);
+        }
+        return null;
+      };
       try {
         const directRes = await fetch(context.url, {
           headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
@@ -4806,47 +4848,23 @@ export async function resolveAndExecute(
               timing: t,
             };
           }
+        } else if (directRes.status === 403 || directRes.status === 429 || directRes.status === 503) {
+          // Bot-block status: native fetch reached the server but was refused
+          // (TLS-fingerprint / UA block). curl-impersonate (Chrome JA4) commonly
+          // passes where native bun fetch is blocked. Rescue here instead of
+          // falling to the slow browser ladder (which timed out cli_timeout on
+          // reddit .json — 403 to native, 200 to curl).
+          console.log(`[direct-fetch] ${context.url} native fetch bot-blocked (${directRes.status}) — trying curl-impersonate`);
+          const rescued = await curlRescueDirect();
+          if (rescued) return rescued;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.log(`[direct-fetch] ${context.url} skipped: ${msg.slice(0, 100)}`);
-        // bun's native fetch can stall/fail on certain servers' TLS/HTTP config
-        // where curl succeeds (observed: usgs.gov geojson — native fetch times
-        // out, curl-impersonate returns in ~1.2s). Without this, the PRIMARY
-        // `run`/`resolve` path fell through to the slow browser ladder and timed
-        // out with cli_timeout instead of returning data. Rescue with a direct
-        // curl-impersonate fetch (no proxy — the direct route already failed) and
-        // return the JSON / document result. On any miss, fall through unchanged.
-        try {
-          const cffi = await tryCurlImpersonateFetch({ url: context.url, timeoutMs: 15_000, forceDirect: true });
-          if (cffi?.html && cffi.status >= 200 && cffi.status < 400) {
-            const trimmed = cffi.html.trimStart();
-            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-              try {
-                const parsed = JSON.parse(cffi.html);
-                if (parsed !== null && typeof parsed === "object") {
-                  const trace: ExecutionTrace = {
-                    trace_id: nanoid(), skill_id: "direct-fetch", endpoint_id: "direct-fetch",
-                    started_at: new Date().toISOString(), completed_at: new Date().toISOString(), success: true,
-                  };
-                  console.log(`[direct-fetch] ${context.url} curl-impersonate rescue (native fetch stalled): ${cffi.bytes}B`);
-                  return { result: parsed, trace, source: "direct-fetch" as any, skill: undefined as any, timing: finalize("direct-fetch", parsed, "direct-fetch", undefined as any, trace) };
-                }
-              } catch { /* not JSON — try document below */ }
-            }
-            const rescuedDoc = buildBloombergDirectDocumentResult(context.url, cffi.html, "text/html", intent);
-            if (!rescuedDoc.rejected) {
-              const trace: ExecutionTrace = {
-                trace_id: nanoid(), skill_id: "direct-document", endpoint_id: "direct-document",
-                started_at: new Date().toISOString(), completed_at: new Date().toISOString(), success: true,
-              };
-              console.log(`[direct-document] ${context.url} curl-impersonate rescue (native fetch stalled): ${cffi.bytes}B`);
-              return { result: rescuedDoc, trace, source: "direct-document" as any, skill: undefined as any, timing: finalize("direct-document", rescuedDoc, "direct-document", undefined as any, trace) };
-            }
-          }
-        } catch (rescueErr) {
-          console.log(`[direct-fetch] curl-impersonate rescue failed: ${rescueErr instanceof Error ? rescueErr.message : String(rescueErr)}`);
-        }
+        // Native fetch stalled/threw (TLS/HTTP hang — usgs.gov). Try the shared
+        // curl-impersonate rescue before falling to the browser ladder.
+        const rescued = await curlRescueDirect();
+        if (rescued) return rescued;
       }
     }
     // 1.5 GraphQL endpoint detection — a GraphQL server answers GET with 204 /
