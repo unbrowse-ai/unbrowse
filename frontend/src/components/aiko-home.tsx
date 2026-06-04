@@ -58,6 +58,47 @@ export function AikoHome() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [prompt]);
 
+  // US3 — conversation remembered across reloads. Restore on mount, persist on change.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("aiko_turns");
+      if (raw) {
+        const saved = JSON.parse(raw) as Turn[];
+        if (Array.isArray(saved) && saved.length) {
+          setTurns(saved);
+          setStatus("ok");
+        }
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      if (turns.length) localStorage.setItem("aiko_turns", JSON.stringify(turns.slice(-20)));
+      else localStorage.removeItem("aiko_turns");
+    } catch {
+      /* storage full / unavailable — non-fatal */
+    }
+  }, [turns]);
+
+  // US6 — keyboard-first. "/" focuses the prompt (when not already typing);
+  // Esc starts a new chat. Enter-to-send is handled on the textarea.
+  useEffect(() => {
+    function onDocKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === "Escape" && !typing) {
+        reset();
+      }
+    }
+    document.addEventListener("keydown", onDocKey);
+    return () => document.removeEventListener("keydown", onDocKey);
+  }, []);
+
   function scrollDown() {
     requestAnimationFrame(() => {
       const el = scrollerRef.current;
@@ -65,10 +106,10 @@ export function AikoHome() {
     });
   }
 
-  async function ask(text: string) {
+  async function ask(text: string, base?: Turn[]) {
     const q = text.trim();
     if (!q || status === "loading") return;
-    const next: Turn[] = [...turns, { role: "user", content: q }];
+    const next: Turn[] = [...(base ?? turns), { role: "user", content: q }];
     setTurns(next);
     setPrompt("");
     setStatus("loading");
@@ -126,6 +167,14 @@ export function AikoHome() {
     setStatus("idle");
     setError(null);
     setPrompt("");
+  }
+
+  // US4 — error recovery: re-run the last user turn (no duplicate append).
+  function retryLast() {
+    const last = turns[turns.length - 1];
+    if (!last || last.role !== "user") return;
+    setError(null);
+    ask(last.content, turns.slice(0, -1));
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -226,7 +275,7 @@ export function AikoHome() {
         // ---------- Active: answer (left) + live sources rail (right) ----------
         <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_320px]">
           <div ref={scrollerRef} className="overflow-y-auto px-5 sm:px-8 lg:px-16 py-6">
-            <ol className="max-w-3xl mx-auto grid gap-7">
+            <ol role="log" aria-live="polite" aria-label="Conversation with Aiko" className="max-w-3xl mx-auto grid gap-7">
               {turns.map((t, i) =>
                 t.role === "user" ? (
                   <li key={i} className="flex justify-end">
@@ -256,11 +305,43 @@ export function AikoHome() {
                 </li>
               )}
               {status === "error" && error && (
-                <li className="text-[13px] px-3 py-2 rounded-lg" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.35)", color: "#fca5a5" }}>
-                  {error}
+                <li className="text-[13px] px-3 py-2.5 rounded-lg flex items-center justify-between gap-3" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.35)", color: "#fca5a5" }}>
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    onClick={retryLast}
+                    aria-label="Retry the last question"
+                    className="px-2.5 py-1 rounded-md text-[12px] shrink-0 transition-opacity hover:opacity-80"
+                    style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                  >
+                    ↻ Retry
+                  </button>
                 </li>
               )}
             </ol>
+
+            {/* US2 — routes/speed reachable on mobile (desktop uses the right rail) */}
+            {searchMs != null && sources.length > 0 && (
+              <details
+                className="lg:hidden max-w-3xl mx-auto mt-6 rounded-xl p-3"
+                style={{ border: "1px solid var(--border)", background: "var(--surface-raised, rgba(16,14,12,0.6))" }}
+              >
+                <summary className="text-[12px] cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                  {sources.length} routes · <span style={{ color: "#4ADE80" }}>{searchMs}ms</span>
+                </summary>
+                <ul className="grid gap-2 mt-3">
+                  {sources.map((s, i) => {
+                    const m = (s.metadata || {}) as { name?: string; domain?: string };
+                    return (
+                      <li key={s.id || i} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                        <span style={{ color: "var(--text-primary)" }}>{m.name || m.domain || s.id}</span>
+                        {m.domain && <span style={{ color: "var(--orange-400, #FF6A00)" }}> · {m.domain}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            )}
           </div>
 
           {/* Sources rail — the live unbrowse route shortlist + its latency */}
