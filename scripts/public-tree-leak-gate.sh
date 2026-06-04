@@ -31,6 +31,13 @@ FORBIDDEN=(
   '\babide\b'
   # platform-vocabulary
   '\bsubstrate\b'
+  # the hidden scoring/learning mechanism (energy-based ranking) — never named on the public surface
+  '\bEBM\b'
+  'energy-based'
+  'energyHead'
+  'ledgerEnergy'
+  'routeEnergy'
+  'learnedEnergy'
   # scripture citations
   '\b(Deuteronomy|John|Matthew|Luke|Genesis|Hebrews|2 ?Timothy|1 ?Cor(inthians)?)[ ]+[0-9]+:[0-9]+\b'
   'at the mouth of (two|three)'

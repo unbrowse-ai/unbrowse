@@ -31,6 +31,11 @@ done
 find "$DST" -type f -name 'covenant.ts' -not -path '*/node_modules/*' 2>/dev/null | while read -r f; do
   mv "$f" "$(dirname "$f")/route.ts"
 done
+# energy-named files (the EBM scoring mechanism, hidden on the public surface)
+find "$DST" -type f -not -path '*/node_modules/*' -name '*-energy.ts' 2>/dev/null | while read -r f; do
+  b="$(basename "$f")"; nb="$(echo "$b" | sed -E 's/-energy\.ts$/-confidence.ts/')"
+  [ "$b" != "$nb" ] && mv "$f" "$(dirname "$f")/$nb"
+done
 
 # ── translate internal vocabulary out of every text file ──
 find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.mjs' -o -name '*.py' -o -name '*.md' -o -name '*.json' -o -name '*.sh' -o -name '*.txt' -o -name '*.yml' -o -name '*.yaml' -o -name 'setup' \) \
@@ -59,6 +64,21 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     # so a multi-word replacement would inject a space and break the code that must compile)
     s/zero[- ]?knowledge/commitmentBound/gi; s/zk[- ]?proof/commitmentProof/gi;
     s/nullifier/commitmentTag/gi; s/privacy[- ]?ip/private/gi;
+    # --- EBM / energy-model framing: the hidden scoring/learning mechanism -> secular.
+    # The product uses energy-based ranking; the public surface calls it confidence/ranking
+    # and never names the EBM. Specific identifiers + non-public tool paths first, then generic. ---
+    s{(?:scripts/ebm[A-Za-z0-9_./\-]*|bench/ebm[A-Za-z0-9_./\-]*)}{(internal tooling)}g;
+    s/UNBROWSE_EBM_HEAD/UNBROWSE_RANKING_HEAD/g;
+    s/UNBROWSE_LEDGER_ENERGY/UNBROWSE_LEDGER_CONFIDENCE/g; s/UNBROWSE_LEARNED_ENERGY/UNBROWSE_LEARNED_CONFIDENCE/g;
+    s/ledger-energy/ledger-confidence/g; s/learned-energy/learned-confidence/g;
+    s/ledgerEnergyCached/ledgerConfidenceCached/g; s/learnedEnergyCached/learnedConfidenceCached/g;
+    s/ledgerEnergy/ledgerConfidence/g; s/routeEnergy/routeConfidence/g; s/learnedEnergy/learnedConfidence/g;
+    s/energyHead/rankingHead/g; s/energy[-_]head/ranking-head/g;
+    s/energy-based model/confidence model/gi; s/energy[- ]based/confidence-based/gi;
+    s/contrastive energy head/learned ranking head/gi; s/contrastive logistic head/learned logistic head/gi;
+    s/energy head/ranking head/gi; s/energy stack/ranking stack/gi;
+    s/\bEBM[- ]ledger/confidence-ledger/gi; s/\bebm\b/ranking/gi;
+    s/\bEnergy\b/Confidence/g; s/\benergy\b/confidence/gi;
     s/\bthe substrate\b/the platform/gi; s/\bsubstrate\b/platform/gi;
     s/\babiding\b/staking/gi; s/\babide\b/stake/gi;
     s{~?/?Projects/fdry[A-Za-z0-9_./\-]*}{(internal)}g;
