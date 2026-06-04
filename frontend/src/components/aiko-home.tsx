@@ -167,7 +167,11 @@ export function AikoHome() {
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages, max_tokens: 1500 }),
+        // The agent model is a reasoning model: its thinking tokens count against
+        // max_tokens, so a 1500-cap was spent entirely on reasoning and left
+        // `content` null — every answer rendered as "(empty response)". Disable
+        // thinking so it emits the answer directly (also far faster: no 15s think).
+        body: JSON.stringify({ messages, max_tokens: 1500, chat_template_kwargs: { enable_thinking: false } }),
       });
       const elapsed = Math.round(performance.now() - tAns);
       const data = (await res.json()) as {

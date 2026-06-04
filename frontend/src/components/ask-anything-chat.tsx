@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import { AIKO_MODELS, AIKO_METHOD_SYSTEM_PROMPT, aikoChatStream, defaultAikoModel, resolveAikoModel } from "@/lib/aiko-method";
+import { AIKO_MODELS, AIKO_METHOD_SYSTEM_PROMPT, aikoChatStream, defaultAikoModel, environmentDefaultModelId, resolveAikoModel } from "@/lib/aiko-method";
 
 const O = "#FF7A20";
 const O_DIM = "rgba(255,122,32,0.40)";
@@ -57,6 +57,15 @@ export function AskAnythingChat() {
       if (el) el.scrollTop = el.scrollHeight;
     });
   }
+
+  // The initial state is the SSR-safe local default; on mount, pick the model the
+  // current host can actually reach. On a deployed host the browser can't hit the
+  // Mac's local Ollama (mixed content + no Ollama for visitors), so default to the
+  // cloud model that answers over HTTPS — otherwise every visitor sees "(empty
+  // response)". On a dev host the local default stands.
+  useEffect(() => {
+    setModelId(environmentDefaultModelId(window.location.hostname));
+  }, []);
 
   useEffect(() => {
     // Autosize textarea up to 5 rows
@@ -125,7 +134,10 @@ export function AskAnythingChat() {
       const res = await fetch(`${model.endpoint}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ model: model.model, messages, max_tokens: 1500 }),
+        // The cloud model is a reasoning model — its thinking tokens count against
+        // max_tokens, so a tight cap can be spent entirely on reasoning and leave
+        // `content` null ("(empty response)"). Give it enough room to emit the answer.
+        body: JSON.stringify({ model: model.model, messages, max_tokens: 4000 }),
       });
       const elapsed = Math.round(performance.now() - started);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

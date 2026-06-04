@@ -59,6 +59,29 @@ export function defaultAikoModel(): AikoModel {
   return AIKO_MODELS.find((m) => m.default) ?? AIKO_MODELS[0];
 }
 
+/** A host where the browser can actually reach the Mac's local Ollama. */
+export function isLocalDevHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname.endsWith(".local")
+  );
+}
+
+/**
+ * The model to default to for a given page host. The local tier is the right
+ * default ONLY on a dev host: a deployed HTTPS page cannot fetch
+ * `http://localhost:11434` (mixed content), and an external visitor has no local
+ * Ollama anyway — so on any deployed host the local default returns an empty
+ * answer for everyone. There, default to the cloud model, which answers over
+ * HTTPS with no key (free tier).
+ */
+export function environmentDefaultModelId(hostname: string): string {
+  if (isLocalDevHost(hostname)) return defaultAikoModel().id;
+  return AIKO_MODELS.find((m) => m.tier === "cloud")?.id ?? defaultAikoModel().id;
+}
+
 export function resolveAikoModel(id: string | undefined | null): AikoModel {
   return AIKO_MODELS.find((m) => m.id === id) ?? defaultAikoModel();
 }
@@ -101,6 +124,10 @@ export async function aikoChat(opts: AikoChatOptions): Promise<AikoChatResult> {
       messages: aikoMessages(opts),
       temperature: opts.temperature ?? 0.3,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+      // Cloud tier is a reasoning model whose thinking tokens eat max_tokens and
+      // can leave content empty; disable thinking so it answers directly. Harmless
+      // for the local (non-reasoning) tier.
+      chat_template_kwargs: { enable_thinking: false },
     }),
     signal: opts.signal,
   });
@@ -139,6 +166,9 @@ export async function* aikoChatStream(opts: AikoChatOptions): AsyncGenerator<str
       temperature: opts.temperature ?? 0.3,
       stream: true,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+      // See aikoChat: disable reasoning so the stream emits answer tokens, not a
+      // budget-eating think pass that yields no content.
+      chat_template_kwargs: { enable_thinking: false },
     }),
     signal: opts.signal,
   });
