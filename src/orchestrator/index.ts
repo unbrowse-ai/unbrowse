@@ -1288,7 +1288,7 @@ export function probeLooksLikeFetchableHtmlDocument(probe: {
  */
 export async function tryDirectJsonFetch(
   url: string,
-  opts?: { timeoutMs?: number; fetchImpl?: typeof fetch },
+  opts?: { timeoutMs?: number; fetchImpl?: typeof fetch; curlFallback?: typeof tryCurlImpersonateFetch },
 ): Promise<{ data: unknown; content_type: string } | null> {
   const fetchImpl = opts?.fetchImpl ?? fetch;
   const timeoutMs = opts?.timeoutMs ?? 15000;
@@ -1322,6 +1322,23 @@ export async function tryDirectJsonFetch(
     }
     return null;
   } catch {
+    // Native fetch stalled/failed. bun's fetch can hang on certain servers'
+    // TLS/HTTP config where curl succeeds (observed: usgs.gov geojson — native
+    // fetch times out, curl returns in ~1.2s). Rescue the probe-winner JSON
+    // fast path with a direct curl-impersonate fetch and parse the JSON. Mirrors
+    // replayRecipe's rescue; on any miss return null and the caller falls through.
+    try {
+      const curl = await (opts?.curlFallback ?? tryCurlImpersonateFetch)({ url, timeoutMs, forceDirect: true });
+      if (curl && curl.status >= 200 && curl.status < 400 && curl.html) {
+        const trimmed = curl.html.trimStart();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          const parsed = JSON.parse(curl.html);
+          if (parsed !== null && typeof parsed === "object") {
+            return { data: parsed, content_type: "application/json" };
+          }
+        }
+      }
+    } catch { /* curl unavailable / non-JSON — fall through to null */ }
     return null;
   }
 }
