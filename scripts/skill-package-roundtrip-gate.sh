@@ -38,8 +38,8 @@ fi
 # the reward MATH credits the owner correctly (the collective-learning payout:
 # computeContributorShares weights by cumulative_delta — uniquely-valuable routes
 # earn more). Distinct from the live mainnet transfer below.
-echo "[gate] x402 accounting: split/owner-credit math (real settlement code)"
-bun test backend/tests/splits.test.ts backend/tests/flex-splits-50-50.test.ts
+echo "[gate] x402 accounting + collective-learning: split/owner-credit math, delta attribution, opt-in slashing"
+bun test backend/tests/splits.test.ts backend/tests/flex-splits-50-50.test.ts backend/tests/attribution.test.ts
 
 # x402 reward — LIVE SETTLEMENT leg — the one genuinely-open node of the north star.
 # RED until a real owner-credit fill is WITNESSED (a wallet-owning skill + a real
