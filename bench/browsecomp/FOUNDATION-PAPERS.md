@@ -72,6 +72,14 @@ gpt-4.1 grader + unbrowse-search + distill, single-shot, scores **0.08 (4/50)**,
 | distill, single-shot, gpt-4.1 | first-10 | 0.2 (noise) |
 | distill, single-shot, gpt-4.1 | **N=50 (robust)** | **0.08** |
 | distill, single-shot, Kimi-K2.6 | N=10 | 0.1 |
+| **deep-agent** (decompose→verify→backtrack, 16 steps) + distill, gpt-4.1 | **N=50** | **0.10** (5/50) |
+
+The deep-agent lever (the "push RL/deep-agent" direction) lifted 0.08 → 0.10 — real
+but modest (+1 question), exactly the band open non-RL deep agents reach (~0.10–0.15
+per WebSailor/DeepDive). Still ~3× short of Exa's 0.336. Confirms the honest ceiling:
+test-time orchestration (distill + decompose-verify + best-of-N) caps ~0.1 on this
+flat retrieval substrate; closing to 0.336 needs an RL-trained browsing policy, which
+is out of scope for a prompt/orchestration loop.
 
 **Honest conclusion:** the cited orchestration levers (distill, best-of-N) lift a
 flat search+LLM pipeline from ~0 to ~0.08 — real but modest. Closing the gap to
