@@ -2051,22 +2051,22 @@ async function cmdSkillPackage(args: string[], flags: Record<string, string | bo
   if (!id) die("skill-package <skill-id> [--out <dir>] — skill id required");
   const skill = await api("GET", `/v1/skills/${id}`) as Record<string, unknown>;
   if (!skill || skill.error) die(`skill not found: ${id}`);
-  const { renderSkillMd, validateSkillPackage } = await import("./skillmd.js");
+  const { renderSkillMd, validateSkillPackage, forbiddenPublicTerms } = await import("./skillmd.js");
   const { sanitizeDomain } = await import("./extraction/domain-notes.js");
   const fs = require("node:fs");
   const path = require("node:path");
   const domain = sanitizeDomain(String(skill.domain ?? id));
   const outDir = (flags.out as string) || path.join(process.cwd(), `unbrowse-ai-${domain}`);
   const md = renderSkillMd(skill as unknown as Parameters<typeof renderSkillMd>[0]);
-  // Publish gate: never write a malformed package to unbrowse-ai/<domain>.
+  // Publish gate: never write a malformed OR leaky package to unbrowse-ai/<domain>.
   const valid = validateSkillPackage(md);
   if (!valid.ok) die(`invalid skill package for ${domain}: ${valid.issues.join("; ")}`);
+  const readme = `# unbrowse-ai/${domain}\n\nInstallable agent skill for **${domain}**, indexed and described by unbrowse.\n\n\`\`\`bash\nnpx skills add unbrowse-ai/${domain}\n\`\`\`\n\nCredentials are never embedded — they are placeholders filled at call time from your own local keychain, and never leave your machine. Executions reward the publisher via x402.\n`;
+  const readmeLeaks = forbiddenPublicTerms(readme);
+  if (readmeLeaks.length) die(`invalid README for ${domain}: forbidden public term(s) ${readmeLeaks.map((t) => `/${t}/`).join(", ")}`);
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "SKILL.md"), md);
-  fs.writeFileSync(
-    path.join(outDir, "README.md"),
-    `# unbrowse-ai/${domain}\n\nInstallable agent skill for **${domain}**, indexed and described by unbrowse.\n\n\`\`\`bash\nnpx skills add unbrowse-ai/${domain}\n\`\`\`\n\nCredentials are ZK-filled holes — supplied at call time from your own private key, never embedded here. Executions reward the publisher via x402.\n`,
-  );
+  fs.writeFileSync(path.join(outDir, "README.md"), readme);
   output({ ok: true, domain, out: outDir, files: ["SKILL.md", "README.md"], install: `npx skills add unbrowse-ai/${domain}` }, !!flags.pretty);
 }
 
