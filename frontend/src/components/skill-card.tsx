@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Shield } from "lucide-react";
 import type { SkillManifest, SkillListItem } from "@/lib/api";
+import { humanizeDomain } from "@/lib/humanize";
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "text-emerald-600 bg-emerald-50 border-emerald-200",
@@ -36,7 +37,7 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
           <h3 className="font-bold text-base truncate text-text-primary">
-            {skill.name}
+            {humanizeDomain(skill.domain)}
           </h3>
           <p className="text-sm text-text-muted font-mono mt-0.5">{skill.domain}</p>
         </div>
@@ -63,7 +64,9 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
 
       {/* Intent */}
       <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2 flex-grow">
-        {skill.intent_signature}
+        {skill.intent_signature && !skill.intent_signature.startsWith("API skill for")
+          ? skill.intent_signature
+          : "Captured routes you replay as a direct API — no browser, no scraping."}
       </p>
 
       {/* Endpoints */}
