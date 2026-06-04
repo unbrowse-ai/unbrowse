@@ -1,7 +1,7 @@
 /**
  * Layer D integration test — `executeEndpointWithChain` golden-path AC5.
  *
- * Spec source: `(internal) method-loop.default.architecture.md` (Day 2 architecture).
+ * Spec source: `(internal)` (Day 2 architecture).
  *
  * Wires up a real loopback HTTP server backing a two-endpoint
  * producer/consumer chain (csrf-producer + mutation-consumer) and asserts
