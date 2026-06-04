@@ -52,6 +52,42 @@ function renderEndpointSection(ep: EndpointDescriptor, skill: SkillManifest): st
   return lines.join("\n");
 }
 
+const SECRET_HEADER = /^(authorization|cookie|x-api-key|api-?key|x-auth-token|x-access-token|x-csrf-token|x-xsrf-token|csrf-token|authentication|bearer|token)$/i;
+
+export interface CredentialHole { name: string; location: string; fill: string; }
+
+/**
+ * Derive the credential HOLES a skill needs from its endpoints' auth surface.
+ * Credentials are never embedded in a published skill — they are holes the
+ * unbrowse runtime fills at call time, surfaced from the caller's private key
+ * via zero-knowledge (the hole-template / wallet-bind pattern): prove you hold
+ * the credential without the skill or marketplace ever seeing it. This lists
+ * WHICH holes a caller must be able to fill, not the values.
+ */
+export function credentialHoles(skill: SkillManifest): CredentialHole[] {
+  const holes = new Map<string, CredentialHole>();
+  const add = (name: string, location: string) => {
+    if (!name) return;
+    const key = `${location}:${name}`.toLowerCase();
+    if (!holes.has(key)) holes.set(key, { name, location, fill: "zk:private-key" });
+  };
+  for (const ep of skill.endpoints ?? []) {
+    for (const k of Object.keys(ep.headers_template ?? {})) {
+      if (SECRET_HEADER.test(k)) add(k, "header");
+    }
+    for (const t of (ep.auth_tokens ?? [])) {
+      const nm = (t as { name?: string; header?: string; key?: string; param?: string }).name
+        ?? (t as { header?: string }).header
+        ?? (t as { key?: string }).key
+        ?? (t as { param?: string }).param;
+      if (typeof nm === "string") add(nm, "header");
+    }
+    if (ep.csrf_plan?.param_name) add(ep.csrf_plan.param_name, "header");
+  }
+  if (skill.auth_profile_ref) add("session", "cookie");
+  return [...holes.values()];
+}
+
 export function renderSkillMd(skill: SkillManifest): string {
   const intents = Array.from(new Set([skill.intent_signature, ...(skill.intents ?? [])])).filter(Boolean);
   const endpoints = skill.endpoints ?? [];
@@ -68,6 +104,9 @@ export function renderSkillMd(skill: SkillManifest): string {
     `intents:`,
     ...intents.map((i) => `  - ${escapeYaml(i)}`),
     `endpoint_count: ${endpoints.length}`,
+    `origin: ${escapeYaml(`unbrowse-ai/${sanitizeDomain(skill.domain)}`)}`,
+    `exposed: true`,
+    ...(skill.owner_wallet_address ? [`x402_reward: ${escapeYaml(skill.owner_wallet_address)}`] : []),
     `version: ${escapeYaml(skill.version)}`,
     `updated_at: ${escapeYaml(skill.updated_at)}`,
     "---",
@@ -89,6 +128,12 @@ export function renderSkillMd(skill: SkillManifest): string {
   body.push("");
   body.push("unbrowse handles auth (browser cookies + JA4 TLS impersonation), caching, and the marketplace publish flywheel for every call. Direct curl will be blocked by anti-bot on most of these endpoints.");
   body.push("");
+  body.push("## Install");
+  body.push("");
+  body.push("```bash");
+  body.push(`npx skills add unbrowse-ai/${sanitizeDomain(skill.domain)}`);
+  body.push("```");
+  body.push("");
   body.push("## Quick start");
   body.push("");
   body.push("```bash");
@@ -104,6 +149,23 @@ export function renderSkillMd(skill: SkillManifest): string {
     body.push(renderEndpointSection(ep, skill));
   }
 
+  const holes = credentialHoles(skill);
+  body.push("## Credentials (ZK-filled holes)");
+  body.push("");
+  if (holes.length === 0) {
+    body.push("No credentials required — this skill calls public endpoints.");
+  } else {
+    body.push("Credentials are **never embedded** in this skill. They are holes the unbrowse runtime fills at call time, surfaced from your own private key via zero-knowledge: the proof shows you hold the credential without the skill, the marketplace, or the publisher ever seeing it. You supply the value locally; only a hole-shape is published.");
+    body.push("");
+    for (const h of holes) body.push(`- \`${h.name}\` (${h.location}) — filled via ${h.fill}`);
+  }
+  body.push("");
+  if (skill.owner_wallet_address) {
+    body.push("## Rewards (x402)");
+    body.push("");
+    body.push(`Each execution settles an x402 micropayment to the publisher's wallet \`${skill.owner_wallet_address}\` — the reward reaches the private key that published this route.`);
+    body.push("");
+  }
   body.push("## Why this needs unbrowse");
   body.push("");
   body.push("- **Auth**: most of these endpoints require session cookies. `unbrowse execute` pulls them from your real browser (Chrome/Arc/Brave/Edge/Vivaldi/Opera/Dia) and injects them.");
