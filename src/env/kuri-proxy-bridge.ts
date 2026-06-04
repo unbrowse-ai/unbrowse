@@ -43,6 +43,17 @@
 
 import { resolveEgressProxy } from "../execution/proxy-fetch.js";
 
+/**
+ * Happy-path proxy-bridge logs are diagnostic noise on the user's terminal —
+ * they print on every CLI command (even `--help`/`health`). Gate them behind the
+ * existing opt-in kuri trace flag so the default experience is clean; actionable
+ * misconfiguration warnings stay unconditional.
+ */
+export function kuriProxyTraceEnabled(): boolean {
+  const v = process.env.UNBROWSE_KURI_TRACE;
+  return !!(v && v !== "0" && v !== "false");
+}
+
 export type KuriProxyBridgeOutcome =
   | { wired: false; reason: "opt_out" }
   | { wired: false; reason: "already_set"; existing: string }
@@ -212,11 +223,13 @@ function applyKuriProxy(env: NodeJS.ProcessEnv, proxyUrl: string): boolean {
     if (!forwarderUrl) return false;
     env.KURI_PROXY = forwarderUrl;
     forceManagedChrome(env);
-    process.stderr.write(
-      `[kuri-proxy] auth-forwarder bridged: Chrome connects to ${forwarderUrl} (unauth), ` +
-      "forwarder injects Proxy-Authorization to upstream. Chrome accepts the unauth localhost " +
-      "URL where it rejected inline-auth.\n",
-    );
+    if (kuriProxyTraceEnabled()) {
+      process.stderr.write(
+        `[kuri-proxy] auth-forwarder bridged: Chrome connects to ${forwarderUrl} (unauth), ` +
+        "forwarder injects Proxy-Authorization to upstream. Chrome accepts the unauth localhost " +
+        "URL where it rejected inline-auth.\n",
+      );
+    }
     return true;
   }
   env.KURI_PROXY = proxyUrl;
