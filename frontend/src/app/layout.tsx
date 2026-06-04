@@ -11,9 +11,9 @@ import { ContentPageTracker } from "@/components/content-page-tracker";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+  title: "Unbrowse — Turn any website into API skills for AI agents",
   description:
-    "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+    "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -26,9 +26,9 @@ export const metadata: Metadata = {
     canonical: "https://www.unbrowse.ai",
   },
   openGraph: {
-    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    title: "Unbrowse — Turn any website into API skills for AI agents",
     description:
-      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     url: "https://www.unbrowse.ai",
     siteName: "Unbrowse",
     type: "website",
@@ -49,9 +49,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@getFoundry",
-    title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
+    title: "Unbrowse — Turn any website into API skills for AI agents",
     description:
-      "Stop automating headless browsers. Unbrowse reverse-engineers website APIs so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
@@ -121,7 +121,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
-                "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
+                "Unbrowse turns any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
@@ -143,7 +143,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
-              softwareVersion: "6.5.2",
+              softwareVersion: "8.1.0",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
               isAccessibleForFree: true,
