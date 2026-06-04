@@ -117,7 +117,10 @@ export function renderSkillMd(skill: SkillManifest): string {
     ...intents.map((i) => `  - ${escapeYaml(i)}`),
     `endpoint_count: ${endpoints.length}`,
     `origin: ${escapeYaml(`unbrowse-ai/${sanitizeDomain(skill.domain)}`)}`,
-    `exposed: true`,
+    // Skills are NOT exposed (published as a standalone `npx skills add` repo)
+    // by default — exposure is an explicit owner act, distinct from marketplace
+    // visibility. Reflect the manifest's real state; never hardcode true.
+    `exposed: ${(skill as { exposed?: boolean }).exposed === true ? "true" : "false"}`,
     ...(skill.owner_wallet_address ? [`x402_reward: ${escapeYaml(skill.owner_wallet_address)}`] : []),
     `version: ${escapeYaml(skill.version)}`,
     `updated_at: ${escapeYaml(skill.updated_at)}`,

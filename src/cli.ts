@@ -2057,6 +2057,9 @@ async function cmdSkillPackage(args: string[], flags: Record<string, string | bo
   const path = require("node:path");
   const domain = sanitizeDomain(String(skill.domain ?? id));
   const outDir = (flags.out as string) || path.join(process.cwd(), `unbrowse-ai-${domain}`);
+  // Skills are NOT exposed by default — exposure (publishing a standalone
+  // `npx skills add` repo) is an explicit owner act. `--expose` opts in.
+  if (flags.expose) (skill as Record<string, unknown>).exposed = true;
   const md = renderSkillMd(skill as unknown as Parameters<typeof renderSkillMd>[0]);
   // Publish gate: never write a malformed OR leaky package to unbrowse-ai/<domain>.
   const valid = validateSkillPackage(md);
@@ -3091,7 +3094,7 @@ export const CLI_REFERENCE = {
     // ── Skill management ──────────────────────────────────────────────────
     { name: "skills", usage: "", desc: "List all locally-cached skills (skill_id, domain, endpoint count)." },
     { name: "skill", usage: "<id>", desc: "Get full SkillManifest for one skill (intent, endpoints, schemas)." },
-    { name: "skill-package", usage: "<skill-id> [--out <dir>]", desc: "Emit a publishable per-website skill package (SKILL.md with origin pointer + ZK credential holes + x402 reward, plus README) ready to push to unbrowse-ai/<domain> and install via `npx skills add`." },
+    { name: "skill-package", usage: "<skill-id> [--out <dir>] [--expose]", desc: "Emit a per-website skill package (SKILL.md with origin pointer + credential holes + x402 reward, plus README), ready to push to unbrowse-ai/<domain> and install via `npx skills add`. Skills are NOT exposed by default; pass --expose to mark this one as a published standalone skill." },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating 1-5", desc: "Submit feedback after presenting endpoint results to the user (mandatory after resolve+execute)." },
     { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:msg']", desc: "Contribute best practices, constraints, or gotchas for an endpoint." },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish." },
