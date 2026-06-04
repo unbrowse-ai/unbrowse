@@ -191,6 +191,43 @@ export function renderSkillMd(skill: SkillManifest): string {
   return fm.join("\n") + body.join("\n");
 }
 
+export interface SkillPackageValidation { ok: boolean; issues: string[] }
+
+/**
+ * Validate that a rendered SKILL.md is a well-formed, installable agentskills
+ * package: parseable YAML frontmatter with the dispatch-critical fields, and a
+ * body carrying the install pointer + the credential-holes section. This is the
+ * publish-time gate — a malformed package must never ship to unbrowse-ai/<site>.
+ * The scaling evidence for "many sites work easily" is this returning ok across
+ * the captured corpus.
+ */
+export function validateSkillPackage(md: string): SkillPackageValidation {
+  const issues: string[] = [];
+  const fmMatch = md.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) {
+    return { ok: false, issues: ["no YAML frontmatter block"] };
+  }
+  const fm = fmMatch[1];
+  const has = (key: string) => new RegExp(`^${key}:\\s*\\S`, "m").test(fm);
+  for (const key of ["name", "description", "origin", "domain", "skill_id", "intent_signature", "endpoint_count"]) {
+    if (!has(key)) issues.push(`frontmatter missing '${key}'`);
+  }
+  const originMatch = fm.match(/^origin:\s*"?(unbrowse-ai\/[^"\n]+)"?/m);
+  if (!originMatch) issues.push("origin is not 'unbrowse-ai/<domain>'");
+  if (originMatch) {
+    const domain = originMatch[1].slice("unbrowse-ai/".length);
+    if (!md.includes(`npx skills add unbrowse-ai/${domain}`)) {
+      issues.push("body missing the `npx skills add` install line for this origin");
+    }
+  }
+  if (!md.includes("## Credentials")) issues.push("body missing the Credentials (ZK holes) section");
+  // x402 is optional (public skills have no owner wallet), but if a reward is
+  // declared it must name a non-empty wallet.
+  const reward = fm.match(/^x402_reward:\s*"?([^"\n]*)"?/m);
+  if (reward && !reward[1].trim()) issues.push("x402_reward declared but empty");
+  return { ok: issues.length === 0, issues };
+}
+
 export function exportSkillMdLocal(skill: SkillManifest): string | null {
   // v7 stateless gate (Day-5 worker E): under UNBROWSE_STATELESS=1 the
   // local ~/.unbrowse/skills/ dir is READ-ONLY. The marketplace is the

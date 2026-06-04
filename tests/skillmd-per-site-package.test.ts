@@ -79,3 +79,30 @@ describe("renderSkillMd — per-website agentskills package", () => {
     expect(md).toContain("npx skills add unbrowse-ai/earthquake.usgs.gov");
   });
 });
+
+import { validateSkillPackage } from "../src/skillmd.js";
+
+describe("validateSkillPackage — publish-time gate", () => {
+  test("a rendered authed skill validates ok", () => {
+    const v = validateSkillPackage(renderSkillMd(authedSkill()));
+    expect(v.ok).toBe(true);
+    expect(v.issues).toEqual([]);
+  });
+  test("a rendered public skill validates ok (x402 optional)", () => {
+    const v = validateSkillPackage(renderSkillMd(publicSkill()));
+    expect(v.ok).toBe(true);
+  });
+  test("missing frontmatter fails", () => {
+    expect(validateSkillPackage("# just a heading\nno frontmatter").ok).toBe(false);
+  });
+  test("missing origin/install fails", () => {
+    const md = '---\nname: "x"\ndescription: "y"\ndomain: "z.com"\nskill_id: "s"\nintent_signature: "i"\nendpoint_count: 1\n---\n# x\n## Credentials\n';
+    const v = validateSkillPackage(md);
+    expect(v.ok).toBe(false);
+    expect(v.issues.some((i) => i.includes("origin"))).toBe(true);
+  });
+  test("empty x402_reward fails", () => {
+    const md = renderSkillMd(authedSkill()).replace(/x402_reward: "[^"]*"/, 'x402_reward: ""');
+    expect(validateSkillPackage(md).ok).toBe(false);
+  });
+});

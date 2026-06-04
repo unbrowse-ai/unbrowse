@@ -2051,14 +2051,18 @@ async function cmdSkillPackage(args: string[], flags: Record<string, string | bo
   if (!id) die("skill-package <skill-id> [--out <dir>] — skill id required");
   const skill = await api("GET", `/v1/skills/${id}`) as Record<string, unknown>;
   if (!skill || skill.error) die(`skill not found: ${id}`);
-  const { renderSkillMd } = await import("./skillmd.js");
+  const { renderSkillMd, validateSkillPackage } = await import("./skillmd.js");
   const { sanitizeDomain } = await import("./extraction/domain-notes.js");
   const fs = require("node:fs");
   const path = require("node:path");
   const domain = sanitizeDomain(String(skill.domain ?? id));
   const outDir = (flags.out as string) || path.join(process.cwd(), `unbrowse-ai-${domain}`);
+  const md = renderSkillMd(skill as unknown as Parameters<typeof renderSkillMd>[0]);
+  // Publish gate: never write a malformed package to unbrowse-ai/<domain>.
+  const valid = validateSkillPackage(md);
+  if (!valid.ok) die(`invalid skill package for ${domain}: ${valid.issues.join("; ")}`);
   fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(path.join(outDir, "SKILL.md"), renderSkillMd(skill as unknown as Parameters<typeof renderSkillMd>[0]));
+  fs.writeFileSync(path.join(outDir, "SKILL.md"), md);
   fs.writeFileSync(
     path.join(outDir, "README.md"),
     `# unbrowse-ai/${domain}\n\nInstallable agent skill for **${domain}**, indexed and described by unbrowse.\n\n\`\`\`bash\nnpx skills add unbrowse-ai/${domain}\n\`\`\`\n\nCredentials are ZK-filled holes — supplied at call time from your own private key, never embedded here. Executions reward the publisher via x402.\n`,
