@@ -28,14 +28,14 @@ class BrowseCompSuite(AsyncBaseSuite):
         # rollout + confidence-weighted vote). BROWSECOMP_BEST_OF_N>1 wraps the
         # agent; =1 (default) is the original single-rollout DeepResearchAgent.
         _n = int(_os.environ.get("BROWSECOMP_BEST_OF_N", "1"))
-        if _n > 1:
-            from search_evals.agents.best_of_n import BestOfNAgent
-            self.agent = BestOfNAgent(
-                search_engine, model, n=_n, contamination_filter=BrowseCompContaminationFilter
-            )
-            logger.info(f"BrowseComp agent: best-of-{_n} (confidence-weighted vote)")
-        else:
-            self.agent = DeepResearchAgent(search_engine, model, contamination_filter=BrowseCompContaminationFilter)
+        # Always wrap in BestOfNAgent: n=1 is single-shot WITH the give-up guard
+        # (a fully-failed question yields score 0, never crashes the whole eval);
+        # n>1 adds confidence-weighted parallel voting.
+        from search_evals.agents.best_of_n import BestOfNAgent
+        self.agent = BestOfNAgent(
+            search_engine, model, n=_n, contamination_filter=BrowseCompContaminationFilter
+        )
+        logger.info(f"BrowseComp agent: best-of-{_n}" + (" (confidence-weighted vote)" if _n > 1 else " (single-shot, guarded)"))
         self.grader = DeepResearchGrader()
 
     async def _run_task(self, datum: Datum) -> TaskResult:
