@@ -48,7 +48,7 @@ describe("renderSkillMd — per-website agentskills package", () => {
   test("authed skill: origin install pointer, x402 reward, credential holes (public-safe wording)", () => {
     const md = renderSkillMd(authedSkill());
     expect(md).toContain('origin: "unbrowse-ai/reddit.com"');
-    expect(md).toContain("exposed: true");
+    expect(md).toContain("exposed: false");        // NOT exposed by default
     expect(md).toContain('x402_reward: "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"');
     expect(md).toContain("npx skills add unbrowse-ai/reddit.com");
     expect(md).toContain("## Credentials");
@@ -75,6 +75,12 @@ describe("renderSkillMd — per-website agentskills package", () => {
     expect(names).toContain("session");
     expect(names).not.toContain("accept");
     expect(holes.every((h) => h.fill === "zk:private-key")).toBe(true);
+  });
+
+  test("exposed defaults to false; opt-in flips it true", () => {
+    expect(renderSkillMd(publicSkill())).toContain("exposed: false");
+    const exposed = { ...publicSkill(), exposed: true } as unknown as SkillManifest;
+    expect(renderSkillMd(exposed)).toContain("exposed: true");
   });
 
   test("public skill: no creds, no rewards section", () => {
