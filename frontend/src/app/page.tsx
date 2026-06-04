@@ -16,6 +16,8 @@ import { UseCasesBand } from "@/components/use-cases-band";
 import { InternetEvolution } from "@/components/internet-evolution";
 import { UniversalProofBand } from "@/components/universal-proof-band";
 import { AdoptersRail } from "@/components/adopters-rail";
+import { TrustStrip } from "@/components/trust-strip";
+import { CursorParticles } from "@/components/cursor-particles";
 
 export const revalidate = 120;
 
@@ -39,6 +41,8 @@ export default async function Home() {
 
   return (
     <main className="relative mx-auto max-w-6xl px-5 sm:px-8">
+      {/* Restored ambient backdrop — a fixed, pointer-events-none canvas behind all content. */}
+      <CursorParticles />
       <section aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
         <h1>Unbrowse — the registry of website API routes for AI agents</h1>
         <p>Search skills by intent, resolve to a ranked endpoint, execute for real data. MCP setup: npx unbrowse setup --mcp. Conversational demo at /aiko. Full overview at /classic.</p>
@@ -109,6 +113,7 @@ export default async function Home() {
       <UniversalProofBand />
       <WorksWith />
       <AdoptersRail />
+      <TrustStrip />
 
       {/* Try Aiko live — the chat is the demo of the registry */}
       <section className="pb-16">
