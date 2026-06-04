@@ -2042,6 +2042,30 @@ async function cmdSkill(args: string[], flags: Record<string, string | boolean>)
   output(await api("GET", `/v1/skills/${id}`), !!flags.pretty);
 }
 
+// Emit a publishable per-website skill package (agentskills.io format): a
+// directory with SKILL.md (origin pointer + ZK credential holes + x402 reward,
+// rendered from the captured manifest) and a README, ready to push to
+// `unbrowse-ai/<domain>` and install with `npx skills add unbrowse-ai/<domain>`.
+async function cmdSkillPackage(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const id = args[0] ?? (flags.skill as string) ?? (flags.id as string);
+  if (!id) die("skill-package <skill-id> [--out <dir>] — skill id required");
+  const skill = await api("GET", `/v1/skills/${id}`) as Record<string, unknown>;
+  if (!skill || skill.error) die(`skill not found: ${id}`);
+  const { renderSkillMd } = await import("./skillmd.js");
+  const { sanitizeDomain } = await import("./extraction/domain-notes.js");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const domain = sanitizeDomain(String(skill.domain ?? id));
+  const outDir = (flags.out as string) || path.join(process.cwd(), `unbrowse-ai-${domain}`);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "SKILL.md"), renderSkillMd(skill as unknown as Parameters<typeof renderSkillMd>[0]));
+  fs.writeFileSync(
+    path.join(outDir, "README.md"),
+    `# unbrowse-ai/${domain}\n\nInstallable agent skill for **${domain}**, indexed and described by unbrowse.\n\n\`\`\`bash\nnpx skills add unbrowse-ai/${domain}\n\`\`\`\n\nCredentials are ZK-filled holes — supplied at call time from your own private key, never embedded here. Executions reward the publisher via x402.\n`,
+  );
+  output({ ok: true, domain, out: outDir, files: ["SKILL.md", "README.md"], install: `npx skills add unbrowse-ai/${domain}` }, !!flags.pretty);
+}
+
 async function cmdCleanupStale(flags: Record<string, string | boolean>): Promise<void> {
   const body: Record<string, unknown> = {};
   if (typeof flags.skill === "string") body.skill_id = flags.skill;
@@ -3063,6 +3087,7 @@ export const CLI_REFERENCE = {
     // ── Skill management ──────────────────────────────────────────────────
     { name: "skills", usage: "", desc: "List all locally-cached skills (skill_id, domain, endpoint count)." },
     { name: "skill", usage: "<id>", desc: "Get full SkillManifest for one skill (intent, endpoints, schemas)." },
+    { name: "skill-package", usage: "<skill-id> [--out <dir>]", desc: "Emit a publishable per-website skill package (SKILL.md with origin pointer + ZK credential holes + x402 reward, plus README) ready to push to unbrowse-ai/<domain> and install via `npx skills add`." },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating 1-5", desc: "Submit feedback after presenting endpoint results to the user (mandatory after resolve+execute)." },
     { name: "annotate", usage: "--skill ID --endpoint ID --text 'tip' [--constraint 'param:rule:msg']", desc: "Contribute best practices, constraints, or gotchas for an endpoint." },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/schema metadata back to a captured skill before publish." },
@@ -4855,6 +4880,7 @@ async function main(): Promise<void> {
     case "config": return cmdConfig(args, flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
+    case "skill-package": return cmdSkillPackage(args, flags);
     case "cleanup-stale": return cmdCleanupStale(flags);
     case "search": return cmdSearch(flags);
     case "spec": return cmdSpec(args, flags);
