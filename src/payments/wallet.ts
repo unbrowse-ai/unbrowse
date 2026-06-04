@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveOwsWalletAddress } from "./ows.js";
 
 /**
  * Wallet precheck — lobster.cash compatible.
@@ -61,6 +62,15 @@ function getLobsterWalletFromLocalConfig(): string | undefined {
 }
 
 export function getWalletContext(): WalletContext {
+  // OWS (Open Wallet Standard) is the primary, open-standard wallet path — preferred
+  // over lobster.cash. An explicit OWS_WALLET_ADDRESS or a wallet in the ~/.ows vault wins.
+  // The vault probe is gated by the same flag tests use to assert a pristine machine.
+  const owsDisabled = process.env.UNBROWSE_DISABLE_LOCAL_WALLET === "1";
+  const ows = resolveOwsWalletAddress({ probeVault: !owsDisabled });
+  if (ows) {
+    return { wallet_address: ows, wallet_provider: "ows" };
+  }
+
   const lobsterWallet = asNonEmptyString(process.env.LOBSTER_WALLET_ADDRESS);
   if (lobsterWallet) {
     return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };
@@ -76,7 +86,7 @@ export function getWalletContext(): WalletContext {
   // Skip local lobster config probe when UNBROWSE_DISABLE_LOCAL_WALLET=1.
   // Tests that want "no wallet configured" set this explicitly so they don't
   // pick up the developer's actual ~/.lobster/config.json.
-  if (process.env.UNBROWSE_DISABLE_LOCAL_WALLET !== "1") {
+  if (!owsDisabled) {
     const localLobsterWallet = getLobsterWalletFromLocalConfig();
     if (localLobsterWallet) {
       return { wallet_address: localLobsterWallet, wallet_provider: "lobster.cash" };
