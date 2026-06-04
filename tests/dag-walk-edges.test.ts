@@ -2,7 +2,7 @@
 //
 // Companion to tests/dag-walk-staleness.test.ts (Worker 3 golden path). This
 // file probes ONLY the four architectural failure modes documented in
-// (internal) method-loop.default.architecture.md:
+// (internal):
 //
 //   1. depth-cap exceeded            → chain_walk_depth_exceeded
 //   2. cycle detected                → chain_walk_cycle_detected

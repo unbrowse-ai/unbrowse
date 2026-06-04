@@ -112,7 +112,7 @@ export interface OperationBinding {
    */
   contract_ref?: ContractRef;
   // NEW freshness metadata, all optional for backward compat.
-  // See (internal) method-loop.default.architecture.md and
+  // See (internal) and
   // ~/(internal)
   ttl_ms?: number;
   single_use?: boolean;
@@ -122,7 +122,7 @@ export interface OperationBinding {
 // Minimal contract for decision-trace steps emitted by the chain walker and
 // other executor branches. Day-5 (chain walker implementation) will read and
 // write these; richer typing can land later without breaking the shape.
-// See (internal) method-loop.default.architecture.md for canonical step names
+// See (internal) for canonical step names
 // (chain_walk_refetched_success, chain_walk_depth_exceeded, ...).
 export interface DecisionTraceStep {
   step: string;
@@ -130,7 +130,7 @@ export interface DecisionTraceStep {
 }
 
 // Walk context threaded through the chain-walk DAG resolver. See
-// (internal) method-loop.default.architecture.md for the design rationale and the
+// (internal) for the design rationale and the
 // invariants Day-5 must preserve (frozen `now`, append-only `trace`,
 // single-use markers in `consumed`, cycle detection via `visited`).
 export interface ChainWalkContext {

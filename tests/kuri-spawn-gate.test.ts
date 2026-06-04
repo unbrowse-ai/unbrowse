@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-// Spawn-gate contract (Step 2 of the the method Loop):
+// Spawn-gate contract (Step 2 of the restricted Loop):
 //   "every kuri spawn routes through resolveKuriLaunchConfig; no caller passes
 //    a literal `headless: false`; only src/auth/index.ts is whitelisted to set
 //    HEADLESS=false in env, and only inside the interactive auth code path."

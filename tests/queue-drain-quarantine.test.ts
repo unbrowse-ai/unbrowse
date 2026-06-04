@@ -1,4 +1,4 @@
-// Worker drain quarantine integration tests — the method Loop Phase 1.1 Step 5.
+// Worker drain quarantine integration tests — restricted Loop Phase 1.1 Step 5.
 import { describe, test, expect, afterEach, beforeEach } from "bun:test";
 import { mkdtemp, rm, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";

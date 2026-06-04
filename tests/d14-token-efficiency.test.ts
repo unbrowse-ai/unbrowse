@@ -1,7 +1,7 @@
 /**
  * D14 — Token efficiency falsifier.
  *
- * The plan bar ((internal) method-loop.default.plan.md, D14 row, amended
+ * The plan bar ((internal), D14 row, amended
  * 2026-05-27 by Day-6 W5) reads:
  *
  *   extract response ≤ 1/4 UPSTREAM HTTP response bytes (Content-Length

@@ -3,7 +3,7 @@
  *
  * No I/O, no clock, no mocks. Every test passes a synthetic `now` so the
  * helpers can be reasoned about deterministically. See
- * `(internal) method-loop.default.architecture.md` AC4.
+ * `(internal)` AC4.
  */
 
 import { describe, expect, it } from "bun:test";

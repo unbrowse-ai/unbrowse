@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as srcKuri from "../src/kuri/client.js";
 import * as skillKuri from "../packages/skill/runtime-src/kuri/client.js";
 
-// Step 5 of the the method Loop — proves the env passed to the kuri broker spawn
+// Step 5 of the restricted Loop — proves the env passed to the kuri broker spawn
 // (src/kuri/client.ts ~L732-737) propagates HEADLESS correctly under the rules
 // of resolveKuriLaunchConfig. The spawn env construction is INLINE (not an
 // exported helper), so this test reconstructs the same expression

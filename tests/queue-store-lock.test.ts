@@ -1,4 +1,4 @@
-// Per-domain advisory lock tests for queue-store.ts — the method Loop step 5.
+// Per-domain advisory lock tests for queue-store.ts — restricted Loop step 5.
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, writeFile, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
