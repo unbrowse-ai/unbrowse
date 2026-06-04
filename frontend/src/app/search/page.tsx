@@ -1,4 +1,4 @@
-import { searchSkills, listSkills, type SkillManifest } from "@/lib/api";
+import { searchSkills, listPopularSkills, type SkillListItem, type PopularSkillSummary } from "@/lib/api";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { getRegistrySkillHref, parseSearchMetadata } from "@/lib/registry-search";
 import { SearchBar } from "@/components/search-bar";
@@ -6,6 +6,39 @@ import { SkillCard } from "@/components/skill-card";
 import { VerifiedOnlyToggle } from "@/components/verified-only-toggle";
 import Link from "next/link";
 import { Database, Globe2 } from "lucide-react";
+
+/** A result is renderable only if it carries something a human can read: a real
+ * skill_id / name / domain / intent, or a title. The live global graph index
+ * returns bare {id, score, metadata:{}} nodes when the BM25 metadata index is
+ * cold — and `{}` is truthy, so a `!r.metadata` guard lets those leak through
+ * and render as "Untitled / No intent signature provided". Drop them here. */
+function isIdentifiable(r: { metadata?: Record<string, unknown> }): boolean {
+  if (!r.metadata) return false;
+  if (typeof r.metadata.title === "string" && r.metadata.title.trim()) return true;
+  const meta = parseSearchMetadata(r.metadata);
+  return Boolean(meta.skill_id || meta.name || meta.domain || meta.intent_signature);
+}
+
+/** /v1/skills is auth-gated (401 anon); the anonymous popular endpoint is the
+ * reliable public catalog. Map its summaries into the shape the page renders. */
+function popularToListItem(p: PopularSkillSummary): SkillListItem {
+  return {
+    skill_id: p.skill_id,
+    version: p.version,
+    name: p.name,
+    intent_signature: p.description?.trim() || `API routes on ${p.domain}`,
+    domain: p.domain,
+    description: p.description,
+    owner_type: "marketplace",
+    execution_type: p.execution_type,
+    lifecycle: "active",
+    created_at: p.updated_at,
+    updated_at: p.updated_at,
+    endpoint_count: p.endpoint_count,
+    avg_reliability_score: p.avg_reliability_score,
+    endpoints: [],
+  };
+}
 
 export default async function SearchPage({
   searchParams,
@@ -15,11 +48,11 @@ export default async function SearchPage({
   const { q, domain, verified } = await searchParams;
   const verifiedOnly = verified === "true";
   let results: Awaited<ReturnType<typeof searchSkills>> = [];
-  let allSkills: SkillManifest[] = [];
+  let allSkills: SkillListItem[] = [];
   let error = "";
 
   try {
-    allSkills = await listSkills();
+    allSkills = (await listPopularSkills(50)).map(popularToListItem);
   } catch {
     // Ignore, we will just handle empty gracefully
   }
@@ -29,15 +62,15 @@ export default async function SearchPage({
       const rawResults = await searchSkills(q, domain);
       
       // Helper to map a search result to its full SkillManifest
-      const getFullSkill = (metadata: Record<string, unknown>): SkillManifest | undefined => {
+      const getFullSkill = (metadata: Record<string, unknown>): SkillListItem | undefined => {
         const meta = parseSearchMetadata(metadata);
         const id = meta.skill_id;
         return allSkills.find((s) => s.skill_id === id);
       };
 
-        // Filter out deprecated skills
+        // Drop unidentifiable graph-only hits, then filter out deprecated skills
         results = rawResults.filter(r => {
-          if (!r.metadata) return false;
+          if (!isIdentifiable(r)) return false;
           const fullSkill = getFullSkill(r.metadata);
           if (fullSkill) {
             return fullSkill.lifecycle !== "deprecated";
@@ -45,16 +78,17 @@ export default async function SearchPage({
           return true; // Keep if not found in live registry
         });
 
-        // Fallback/Enhancement: Add local text search matches that vector search might have missed
+        // Fallback/Enhancement: Add local text search matches that vector search might have missed.
+        // Token-based, not full-phrase: "open library" should match openlibrary.org, and the
+        // intent verbs ("get", "search"…) shouldn't drown the meaningful nouns.
           if (allSkills.length > 0) {
-            const lowerQ = q.toLowerCase();
-            const localMatches = allSkills.filter(s => 
-              s.lifecycle !== "deprecated" && 
-              (s.name.toLowerCase().includes(lowerQ) || 
-               s.domain.toLowerCase().includes(lowerQ) ||
-               s.intent_signature.toLowerCase().includes(lowerQ) ||
-               (s.description && s.description.toLowerCase().includes(lowerQ)))
-            );
+            const STOP = new Set(["the","a","an","to","of","for","and","or","my","me","on","in","get","find","search","with","how"]);
+            const tokens = q.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !STOP.has(t));
+            const localMatches = tokens.length === 0 ? [] : allSkills.filter(s => {
+              if (s.lifecycle === "deprecated") return false;
+              const hay = `${s.name} ${s.domain} ${s.intent_signature} ${s.description || ""}`.toLowerCase();
+              return tokens.every((t) => hay.includes(t));
+            });
           
           // Add local matches that aren't already in `results`
           let localMatchIdOffset = 100000;
@@ -99,7 +133,7 @@ export default async function SearchPage({
   }
 
   // Helper to map a search result to its full SkillManifest
-  const getFullSkill = (metadata: Record<string, unknown>): SkillManifest | undefined => {
+  const getFullSkill = (metadata: Record<string, unknown>): SkillListItem | undefined => {
     const meta = parseSearchMetadata(metadata);
     const id = meta.skill_id;
     return allSkills.find((s) => s.skill_id === id);
@@ -143,16 +177,43 @@ export default async function SearchPage({
               </p>
             </div>
           ) : results.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="w-14 h-14 mx-auto mb-4 bg-surface-sunken border border-border rounded-2xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+            <div className="py-12">
+              <div className="text-center mb-10">
+                <div className="w-14 h-14 mx-auto mb-4 bg-surface-sunken border border-border rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold mb-1 text-text-primary">Not in the catalog yet</h2>
+                <p className="text-text-secondary text-sm max-w-md mx-auto mb-6">
+                  Nothing indexed matches &ldquo;{q}&rdquo; — but Aiko can resolve it live, right now,
+                  through the same routes.
+                </p>
+                <Link
+                  href={`/aiko?intent=${encodeURIComponent(q)}`}
+                  className="inline-block px-5 py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--orange-500, #FF5200)", color: "#0c0500" }}
+                >
+                  ✦ Ask Aiko to resolve &ldquo;{q}&rdquo; →
+                </Link>
               </div>
-              <h2 className="text-lg font-bold mb-1 text-text-primary">No results</h2>
-              <p className="text-text-secondary text-sm">
-                No skills match &ldquo;{q}&rdquo;. Try a different intent or map a new site.
-              </p>
+              {(() => {
+                const recent = allSkills.filter((s) => s.lifecycle !== "deprecated").slice(0, 6);
+                return recent.length > 0 ? (
+                  <div>
+                    <p className="text-sm text-text-muted mb-4 font-mono border-b border-border pb-3">
+                      Or browse the most-used skills
+                    </p>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {recent.map((skill, i) => (
+                        <div key={skill.skill_id} className="animate-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+                          <SkillCard skill={skill} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
             </div>
           ) : (
             <>
@@ -160,7 +221,7 @@ export default async function SearchPage({
                 {results.length} result{results.length !== 1 ? "s" : ""} for &ldquo;{q}&rdquo;
               </p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {results.filter((r) => r.metadata).map((r, i) => {
+                {results.filter(isIdentifiable).map((r, i) => {
                   const fullSkill = getFullSkill(r.metadata);
                   
                   // If we found the full skill in our registry, render the standard SkillCard
