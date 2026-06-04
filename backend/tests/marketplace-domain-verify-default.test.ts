@@ -92,6 +92,11 @@ function publishPayload(domain: string) {
 function emergentDbMock(store: Map<string, string>) {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);
+    // AI PII-scrubber LLM (publish-time). Return an empty-leaks verdict so scrub
+    // passes the endpoint through unchanged.
+    if (url.hostname === "api.tokenfactory.nebius.com") {
+      return Response.json({ choices: [{ message: { content: '{"leaks":[]}' } }] });
+    }
     if (url.hostname !== "api.emergentdb.com") {
       throw new Error(`Unexpected fetch: ${url.toString()}`);
     }
@@ -99,6 +104,13 @@ function emergentDbMock(store: Map<string, string>) {
       const body = JSON.parse(String(init?.body ?? "{}")) as { key: string; value: string };
       store.set(body.key, body.value);
       return Response.json({ ok: true });
+    }
+    // Batch get — return per-key values from the store (null when absent).
+    if (url.pathname === "/qdkv/mget") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { keys?: string[] };
+      const values: Record<string, string | null> = {};
+      for (const k of body.keys ?? []) values[k] = store.get(k) ?? null;
+      return Response.json({ values });
     }
     if (url.pathname.startsWith("/qdkv/get/")) {
       const key = decodeURIComponent(url.pathname.replace("/qdkv/get/", ""));
@@ -206,5 +218,45 @@ describe("marketplace publishSkill — domain verification default ON", () => {
     }), env);
 
     expect(res.status).toBe(201);
+  });
+});
+
+// RESERVED_DOMAIN_GATE — the reserved high-impact-domain publish gate is now
+// env-flagged (default ON; prod sets it "0" for max coverage). These pin both
+// the safe default and the opened-for-all behavior.
+describe("marketplace publishSkill — reserved-domain gate flag", () => {
+  const originalFetch = globalThis.fetch;
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    globalThis.fetch = emergentDbMock(store);
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("default ON: non-admin publish of a reserved domain (stripe.com) is refused 403", async () => {
+    const env = makeEnv({ REQUIRE_DOMAIN_VERIFICATION: "0" }); // isolate the reserved gate
+    const res = await app.fetch(new Request("http://local.test/v1/skills", {
+      method: "POST",
+      headers: { Authorization: "Bearer alpha123456", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
+      body: JSON.stringify(publishPayload("stripe.com")),
+    }), env);
+    expect(res.status).toBe(403);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("publish_forbidden_reserved_domain");
+  });
+
+  it("RESERVED_DOMAIN_GATE=0 + verification off: a reserved domain publishes (the prod open-publish config)", async () => {
+    const env = makeEnv({ REQUIRE_DOMAIN_VERIFICATION: "0", RESERVED_DOMAIN_GATE: "0" } as Partial<Env>);
+    const res = await app.fetch(new Request("http://local.test/v1/skills", {
+      method: "POST",
+      headers: { Authorization: "Bearer alpha123456", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
+      body: JSON.stringify(publishPayload("stripe.com")),
+    }), env);
+    expect(res.status).toBe(201);
+    const skill = await res.json() as SkillManifest;
+    expect(skill.domain).toBe("stripe.com");
   });
 });

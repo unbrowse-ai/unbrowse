@@ -188,7 +188,14 @@ export async function publishSkill(
   // `domain: "stripe.com"` and seed the marketplace with prompt-injection
   // content downstream agents would read. The ownership gate above freezes
   // a squat in place once it lands; this prevents it from landing.
-  if (!isAdminSubmission) {
+  //
+  // Operators may open this gate (publish-for-all, max coverage) by setting
+  // `RESERVED_DOMAIN_GATE=0` (or `false`). Default ON. When open, the takedown
+  // gate above stays the reactive remedy for an abusive squat. Mirrors the
+  // REQUIRE_DOMAIN_VERIFICATION opt-out below.
+  const reservedGateRaw = ((env as { RESERVED_DOMAIN_GATE?: string }).RESERVED_DOMAIN_GATE ?? "").toLowerCase();
+  const reservedGateOff = reservedGateRaw === "0" || reservedGateRaw === "false";
+  if (!reservedGateOff && !isAdminSubmission) {
     const reserved = matchedReservedDomain(env, draft.domain);
     if (reserved) {
       throw new Error(`publish_forbidden_reserved_domain:${reserved}`);

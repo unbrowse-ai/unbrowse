@@ -243,10 +243,15 @@ SPONSOR_GLOBAL_DAILY_USD = "50.0"
 # is a wrangler secret (wrangler secret put PRIVY_APP_SECRET) — never
 # commit. See memory reference_privy_app_creds.
 PRIVY_APP_ID = "cmpalnem701z00cjmncqve4q0"
-# Domain-verification gate — ON by default (contract 73026078). Set to "0" only
-# to opt-out, e.g. for staging back-compat. Even unset, publishSkill defaults
-# to enforce; this binding makes the default loud and auditable in wrangler.
-REQUIRE_DOMAIN_VERIFICATION = "1"
+# Domain-verification + reserved-domain publish gates — opened in production for
+# maximum route coverage (any agent may publish any domain). The code defaults
+# stay ON (so staging/tests/other deployments keep the gates); these prod bindings
+# open them. The takedown gate (domain-takedown KV) and the first-publisher
+# ownership gate remain as the reactive moderation backstop. Flip either back to
+# "1" / remove to re-enforce. Trade-off accepted by the owner: open publish +
+# reactive takedown instead of upfront verification.
+REQUIRE_DOMAIN_VERIFICATION = "0"
+RESERVED_DOMAIN_GATE = "0"
 # Cheap-model used for the publish-time LLM PII scrubber (contract 101b1f77).
 # See backend/src/services/ai-scrub.ts. NEBIUS_API_KEY (a secret) is the bearer.
 UNBROWSE_AI_SCRUB_MODEL = "moonshotai/Kimi-K2.5"
@@ -327,7 +332,11 @@ PLATFORM_SPONSOR_WALLET_ADDRESS = ""
 SPONSOR_CAP_DAILY_USD = "1.0"
 SPONSOR_GLOBAL_DAILY_USD = "50.0"
 PRIVY_APP_ID = "cmpalnem701z00cjmncqve4q0"
-REQUIRE_DOMAIN_VERIFICATION = "1"
+# Publish gates opened for max coverage (any agent may publish any domain).
+# Takedown + first-publisher ownership remain as reactive moderation. Flip back
+# to "1" / remove to re-enforce verification + reserved-domain gating.
+REQUIRE_DOMAIN_VERIFICATION = "0"
+RESERVED_DOMAIN_GATE = "0"
 UNBROWSE_AI_SCRUB_MODEL = "moonshotai/Kimi-K2.5"
 # Covenant peer-federation (OFF by default; see header block above). Uncomment
 # to mirror /v1/covenant receipts to a running covenant-server in prod.
