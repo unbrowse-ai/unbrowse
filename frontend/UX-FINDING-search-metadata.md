@@ -79,6 +79,28 @@ carry a `skill_id` (or `domain`/`intent`) that `search-results.tsx` can render a
    only metadata-less results, trigger a background reindex of `global` so the BM25
    index self-heals rather than staying cold.
 
+## Frontend mitigation shipped (2026-06-04) — front door no longer renders garbage
+
+The backend index fix above remains the real root cause. Independently, the front-door
+**render** is now fixed and verified on the CF preview, without any backend deploy. NOTE:
+the live route is `src/app/search/page.tsx` (a server component), **not**
+`search-results.tsx` — which was dead code and has been removed (it misled this finding's
+original file pointer).
+
+1. `isIdentifiable()` drops the bare `{id, score, metadata:{}}` rows (the `{}`-is-truthy
+   bug let them render as "Untitled"). No opaque rows ever reach the grid.
+2. Catalog source switched from `/v1/skills` (401 anon → empty) to the anonymous
+   `/v1/skills/popular`, so the page has skills to match and to show.
+3. Local matching is token-based (was full-phrase), so "open library" matches
+   `openlibrary.org` and single-domain queries return real result cards.
+4. Catalog misses show an honest "Not in the catalog yet" state that routes the intent to
+   Aiko (live) and lists the most-used skills — never empty, never garbage.
+
+Verified (puppeteer, live preview): "stackoverflow"/"linkedin"/"open library" → 1 real
+result card each; "book a restaurant" → Aiko-routed fallback + 6 real cards; zero
+"Untitled" on any query. Multi-word NL intents not in the popular catalog still fall to
+the Aiko route until the global index (above) is restored.
+
 ## Status
 
 `[diagnosed]` — root-caused to the empty global BM25 index, confirmed against the
