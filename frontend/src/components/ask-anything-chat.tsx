@@ -15,13 +15,13 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
+import { AIKO_MODELS, AIKO_METHOD_SYSTEM_PROMPT, defaultAikoModel, resolveAikoModel } from "@/lib/aiko-method";
 
 const O = "#FF7A20";
 const O_DIM = "rgba(255,122,32,0.40)";
 const O_HI = "#FFB060";
 const G = "#4ADE80";
 
-const ENDPOINT = "https://chat.unbrowse.ai";
 const PUBLIC_LABEL = "chat.unbrowse.ai";
 
 const STARTERS = [
@@ -47,6 +47,7 @@ export function AskAnythingChat() {
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [billingMode, setBillingMode] = useState<"free" | "paid" | null>(null);
+  const [modelId, setModelId] = useState<string>(defaultAikoModel().id);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -77,11 +78,17 @@ export function AskAnythingChat() {
 
     const started = performance.now();
     try {
-      const messages = next.map((t) => ({ role: t.role, content: t.content }));
-      const res = await fetch(`${ENDPOINT}/v1/chat/completions`, {
+      // Aiko's method is baked in as the system message for every model; the
+      // toggle routes local tiers to the Mac's Ollama, cloud to the unbrowse endpoint.
+      const model = resolveAikoModel(modelId);
+      const messages = [
+        { role: "system", content: AIKO_METHOD_SYSTEM_PROMPT },
+        ...next.map((t) => ({ role: t.role, content: t.content })),
+      ];
+      const res = await fetch(`${model.endpoint}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages, max_tokens: 1500 }),
+        body: JSON.stringify({ model: model.model, messages, max_tokens: 1500 }),
       });
       const elapsed = Math.round(performance.now() - started);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,13 +169,20 @@ export function AskAnythingChat() {
             ask anything — live model
           </span>
         </div>
-        <span
-          className="text-[10px] font-mono truncate hidden sm:block"
-          style={{ color: O_DIM }}
-          title={`${ENDPOINT}/v1/chat/completions`}
+        <select
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value)}
+          aria-label="Model"
+          className="text-[10px] font-mono bg-transparent outline-none cursor-pointer"
+          style={{ color: O_DIM, border: `1px solid ${O_DIM}`, borderRadius: 3, padding: "2px 6px" }}
+          title="Model — local runs free on your Mac; cloud is the largest"
         >
-          {PUBLIC_LABEL}
-        </span>
+          {AIKO_MODELS.map((m) => (
+            <option key={m.id} value={m.id} style={{ background: "#0b0805", color: O_HI }}>
+              {m.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Stream area — answers appear here, scrolls up as conversation grows */}
