@@ -62,12 +62,16 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
         </div>
       </div>
 
-      {/* Intent */}
-      <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2 flex-grow">
-        {skill.intent_signature && !skill.intent_signature.startsWith("API skill for")
-          ? skill.intent_signature
-          : "Captured routes you replay as a direct API — no browser, no scraping."}
-      </p>
+      {/* Intent — only when it's a REAL per-skill signature, not the generic
+          "API skill for <domain>" placeholder repeated on every card. Spacer keeps
+          equal card heights. */}
+      {skill.intent_signature && !skill.intent_signature.startsWith("API skill for") ? (
+        <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2 flex-grow">
+          {skill.intent_signature}
+        </p>
+      ) : (
+        <div className="mb-5 flex-grow" aria-hidden />
+      )}
 
       {/* Endpoints */}
       <div className="flex flex-wrap gap-1.5 mb-5">

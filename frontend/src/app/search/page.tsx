@@ -151,7 +151,7 @@ export default async function SearchPage({
           Find any skill.
         </h1>
           <p className="text-text-secondary text-lg animate-fade-up stagger-2 max-w-2xl mx-auto leading-relaxed">
-            Search millions of mapped endpoints by natural language intent.
+            Search mapped website endpoints by natural language intent.
           </p>
       </div>
 
