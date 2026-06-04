@@ -38,7 +38,7 @@
     "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts",
-    "build:runtime": "bun build ../../src/cli.ts --target=bun --outdir runtime"
+    "build:runtime": "bash ../../scripts/build-runtime-scrubbed.sh packages/skill/runtime"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

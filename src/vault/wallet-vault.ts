@@ -14,7 +14,7 @@
  *     gap (the binary holds only sealed blobs, never plaintext secrets).
  *
  * "Any key value ZK'ed to their wallet only for them to use." This is the
- * secular commitment+AEAD layer the whitepaper's commitment-bound proof later
+ * secular commitment+AEAD layer the whitepaper's commitmentBound proof later
  * strengthens; it needs no ZK to be correct. Reverse-engineering the client
  * yields nothing because the client keeps nothing openable.
  */
