@@ -1,0 +1,91 @@
+{
+  "intent": "get guild channels",
+  "params": {
+    "url": "https://www.discord.com"
+  },
+  "context": {
+    "url": "https://www.discord.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "68f2rapHDG2aBXcrr02hl",
+      "score": 358.2,
+      "description": "Captured page artifact for get guild channels",
+      "url": "https://www.discord.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "1ZXNp8X2bSWu5TNb7TD5H",
+      "score": 108.5,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://www.discord.com/api/downloads/distributions/app/installers/latest?channel={channel}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "uSHRyhAuzXi5ljywABc4C",
+      "score": 91,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://www.discord.com/api/download",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "68f2rapHDG2aBXcrr02hl",
+      "score": 398.2,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "uSHRyhAuzXi5ljywABc4C",
+      "score": 151,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 0,
+      "error": "HTTP 0"
+    },
+    {
+      "endpoint_id": "1ZXNp8X2bSWu5TNb7TD5H",
+      "score": 103.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 0,
+      "error": "HTTP 0"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "bESxwc8qxl37Et02NBZjZ",
+  "available_endpoints": [
+    {
+      "endpoint_id": "68f2rapHDG2aBXcrr02hl",
+      "score": 358.2,
+      "description": "Captured page artifact for get guild channels",
+      "url": "https://www.discord.com"
+    },
+    {
+      "endpoint_id": "1ZXNp8X2bSWu5TNb7TD5H",
+      "score": 108.5,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://www.discord.com/api/downloads/distributions/app/installers/latest?channel={channel}"
+    },
+    {
+      "endpoint_id": "nJfo_l6ekPIgeFLs9TaKv",
+      "score": 96,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://www.discord.com/api/embed/error-page"
+    },
+    {
+      "endpoint_id": "uSHRyhAuzXi5ljywABc4C",
+      "score": 91,
+      "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+      "url": "https://www.discord.com/api/download"
+    }
+  ],
+  "extra": {
+    "auth_recommended": true,
+    "auth_hint": "No data endpoints found — www.discord.com likely requires authentication. Store browser cookies for this domain via the auth endpoints, then retry this capture."
+  }
+}

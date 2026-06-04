@@ -1,0 +1,10 @@
+{
+  "trace_id": "BSywOLnol6Rzkkyb62lQX",
+  "skill_id": "LfCiJn1yaFZUKrsgYSeqm",
+  "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+  "started_at": "2026-03-08T01:48:10.936Z",
+  "completed_at": "2026-03-08T01:48:10.936Z",
+  "success": false,
+  "error": "confirmation_required",
+  "trace_version": "616f5f215069@3f6f10b"
+}

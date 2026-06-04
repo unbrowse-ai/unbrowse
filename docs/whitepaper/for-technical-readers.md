@@ -25,7 +25,7 @@ The practical performance pitch is:
 The closest alternatives are:
 
 - Playwright / Puppeteer-style browser automation
-- custom one-off API reverse engineering
+- custom one-off API route discovery
 - teams building and maintaining their own private route cache
 
 The useful category label is "execution infrastructure for agent access to the web."

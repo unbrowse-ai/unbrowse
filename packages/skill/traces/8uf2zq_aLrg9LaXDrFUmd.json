@@ -1,0 +1,71 @@
+{
+  "trace_id": "8uf2zq_aLrg9LaXDrFUmd",
+  "skill_id": "hcoy3KBzvpfGLwvRblzeM",
+  "endpoint_id": "whRHBbXlkf7j3hFsj_Kqr",
+  "started_at": "2026-03-08T01:55:14.293Z",
+  "completed_at": "2026-03-08T01:55:20.379Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "full_name": "solutions/application-security-testing",
+        "url": "https://github.com/solutions/application-security-testing",
+        "description": "Build secure products with fewer security products. Consolidate scanners like SAST, SCA, Secret Detection, and DAST into one platform. Security findings appear directly in merge requests and IDEs. Apply controls for compliance and collect audit-ready evidence automatically in every pipeline."
+      },
+      {
+        "full_name": "solutions/finance",
+        "url": "https://github.com/solutions/finance",
+        "description": "Meet strict regulatory requirements without sacrificing delivery speed. Maintain audit trails, access controls, and comprehensive security testing."
+      },
+      {
+        "full_name": "solutions/public-sector",
+        "url": "https://github.com/solutions/public-sector",
+        "description": "Build software that meets federal security standards. Deploy in air-gapped environments, maintain government compliance, and secure software by design."
+      },
+      {
+        "full_name": "solutions/telecommunications",
+        "url": "https://github.com/solutions/telecommunications",
+        "description": "Scale network infrastructure with confidence. Support complex deployment pipelines, strict uptime requirements, and distributed edge environments."
+      },
+      {
+        "full_name": "solutions/automotive",
+        "url": "https://github.com/solutions/automotive",
+        "description": "Accelerate the automotive software lifecycle. Automate compliance workflows for safety standards, speed embedded development, and coordinate global teams."
+      },
+      {
+        "full_name": "solutions/education",
+        "url": "https://github.com/solutions/education",
+        "description": "Empower students and researchers while protecting institutional data. Choose from flexible deployment options and enable research collaboration."
+      },
+      {
+        "full_name": "solutions/aerospace",
+        "url": "https://github.com/solutions/aerospace",
+        "description": "Accelerate development from flight-critical firmware to customer applications. Maintain safety standards, track SBOMs, and deploy in airgap environments."
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://about.gitlab.com/"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].full_name",
+      "data[].url",
+      "data[].description",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

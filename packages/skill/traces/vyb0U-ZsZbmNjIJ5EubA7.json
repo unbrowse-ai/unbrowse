@@ -1,0 +1,19 @@
+{
+  "trace_id": "vyb0U-ZsZbmNjIJ5EubA7",
+  "skill_id": "4xAYUYAHf8pZIM8SNYvFh",
+  "endpoint_id": "6ueKVGWYBwGVP3R2BifGM",
+  "started_at": "2026-03-08T21:14:24.769Z",
+  "completed_at": "2026-03-08T21:14:25.094Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "request": {
+      "params": {
+        "account_id": "18ce55s5sqj"
+      }
+    },
+    "next_cursor": null,
+    "data": []
+  }
+}

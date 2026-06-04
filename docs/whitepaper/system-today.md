@@ -28,7 +28,7 @@ The whitepaper describes a three-path execution model. The codebase has a practi
 - Marketplace reuse
   Unbrowse searches the shared marketplace and ranks candidate skills by composite score.
 - Live capture fallback
-  If no viable skill exists, Unbrowse launches the browser runtime, captures traffic, reverse-engineers endpoints, and executes from the learned path.
+  If no viable skill exists, Unbrowse launches the browser runtime, captures traffic, maps the internal API endpoints into a reusable route, and executes from the learned path.
 
 There is also a DOM fallback for pages where API-style replay is not viable.
 

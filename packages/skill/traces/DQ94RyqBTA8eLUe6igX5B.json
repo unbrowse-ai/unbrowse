@@ -1,0 +1,11 @@
+{
+  "trace_id": "DQ94RyqBTA8eLUe6igX5B",
+  "skill_id": "oRJ2Uan2IwhtFrQvTvpez",
+  "endpoint_id": "KZRbPeAOvsIM2wcW7BKVs",
+  "started_at": "2026-03-12T01:40:38.290Z",
+  "completed_at": "2026-03-12T01:40:55.360Z",
+  "success": false,
+  "status_code": 400,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "error": "HTTP 400"
+}

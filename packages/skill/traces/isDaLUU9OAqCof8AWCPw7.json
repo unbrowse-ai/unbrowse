@@ -1,0 +1,13 @@
+{
+  "trace_id": "isDaLUU9OAqCof8AWCPw7",
+  "skill_id": "lc1MGHaP23TraezFMC45S",
+  "endpoint_id": "browser-capture",
+  "started_at": "2026-03-13T07:16:51.272Z",
+  "completed_at": "2026-03-13T07:17:12.538Z",
+  "success": true,
+  "result": {
+    "learned_skill_id": "lc1MGHaP23TraezFMC45S",
+    "endpoints_discovered": 1
+  },
+  "trace_version": "45be650230dd@4fa31a3"
+}

@@ -1,0 +1,266 @@
+{
+  "trace_id": "zGeEDVmzbR1WsxJzD6ZcB",
+  "skill_id": "9DjyjibrfBTKrPihFvmqA",
+  "endpoint_id": "yfkoBJtSL9MQen1AGakQ2",
+  "started_at": "2026-03-12T01:27:08.316Z",
+  "completed_at": "2026-03-12T01:27:11.391Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_011280",
+          "subject": "Re: Financials: buy XLF call spreads",
+          "latest_sender_name": "Ens, Amanda",
+          "formatted_date": "Dec 9, 2016",
+          "preview": "lets try, 250k premium",
+          "avatar_color": "#db4437",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 19,
+          "unredactCount": 7
+        },
+        "matchedEmail": {
+          "id": "23",
+          "sender": "jeffrey E. <jeevacation@gmail.com>",
+          "content_markdown": "lets try, 250k premium"
+        },
+        "field": "sender",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_011904",
+          "subject": "(no subject)",
+          "latest_sender_name": "Lawrence Krauss",
+          "formatted_date": "Apr 5, 2018",
+          "preview": "> Original message\n> From: Tina Brown\n\nThe Women in the World Summit opens April 12 and runs through",
+          "avatar_color": "#db4437",
+          "count": 3,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 228,
+          "unredactCount": 29
+        },
+        "matchedEmail": {
+          "id": "8",
+          "sender": "jeffrey E. <jeevacation@gmail.com>",
+          "content_markdown": "> Original message\n> From: Tina Brown\n\nThe Women in the World Summit opens April 12 and runs through April 14 with a power packed agenda of remarkable female newsmakers sharing their stories of male misbehaviors.\n\nConfidential agenda enclosed here.\n\nFull list of participants below.\n\n- Afrah Nasser\n- Alyse Nelson\n- Ambra Gutierrez\n- Andrea Mitchell\n- Asia Argento\n- Astrid Cantor\n- Athena Jones\n- Barbara Lynch\n- Bianna Golodryga\n- Bushra Aldukhainah\n- Carmen Rita Wong\n- Carrie Gracie\n- First Lady "
+        },
+        "field": "sender",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_012037",
+          "subject": "Re: Press: AmLaw Litigation Daily on Emirates Bank win",
+          "latest_sender_name": "jeffrey E.",
+          "formatted_date": "Aug 15, 2016",
+          "preview": "Did you write this?☺\n\n---\nplease note\nThe information contained in this communication is\nconfidentia",
+          "avatar_color": "#db4437",
+          "count": 6,
+          "attachments": 0,
+          "latest_is_from_epstein": true,
+          "isRedacted": true,
+          "starCount": 24,
+          "unredactCount": 3
+        },
+        "matchedEmail": {
+          "id": "9",
+          "sender": "jeffrey E. <jeevacation@gmail.com>",
+          "content_markdown": "Did you write this?☺\n\n---\nplease note\nThe information contained in this communication is\nconfidential, may be attorney-client privileged, may\nconstitute inside information, and is intended only for\nthe use of the addressee. It is the property of\nJEE\nUnauthorized use, disclosure or copying of this\ncommunication or any part thereof is strictly prohibited\nand may be unlawful. If you have received this\ncommunication in error, please notify us immediately by\nreturn e-mail or by e-mail to jeevacation@"
+        },
+        "field": "sender",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_012044",
+          "subject": "Re: Financials: buy XLF call spreads",
+          "latest_sender_name": "jeffrey E.",
+          "formatted_date": "Dec 9, 2016",
+          "preview": "lets try, 250k premium",
+          "avatar_color": "#db4437",
+          "count": 3,
+          "attachments": 1,
+          "latest_is_from_epstein": true,
+          "isRedacted": true,
+          "starCount": 12,
+          "unredactCount": 3
+        },
+        "matchedEmail": {
+          "id": "17",
+          "sender": "jeffrey E. <jeevacation@gmail.com>",
+          "content_markdown": "lets try, 250k premium"
+        },
+        "field": "sender",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_012685",
+          "subject": "Oscar diary",
+          "latest_sender_name": "Stephanie",
+          "formatted_date": "Mar 4, 2011",
+          "preview": "Send to jeffrey",
+          "avatar_color": "#db4437",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 125,
+          "unredactCount": 62
+        },
+        "matchedEmail": {
+          "id": "38",
+          "sender": "Peggy Siegal <███>",
+          "content_markdown": "Send to jeffrey"
+        },
+        "field": "content_markdown",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_015002",
+          "subject": "The new iterations of Ghislaine Maxwell",
+          "latest_sender_name": "Weingarten, Reid",
+          "formatted_date": "Jul 4, 2017",
+          "preview": "Do you remember when I'd asked you what your daughters did for a living? Especially last night Mr. B",
+          "avatar_color": "#db4437",
+          "count": 3,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 162,
+          "unredactCount": 21
+        },
+        "matchedEmail": {
+          "id": "66",
+          "sender": "█",
+          "content_markdown": "Do you remember when I'd asked you what your daughters did for a living? Especially last night Mr. Beckler, as most Friday nights, no?\n\nYes, they are the new iterations of Ghislaine Maxwell; for you Richard Beckler, this originated from my being a former Stone Ridge classmate of his elder daughter Katie Beckler, and because he was on the Board of Stone Ridge during this period in time when my every family, friend, acquaintance and association was being contacted, bribed in one form or another, a"
+        },
+        "field": "content_markdown",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_015015",
+          "subject": "The new iterations of Ghislaine Maxwell",
+          "latest_sender_name": "Weingarten, Reid",
+          "formatted_date": "Jul 4, 2017",
+          "preview": "Do you remember when I'd asked you what your daughters did for a living? Especially last night Mr. B",
+          "avatar_color": "#db4437",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 142,
+          "unredactCount": 23
+        },
+        "matchedEmail": {
+          "id": "67",
+          "sender": "█",
+          "content_markdown": "Do you remember when I'd asked you what your daughters did for a living? Especially last night Mr. Beckler, as most Friday nights, no?\n\nYes, they are the new iterations of Ghislaine Maxwell; for you Richard Beckler, this originated from my being a former Stone Ridge classmate of his elder daughter Katie Beckler, and because he was on the Board of Stone Ridge during this period in time when my every family, friend, acquaintance and association was being contacted, bribed in one form or another, a"
+        },
+        "field": "content_markdown",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_017523",
+          "subject": "Fwd: Program & Attendee list",
+          "latest_sender_name": "Barbro C Ehnbom",
+          "formatted_date": "Aug 18, 2012",
+          "preview": "Dear Jeffrey,\n\nI am sorry I did not call back Yesterday-I was exhausted from a crazy week and fell a",
+          "avatar_color": "#db4437",
+          "count": 2,
+          "attachments": 1,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 11,
+          "unredactCount": 3
+        },
+        "matchedEmail": {
+          "id": "73",
+          "sender": "Barbro C Ehnbom <███████████>",
+          "content_markdown": "Dear Jeffrey,\n\nI am sorry I did not call back Yesterday-I was exhausted from a crazy week and fell asleep as soon as I came home! Anyway, here is the full program and attendee list attached, this is the Globalization Summit I invited Bill Clinton to when I met him in Stockholm last Summer- But he is a bit busy I gather!\n\nAnyway, hope Greta Tufvesson got hold of you re search service? Also, I did see your mail about possibly coming here end of September-however, I am supposedly arranging a fund-r"
+        },
+        "field": "content_markdown",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_017581",
+          "subject": "Re: Invite to Dialog 2014 (16 months away)",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Nov 28, 2012",
+          "preview": "So let me understand. You are suggesting tourism?\n\nSent from my Verizon Wireless BlackBerry\n\n---\n\n**",
+          "avatar_color": "#db4437",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": true,
+          "isRedacted": true,
+          "starCount": 115,
+          "unredactCount": 22
+        },
+        "matchedEmail": {
+          "id": "109",
+          "sender": "Jeffrey Epstein <jeevacation@gmail.com>",
+          "content_markdown": "So let me understand. You are suggesting tourism?\n\nSent from my Verizon Wireless BlackBerry\n\n---\n\n******************************************************************\n\nThe information contained in this communication is\nconfidential, may be attorney-client privileged, may\nconstitute inside information, and is intended only for\nthe use of the addressee. It is the property of\nJeffrey Epstein\nUnauthorized use, disclosure or copying of this\ncommunication or any part thereof is strictly prohibited\nand m"
+        },
+        "field": "sender",
+        "rank": null
+      },
+      {
+        "thread": {
+          "doc_id": "HOUSE_OVERSIGHT_017590",
+          "subject": "Re: Fw: The new iterations of Ghislaine Maxwell",
+          "latest_sender_name": "Weingarten, Reid",
+          "formatted_date": "Jul 4, 2017",
+          "preview": "--\nplease note\nThe information contained in this communication is\nconfidential, may be attorney-clie",
+          "avatar_color": "#db4437",
+          "count": 4,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 200,
+          "unredactCount": 32
+        },
+        "matchedEmail": {
+          "id": "122",
+          "sender": "jeffrey E. <jeevacation@gmail.com>",
+          "content_markdown": "--\nplease note\nThe information contained in this communication is\nconfidential, may be attorney-client privileged, may\nconstitute inside information, and is intended only for\nthe use of the addressee. It is the property of\nJEE\nUnauthorized use, disclosure or copying of this\ncommunication or any part thereof is strictly prohibited\nand may be unlawful. If you have received this\ncommunication in error, please notify us immediately by\nreturn e-mail or by e-mail to jeevacation@gmail.com, and\ndestroy "
+        },
+        "field": "sender",
+        "rank": null
+      }
+    ],
+    "total": 1578,
+    "page": 1,
+    "totalPages": 158,
+    "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjAsImRvY19pZCI6IkhPVVNFX09WRVJTSUdIVF8wMTc1OTAifQ",
+    "operators": []
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [],
+    "type_changes": [
+      {
+        "path": "results[].matchedEmail.sender",
+        "was": "null",
+        "now": "string"
+      },
+      {
+        "path": "results[].rank",
+        "was": "number",
+        "now": "null"
+      }
+    ]
+  }
+}

@@ -1,0 +1,461 @@
+{
+  "trace_id": "vfrkwBjjkv79aNPwfsc2k",
+  "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+  "endpoint_id": "_gRzWrhAxjsIvheZK4Ean",
+  "started_at": "2026-03-14T16:18:49.609Z",
+  "completed_at": "2026-03-14T16:18:51.788Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "2ad284fd8984@3742efe",
+  "result": {
+    "data": [
+      {
+        "title": "arXiv:2603.12266\n         [pdf, ps, other]",
+        "heading_1": "MM-CondChain: A Programmatically Verified Benchmark for Visually Grounded Deep Compositional Reasoning",
+        "message": "MM-CondChain: A Programmatically Verified Benchmark for Visually Grounded Deep Compositional Reasoning",
+        "link": "https://arxiv.org/abs/2603.12266",
+        "url": "https://arxiv.org/abs/2603.12266",
+        "description": "arXiv:2603.12266\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12265\n         [pdf, ps, other]",
+        "heading_1": "OmniStream: Mastering Perception, Reconstruction and Action in Continuous Streams",
+        "message": "OmniStream: Mastering Perception, Reconstruction and Action in Continuous Streams",
+        "link": "https://arxiv.org/abs/2603.12265",
+        "url": "https://arxiv.org/abs/2603.12265",
+        "description": "arXiv:2603.12265\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12238\n         [pdf, ps, other]",
+        "heading_1": "SceneAssistant: A Visual Feedback Agent for Open-Vocabulary 3D Scene Generation",
+        "message": "SceneAssistant: A Visual Feedback Agent for Open-Vocabulary 3D Scene Generation",
+        "link": "https://arxiv.org/abs/2603.12238",
+        "url": "https://arxiv.org/abs/2603.12238",
+        "description": "arXiv:2603.12238\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Jun Luo, \n      \n      Jiaxiang Tang, \n      \n      Ruijie Lu, \n      \n      Gang Zeng"
+      },
+      {
+        "title": "arXiv:2603.12230\n         [pdf, ps, other]",
+        "heading_1": "Security Considerations for Artificial Intelligence Agents",
+        "message": "Security Considerations for Artificial Intelligence Agents",
+        "link": "https://arxiv.org/abs/2603.12230",
+        "url": "https://arxiv.org/abs/2603.12230",
+        "description": "arXiv:2603.12230\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Ninghui Li, \n      \n      Kaiyuan Zhang, \n      \n      Kyle Polley, \n      \n      Jerry Ma"
+      },
+      {
+        "title": "arXiv:2603.12229\n         [pdf, ps, other]",
+        "heading_1": "Language Model Teams as Distributed Systems",
+        "message": "Language Model Teams as Distributed Systems",
+        "link": "https://arxiv.org/abs/2603.12229",
+        "url": "https://arxiv.org/abs/2603.12229",
+        "description": "arXiv:2603.12229\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12201\n         [pdf, ps, other]",
+        "heading_1": "IndexCache: Accelerating Sparse Attention via Cross-Layer Index Reuse",
+        "message": "IndexCache: Accelerating Sparse Attention via Cross-Layer Index Reuse",
+        "link": "https://arxiv.org/abs/2603.12201",
+        "url": "https://arxiv.org/abs/2603.12201",
+        "description": "arXiv:2603.12201\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12180\n         [pdf, ps, other]",
+        "heading_1": "Strategic Navigation or Stochastic Search? How Agents and Humans Reason Over Document Collections",
+        "message": "Strategic Navigation or Stochastic Search? How Agents and Humans Reason Over Document Collections",
+        "link": "https://arxiv.org/abs/2603.12180",
+        "url": "https://arxiv.org/abs/2603.12180",
+        "description": "arXiv:2603.12180\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12155\n         [pdf, ps, other]",
+        "heading_1": "GlyphBanana: Advancing Precise Text Rendering Through Agentic Workflows",
+        "message": "GlyphBanana: Advancing Precise Text Rendering Through Agentic Workflows",
+        "link": "https://arxiv.org/abs/2603.12155",
+        "url": "https://arxiv.org/abs/2603.12155",
+        "description": "arXiv:2603.12155\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12145\n         [pdf, ps, other]",
+        "heading_1": "Automatic Generation of High-Performance RL Environments",
+        "message": "Automatic Generation of High-Performance RL Environments",
+        "link": "https://arxiv.org/abs/2603.12145",
+        "url": "https://arxiv.org/abs/2603.12145",
+        "description": "arXiv:2603.12145\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Seth Karten, \n      \n      Rahul Dev Appapogu, \n      \n      Chi Jin"
+      },
+      {
+        "title": "arXiv:2603.12144\n         [pdf, ps, other]",
+        "heading_1": "O3N: Omnidirectional Open-Vocabulary Occupancy Prediction",
+        "message": "O3N: Omnidirectional Open-Vocabulary Occupancy Prediction",
+        "link": "https://arxiv.org/abs/2603.12144",
+        "url": "https://arxiv.org/abs/2603.12144",
+        "description": "arXiv:2603.12144\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12140\n         [pdf, ps, other]",
+        "heading_1": "Forecasting and Manipulating the Forecasts of Others",
+        "message": "Forecasting and Manipulating the Forecasts of Others",
+        "link": "https://arxiv.org/abs/2603.12140",
+        "url": "https://arxiv.org/abs/2603.12140",
+        "description": "arXiv:2603.12140\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Sam Babichenko"
+      },
+      {
+        "title": "arXiv:2603.12138\n         [pdf, ps, other]",
+        "heading_1": "HATS: Hardness-Aware Trajectory Synthesis for GUI Agents",
+        "message": "HATS: Hardness-Aware Trajectory Synthesis for GUI Agents",
+        "link": "https://arxiv.org/abs/2603.12138",
+        "url": "https://arxiv.org/abs/2603.12138",
+        "description": "arXiv:2603.12138\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12129\n         [pdf, ps, other]",
+        "heading_1": "Increasing intelligence in AI agents can worsen collective outcomes",
+        "message": "Increasing intelligence in AI agents can worsen collective outcomes",
+        "link": "https://arxiv.org/abs/2603.12129",
+        "url": "https://arxiv.org/abs/2603.12129",
+        "description": "arXiv:2603.12129\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Neil F. Johnson"
+      },
+      {
+        "title": "arXiv:2603.12110\n         [pdf, ps, other]",
+        "heading_1": "Taming the Adversary: Stable Minimax Deep Deterministic Policy Gradient via Fractional Objectives",
+        "message": "Taming the Adversary: Stable Minimax Deep Deterministic Policy Gradient via Fractional Objectives",
+        "link": "https://arxiv.org/abs/2603.12110",
+        "url": "https://arxiv.org/abs/2603.12110",
+        "description": "arXiv:2603.12110\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Taeho Lee, \n      \n      Donghwan Lee"
+      },
+      {
+        "title": "arXiv:2603.12109\n         [pdf, ps, other]",
+        "heading_1": "On Information Self-Locking in Reinforcement Learning for Active Reasoning of LLM agents",
+        "message": "On Information Self-Locking in Reinforcement Learning for Active Reasoning of LLM agents",
+        "link": "https://arxiv.org/abs/2603.12109",
+        "url": "https://arxiv.org/abs/2603.12109",
+        "description": "arXiv:2603.12109\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12096\n         [pdf, ps, other]",
+        "heading_1": "A Robust and Efficient Multi-Agent Reinforcement Learning Framework for Traffic Signal Control",
+        "message": "A Robust and Efficient Multi-Agent Reinforcement Learning Framework for Traffic Signal Control",
+        "link": "https://arxiv.org/abs/2603.12096",
+        "url": "https://arxiv.org/abs/2603.12096",
+        "description": "arXiv:2603.12096\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12056\n         [pdf, ps, other]",
+        "heading_1": "XSkill: Continual Learning from Experience and Skills in Multimodal Agents",
+        "message": "XSkill: Continual Learning from Experience and Skills in Multimodal Agents",
+        "link": "https://arxiv.org/abs/2603.12056",
+        "url": "https://arxiv.org/abs/2603.12056",
+        "description": "arXiv:2603.12056\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12041\n         [pdf, ps, other]",
+        "heading_1": "Kinetic SIS opinion-driven models with asymmetric awareness feedback: macroscopic limit and polarization",
+        "message": "Kinetic SIS opinion-driven models with asymmetric awareness feedback: macroscopic limit and polarization",
+        "link": "https://arxiv.org/abs/2603.12041",
+        "url": "https://arxiv.org/abs/2603.12041",
+        "description": "arXiv:2603.12041\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12038\n         [pdf, ps, other]",
+        "heading_1": "Slow-Fast Inference: Training-Free Inference Acceleration via Within-Sentence Support Stability",
+        "message": "Slow-Fast Inference: Training-Free Inference Acceleration via Within-Sentence Support Stability",
+        "link": "https://arxiv.org/abs/2603.12038",
+        "url": "https://arxiv.org/abs/2603.12038",
+        "description": "arXiv:2603.12038\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12031\n         [pdf, ps, other]",
+        "heading_1": "AGMARL-DKS: An Adaptive Graph-Enhanced Multi-Agent Reinforcement Learning for Dynamic Kubernetes Scheduling",
+        "message": "AGMARL-DKS: An Adaptive Graph-Enhanced Multi-Agent Reinforcement Learning for Dynamic Kubernetes Scheduling",
+        "link": "https://arxiv.org/abs/2603.12031",
+        "url": "https://arxiv.org/abs/2603.12031",
+        "description": "arXiv:2603.12031\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Hamed Hamzeh"
+      },
+      {
+        "title": "arXiv:2603.12023\n         [pdf, ps, other]",
+        "heading_1": "Cascade: Composing Software-Hardware Attack Gadgets for Adversarial Threat Amplification in Compound AI Systems",
+        "message": "Cascade: Composing Software-Hardware Attack Gadgets for Adversarial Threat Amplification in Compound AI Systems",
+        "link": "https://arxiv.org/abs/2603.12023",
+        "url": "https://arxiv.org/abs/2603.12023",
+        "description": "arXiv:2603.12023\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12020\n         [pdf, ps, other]",
+        "heading_1": "Sim-to-reality adaptation for Deep Reinforcement Learning applied to an underwater docking application",
+        "message": "Sim-to-reality adaptation for Deep Reinforcement Learning applied to an underwater docking application",
+        "link": "https://arxiv.org/abs/2603.12020",
+        "url": "https://arxiv.org/abs/2603.12020",
+        "description": "arXiv:2603.12020\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Alaaeddine Chaarani, \n      \n      Narcis Palomeras, \n      \n      Pere Ridao"
+      },
+      {
+        "title": "arXiv:2603.12011\n         [pdf, ps, other]",
+        "heading_1": "Can RL Improve Generalization of LLM Agents? An Empirical Study",
+        "message": "Can RL Improve Generalization of LLM Agents? An Empirical Study",
+        "link": "https://arxiv.org/abs/2603.12011",
+        "url": "https://arxiv.org/abs/2603.12011",
+        "description": "arXiv:2603.12011\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.12002\n         [pdf, ps, other]",
+        "heading_1": "Redirecting counter-moving swarms through collision",
+        "message": "Redirecting counter-moving swarms through collision",
+        "link": "https://arxiv.org/abs/2603.12002",
+        "url": "https://arxiv.org/abs/2603.12002",
+        "description": "arXiv:2603.12002\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11987\n         [pdf, ps, other]",
+        "heading_1": "LABSHIELD: A Multimodal Benchmark for Safety-Critical Reasoning and Planning in Scientific Laboratories",
+        "message": "LABSHIELD: A Multimodal Benchmark for Safety-Critical Reasoning and Planning in Scientific Laboratories",
+        "link": "https://arxiv.org/abs/2603.11987",
+        "url": "https://arxiv.org/abs/2603.11987",
+        "description": "arXiv:2603.11987\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11980\n         [pdf, ps, other]",
+        "heading_1": "Learning Visuomotor Policy for Multi-Robot Laser Tag Game",
+        "message": "Learning Visuomotor Policy for Multi-Robot Laser Tag Game",
+        "link": "https://arxiv.org/abs/2603.11980",
+        "url": "https://arxiv.org/abs/2603.11980",
+        "description": "arXiv:2603.11980\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Kai Li, \n      \n      Shiyu Zhao"
+      },
+      {
+        "title": "arXiv:2603.11975\n         [pdf, ps, other]",
+        "heading_1": "HomeSafe-Bench: Evaluating Vision-Language Models on Unsafe Action Detection for Embodied Agents in Household Scenarios",
+        "message": "HomeSafe-Bench: Evaluating Vision-Language Models on Unsafe Action Detection for Embodied Agents in Household Scenarios",
+        "link": "https://arxiv.org/abs/2603.11975",
+        "url": "https://arxiv.org/abs/2603.11975",
+        "description": "arXiv:2603.11975\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11974\n         [pdf, ps, other]",
+        "heading_1": "Normative Common Ground Replication (NormCoRe): Replication-by-Translation for Studying Norms in Multi-agent AI",
+        "message": "Normative Common Ground Replication (NormCoRe): Replication-by-Translation for Studying Norms in Multi-agent AI",
+        "link": "https://arxiv.org/abs/2603.11974",
+        "url": "https://arxiv.org/abs/2603.11974",
+        "description": "arXiv:2603.11974\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11958\n         [pdf, ps, other]",
+        "heading_1": "Broadcasting Agents and Adversary: A new variation on Cops and Robbers",
+        "message": "Broadcasting Agents and Adversary: A new variation on Cops and Robbers",
+        "link": "https://arxiv.org/abs/2603.11958",
+        "url": "https://arxiv.org/abs/2603.11958",
+        "description": "arXiv:2603.11958\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      William K. Moses Jr., \n      \n      Amanda Redlich, \n      \n      Frederick Stock"
+      },
+      {
+        "title": "arXiv:2603.11955\n         [pdf, ps, other]",
+        "heading_1": "PersonaTrace: Synthesizing Realistic Digital Footprints with LLM Agents",
+        "message": "PersonaTrace: Synthesizing Realistic Digital Footprints with LLM Agents",
+        "link": "https://arxiv.org/abs/2603.11955",
+        "url": "https://arxiv.org/abs/2603.11955",
+        "description": "arXiv:2603.11955\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11948\n         [pdf, ps, other]",
+        "heading_1": "Kraken*: Architecting Generative, Semantic, and Goal-Oriented Network Management for 6G Wireless Systems",
+        "message": "Kraken*: Architecting Generative, Semantic, and Goal-Oriented Network Management for 6G Wireless Systems",
+        "link": "https://arxiv.org/abs/2603.11948",
+        "url": "https://arxiv.org/abs/2603.11948",
+        "description": "arXiv:2603.11948\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Ian F. Akyildiz, \n      \n      Tuğçe Bilen"
+      },
+      {
+        "title": "arXiv:2603.11935\n         [pdf, ps, other]",
+        "heading_1": "MobileKernelBench: Can LLMs Write Efficient Kernels for Mobile Devices?",
+        "message": "MobileKernelBench: Can LLMs Write Efficient Kernels for Mobile Devices?",
+        "link": "https://arxiv.org/abs/2603.11935",
+        "url": "https://arxiv.org/abs/2603.11935",
+        "description": "arXiv:2603.11935\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11927\n         [pdf, ps, other]",
+        "heading_1": "CogSearch: A Cognitive-Aligned Multi-Agent Framework for Proactive Decision Support in E-Commerce Search",
+        "message": "CogSearch: A Cognitive-Aligned Multi-Agent Framework for Proactive Decision Support in E-Commerce Search",
+        "link": "https://arxiv.org/abs/2603.11927",
+        "url": "https://arxiv.org/abs/2603.11927",
+        "description": "arXiv:2603.11927\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11920\n         [pdf, ps, other]",
+        "heading_1": "The Network That Thinks: Kraken* and the Dawn of Cognitive 6G",
+        "message": "The Network That Thinks: Kraken* and the Dawn of Cognitive 6G",
+        "link": "https://arxiv.org/abs/2603.11920",
+        "url": "https://arxiv.org/abs/2603.11920",
+        "description": "arXiv:2603.11920\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Ian F. Akyildiz, \n      \n      Tuğçe Bilen"
+      },
+      {
+        "title": "arXiv:2603.11894\n         [pdf]",
+        "heading_1": "New electric vehicle charging rate design : an MPEC assessment",
+        "message": "New electric vehicle charging rate design : an MPEC assessment",
+        "link": "https://arxiv.org/abs/2603.11894",
+        "url": "https://arxiv.org/abs/2603.11894",
+        "description": "arXiv:2603.11894\n         [pdf]"
+      },
+      {
+        "title": "arXiv:2603.11890\n         [pdf, ps, other]",
+        "heading_1": "QUARE: Multi-Agent Negotiation for Balancing Quality Attributes in Requirements Engineering",
+        "message": "QUARE: Multi-Agent Negotiation for Balancing Quality Attributes in Requirements Engineering",
+        "link": "https://arxiv.org/abs/2603.11890",
+        "url": "https://arxiv.org/abs/2603.11890",
+        "description": "arXiv:2603.11890\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11884\n         [pdf, ps, other]",
+        "heading_1": "The price of decentralization in managing engineering systems through multi-agent reinforcement learning",
+        "message": "The price of decentralization in managing engineering systems through multi-agent reinforcement learning",
+        "link": "https://arxiv.org/abs/2603.11884",
+        "url": "https://arxiv.org/abs/2603.11884",
+        "description": "arXiv:2603.11884\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11872\n         [pdf, ps, other]",
+        "heading_1": "ELISA: An Interpretable Hybrid Generative AI Agent for Expression-Grounded Discovery in Single-Cell Genomics",
+        "message": "ELISA: An Interpretable Hybrid Generative AI Agent for Expression-Grounded Discovery in Single-Cell Genomics",
+        "link": "https://arxiv.org/abs/2603.11872",
+        "url": "https://arxiv.org/abs/2603.11872",
+        "description": "arXiv:2603.11872\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Omar Coser"
+      },
+      {
+        "title": "arXiv:2603.11866\n         [pdf, ps, other]",
+        "heading_1": "Derain-Agent: A Plug-and-Play Agent Framework for Rainy Image Restoration",
+        "message": "Derain-Agent: A Plug-and-Play Agent Framework for Rainy Image Restoration",
+        "link": "https://arxiv.org/abs/2603.11866",
+        "url": "https://arxiv.org/abs/2603.11866",
+        "description": "arXiv:2603.11866\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11864\n         [pdf, ps, other]",
+        "heading_1": "Social, Legal, Ethical, Empathetic and Cultural Norm Operationalisation for AI Agents",
+        "message": "Social, Legal, Ethical, Empathetic and Cultural Norm Operationalisation for AI Agents",
+        "link": "https://arxiv.org/abs/2603.11864",
+        "url": "https://arxiv.org/abs/2603.11864",
+        "description": "arXiv:2603.11864\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11862\n         [pdf, ps, other]",
+        "heading_1": "You Told Me to Do It: Measuring Instructional Text-induced Private Data Leakage in LLM Agents",
+        "message": "You Told Me to Do It: Measuring Instructional Text-induced Private Data Leakage in LLM Agents",
+        "link": "https://arxiv.org/abs/2603.11862",
+        "url": "https://arxiv.org/abs/2603.11862",
+        "description": "arXiv:2603.11862\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11853\n         [pdf, ps, other]",
+        "heading_1": "OpenClaw PRISM: A Zero-Fork, Defense-in-Depth Runtime Security Layer for Tool-Augmented LLM Agents",
+        "message": "OpenClaw PRISM: A Zero-Fork, Defense-in-Depth Runtime Security Layer for Tool-Augmented LLM Agents",
+        "link": "https://arxiv.org/abs/2603.11853",
+        "url": "https://arxiv.org/abs/2603.11853",
+        "description": "arXiv:2603.11853\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Frank Li"
+      },
+      {
+        "title": "arXiv:2603.11834\n         [pdf, ps, other]",
+        "heading_1": "Hybrid Human-Agent Social Dilemmas in Energy Markets",
+        "message": "Hybrid Human-Agent Social Dilemmas in Energy Markets",
+        "link": "https://arxiv.org/abs/2603.11834",
+        "url": "https://arxiv.org/abs/2603.11834",
+        "description": "arXiv:2603.11834\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Isuri Perera, \n      \n      Frits de Nijs, \n      \n      Julian Garcia"
+      },
+      {
+        "title": "arXiv:2603.11828\n         [pdf, ps, other]",
+        "heading_1": "Large language models for optical network O&M: Agent-embedded workflow for automation",
+        "message": "Large language models for optical network O&M: Agent-embedded workflow for automation",
+        "link": "https://arxiv.org/abs/2603.11828",
+        "url": "https://arxiv.org/abs/2603.11828",
+        "description": "arXiv:2603.11828\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11808\n         [pdf, ps, other]",
+        "heading_1": "Automating Skill Acquisition through Large-Scale Mining of Open-Source Agentic Repositories: A Framework for Multi-Agent Procedural Knowledge Extraction",
+        "message": "Automating Skill Acquisition through Large-Scale Mining of Open-Source Agentic Repositories: A Framework for Multi-Agent Procedural Knowledge Extraction",
+        "link": "https://arxiv.org/abs/2603.11808",
+        "url": "https://arxiv.org/abs/2603.11808",
+        "description": "arXiv:2603.11808\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11802\n         [pdf, ps, other]",
+        "heading_1": "A Semi-Decentralized Approach to Multiagent Control",
+        "message": "A Semi-Decentralized Approach to Multiagent Control",
+        "link": "https://arxiv.org/abs/2603.11802",
+        "url": "https://arxiv.org/abs/2603.11802",
+        "description": "arXiv:2603.11802\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Mahdi Al-Husseini, \n      \n      Mykel J. Kochenderfer, \n      \n      Kyle H. Wray"
+      },
+      {
+        "title": "arXiv:2603.11798\n         [pdf, ps, other]",
+        "heading_1": "DocSage: An Information Structuring Agent for Multi-Doc Multi-Entity Question Answering",
+        "message": "DocSage: An Information Structuring Agent for Multi-Doc Multi-Entity Question Answering",
+        "link": "https://arxiv.org/abs/2603.11798",
+        "url": "https://arxiv.org/abs/2603.11798",
+        "description": "arXiv:2603.11798\n         [pdf, ps, other]"
+      },
+      {
+        "title": "arXiv:2603.11790\n         [pdf, ps, other]",
+        "heading_1": "Disentangled Representation Learning through Unsupervised Symmetry Group Discovery",
+        "message": "Disentangled Representation Learning through Unsupervised Symmetry Group Discovery",
+        "link": "https://arxiv.org/abs/2603.11790",
+        "url": "https://arxiv.org/abs/2603.11790",
+        "description": "arXiv:2603.11790\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Dang-Nhu Barthélémy, \n      \n      Annabi Louis, \n      \n      Argentieri Sylvain"
+      },
+      {
+        "title": "arXiv:2603.11781\n         [pdf, ps, other]",
+        "heading_1": "From Debate to Deliberation: Structured Collective Reasoning with Typed Epistemic Acts",
+        "message": "From Debate to Deliberation: Structured Collective Reasoning with Typed Epistemic Acts",
+        "link": "https://arxiv.org/abs/2603.11781",
+        "url": "https://arxiv.org/abs/2603.11781",
+        "description": "arXiv:2603.11781\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Sunil Prakash"
+      },
+      {
+        "title": "arXiv:2603.11768\n         [pdf, ps, other]",
+        "heading_1": "Governing Evolving Memory in LLM Agents: Risks, Mechanisms, and the Stability and Safety Governed Memory (SSGM) Framework",
+        "message": "Governing Evolving Memory in LLM Agents: Risks, Mechanisms, and the Stability and Safety Governed Memory (SSGM) Framework",
+        "link": "https://arxiv.org/abs/2603.11768",
+        "url": "https://arxiv.org/abs/2603.11768",
+        "description": "arXiv:2603.11768\n         [pdf, ps, other]",
+        "author": "Authors:\n      \n      Chingkwun Lam, \n      \n      Jiaxin Li, \n      \n      Lingfei Zhang, \n      \n      Kuo Zhao"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.9000000000000001,
+      "source": "ssr-fast",
+      "final_url": "https://arxiv.org/search/?query=agent&searchtype=all",
+      "selector": "li.arxiv-result"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].title",
+      "data[].heading_1",
+      "data[].message",
+      "data[].link",
+      "data[].url",
+      "data[].description",
+      "data[].author",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

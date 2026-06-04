@@ -1,0 +1,134 @@
+{
+  "trace_id": "Xa_pe3Y28o5I6uT1XXIZ2",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "mASQJ7TlVPdwglt7Uxgxd",
+  "started_at": "2026-03-12T02:10:33.380Z",
+  "completed_at": "2026-03-12T02:10:34.579Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "EFTA02359364",
+          "subject": "Yeah! Food!",
+          "latest_sender_name": "████████",
+          "formatted_date": "Mar 17, 2011",
+          "preview": "Off to the French laundry for dinner! I'll tell you all about it! ...not tha= you like food : ) it's",
+          "avatar_color": "#db4437",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 3,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA02359364-0",
+          "sender": "████████ <██████████████████>",
+          "content_markdown": "Off to the French laundry for dinner! I'll tell you all about it! ...not tha= you like food : ) it's not quite the same with out you! Miss you.\n\nSent from my iPhone"
+        },
+        "field": "content_markdown",
+        "rank": 23.735636
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA02297463",
+          "subject": "san fran restos",
+          "latest_sender_name": "█████████",
+          "formatted_date": "Jul 31, 2012",
+          "preview": "and the food is clean a beautiful. http://www.manresarestaurant.com/\n\nBenu- 2 Michelin stars- Cory Lee was the running the show at <b>French</b> <b>Laundry</b> when",
+          "avatar_color": "#db4437",
+          "count": 3,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 6,
+          "unredactCount": 3
+        },
+        "matchedEmail": {
+          "id": "EFTA02297463-2",
+          "sender": "francis derby <fjderby@gmail.com>",
+          "content_markdown": "I still have not been to San Fransisco but if and when I do go these places are at the top of my list... If this isn't what you're looking for I have a few others that you might like.\n\nFlour and Water- rustic Italian with a few twists and a serious pasta program http://www.flourandwater.com/\n\nManresa- 2 Michelin stars- American/California cuisine, been around for some time now. Very farm driven food. I did a dinner with him a few years back and the food is clean a beautiful. http://www.manresare"
+        },
+        "field": "content_markdown",
+        "rank": 16.282642
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01838267",
+          "subject": "Re: Yeah! Food!",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Mar 17, 2011",
+          "preview": "wrote:\n\nOff to the <b>French</b> <b>laundry</b> for <b>dinner</b>! I&#x27;ll tell you allabout it! not that you like food : ) it&#x27;s not quite the same with out you! Miss you",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01838267-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "fun\n\nOn Thu, Mar 17, 2011 at 4:31 PM, ███████████████████████████████████████ > wrote:\n\nOff to the French laundry for dinner! I'll tell you allabout it! not that you like food : ) it's not quite the same with out you! Miss you.\n\nSent from my iPhone\n\n**********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the property of Jeffrey Epstein Unauthorized u"
+        },
+        "field": "content_markdown",
+        "rank": 15.660461
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01874120",
+          "subject": "san fran restos",
+          "latest_sender_name": "francis derby",
+          "formatted_date": "Jul 18, 2012",
+          "preview": "Michelin stars- Cory Lee was the running the show at <b>French</b> <b>Laundry</b> when they received 3 stars. Now opens his own spot in san fran and is killing it",
+          "avatar_color": "#00acc1",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01874120-0",
+          "sender": "francis derby",
+          "content_markdown": "I still have not been to San Fransisco but if and when I do go these places arc at the top of my list... If this isn't what you're looking for I have a few others that you might like. Flour and Water- rustic Italian with a few twists and a serious pasta program [http://www.flourandwater.com/](http://www.flourandwater.com/) \n\nManresa- 2 Michelin stars- American/Califomia cuisine, been around for some time now. Very farm driven food. I did a dinner with him a few years back and the food is clean a"
+        },
+        "field": "content_markdown",
+        "rank": 15.634053
+      },
+      {
+        "thread": {
+          "doc_id": "EFTA01998167",
+          "subject": "san fran restos",
+          "latest_sender_name": "francis derby",
+          "formatted_date": "Jul 31, 2012",
+          "preview": "<b>Laundry</b> when they received 3 stars. Now opens his own spot in san fran and is killing it. &lt;u&gt;http://benuslcorn/corey-lee&lt;/u&gt; \n\nAtelier Crenn- 1",
+          "avatar_color": "#00acc1",
+          "count": 2,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 2,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01998167-1",
+          "sender": "francis derby",
+          "content_markdown": "I still have not been to San Fransisco but if and when I do go these places are at the top of my list... If this isn't what you're looking for I have a fcw others that you might like. Flour and Water- rustic Italian with a few twists and a serious pasta program <u>http://www.flourandwater.com/</u> \n\nManresa- 2 Michelin stars- American/California cuisine, been around for some time now. Very farm driven food. I did a dinner with him a few years back and the food is clean a beautiful. <u>http://www"
+        },
+        "field": "content_markdown",
+        "rank": 15.634053
+      }
+    ],
+    "total": 6,
+    "page": 1,
+    "totalPages": 2,
+    "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjE1LjYzNDA1MywiZG9jX2lkIjoiRUZUQTAxOTk4MTY3In0",
+    "operators": []
+  }
+}

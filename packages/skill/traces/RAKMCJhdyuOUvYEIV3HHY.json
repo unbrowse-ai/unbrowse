@@ -1,0 +1,11 @@
+{
+  "trace_id": "RAKMCJhdyuOUvYEIV3HHY",
+  "skill_id": "KFkH1w2Y-PGRjRX_Cep2A",
+  "endpoint_id": "EtERiP_jLCz477pqgtbSv",
+  "started_at": "2026-03-12T01:42:55.893Z",
+  "completed_at": "2026-03-12T01:43:24.120Z",
+  "success": false,
+  "status_code": 400,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "error": "HTTP 400"
+}

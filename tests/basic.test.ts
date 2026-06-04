@@ -1,0 +1,1 @@
+describe('basic', () => { it('works', () => {}) })

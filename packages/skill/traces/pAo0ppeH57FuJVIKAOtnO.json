@@ -1,0 +1,53 @@
+{
+  "trace_id": "pAo0ppeH57FuJVIKAOtnO",
+  "skill_id": "oRJ2Uan2IwhtFrQvTvpez",
+  "endpoint_id": "14mMmNsdJmFP63d348fzb",
+  "started_at": "2026-03-12T01:40:17.406Z",
+  "completed_at": "2026-03-12T01:40:33.291Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "data": [
+      {
+        "link": "/QweeklyU",
+        "url": "/QweeklyU",
+        "title": "@QweeklyU"
+      },
+      {
+        "link": "/Swan",
+        "url": "/Swan",
+        "title": "@Swan"
+      },
+      {
+        "link": "/BitcoinMagazine",
+        "url": "/BitcoinMagazine",
+        "title": "@BitcoinMagazine"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8,
+      "source": "rendered-dom",
+      "final_url": "https://x.com/search?q={q}",
+      "selector": "div.css-175oi2r.r-xoduu5"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].link",
+      "data[].url",
+      "data[].title",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

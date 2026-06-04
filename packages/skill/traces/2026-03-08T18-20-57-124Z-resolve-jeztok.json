@@ -1,0 +1,32 @@
+{
+  "intent": "search posts about learning website APIs from browser traffic scraping replacement agent web access",
+  "params": {
+    "url": "https://www.reddit.com/search/?q=learn+website+API+browser+traffic+agent+scraping+replace+cache&sort=relevance&t=year"
+  },
+  "context": {
+    "url": "https://www.reddit.com/search/?q=learn+website+API+browser+traffic+agent+scraping+replace+cache&sort=relevance&t=year"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "bKZWvsf0GUSiK86vGjy4v",
+      "score": 1591.2,
+      "description": "Canonical document replay for search posts about learning website APIs from browser traffic scraping replacement agent web access",
+      "url": "https://www.reddit.com/search/?q=learn+website+API+browser+traffic+agent+scraping+replace+cache&sort=relevance&t=year",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "bKZWvsf0GUSiK86vGjy4v",
+      "score": 1601.2,
+      "trace_success": true,
+      "judge": "pass",
+      "status_code": 200,
+      "local_reason": "post_rows"
+    }
+  ],
+  "outcome": "autoexec_success",
+  "source": "live-capture",
+  "skill_id": "pxjpM0rYgVdB1Ua26I_iH",
+  "selected_endpoint_id": "bKZWvsf0GUSiK86vGjy4v"
+}

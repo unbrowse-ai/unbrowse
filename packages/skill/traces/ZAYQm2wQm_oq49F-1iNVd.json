@@ -1,0 +1,29 @@
+{
+  "trace_id": "ZAYQm2wQm_oq49F-1iNVd",
+  "skill_id": "3rvgINtjR025_jSzitEp_",
+  "endpoint_id": "IGceuV8QzlCscEf8jVIIG",
+  "started_at": "2026-02-25T02:15:06.341Z",
+  "completed_at": "2026-02-25T02:15:06.502Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": {
+      "numConnectionsOfGeoRegionFacets": null,
+      "numConnectionsOfIndustryFacets": null,
+      "geoRegionFacets": null,
+      "numConnectionsOfCurrentCompanyFacets": null,
+      "numConnectionsOfPastCompanyFacets": null,
+      "industryFacets": null,
+      "numConnections": 205,
+      "schoolFacets": null,
+      "$type": "com.linkedin.voyager.relationships.shared.connection.ConnectionsSummary",
+      "currentCompanyFacets": null,
+      "pastCompanyFacets": null,
+      "entityUrn": "urn:li:fs_relConnectionsSummary:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA",
+      "numConnectionsOfProfileLanguageFacets": null,
+      "profileLanguageFacets": null,
+      "numConnectionsOfSchoolFacets": null
+    },
+    "included": []
+  }
+}

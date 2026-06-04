@@ -403,10 +403,58 @@ export async function buildSessionKeyRegistrationTx(
 }
 
 /**
+ * Assemble → sign → send → confirm a flex transaction via the caller's
+ * `@solana/kit` RPC. Uses raw `sendTransaction` + `getSignatureStatuses`
+ * polling (no rpcSubscriptions dependency), mirroring the facilitator's
+ * own submit path. Lazy-imports @solana/kit to preserve tree-shake.
+ *
+ * Proven end-to-end against the deployed FLEX program on devnet
+ * (`scripts/flex-devnet-settle.mjs`): create-escrow → deposit → register
+ * session key → settle → finalize → recipient credited.
+ */
+async function sendFlexTx(
+  rpc: { getLatestBlockhash: () => { send: () => Promise<{ value: { blockhash: string; lastValidBlockHeight: bigint } }> }; sendTransaction: (wire: string, opts: unknown) => { send: () => Promise<string> }; getSignatureStatuses: (sigs: string[]) => { send: () => Promise<{ value: Array<{ err?: unknown; confirmationStatus?: string } | null> }> } },
+  feePayerSigner: TransactionSignerOpaque,
+  instructions: unknown[],
+  opts: { maxPolls?: number; pollDelayMs?: number } = {},
+): Promise<string> {
+  const kit = await import("@solana/kit") as unknown as {
+    createTransactionMessage: (c: { version: 0 }) => unknown;
+    setTransactionMessageFeePayerSigner: (s: unknown, m: unknown) => unknown;
+    setTransactionMessageLifetimeUsingBlockhash: (bh: unknown, m: unknown) => unknown;
+    appendTransactionMessageInstructions: (ix: unknown[], m: unknown) => unknown;
+    signTransactionMessageWithSigners: (m: unknown) => Promise<unknown>;
+    getSignatureFromTransaction: (tx: unknown) => string;
+    getBase64EncodedWireTransaction: (tx: unknown) => string;
+    pipe: (v: unknown, ...fns: Array<(x: unknown) => unknown>) => unknown;
+  };
+  const { value: blockhash } = await rpc.getLatestBlockhash().send();
+  const msg = kit.pipe(
+    kit.createTransactionMessage({ version: 0 }),
+    (m) => kit.setTransactionMessageFeePayerSigner(feePayerSigner, m),
+    (m) => kit.setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
+    (m) => kit.appendTransactionMessageInstructions(instructions, m),
+  );
+  const signed = await kit.signTransactionMessageWithSigners(msg);
+  const sig = kit.getSignatureFromTransaction(signed);
+  const wire = kit.getBase64EncodedWireTransaction(signed);
+  await rpc.sendTransaction(wire, { encoding: "base64" }).send();
+  const maxPolls = opts.maxPolls ?? 30;
+  const pollDelayMs = opts.pollDelayMs ?? 1000;
+  for (let i = 0; i < maxPolls; i++) {
+    const status = (await rpc.getSignatureStatuses([sig]).send()).value[0];
+    if (status?.err) throw new Error(`flex tx ${sig} failed: ${JSON.stringify(status.err)}`);
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return sig;
+    await new Promise((r) => setTimeout(r, pollDelayMs));
+  }
+  throw new Error(`flex tx ${sig} not confirmed after ${maxPolls} polls`);
+}
+
+/**
  * Send a create-escrow + deposit transaction. Requires `params.signer`
- * and `params.rpc` — both `@solana/kit` types we don't import at
- * top-level (tree-shake). Without them, throws `requires_signer` and
- * points at `buildEscrowCreationTx` for the pure-build path.
+ * (a `@solana/kit` TransactionSigner) and `params.rpc` (a kit RPC client).
+ * Without them, throws `requires_signer` and points at `buildEscrowCreationTx`
+ * for the pure-build path.
  */
 export async function fundEscrow(
   params: FlexFundEscrowParams,
@@ -419,20 +467,15 @@ export async function fundEscrow(
     );
   }
   const built = await buildEscrowCreationTx(params);
-  // Sender is a thin wrapper. Real impl: assemble tx message via
-  // @solana/kit, sign + send via the caller's rpc. v6.16 prelim:
-  // surface the structured failure so callers know where to plug in.
-  throw new Error(
-    "flex.fundEscrow: tx-send wiring is caller-supplied in v6.16-preview.0. " +
-      `Built ${built.instructions.length} instructions; send via your ` +
-      "@solana/kit pipeline. See `buildEscrowCreationTx` for the pure shape.",
-  );
+  // accountsAtRisk = [wallet, facilitator, mint, escrowPDA]; the escrow PDA is last.
+  const escrowAddress = built.accountsAtRisk[built.accountsAtRisk.length - 1];
+  const txSignature = await sendFlexTx(params.rpc as never, params.signer, built.instructions);
+  return { escrowAddress, txSignature };
 }
 
 /**
- * Send a register-session-key transaction. Thin sender wrapper around
- * `buildSessionKeyRegistrationTx`. Same `requires_signer` contract as
- * `fundEscrow`.
+ * Send a register-session-key transaction. Same `requires_signer` contract
+ * as `fundEscrow`. Returns the confirmed transaction signature.
  */
 export async function registerSessionKey(
   params: FlexRegisterSessionKeyParams,
@@ -445,9 +488,6 @@ export async function registerSessionKey(
     );
   }
   const built = await buildSessionKeyRegistrationTx(params);
-  throw new Error(
-    "flex.registerSessionKey: tx-send wiring is caller-supplied in v6.16-preview.0. " +
-      `Built ${built.instructions.length} instructions; send via your ` +
-      "@solana/kit pipeline. See `buildSessionKeyRegistrationTx` for the pure shape.",
-  );
+  const txSignature = await sendFlexTx(params.rpc as never, params.signer, built.instructions);
+  return { txSignature };
 }

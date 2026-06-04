@@ -1,0 +1,77 @@
+{
+  "trace_id": "gKgO3ftrbmsefquM8AHu9",
+  "skill_id": "tUkphR3PnqM3-0IEQCU6N",
+  "endpoint_id": "mq0D1X5ZMdIHOiBMVGF9G",
+  "started_at": "2026-03-14T13:33:41.623Z",
+  "completed_at": "2026-03-14T13:33:41.749Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "2ad284fd8984@3742efe",
+  "result": {
+    "protected": false,
+    "screen_name": "lekt8_",
+    "always_use_https": true,
+    "use_cookie_personalization": false,
+    "sleep_time": {
+      "enabled": false,
+      "end_time": null,
+      "start_time": null
+    },
+    "geo_enabled": false,
+    "language": "en",
+    "discoverable_by_email": true,
+    "discoverable_by_mobile_phone": false,
+    "display_sensitive_media": false,
+    "personalized_trends": true,
+    "allow_media_tagging": "all",
+    "allow_contributor_request": "following",
+    "allow_ads_personalization": true,
+    "allow_logged_out_device_personalization": true,
+    "allow_location_history_personalization": true,
+    "allow_sharing_data_for_third_party_personalization": true,
+    "allow_dms_from": "all",
+    "always_allow_dms_from_subscribers": null,
+    "allow_dm_groups_from": "following",
+    "translator_type": "none",
+    "country_code": "sg",
+    "nsfw_user": false,
+    "nsfw_admin": false,
+    "ranked_timeline_setting": null,
+    "ranked_timeline_eligible": null,
+    "address_book_live_sync_enabled": false,
+    "universal_quality_filtering_enabled": "enabled",
+    "dm_receipt_setting": "all_enabled",
+    "alt_text_compose_enabled": null,
+    "mention_filter": "unfiltered",
+    "allow_authenticated_periscope_requests": true,
+    "protect_password_reset": false,
+    "require_password_login": false,
+    "requires_login_verification": false,
+    "ext_dm_av_call_settings": {
+      "has_av_calls_enabled": true,
+      "av_call_permissions": {
+        "accept_calls_from_addressbook": false,
+        "accept_calls_from_following": true,
+        "accept_calls_from_verified": false,
+        "accept_calls_from_everyone": false
+      }
+    },
+    "ext_sharing_audiospaces_listening_data_with_followers": true,
+    "ext": {
+      "ssoConnections": {
+        "r": {
+          "ok": [
+            {
+              "ssoIdHash": "Uc9xJMa5EQdJbhbOYFoC0jS4Jf/p+j+rYWwQjhuS8mg=",
+              "ssoProvider": "Google"
+            }
+          ]
+        },
+        "ttl": -1
+      }
+    },
+    "dm_quality_filter": "enabled",
+    "autoplay_disabled": false,
+    "settings_metadata": {}
+  }
+}

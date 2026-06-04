@@ -1,0 +1,116 @@
+{
+  "intent": "get feed posts",
+  "params": {
+    "url": "https://www.linkedin.com/feed/"
+  },
+  "context": {
+    "url": "https://www.linkedin.com/feed/"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "h4F2Jqq4le4jkBGQDU6UE",
+      "score": -2.5,
+      "description": "Returns details for Notice with responseCode using types",
+      "url": "https://www.linkedin.com/psettings/policy/notices?types={types}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "yc6HubMhc1MsvsLpaWT4X",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.e9b0809465a07db1f02e70a82d455e10?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "p9YXh9Iay9ExXT5VSm4H6",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.34ead06db82a2cc9a778fac97f69ad6a?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "h4F2Jqq4le4jkBGQDU6UE",
+      "score": 87.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 200,
+      "error": "unexpected_html_response"
+    },
+    {
+      "endpoint_id": "yc6HubMhc1MsvsLpaWT4X",
+      "score": 44.3,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "c3Uk3EaFpeBQ9C-w-j1xz",
+  "available_endpoints": [
+    {
+      "endpoint_id": "h4F2Jqq4le4jkBGQDU6UE",
+      "score": -2.5,
+      "description": "Returns details for Notice with responseCode using types",
+      "url": "https://www.linkedin.com/psettings/policy/notices?types={types}"
+    },
+    {
+      "endpoint_id": "yc6HubMhc1MsvsLpaWT4X",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.e9b0809465a07db1f02e70a82d455e10?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}"
+    },
+    {
+      "endpoint_id": "p9YXh9Iay9ExXT5VSm4H6",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.34ead06db82a2cc9a778fac97f69ad6a?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}"
+    },
+    {
+      "endpoint_id": "ckQ6j6nV7OY7PDUDzvju4",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerIdentityDashProfiles.a3de77c32c473719f1c58fae6bff43a5?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}"
+    },
+    {
+      "endpoint_id": "ATBXNaMjqhiIFd7i6Gpil",
+      "score": -50.7,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, variables, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerNewsDashStorylines.c042ce89aeaa19a94ba27cf715164f46?includeWebMetadata={includeWebMetadata}&variables={variables}&queryId={queryId}"
+    },
+    {
+      "endpoint_id": "94433Xog94bAUUkqV8uBl",
+      "score": -50.9,
+      "description": "Returns details for Urn Li Fsd Profile ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA with birthDateOn, multiLocalePhoneticLastName, industryV2Urn, objectUrn, multiLocaleLastName, pronounUnion using profile, decorationId",
+      "url": "https://www.linkedin.com/voyager/api/identity/dash/profiles/{profile}?decorationId={decorationId}"
+    },
+    {
+      "endpoint_id": "dLFlHjuGMCcNP8XYteJzF",
+      "score": -107.5,
+      "description": "Returns details for PresenceStatus with statuses, results, errors",
+      "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses"
+    },
+    {
+      "endpoint_id": "Sg2KoP-4cFrjCC4ReQe6T",
+      "score": -118,
+      "description": "Returns details for RealtimeFrontendSubscription with (clientConnectionId:86ce3fe6-47a6-4892-82b6-8529c63d9b2e,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAADFetAwBa3aCNbB2rHiv7My7gDAKGDZGQL8), (clientConnectionId:86ce3fe6-47a6-4892-82b6-8529c63d9b2e,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAACzgvR4BdqowlLnOY0WoF5Nd6NZ0XJyXQVc), (clientConnectionId:86ce3fe6-47a6-4892-82b6-8529c63d9b2e,topic:urn%3Ali-realtime%3ApresenceStatusTopic%3Aurn%3Ali%3Afsd_profile%3AACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ)",
+      "url": "https://www.linkedin.com/realtime/realtimeFrontendSubscriptions"
+    },
+    {
+      "endpoint_id": "c0HhT5v8QGQqxvKtAFeyP",
+      "score": -225.1,
+      "description": "Searches VoyagerIdentityDashNotificationCard with metadata, entityUrn, paging, *elements, $type using decorationId, count, q",
+      "url": "https://www.linkedin.com/voyager/api/voyagerIdentityDashNotificationCards?decorationId={decorationId}&count={count}&q={q}"
+    },
+    {
+      "endpoint_id": "h2yhmhdvyfTQaVLaiJZ6v",
+      "score": -270.6,
+      "description": "Returns details for Voyager with data, extensions using includeWebMetadata, queryId",
+      "url": "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerMessagingDashAwayStatusV2.ee0ba3add6f8a58c35df3e08daa87b11?includeWebMetadata={includeWebMetadata}&queryId={queryId}"
+    }
+  ],
+  "extra": null
+}

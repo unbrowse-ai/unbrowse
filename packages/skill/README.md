@@ -1,0 +1,342 @@
+# Unbrowse
+
+> Skill, MCP server, SDK, CLI — four ways to use the same local runtime. `SKILL.md` is back in this package; the MCP block below still works as the canonical agent path. Pick what your host supports.
+>
+> ```json
+> {
+>   "mcpServers": {
+>     "unbrowse": {
+>       "command": "npx",
+>       "args": ["-y", "unbrowse", "mcp"]
+>     }
+>   }
+> }
+> ```
+>
+> Then run `npx unbrowse setup` once. The SKILL.md in this directory is loadable via `find-skills` / `/find-skills`; reading it gives an agent the same map (resolve + execute + browse-session) without an MCP host.
+
+This package installs the `unbrowse` CLI.
+
+Unbrowse is a local Model Context Protocol (MCP) server and CLI that turns websites into reusable API routes for agents. It learns callable routes from explicit browsing sessions, keeps credentials local, and shares only sanitized route metadata when you publish.
+
+One agent learns a site once. Every later agent gets the fast path.
+
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
+
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned routes are published to the shared marketplace only after an explicit publish checkpoint.
+## MCP server
+
+Unbrowse implements the Model Context Protocol over stdio. `unbrowse mcp` is the MCP server entrypoint.
+
+- Protocol: JSON-RPC 2.0 MCP over stdio
+- Handshake: `initialize`, `notifications/initialized`, `ping`
+- Capability surface today: `tools/list` and `tools/call`
+- Current MCP shape: tools only. No `resources/*` or `prompts/*` methods yet.
+- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
+
+Core MCP tools:
+
+- Discovery: `unbrowse_health`, `unbrowse_search`, `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_feedback`
+- Auth/cache: `unbrowse_login`, `unbrowse_skills`, `unbrowse_skill`, `unbrowse_sessions`
+- Browser capture: `unbrowse_go`, `unbrowse_snap`, `unbrowse_click`, `unbrowse_fill`, `unbrowse_type`, `unbrowse_press`, `unbrowse_select`, `unbrowse_scroll`, `unbrowse_submit`, `unbrowse_screenshot`, `unbrowse_text`, `unbrowse_markdown`, `unbrowse_cookies`, `unbrowse_eval`, `unbrowse_sync`, `unbrowse_close`
+
+Typical MCP host config:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "npx",
+      "args": ["-y", "unbrowse", "mcp"]
+    }
+  }
+}
+```
+
+## Quick start
+
+```bash
+# One-line install from the latest GitHub release
+curl -fsSL https://unbrowse.ai/install.sh | sh
+```
+
+That installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
+
+```bash
+# Deterministic npm setup
+npm install -g unbrowse
+unbrowse setup
+```
+
+`unbrowse setup` runs the first-time bootstrap: ToS acceptance, agent registration + API-key caching, and wallet detection when present.
+
+If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the payout destination for contributed routes and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for paid routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+
+For repeat npm use after a healthy publish:
+
+```bash
+npm install -g unbrowse
+unbrowse setup
+```
+
+The npm package is binary-first: install downloads the prebuilt Bun-compiled CLI for your platform. It does not ship the TypeScript runtime or JS fallback launcher.
+On supported platforms, install now fails fast if the matching GitHub release asset is missing or unreachable.
+
+For generic MCP hosts:
+
+```bash
+npx unbrowse setup --mcp
+```
+
+That writes a ready-to-import MCP config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template is also published at [`/mcp.json`](https://www.unbrowse.ai/mcp.json).
+
+If your agent host uses skills:
+
+```bash
+npm install -g unbrowse
+```
+
+## Upgrading
+
+Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
+
+Check the exact command for your install with:
+
+```bash
+unbrowse upgrade
+```
+
+Codex and Claude installs now also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced in the host before the CLI drifts too far behind.
+
+If you installed from a repo clone:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host off
+```
+
+If you installed for a generic MCP host:
+
+```bash
+cd ~/unbrowse
+git pull --ff-only
+./setup --host mcp
+```
+
+If your agent host uses skills, rerun its skill install/update command too:
+
+```bash
+npx skills add unbrowse-ai/unbrowse
+```
+
+Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
+
+Every CLI command auto-starts the local runtime on `http://localhost:6969` by default, and `unbrowse mcp` uses that same runtime behind the MCP stdio surface. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Public companion docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
+
+Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
+
+## What setup does
+
+- Checks the local runtime/package-manager environment for the repo bootstrap or packaged CLI path.
+- Prebuilds the packaged CLI runtime and installs the stable `unbrowse` shim for the repo bootstrap path.
+- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
+- Registers the Open Code `/unbrowse` command when Open Code is present.
+- Runs the first-use flow: ToS, agent registration/API-key caching, wallet detection, and Crossmint `lobster.cash` encouragement.
+- Starts the local Unbrowse server unless `--no-start` is passed.
+
+## Common commands
+
+```bash
+unbrowse health
+unbrowse mcp
+unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse login --url "https://calendar.google.com"
+unbrowse skills
+unbrowse search --intent "get stock prices"
+```
+
+For most MCP hosts, the standard flow is `unbrowse_resolve` first, then `unbrowse_execute`. For JS-heavy or first-time capture workflows, use the browser tool chain: `unbrowse_go -> unbrowse_snap -> action tools -> unbrowse_submit/unbrowse_sync -> unbrowse_close`.
+
+## Dependency walk for multi-step UIs
+
+Treat each successful browser submit as a dependency boundary.
+
+- Do not jump straight to guessed downstream URLs like `/date-selection.html` or `/payment.html` unless the current session already reached them through the real page flow.
+- Use `unbrowse_submit` for the actual transition, then trust the returned `url`, `session_id`, and any next-step hints over your own assumptions.
+- `unbrowse_sync` after a good transition so the route graph records which request chain unlocked the next page.
+- If a page later returns `abandonedCart`, `session_expired`, or a wrong audience/product variant, restart from the last known good upstream step and walk forward again.
+
+The dependency graph is not just API-to-API. On JS-heavy checkout flows it also captures browser-state prerequisites: selected product, resident/non-resident audience, date, slot, auth, and cart state. Future agents should reason from those prerequisites before calling deeper steps.
+
+## Demo notes
+
+- First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.
+- For website tasks, keep the agent on Unbrowse instead of letting it drift into generic web search or ad hoc `curl`.
+- Some sites are harder targets than others. Prefer documented JSON routes when a site offers them.
+
+## Help shape the next eval
+
+If you tried Unbrowse on a site or API and could not get it to work, add it to [Discussion #53](https://github.com/unbrowse-ai/unbrowse/discussions/53). We use that thread to collect missing or broken targets so we can turn them into requirements for the next eval pass.
+
+## Docs
+
+The synced skill repo also carries the public docs set:
+
+- [Quickstart](https://docs.unbrowse.ai/guides/quickstart)
+- [Agent workflow](https://docs.unbrowse.ai/for-agents/how-an-agent-uses-unbrowse)
+- [Integration surfaces](https://docs.unbrowse.ai/for-developers/integration-surfaces)
+- [Payment model](https://docs.unbrowse.ai/HOW_UNBROWSE_PAYS)
+
+Whitepaper companion docs:
+
+- [Whitepaper companion index](https://docs.unbrowse.ai/whitepaper/)
+- [For Technical Readers](https://docs.unbrowse.ai/whitepaper/for-technical-readers)
+- [For Investors](https://docs.unbrowse.ai/whitepaper/for-investors)
+
+## How it works
+
+When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse can open a local browser session, learn reusable route metadata, and publish it only after the configured checkpoint.
+
+Every learned skill becomes discoverable by every future agent. Reliability scoring, feedback, schema drift, and verification keep the good paths hot and the broken ones out of the way.
+
+### Intent resolution pipeline
+
+When you call `POST /v1/intent/resolve`, the orchestrator follows this priority chain:
+
+1. **Route cache** (5-min TTL) — instant hit if the same intent was recently resolved
+2. **Marketplace search** — semantic vector search ranked by composite score: 40% embedding similarity + 30% reliability + 15% freshness + 15% verification status
+3. **Local browser session** — the runtime observes allowed requests, indexes reusable route metadata, and can publish a new skill after review
+4. **DOM fallback** — if no API endpoints are found (static/SSR sites), structured data is extracted from rendered HTML
+
+Skills published by live capture become available to all agents on the network.
+
+## The marketplace flywheel
+
+Every new user makes the platform more valuable for the next one — like Waze, but for the web's APIs.
+
+```
+More Users → More Skills → More Domains → More Value
+    ↑                                          |
+    └──────────────────────────────────────────┘
+```
+
+Skills are stored in a shared marketplace at `beta-api.unbrowse.ai`. On first startup the server auto-registers as an agent and caches credentials in `~/.unbrowse/config.json`. Skills published by any agent are discoverable via semantic search by all agents.
+
+### Skill lifecycle
+
+- **active** — published, queryable, executable
+- **deprecated** — low reliability (auto-triggered after consecutive failures)
+- **disabled** — endpoint down (failed verification)
+
+A background verification loop runs every 6 hours, executing safe (GET) endpoints to detect failures and schema drift. Skills with 3+ consecutive failures are automatically deprecated.
+
+## Authentication for gated sites
+
+For most sites, sign-in works from your existing local browser session or from an interactive login window. Sessions stay on your machine and are reused only by your local runtime.
+
+| Strategy            | How it works                                       | When to use                                          |
+| ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Local session reuse | Uses your existing local browser session | Default — works if you're logged in via your browser |
+| Yolo mode           | Opens Chrome with your real profile                | Sites with complex auth (OAuth popups, 2FA)          |
+| Interactive login   | Opens a headed browser for manual login            | Fallback when auto-resolve has no cookies            |
+
+Authentication material stays local, is stored encrypted, and is automatically refreshed or discarded when a site rejects it. The marketplace receives route metadata, not your private session.
+
+## Mutation safety
+
+Non-GET endpoints (POST, PUT, DELETE) require explicit confirmation:
+
+- `dry_run: true` — preview what would execute without side effects
+- `confirm_unsafe: true` — explicit user consent to proceed
+- `confirm_third_party_terms: true` — extra explicit confirmation for policy-sensitive domains/actions such as X write endpoints
+
+GET endpoints auto-execute. Mutations never fire without opt-in.
+
+## API reference
+
+See the public API reference below for endpoints, search, feedback, auth, and issue reporting.
+
+| Method | Endpoint                 | Description                                    |
+| ------ | ------------------------ | ---------------------------------------------- |
+| POST   | `/v1/intent/resolve`     | Search marketplace, capture if needed, execute |
+| POST   | `/v1/skills/:id/execute` | Execute a specific skill                       |
+| POST   | `/v1/auth/login`         | Interactive browser login                      |
+| POST   | `/v1/auth/import`        | Import a local browser session                 |
+| POST   | `/v1/search`             | Semantic search across all domains             |
+| POST   | `/v1/search/domain`      | Semantic search scoped to a domain             |
+| POST   | `/v1/feedback`           | Submit feedback (affects reliability scores)   |
+| POST   | `/v1/skills/:id/verify`  | Health check skill endpoints                   |
+| POST   | `/v1/skills/:id/issues`  | Report a broken skill                          |
+| GET    | `/v1/skills`             | List all marketplace skills                    |
+| GET    | `/v1/stats/summary`      | Platform stats                                 |
+| GET    | `/health`                | Health check                                   |
+
+## Docs
+
+The standalone skill repo also carries the core repo docs:
+
+- [Quickstart guide](https://docs.unbrowse.ai/guides/quickstart)
+- [Agent workflow](https://docs.unbrowse.ai/for-agents/how-an-agent-uses-unbrowse)
+- [Integration surfaces](https://docs.unbrowse.ai/for-developers/integration-surfaces)
+- [Payment model](https://docs.unbrowse.ai/HOW_UNBROWSE_PAYS)
+
+## Configuration
+
+### Runtime directories
+
+```
+~/.unbrowse/config.json                # API key, agent ID, registration
+~/.unbrowse/vault/                     # Encrypted local credential store
+~/.unbrowse/skill-cache/               # Local skill manifest cache
+~/.unbrowse/profiles/<domain>/         # Per-domain Chrome profiles
+~/.unbrowse/logs/unbrowse-YYYY-MM-DD.log  # Daily logs
+```
+
+### Environment variables
+
+| Variable                   | Default                 | Description                  |
+| -------------------------- | ----------------------- | ---------------------------- |
+| `PORT`                     | `6969`                  | Server port                  |
+| `HOST`                     | `127.0.0.1`             | Server bind address          |
+| `UNBROWSE_URL`             | `http://localhost:6969` | Base URL for API calls       |
+| `UNBROWSE_API_KEY`         | auto-generated          | API key override             |
+| `UNBROWSE_AGENT_EMAIL`     | —                       | Preferred email-style agent name for registration |
+| `UNBROWSE_TOS_ACCEPTED`    | —                       | Accept ToS non-interactively |
+| `UNBROWSE_NON_INTERACTIVE` | —                       | Skip readline prompts        |
+
+## System layout
+
+```
+src/
+├── index.ts              # Fastify server entrypoint (port 6969)
+├── api/routes.ts         # HTTP route definitions
+├── orchestrator/         # Intent resolution pipeline
+├── execution/            # Skill/endpoint execution + retry logic
+├── capture/              # Local browser session recording
+├── route-indexing/       # Captured requests → reusable route metadata
+├── extraction/           # DOM structured data extraction
+├── marketplace/          # Backend API client (beta-api.unbrowse.ai)
+├── client/               # Agent registration & config management
+├── auth/                 # Interactive login + local session reuse
+├── vault/                # Encrypted credential storage
+├── transform/            # Field projection + schema drift detection
+├── verification/         # Periodic endpoint health checks
+├── ratelimit/            # Request throttling
+├── types/                # TypeScript type definitions
+├── domain.ts             # Domain utilities
+└── logger.ts             # Logging
+```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=unbrowse-ai/unbrowse&type=date&legend=top-left)](https://www.star-history.com/?repos=unbrowse-ai%2Funbrowse&type=date&legend=top-left)
+
+## License
+
+AGPL-3.0 — see [LICENSE](LICENSE).

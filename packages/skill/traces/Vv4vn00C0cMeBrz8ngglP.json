@@ -1,0 +1,21 @@
+{
+  "trace_id": "Vv4vn00C0cMeBrz8ngglP",
+  "skill_id": "TMV-ifsWWV4y7scn28OGW",
+  "endpoint_id": "XOLWJgH-ekxpSUb476rAV",
+  "started_at": "2026-02-25T01:19:11.498Z",
+  "completed_at": "2026-02-25T01:19:12.283Z",
+  "success": true,
+  "status_code": 200,
+  "result": [
+    {
+      "id": "iris",
+      "name": "Iris",
+      "icon": "https://imagedelivery.net/VDLBqelSa0VYu9zPusMDJA/bb27be2f-86c0-4020-def8-08ec3c6f8d00/public"
+    },
+    {
+      "id": "jupiterz",
+      "name": "JupiterZ",
+      "icon": "https://imagedelivery.net/VDLBqelSa0VYu9zPusMDJA/bb27be2f-86c0-4020-def8-08ec3c6f8d00/public"
+    }
+  ]
+}

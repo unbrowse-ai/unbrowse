@@ -1,0 +1,124 @@
+{
+  "intent": "get trending videos",
+  "params": {
+    "url": "https://www.tiktok.com"
+  },
+  "context": {
+    "url": "https://www.tiktok.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+      "score": 15.5,
+      "description": "Returns details for Log Pb with impr_id using region, priority_region, aid, device_id",
+      "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region={region}&priority_region={priority_region}&aid={aid}&device_id={device_id}&app_language={app_language}&device_platform={device_platform}&WebIdLastTime={WebIdLastTime}&scene={scene}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+      "score": -33.5,
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&permissionList={permissionList}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}&msToken={msToken}&X-Bogus={X-Bogus}&X-Gnarly={X-Gnarly}",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+      "score": -34.5,
+      "description": "Returns details for Eligibility List with decision_code, id_value, is_eligible",
+      "url": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+      "score": 105.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": 200,
+      "error": "unexpected_html_response"
+    },
+    {
+      "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+      "score": 40.5,
+      "trace_success": false,
+      "judge": "skip",
+      "status_code": null,
+      "error": "confirmation_required"
+    },
+    {
+      "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+      "score": -83.5,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "LfCiJn1yaFZUKrsgYSeqm",
+  "available_endpoints": [
+    {
+      "endpoint_id": "9mhXmec3aGvUtRXc5Wzi2",
+      "score": 58.5,
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/explore/item_list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&categoryType={categoryType}&channel={channel}&clientABVersions={clientABVersions}&cookie_enabled={cookie_enabled}&count={count}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&enable_cache={enable_cache}&focus_state={focus_state}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&language={language}&odinId={odinId}&os={os}&priority_region={priority_region}&pullType={pullType}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&video_encoding={video_encoding}&webcast_language={webcast_language}"
+    },
+    {
+      "endpoint_id": "dyQpDynJ-koDuDAvqaQso",
+      "score": 15.5,
+      "description": "Returns details for Log Pb with impr_id using region, priority_region, aid, device_id",
+      "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1?region={region}&priority_region={priority_region}&aid={aid}&device_id={device_id}&app_language={app_language}&device_platform={device_platform}&WebIdLastTime={WebIdLastTime}&scene={scene}"
+    },
+    {
+      "endpoint_id": "UW37VHEF9J3kBEFIMq8nW",
+      "score": 13.5,
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}"
+    },
+    {
+      "endpoint_id": "9RIJc4awj0A6jGIKfpTgo",
+      "score": 13.5,
+      "description": "Returns details for Log Pb with impr_id using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/tiktok/v1/community_notes/intake/check/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&verifyFp={verifyFp}&webcast_language={webcast_language}"
+    },
+    {
+      "endpoint_id": "_D0lyHcpm2uTOE6EAbTra",
+      "score": -29.5,
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/inbox/notice_count/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}"
+    },
+    {
+      "endpoint_id": "HZ0u_HJHHpnPO9dk-wagD",
+      "score": -29.5,
+      "description": "Returns details for Extra with fatal_item_ids, logid, now using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/inbox/notice_count/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&verifyFp={verifyFp}&webcast_language={webcast_language}"
+    },
+    {
+      "endpoint_id": "6ZsODJwO8eUe9f9A6R9vr",
+      "score": -33.5,
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&permissionList={permissionList}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&webcast_language={webcast_language}&msToken={msToken}&X-Bogus={X-Bogus}&X-Gnarly={X-Gnarly}"
+    },
+    {
+      "endpoint_id": "B8Rnm8apVc2VicJzOE612",
+      "score": -33.5,
+      "description": "Returns details for StatusCode with statusCode, statusMsg using WebIdLastTime, aid, app_language, app_name",
+      "url": "https://www.tiktok.com/api/ba/business/suite/permission/list/?WebIdLastTime={WebIdLastTime}&aid={aid}&app_language={app_language}&app_name={app_name}&browser_language={browser_language}&browser_name={browser_name}&browser_online={browser_online}&browser_platform={browser_platform}&browser_version={browser_version}&channel={channel}&cookie_enabled={cookie_enabled}&data_collection_enabled={data_collection_enabled}&device_id={device_id}&device_platform={device_platform}&focus_state={focus_state}&from_page={from_page}&history_len={history_len}&is_fullscreen={is_fullscreen}&is_page_visible={is_page_visible}&odinId={odinId}&os={os}&permissionList={permissionList}&priority_region={priority_region}&referer={referer}&region={region}&screen_height={screen_height}&screen_width={screen_width}&tz_name={tz_name}&user_is_login={user_is_login}&verifyFp={verifyFp}&webcast_language={webcast_language}&msToken={msToken}&X-Bogus={X-Bogus}&X-Gnarly={X-Gnarly}"
+    },
+    {
+      "endpoint_id": "Freqsm_fMOSj1WcLZkb9k",
+      "score": -34.5,
+      "description": "Returns details for Eligibility List with decision_code, id_value, is_eligible",
+      "url": "https://www.tiktok.com/tiktok/ppf/api/eligibility/v2"
+    },
+    {
+      "endpoint_id": "xa8xGwve2c6Lzzzz3xReS",
+      "score": -35.5,
+      "description": "Returns details for MetaData with name, type, buildInfo, remoteEntry, types, globalName",
+      "url": "https://www.tiktok.com/module_meta/common-login/vmok-manifest.json"
+    }
+  ],
+  "extra": null
+}

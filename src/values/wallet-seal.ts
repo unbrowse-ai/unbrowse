@@ -1,0 +1,146 @@
+/**
+ * sealed-cache — the production port of the whitepaper's sealed-unless-revealed
+ * primitive (paper/reference/ledger/sealed_cache.py), the privacy half of
+ * *Internal APIs Were Not All You Needed* (§5).
+ *
+ * A value is content-addressed by sha256 of its PLAINTEXT (so the same content
+ * resolves to the same key on any host — the content-addressing the plain cache
+ * already has), but the bytes AT REST are AES-256-GCM ciphertext under a key
+ * bound to the wallet (`deriveSealKey()` in signer.ts — HKDF over the Ed25519
+ * seed). The at-rest bytes are unreadable; only the holder of the wallet can
+ * `revealValue`. A different wallet's key fails the GCM auth tag and the value
+ * stays sealed (no fabricated reveal). The AAD is the content hash, so a
+ * ciphertext cannot be relabelled under a different key.
+ *
+ * This moves the paper's central [proposed] contribution one rung toward
+ * [shipped]: "any key/value can be sealed to the wallet, only the holder opens
+ * it." It is the floor under ZK credential binding — the same shape, with the
+ * commitment proof layered on next.
+ */
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { sha256hex } from "./content-address.js";
+import { signBytes, getWalletPubkey } from "./signer.js";
+import { verifyEd25519 } from "./zk-binding.js";
+
+const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
+
+/** sha256(plaintext) hex — the content address; identical bytes → identical key
+ *  on any host (the property the seal must preserve). */
+export function contentHash(data: Uint8Array): string {
+  return sha256hex(data);
+}
+
+/** Thrown when a reveal is attempted by a wallet that does not hold the seal key,
+ *  or when the revealed plaintext fails its content-hash check. */
+export class SealReveal extends Error {}
+
+const NONCE_LEN = 12;
+const TAG_LEN = 16;
+
+/**
+ * Seal `data` under the 32-byte `key`. Returns the content hash (over the
+ * PLAINTEXT) and the sealed blob `nonce(12) || ciphertext || tag(16)`. The AAD is
+ * the content hash, binding the ciphertext to its label.
+ */
+export function sealValue(data: Uint8Array, key: Uint8Array): { hash: string; sealed: Uint8Array } {
+  if (key.length !== 32) throw new Error("seal key must be 32 bytes (AES-256)");
+  const hash = contentHash(data);
+  const nonce = randomBytes(NONCE_LEN);
+  const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  cipher.setAAD(Buffer.from(hash, "utf8"));
+  const ct = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return { hash, sealed: new Uint8Array(Buffer.concat([nonce, ct, tag])) };
+}
+
+/**
+ * Reveal a sealed blob under `key`. The wrong wallet's key fails the GCM auth tag
+ * → SealReveal (the value STAYS sealed; nothing fabricated). A tampered ciphertext
+ * fails the tag too; a tampered hash label fails the AAD check or the final
+ * content-hash re-derivation.
+ */
+export function revealValue(hash: string, sealed: Uint8Array, key: Uint8Array): Uint8Array {
+  if (key.length !== 32) throw new Error("seal key must be 32 bytes (AES-256)");
+  const buf = Buffer.from(sealed);
+  if (buf.length < NONCE_LEN + TAG_LEN) throw new SealReveal("sealed blob too short");
+  const nonce = buf.subarray(0, NONCE_LEN);
+  const tag = buf.subarray(buf.length - TAG_LEN);
+  const ct = buf.subarray(NONCE_LEN, buf.length - TAG_LEN);
+  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
+  decipher.setAAD(Buffer.from(hash, "utf8"));
+  decipher.setAuthTag(tag);
+  let pt: Buffer;
+  try {
+    pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+  } catch {
+    throw new SealReveal(`reveal denied: wallet does not hold the seal key for ${hash.slice(0, 8)}`);
+  }
+  // The seal re-derives the address; a content/hash mismatch is caught here too.
+  if (contentHash(new Uint8Array(pt)) !== hash) {
+    throw new SealReveal("revealed plaintext does not match content hash");
+  }
+  return new Uint8Array(pt);
+}
+
+// ---------------------------------------------------------------------------
+// Public boundary — the OUTWARD complement of sealValue.
+//
+// sealValue keeps a value private at rest (inward). publishValue is the rule for
+// what may cross the PUBLIC boundary: only a content-addressed COPY of the value,
+// signed by the wallet and verifiable against its PUBLIC key. The private key is
+// loaded, used once to sign the content hash, and zeroed inside signBytes — it
+// never crosses; what leaves is a copy the world can check but cannot forge and
+// cannot reverse into the secret. Production port of
+// paper/reference/layers/key_mobility.py.
+// ---------------------------------------------------------------------------
+
+/** A value copy that has crossed the public boundary. Carries ONLY public
+ *  material: the content address, the value copy, the wallet PUBLIC key, and a
+ *  signature. There is no field for, and no way to recover, the private key. */
+export interface PublishedValue {
+  /** sha256(value) hex — the content address. */
+  contentHash: string;
+  /** A COPY of the value bytes (hex). */
+  value: string;
+  /** The wallet PUBLIC key (hex). Never any private material. */
+  pub: string;
+  /** Wallet Ed25519 signature over the content hash (hex). */
+  sig: string;
+}
+
+/**
+ * Publish a value across the public boundary: emit only a wallet-signed value
+ * copy, verifiable under the PUBLIC key. The private key never leaves.
+ */
+export async function publishValue(data: Uint8Array): Promise<PublishedValue> {
+  const hash = contentHash(data);
+  const { signature, walletPubkey } = await signBytes(new TextEncoder().encode(hash));
+  return {
+    contentHash: hash,
+    value: bytesToHex(data),       // a copy of the value bytes, not the source
+    pub: bytesToHex(walletPubkey), // the PUBLIC key only
+    sig: bytesToHex(signature),
+  };
+}
+
+/**
+ * Verify a published value copy: the content hash matches the value bytes and the
+ * signature verifies under the expected PUBLIC key. No private material is needed
+ * (or present) to check it. A foreign key, a tampered value, or a tampered hash
+ * all fail closed.
+ */
+export function verifyPublished(p: PublishedValue, expectPub: string): boolean {
+  if (p.pub !== expectPub) return false;
+  const value = Buffer.from(p.value, "hex");
+  if (contentHash(new Uint8Array(value)) !== p.contentHash) return false;
+  return verifyEd25519(
+    Buffer.from(expectPub, "hex"),
+    new TextEncoder().encode(p.contentHash),
+    Buffer.from(p.sig, "hex"),
+  );
+}
+
+/** The wallet public key (hex) — the identity a published copy verifies against. */
+export async function publishedPub(): Promise<string> {
+  return bytesToHex(await getWalletPubkey());
+}

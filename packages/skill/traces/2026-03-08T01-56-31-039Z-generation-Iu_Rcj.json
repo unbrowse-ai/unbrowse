@@ -1,0 +1,1309 @@
+{
+  "page_url": "https://www.gitlab.com",
+  "final_url": "https://about.gitlab.com/",
+  "intent": "get project details",
+  "candidate_count": 2,
+  "accepted_count": 2,
+  "decisions": [
+    {
+      "url": "https://www.gitlab.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://gitlab.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://about.gitlab.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/7f944245-c5cd-4eed-a90e-dd955adfdd08/OtAutoBlock.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/otSDKStub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location/geofeed",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/entry.Dy_RtUG1.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/useAOS.DvB2Xm2x.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/useDynamicComponents.Cb4eiKXZ.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-NJXWQL",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_payload.json?c5f3558d-5a4c-4d5f-8172-4fb3142cdbd6",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/JyAnuRO1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/fonts/gitlab-sans/GitLabSans.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/fonts/gitlab-mono/GitLabMono.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/B1SAtAk5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/HFda_NJr.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/k68ksCP5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BN16sQJk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BbRCS6xM.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CooVAWO6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CgB_ool8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/wQxkZewu.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/STPO241_.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CGCVerL7.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/DNut08O8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Czlm2IJq.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BPwUzuST.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/DaWZu8wl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BlKcCfl5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/D-xGu2xf.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/7k_1ZJSa.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/t-6ZeSJQ.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/B0pMKOU5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/ebJ5uJbc.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BvGCdU3W.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BqNtD_VF.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/D0wqV1_3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Cqlc50g6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Biu-6HS-.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/yOl8FrYs.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/bUau6dG1.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BbBSW8tU.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CrqUMK0W.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/B6enErog.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/B2zrkZGw.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Bapea1iF.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/7f944245-c5cd-4eed-a90e-dd955adfdd08/7f944245-c5cd-4eed-a90e-dd955adfdd08.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_avif,q_80,w_400/v1755887573/fvbnyei3tq26pbaz3hj8.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1770244587/rfeci25ob3bnscqc9bc0.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1755887558/hh2plbiwcbsvnanbb5nl.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1767819837/kl5adlwq2fg5qieqkkg7.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1768588998/ijo2yrrgsohimh0bjprn.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1751317461/nspwul0onqtt84is8lfl.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/f_avif,q_80,w_400/v1755887509/ul3vtwvvkozw9ppfstka.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/video/upload/f_auto/q_auto/v1770323140/hir9peykuobogsownjvy.mp4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1768923166/lbrdszbvtqxxjowmftxj.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1768337934/n3tbeondruzumwfzgm7c.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1758208064/dzl0dbift9xdizyelkk4.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.vimeocdn.com/video/2118507052-0dae74619e369782771328038b6d6d0ead5f6291e09d7cd2e13706ae6c400d62-d_295x166?region=us",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1758221663/aj13zgc7hwkho4qn6osf.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769011778/wptltgnfxjwuljdy07fs.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769195293/qsofzzb8rawp0tmjhqiq.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://res.cloudinary.com/about-gitlab-com/image/upload/v1769195293/kdkx1wwhhxlu0krrmy1f.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/BlK8gjsE.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Dkj9jr4L.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Banner.D46owv98.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Modal.DaM5By4K.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/default.CM2crtdt.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202512.1.0/otBannerSdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/7f944245-c5cd-4eed-a90e-dd955adfdd08/019bbab7-31d7-70de-aa35-d5f988e7fcce/en.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202512.1.0/assets/otFlat.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202512.1.0/assets/v2/otPcTab.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202512.1.0/assets/otCommonStyles.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/personalize/client/c18972324098ea25.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.optimizely.com/js/5113954737848320.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.bizible.com/scripts/bizible.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://munchkin.marketo.net/munchkin.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_close.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_guard_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/aa14a5c8-79e3-442a-8177-464ad850b19d/a773e08c-202b-4eb4-acfb-9a5630ca6beb/34407d5c-0d45-4b7f-b20b-a1badd6b929e/gitlab-logo-100.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/powered_by_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/EmailRedirect.DPQkWd1m.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Video.DWj0z6GF.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/InlineVideoPlayer.DD8GoHsf.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CustomerLogosMarquee.BtY7gLXJ.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Hero.C6O6nsfF.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/HorizontalRule.DQHQnvIt.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Copy.BLuunaEm.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/StackingCards.BudXaMxm.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/IndustrySection.BRypsWJq.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/Quote.D1tIDGS7.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/CardCarousel.5KFpj2no.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/NextSteps.B8WcOKnf.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/personalize/user_data/c18972324098ea25.json?async=false&session_token=1e662f23-cef0-4ed7-b8da-70eccdb6d7c6&token=d259b0261b81992e&visitor_token=504a5ef9-b999-4e95-a69e-bf1789b128f3",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/personalize/client_data/c18972324098ea25.json",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/765.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/223.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/191.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/DHT7Uisl.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/288.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api-v2.mutinyhq.io/v2/b",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a5113954737848320.cdn.optimizely.com/client_storage/a5113954737848320.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_nuxt/bNaE6FFb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-10973987381&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-ENFH3X7M5Y&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-EVTFNG2S5Z&cx=c&gtm=4e6341",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://t.contentsquare.net/uxa/12ea71a10da34.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://snap.licdn.com/li.lms-analytics/insight.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://app.cdn.lookbookhq.com/production/jukebox/current/jukebox.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://gitlab.com/assets/snowplow/sp-e10fd598642f1a4dd3e9e0e026f6a1ffa3c31b8a40efd92db3f92d32873baed6.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://extend.vimeocdn.com/ga/115027220.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://j.6sc.co/j/e9e55340-3e99-4dcb-8496-fe1e95de35e5.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.qualified.com/qualified.js?token=q2kjzSUxjtgnCEEB",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.navattic.com/embed-events.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.gitlab.com/data?v=2&event=page_view&dtdc=eyJwYWdlX2xvY2F0aW9uIjoiaHR0cHM6Ly9hYm91dC5naXRsYWIuY29tLyIsInBhZ2VfaG9zdG5hbWUiOiJhYm91dC5naXRsYWIuY29tIiwicGFnZV9yZWZlcnJlciI6IiIsInBhZ2VfdGl0bGUiOiJGaW5hbGx5LCBBSSBmb3IgdGhlIGVudGlyZSBzb2Z0d2FyZSBsaWZlY3ljbGUuIiwicGFnZV9lbmNvZGluZyI6IlVURi04IiwiY29uc2VudF9zdGF0ZSI6eyJhZF9zdG9yYWdlIjp0cnVlLCJhZF91c2VyX2RhdGEiOnRydWUsImFkX3BlcnNvbmFsaXphdGlvbiI6dHJ1ZSwiYW5hbHl0aWNzX3N0b3JhZ2UiOnRydWUsImZ1bmN0aW9uYWxpdHlfc3RvcmFnZSI6dHJ1ZSwicGVyc29uYWxpemF0aW9uX3N0b3JhZ2UiOnRydWUsInNlY3VyaXR5X3N0b3JhZ2UiOnRydWV9LCJldmVudF9pZCI6IjExYmYxM2JlLTkyMGEtNGJlYy04MGI5LTYyOWYxM2ZlZjM2MiIsImlzX21ldGFfZXZlbnQiOiJ0cnVlIiwiX2RjaWRfdGVtcCI6ImRjaWQuMS4xNzcyOTM0OTg2NDMyLjUxNzEzNTcwMiJ9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.gitlab.com/data?v=2&event=page_view&dtdc=eyJwYWdlX2xvY2F0aW9uIjoiaHR0cHM6Ly9hYm91dC5naXRsYWIuY29tLyIsInBhZ2VfaG9zdG5hbWUiOiJhYm91dC5naXRsYWIuY29tIiwicGFnZV9yZWZlcnJlciI6IiIsInBhZ2VfdGl0bGUiOiJGaW5hbGx5LCBBSSBmb3IgdGhlIGVudGlyZSBzb2Z0d2FyZSBsaWZlY3ljbGUuIiwicGFnZV9lbmNvZGluZyI6IlVURi04IiwiY29uc2VudF9zdGF0ZSI6eyJhZF9zdG9yYWdlIjp0cnVlLCJhZF91c2VyX2RhdGEiOnRydWUsImFkX3BlcnNvbmFsaXphdGlvbiI6dHJ1ZSwiYW5hbHl0aWNzX3N0b3JhZ2UiOnRydWUsImZ1bmN0aW9uYWxpdHlfc3RvcmFnZSI6dHJ1ZSwicGVyc29uYWxpemF0aW9uX3N0b3JhZ2UiOnRydWUsInNlY3VyaXR5X3N0b3JhZ2UiOnRydWV9LCJldmVudF9pZCI6IjExYmYxM2JlLTkyMGEtNGJlYy04MGI5LTYyOWYxM2ZlZjM2MiIsImlzX3JlZGRpdF9ldmVudCI6InRydWUiLCJfZGNpZF90ZW1wIjoiZGNpZC4xLjE3NzI5MzQ5ODY0MzIuNTE3MTM1NzAyIn0%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.gitlab.com/data?v=2&event=page_view&dtdc=eyJwYWdlX2xvY2F0aW9uIjoiaHR0cHM6Ly9hYm91dC5naXRsYWIuY29tLyIsInBhZ2VfaG9zdG5hbWUiOiJhYm91dC5naXRsYWIuY29tIiwicGFnZV9yZWZlcnJlciI6IiIsInBhZ2VfdGl0bGUiOiJGaW5hbGx5LCBBSSBmb3IgdGhlIGVudGlyZSBzb2Z0d2FyZSBsaWZlY3ljbGUuIiwicGFnZV9lbmNvZGluZyI6IlVURi04IiwiY29uc2VudF9zdGF0ZSI6eyJhZF9zdG9yYWdlIjp0cnVlLCJhZF91c2VyX2RhdGEiOnRydWUsImFkX3BlcnNvbmFsaXphdGlvbiI6dHJ1ZSwiYW5hbHl0aWNzX3N0b3JhZ2UiOnRydWUsImZ1bmN0aW9uYWxpdHlfc3RvcmFnZSI6dHJ1ZSwicGVyc29uYWxpemF0aW9uX3N0b3JhZ2UiOnRydWUsInNlY3VyaXR5X3N0b3JhZ2UiOnRydWV9LCJldmVudF9pZCI6IjExYmYxM2JlLTkyMGEtNGJlYy04MGI5LTYyOWYxM2ZlZjM2MiIsImlzX2xpbmtlZGluX2V2ZW50IjoidHJ1ZSIsIl9kY2lkX3RlbXAiOiJkY2lkLjEuMTc3MjkzNDk4NjQzMi41MTcxMzU3MDIifQ%3D%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.gitlab.com/data?v=2&event=page_view&dtdc=eyJwYWdlX2xvY2F0aW9uIjoiaHR0cHM6Ly9hYm91dC5naXRsYWIuY29tLyIsInBhZ2VfaG9zdG5hbWUiOiJhYm91dC5naXRsYWIuY29tIiwicGFnZV9yZWZlcnJlciI6IiIsInBhZ2VfdGl0bGUiOiJGaW5hbGx5LCBBSSBmb3IgdGhlIGVudGlyZSBzb2Z0d2FyZSBsaWZlY3ljbGUuIiwicGFnZV9lbmNvZGluZyI6IlVURi04IiwiY29uc2VudF9zdGF0ZSI6eyJhZF9zdG9yYWdlIjp0cnVlLCJhZF91c2VyX2RhdGEiOnRydWUsImFkX3BlcnNvbmFsaXphdGlvbiI6dHJ1ZSwiYW5hbHl0aWNzX3N0b3JhZ2UiOnRydWUsImZ1bmN0aW9uYWxpdHlfc3RvcmFnZSI6dHJ1ZSwicGVyc29uYWxpemF0aW9uX3N0b3JhZ2UiOnRydWUsInNlY3VyaXR5X3N0b3JhZ2UiOnRydWV9LCJldmVudF9pZCI6IjExYmYxM2JlLTkyMGEtNGJlYy04MGI5LTYyOWYxM2ZlZjM2MiIsImlzX3N0YWNrYWRhcHRfZXZlbnQiOiJ0cnVlIiwiX2RjaWRfdGVtcCI6ImRjaWQuMS4xNzcyOTM0OTg2NDMyLjUxNzEzNTcwMiJ9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/237.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://client-registry.mutinycdn.com/mutiny-client/160.5.6.3.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.bizible.com/ipv?_biz_r=&_biz_h=-1719904874&_biz_u=3a884106bf5f499bc41f14d1367a4611&_biz_l=https%3A%2F%2Fabout.gitlab.com%2F&_biz_t=1772934986457&_biz_i=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&_biz_n=0&rnd=40653&cdn_o=a&_biz_z=1772934986457",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.bizibly.com/u?_biz_u=3a884106bf5f499bc41f14d1367a4611&_biz_l=https%3A%2F%2Fabout.gitlab.com%2F&_biz_t=1772934986459&_biz_i=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&rnd=650526&cdn_o=a&_biz_z=1772934986459",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://snowplowprd.trx.gitlab.net/com.snowplowanalytics.snowplow/tp2",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "blob:https://about.gitlab.com/b3de5d00-941f-454d-8e4a-c6864bdf5fb5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.az.contentsquare.net/pageview?ex=&dt=228&pvt=n&la=en-US&uc=0&url=https%3A%2F%2Fabout.gitlab.com%2F&dr=&dw=1280&dh=8296&ww=1280&wh=720&sw=1280&sh=720&uu=82f51b27-fc47-adec-d05f-369b6506d410&sn=1&hd=1772934986&v=15.193.7&pid=313152&pn=1&ct=0",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://static.hj.contentsquare.net/c/hotjar-6533133.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://jukebox.pathfactory.com/api/public/v1/init?image=&title=&url=https%3A%2F%2Fabout.gitlab.com%2F&clientId=LB-AE0B686E-10519",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.bizible.com/xdc.js?_biz_u=3a884106bf5f499bc41f14d1367a4611&_biz_h=-1719904874&cdn_o=a&jsVer=4.26.02.25",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://k-us1.az.contentsquare.net/v2/recording?rt=5&rst=1772934986699&let=1772934986701&v=15.193.7&pid=313152&pn=1&sn=1&uu=82f51b27-fc47-adec-d05f-369b6506d410&ri=1&ct=2",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://j.6sc.co/6si.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://app.qualified.com/w/1/q2kjzSUxjtgnCEEB/visitor_events?wu=",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://secure.adnxs.com/getuidj",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.6sc.co/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ipv6.6sc.co/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/attribution_trigger?pid=30694&time=1772934986943&url=https%3A%2F%2Fabout.gitlab.com%2F",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=30694&time=1772934986943&li_adsId=c0c8f582-695c-4395-978c-945bef343097&url=https%3A%2F%2Fabout.gitlab.com%2F",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://epsilon.6sense.com/v3/company/details",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=null&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=a_pageload&q=%7B%22pageLoadTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=null&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=ni%3AasyncSettingsAudit&q=%7B%22settings%22%3A%22%5B%7B%5C%22name%5C%22%3A%5C%22setToken%5C%22%2C%5C%22value%5C%22%3A%5C%2291b99ea9b3e209159c4e82ef3981f715%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22disableCookies%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setEpsilonKey%5C%22%2C%5C%22value%5C%22%3A%5C%2246569ef2867a35df4d718122af5de2095766830f%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableIPv6Ping%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableIgnorePageUrlHash%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableRetargeting%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setWhiteListFields%5C%22%2C%5C%22value%5C%22%3A%5C%22%5B%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setCustomMetatags%5C%22%2C%5C%22value%5C%22%3A%5C%22%5B%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22storeTagId%5C%22%2C%5C%22value%5C%22%3A%5C%22e9e55340-3e99-4dcb-8496-fe1e95de35e5%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableEventTracking%5C%22%2C%5C%22value%5C%22%3A%5C%22true%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22setCompanyDetailsExpiration%5C%22%2C%5C%22value%5C%22%3A%5C%22false%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%2C%7B%5C%22name%5C%22%3A%5C%22enableCompanyDetails%5C%22%2C%5C%22value%5C%22%3A%5C%22%5Btrue%2Cnull%2C3%5D%5C%22%2C%5C%22dateTime%5C%22%3A%5C%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%5C%22%2C%5C%22timeSincePageLoad%5C%22%3A%5C%220%5C%22%7D%5D%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://logx.optimizely.com/v1/events",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://analytics.gitlab.com/g/collect?v=2&tid=G-ENFH3X7M5Y&gtm=45je6341v886122411z872277150za20gzb72277150zd72277150&_p=1772934984928&gcs=G111&gcd=13t3t3t3t5l1&npa=0&dma=0&gdid=dYWJhMj&cid=1946719187.1772934987&ecid=970032792&ul=en-us&sr=1280x720&_fplc=0&ur=US-CA&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&sst.rnd=1539152281.1772934987&sst.tft=1772934984928&sst.lpc=99214414&sst.navt=n&sst.ude=0&sst.sw_exp=1&_s=1&tag_exp=103116026~103200004~115938466~115938469~116024733~117484252&dl=https%3A%2F%2Fabout.gitlab.com%2F&sid=1772934986&sct=1&seg=0&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&_tu=DA&en=page_view&_fv=1&_nsi=1&_ss=1&ep.page_exclude_localization=about.gitlab.com%2F&up.browser_width_height=1280x720&tfd=4258&richsstsse",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10973987381/?random=1772934986831&cv=11&fst=1772934986831&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xec&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=CA&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googleadservices.com/pagead/conversion/10973987381/?random=1772934986831&cv=11&fst=1772934986831&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&label=n5UpCJ_G28UbELWE5_Ao&capi=1&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&bttype=purchase&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&gcl_ctr=1~0~0&category=acrcp_v1_512&fmt=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.gitlab.com/g/collect?v=2&tid=G-EVTFNG2S5Z&gtm=45je6341v9121622676z872277150za20gzb72277150zd72277150&_p=1772934984928&gcs=G111&gcd=13t3t3t3t5l1&npa=0&dma=0&gdid=dYWJhMj&cid=1946719187.1772934987&ecid=2129119862&ul=en-us&sr=1280x720&_fplc=0&ur=US-CA&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAGA&sst.rnd=1539152281.1772934987&sst.tft=1772934984928&sst.lpc=99214414&sst.navt=n&sst.ude=0&sst.sw_exp=1&_s=1&tag_exp=103116026~103200004~115616985~115938466~115938469~116024733~117477894~117484252~117625640&sid=1772934986&sct=1&seg=0&dl=https%3A%2F%2Fabout.gitlab.com%2F&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&_tu=DA&en=page_view&_fv=1&_ss=1&tfd=4276&richsstsse",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&ae=g&en=page_view&dl=https%3A%2F%2Fabout.gitlab.com%2F&scrsrc=www.googletagmanager.com&rnd=1539152281.1772934987&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&auid=1446158978.1772934987&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dYWJhMj&gtm=45He6341v72277150za200zd72277150xea&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115616985~115938466~115938469~116024733~117484252&apve=1&apvf=f&apvc=1&tft=1772934987373&tfd=4277",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&en=page_view&dl=https%3A%2F%2Fabout.gitlab.com%2F&scrsrc=www.googletagmanager.com&rnd=1539152281.1772934987&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&auid=1446158978.1772934987&navt=n&npa=0&gdid=dYWJhMj&_tu=CA&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xec&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&apve=1&apvf=f&apvc=0&tids=AW-10973987381&tid=AW-10973987381&tft=1772934987373&tfd=4277",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?frm=0&ae=g&dl=https%3A%2F%2Fabout.gitlab.com%2F&scrsrc=www.googletagmanager.com&rnd=1539152281.1772934987&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&auid=1446158978.1772934987&navt=n&npa=0&gdid=dYWJhMj&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&apve=1&apvf=f&apvc=0&tids=AW-10973987381&tid=AW-10973987381&tft=1772934987373&tfd=4278",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10973987381/?random=1772934986831&cv=11&fst=1772934986831&fmt=3&bg=ffffff&guid=ON&async=1&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.gitlab.com/_/service_worker/6240/sw_iframe.html?origin=https%3A%2F%2Fabout.gitlab.com&1p=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.6sc.co/refresh",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.6sc.co/?m=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/10973987381/?random=1772934986831&cv=11&fst=1772931600000&fmt=3&bg=ffffff&guid=ON&async=1&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&is_vtc=1&cid=CAQSfwDnonV5u_O9P3-J9UX8wQ23QRvC5HLbNbK-RBPjK6WJkM2CIZmKqCABZjWRL3oEwOGXE6LA2NhS6SatNBGFkb2Ae-ULNWB5OcphIh1LGtg0BOdB50sy0RDQnm7krQ_XWVlFat-qa0Fu1LyqCaJRQM8L8ghy7REoOLNC7o0Tg2o&random=577312686",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/10973987381/?random=1772934986831&cv=11&fst=1772931600000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xec&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&gdid=dYWJhMj&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&_tu=CA&data=event%3Dgtag.config&rfmt=3&fmt=3&is_vtc=1&cid=CAQSfwDnonV5-fSR6vu40Ggh1x5_olNwQ5sNQ4nLTYA33lDOIV8J15JJ994P0uMPxiliMGprDAOzLoSJYdGH2NFcbaaSNHAIkc5EgLh501NC-xE_XtW4m7ICYVvKtPSvXePWqKcwKRIGbG21_ydkqojjdZyI1zg6ZWsH-LFvSTRSC_c&random=1987785704&rmt_tld=0&ipr=y",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://analytics.google.com/g/s/collect?dma=0&npa=0&gcs=G111&gcd=13t3t3t3t5l1&gtm=45j91e6341v9121622676z872277150z9843531241za20gzb72277150zd72277150&tag_exp=103116026~103200004~115616985~115938466~115938469~116024733~116024736~117215454~117477894~117484252~117625640&_is_sw=f15s0t19&_tu=DA&_gsid=EVTFNG2S5Z5_GRbev82-p_YLE5hdu0Fw",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://stats.g.doubleclick.net/g/collect?v=2&dma=0&npa=0&gcs=G111&gcd=13t3t3t3t5l1&tid=G-EVTFNG2S5Z&cid=1946719187.1772934987&gtm=45j91e6341v9121622676z872277150z9843531241za20gzb72277150zd72277150&tag_exp=103116026~103200004~115616985~115938466~115938469~116024733~116024736~117215454~117477894~117484252~117625640&_is_sw=f15s0t19&_tu=DA&aip=1",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=30694&time=1772934986943&li_adsId=c0c8f582-695c-4395-978c-945bef343097&url=https%3A%2F%2Fabout.gitlab.com%2F&cookiesTest=true",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=d194d817957800004bd7ac691b03000028980c00&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A27%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A26%20GMT%22%2C%22timeSpent%22%3A%221006%22%2C%22totalTimeSpent%22%3A%221006%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&an_uid=0&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://analytics.gitlab.com/g/collect?v=2&tid=G-ENFH3X7M5Y&gtm=45je6341v886122411z872277150za20gzb72277150zd72277150&_p=1772934984928&gcs=G111&gcd=13t3t3t3t5l1&npa=0&dma=0&gdid=dYWJhMj&cid=1946719187.1772934987&ecid=970032792&ul=en-us&sr=1280x720&_fplc=0&ur=US-CA&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_eu=AAAAAAQ&sst.rnd=1539152281.1772934987&sst.tft=1772934984928&sst.lpc=99214414&sst.navt=n&sst.ude=0&sst.sw_exp=1&_s=2&tag_exp=103116026~103200004~115938466~115938469~116024733~117484252&dl=https%3A%2F%2Fabout.gitlab.com%2F&sid=1772934986&sct=1&seg=0&dt=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&_tu=BA&en=6sense_loaded&ep.page_exclude_localization=about.gitlab.com%2F&_et=597&up.ssense_confidence=Moderate&up.ssense_country=United%20States&up.ssense_employee_range=20%20-%2049&up.ssense_industry=Software%20and%20Technology&up.ssense_company=UniversalAGI&up.ssense_revenue_range=%24100M%20-%20%24250M&up.ssense_sales_segment=SMB&up.ssense_blacklisted=false&tfd=4857&richsstsse",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10973987381/?random=2036023538&cv=11&fst=1772934986831&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&label=n5UpCJ_G28UbELWE5_Ao&capi=1&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&gcl_ctr=1~0~0&category=acrcp_v1_512&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQIIsuGxAgim3bECCK_esQJKK25vdC1ldmVudC1zb3VyY2UsIHRyaWdnZXI9bmF2aWdhdGlvbi1zb3VyY2VaAwoBAWIDCgED&cerd=CgEA&eitems=ChEIgLavzQYQs-Weg9aH3Ij6ARIdAA0pApnEkX3GhmZdDZ3YsjKFtJdK-v2D97AGCvE&fsk=ChEIgLavzQYQvOCf0tOZiPv5ARIsABNjsiunhY6S3IlcjByGsie766unYkxBFEwSJtm9OEVVKL7kxcMcEIn3SxUaAmxz&pscrd=IhMIsa-uwZmPkwMVSIU6BR0CIQ55MgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhlodHRwczovL2Fib3V0LmdpdGxhYi5jb20vQlZDaEFJZ0xhdnpRWVFtTTJ6aHB1LTQ3OHpFaXdBb0g5cENYLTQwZG1Fand1bk5iMTN2NXV2MVBhZjZmWDJvbVMwbWZyNFhQRHB2TG1LMmZnNEJBWkNrd3oMCAliCAgAEAAYACAA",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.linkedin.com/px/li_sync?redirect=https%3A%2F%2Fpx.ads.linkedin.com%2Fcollect%3Fv%3D2%26fmt%3Djs%26pid%3D30694%26time%3D1772934986943%26li_adsId%3Dc0c8f582-695c-4395-978c-945bef343097%26url%3Dhttps%253A%252F%252Fabout.gitlab.com%252F%26cookiesTest%3Dtrue%26liSync%3Dtrue",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-conversion/10973987381/?random=2036023538&cv=11&fst=1772934986831&bg=ffffff&guid=ON&async=1&en=conversion&gtm=45be6341v9188609603z872277150za20gzb72277150zd72277150xea&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117851836&u_w=1280&u_h=720&url=https%3A%2F%2Fabout.gitlab.com%2F&label=n5UpCJ_G28UbELWE5_Ao&capi=1&frm=0&tiba=Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.&did=dYWJhMj&gdid=dYWJhMj&edid=dYWJhMj&value=0&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446158978.1772934987&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&gcl_ctr=1~0~0&category=acrcp_v1_512&fmt=8&ct_cookie_present=false&crd=CLTesQIIobixAgixwbECCLDBsQIIscOxAgiKxbECCMLJsQIItMaxAgiT2rECCNvcsQIIh9uxAgjTxbECCOvMsQII7c6xAgjVz7ECCPTasQIIl9SxAgjJ27ECCLHhsQIIsuGxAgim3bECCK_esQJKK25vdC1ldmVudC1zb3VyY2UsIHRyaWdnZXI9bmF2aWdhdGlvbi1zb3VyY2VaAwoBAWIDCgED&cerd=CgEA&fsk=ChEIgLavzQYQvOCf0tOZiPv5ARIsABNjsiunhY6S3IlcjByGsie766unYkxBFEwSJtm9OEVVKL7kxcMcEIn3SxUaAmxz&pscrd=IhMIsa-uwZmPkwMVSIU6BR0CIQ55MgwIA2IICAAQABgAIAAyDAgEYggIABAAGAAgADIMCAdiCAgAEAAYACAAMgwICGIICAAQABgAIAAyDAgJYggIABAAGAAgADIMCApiCAgAEAAYACAAMgwIAmIICAAQABgAIAAyDAgLYggIABAAGAAgADIMCBViCAgAEAAYACAAMgwIH2IICAAQABgAIAAyDAgTYggIABAAGAAgADIMCBJiCAgAEAAYACAAOhlodHRwczovL2Fib3V0LmdpdGxhYi5jb20vQlZDaEFJZ0xhdnpRWVFtTTJ6aHB1LTQ3OHpFaXdBb0g5cENYLTQwZG1Fand1bk5iMTN2NXV2MVBhZjZmWDJvbVMwbWZyNFhQRHB2TG1LMmZnNEJBWkNrd3oMCAliCAgAEAAYACAA&is_vtc=1&cid=CAQSfwDnonV56vnT0ZL5XpntzNe8-iG6XniN5Jn9hNECN-ifYM9hUyE4c9WrIqm9quBw9B3Acs04Kb2htzCqDRqMptZbVjJHaKfbAPnKebXyzrpGPwQ3gCuh3qJe4A_HBbGuZnHTP9miplHhK91DDjYM1-mIysbTuQM3EmSILRXfhQg&eitems=ChEIgLavzQYQs-Weg9aH3Ij6ARIdAA0pAplYyqS_5rHu9SM6FHVUmOaL3zvsBMYNd0M&random=2341888701",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://app.qualified.com/w/1/q2kjzSUxjtgnCEEB/messenger?uuid=be372707-9ad7-4752-9614-43c8f076d7d2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://app.qualified.com/w/1/q2kjzSUxjtgnCEEB/visitor_events?wu=ae524ae7-4fa9-49a2-b2b0-f46117e4e348&uuid=be372707-9ad7-4752-9614-43c8f076d7d2",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://js.qualified.com/packs/js/analytics-56363379.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.qualified.com/packs/js/multimodal_v2-75d4e7e8.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js.qualified.com/packs/js/606-f9964517.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://assets.qualified.com/packs/css/widget/sandboxed/messenger-9fcbda82.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://assets.qualified.com/packs/js/widget/sandboxed/messenger-d726933a.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://assets.qualified.com/packs/media/Inter-Regular.f1f0c35b.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://assets.qualified.com/packs/media/Inter-SemiBold.fcb100c7.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://o209747.ingest.us.sentry.io/api/4508915056574464/envelope/?sentry_key=c36ec735e564530732f0d75311d173b6&sentry_version=7&sentry_client=sentry.javascript.browser%2F7.119.1",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=30694&time=1772934986943&li_adsId=c0c8f582-695c-4395-978c-945bef343097&url=https%3A%2F%2Fabout.gitlab.com%2F&cookiesTest=true&liSync=true",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/wa/?medium=fetch&fmt=g",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=d194d817957800004bd7ac691b03000028980c00&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A28%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A27%20GMT%22%2C%22timeSpent%22%3A%221034%22%2C%22totalTimeSpent%22%3A%222040%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&an_uid=0&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://app.qualified.com/cdn-cgi/rum?",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api-v2.mutinyhq.io/v2/b",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=d194d817957800004bd7ac691b03000028980c00&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A29%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A28%20GMT%22%2C%22timeSpent%22%3A%221002%22%2C%22totalTimeSpent%22%3A%223042%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&an_uid=0&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://b.6sc.co/v1/beacon/img.gif?token=91b99ea9b3e209159c4e82ef3981f715&svisitor=d194d817957800004bd7ac691b03000028980c00&visitor=2a1b66a9-1eb1-477a-8848-352bf16f090e&session=5b283303-be3e-4bc9-87bd-b8eeee19c6a1&event=active_time_track&q=%7B%22currentTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A30%20GMT%22%2C%22lastTrackTime%22%3A%22Sun%2C%2008%20Mar%202026%2001%3A56%3A29%20GMT%22%2C%22timeSpent%22%3A%221001%22%2C%22totalTimeSpent%22%3A%224043%22%7D&isIframe=false&m=%7B%22description%22%3A%22Your%20intelligent%20orchestration%20platform%20for%20DevSecOps%22%2C%22keywords%22%3A%22%22%2C%22title%22%3A%22Finally%2C%20AI%20for%20the%20entire%20software%20lifecycle.%22%7D&cb=&r=&thirdParty=%7B%7D&v2=1&pageURL=https%3A%2F%2Fabout.gitlab.com%2F&pageViewId=269e634b-635e-4350-894f-a0a84658a191&an_uid=0&webTagId=e9e55340-3e99-4dcb-8496-fe1e95de35e5&v=1.1.31",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://about.gitlab.com/_payload.json?c5f3558d-5a4c-4d5f-8172-4fb3142cdbd6",
+      "method": "GET",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    },
+    {
+      "url": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json",
+      "method": "GET",
+      "kept": true,
+      "reason": "accepted_endpoint",
+      "endpoint_id": "-vVNnsmKvEYwaUJ-m2dCy",
+      "description": "Returns details for En U with aria, blog, forms, oneTrustWarning, langSelector, accordions",
+      "action_kind": "search",
+      "resource_kind": "message"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "-vVNnsmKvEYwaUJ-m2dCy",
+      "method": "GET",
+      "url_template": "https://about.gitlab.com/_i18n/uGMDosXM/en-us/messages.json",
+      "description": "Returns details for En U with aria, blog, forms, oneTrustWarning, langSelector, accordions",
+      "action_kind": "search",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "rhBDp7CNZm23olbwVqrSn",
+      "method": "WS",
+      "url_template": "wss://ws4.qualified.com/cable?wv=9&token=q2kjzSUxjtgnCEEB&vu=be372707-9ad7-4752-9614-43c8f076d7d2&wu=ae524ae7-4fa9-49a2-b2b0-f46117e4e348&ca=2026-03-08T01%3A56%3A26.922Z&tz=America%2FLos_Angeles&bis=5&referrer=&pv=1&fv=2026-03-08-7ce28f6d25&iml=false&bl=en-US&ic=true",
+      "action_kind": "fetch",
+      "resource_kind": "resource"
+    }
+  ]
+}

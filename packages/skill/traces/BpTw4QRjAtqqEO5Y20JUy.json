@@ -1,0 +1,77 @@
+{
+  "trace_id": "BpTw4QRjAtqqEO5Y20JUy",
+  "skill_id": "gbvedhJwqL6OgxX2CqiO3",
+  "endpoint_id": "W0I7F_wpDWq_rIuSkH9Lc",
+  "started_at": "2026-03-08T20:32:14.079Z",
+  "completed_at": "2026-03-08T20:32:20.179Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "data": [
+      {
+        "title": "Jason Calacanis Net Worth & Popular Startup Investments",
+        "link": "/team/charles-alexander",
+        "image": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/633cd7641794e51a6c2c0f2d_avatar-4-team-saasfy-template.png",
+        "description": "Jason Calacanis Net Worth & Popular Startup Investments"
+      },
+      {
+        "title": "Jason Calacanis’s Net Worth: What’s the Number?",
+        "heading_1": "How Did Jason Calacanis Build His Fortune?",
+        "heading_2": "Jason Calacanis’s Most Popular Startup Investments",
+        "heading_3": "1. Uber",
+        "heading_4": "2. Robinhood",
+        "heading_5": "3. Calm",
+        "heading_6": "4. Thumbtack",
+        "heading_7": "5. Fitbod",
+        "heading_8": "Lessons We Can Learn from Jason Calacanis’s Investment Strategy",
+        "heading_9": "Wrapping Up: What Founders Can Learn from Jason Calacanis",
+        "link": "https://capitaly.vc",
+        "image": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/66dd433c7138638139a7a11e_screen-shot-2014-09-10-at-11-23-36-pm.png",
+        "description": "If you’re involved in the world of startups, chances are you’ve heard the name Jason Calacanis. Whether it’s his early bets on startups like Uber or his role as an angel investor, Calacanis is a well-known figure in the startup ecosystem. Having raised millions myself, I can confidently say that Calacanis’s approach to investing, and the impact it has had on the startup world, is nothing short of impressive. Let’s dive into Jason Calacanis’s net worth, some of his most popular startup investments, and what we can learn from his journey as both founders and investors."
+      },
+      {
+        "title": "Latest articlesBrowse articles",
+        "heading_1": "Latest articles",
+        "heading_2": "Due Diligence Checklist for Shruti Gandhi: Docs, KPIs, and Demo Flow She’ll Expect",
+        "heading_3": "Case Studies: Why Shruti Gandhi Backed These Startups—and How Capitaly.vc Would Help Next",
+        "link": "/blog",
+        "image": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/69119068862dcbd94aeb34e0_CAPITALY.VC.png"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8,
+      "source": "rendered-dom",
+      "final_url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+      "selector": "div.text-center"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].title",
+      "data[].link",
+      "data[].image",
+      "data[].description",
+      "data[].heading_1",
+      "data[].heading_2",
+      "data[].heading_3",
+      "data[].heading_4",
+      "data[].heading_5",
+      "data[].heading_6",
+      "data[].heading_7",
+      "data[].heading_8",
+      "data[].heading_9",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

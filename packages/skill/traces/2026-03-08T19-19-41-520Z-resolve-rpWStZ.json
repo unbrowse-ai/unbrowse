@@ -1,0 +1,46 @@
+{
+  "intent": "get direct message conversations list",
+  "params": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "context": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "8tz9d4rHNVlEkf_GKd6uI",
+      "score": 92.5,
+      "description": "Returns details for Detectable with aliases, executables, is_launcher, name, os, hook",
+      "url": "https://discord.com/api/v9/applications/non-games/detectable",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "zJYBhiVJiKrHZ7RpA0r6g",
+      "score": -38.5,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "8tz9d4rHNVlEkf_GKd6uI",
+      "score": 182.5,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "zJYBhiVJiKrHZ7RpA0r6g",
+      "score": 16.5,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": null,
+      "local_reason": "primitive_rows"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "uw7JRrnPAtKgx_wgamIwG"
+}

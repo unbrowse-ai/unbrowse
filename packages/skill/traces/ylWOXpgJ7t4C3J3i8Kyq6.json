@@ -1,0 +1,28 @@
+{
+  "trace_id": "ylWOXpgJ7t4C3J3i8Kyq6",
+  "skill_id": "6ROd4qQiKu0Ii3ouhH3Hx",
+  "endpoint_id": "9ggXaGCbygUvlIZSN1BKK",
+  "started_at": "2026-03-08T01:57:20.261Z",
+  "completed_at": "2026-03-08T01:57:20.390Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "deployed_sha": "23ff597cf8634d808c2b138eb6c06e0db9b759ed",
+    "commit": "23ff597cf8634d808c2b138eb6c06e0db9b759ed",
+    "read_only": false,
+    "banner_message": null
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [],
+    "type_changes": [
+      {
+        "path": "banner_message",
+        "was": "string",
+        "now": "null"
+      }
+    ]
+  }
+}

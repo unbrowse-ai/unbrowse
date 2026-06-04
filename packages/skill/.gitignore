@@ -1,0 +1,7 @@
+node_modules/
+dist/
+packed-src/
+runtime-src/
+vendor/kuri/*
+!vendor/kuri/manifest.json
+.env

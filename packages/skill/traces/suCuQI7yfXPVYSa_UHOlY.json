@@ -1,0 +1,90 @@
+{
+  "trace_id": "suCuQI7yfXPVYSa_UHOlY",
+  "skill_id": "0naQHv2SqQRc7E3rJNvhN",
+  "endpoint_id": "Wf0_xeFeznhwswArWu3a-",
+  "started_at": "2026-03-08T20:30:29.552Z",
+  "completed_at": "2026-03-08T20:30:36.012Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "data": [
+      {
+        "title": "All-In Podcast Hosts Net Worth & Startup Investment Thesis",
+        "link": "https://www.capitaly.vc/blog/all-in-podcast-hosts-net-worth-startup-investment-thesis"
+      },
+      {
+        "title": "What is Jason Calacanis's net worth in 2023? | Bio & Career",
+        "heading_1": "Jason Calacanis - Wikipedia",
+        "link": "https://inside.com/",
+        "image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+      },
+      {
+        "title": "All In Podcast Hosts' Net Worth: Chamath, Jason, David & Sacks",
+        "link": "https://capitaly.substack.com/p/all-in-podcast-hosts-net-worth-chamath"
+      },
+      {
+        "title": "What is Jason Calacanis's net worth in 2023? | Bio & Career",
+        "link": "https://earlynode.com/profiles/jason-calacanis"
+      },
+      {
+        "title": "[Serious] Is Jcal actually a more successful investor than ...",
+        "link": "https://www.reddit.com/r/TheAllinPodcasts/comments/1l6i8re/serious_is_jcal_actually_a_more_successful/"
+      },
+      {
+        "title": "Jason Calacanis Net Worth & Popular Startup Investments",
+        "link": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ1kVnCo0GZKscFZHfHezI9nygb8GxLP10TnvNA4AG3mWMdJN8Wdns6&usqp=CAE&s"
+      },
+      {
+        "title": "Jason Calacanis",
+        "link": "https://en.wikipedia.org/wiki/Jason_Calacanis",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRTLvxj3zqV_AM_S8YCqdTRHzEVAbdJJQEKC-DFIx_FZxRb6VhWE8bQ&usqp=CAE&s"
+      },
+      {
+        "title": "Weblogs Co-founder Jason Calacanis Has Invested in ...",
+        "link": "https://marketrealist.com/what-is-the-net-worth-of-jason-calacanis/",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSxseb1QImkQKFuVekQKDxeiTlP9taO2Xa9mC7ebGiFNPg9cGqlkla7&usqp=CAE&s"
+      },
+      {
+        "title": "Jason Calacanis Net Worth",
+        "link": "https://www.celebritynetworth.com/richest-businessmen/ceos/jason-calacanis-net-worth/",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkCY0RfwHqi4FaX95Ljp0cAR14VUjc9qCnnQtV5PxZ5YAdUTJjzfWF&usqp=CAE&s"
+      },
+      {
+        "title": "What is the net worth of each of the 5 besties?",
+        "link": "https://www.reddit.com/r/TheAllinPodcasts/comments/14vj37m/what_is_the_net_worth_of_each_of_the_5_besties/"
+      },
+      {
+        "title": "Jason Calacanis' Net Worth and Investor Story",
+        "link": "https://www.capitalism.com/jason-calacanis-net-worth/",
+        "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNSM23vr0kDt42gLa3fbRHnAOy-05z0Wi_6H5G4MufrmVFgojDikaz&usqp=CAE&s"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.9000000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://www.google.com/search?q=jason%20calacanis%20net%20worth%202024",
+      "selector": "div.MjjYud"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].title",
+      "data[].link",
+      "data[].heading_1",
+      "data[].image",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "trace_id": "BHTejNXs0crrsaq0WRBG-",
+  "skill_id": "CmvOOAosa3Ec0XR208wb7",
+  "endpoint_id": "kTiUwnCO96nz094qYSSKL",
+  "started_at": "2026-03-13T07:34:26.720Z",
+  "completed_at": "2026-03-13T07:34:26.750Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "45be650230dd@4fa31a3",
+  "result": {
+    "documents": [
+      {
+        "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+        "score": 43.484623,
+        "title": "BackgroundFetchManager: fetch() method",
+        "locale": "en-us",
+        "slug": "web/api/backgroundfetchmanager/fetch",
+        "popularity": 0.00045003144055269615,
+        "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+        "highlight": {
+          "body": [
+            "The <mark>fetch</mark>() method of the Background<mark>Fetch</mark>Manager interface initiates a background <mark>fetch</mark> operation, given one or more URLs",
+            "The following example shows how to use <mark>fetch</mark>() to initiate a background <mark>fetch</mark> operation.",
+            "object and call its <mark>fetch</mark>()\nmethod.\njsnavigator.serviceWorker.ready.then(async (swReg) =&gt; {\nconst bg<mark>Fetch</mark> = await swReg.background<mark>Fetch</mark>.<mark>fetch</mark>"
+          ],
+          "title": [
+            "Background<mark>Fetch</mark>Manager: <mark>fetch</mark>() method"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+        "score": 43.25677,
+        "title": "FetchEvent: FetchEvent() constructor",
+        "locale": "en-us",
+        "slug": "web/api/fetchevent/fetchevent",
+        "popularity": 0,
+        "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+        "highlight": {
+          "body": [
+            "The <mark>Fetch</mark>Event() constructor creates a new <mark>Fetch</mark>Event object.\njsnew <mark>Fetch</mark>Event(type, options)\ntype\nA string with the name",
+            "It is case-sensitive and browsers always set it to <mark>fetch</mark>.\noptions\nAn object that, in addition of the properties defined in",
+            "A new <mark>Fetch</mark>Event object.\nPromise\n<mark>Fetch</mark> API"
+          ],
+          "title": [
+            "<mark>Fetch</mark>Event: <mark>Fetch</mark>Event() constructor"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/Fetch_API",
+        "score": 42.638496,
+        "title": "Fetch API",
+        "locale": "en-us",
+        "slug": "web/api/fetch_api",
+        "popularity": 0.01824100039865799,
+        "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+        "highlight": {
+          "body": [
+            "Find out more about using the <mark>Fetch</mark> API features in Using <mark>Fetch</mark>.",
+            "See Using Deferred <mark>Fetch</mark>.\nWindow.<mark>fetch</mark>() and WorkerGlobalScope.<mark>fetch</mark>()\nThe <mark>fetch</mark>() method used to <mark>fetch</mark> a resource.",
+            "Window.<mark>fetch</mark>Later()\nUsed to make a deferred <mark>fetch</mark> request."
+          ],
+          "title": [
+            "<mark>Fetch</mark> API"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/FetchEvent",
+        "score": 42.45038,
+        "title": "FetchEvent",
+        "locale": "en-us",
+        "slug": "web/api/fetchevent",
+        "popularity": 0.00045208637863741166,
+        "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to this fetch.",
+        "highlight": {
+          "body": [
+            "Event\nExtendableEvent\n<mark>Fetch</mark>Event\n<mark>Fetch</mark>Event()\nCreates a new <mark>Fetch</mark>Event object. This constructor is not typically used.",
+            "<mark>Fetch</mark>Event.clientId Read only\nThe id of the same-origin client that initiated the <mark>fetch</mark>.",
+            "(event.request);\n})(),\n);\n});\n<mark>fetch</mark> event\nPromise\n<mark>Fetch</mark> API"
+          ],
+          "title": [
+            "<mark>Fetch</mark>Event"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Glossary/Fetch_directive",
+        "score": 42.148563,
+        "title": "Fetch directive",
+        "locale": "en-us",
+        "slug": "glossary/fetch_directive",
+        "popularity": 0.0007192283296504276,
+        "summary": "CSP fetch directives are used in a Content-Security-Policy header and control locations from which certain resource types may be loaded. For instance, script-src allows developers to allow trusted sources of script to execute on a page, while font-src controls the sources of web fonts.",
+        "highlight": {
+          "body": [
+            "CSP <mark>fetch</mark> directives are used in a Content-Security-Policy header and control locations from which certain resource types",
+            "All <mark>fetch</mark> directives fall back to default-src.",
+            "See <mark>Fetch</mark> directives for a complete list."
+          ],
+          "title": [
+            "<mark>Fetch</mark> directive"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/BackgroundFetchEvent/BackgroundFetchEvent",
+        "score": 39.27175,
+        "title": "BackgroundFetchEvent: BackgroundFetchEvent() constructor",
+        "locale": "en-us",
+        "slug": "web/api/backgroundfetchevent/backgroundfetchevent",
+        "popularity": 0.00037810860758765336,
+        "summary": "The BackgroundFetchEvent() constructor creates a new BackgroundFetchEvent object. This constructor is not typically used as the browser creates these objects itself and provides them to background fetch event callbacks.",
+        "highlight": {
+          "body": [
+            "The Background<mark>Fetch</mark>Event() constructor creates a new Background<mark>Fetch</mark>Event object.",
+            "event callbacks.\njsnew Background<mark>Fetch</mark>Event(type, options)\ntype\nA string with the name of the event.",
+            "A new Background<mark>Fetch</mark>Event object."
+          ],
+          "title": [
+            "Background<mark>Fetch</mark>Event: Background<mark>Fetch</mark>Event() constructor"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+        "score": 39.173588,
+        "title": "Using the Fetch API",
+        "locale": "en-us",
+        "slug": "web/api/fetch_api/using_fetch",
+        "popularity": 0.04448118978175187,
+        "summary": "The Fetch API provides a JavaScript interface for making HTTP requests and processing the responses.",
+        "highlight": {
+          "body": [
+            "To make a request, call <mark>fetch</mark>(), passing in:\na definition of the resource to <mark>fetch</mark>.",
+            "then pass that object to <mark>fetch</mark>().",
+            "<mark>fetch</mark>Button = document.querySelector(&quot;#<mark>fetch</mark>&quot;);\n<mark>fetch</mark>Button.addEventListener(&quot;click&quot;, async () =&gt; {\ntry {\nconsole.log(&quot;Starting"
+          ],
+          "title": [
+            "Using the <mark>Fetch</mark> API"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/Window/fetch",
+        "score": 38.757835,
+        "title": "Window: fetch() method",
+        "locale": "en-us",
+        "slug": "web/api/window/fetch",
+        "popularity": 0.009515733290955944,
+        "summary": "The fetch() method of the Window interface starts the process of fetching a resource from the network, returning a promise that is fulfilled once the response is available.",
+        "highlight": {
+          "body": [
+            "<mark>fetch</mark> it\nusing a <mark>fetch</mark>() call.",
+            "we invoke <mark>fetch</mark>().",
+            "WorkerGlobalScope.<mark>fetch</mark>()\n<mark>Fetch</mark> API\nServiceWorker API\nHTTP access control (CORS)\nHTTP"
+          ],
+          "title": [
+            "Window: <mark>fetch</mark>() method"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/Fetch_API/Using_Deferred_Fetch",
+        "score": 38.730915,
+        "title": "Using Deferred Fetch",
+        "locale": "en-us",
+        "slug": "web/api/fetch_api/using_deferred_fetch",
+        "popularity": 0.0010870622468145037,
+        "summary": "The fetchLater() API provides an interface to request a deferred fetch that can be sent after a specified period of time, or when the page is closed or navigated away from.",
+        "highlight": {
+          "body": [
+            "The <mark>fetch</mark>Later() API provides an interface to request a deferred <mark>fetch</mark> that can be sent after a specified period of time,",
+            "The <mark>fetch</mark>Later() API extends the <mark>Fetch</mark> API to allow setting <mark>fetch</mark> requests up in advance.",
+            "src=&quot;https:&#x2F;&#x2F;www.example.com&#x2F;iframe&quot;\nallow=&quot;deferred-<mark>fetch</mark>;deferred-<mark>fetch</mark>-minimal;&quot;&gt;&lt;&#x2F;iframe&gt;\nThe allow=&quot;deferred-<mark>fetch</mark>&quot;"
+          ],
+          "title": [
+            "Using Deferred <mark>Fetch</mark>"
+          ]
+        }
+      },
+      {
+        "mdn_url": "/en-US/docs/Web/API/Background_Fetch_API",
+        "score": 38.72304,
+        "title": "Background Fetch API",
+        "locale": "en-us",
+        "slug": "web/api/background_fetch_api",
+        "popularity": 0.001682309312020429,
+        "summary": "The Background Fetch API provides a method for managing downloads that may take a significant amount of time such as movies, audio files, and software.",
+        "highlight": {
+          "body": [
+            "Then call background<mark>Fetch</mark>.<mark>fetch</mark>() to perform a <mark>fetch</mark>.",
+            "A background <mark>fetch</mark> may <mark>fetch</mark> a number of files. In our example the <mark>fetch</mark> requests an MP3 and a JPEG.",
+            "Introducing Background <mark>Fetch</mark>\nBackground <mark>Fetch</mark> - HTTP 203"
+          ],
+          "title": [
+            "Background <mark>Fetch</mark> API"
+          ]
+        }
+      }
+    ],
+    "metadata": {
+      "took_ms": 19,
+      "size": 10,
+      "page": 1,
+      "total": {
+        "value": 790,
+        "relation": "eq"
+      }
+    },
+    "suggestions": []
+  }
+}

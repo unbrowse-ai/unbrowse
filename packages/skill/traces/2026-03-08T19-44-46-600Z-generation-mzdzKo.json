@@ -1,0 +1,240 @@
+{
+  "page_url": "https://getfoundry.slack.com/unreads",
+  "final_url": "https://getfoundry.slack.com/?redir=%2Funreads",
+  "intent": "list conversations and direct messages",
+  "candidate_count": 2,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://getfoundry.slack.com/unreads",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://getfoundry.slack.com/?redir=%2Funreads",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-onetrust-banner.80ccb99235027e6690e3.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/legacy-style-libs-lato-2-compressed-mac.7e4165e3ee9081d195e8.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-generic-typography-avantgarde.e5bf1218673e1b980835.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/marketing-style-generic-typography-sfsans.663a8f35624c9f33608d.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/manifest.a3df7c4c48ae8e8f292a.primer.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/otSDKStub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/primer-vendor.c8d8b05f36241937e01b.primer.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/login-core.961ecefd3a3587cf71ae.primer.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/login-core.82a8059a9c442d3c24b9.primer.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/rollup-style-slack-kit-base.b1ab740e1bac073cd81e.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/rollup-style-slack-kit-helpers.5406980440229f7731b8.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/slack_beacon.c3374fa3995d87aed397.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/3bcd90cf-1e32-46d7-adbd-634f66b65b7d/3bcd90cf-1e32-46d7-adbd-634f66b65b7d.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://getfoundry.slack.com/beacon/track/?d=eyJ0aW1lIjoxNzcyOTk5MDY5MjQ5LCJldmVudCI6InBhZ2V2aWV3IiwidG9rZW4iOiIzMzA3ZjQzNjk2M2UwMmQ0ZjllYjg1Y2U1MTU5NzQ0YyIsInVybCI6Imh0dHBzOi8vZ2V0Zm91bmRyeS5zbGFjay5jb20vP3JlZGlyPSUyRnVucmVhZHMifQ%3D%3D",
+      "method": "GET",
+      "score": -21,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/otBannerSdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/lato-bold-21b3848a32fce5b0f501.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/lato-regular-75614cfcfedd509b1f7a.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/avant-garde-8402dfbd4149ce947d8b.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13-br/slack-icons-v2-913df50.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.slack-edge.com/bv1-13/slack_logo-e971fd7.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/3bcd90cf-1e32-46d7-adbd-634f66b65b7d/018e3436-d897-70d3-81d4-d46ec788fa52/en.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://getfoundry.slack.com/api/signin.findWorkspaces?_x_id=noversion-1772999069.480&slack_route=T00000000&_x_version_ts=noversion&fp=d6&_x_num_retries=0",
+      "method": "POST",
+      "score": 7,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/otFlat.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/v2/otPcCenter.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202402.1.0/assets/otCommonStyles.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_guard_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/ddb906c9-f57b-40fc-85a1-c8bcbc371b0d/1ce30484-b023-4ff1-a118-3a9dc53fce45/f83dd0bf-3d5c-47ca-b065-8f247adfeacd/rsz_slack_rgb.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/powered_by_logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://getfoundry.slack.com/api/signin.findWorkspaces?_x_id=noversion-1772999069.624&slack_route=T00000000&_x_version_ts=noversion&fp=d6&_x_num_retries=0",
+      "method": "POST",
+      "score": 7,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://getfoundry.slack.com/api/signin.findWorkspaces?_x_id=noversion-1772999069.480&slack_route=T00000000&_x_version_ts=noversion&fp=d6&_x_num_retries=0",
+      "method": "POST",
+      "kept": false,
+      "reason": "semantic_entity_mismatch"
+    }
+  ],
+  "accepted_endpoints": []
+}

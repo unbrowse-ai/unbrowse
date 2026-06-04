@@ -1,0 +1,83 @@
+{
+  "intent": "search questions",
+  "params": {
+    "url": "https://www.stackoverflow.com"
+  },
+  "context": {
+    "url": "https://www.stackoverflow.com"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "_O-s78VVoePwrAjdQlnAZ",
+      "score": 411,
+      "description": "Captured page artifact for search questions",
+      "url": "https://www.stackoverflow.com",
+      "dom_extraction": true
+    },
+    {
+      "endpoint_id": "j8hCEF8G27VV9I4OESHFd",
+      "score": 1,
+      "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+      "url": "https://www.stackoverflow.com/users/save-preference",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "-V-LdlB3sHCcAPc59UypD",
+      "score": 1,
+      "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+      "url": "https://www.stackoverflow.com/account/set-theme-preference",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "_O-s78VVoePwrAjdQlnAZ",
+      "score": 446,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": 200,
+      "local_reason": "html_payload"
+    },
+    {
+      "endpoint_id": "j8hCEF8G27VV9I4OESHFd",
+      "score": 61,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    },
+    {
+      "endpoint_id": "-V-LdlB3sHCcAPc59UypD",
+      "score": 61,
+      "trace_success": false,
+      "judge": "skip",
+      "error": "page.evaluate: TypeError: Failed to fetch\n    at eval (eval at evaluate (:290:30), <anonymous>:1:71)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "1r1wxH-j_a8pV8wtnty31",
+  "available_endpoints": [
+    {
+      "endpoint_id": "_O-s78VVoePwrAjdQlnAZ",
+      "score": 411,
+      "description": "Captured page artifact for search questions",
+      "url": "https://www.stackoverflow.com"
+    },
+    {
+      "endpoint_id": "j8hCEF8G27VV9I4OESHFd",
+      "score": 1,
+      "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+      "url": "https://www.stackoverflow.com/users/save-preference"
+    },
+    {
+      "endpoint_id": "-V-LdlB3sHCcAPc59UypD",
+      "score": 1,
+      "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+      "url": "https://www.stackoverflow.com/account/set-theme-preference"
+    }
+  ],
+  "extra": {
+    "auth_recommended": true,
+    "auth_hint": "No data endpoints found — www.stackoverflow.com likely requires authentication. Store browser cookies for this domain via the auth endpoints, then retry this capture."
+  }
+}

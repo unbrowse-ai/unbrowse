@@ -1,0 +1,1229 @@
+{
+  "page_url": "https://www.pinterest.com",
+  "final_url": "https://www.pinterest.com/",
+  "intent": "get board pins",
+  "candidate_count": 8,
+  "accepted_count": 7,
+  "decisions": [
+    {
+      "url": "https://www.pinterest.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/runtime-3703b08978b91b1f.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/polyfills-b5a2ac9cd5565ab2.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/locale-en_US-LocaleDataLoader-8fb6d5ec1874fd43.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/gestalt-14c70a516950f885.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/vendor-react-8fca63ec3f75bfab.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/51405-76ae5359063ab8d4.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/80816-9dec20ac4b662bdb.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/11319-4a33f194a605e499.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/1636-c381d63abffb002e.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/8155-c42c0a93ff92fb15.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/38884-813750ba5be56ba2.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/71247-f56db44463e65e32.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/21363-47c5fea8aa7df549.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/3854-9e5cdfeba4e757ba.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/80662-7f6382bacebd0c30.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/2510-1e9e5a4fb9d204c6.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/36162-9e686ced24d03c99.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/13023-be06ac46178fc1af.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/1863-d09eb49b6659d5fc.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/28937-996e3953d531906e.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/67247-e583308caddecb2d.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/34551-795a9a577a1e5418.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/28334-464e3e655a0e55e6.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/83135-f6cf24d3cb1f3dd8.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/43314-f209faa12e44a29f.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/30391-bff11b955907d4c1.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/83452-3836da4112e6c1ca.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/98309-87f1cabe15057337.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/62155-c7fed59d1bc19f88.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/48777-d65776c29fbb80f2.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/28675-751b3179826c28fe.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/www/_client-14ca0e1c5dfe36fe.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/22113-0c3542fa7497f613.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/59722-65850d032cda0af8.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/30286-56fe5cbe4dba357a.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/81642-b0a0f0552248a1f6.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/81918-2041001c1d38be92.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/70761-6cb96df0d30003a6.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/29299-b99c2839d56a7615.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/48320-80c26578527d5994.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/20476-78527aab1c64baab.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/14562-fbb3950225cdfba7.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/3366-dc8ae20406447680.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/7207-b9d607e545acb77c.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/www/index-e1dbb880e8768e7d.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/24665-79d54539691f84f4.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/UnauthPageWrapperHeader-4d6e7eaf19c163f3.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/UnauthPageWrapperFooter-639295dfe4f1af74.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/Pin-Sans-MacOS-Regular-708c49dd.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/Pin-Sans-MacOS-Medium-704a4f34.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/Pin-Sans-MacOS-Bold-ce475d98.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/Pin-Sans-MacOS-Heavy-2b6abf8c.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.pinterest.com/_/_/storage_report/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/91628-ade919f1b826d995.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/UnauthHomePage-960222b46fa65488.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/51360-67dbf0c496e3f366.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/GoogleOneTap-45a372a09f96cd2e.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ct.pinterest.com/ct.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.pinterest.com/_/_/trace/trace/",
+      "method": "POST",
+      "score": 4,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/ApiResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22url%22%3A%22%2Fv3%2Fpins%2F%2F%22%2C%22data%22%3A%7B%22fields%22%3A%5B%22pin.images%5B236x%5D%22%2C%22pin.is_unsafe%22%2C%22pin.image_signature%22%5D%7D%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635227",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/SearchTabResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635228",
+      "method": "GET",
+      "score": 14,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/AdvancedTypeaheadResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22term%22%3A%22%22%2C%22pin_scope%22%3A%22pins%22%2C%22autocomplete_request_surface%22%3A0%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635229",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/UserExperienceResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22placement_ids%22%3A%5B1000180%5D%2C%22extra_context%22%3Anull%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635230",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/UnauthUserDataResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635231",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/manifest.json",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://www.recaptcha.net/recaptcha/enterprise.js?onload=onloadRecaptchaJsCallback&render=6Ldx7ZkUAAAAAF3SZ05DRL2Kdh911tCa3qFP0-0r",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/83832-80676260017a6cb6.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/client?hl=en",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/DesktopModal-fe8b6331dadc50bb.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/MobileModal-918d5cd8865e3ba8.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/f3/d6/bf/f3d6bf4e9fb7773b42e853d0cf5a5977.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/51/4c/34/514c341c9578935bcbc06a7c02232e6c.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/0a/f7/54/0af75415f14e696fbf12a457ec107b6b.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/1f/35/f8/1f35f8a8c71287e3b47a8d0305da4b2c.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/4b/19/21/4b19216ef919511575b3ec9f756017a9.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/e0/be/b2/e0beb2018a51cabc3ddd65b21dff3b85.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/d0/6d/70/d06d70a81fd1a6c54690f70022d71764.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/48/f2/09/48f20925e3b261df632e556903f30548.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/7c/14/86/7c1486e221efedf1cc79c9a49d19f390.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/1d/7d/1f/1d7d1f77dbb964aba0227ce746a85054.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/search-by-skin-tone-1x-c9a1e3e9.png",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/group-boards-1px-c7997766.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/visual-search-1px-ecc706bc.png",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/e3/41/4b/e3414b2fcf00375a199ba6964be551af.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/78/6e/00/786e00eab219eca59803d118fbe0feb3.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/3b/42/b0/3b42b02bf047097582b26401df90cdb3.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/de/13/6b/de136b0fa0037d3453a430895d8a5c27.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/15/bf/41/15bf41a80a0ffb41cc9d0fd98abed34b.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/c4/57/bd/c457bd9496170bfa3845b7cee775df65.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/05/65/20/05652045e57af33599557db9f23188c0.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/18324-f75b500bbaa8e30e.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/31082-803fd0dad3a49b01.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/app-www-homepage-DesktopInspiredWallSignup-40e625ea60486a5a.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/c5/83/53/c58353e15f32f3cbfc7cdcbcf0dc2f34--mango-coulis-m-sorry.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/94/43/b9/9443b93bd8773fec91bc1837e8424e8e.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/e6/8a/42/e68a42c2e530fbdf6b3ab2f379dcd384.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/95/f3/73/95f373590dad79bcf3202ce6edad5bcd.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/e7/c6/c6/e7c6c65c6e38f43d4b979d3cb1e46bf7.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/fb/18/de/fb18deb4959e9a0678e1bf99105ea775.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/c5/61/c2/c561c2a77d5b9b03702efc423b18cb9a.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/64/cf/21/64cf2184d33446c4cf1cc8c3c585b9f4.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/06/e8/14/06e814c8c5c82b9bf794add896616e12.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/62/bb/97/62bb9727b2e09751d43c32589c503b39.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/a9/f9/09/a9f90926afdfbff79f6d2a017c8e19dd.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/96/2c/ce/962cce1d513d665ecca6eb733a90a160.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/af/60/9e/af609e357a691876ac58d02e27af316e.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/d5/5f/97/d55f97078c0d7b60b758cac3b34114c9.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/22/45/e2/2245e261944f1eae080423f6ff7805e1--romantic-picnics-romantic-ideas.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/65/df/cd/65dfcdd2fc433d45baedb3666cacfd82.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/28/77/f4/2877f4e254c0bd27ac4f4c5d8a43404f.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/8b/21/b0/8b21b0133442afd03d2c5e9a998c96b3.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/48/9c/d9/489cd9ae5fec17977c73677866202d59.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/14/73/0a/14730af41a58e05384b86b0bacf9d57b.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/16/36/dd/1636dd650e6289cd0ec4f4f06dea7835--british-recipes-the-great-british-bake-off-recipes.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/da/fe/1e/dafe1e26613892b2bc26508b33de353d.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/f3/9c/11/f39c11819b48bf4dc34fa1670fb1fef6.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/d4/32/cd/d432cdc35cf6cc5c7ec07a5036a87bca.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/c1/d0/7f/c1d07f45a5c2b121255ba9ec54b9adf7.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/236x/18/dc/f7/18dcf759aa96740f8d335dc6231a9cf9.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/63/3e/c1/633ec1128e0b7ed911c462cb89620c64.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.pinimg.com/564x/4f/df/82/4fdf820192314371138c0f4f999cdddc.jpg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://connect.facebook.net/en_US/sdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/31320-2f5f600dacb7eabb.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/ApiResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22url%22%3A%22%2Fv3%2Fcompliance_requirements%2F%22%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635691",
+      "method": "GET",
+      "score": 11,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/ApiResource/create/",
+      "method": "POST",
+      "score": 9,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/www/login-0647c1b797a5667b.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/91644-049ed8060a3061d7.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/11481-2885deff4bbb7181.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/82428-5ca9d1d0efb5b408.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/43841-93f581b6e61d2cf9.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/61776-d66155c435c199a0.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/40681-6cb7d9c809d210d2.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/16979-4212f2ae67bcf46a.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/97432-db976d3e7c9ecba8.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/31856-d6b63cd4c728d2de.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/71675-877c817702606208.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.pinimg.com/webapp/www/login-df4407dee12b13d8.mjs",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://connect.facebook.net/en_US/sdk.js?hash=7d77f5259d9e6603ee9521e9a19c4ae6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/style",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://google.com/.well-known/web-identity",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm.json",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.facebook.com/x/oauth/status?client_id=274266067164&input_token&origin=1&redirect_uri=https%3A%2F%2Fwww.pinterest.com%2F&sdk=joey&wants_cookie_data=false",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.recaptcha.net/recaptcha/enterprise/anchor?ar=1&k=6Ldx7ZkUAAAAAF3SZ05DRL2Kdh911tCa3qFP0-0r&co=aHR0cHM6Ly93d3cucGludGVyZXN0LmNvbTo0NDM.&hl=en&v=QvLuXwupqtKMva7GIh5eGl3U&size=invisible&anchor-ms=20000&execute-ms=30000&cb=t5s1u4ye2rba",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/styles__ltr.css",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.recaptcha.net/recaptcha/enterprise/webworker.js?hl=en&v=QvLuXwupqtKMva7GIh5eGl3U",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/api2/logo_48.png",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gstatic.com/recaptcha/releases/QvLuXwupqtKMva7GIh5eGl3U/recaptcha__en.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.recaptcha.net/recaptcha/enterprise/reload?k=6Ldx7ZkUAAAAAF3SZ05DRL2Kdh911tCa3qFP0-0r",
+      "method": "POST",
+      "score": -3,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/button?size=large&shape=rectangular&text=continue_with&theme=outline&width=268px&logo_alignment=left&click_listener=()%3D%3E%7Bn%26%26n()%2Co%26%26o()%2C(0%2Cs.XB)(%7Bevent%3A%22start%22%2Cprovider%3A%22google%22%7D)%7D&is_fedcm_supported=true&client_id=694505692171-31closf3bcmlt59aeulg2j81ej68j6hk.apps.googleusercontent.com&iframe_id=gsi_636757_786651&cas=JqO1oBftSeP%2FkGRq%2BuqCk3zXyhBruSeJgv5Xx3elkBg&hl=en-US",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.recaptcha.net/recaptcha/enterprise/clr?k=6Ldx7ZkUAAAAAF3SZ05DRL2Kdh911tCa3qFP0-0r",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/googlesans/v62/4UaRrENHsxJlGDuGo1OIlJfC6l_24rlCK1Yo_Iq2vgCIhM907w.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/SearchTabResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635228",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "Zk8OroUf4oGxtjO0ORoot",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, action using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/ApiResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22url%22%3A%22%2Fv3%2Fpins%2F%2F%22%2C%22data%22%3A%7B%22fields%22%3A%5B%22pin.images%5B236x%5D%22%2C%22pin.is_unsafe%22%2C%22pin.image_signature%22%5D%7D%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635227",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "FhH_YcScAvkA1emQamzUb",
+      "description": "Returns details for Resource Response with error, data using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/AdvancedTypeaheadResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22term%22%3A%22%22%2C%22pin_scope%22%3A%22pins%22%2C%22autocomplete_request_surface%22%3A0%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635229",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "-5dhThGLuBYC3J1xJSX7j",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/UserExperienceResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%22placement_ids%22%3A%5B1000180%5D%2C%22extra_context%22%3Anull%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635230",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "PbrIYAMBd7wqZDMNJjfyE",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/UnauthUserDataResource/get/?source_url=%2F&data=%7B%22options%22%3A%7B%7D%2C%22context%22%3A%7B%7D%7D&_=1772934635231",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "iqGSW-TzLgadhdfA0cUYm",
+      "description": "Returns details for Resource Response with status, http_status, data using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "url": "https://www.pinterest.com/resource/ApiResource/create/",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "C9EWRbS36SBWRyXSX6kIg",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "url": "https://www.pinterest.com/_/_/trace/trace/",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "c0nL7nqW7TdAaDU39gHw9",
+      "description": "Returns details for Message with message",
+      "action_kind": "create",
+      "resource_kind": "message"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "Zk8OroUf4oGxtjO0ORoot",
+      "method": "GET",
+      "url_template": "https://www.pinterest.com/resource/SearchTabResource/get/?source_url={source_url}&data={data}&_={_}",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, action using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "FhH_YcScAvkA1emQamzUb",
+      "method": "GET",
+      "url_template": "https://www.pinterest.com/resource/ApiResource/get/?source_url={source_url}&data={data}&_={_}",
+      "description": "Returns details for Resource Response with error, data using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "-5dhThGLuBYC3J1xJSX7j",
+      "method": "GET",
+      "url_template": "https://www.pinterest.com/resource/AdvancedTypeaheadResource/get/?source_url={source_url}&data={data}&_={_}",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "PbrIYAMBd7wqZDMNJjfyE",
+      "method": "GET",
+      "url_template": "https://www.pinterest.com/resource/UserExperienceResource/get/?source_url={source_url}&data={data}&_={_}",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "iqGSW-TzLgadhdfA0cUYm",
+      "method": "GET",
+      "url_template": "https://www.pinterest.com/resource/UnauthUserDataResource/get/?source_url={source_url}&data={data}&_={_}",
+      "description": "Returns details for Resource Response with status, http_status, data using source_url, data, _",
+      "action_kind": "status",
+      "resource_kind": "status"
+    },
+    {
+      "endpoint_id": "C9EWRbS36SBWRyXSX6kIg",
+      "method": "POST",
+      "url_template": "https://www.pinterest.com/resource/ApiResource/create/",
+      "description": "Returns details for Resource Response with status, code, message, endpoint_name, data, x_pinterest_sli_endpoint_name",
+      "action_kind": "status",
+      "resource_kind": "message"
+    },
+    {
+      "endpoint_id": "c0nL7nqW7TdAaDU39gHw9",
+      "method": "POST",
+      "url_template": "https://www.pinterest.com/_/_/trace/trace/",
+      "description": "Returns details for Message with message",
+      "action_kind": "create",
+      "resource_kind": "message"
+    }
+  ]
+}

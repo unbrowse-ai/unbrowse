@@ -1,0 +1,109 @@
+{
+  "trace_id": "KChDqG9zfK2pMbHxnLout",
+  "skill_id": "JiHByT9nZwwPzgo2mulO0",
+  "endpoint_id": "buhEG-TAwsEbDyHlrkGnj",
+  "started_at": "2026-03-08T19:43:59.946Z",
+  "completed_at": "2026-03-08T19:44:18.367Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "dd6ac9764b86@93c790f",
+  "result": {
+    "data": [
+      {
+        "link": "https://getfoundry.slack.com/home",
+        "title": "Home"
+      },
+      {
+        "link": "https://getfoundry.slack.com/home",
+        "title": "Home"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin",
+        "title": "People"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin",
+        "title": "People"
+      },
+      {
+        "link": "https://getfoundry.slack.com/apps/manage",
+        "title": "Integrations"
+      },
+      {
+        "link": "https://getfoundry.slack.com/apps/manage",
+        "title": "Integrations"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/slack-connect-connections",
+        "title": "Slack Connect"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/slack-connect-connections",
+        "title": "Slack Connect"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/salesforce-organizations",
+        "title": "Salesforce"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/salesforce-organizations",
+        "title": "Salesforce"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/stats",
+        "title": "Analytics"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/stats",
+        "title": "Analytics"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/permissions/account-types",
+        "title": "Roles & permissions"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/permissions/account-types",
+        "title": "Roles & permissions"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/security",
+        "title": "Security"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/security",
+        "title": "Security"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/settings",
+        "title": "Settings"
+      },
+      {
+        "link": "https://getfoundry.slack.com/admin/settings",
+        "title": "Settings"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.9000000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://getfoundry.slack.com/client",
+      "selector": "li.itemPrimary__Lju8B"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].link",
+      "data[].title",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

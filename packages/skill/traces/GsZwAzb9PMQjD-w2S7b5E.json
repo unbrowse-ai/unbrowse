@@ -1,0 +1,85 @@
+{
+  "trace_id": "GsZwAzb9PMQjD-w2S7b5E",
+  "skill_id": "8Ud6-whH5JWYLxP8EHdip",
+  "endpoint_id": "DJTqr_IiOBLXeCxAPG2dl",
+  "started_at": "2026-03-08T01:44:45.634Z",
+  "completed_at": "2026-03-08T01:45:16.229Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "name": "Kenneth T.",
+        "url": "https://www.linkedin.com/in/ktwgkiryu",
+        "public_identifier": "ktwgkiryu",
+        "headline": "Kenneth T. • 2nd"
+      },
+      {
+        "name": "Robbie Williams",
+        "url": "https://www.linkedin.com/in/wpchew",
+        "public_identifier": "wpchew",
+        "headline": "Robbie Williams and Keechin Goh are mutual connections"
+      },
+      {
+        "name": "Keechin Goh",
+        "url": "https://www.linkedin.com/in/keechin",
+        "public_identifier": "keechin",
+        "headline": "Robbie Williams and Keechin Goh are mutual connections"
+      },
+      {
+        "name": "Qingyi Xiang",
+        "url": "https://www.linkedin.com/in/qingyi-xiang",
+        "public_identifier": "qingyi-xiang",
+        "headline": "Qingyi Xiang • 2nd"
+      },
+      {
+        "name": "Rach Pradhan",
+        "url": "https://www.linkedin.com/in/rachpradhan",
+        "public_identifier": "rachpradhan",
+        "headline": "Rach Pradhan, Ryan Walter Lee and 6 other mutual connections"
+      },
+      {
+        "name": "Ryan Walter Lee",
+        "url": "https://www.linkedin.com/in/ryan-walter-lee-534512193",
+        "public_identifier": "ryan-walter-lee-534512193",
+        "headline": "Rach Pradhan, Ryan Walter Lee and 6 other mutual connections"
+      },
+      {
+        "name": "Max Kusnadi",
+        "url": "https://www.linkedin.com/in/max-kusnadi",
+        "public_identifier": "max-kusnadi",
+        "headline": "Max Kusnadi • 2nd"
+      },
+      {
+        "name": "Bryan Koh",
+        "url": "https://www.linkedin.com/in/bryan-koh-sg",
+        "public_identifier": "bryan-koh-sg",
+        "headline": "Rach Pradhan and Bryan Koh are mutual connections"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://www.linkedin.com/search/results/people/?keywords=%7Bkeywords%7D"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].name",
+      "data[].url",
+      "data[].public_identifier",
+      "data[].headline",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

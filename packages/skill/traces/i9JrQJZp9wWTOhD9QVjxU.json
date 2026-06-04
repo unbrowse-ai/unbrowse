@@ -1,0 +1,61 @@
+{
+  "trace_id": "i9JrQJZp9wWTOhD9QVjxU",
+  "skill_id": "A-dNInSidWmlnd2Bi-Ff_",
+  "endpoint_id": "meLVH7KUML_ksaLPQWGj1",
+  "started_at": "2026-03-08T01:54:23.976Z",
+  "completed_at": "2026-03-08T01:54:46.261Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "id": "@Mastodon",
+        "url": "/@Mastodon",
+        "text": "Search for \"openai\"Search optionsOnly available when logged in.AllProfilesHashtagsPostsProfilesSee allnu.nl RSS @nunl@mastodon.nl382 followers Followkarpathy @karpathy@sigmoid.social2.1K followers FollowHeidy Khlaaf (هايدي خلاف) @heidykhlaaf2.2K followers FollowNBC News RSS @nbcnewsrss@mastodon.world295 followers FollowHashtagsSee all#openai44 people in the past 2 days#OpenAICodex1 person in the past 2 days#OpenAIIndia0 people in the past 2 days#openais0 people in the past 2 days"
+      },
+      {
+        "id": "@nunl@mastodon.nl",
+        "url": "/@nunl@mastodon.nl",
+        "text": "Search optionsOnly available when logged in.AllProfilesHashtagsPostsProfilesSee allnu.nl RSS @nunl@mastodon.nl382 followers Followkarpathy @karpathy@sigmoid.social2.1K followers FollowHeidy Khlaaf (هايدي خلاف) @heidykhlaaf2.2K followers FollowNBC News RSS @nbcnewsrss@mastodon.world295 followers FollowHashtagsSee all#openai44 people in the past 2 days#OpenAICodex1 person in the past 2 days#OpenAIIndia0 people in the past 2 days#openais0 people in the past 2 days"
+      },
+      {
+        "id": "@karpathy@sigmoid.social",
+        "url": "/@karpathy@sigmoid.social",
+        "text": "karpathy @karpathy@sigmoid.social2.1K followers Follow"
+      },
+      {
+        "id": "@heidykhlaaf",
+        "url": "/@heidykhlaaf",
+        "text": "Heidy Khlaaf (هايدي خلاف) @heidykhlaaf2.2K followers Follow"
+      },
+      {
+        "id": "@nbcnewsrss@mastodon.world",
+        "url": "/@nbcnewsrss@mastodon.world",
+        "text": "NBC News RSS @nbcnewsrss@mastodon.world295 followers Follow"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8,
+      "source": "rendered-dom",
+      "final_url": "https://mastodon.social/search?q=openai"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].id",
+      "data[].url",
+      "data[].text",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

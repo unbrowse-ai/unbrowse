@@ -1,0 +1,36 @@
+{
+  "page_url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/campaigns",
+  "final_url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/campaigns",
+  "intent": "get campaigns list",
+  "candidate_count": 1,
+  "accepted_count": 1,
+  "decisions": [
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/campaigns",
+      "method": "GET",
+      "score": 6,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://ads-api.x.com/11/accounts/18ce55s5sqj/campaigns",
+      "method": "GET",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "yfDHOPIfGbXSkrj-NAQYe",
+      "description": "Returns details for Error with code, message using slug, slug_2, slug_3, slug_4",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "yfDHOPIfGbXSkrj-NAQYe",
+      "method": "GET",
+      "url_template": "https://ads-api.x.com/{slug}/{slug_2}/{slug_3}/{slug_4}",
+      "description": "Returns details for Error with code, message using slug, slug_2, slug_3, slug_4",
+      "action_kind": "detail",
+      "resource_kind": "message"
+    }
+  ]
+}

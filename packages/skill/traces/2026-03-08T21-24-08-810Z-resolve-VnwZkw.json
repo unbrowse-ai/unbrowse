@@ -1,0 +1,31 @@
+{
+  "intent": "list all advertiser accounts",
+  "params": {
+    "url": "https://ads-api.x.com/11/accounts"
+  },
+  "context": {
+    "url": "https://ads-api.x.com/11/accounts"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "IWQb3yErx5-Sv-WolW0e4",
+      "score": -2.7,
+      "description": "Returns details for Error with code, message using slug, slug_2",
+      "url": "https://ads-api.x.com/{slug}/{slug_2}",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "IWQb3yErx5-Sv-WolW0e4",
+      "score": 87.3,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_payload"
+    }
+  ],
+  "outcome": "autoexec_failed_all",
+  "source": "live-capture",
+  "skill_id": "Xn6dimw79viSRoEPnc54m"
+}

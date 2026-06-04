@@ -1,0 +1,11 @@
+{
+  "trace_id": "SOSC34ln2RKSKlL8Sl0k6",
+  "skill_id": "A-dNInSidWmlnd2Bi-Ff_",
+  "endpoint_id": "NXjjZNb9Snet_Qt23qyz-",
+  "started_at": "2026-03-08T01:50:18.413Z",
+  "completed_at": "2026-03-08T01:50:50.787Z",
+  "success": false,
+  "status_code": 406,
+  "trace_version": "616f5f215069@3f6f10b",
+  "error": "HTTP 406"
+}

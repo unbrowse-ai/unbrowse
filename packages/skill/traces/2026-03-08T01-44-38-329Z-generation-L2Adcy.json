@@ -1,0 +1,17 @@
+{
+  "page_url": "https://www.linkedin.com/voyager/api/feed/updatesV2",
+  "final_url": "https://www.linkedin.com/voyager/api/feed/updatesV2",
+  "intent": "get linkedin feed updates posts",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://www.linkedin.com/voyager/api/feed/updatesV2",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    }
+  ],
+  "accepted_endpoints": []
+}

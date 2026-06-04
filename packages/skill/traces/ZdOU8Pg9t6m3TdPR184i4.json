@@ -1,0 +1,77 @@
+{
+  "trace_id": "ZdOU8Pg9t6m3TdPR184i4",
+  "skill_id": "zDCUIt2Utv2hbe3S0R7am",
+  "endpoint_id": "Sl6aBeNeUXzpTcFKqvRwV",
+  "started_at": "2026-03-08T01:56:39.446Z",
+  "completed_at": "2026-03-08T01:56:43.547Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "616f5f215069@3f6f10b",
+  "result": {
+    "data": [
+      {
+        "full_name": "support/contact",
+        "url": "https://github.com/support/contact",
+        "description": "Back"
+      },
+      {
+        "full_name": "hardened-images/start-free-trial",
+        "url": "https://github.com/hardened-images/start-free-trial"
+      },
+      {
+        "full_name": "hardened-images/catalog",
+        "url": "https://github.com/hardened-images/catalog"
+      },
+      {
+        "full_name": "categories/networking",
+        "url": "https://github.com/categories/networking"
+      },
+      {
+        "full_name": "categories/security",
+        "url": "https://github.com/categories/security"
+      },
+      {
+        "full_name": "categories/languages-and-frameworks",
+        "url": "https://github.com/categories/languages-and-frameworks"
+      },
+      {
+        "full_name": "categories/integration-and-delivery",
+        "url": "https://github.com/categories/integration-and-delivery"
+      },
+      {
+        "full_name": "categories/message-queues",
+        "url": "https://github.com/categories/message-queues"
+      },
+      {
+        "full_name": "categories/api-management",
+        "url": "https://github.com/categories/api-management"
+      },
+      {
+        "full_name": "categories/internet-of-things",
+        "url": "https://github.com/categories/internet-of-things"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.9000000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://hub.docker.com/"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].full_name",
+      "data[].url",
+      "data[].description",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

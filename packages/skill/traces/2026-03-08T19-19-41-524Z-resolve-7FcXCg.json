@@ -1,0 +1,79 @@
+{
+  "intent": "get direct message conversations list",
+  "params": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "context": {
+    "url": "https://discord.com/channels/@me"
+  },
+  "search_candidates": [
+    {
+      "endpoint_id": "8tz9d4rHNVlEkf_GKd6uI",
+      "score": 92.5,
+      "description": "Returns details for Detectable with aliases, executables, is_launcher, name, os, hook",
+      "url": "https://discord.com/api/v9/applications/non-games/detectable",
+      "dom_extraction": false
+    },
+    {
+      "endpoint_id": "zJYBhiVJiKrHZ7RpA0r6g",
+      "score": -38.5,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream",
+      "dom_extraction": false
+    }
+  ],
+  "autoexec_attempts": [
+    {
+      "endpoint_id": "8tz9d4rHNVlEkf_GKd6uI",
+      "score": 182.5,
+      "trace_success": true,
+      "judge": "skip",
+      "status_code": 200,
+      "local_reason": "unclassified_array"
+    },
+    {
+      "endpoint_id": "zJYBhiVJiKrHZ7RpA0r6g",
+      "score": 16.5,
+      "trace_success": true,
+      "judge": "fail",
+      "status_code": null,
+      "local_reason": "primitive_rows"
+    }
+  ],
+  "outcome": "deferral",
+  "source": "live-capture",
+  "skill_id": "uw7JRrnPAtKgx_wgamIwG",
+  "available_endpoints": [
+    {
+      "endpoint_id": "8tz9d4rHNVlEkf_GKd6uI",
+      "score": 92.5,
+      "description": "Returns details for Detectable with aliases, executables, is_launcher, name, os, hook",
+      "url": "https://discord.com/api/v9/applications/non-games/detectable"
+    },
+    {
+      "endpoint_id": "qcP2I0mpf_7BAZ2llkMXv",
+      "score": 42.5,
+      "description": "Returns details for Subscription with id, type, created_at, canceled_at, current_period_start, current_period_end using user, include_inactive, limit, exclude_unpaid_statuses",
+      "url": "https://discord.com/api/v9/users/{user}/billing/subscriptions?include_inactive={include_inactive}&limit={limit}&exclude_unpaid_statuses={exclude_unpaid_statuses}&subscription_type={subscription_type}"
+    },
+    {
+      "endpoint_id": "a1SfgUHV6pCOQzpLEutTU",
+      "score": -30.5,
+      "description": "Returns / data. fields: headers:{Spotify-Connection-Id}, method, type, uri",
+      "url": "wss://dealer.spotify.com/?access_token=BQCfAHEgsUcLTeIDkroGGdzomtXZrRu9TsF9eHg4KbqomvxNOFh_zwxKUAXwE1S0xq8GRqgPhS3E2HpFTtzd9W1xrM-5jChVmipykeHJ65dHUqq-Eft6aQfwMwGw2h0q5M8FAdwox4WZL-5vnlAnEhQVQ7u20n7WcnRgYyIjkkXU5lhnR-lViYmayQcHEjUR3WACKI7z9mJsiGJ2VKlMsW5tNhHw4L0QQnp6PtBrRddF2w"
+    },
+    {
+      "endpoint_id": "zJYBhiVJiKrHZ7RpA0r6g",
+      "score": -38.5,
+      "description": "Returns / data",
+      "url": "wss://gateway.discord.gg/?encoding=json&v=9&compress=zlib-stream"
+    },
+    {
+      "endpoint_id": "zVK9mqG59A8pHQZ1rgvQi",
+      "score": -43.5,
+      "description": "Returns status for Page with id, name, url, time_zone, updated_at",
+      "url": "https://status.discord.com/api/v2/scheduled-maintenances/upcoming.json"
+    }
+  ],
+  "extra": null
+}

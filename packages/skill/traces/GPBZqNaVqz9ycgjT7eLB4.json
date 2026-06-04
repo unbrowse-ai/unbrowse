@@ -1,0 +1,54 @@
+{
+  "trace_id": "GPBZqNaVqz9ycgjT7eLB4",
+  "skill_id": "tj8y92FH9sXuiCZ4vv97s",
+  "endpoint_id": "mASQJ7TlVPdwglt7Uxgxd",
+  "started_at": "2026-03-12T02:10:35.481Z",
+  "completed_at": "2026-03-12T02:10:36.264Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "results": [
+      {
+        "thread": {
+          "doc_id": "EFTA01963676",
+          "subject": "Re: Food tomorrow",
+          "latest_sender_name": "Jeffrey Epstein",
+          "formatted_date": "Jul 18, 2013",
+          "preview": "<b>muffins</b> for <b>island</b>, <b>ice</b> <b>cream</b>, .\n\nOn Thu, Jul 18, 2013 at 2:15 PM &gt; wrote:\n\nWhat would you look <b>food</b> wise for <b>tomorrow</b>- airplane and in Boston?\n\nSent",
+          "avatar_color": "#ff6d01",
+          "count": 1,
+          "attachments": 0,
+          "latest_is_from_epstein": false,
+          "isRedacted": true,
+          "starCount": 0,
+          "unredactCount": 0
+        },
+        "matchedEmail": {
+          "id": "EFTA01963676-0",
+          "sender": "Jeffrey Epstein",
+          "content_markdown": "muffins for island, ice cream, .\n\nOn Thu, Jul 18, 2013 at 2:15 PM > wrote:\n\nWhat would you look food wise for tomorrow- airplane and in Boston?\n\nSent from my iPhone\n\n**********\n\nThe information contained in this communication is confidential, may be attorney-client privileged, may constitute inside information, and is intended only for the use of the addressee. It is the property of Jeffrey Epstein Unauthorized use, disclosure or copying of this communication or any part thereof is strictly proh"
+        },
+        "field": "content_markdown",
+        "rank": 42.849888
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "totalPages": 1,
+    "nextCursor": null,
+    "operators": []
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [],
+    "removed_fields": [],
+    "type_changes": [
+      {
+        "path": "nextCursor",
+        "was": "string",
+        "now": "null"
+      }
+    ]
+  }
+}

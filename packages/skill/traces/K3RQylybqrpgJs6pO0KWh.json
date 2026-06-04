@@ -1,0 +1,80 @@
+{
+  "trace_id": "K3RQylybqrpgJs6pO0KWh",
+  "skill_id": "6eWB8pxC8Cry4S9rCQmBd",
+  "endpoint_id": "xX0Rk_XvoTGG-SKJg13q8",
+  "started_at": "2026-03-12T01:33:24.616Z",
+  "completed_at": "2026-03-12T01:33:37.110Z",
+  "success": true,
+  "status_code": 200,
+  "trace_version": "825d8006ea35@d8a9f3b",
+  "result": {
+    "data": [
+      {
+        "link": "/solana",
+        "url": "/solana",
+        "title": "Solana reposted",
+        "image": "https://pbs.twimg.com/media/HDKpXH3WMAAdQ1M?format=jpg&name=small"
+      },
+      {
+        "link": "/HHorsley",
+        "url": "/HHorsley",
+        "title": "Hunter Horsley",
+        "image": "https://pbs.twimg.com/profile_images/1946333689173975040/04TBZhIu_bigger.jpg"
+      },
+      {
+        "link": "/vibhu",
+        "url": "/vibhu",
+        "title": "vibhu",
+        "image": "https://pbs.twimg.com/profile_images/1955119355106361344/nsZfo4hY_bigger.jpg"
+      },
+      {
+        "link": "/magbaksays",
+        "url": "/magbaksays",
+        "title": "MagBak",
+        "image": "https://pbs.twimg.com/media/GoDLMOGbkAASBid?format=jpg&name=small"
+      },
+      {
+        "link": "/Han_Akamatsu",
+        "url": "/Han_Akamatsu",
+        "title": "Han Akamatsu 赤松"
+      },
+      {
+        "link": "/kleffew94",
+        "url": "/kleffew94",
+        "title": "kevin",
+        "image": "https://abs-0.twimg.com/emoji/v2/svg/1f440.svg"
+      },
+      {
+        "link": "/vesper792",
+        "url": "/vesper792",
+        "title": "vesper is in SF",
+        "image": "https://abs-0.twimg.com/emoji/v2/svg/1f301.svg"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "rendered-dom",
+      "final_url": "https://x.com/home",
+      "selector": "article.css-175oi2r.r-18u37iz.r-1udh08x.r-1c4vpko"
+    }
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data",
+      "data[].link",
+      "data[].url",
+      "data[].title",
+      "data[].image",
+      "_extraction",
+      "_extraction.method",
+      "_extraction.confidence",
+      "_extraction.source",
+      "_extraction.final_url",
+      "_extraction.selector"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}

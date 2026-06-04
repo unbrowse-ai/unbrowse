@@ -1,0 +1,232 @@
+{
+  "page_url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+  "final_url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+  "intent": "jason calacanis net worth dollar amount",
+  "candidate_count": 1,
+  "accepted_count": 1,
+  "decisions": [
+    {
+      "url": "https://www.capitaly.vc/blog/jason-calacanis-net-worth-popular-startup-investments",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/css/capitaly.webflow.shared.8c112b250.min.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-XQ2WS0QNBV",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633d4e811da7dfd7bd7ab7fa_Logo.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/633cd7641794e51a6c2c0f2d_avatar-4-team-saasfy-template.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/633cd7641794e502f32c0eb3_icon-1-category-saasfy-template.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/66dd431481bf97e670667230_Jason%20Calacanis%20Net%20Worth.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/69119068862dcbd94aeb34e0_CAPITALY.VC.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/691190cdc5036d6b7b040f93_CAPITALY.VC%20(1).png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633d51c70fc685fea30a1ed5_Logo-white.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://d3e54v103j8qbb.cloudfront.net/js/jquery-3.5.1.min.dc5e7f18c8.js?site=633cd7641794e57d312c0e1f",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/js/webflow.schunk.ba69223535a19e58.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/js/webflow.schunk.dacb18414a991d60.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/js/webflow.fb7e3e54.206c9d00f59cb7d4.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://unpkg.com/@segment/consent-manager@5.3.0/standalone/consent-manager.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://embed.typeform.com/next/embed.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.segment.com/analytics.js/v1/irIyE55kcfcPQznGh7ktqM19yJhq3nie/analytics.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633cd7641794e508422c0e74_ClarityCity-Bold.otf",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633cd7641794e5290e2c0e8b_ClarityCity-Medium.otf",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633cd7641794e52fe92c0e59_social-icon-font.woff2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e57d312c0e1f/633cd7641794e528612c0e75_ClarityCity-Regular.otf",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/633cd7641794e536812c0e29/66dd433c7138638139a7a11e_screen-shot-2014-09-10-at-11-23-36-pm.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-XQ2WS0QNBV&gtm=45je6341v895931758za200zd895931758&_p=1773001904543&gcd=13l3l3l3l1l1&npa=0&dma=0&cid=506101476.1773001905&ul=en-us&sr=1280x720&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=noapi&_s=1&tag_exp=103116026~103200004~115938466~115938469~116024733~117477893~117484252~117625638&sid=1773001904&sct=1&seg=0&dl=https%3A%2F%2Fwww.capitaly.vc%2Fblog%2Fjason-calacanis-net-worth-popular-startup-investments&dt=Jason%20Calacanis%20Net%20Worth%20%26%20Popular%20Startup%20Investments%20-%20Capitaly&en=page_view&_fv=1&_nsi=1&_ss=1&_ee=1&ep.anonymize_ip=true&tfd=415",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.capitaly.vc/.wf_graphql/csrf",
+      "method": "POST",
+      "score": -8,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.typeform.com/single-embed/01JHVW0SK7Y7VCVZZED7CX64RK",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.segment.com/v1/projects/irIyE55kcfcPQznGh7ktqM19yJhq3nie/settings",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://www.capitaly.vc/.wf_graphql/apollo",
+      "method": "POST",
+      "score": 10,
+      "kept": true,
+      "reason": "candidate"
+    },
+    {
+      "url": "https://embed.typeform.com/next/css/popover.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.segment.io/v1/p",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.capitaly.vc/.wf_graphql/apollo",
+      "method": "POST",
+      "kept": true,
+      "reason": "semantic_gate_not_applicable",
+      "endpoint_id": "yEFR-7fuJATYPbSlHMp7r",
+      "description": "Returns details for Apollo with data",
+      "action_kind": "create",
+      "resource_kind": "post"
+    }
+  ],
+  "accepted_endpoints": [
+    {
+      "endpoint_id": "yEFR-7fuJATYPbSlHMp7r",
+      "method": "POST",
+      "url_template": "https://www.capitaly.vc/.wf_graphql/apollo",
+      "description": "Returns details for Apollo with data",
+      "action_kind": "create",
+      "resource_kind": "post"
+    }
+  ]
+}

@@ -1,0 +1,3713 @@
+{
+  "page_url": "https://www.stackoverflow.com",
+  "final_url": "https://stackoverflow.com/questions",
+  "intent": "search questions",
+  "candidate_count": 0,
+  "accepted_count": 0,
+  "decisions": [
+    {
+      "url": "https://www.stackoverflow.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stackoverflow.com/",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stackoverflow.com/questions",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/google-analytics.en.js?v=48615a9a9bc4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/third-party/npm/@stackoverflow/stacks/dist/js/stacks.min.js?v=c7bcc7a1b4fd",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/stub.en.js?v=e307fb81e738",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Shared/stacks.css?v=b2264ccf0463",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/primary.css?v=aebbc6c1e33e",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/5102.en.js?v=77170ebd8b1b",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/questions/list.en.js?v=2175cf260ad4",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Shared/Channels/channels.css?v=d431b1be5a03",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/gpp.stub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/otSDKStub.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/sprinkles/cookie-consent.en.js?v=7ee6963139c5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/px.js?ch=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/px.js?ch=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/svelte.en.js?v=2ecf98975a24",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/stacks-svelte.en.js?v=65950a122a42",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/9366.en.js?v=c8d4e4e64bf3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/islands/signup-modal.en.js?v=f64ec881ea96",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/islands/one-tap.en.js?v=102f0378a2cf",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/topbar/top-bar-events.en.js?v=d8642b400694",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/sprinkles/left-nav-events.en.js?v=2ac13fd60bf6",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/stacks-svelte-labs.en.js?v=dd34064805b2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/1130.en.js?v=8bb363934465",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/6457.en.js?v=341577cbad05",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/1383.en.js?v=fb8605a674b1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/2458.en.js?v=33cc3da05f78",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/2269.en.js?v=17778cad1acb",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/webpack-chunks/9001.en.js?v=3a153d433746",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/islands/homepage-wizard.en.js?v=95e1af417fd5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/questions/userQuestionList.en.js?v=8b4317437ce2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.sstatic.net/bZpTiAdU.webp?s=32",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/ddc58fdb60e3486c35247dfaf2f77e39?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lh3.googleusercontent.com/a/AATXAJwpEVn80wNvxvBfuu86oVji8pU3Ij-zd0OeySNdHA=k-s32",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/4184e7b62873308a549211e122fa41a8?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lh3.googleusercontent.com/a/AATXAJw-4AYzTLsLMI3UDKRNElBn1NUMG-xk9tJ8nsRu=k-s32",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/1a313272e1f6a38fba49ff5323236b05?s=32&d=identicon&r=PG",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/63c72161fba6e27cb05c078651c5e969?s=32&d=identicon&r=PG",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/5efab9171d8a2ba6ec5879309e6f2709?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.sstatic.net/zD86O.jpg?s=32",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/fab16f0f880ccee24487a7be308792e4?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/1bcad768bf088fb2c040c2cbd83489ec?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/8fe22c580b601d6afec5c1abbe56b79f?s=32&d=identicon&r=PG",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://i.sstatic.net/zbYXG5nm.jpg?s=32",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/b86cffbf15753934666c07aa89654d27?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.gravatar.com/avatar/f0f83d8eec809153b48810662b297c20?s=32&d=identicon&r=PG&f=y&so-version=2",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-WCZ03SZFCQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://lngtd.com/stackoverflow.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/c3d9f1e3-55f3-4eba-b268-46cee4c6789c/c3d9f1e3-55f3-4eba-b268-46cee4c6789c.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://s.lngtdv.com/stackoverflow/default.1772742975.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/subcommunities/aws.svg?v=46d86cbff922",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/subcommunities/mobile-dev.svg?v=f6e72ddb4e44",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Img/favicons-sprite16.png?v=7c49858b1c47",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/subcommunities/ci-cd.svg?v=3358d7e37d46",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/subcommunities/php.svg?v=7cfced16955c",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/subcommunities/nlp.svg?v=81a839cdb445",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Sites/stackoverflow/Img/icon-48.png?v=6452e6a98212",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/client",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/cdn-cgi/challenge-platform/scripts/jsd/main.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/Content/Js/full-anon.en.js?v=2f39d9ae26e5",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/cdn-cgi/challenge-platform/h/g/scripts/jsd/ea2d291c0fdc/main.js?",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow.com/cdn-cgi/challenge-platform/h/g/jsd/oneshot/ea2d291c0fdc/0.42618965942020814:1772933087:DrsP8BUgjOy-4IoL5i66t2ni0bnJAnF_OST01gAMvwE/9d8e3ac879e314c7",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://geolocation.onetrust.com/cookieconsentpub/v1/geo/location",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://bd.lngtd.com/id.txt",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://floors.lngtd.com/?account=stackoverflow&section=default",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://standout-cdn.kargo.com/js/rh.min.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/tag/js/gpt.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-WCZ03SZFCQ&gtm=45je6341v891602898za200zd891602898&_p=1772935052285&gcs=G100&gcd=13q3q3q3q5l1&npa=1&dma_cps=-&dma=0&cid=510116356.1772935053&ul=en-us&sr=1280x720&uaa=x86&uab=64&uafvl=Not%253AA-Brand%3B99.0.0.0%7CHeadlessChrome%3B145.0.7632.6%7CChromium%3B145.0.7632.6&uamb=0&uam=&uap=macOS&uapv=10_15_7&uaw=0&are=1&frm=0&pscdl=denied&_eu=AAAAAGA&_s=1&tag_exp=103116026~103200004~115938466~115938468~116024733~117484252~117625637&sid=1772935053&sct=1&seg=0&dl=https%3A%2F%2Fstackoverflow.com%2Fquestions&dt=Newest%20Questions%20-%20Stack%20Overflow&en=page_view&_fv=1&_nsi=1&_ss=1&_ee=1&ep.requestid=bb68530b-457f-46dc-983b-c5491ea95bc2&ep.routename=Questions%2FList&ep.ads_blocked=false&tfd=2108",
+      "method": "POST",
+      "score": -15,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202601.2.0/otBannerSdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/consent/c3d9f1e3-55f3-4eba-b268-46cee4c6789c/019c8c6c-2258-7a30-b494-1199023cdb1b/en.json",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202601.2.0/otGPP.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/managed/js/gpt/m202603020101/pubads_impl.js?cb=31097036",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://standout-cdn.kargo.com/js/spotlight.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/managed/dict/m202603050101/gpt",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202601.2.0/assets/otFloatingRoundedCorner.json",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/scripttemplates/202601.2.0/assets/otCommonStyles.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s3-us-west-2.amazonaws.com/jsstore/a/R18H3X42/ge.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://longitudeads.solutions.cdn.optable.co/public-assets/longitudeads-sdk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s.lngtdv.com/prebid/stackoverflow/prebid9.53.2.1772051111.min.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://socialcanvas-api.kargo.com/v2/request",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.cookielaw.org/logos/static/ot_close.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/gh/prebid/currency-file@1/latest.json?date=20260307",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://gum.criteo.com/sid/json?origin=prebid&topUrl=https%3A%2F%2Fstackoverflow.com%2F&domain=stackoverflow.com&cw=1&lsw=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://id.hadron.ad.gt/api/v1/pbhid?partner_id=816&_it=prebid&t=1&src=id&domain=stackoverflow.com&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://id5-sync.com/api/config/prebid",
+      "method": "POST",
+      "score": -8,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.id5-sync.com/api/1.0/id5PrebidModule.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://idx.liadm.com/idex/did-0041/any?duid=d1f6640035ae--01kk5jm0p1jfy02w3hagng88ps&did=did-0041&gpp_s=DBABLA~BVQqAAAAAACA.QA&gpp_as=7&cd=.stackoverflow.com&pu=https%3A%2F%2Fstackoverflow.com&resolve=nonId&resolve=uid2&resolve=index&resolve=bidswitch&resolve=pubmatic&resolve=magnite&resolve=openx&resolve=medianet&resolve=sovrn&resolve=thetradedesk&resolve=sharethrough&resolve=triplelift&resolve=nexxen",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://id.crwdcntrl.net/id?c=17921",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/rid?ttd_pid=wq4ba1k&fmt=json",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/gampad/ads?pvsid=3799316570075967&correlator=3762891872749204&eid=31097036&output=ldjh&gdfp_req=1&vrg=202603020101&ptt=17&impl=fif&rdp=1&ltd=1&npa=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&iu_parts=248424177%2Cstackoverflow.com%2Cnative-question%2Cquestion-pages&enc_prev_ius=%2F0%2F1%2F2%2F3&prev_iu_szs=320x50%7C730x135&fluid=height&ifi=1&dids=nativequestion-1-dyn1&adfs=2260025233&sfv=1-0-45&sc=1&lrm=50&abxe=1&dt=1772935054046&lmt=1772935054&adxs=189&adys=489&biw=1280&bih=720&scr_x=0&scr_y=0&btvi=0&ucis=1&oid=2&u_his=2&u_h=720&u_w=1280&u_ah=720&u_aw=1280&u_cd=24&u_sd=1&u_tz=-480&dmc=8&bc=31&nvt=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&url=https%3A%2F%2Fstackoverflow.com%2Fquestions&vis=1&psz=735x135&msz=735x135&fws=512&ohw=0&topics=5&tps=5&htps=5&a3p=EjQKCnB1YmNpZC5vcmcSJDNjZjU5N2E3LTYwYzktNGY0ZC05YjE1LWNkZjk2NDcxMzc4OFgB&psd=WzMxLFtdXQ..&dlt=1772935051659&idt=2298&ppid=3cf597a7-60c9-4f4d-9b15-cdf964713788&prev_scp=elid%3Dnativequestion-1-dyn1%26lngtd-floor%3Dlngtd_d_9%26display_type%3Dinit%26nobids%3Dtrue&cust_params=session-depth%3D0%26lngtd_version%3D88%26Registered%3Dfalse%26Reputation%3Dnew%26cf_bot_score%3D91%2520-%252099%26TargetingConsent%3DFalse_Passive%26aa%3Dfalse%26li-module-enabled%3Dt1-e0&adks=2847332474&frm=20&eoidce=1&pbbce=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://d37e6758849318e6c47ac32572a6f738.safeframe.googlesyndication.com/safeframe/1-0-45/html/container.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/gampad/ads?pvsid=3799316570075967&correlator=3762891872749204&eid=31097036&output=ldjh&gdfp_req=1&vrg=202603020101&ptt=17&impl=fif&rdp=1&ltd=1&npa=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&iu_parts=248424177%2Cstackoverflow.com%2Cnative-question%2Cquestion-pages&enc_prev_ius=%2F0%2F1%2F2%2F3&prev_iu_szs=320x50%7C730x135&fluid=height&ifi=2&dids=nativequestion-1-dyn2&adfs=427259370&sfv=1-0-45&sc=1&lrm=50&abxe=1&dt=1772935054067&lmt=1772935054&adxs=189&adys=1200&biw=1280&bih=720&scr_x=0&scr_y=0&btvi=1&ucis=2&oid=2&u_his=2&u_h=720&u_w=1280&u_ah=720&u_aw=1280&u_cd=24&u_sd=1&u_tz=-480&dmc=8&bc=31&nvt=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&url=https%3A%2F%2Fstackoverflow.com%2Fquestions&vis=1&psz=735x135&msz=735x135&fws=512&ohw=0&topics=5&tps=5&htps=5&a3p=EjQKCnB1YmNpZC5vcmcSJDNjZjU5N2E3LTYwYzktNGY0ZC05YjE1LWNkZjk2NDcxMzc4OFgB&psd=WzMxLFtdXQ..&dlt=1772935051659&idt=2298&ppid=3cf597a7-60c9-4f4d-9b15-cdf964713788&prev_scp=elid%3Dnativequestion-1-dyn2%26lngtd-floor%3Dlngtd_d_9%26display_type%3Dinit%26nobids%3Dtrue&cust_params=session-depth%3D0%26lngtd_version%3D88%26Registered%3Dfalse%26Reputation%3Dnew%26cf_bot_score%3D91%2520-%252099%26TargetingConsent%3DFalse_Passive%26aa%3Dfalse%26li-module-enabled%3Dt1-e0&adks=3424867796&frm=20&eoidce=1&pbbce=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://na.edge.optable.co/config?osdk=web-v0.45.0&sid=JIHVpRh4NOrAIxOgks2_ww&t=longitude-ads-auth&o=stackoverflow&cookies=no&passport=",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://na.edge.optable.co/config?osdk=web-v0.45.0&sid=sr2SMHzmDMxaQdwHhl5FtA&t=longitude-ads-ret&o=stackoverflow&cookies=no&passport=",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cdn.id5-sync.com/api/1.0/id5-api.js",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://d37e6758849318e6c47ac32572a6f738.safeframe.googlesyndication.com/safeframe/1-0-45/html/container.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://socialcanvas-cdn.kargo.com/js/ksopb.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://socialcanvas-cdn.kargo.com/img/close-btn-desktop.svg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://api.id5-sync.com/analytics/488/id5-api-js",
+      "method": "GET",
+      "score": 1,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://rp.liadm.com/j?dtstmp=1772935054519&did=did-0041&se=e30&duid=d1f6640035ae--01kk5jm0p1jfy02w3hagng88ps&tv=9.53.2&pu=https%3A%2F%2Fstackoverflow.com%2Fquestions&wpn=prebid&gpp_s=DBABLA~BVQqAAAAAACA.QA&gpp_as=7&cd=.stackoverflow.com",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tpc.googlesyndication.com/safeframe/1-0-45/js/ext.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/js/r20260306/r20110914/abg_lite_fy2021.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.sstatic.net/Shared/stacks.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cdn.sstatic.net/Sites/stackoverflow/primary.css",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tpc.googlesyndication.com/simgad/16791709167846330062?",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://d37e6758849318e6c47ac32572a6f738.safeframe.googlesyndication.com/safeframe/1-0-45/html/container.html?r=1391739852",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/managed/js/activeview/current/ufs_web_display.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://id5-sync.com/bounce",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lbs.eu-1-id5-sync.com/lbs/v1",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://lb.eu-1-id5-sync.com/lb/v1",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjsttVd7EiHhUIpD3B_dxW3JEwD8hX3yyQsnYR-4r6u8quXMwcI04353plubPOCZHJvbXXvv34_SdeEQ3eAve_lsoQOuAXb77sekOlt5UFvr2yu-dfQakZv_dkRUqQqsCm6UvqrJxGL2P2lpir8VMEgxg_M5_SgHAIL15z9HRTVg7PbXxT9-JCf-Q7BM2c82axA8SygswP_MIF3BR4OZ4ZlPAFXIYBVYLpeeVMy98vEkNT5rXwHz3-3Rr36qPbcYhDTZ1T0U44T_tCGAD9TDjZ0-wtGI_eQ_eVAJ2fESlmzc2JUAEYcH7Fh_xKPPEsmRKzkeOr9K1hAGnjKFxb_lGarDFMSIGe1fXdksn3e8j4j3qpv-YKpQsZR5_4dXDH8S8WRc7gtGKUNw-L0Y2mgndysyw4SCTle5S-7jAwaMJpm0p7q5xYzQ0Cr1UhHG6qTJcQ0SicWy-tTuTO3rh2CM&sig=Cg0ArKJSzJOmOkRRDsAfEAE&uach_m=%5BUACH%5D&urlfix=1&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=fle-fetch-start2",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=colleague-executed&name=4",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjssPCx98XGzYajIpUHb8UZR7Rep2X3xvWFPEiZQ7PIhNcmGOogQjuqizt2CF1MoShNy5G2yKuvFLWVB5VcUbG3Zek_KnIix1dh8SuitLwObiozt5eJzQCqfZhNTDVBOyIXxpWOzIEXA0fXcMXb1pnGImpYe0gUPmxRMGf386sdAQT4RZf0WPa_Vx45vk_BqWUZEbByJOlWIwS3CfLpmVU4jr9bfKuiB-qtiosKeBXGLbuZNzRea9zQcz_AiBEVsT1CJ2e7ZnGazXAzLnt0kUFg5WM5Tj1bZ9zEk3teP6cxV1NO_MBGmn3LzkMTaqPFQo0HRgPNLWRI8PU0MuM-CE6ot11MJAije3oNFQhQ2GUCtx6FNz9rrxdhD-5xYLaUNsQ43j1tgFydijrD8IIumk0_3dM4PJ00GU7zjJrVp5ZqN8BBFlgP3dSDR04JAS8POPan-Oe6aV_4GZ_4qtbt63lQ&sig=Cg0ArKJSzODlUDeoG1h7EAE&uach_m=%5BUACH%5D&urlfix=1&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=reach&proto=CAlgAWACaAM%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://google.com/.well-known/web-identity",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm.json",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://a.usbrowserspeed.com/cs?pid=3f6274bd78546e52bd181ff7e115b9515c2959f882a0f0fc2c1603e3fc9a0c9d",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/style",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/getconfig/sodar?sv=200&tid=gpt&tv=m202603020101&st=env&sjk=3799316570075967",
+      "method": "GET",
+      "score": -4,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/sodar2.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com/cookie_sync",
+      "method": "POST",
+      "score": 7,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com/openrtb2/auction",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://direct.adsrvr.org/bid/bidder/direct29k4dc0z",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://rtb.openx.net/openrtbb/prebidjs",
+      "method": "POST",
+      "score": -11,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://fastlane.rubiconproject.com/a/api/fastlane.json?account_id=21408&site_id=281598&zone_id=3863218&size_id=15&alt_size_ids=10&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&eid_liveintent.com=26-7u9vesQTWnqclVwtr0b%2BO5qLUZ68QMo2lsuJ3nNPOMzmdYNN3d5rJRGvM9xwug5%2B%2BOKc4%2BNae98dzhjuxdovK1dHiAil1rYrpkncKFKgomRRHA%3D%3D%5E3%5E%5E%5E%5E%5E&eid_bidswitch.net=5514e258-232c-4683-bf8d-47250b112b1e%5E3%5E%5E%5E%5E%5E&eid_liveintent.triplelift.com=658708609113628957606%5E3%5E%5E%5E%5E%5E&eid_rubiconproject.com=ML1H9YVF-E-B7J1%5E3%5E%5E%5E%5E%5E&eid_liveintent.indexexchange.com=Z-rJLNHM74UAFDlkALYqGwAA%26563%5E3%5E%5E%5E%5E%5E&eid_openx.net=cabc2be5-6758-4f63-87da-97138ac3057b%5E3%5E%5E%5E%5E%5E&eid_pubmatic.com=5B19F5B5-2281-4D2E-84EF-544963431B56%5E3%5E%5E%5E%5E%5E&eid_liveintent.sovrn.com=K6v9ALZHVIJHXRdtS_qK1PWo%5E3%5E%5E%5E%5E%5E&eid_sharethrough.com=bbc0672c-ed12-4bec-92cc-bd7849532a59%5E3%5E%5E%5E%5E%5E&eid_liveintent.unrulymedia.com=RX-0f499317-5c1a-4a82-9b6e-ecd14a2e7a49-005%5E3%5E%5E%5E%5E%5E&eid_crwdcntrl.net=d30a7de17cc9d68e7c82b59e63e9185ca02c8ad50690edcd929b4797af9a7683%5E1%5E%5E%5E%5E%5E&eid_pubcid.org=3cf597a7-60c9-4f4d-9b15-cdf964713788%5E1%5E%5E%5E%5E%5E&eid_adserver.org=8ef94243-1e18-4155-8b3a-3e69669e3d57%5E1%5E%5Eadserver.org%5Eadserver.org%5E4%5ETDID&rf=https%3A%2F%2Fstackoverflow.com%2Fquestions&tg_i.domain=stackoverflow.com&tg_i.page=https%3A%2F%2Fstackoverflow.com%2Fquestions&tg_i.documentLang=en&tg_i.pbadslot=%2F248424177%2Fstackoverflow.com%2Fmsb%2Fquestion-pages&tk_flint=pbjs_lite_v9.53.2&x_source.tid=70cc5426-a620-4a92-b8e9-9d1d0ac58d74&l_pb_bid_id=154036062ac31fa8&p_screen_res=1280x720&rp_secure=1&x_imp.ext.tid=12e02d18-78e1-4413-ad25-8d3ff2a6001c&rp_hard_floor=0.35&p_gpid=%2F248424177%2Fstackoverflow.com%2Fmsb%2Fquestion-pages&m_ch_ua=%22Not%3AA-Brand%22%7Cv%3D%2299%22%2C%22HeadlessChrome%22%7Cv%3D%22145%22%2C%22Chromium%22%7Cv%3D%22145%22&m_ch_mobile=%3F0&m_ch_platform=macOS&slots=1&rand=0.7331444221285329",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://fastlane.rubiconproject.com/a/api/fastlane.json?account_id=21408&site_id=281598&zone_id=3863048&size_id=15&alt_size_ids=10&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&eid_liveintent.com=26-7u9vesQTWnqclVwtr0b%2BO5qLUZ68QMo2lsuJ3nNPOMzmdYNN3d5rJRGvM9xwug5%2B%2BOKc4%2BNae98dzhjuxdovK1dHiAil1rYrpkncKFKgomRRHA%3D%3D%5E3%5E%5E%5E%5E%5E&eid_bidswitch.net=5514e258-232c-4683-bf8d-47250b112b1e%5E3%5E%5E%5E%5E%5E&eid_liveintent.triplelift.com=658708609113628957606%5E3%5E%5E%5E%5E%5E&eid_rubiconproject.com=ML1H9YVF-E-B7J1%5E3%5E%5E%5E%5E%5E&eid_liveintent.indexexchange.com=Z-rJLNHM74UAFDlkALYqGwAA%26563%5E3%5E%5E%5E%5E%5E&eid_openx.net=cabc2be5-6758-4f63-87da-97138ac3057b%5E3%5E%5E%5E%5E%5E&eid_pubmatic.com=5B19F5B5-2281-4D2E-84EF-544963431B56%5E3%5E%5E%5E%5E%5E&eid_liveintent.sovrn.com=K6v9ALZHVIJHXRdtS_qK1PWo%5E3%5E%5E%5E%5E%5E&eid_sharethrough.com=bbc0672c-ed12-4bec-92cc-bd7849532a59%5E3%5E%5E%5E%5E%5E&eid_liveintent.unrulymedia.com=RX-0f499317-5c1a-4a82-9b6e-ecd14a2e7a49-005%5E3%5E%5E%5E%5E%5E&eid_crwdcntrl.net=d30a7de17cc9d68e7c82b59e63e9185ca02c8ad50690edcd929b4797af9a7683%5E1%5E%5E%5E%5E%5E&eid_pubcid.org=3cf597a7-60c9-4f4d-9b15-cdf964713788%5E1%5E%5E%5E%5E%5E&eid_adserver.org=8ef94243-1e18-4155-8b3a-3e69669e3d57%5E1%5E%5Eadserver.org%5Eadserver.org%5E4%5ETDID&rf=https%3A%2F%2Fstackoverflow.com%2Fquestions&tg_i.domain=stackoverflow.com&tg_i.page=https%3A%2F%2Fstackoverflow.com%2Fquestions&tg_i.documentLang=en&tg_i.pbadslot=%2F248424177%2Fstackoverflow.com%2Fsb%2Fquestion-pages&tk_flint=pbjs_lite_v9.53.2&x_source.tid=70cc5426-a620-4a92-b8e9-9d1d0ac58d74&l_pb_bid_id=16cc11f7053e1fc8&p_screen_res=1280x720&rp_secure=1&x_imp.ext.tid=c12bbc50-d229-45f3-8137-90ac78b399f0&rp_hard_floor=0.4&p_gpid=%2F248424177%2Fstackoverflow.com%2Fsb%2Fquestion-pages&m_ch_ua=%22Not%3AA-Brand%22%7Cv%3D%2299%22%2C%22HeadlessChrome%22%7Cv%3D%22145%22%2C%22Chromium%22%7Cv%3D%22145%22&m_ch_mobile=%3F0&m_ch_platform=macOS&slots=1&rand=0.8695182176054128",
+      "method": "GET",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://ib.adnxs.com/ut/v3/prebid",
+      "method": "POST",
+      "score": -11,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://web.hb.ad.cpe.dotomi.com/cvx/client/hb/ortb/25",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://btlr.sharethrough.com/universal/v1?supply_id=WYu2BXv1",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://btlr.sharethrough.com/universal/v1?supply_id=WYu2BXv1",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://htlb.casalemedia.com/openrtb/pbjs?s=1277652",
+      "method": "POST",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://prebid.media.net/rtb/prebid?cid=8CU4SHE46",
+      "method": "POST",
+      "score": -8,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://krk2.kargo.com/api/v1/prebid",
+      "method": "POST",
+      "score": -8,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://targeting.unrulymedia.com/unruly_prebid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://targeting.unrulymedia.com/unruly_prebid",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://tlx.3lift.com/header/auction?lib=prebid&v=9.53.2&referrer=https%3A%2F%2Fstackoverflow.com%2Fquestions&tmax=1250",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://hbopenbid.pubmatic.com/translator?source=prebid-client&gzip=1",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://id5-sync.com/gm/v3",
+      "method": "POST",
+      "score": 9,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/sodar2/253/runner.html",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/bg/NdNaVlqQBaySWbVXEDaltEpqQEgz6LnuoTDhTfPgmpo.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/activeview?xai=AKAOjst2y-0V_ZhEyfDqjUV49T6pd1957Kfd9I2OqDDOsVGhICKpdw0cBp0vAyfsGnop0kCVMtaf54HOvrMsSl0ng-LXOfQvsoemC69jkwY6ye7V6J7rUYzQLqTI8WvwhYDwf5RzKwxwVL7W4THo0iEG2ZXtkFI7SdywzvczxdDwZvBkB8bvA1xbynDJDbrj1w&sig=Cg0ArKJSzKqnYPmTiYvcEAE&id=lidar2&mcvt=1000&p=530,189,651.125,924&tm=1032.0999999940395&tu=31.700000002980232&mtos=1000,1000,1000,1000,1000&tos=1000,0,0,0,0&v=20260302&bin=7&avms=nio&bs=0,0&mc=1&if=1&vu=1&app=0&itpl=7&adk=2847332474&rs=4&la=0&cr=0&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&vs=4&r=v&co=6886785500&rst=1772935054173&rpt=838&isd=0&lsd=0&met=mue&wmsd=0&pbe=0&fle=0&vae=0&spb=0&sfl=0&ffslot=0&reach=8&io2=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/generate_204?fGg49A",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://id5-sync.com/i/488/8.gif?o=api&id5id=ID5*EUtYjInsJKYA_YeiS6CSeDQ4Ac4P0GuqvFwrS6iu9wD__2ms15BaAAEBCmms144AkBI3LeYVEdTF2XnEWmFJHg&gdpr_consent=undefined&gdpr=false&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://na.edge.optable.co/v2/targeting?id=__passport__&id=id5%3AID5*EUtYjInsJKYA_YeiS6CSeDQ4Ac4P0GuqvFwrS6iu9wD__2ms15BaAAEBCmms144AkBI3LeYVEdTF2XnEWmFJHg&osdk=web-v0.45.0&sid=JIHVpRh4NOrAIxOgks2_ww&t=longitude-ads-auth&o=stackoverflow&cookies=no&passport=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InY6NTJhb3hFVFdyN2pDc0lxTTJsTVpwcyIsIm5ldyI6dHJ1ZSwiZXhwIjoxNzc1NTI3MDU0fQ.LBozn7UwI327ixSneIeOAYhRAIjvYox4fOubj7P86ZTZZbR4rFn9h91BFshmZTom4iAJQrrgEA7xL1VRyfOopw",
+      "method": "GET",
+      "score": 11,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://na.edge.optable.co/v2/targeting?id=__passport__&osdk=web-v0.45.0&sid=sr2SMHzmDMxaQdwHhl5FtA&t=longitude-ads-ret&o=stackoverflow&cookies=no&passport=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InY6Mmp2UWx0WE8zbzAzeGdXVFVIbUh1ZCIsIm5ldyI6dHJ1ZSwiZXhwIjoxNzc1NTI3MDU0fQ.n1JteD-pkXpYAxuhh6V7pc2FsMCThM0nxVUXdAte8UhJVCuNBPLP8Z9bqLnJuIdB5Y0ZjRBriWiNRTJHKzOKsg",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://na.edge.optable.co/identify?osdk=web-v0.45.0&sid=JIHVpRh4NOrAIxOgks2_ww&t=longitude-ads-auth&o=stackoverflow&cookies=no&passport=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InY6NTJhb3hFVFdyN2pDc0lxTTJsTVpwcyIsIm5ldyI6ZmFsc2UsImV4cCI6MTc3NTUyNzA1Nn0.1ZGEgR-khC6tx4E2Caw_17UxtdjhModNKBULKJOicUhohCqUBufGCeT09UuvnpwsrsqCf0QJHb37q8OhdQZdZQ",
+      "method": "POST",
+      "score": 4,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fstack-s2s.lngtd.com%2F%2Fsetuid%3Fbidder%3Dadnxs%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7%26f%3Di%26uid%3D%24UID",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ib.adnxs.com/bounce?%2Fgetuid%3Fhttps%253A%252F%252Fstack-s2s.lngtd.com%252F%252Fsetuid%253Fbidder%253Dadnxs%2526gdpr%253D0%2526gdpr_consent%253D%2526us_privacy%253D%2526gpp%253DDBABLA%257EBVQqAAAAAACA.QA%2526gpp_sid%253D7%2526f%253Di%2526uid%253D%2524UID",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ice.360yield.com/match?publisher_dsp_id=313&dsp_callback=1&external_user_id=ID5-10d7qZcYHSCGuxlr267DFEM9dS-rVxGcJxfwiNXLuw&r=https%3A%2F%2Fid5-sync.com%2Fcq%2F488%2F124%2F7%2F2.gif%3Fpuid%3D%7BPUB_USER_ID%7D%26gdpr%3D0%26gdpr_consent%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com//setuid?bidder=adnxs&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&f=i&uid=275434980821483079",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.1rx.io/usersync2/rmphb?gdpr=0&gdpr_consent=&us_privacy=&redir=https%3A%2F%2Fstack-s2s.lngtd.com%2F%2Fsetuid%3Fbidder%3Dunruly%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7%26f%3Di%26uid%3D%5BRX_UUID%5D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/gampad/ads?pvsid=3799316570075967&correlator=3762891872749204&eid=31097036&output=ldjh&gdfp_req=1&vrg=202603020101&ptt=17&impl=fif&rdp=1&ltd=1&npa=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&iu_parts=248424177%2Cstackoverflow.com%2Cmsb%2Cquestion-pages&enc_prev_ius=%2F0%2F1%2F2%2F3&prev_iu_szs=300x250%7C300x600&ifi=3&dids=dfp-msb&adfs=1999115048&sfv=1-0-45&sc=1&lrm=50&abxe=1&dt=1772935056469&lmt=1772935056&adxs=948&adys=857&biw=1280&bih=720&scr_x=0&scr_y=0&btvi=2&ucis=3&oid=2&u_his=2&u_h=720&u_w=1280&u_ah=720&u_aw=1280&u_cd=24&u_sd=1&u_tz=-480&dmc=8&bc=31&nvt=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&uas=3&url=https%3A%2F%2Fstackoverflow.com%2Fquestions&vis=1&psz=300x0&msz=300x0&fws=0&ohw=0&psts=AOrYGsnCui9hh4MW76mKfSiSBnhPXoe48xpTvPdCTjUtTYg_cpZNY6CiYQEmt_-CTib7GYv_5xXMb7PEu8raiV2-cH0oASKFT08wOwrtOVsfZGWwq6Sd5HY%2CAOrYGsn1LgFEnaL1KmZagk7lFKb96QQJ3x6tuowM97grYBOH9PELla0ETeBxpVWyQtMNM4u60xx1dW-SSgn19FPGfvODaOB8pWiLZoqU9WvtAXns1pyHlQA&topics=5&tps=5&htps=5&a3p=EjYKDHB1Ym1hdGljLmNvbRIkNUIxOUY1QjUtMjI4MS00RDJFLTg0RUYtNTQ0OTYzNDMxQjU2WAESPgocbGl2ZWludGVudC5pbmRleGV4Y2hhbmdlLmNvbRIcWi1ySkxOSE03NFVBRkRsa0FMWXFHd0FBJjU2M1gBEjcKDWJpZHN3aXRjaC5uZXQSJDU1MTRlMjU4LTIzMmMtNDY4My1iZjhkLTQ3MjUwYjExMmIxZVgBEkYKDGF1ZGlnZW50LmNvbRI0MDAwMXl1bTBlYWhjYjdnOGI3bGtpZGI5OWdhYmo4NjZoZTZqZWhnZjlpYWJhY2trYzJqbFgBEocBCg5saXZlaW50ZW50LmNvbRJzMjYtN3U5dmVzUVRXbnFjbFZ3dHIwYitPNXFMVVo2OFFNbzJsc3VKM25OUE9Nem1kWU5OM2Q1ckpSR3ZNOXh3dWc1KytPS2M0K05hZTk4ZHpoanV4ZG92SzFkSGlBaWwxcllycGtuY0tGS2dvbVJSSEE9PVgBEicKEnJ1Ymljb25wcm9qZWN0LmNvbRIPTUwxSDlZVkYtRS1CN0oxWAESNgoMYWRzZXJ2ZXIub3JnEiQ4ZWY5NDI0My0xZTE4LTQxNTUtOGIzYS0zZTY5NjY5ZTNkNTdYARIzCglvcGVueC5uZXQSJGNhYmMyYmU1LTY3NTgtNGY2My04N2RhLTk3MTM4YWMzMDU3YlgBEmwKDGlkNS1zeW5jLmNvbRJaSUQ1Km5GeDMyQVQ3Q19LTjZxajJ4cmU5TExrdkxwcUN4MFQtTVVzRUh5VzUyRlRfXzJtczE1QmFBQUVCQ21tczE0NEFrQktBU3BlVHNwNXRYZW9QdlpBM1hnWAESNAoKcHViY2lkLm9yZxIkM2NmNTk3YTctNjBjOS00ZjRkLTliMTUtY2RmOTY0NzEzNzg4WAESUwoNY3J3ZGNudHJsLm5ldBJAZDMwYTdkZTE3Y2M5ZDY4ZTdjODJiNTllNjNlOTE4NWNhMDJjOGFkNTA2OTBlZGNkOTI5YjQ3OTdhZjlhNzY4M1gBEjIKFGxpdmVpbnRlbnQuc292cm4uY29tEhhLNnY5QUxaSFZJSkhYUmR0U19xSzFQV29YARI0ChlsaXZlaW50ZW50LnRyaXBsZWxpZnQuY29tEhU2NTg3MDg2MDkxMTM2Mjg5NTc2MDZYARLLAQoKY3JpdGVvLmNvbRK6AUJhcERxVjhsTWtac1prRjZjalZRSlRKR09ERnBhRXA2YzJ0SFYxZzJXa2MyVlRWV1dFdFVZMjlTVDNkRmJXWnJTMjFSVjNwYWJURTRXblZPU2pJbE1rSktjWEJYWjBGb05VRmlTVXB6VUVKaFNGUkJhbXMwWkZWcVFUaDZkRlZLZUVwb1dsRmtPRlo1Wld0UFJsZFRiRW96ZFZGdVNHUmhibFJQU0RsMWRIbElZa3BOTmxocFpEQXhjZ1gB&psd=WzMxLFtdXQ..&dlt=1772935051659&idt=2298&ppid=3cf597a7-60c9-4f4d-9b15-cdf964713788&prev_scp=elid%3Ddfp-msb%26hb_bidder%3Dix%26hb_adid%3D4431d23e8179e24%26safe_frames%3Dtrue%26hb_pb%3D1.05%26hb_size%3D300x250%26hb_source%3Dclient%26hb_format%3Dbanner%26hb_adomain%3Dhttps%253A%252F%252Fwww.royalcaribbean.com%252F%26hb_dsp%3D8%26hb_crid%3D43919185%26display_type%3Dinit%26nobids%3Dfalse&cust_params=session-depth%3D0%26lngtd_version%3D88%26Registered%3Dfalse%26Reputation%3Dnew%26cf_bot_score%3D91%2520-%252099%26TargetingConsent%3DFalse_Passive%26aa%3Dfalse%26li-module-enabled%3Dt1-e1&adks=3355123352&frm=20&eo_id_str=ID%3Da43348a51baeee0b%3AT%3D1772935054%3ART%3D1772935054%3AS%3DAA-AfjYgoSuV41Hfv5EuHj-pxVbH&gblpids=%2F248424177%2Fstackoverflow.com%2Fmsb%2Fquestion-pages&pb_szs=300x250%7C300x600&pbbce=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/gampad/ads?pvsid=3799316570075967&correlator=3762891872749204&eid=31097036&output=ldjh&gdfp_req=1&vrg=202603020101&ptt=17&impl=fif&rdp=1&ltd=1&npa=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&iu_parts=248424177%2Cstackoverflow.com%2Csb%2Cquestion-pages&enc_prev_ius=%2F0%2F1%2F2%2F3&prev_iu_szs=300x250%7C300x600&ifi=4&dids=dfp-tsb&adfs=1237304250&sfv=1-0-45&sc=1&lrm=50&abxe=1&dt=1772935056473&lmt=1772935056&adxs=948&adys=857&biw=1280&bih=720&scr_x=0&scr_y=0&btvi=3&ucis=4&oid=2&u_his=2&u_h=720&u_w=1280&u_ah=720&u_aw=1280&u_cd=24&u_sd=1&u_tz=-480&dmc=8&bc=31&nvt=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&uas=3&url=https%3A%2F%2Fstackoverflow.com%2Fquestions&vis=1&psz=300x0&msz=300x0&fws=0&ohw=0&psts=AOrYGsnCui9hh4MW76mKfSiSBnhPXoe48xpTvPdCTjUtTYg_cpZNY6CiYQEmt_-CTib7GYv_5xXMb7PEu8raiV2-cH0oASKFT08wOwrtOVsfZGWwq6Sd5HY%2CAOrYGsn1LgFEnaL1KmZagk7lFKb96QQJ3x6tuowM97grYBOH9PELla0ETeBxpVWyQtMNM4u60xx1dW-SSgn19FPGfvODaOB8pWiLZoqU9WvtAXns1pyHlQA&topics=5&tps=5&htps=5&a3p=EjYKDHB1Ym1hdGljLmNvbRIkNUIxOUY1QjUtMjI4MS00RDJFLTg0RUYtNTQ0OTYzNDMxQjU2WAESPgocbGl2ZWludGVudC5pbmRleGV4Y2hhbmdlLmNvbRIcWi1ySkxOSE03NFVBRkRsa0FMWXFHd0FBJjU2M1gBEjcKDWJpZHN3aXRjaC5uZXQSJDU1MTRlMjU4LTIzMmMtNDY4My1iZjhkLTQ3MjUwYjExMmIxZVgBEkYKDGF1ZGlnZW50LmNvbRI0MDAwMXl1bTBlYWhjYjdnOGI3bGtpZGI5OWdhYmo4NjZoZTZqZWhnZjlpYWJhY2trYzJqbFgBEocBCg5saXZlaW50ZW50LmNvbRJzMjYtN3U5dmVzUVRXbnFjbFZ3dHIwYitPNXFMVVo2OFFNbzJsc3VKM25OUE9Nem1kWU5OM2Q1ckpSR3ZNOXh3dWc1KytPS2M0K05hZTk4ZHpoanV4ZG92SzFkSGlBaWwxcllycGtuY0tGS2dvbVJSSEE9PVgBEicKEnJ1Ymljb25wcm9qZWN0LmNvbRIPTUwxSDlZVkYtRS1CN0oxWAESNgoMYWRzZXJ2ZXIub3JnEiQ4ZWY5NDI0My0xZTE4LTQxNTUtOGIzYS0zZTY5NjY5ZTNkNTdYARIzCglvcGVueC5uZXQSJGNhYmMyYmU1LTY3NTgtNGY2My04N2RhLTk3MTM4YWMzMDU3YlgBEmwKDGlkNS1zeW5jLmNvbRJaSUQ1Km5GeDMyQVQ3Q19LTjZxajJ4cmU5TExrdkxwcUN4MFQtTVVzRUh5VzUyRlRfXzJtczE1QmFBQUVCQ21tczE0NEFrQktBU3BlVHNwNXRYZW9QdlpBM1hnWAESNAoKcHViY2lkLm9yZxIkM2NmNTk3YTctNjBjOS00ZjRkLTliMTUtY2RmOTY0NzEzNzg4WAESUwoNY3J3ZGNudHJsLm5ldBJAZDMwYTdkZTE3Y2M5ZDY4ZTdjODJiNTllNjNlOTE4NWNhMDJjOGFkNTA2OTBlZGNkOTI5YjQ3OTdhZjlhNzY4M1gBEjIKFGxpdmVpbnRlbnQuc292cm4uY29tEhhLNnY5QUxaSFZJSkhYUmR0U19xSzFQV29YARI0ChlsaXZlaW50ZW50LnRyaXBsZWxpZnQuY29tEhU2NTg3MDg2MDkxMTM2Mjg5NTc2MDZYARLLAQoKY3JpdGVvLmNvbRK6AUJhcERxVjhsTWtac1prRjZjalZRSlRKR09ERnBhRXA2YzJ0SFYxZzJXa2MyVlRWV1dFdFVZMjlTVDNkRmJXWnJTMjFSVjNwYWJURTRXblZPU2pJbE1rSktjWEJYWjBGb05VRmlTVXB6VUVKaFNGUkJhbXMwWkZWcVFUaDZkRlZLZUVwb1dsRmtPRlo1Wld0UFJsZFRiRW96ZFZGdVNHUmhibFJQU0RsMWRIbElZa3BOTmxocFpEQXhjZ1gB&psd=WzMxLFtdXQ..&dlt=1772935051659&idt=2298&ppid=3cf597a7-60c9-4f4d-9b15-cdf964713788&prev_scp=elid%3Ddfp-tsb%26lngtd-floor%3Dlngtd_d_35%26display_type%3Dinit%26nobids%3Dtrue%26Sidebar%3DRight&cust_params=session-depth%3D0%26lngtd_version%3D88%26Registered%3Dfalse%26Reputation%3Dnew%26cf_bot_score%3D91%2520-%252099%26TargetingConsent%3DFalse_Passive%26aa%3Dfalse%26li-module-enabled%3Dt1-e1&adks=1088684233&frm=20&eo_id_str=ID%3Da43348a51baeee0b%3AT%3D1772935054%3ART%3D1772935054%3AS%3DAA-AfjYgoSuV41Hfv5EuHj-pxVbH&gblpids=%2F248424177%2Fstackoverflow.com%2Fsb%2Fquestion-pages&pb_szs=300x250%7C300x600&pbbce=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/pagead/sodar?id=sodar2&v=253&t=2&li=gpt_m202603020101&jk=3799316570075967&bg=!jY6ljuzNAAbIxKla6MQ7AEcBe5WfOJKE3RXJxGt2Z3Kzglp7HDY_e2BxBZkc7he3JwwfkkCWgyGQTmq5FyBVmbuxOqk21hZ2VAUNX8QzMxY-xAu9I7JUvAIAAAAyUgAAAAFoAQd-ADdHSk7Gd4lzQavTcbON5399jPlJ9UCRstoN7SoWqXb8JL_M68F-PTDoG5iuy4yWbHoupxaEIZ3VCgANeY6yNicq68C4AGahaZkCLnoIABYmTWBiLhTb5_4MPo80UU75J5BhP_pKrDTynGHslXDtfvvkLxE4wXTqsRzcDk4gG1mGHYuXdeArjpS9mnhYp5sTNpT7XBiStM001ujq53Xb9UXBNu43up3GBTDvZRjmxog_C4DAySeGRZ8SVYtibIfkkZ1CAqgEl68i7BNJMoSGlI6XzacM1Riw9yOQ37i0lPmPeeq7xE1V5VYSQe3IW_gA1Xy_yG9RRCkXuMAso8MsbWmSYVO_QeQmpwofsZBbwIuUO4vsa7Ly_obX2P5g6jKJ1yyy-mcgXn3GHsgllrfyl9JT5eiS9B3LVem9XOQoqaI7DDnsyAI_hQeY-_m1ULlcjn2WuUKfoNUxBLzt7-lMEs904I6MTtX68oyf7-RqO08cSv0pBlRIKvUfkCDlUwgvMPRgfPTptHsRNDd96iduxD2e2w811GBqi_L6Zk3WF9NNJSFZsYIWy-gDCb2QEsMgyiOyZhnDLoOYbh4WI7Bex2KWdASVObWhwnigYiiwijgr8z5LjgrTR5rj1tCHqo3K8UaPM4Qjv-iTJRNejroE0jmbuQ7dibB6_hHkucfsdeKWAu8a99C7A9xTm5eI8OKPZL67o3IzdxBpmWJ8TQCquj893w9HlSiQIZp38cDueccf-f--NW1oIU-qcOvxbVHl8ffziLSiwmGCWMSUYkoeQ9bHeQ1x4Soz4yX7Y-35qV9BCTcCjJ46HTVVZz6h6jYfCtSJFO9lsak1uw",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ice.360yield.com/ul_cb/match?publisher_dsp_id=313&dsp_callback=1&external_user_id=ID5-10d7qZcYHSCGuxlr267DFEM9dS-rVxGcJxfwiNXLuw&r=https%3A%2F%2Fid5-sync.com%2Fcq%2F488%2F124%2F7%2F2.gif%3Fpuid%3D%7BPUB_USER_ID%7D%26gdpr%3D0%26gdpr_consent%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com//setuid?bidder=unruly&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&f=i&uid=OPTOUT",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://id5-sync.com/cq/488/124/7/2.gif?puid=f4df29b6-4256-4596-b4ee-978f26b52418&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://u.openx.net/w/1.0/cm?id=891039ac-a916-42bb-a651-4be9e3b201da&ph=a3aece0c-9e80-4316-8deb-faf804779bd1&gdpr=0&gdpr_consent=&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7&r=https%3A%2F%2Fstack-s2s.lngtd.com%2F%2Fsetuid%3Fbidder%3Dopenx%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7%26f%3Db%26uid%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.evidon.com/durly.js?;coid=1783;nid=167184;ad_wxh=300x600;",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/VFc2VJAc.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/managed/js/activeview/current/ufs_web_display.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://s0.2mdn.net/simgad/16224720557865789379?sqp=uqWu0g0ICNgEEKwCQGQ&rs=AOga4qnWdG2UjXvdxjsFQtiBK-MynYbugQ",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=fle-fetch-start2",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=colleague-executed&name=4",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=reach&proto=CAlgAWACaAM%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=8h9u11h&ttd_tpi=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/Klz6NWr5.html",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://u.openx.net/w/1.0/cm?cc=1&id=891039ac-a916-42bb-a651-4be9e3b201da&ph=a3aece0c-9e80-4316-8deb-faf804779bd1&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&r=https%3A%2F%2Fstack-s2s.lngtd.com%2F%2Fsetuid%3Fbidder%3Dopenx%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%26gpp%3DDBABLA~BVQqAAAAAACA.QA%26gpp_sid%3D7%26f%3Db%26uid%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://id5-sync.com/k/264.gif?puid=8ef94243-1e18-4155-8b3a-3e69669e3d57&ttl=%%TTL%%",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/bg/NdNaVlqQBaySWbVXEDaltEpqQEgz6LnuoTDhTfPgmpo.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com//setuid?bidder=openx&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&f=b&uid=7ee4d1dd-8426-4e69-a37d-4b36f00f2f2f",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=openx&google_cm&google_sc&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=openx&google_hm=NmI1NThkZDgtZjRjZS0yMzI0LWRkMTEtZDE5YWJiYjYyM2My&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/openx?oxid=473a5e12-3db9-7d80-c8f1-8b237154eda2&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58934/cms?gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ad.turn.com/r/cs?pid=9&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://tr.blismedia.com/v1/api/sync/openx?gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/pagead/gen_204?id=sodar&v=46&t=2&bgai=BPHkNkNesaaS4Iv3Z6tkPptfamAUAAAAAOAHgBAI&bg=!9Pel95XNAAbIxKla6MQ7AEcBe5WfOGEEd80TmjZmObZxK7Ed7WjoN5cTRWCY1vpy7vDdFIslJaAnJH8kAGyTAukCuYjmy3KwmEhA4vsAvOsYfSz7AFAkhQIAAAAgUgAAAAFoAQd-ADX9Og-_tUq5rmE-MCowyjYwRZ9Gq-jlG9Cdn2M3HTpVNulC0dBrVhFxM4CCB8HEURnj7VgzPZkCVEDzcddxUrtzhxeMJ9etXKFbH5FC-g2CwrRiPzffH5QX21vXzs9v8WciW9G02dt_dBe4t1sEPDhq3V72E41_g6TN1gch2Kwal_jueUvx1o7cndOySrx73Bhp0xsl2oxclRrJUukzUtSQF3-9-FNxIdY5Wv3mNKrEdO7r6ikDuI1IpHv0kumNQsawgC6KiXVz0iIksdFJoEdA9iIxaCyumWQgs-dGIxAL6sZV_tZ7a3IqYpTYAEWr4s0QQQuTP63pW2lDO2O1_dgfXGWTF1XBFNjgFY_Sh56aKHexbgYk4K59U5TqnTi7lufuSlNrhl13JWHfrbAjYf3Rcgw7r6qCSs97dw9Wae8LWdemOqbQ4_VsFVZZlcwhef4PHyFKeoegX6zwE0GxtM820XZ87VOrfscvHz-J9pWOB70vMz4oOlPteUT8xGKEfM2JzvTc5u9Ro3qJc0edAIMLW_9tvWyxgRle1hyPYtCZ7m97zw9wTYvAmmTliQTBm-cEl1ieisVYyOpxxTNY5h0WMq5-etABPxIaZdjPkSqU2tKGreGa_lRzw_aCUlDnluXJAsMxeBwWJyNhbczedArtG-9ckGpNV7hUW5jvIj1M3ygFueXK3hvdW5lOqQhjVCfz-1-3f2eExlciG3pmD0go0rEcwevkoyYQRJJckjjOVnS0K-aY6UxT9Wk9Jzpf5utR_uRx2gD8VVRhrlkrrTuR6UiBL_yeTH0abc6hcE6KrC2aQ70PmfHBBBUHxElaN5OhQFic7uAFJ2rpZD3kD0zf8TwQJgBt-Ud0vl2a",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537072971&val=8ef94243-1e18-4155-8b3a-3e69669e3d57&ttd_puid=473a5e12-3db9-7d80-c8f1-8b237154eda2&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.evidon.com/geo/ba.js?r231121",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/a/4.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjsvAGNro9r58y5faNdCnx_8_ITA5u6HWdGav-24-iFxLgDjL-E24ykzfUPSGGwHMcsQl3-Z7AVzjgNRFMI9OKPXhsOlweKuPxMhA-mWUY3p2LAvpD_TtrVH2E_ArHj09BHsN9yccR5KlcQx3tr3rkAwHUwN0cfr94hnOKpu0npf2mtmqWcEOveYppYrTKmAqV2YxlCvH4VIjG1iMMXeimto-bZLiGMhABJdWuPyXZ0emHPgfaUvjAKucPzkiEK-8NHq1vlsXkSRg6n39B6rsLpbQuPokvpK116CztkC93Doe6rL_Ew8d_DsPOUYx_oUvmeg2N3CHvO2vD4QDUGxsoDPeMUYGbtMDZ2XgPdblwDM44IiOcz94xfpo1QF4-Mpf9FfnwJj96mnceldq7um8s8uUhjjUJq0UceqaNJjvxdTFsFrzV0eChBBTySAKS4PScNAWOjkUDIJz9hH5Ga95jAx9CLaRNTzW9puUEGh5FqpRYpToB8a2Bl8FIzEVQ_AYOVP2M6SwtN1O-NXj-HfourS24vsY1EgxePeTAI_-nioXUbAebd55GuSBmBS_rGOEusYEHVRVKmk&sig=Cg0ArKJSzC1rKfD7vKkFEAE&uach_m=%5BUACH%5D&fbs_aeid=%5Bgw_fbsaeid%5D&urlfix=1&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.evidon.com/durly.js?;coid=1783;nid=167184;ad_wxh=300x600;",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/VFc2VJAc.js",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/managed/js/activeview/current/ufs_web_display.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=fle-fetch-start2",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=colleague-executed&name=4",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://s0.2mdn.net/simgad/11974301537056066776?sqp=uqWu0g0ICNgEEKwCQGQ&rs=AOga4qn7mI-JPX6ER-UTMh66pGPVVBAGgg",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://c.evidon.com/a/4.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/geo/ba.js?r231121",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep2.adtrafficquality.google/sodar/Klz6NWr5.html",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pagead/gen_204?id=av-js&type=reach&proto=CAlgAWACaAM%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/bg/NdNaVlqQBaySWbVXEDaltEpqQEgz6LnuoTDhTfPgmpo.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/a/n/1783/167184.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/a/n/1783/167184.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?p=50935&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&rd=https%3A%2F%2Fid5-sync.com%2Fc%2F488%2F429%2F5%2F4.gif%3Fpuid%3D%23PM_USER_ID%26gdpr%3D0%26gdpr_consent%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=openx&google_cm=&google_sc=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&google_tc=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=openx&google_hm=NmI1NThkZDgtZjRjZS0yMzI0LWRkMTEtZDE5YWJiYjYyM2My&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&google_tc=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ep1.adtrafficquality.google/pagead/gen_204?id=sodar&v=46&t=2&bgai=BYhpXkNesab7BIuKL6tkPp5KlkAYAAAAAOAHgBAI&bg=!zM-lz63NAAbIxKla6MQ7AEcBe5WfOFI5NayD1D-nvOwNK0aJVQ2mmnnJM4OdejK2t-taUeUHces8lf2jlYhaSF1dPpHRmpJu7JPnBeJIeK5y1ACQWQa6PAIAAAAsUgAAAAJoAQd-ADW2CZxjOdcuNyNupXJ7JmfF0Mpt3XFTV-9cqdWzM38oO_EQxoadYzmtne7XU8nj7wu-8crEKgoAvzViwGLQ8SBfZzHPUv1qPLycG99LTyOpX44c3qJzGqlxzieG8Zj3Gvl-fPfWouXRoz_GZ_4z1tQ2FqyG4OHr_FA_sOX1RmLmlE4kKmiMF_bvEORMQZOpeBmAgFto3_7JvMqWbYxFkDy_vjTJMc48WRL9AO-3N8Km3PWDzkI_H91r3C0x14nc5sYoxF0YWEE2ciToHQyfR5jRKLP7UxeqeC44-hQ_eA51jNglN5OzicuHdT_dAmHPpyn9raoxEvNAmQJTQaaZ5Ovf53HSaNWXAsNq56kw8MRnGKnPDi07Bx3AeNrePy9-m5jT2_dhcQqrshkn_GNbvjg1z2mxrl1gxkUmhc4KUBGagnNIkrutq9K0gNA5MWuG3OrRN9ygV4EbGIV7xUOoL6Mmnd5zLmbEgNr-eOAuW7atu6YpJxpp2QLniYXbUfzxUSMwrQt0-JVqh8MqNk72R85gUgbNGJLJhvSmNHp_LRr36lXkz0kQjkWC-oKOtGQ3QKFhrtT5bBT_gPNApv0w4Q_V837y6tgE37YCwwOoeR0yT4cME3Y-yCOZt0_tkzpPosbRUKU_eWOJ6wkGAEsImgpYiojHbuMnYSeq-Zl_9-qLhAa6zofUioHdtY_mED-x7hq2gy_XvOy3mbAAyRskas11WO9bwUSDqse5g27QuP9FXntm_GXCD0s0kroxdRQ4CJ9yrx9HUQMI-tGvnOcNUxdy24n4PjHJIUTOicVgjoiVhv_0i_Cd09fWYVME--dg9wZRk2XGPuwevvooLc5n5rEyestksO6GyHmS9LYvCY6cZUTO2eGQQOB3Xx51rgfQrvx3Eqay3Xz7XbPh6pOyB6hUWvzmQAfwAfDfxqzsTjSUDZbBbpgHc8_fM7jiYqbEr4TgN7V2cSv8hGvR5LvFz596cav-Y27biuo2xtfp63FnGqySaWBLZ-SN6AoNtS8d9UEndpeDqMRu6nne6N23yx9V3JIQkjEsO5tUMk_MaDv1pL2YKMd3baOt93FFvkLoCTc31QvEAbzjMqpjuu1wHghm9c-1LFrG3v5wWPvZmA",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://ssum.casalemedia.com/usermatch?s=215104&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&cb={{.RedirectURL}}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?p=50935&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&rd=https%3A%2F%2Fid5-sync.com%2Fc%2F488%2F429%2F5%2F4.gif%3Fpuid%3D%23PM_USER_ID%26gdpr%3D0%26gdpr_consent%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7&rdf=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ssum.casalemedia.com/usermatch?cb=%7B%7B.RedirectURL%7D%7D&gdpr=%7B%7B.GDPR%7D%7D&gdpr_consent=%7B%7B.GDPRConsent%7D%7D&s=215104&us_privacy=%7B%7B.USPrivacy%7D%7D&C=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://id5-sync.com/c/488/429/5/4.gif?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7&predirect=https%3A%2F%2Fstack-s2s.lngtd.com%2F%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7%26f%3Db%26uid%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjssEFPhQ6Qo5YM8uPCbiYaBgb8_Iiv--otrxS-UAlCK3YRRNXp_eMRVjAeQ0rHenJ9SlhJEqOUHLUwCMH-ZDAtQrdV7XazLip6HyX_j76_9Ud3X8dK87jwUo2XFWdgnXEiE9570y7UzAxwnqLBepU3MzjROCrwBAPy8TiLWX47UH4HmmShkBMtfg6rdGI3jZ-HbK4xMybcXt4DCKMQvVAK8l4KjyJfPtZTjvzymsJBfhs61ts5G04sq-Yw9ZzgiNDwubyBqpUdI9Wj0i2I33LmANlq3_yK6LFerBE9eqhx81x0Do8Cg0q2UdsmuvlEy8oU7U4NBhn8R9fT3aoP0sL6m7ucF-k3RmBktZ6apG3iE-S5EDMKcg3t-waT_6CyKJnGpldd41EQ0xg-wivWT-2q-JQgrgO8ew9qbt4QZQ5-HkWnGPd7ThVSe8qk1s4-KOz61G73i1rmaUMgkHMxmi4EZrNB5yORj846py6ePNWA&sig=Cg0ArKJSzHZoetiDSJzNEAE&uach_m=%5BUACH%5D&urlfix=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjsuI-TOYo4HN013TML0302npKO7L_2F3qHSC4xYqRsPWRwwXkaWpkV-FC_BfSYYAhdejaFCStBUCb9l1dw9_-vw0MCYnxWBZxRk_FJ8AltFn1NzK-lkKmOW2oHqFCySAhNBDJm-I5WBgaP54Zh7x424651oAYPwaxlG88YJK5KVoo5kaxuoYcUd2Bbo6sWkExSno4Kge5Bi8IR0HSSL1sDkybzP2BnmNb5hp0wPbYkxxDhcuz9yx6sdBXmC8NfnOzmS5j7Rcl-m9zKYyyydW844EsBYF5S6w6aIKpGoZX15bHFXlcEcjT-6q4_dV1XbF3BMOVC1VRoK1AcjvRm-tMhxzxAHo9GsuiYW17PyZkwiItcuj2gEAMxRwuco3eOoRQpl3wimeHcIpdWEZboXm9Z1gG_1ILVG68uN3Gx4Zn4oaUKO2JEsScSpW6XR4PiZDRR3dN_nQNXdqwrPZdtrRD0mcUmCLDm7TzVtwv9v9YT76ZQjQTc-CSyuswCSIB0kJbDV1tim_EyuX8pcxyraKmpLn-gGCaUyma2hDMTIiiibC7sS7lRY0O5UzeRCsbIWW1iUyfpwybB7H&sig=Cg0ArKJSzO9ws5lg1GJzEAE&uach_m=%5BUACH%5D&fbs_aeid=%5Bgw_fbsaeid%5D&urlfix=1&dett=2&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.evidon.com/a/COMMON.css?r=0.6676286690290527",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/icon/box_77_top-right.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/icon/c_30_us.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://l.evidon.com/ct/0_0_0_167184/us/0/1/0/0/0/0/300/600/242/1783/0/pixel.gif?v=2_1&ttid=2&d=stackoverflow.com&r=0.23009187587480362",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pagead2.googlesyndication.com/pcs/view?xai=AKAOjstDc6JCelA_PiJvZHFEm9M5rsrdZIfICeWAxhxYqc-QVOC3hks8eKhYQv2BaOi-bJEz5NUuLrDBMhL5oxfacOoBJ-g9Zh7t3a85NO0DBzHSAmwDGbryiXGb_ae5G-s5--s48Vdt-99O00eOmDziiSxl8CWbhHRmOTFxfclNXFmy7lXin97ZtUWr4sOjTnCds7_NiODrJMHswCiQeQhCJeQUzEdNELiVCAu97gzkbm8xgWYYe-QseLfOtUDMtxdPrJ-zqvyg3HLPOJctwWA_yLuo1QQHdOyAcc_jU8hZhE1vUUDkspnsLulJjzjJqBkd2pRTRzvjAJjry5tHamofC4s0BkPv1dz4-X8sw9qKujZ2ZU3Zeeo0khiNsZEXL4DssX-FCqZeb5ZRxe0-dtlZsbdXs1wY3wZQ0UTzo8q5Q2EFrpnxGLshR-MiPlXLMN79kdmy_7fVW5QwwaWVN250gdhN-ydqQhBa5Ie4HSur&sig=Cg0ArKJSzG3MRiUrsixcEAE&uach_m=%5BUACH%5D&urlfix=1&uach=WyJtYWNPUyIsIjEwXzE1XzciLCJ4ODYiLCIiLCIxNDUuMC43NjMyLjYiLG51bGwsMCxudWxsLCI2NCIsW1siTm90OkEtQnJhbmQiLCI5OS4wLjAuMCJdLFsiSGVhZGxlc3NDaHJvbWUiLCIxNDUuMC43NjMyLjYiXSxbIkNocm9taXVtIiwiMTQ1LjAuNzYzMi42Il1dLDBd&adurl=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58934/cms?gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&verify=true",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537073061&val=3081853132809982944&gdpr=0&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.ipredictive.com/d/sync/cookie/generic?partner=id5&cspid=18&cb=&redirect=https%3A%2F%2Fid5-sync.com%2Fc%2F488%2F796%2F4%2F5.gif%3Fpuid%3D%24%7BADELPHIC_CUID%7D%26gdpr%3D0%26gdpr_consent%3D%26gpp%3DDBABLA%7EBVQqAAAAAACA.QA%26gpp_sid%3D7&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537073025&val=y-xKZv4gRE2p_5nQyNapVwVbUwsH8PY.JQfRA-~A&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c.evidon.com/a/COMMON.css?r=0.4649977971051438",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/icon/box_77_top-right.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://c.evidon.com/icon/c_30_us.png",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://l.evidon.com/ct/0_0_0_167184/us/0/1/0/0/0/0/300/600/242/1783/0/pixel.gif?v=2_1&ttid=2&d=stackoverflow.com&r=0.19086439476332284",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://id5-sync.com/c/488/796/4/5.gif?puid=9219e6f4-c89f-48fd-8bfc-9bcfd2747b5f&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ut.pubmatic.com/geo?pubid=0",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/id5?us_privacy=&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/PugMaster?sec=1&async=1&kdntuid=1&rnd=50840823&p=0&s=0&a=0&ptask=ALL&np=0&fp=0&rp=0&mpc=0&spug=1&coppa=0&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c1.adform.net/serving/cookie/match?party=14&cid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://um.simpli.fi/pubmatic?https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9ODA2JnRsPTUxODQwMA==&piggybackCookie=uid:$UID&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.amazon-adsystem.com/dcm?pid=3b882453-6770-4785-baf8-a598533c054a&id=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&redir=true&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58917/cms?uid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&us_privacy=&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58917/cms?uid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&us_privacy=&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58292/sync?_origin=1&uid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&redir=true&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.deepintent.com/usersync/141?gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://stack-s2s.lngtd.com//setuid?bidder=pubmatic&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&f=b&uid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://dpm.demdex.net/ibs:dpid=19566&dpuuid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/420486.gif?partner_uid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pixel.onaudience.com/?partner=214&mapped=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=pubmatic&google_hm=MEIzRkI2NkEtMDFFOS00MTZELThFRTgtQzVDNTlFNEVEMTU0&gdpr=0&gdpr_consent=&google_cm",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=pmeb&google_sc=1&google_hm=Cz-2agHpQW2O6MXFnk7RVA%3D%3D&gdpr=0&gdpr_consent=&google_cm",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=pubmatic&google_cm&google_sc&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=pubmatic&ttd_tpi=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?p=156578&predirect=&gdpr=0&gdpr_consent=&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTIxNzcmdGw9MTI5NjAw&gdpr=0&gdpr_consent=&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTI4NDkmdGw9MTI5NjAw&piggybackCookie=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTIxNzcmdGw9MTI5NjAw&gdpr=0&gdpr_consent=&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image4.pubmatic.com/AdServer/SPug?partnerID=156078&xid=y-i2vZKSdE2uXVUnBhh8.syCGCk5.XPS4-~A&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTQwNjQmdGw9NDMyMDA=&piggybackCookie=y-Pxu8q9RE2oD0BRW7z40lvGmZzuG7u4qyAAbDH90-~A&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTQwNjQmdGw9NDMyMDA=&piggybackCookie=y-Pxu8q9RE2oD0BRW7z40lvGmZzuG7u4qyAAbDH90-~A&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTgwNiZ0bD01MTg0MDA=&piggybackCookie=uid:50DADB84091A4A589329C1DC2040C0D9",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://it.lngtd.com/",
+      "method": "POST",
+      "score": 0,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/1000.gif?memo=CIbVGRIwCiwIARCMowEaJDBCM0ZCNjZBLTAxRTktNDE2RC04RUU4LUM1QzU5RTRFRDE1NBAAGg0Ikq-zzQYSBQjoBxAAQgBKAA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dpm.demdex.net/demconf.jpg?et:ibs%7cdata:dpid=19566&dpuuid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pippio.com/api/sync?pid=5324&it=1&iv=6d41676e4ebc0d1409c53517f7065ce7bafd7cd49ecc0ec5f5db24737d7e9891791426b5417dce21&_=2",
+      "method": "GET",
+      "score": 5,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c1.adform.net/serving/cookie/match?CC=1&party=14&cid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.amazon-adsystem.com/dcm?pid=3b882453-6770-4785-baf8-a598533c054a&id=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&redir=true&gdpr=0&gdpr_consent=&dcc=t",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/db_sync?pid=10339&puuid=6d41676e4ebc0d1409c53517f7065ce7bafd7cd49ecc0ec5f5db24737d7e9891791426b5417dce21&rand=06090201",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=socialaudience_ddp&google_cm&gdpr=0&gdpr_consent=&rev=716",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://target.digitalaudience.io/bakery/sync/g?gdpr=0&gdpr_consent=&rev=716&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/db_sync?pid=10339&puuid=6d41676e4ebc0d1409c53517f7065ce7bafd7cd49ecc0ec5f5db24737d7e9891791426b5417dce21&rand=06090201&expected_cookie=170aa957-1131-48fb-bbec-a3251622324f",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.onaudience.com/?partner=297&icm&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://bidberry.net/?partner=1&mapped=471dc5f809321e8b&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.crwdcntrl.net/map/c=14544/tp=BIDB/gdpr=0/lac=y?https%3A%2F%2Fbidberry.net%2F%3Fpartner%3D104%26icm%26cver%26mapped%3D%24%7Bprofile_id%7D%26gdpr%3D%24%7Bgdpr%7D%26redirect%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://bidberry.net/?partner=104&icm&cver&mapped=bdf98bf0dbccc557fecd900280cf90be&gdpr=0&redirect=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage4.pubmatic.com/AdServer/SPug?partnerID=0&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/sync?gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?kdntuid=1&p=167120&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://js-sec.indexww.com/um/ixmatch.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://eus.rubiconproject.com/usync.html?gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://stackoverflow-d.openx.net/w/1.0/pd",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://acdn.adnxs.com/dmp/async_usersync.html",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://hbx.media.net/checksync.php?vsSync=1&cs=8&cv=31&https=1&cid=8CU4SHE46&prvid=2034%2C2033%2C2030%2C2073%2C251%2C450%2C550%2C178%2C2029%2C2028%2C3017%2C214%2C313%2C2025%2C2124%2C237%2C117%2C319%2C99%2C77%2C20000%2C2089%2C3010%2C141%2C460%2C462%2C222%2C3007%2C246%2C203%2C445%2C700%2C404&itype=PREBID&purpose1=1&gdprconsent=1&gdpr=0&coppa=0&usp_status=1&usp_consent=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&dn=stackoverflow.com",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/usersync?us_privacy=&gdpr=0&gdpr_consent=undefined&ust=image",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://dpm.demdex.net/ibs:dpid=903&dpuuid=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=&redir=https%3A%2F%2Fmatch.adsrvr.org%2Ftrack%2Fcmf%2Fgeneric%3Fttd_pid%3Daam",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://id.rlcdn.com/464246.gif?partner_uid=12fc2174-f0fe-4be0-9788-0bd048cf8c7a",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pixel-sync.sitescout.com/dmp/pixelSync?nid=4&gdpr=0",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/upi/pid/ny75r2x0?redir=https%3A%2F%2Fus-u.openx.net%2Fw%2F1.0%2Fsd%3Fid%3D537148856%26val%3D%24%7BTM_USER_ID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.ipredictive.com/d/sync/cookie/generic?https://us-u.openx.net/w/1.0/sd?id=537073028&val=${ADELPHIC_CUID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb.openx.net/sync/dds",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://b1sync.outbrain.com/usersync/openx?puid=6cf72454-d631-4c02-9fc2-17e1524433d9&cb=https%3A%2F%2Fus-u.openx.net%2Fw%2F1.0%2Fsd%3Fid%3D560843120%26val%3D__ZUID__",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ssum-sec.casalemedia.com/usermatch?d=https%3A%2F%2Fstackoverflow.com%2F&s=184674&cb=https%3A%2F%2Fcdn.indexww.com%2Fht%2Fhtw-pixel.gif%3F",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=aam",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eus.rubiconproject.com/usync.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=open&google_hm=mGzULpQ_xK4uhceUok3XGA==&ox_sc=1&ox_init=1",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=index&google_cm&google_hm=aazXkcAoI8AAP-vBAJM3zQAACPwAAAIB&gdpr_consent=&us_privacy=&gdpr=&gpp=&gpp_sid=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dsum-sec.casalemedia.com/rrum?ixi=1&cm_dsp_id=85&cb=https%3A%2F%2Fcm.g.doubleclick.net%2Fpixel%3Fgoogle_nid%3Dcasale_media2_dbm%26google_cm%26google_sc%26google_hm%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/casale",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i.liadm.com/s/31327?bidder_id=14481&bidder_uuid=aazXkcAoI8AAP.vBAJM3zQAA%262300&gpdr=&gdpr_consent=&us_privacy=&gpp=&gpp_sid=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.c.appier.net/index?userId=aazXkcAoI8AAP.vBAJM3zQAA%262300&gdpr=&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://creativecdn.com/cm-notify?pi=index&gpdr=&gdpr_consent=&us_privacy=&user_id=aazXkcAoI8AAP.vBAJM3zQAA%262300",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://bttrack.com/pixel/cookiesync?source=67e94f23-25d6-4008-8236-375d1743c2e0&secure=1",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/upi/pid/ZMAwryCI?redir=https%3A%2F%2Fdsum-sec.casalemedia.com%2Frum%3Fcm_dsp_id%3D88%26external_user_id%3D%24%7BTM_USER_ID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cdn.indexww.com/ht/htw-pixel.gif?aazXkcAoI8AAP.vBAJM3zQAA%262300",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ib.adnxs.com/getuid?https%3a%2f%2fmatch.adsrvr.org%2ftrack%2fcmf%2fappnexus%3fttd%3d1%26anid%3d%24UID&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ib.adnxs.com/async_usersync?cbfn=queuePixels",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cs.media.net/cst?gdpr=0&cs=8&usp_status=1&gdprconsent=1&usp_consent=1&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&cid=8CU4SHE46&coppa=0&itype=PREBID",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://token.rubiconproject.com/khaos.json?",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537073028&val=9219e6f4-c89f-48fd-8bfc-9bcfd2747b5f",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/appnexus?ttd=1&anid=275434980821483079&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb.openx.net/sync/dds?ox_sc=1&ox_init=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=casale_media2_dbm&google_cm&google_sc&google_hm=aazXkcAoI8AAP.vBAJM3zQAA",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/tap.php?v=8981&nid=2307&put=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=&expires=30&next=https%3A%2F%2Fmatch.adsrvr.org%2Ftrack%2Fcmf%2Frubicon",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/cm?id=e508c905-ddce-4732-92a4-0b0f5b72a28f&r=https%3A%2F%2Fidsync.rlcdn.com%2F396846.gif%3Fserved_by%3Devergreen%26partner_uid%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel-sync.sitescout.com/dmp/pixelSync?cookieQ=1&nid=4&gdpr=0",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/tap.php?v=8981&nid=2307&put=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=&expires=30&next=https%3A%2F%2Fmatch.adsrvr.org%2Ftrack%2Fcmf%2Frubicon",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537072977&val=f7f9dd5a-9660-4e01-a400-fca10b5f12dd-69acd795-5553&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/396846.gif?served_by=evergreen&partner_uid=12fc2174-f0fe-4be0-9788-0bd048cf8c7a",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dsum.casalemedia.com/crum?cm_dsp_id=156&external_user_id=e7f97537-c3b8-4e16-bb10-6ad1849fa504",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/sync?ld=1&gpp=DBABLA%7EBVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/ct/upi/pid/ZMAwryCI?redir=https%3A%2F%2Fdsum-sec.casalemedia.com%2Frum%3Fcm_dsp_id%3D88%26external_user_id%3D%24%7BTM_USER_ID%7D&_test=aazXlQACVLG2WQAX",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/ct/upi/pid/ny75r2x0?redir=https%3A%2F%2Fus-u.openx.net%2Fw%2F1.0%2Fsd%3Fid%3D537148856%26val%3D%24%7BTM_USER_ID%7D&_test=aazXlQACVUu2egAX",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/rubicon?gdpr=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://b1sync.outbrain.com/usersync/openx?cb=https%3A%2F%2Fus-u.openx.net%2Fw%2F1.0%2Fsd%3Fid%3D560843120%26val%3D__ZUID__&puid=6cf72454-d631-4c02-9fc2-17e1524433d9&s=3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/rubicon?gdpr=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://p.rfihub.com/cm?pub=19967&in=1&forward=https%3A%2F%2Fcontextual.media.net%2Fcksync.html%3Fcs%3D8%26vsid%3D4159366615283314000V10%26type%3Drkt%26refUrl%3D%26vid%3D4159366615283314000V10%26axid_e%3D%26ovsid%3D{userid}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/mnet?cid=4159366615283314000V10&gdpr=0&gdpr_consent=&gpp_string=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&redirect=https%3A%2F%2Fcs.media.net%2Fcksync%3Fcs%3D3%26type%3Diqm%26ovsid%3D%7B%24PARTNER_UID%7D&cs=8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://c21lg-d.media.net/log?logid=kfk&evtid=cs&del=1&vsid=4159366615283314000V10&origin=1&flt=0",
+      "method": "GET",
+      "score": -6,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?cs=8&google_nid=media&google_cm=1&google_hm=NDE1OTM2NjYxNTI4MzMxNDAwMFYxMA%3D%3D&google_sc=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=8m33zk4&ttd_tpi=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.bidswitch.net/sync?ssp=medianet&gdpr=0&gdpr_consent=&gdpr_pd=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://creativecdn.com/cm-notify?pi=medianet",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.deepintent.com/usersync/131?redir=https%3A%2F%2Fhbx.media.net%2Fcksync.html%3Fcs%3D8%26vsid%3D4159366615283314000V10%26type%3Ddi%26refUrl%3D%26vid%3D29350618234159366615283314000V10%26axid_e%3D%26ovsid%3D%24%7BDI_USER_ID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb.mfadsrvr.com/sync?ssp=medianet&ssp_user_id=4159366615283314000V10",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://b1sync.outbrain.com/usersync/medianet/?puid=4159366615283314000V10&gdpr=0&gdpr_consent=&us_privacy=&cb=https%3A%2F%2Fcs.media.net%2Fcksync%3Fcs%3D1%26type%3Dzem%26ovsid%3D__UID__%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D%0A",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ads.betweendigital.com/match?bidder_id=46892&callback_url=https%3A%2F%2Fcs.media.net%2Fcksync%3Fcs%3D1%26type%3Dbtx%26ovsid%3D${USER_ID}%26gdpr%3D0%26gdpr_consent%3D%26gpp_sid%3D7%26us_privacy%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=TheTradeDesk&google_cm&google_sc&google_hm=OGVmOTQyNDMtMWUxOC00MTU1LThiM2EtM2U2OTY2OWUzZDU3&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=svx9t50&ttd_tpi=1&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=triplelift&google_cm&google_sc&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://eb2.3lift.com/sync/google/demand?sync=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/setuid?partner=tripleliftdbredirect&tlUid=3141633409720374348299&dbredirect=true&gdpr=0&consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/ebda?sync=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pbs.yahoo.com/setuid?bidder=triplelift&uid=3141633409720374348299&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i.liadm.com/s/88342?bidder_id=246498&bidder_uuid=3141633409720374348299&gpp_s=DBABLA~BVQqAAAAAACA.QA&gpp_as=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://i.liadm.com/s/88342?bidder_id=246498&bidder_uuid=3141633409720374348299",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58932/cms?gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.srv.stackadapt.com/sync?nid=13&gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=TheTradeDesk&google_cm&google_sc&google_hm=OGVmOTQyNDMtMWUxOC00MTU1LThiM2EtM2U2OTY2OWUzZDU3&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cs.media.net/cksync?cs=1&type=ttd&ovsid=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cs.media.net/cksync?type=g&cs=8&gdpr=0&gdpr_consent=&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/google?g_uuid=&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://aax-eu.amazon-adsystem.com/s/dcm?pid=a38a8ddf-19a7-4ab8-ba05-0a61de92a7e5&id=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/exchange/sync.php?p=a9us",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.amazon-adsystem.com/dcm?pid=50cd21b7-d8d7-4615-9fb9-a2be831f8488&id=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/token?pid=52948",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://id.rlcdn.com/709414.gif",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://token.rubiconproject.com/token?pid=2974&pt=n&a=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://token.rubiconproject.com/token?pid=25470",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/rubicon",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://token.rubiconproject.com/token?pid=36584",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://token.rubiconproject.com/token?pid=2249&pt=n",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=rubicon&google_cm&google_sc&process_consent=T",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/rp?bee_sync_partners=rp",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/exchange/sync.php?p=19564",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/exchange/sync.php?p=pbs-apn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/exchange/sync.php?p=pbs-yahoo-exchange",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/exchange/sync.php?p=pbs-adaptmx",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=560843120&val=dd1aaf08-b334-4066-813f-01ecc114bb43",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/xuid?mid=3658&xuid=8ef94243-1e18-4155-8b3a-3e69669e3d57&dongle=0cfd&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/xuid?mid=2662&xuid=y-9FkdDC1E2oSENcSVsyOMYkfT0vZC76AyU3yq8t25rw--~A&dongle=0883&gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://hbx.media.net/cksync.html?cs=8&vsid=4159366615283314000V10&type=di&refUrl=&vid=29350618234159366615283314000V10&axid_e=&ovsid=di_62acab40640577d162bb8",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ups.analytics.yahoo.com/ups/58912/cms?uid=uFPHmy_gIUVbhV02rGkSRMn5EUdSAgOZEtemQ7w0kco&csrc=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.amazon-adsystem.com/ecm3?id=MMH3R8KZ-1I-3VNA&ex=d-rubiconproject.com&status=ok",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=TheTradeDesk&google_hm=OGVmOTQyNDMtMWUxOC00MTU1LThiM2EtM2U2OTY2OWUzZDU3&google_push&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://sync.springserve.com/usersync?aid=1000025&uuid=MMH3R8KZ-1I-3VNA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/google?g_uuid=&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57&google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/tap.php?v=8981&nid=2307&put=8ef94243-1e18-4155-8b3a-3e69669e3d57&gdpr=0&gdpr_consent=&expires=30",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=triplelift&gdpr=0&gdpr_consent=&us_privacy=&google_hm=MzE0MTYzMzQwOTcyMDM3NDM0ODI5OQ%3D%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=tl&gdpr=0&gdpr_consent=&us_privacy=&google_hm=MzE0MTYzMzQwOTcyMDM3NDM0ODI5OQ%3D%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/rp?bee_sync_partners=rp&_bee_ppp=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ib.adnxs.com/prebid/setuid?bidder=rubicon&uid=MMH3R8KZ-1I-3VNA",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=rp&google_cm&google_hm=TU1IM1I4S1otMUktM1ZOQQ==",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://capi.connatix.com/us/pixel?puid=MMH3R8KZ-1I-3VNA&pId=11&gdpr=&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://contextual.media.net/cksync.html?cs=8&vsid=4159366615283314000V10&type=rkt&refUrl=&vid=4159366615283314000V10&axid_e=&ovsid=1920574173211441355",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cs.media.net/cksync?cs=1&type=zem&ovsid=dd1aaf08-b334-4066-813f-01ecc114bb43&gdpr=0&gdpr_consent=&us_privacy=&gdpr=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://token.rubiconproject.com/esync?pid=28028&puid=&pt=e",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=TheTradeDesk&google_hm=OGVmOTQyNDMtMWUxOC00MTU1LThiM2EtM2U2OTY2OWUzZDU3&google_push&gdpr=0&gdpr_consent=&ttd_tdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://px.ads.linkedin.com/setuid?partner=rubiconDb&dbredirect=true&ruxId=MMH3R8KZ-1I-3VNA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/tap.php?v=31950&nid=2974&put=y-G99D62FE2oLqtotrlQ5fdZdwhwyQT_IHDA5DWA--~A",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/ebda?gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb.mfadsrvr.com/ul_cb/sync?ssp=medianet&ssp_user_id=4159366615283314000V10",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.rubiconproject.com/tap.php?v=183462&nid=4114&put=AACF5U7TWa8AAACEoiDsdA&expires=30",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ut.pubmatic.com/geo?pubid=167120",
+      "method": "GET",
+      "score": 6,
+      "kept": false,
+      "reason": "domain_mismatch"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=rubicon&google_hm=YTQxZDBmMWIyMjlhZmE4ZGU1ZDEyZjgwMmY0NmVmNjNlMDk3NTZhMQ",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://pbs.yahoo.com/setuid?bidder=rubicon&uid=MMH3R8KZ-1I-3VNA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.a-mo.net/setuid/magnite?uid=MMH3R8KZ-1I-3VNA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/PugMaster?sec=1&async=1&kdntuid=1&rnd=34866708&p=167120&s=0&a=0&ptask=ALL&np=0&fp=0&rp=0&mpc=0&spug=1&coppa=0&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://x.bidswitch.net/ul_cb/sync?ssp=medianet&gdpr=0&gdpr_consent=&gdpr_pd=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://he.lijit.com/merge?pid=8105&event_type=email&lc_md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&lc_sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&lc_sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&gdpr_consent=&gpp=&gpp_sid=&us_privacy=&gpdr=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cs.media.net/cksync.php?type=mf&ovsid=3664ac53-8b86-4acf-937b-2255b2856299&cs=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://user-sync.fwmrm.net/ad/u?mode=user-register&dspid=64&dspuid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&_fw_is_lat=&_fw_atts=&_fw_coppa=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/pm?gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.srv.stackadapt.com/sync?nid=11&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ad.turn.com/r/cs?pid=1&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.ipredictive.com/d/sync/cookie/generic?https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzI1MCZ0bD0xMjk2MDA=&piggybackCookie=${ADELPHIC_CUID}&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/upi/pid/b9pj45k4?redir=https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MjE5MSZ0bD0yNTkyMDA=&piggybackCookie=${TM_USER_ID}&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.temu.com/api/adx/cm/pixel-pubmatic?id=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": -10,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://p.rfihub.com/cm?pub=224&in=1&getuid=https%3A//image2.pubmatic.com/AdServer/Pug%3Fvcode%3Dbz0yJnR5cGU9MSZjb2RlPTI3MzkmdGw9MTI5NjAw%26piggybackCookie%3D%24UID&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ad.mrtnsvr.com/sync/pubmatic?gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel-sync.sitescout.com/dmp/pixelSync?nid=3&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://uipglob.semasio.net/pubmatic/1/info?sType=sync&sExtCookieId=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&sInitiator=external&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://aa.agkn.com/adscores/g.pixel?sid=9212308278&puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.crwdcntrl.net/qmap?c=240&tp=PUBM&tpid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.tapad.com/idsync/ex/receive?partner_id=3371&partner_device_id=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://dsum-sec.casalemedia.com/rum?cm_dsp_id=203&external_user_id=9WGwE7J3AHOTk_nUltesaQ&gdpr=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTI3MzkmdGw9MTI5NjAw&piggybackCookie=1920574173211441355",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/bidswitch?bidswitch_ssp_id=medianet&gdpr=0&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9ODImdGw9MTU3NjgwMCZkcF9pZD0yMg==&piggybackCookie=3081853132809982944&gdpr=0&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTE5NjkmdGw9MTI5NjAw&piggybackCookie=f7f9dd5a-9660-4e01-a400-fca10b5f12dd-69acd795-5553&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=beeswaxio&google_sc=&google_hm=QUFDRjVVN1RXYThBQUFDRW9pRHNkQQ&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&bee_sync_partners=sas%2Cdtech%2Cpp%2Cpm&bee_sync_current_partner=adx&bee_sync_initiator=pm&bee_sync_hop_count=1",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://ads.betweendigital.com/match?bidder_id=46892&callback_url=https%3A%2F%2Fcs.media.net%2Fcksync%3Fcs%3D1%26type%3Dbtx%26ovsid%3D${USER_ID}%26gdpr%3D0%26gdpr_consent%3D%26gpp_sid%3D7%26us_privacy%3D&crf=1&rts=3441604604531302065",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/3012?sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&us_privacy=1YN-&_t=1772935062",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://creativecdn.com/cm-notify?pi=medianet&tc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://creativecdn.com/cm-notify?pi=index&gpdr=&gdpr_consent=&us_privacy=&user_id=aazXkcAoI8AAP.vBAJM3zQAA%262300&tc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzI1MCZ0bD0xMjk2MDA=&piggybackCookie=9219e6f4-c89f-48fd-8bfc-9bcfd2747b5f&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync-tm.everesttech.net/ct/upi/pid/b9pj45k4?redir=https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MjE5MSZ0bD0yNTkyMDA=&piggybackCookie=${TM_USER_ID}&gdpr=0&gdpr_consent=&_test=aazXlgACVClmQwAn",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync/adx?gdpr=0&gdpr_consent=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&bee_sync_partners=sas%2Cdtech%2Cpp%2Cpm&bee_sync_current_partner=adx&bee_sync_initiator=pm&bee_sync_hop_count=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cs.media.net/cksync?cs=1&type=btx&ovsid=7c1b11c1-f8e0-5343-80d9-a370e97574e6&gdpr=0&gdpr_consent=&gpp_sid=7&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb-csync.smartadserver.com/redir?partneruserid=AACF5U7TWa8AAACEoiDsdA&partnerid=127&redirurl=https%3A%2F%2Fmatch.prod.bidr.io%2Fcookie-sync%3Fgdpr%3D0%26gpp%3DDBABLA~BVQqAAAAAACA.QA%26gpp_sid%3D7%26bee_sync_partners%3Ddtech%252Cpp%252Cpm%26bee_sync_current_partner%3Dsas%26bee_sync_initiator%3Dadx%26bee_sync_hop_count%3D2%26userid%3DSMART_USER_ID&gdpr=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/3012?sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&us_privacy=1YN-&_t=1772935062",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.tapad.com/idsync/ex/receive/check?partner_id=3371&partner_device_id=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://uipglob.semasio.net/pubmatic/1/info2?sType=sync&sExtCookieId=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&sInitiator=external&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZjb2RlPTM0MzEmdGw9MTI5NjAw&piggybackCookie=pFE0EGi3WR5_szVy-JT2Gkxm-2o&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sg.semasio.net/sync/1/15927723?&gdpr=0&gdpr_consent=&sInitiator=external&sExtCookieId=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=tapad&ttd_tpi=1&ttd_puid=3fed1d96-ca7e-4f90-85fd-a396a1ee7a8a%252C%252C&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=semasio&ttd_tpi=1&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pixel.tapad.com/idsync/ex/receive?partner_id=1830&partner_device_id=8ef94243-1e18-4155-8b3a-3e69669e3d57&ttd_puid=3fed1d96-ca7e-4f90-85fd-a396a1ee7a8a%2C%2C",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://contextual.media.net/cksync.php?cs=1&vsid=%7BMedia.net_User_id%7D&type=rbh&ovsid=ZeC4af1qahHUqDFGa2sms73wQXGHz2gck1iSIKlqbWU&pi=medianet&tc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://dsum-sec.casalemedia.com/crum?cm_dsp_id=133&external_user_id=ZeC4af1qahHUqDFGa2sms73wQXGHz2gck1iSIKlqbWU&pi=index&gpdr=&gdpr_consent=&us_privacy=&user_id=aazXkcAoI8AAP.vBAJM3zQAA%262300&tc=1",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://eb2.3lift.com/xuid?mid=2319&xuid=0-a4513410-68b7-591e-7fb3-3572f894f61a$ip$76.102.251.106&dongle=4430",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://uipglob.semasio.net/tradedesk/1/info?sType=sync&gdpr=0&gdpr_consent=&sInitiator=internal&sExtCookieId=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sg.semasio.net/sync/1/32675800?&gdpr=0&gdpr_consent=&sInitiator=internal&sExtCookieId=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://wt.rqtrk.eu/d00044ac-a097-4f82-8dd0-d396cf336696-trk.js",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://dsum-sec.casalemedia.com/rrum?cm_dsp_id=178&external_user_id=5e6ff47b-cfc2-406b-8510-8e99963b8095&cb=https://pxl.iqm.com/i/ck/indexch?cmid=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cs.media.net/cksync?cs=3&type=iqm&ovsid=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.bfmio.com/sync?pid=191&uid=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtb-csync.smartadserver.com/redir/?partnerid=154&partneruserid=5e6ff47b-cfc2-406b-8510-8e99963b8095&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.outbrain.com/cookie-sync?p=iqm&uid=5e6ff47b-cfc2-406b-8510-8e99963b8095&initiator=partner&obUid=&gdpr=&gdpr_consent=&us_privacy=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.aniview.com/cookiesyncendpoint?biddername=212&key=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/709732.gif?partner_uid=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=iqm&google_cm",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://sync.taboola.com/sg/iqmrtb-network/1/rtb-h/?taboola_hm=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://us-u.openx.net/w/1.0/sd?id=537134162&val=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.ad.smaato.net/c/?dspInit=1001145&dspCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://bpi.rtactivate.com/tag/?id=21328&user_id=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/12?_t=1772935062&mc=4cfebdb9-bd35-4697-bd73-4ace5e8ea478&md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&org_pid=3012&sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&us_privacy=1YN-&vxii_rmax=3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fsu.semasio.net%2Fsync%2F1%2F4354957%3FsExtCookieId%3D%24UID%26sInitiator%3Dinternal&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/indexch?cmid=aazXkcAoI8AAP.vBAJM3zQAA",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/adx?google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=epsilon&google_cm",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://su.semasio.net/sync/1/4354957?sExtCookieId=275434980821483079&sInitiator=internal&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=12&dt=1772935062&vxii_rmax=3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/12?_t=1772935062&mc=f860116a-10f0-46e7-a6c3-34f60bf591c0&md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&org_pid=3012&sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&us_privacy=1YN-&vxii_rmax=3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://idsync.rlcdn.com/362358.gif?google_error=15",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://match.prod.bidr.io/cookie-sync?gdpr=0&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7&bee_sync_partners=dtech%2Cpp%2Cpm&bee_sync_current_partner=sas&bee_sync_initiator=adx&bee_sync_hop_count=2&userid=4832785721567589632&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://d.turn.com/r/dd/id/L2NzaWQvMS9jaWQvMjg1MjQ0NjQvdC8w/url/https%3A%2F%2Fsu.semasio.net%2Fsync%2F1%2F9732522%3FsExtCookieId%3D%24!%7BTURN_UUID%7D%26sInitiator%3Dinternal&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://he.lijit.com/merge?dnr=1&pid=8105&lc_md5=e8a9c7eb12e37d6dce98b3e4f3fe9868&uc_md5=&lc_sha1=9983ffd92f65220986b1cc8418e06c7b72ad121a&uc_sha1=&lc_sha256=7a296a5f603b402939e0320f4fc7a7596043833f126d735724950f6b893d5151&uc_sha256=&lc_domain_sha1=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://ib.adnxs.com/async_usersync?cbfn=queuePixels",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=12&dt=1772935062&vxii_rmax=3",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://throtle-match.dotomi.com/match/bounce/current?networkId=9254457&version=1&nuid=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://throtle-match.dotomi.com/match/bounce/current?networkId=9254457&version=1&nuid=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://cm.g.doubleclick.net/pixel?google_nid=smaato&gdpr=0&gdpr_consent=&google_hm=47bed2e644&google_redir=https%3A%2F%2Fs.ad.smaato.net%2Fc%2F%3FadExInit%3Dg%26gdpr%3D0%26gdpr_consent%3D",
+      "method": "GET",
+      "score": -13,
+      "kept": false,
+      "reason": "not_api_like"
+    },
+    {
+      "url": "https://wt.rqtrk.eu/?pid=d00044ac-a097-4f82-8dd0-d396cf336696&cb=177293506275475&src=www&type=100&uid=5e6ff47b-cfc2-406b-8510-8e99963b8095&gdpr=0&gdpr_pd=0&sid=0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.ad.smaato.net/c/?adExInit=g&gdpr=0&gdpr_consent=&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=164125&gdpr=0&gdpr_consent=&pu=http%3A%2F%2Fimage4.pubmatic.com%2FAdServer%2FSPug%3Fp%3D164125%26pmc%3DPM_PMC%26pr%3Dhttps%253A%252F%252Fs.ad.smaato.net%252Fc%252F%253FdspId%253D1405%2526dspCookie%253D%2523PMUID%26gdpr%3D0%26gdpr_consent%3D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image4.pubmatic.com/AdServer/SPug?gdpr=0&gdpr_consent=&p=164125&pmc=1&pr=https%3A%2F%2Fs.ad.smaato.net%2Fc%2F%3FdspId%3D1405%26dspCookie%3D0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.ad.smaato.net/c/?dspId=1405&dspCookie=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://su.semasio.net/sync/1/9732522?sExtCookieId=3081853132809982944&sInitiator=internal&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=5052&vxii_pdid=AQALwa0-kZ5N-gIn6pSCAQEBAQEBAQCdyisKUQEBAJ3KKycw&expiration=1773021463&nuid=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=5052&vxii_pdid=AQALwa0-kZ5N-gIn6pSCAQEBAQEBAQCdyisKUQEBAJ3KKydR&expiration=1773021463&nuid=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtd-tm.everesttech.net/upi/pid/dm4ha19W?redir=https%3A%2F%2Fsu.semasio.net%2Fsync%2F1%2F19129194%3FsExtCookieId%3D%24%7BTM_USER_ID%7D%26sInitiator%3Dinternal&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://www.temu.com/api/adx/cm/pixel-smaato?smaato_uid=47bed2e644&gdpr=0&gdpr_consent=&redir=https%3A%2F%2Fs.ad.smaato.net%2Fc%2F%3FadExInit%3Dn%26gdpr%3D0%26gdpr_consent%3D",
+      "method": "GET",
+      "score": -10,
+      "kept": false,
+      "reason": "score_non_positive"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=brgeu23&ttd_tpi=1&TTD_PUID=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://rtd-tm.everesttech.net/ct/upi/pid/dm4ha19W?redir=https%3A%2F%2Fsu.semasio.net%2Fsync%2F1%2F19129194%3FsExtCookieId%3D%24%7BTM_USER_ID%7D%26sInitiator%3Dinternal&gdpr=0&gdpr_consent=&_test=aazXlwAABLSCnwAa",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://match.adsrvr.org/track/cmf/generic?ttd_pid=brgeu23&ttd_tpi=1&TTD_PUID=f860116a-10f0-46e7-a6c3-34f60bf591c0",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=5015&vxii_pdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.ad.smaato.net/c/?adExInit=n&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://thrtle.com/sync?vxii_pid=5015&vxii_pdid=8ef94243-1e18-4155-8b3a-3e69669e3d57",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=156177&gdpr=0&gdpr_consent=&us_privacy=[US_PRIVACY]&gpp=[GPP]&gpp_sid=[GPP_SID]&pu=https%3A%2F%2Fimage4.pubmatic.com%2FAdServer%2FSPug%3Fp%3D156177%26mpc%3D4%26fp%3D1%26pmc%3DPM_PMC%26gdpr%3D0%26gdpr_consent%3D%26us_privacy%3D[US_PRIVACY]%26gpp%3D[GPP]%26gpp_sid%3D[GPP_SID]%26pr%3Dhttps%253A%252F%252Fs.ad.smaato.net%252Fc%252F%253FdspId%253D1261%2526dspCookie%253D%2523PMUID%2526gdpr%253D0%2526gdpr_consent%253D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image4.pubmatic.com/AdServer/SPug?fp=1&gdpr=0&gdpr_consent=&gpp=%5BGPP%5D&gpp_sid=%5BGPP_SID%5D&mpc=4&p=156177&pmc=1&pr=https%3A%2F%2Fs.ad.smaato.net%2Fc%2F%3FdspId%3D1261%26dspCookie%3D0B3FB66A-01E9-416D-8EE8-C5C59E4ED154%26gdpr%3D0%26gdpr_consent%3D&us_privacy=%5BUS_PRIVACY%5D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://s.ad.smaato.net/c/?dspId=1261&dspCookie=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://image6.pubmatic.com/AdServer/UCookieSetPug?oid=1&rd=https%3A%2F%2Fsimage2.pubmatic.com%2FAdServer%2FPug%3Fvcode%3Dbz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA%3D%26piggybackCookie%3D5e6ff47b-cfc2-406b-8510-8e99963b8095%26r%3Dhttps%3A%2F%2Fpxl.iqm.com%2Fi%2Fck%2Fpubmatic%3Fpuid%3D%24%7BPUBMATIC_UID%7D",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage2.pubmatic.com/AdServer/Pug?vcode=bz0yJnR5cGU9MSZqcz0xJmNvZGU9MzM4MiZ0bD0xMjk2MDA=&piggybackCookie=5e6ff47b-cfc2-406b-8510-8e99963b8095&r=https://pxl.iqm.com/i/ck/pubmatic?puid=${PUBMATIC_UID}",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/pubmatic?puid=0B3FB66A-01E9-416D-8EE8-C5C59E4ED154",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://t.adx.opera.com/sync?vendor=60344&uid=47bed2e644&gdpr=0&gdpr_consent=",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://simage4.pubmatic.com/AdServer/SPug?partnerID=167120&gdpr=0&gdpr_consent=&us_privacy=&gpp=DBABLA~BVQqAAAAAACA.QA&gpp_sid=7",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://pxl.iqm.com/i/ck/telaria?cid=d3ab0a5da1424305aa87bb1a0526e8f6&UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    },
+    {
+      "url": "https://partners.tremorhub.com/sync?UIIQ=5e6ff47b-cfc2-406b-8510-8e99963b8095",
+      "method": "GET",
+      "score": 2,
+      "kept": false,
+      "reason": "body_not_json_or_html"
+    }
+  ],
+  "accepted_endpoints": []
+}

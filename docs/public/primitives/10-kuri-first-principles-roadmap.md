@@ -26,7 +26,7 @@ Kuri is already a thin Zig binary with `quickjs_ng` integration and a CDP-shaped
 
 **Surface to vendor.** SQLite-shaped store (or a flat JSONL) at `~/.kuri/cookies.jsonl` partitioned by `(scheme, host, top-level-site)`. RFC 6265bis semantics. Read/write API exposed via CDP's `Network.setCookie` + `Network.getCookies` for backwards compat.
 
-**Done when.** Browser cookie injection no longer requires reading user's Chrome SQLite at startup; Kuri's own store is authoritative for the lifetime of an Unbrowse session.
+**Done when.** Reusing your existing browser session no longer requires reading the user's browser profile at startup; Kuri's own store is authoritative for the lifetime of an Unbrowse session.
 
 ### 3. JS execution for SSR hydration triggers
 

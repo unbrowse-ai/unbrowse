@@ -1,0 +1,742 @@
+{
+  "trace_id": "tlUcoSMe8kgInUotVfiTt",
+  "skill_id": "linkedin-voyager-profile-v1",
+  "endpoint_id": "li-connections",
+  "started_at": "2026-02-25T02:11:21.005Z",
+  "completed_at": "2026-02-25T02:11:21.190Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": {
+      "entityUrn": "urn:li:collectionResponse:XZud+lmlPatJIfj19rTtvAXPoqf2lGp2BJi5I4RjWSc=",
+      "paging": {
+        "count": 100,
+        "start": 0,
+        "links": []
+      },
+      "*elements": [
+        "urn:li:fsd_connection:ACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ",
+        "urn:li:fsd_connection:ACoAACwNG8EBJNUbxT_muZra5CnMZ4Ncz6zLVGs",
+        "urn:li:fsd_connection:ACoAAAtMHUYBGnKcT4ezrDk-nvgObwdBQIfS5E4",
+        "urn:li:fsd_connection:ACoAACFE-9kBg4ufA76L3jkrUM4E4Kuvih7DH7o",
+        "urn:li:fsd_connection:ACoAACFOTr4BnxFqnPPtxDyeN1OktRo39wznJCQ",
+        "urn:li:fsd_connection:ACoAACQwq5IBQ4yqkoyWCu7k0p0S6irOA-2PaeA",
+        "urn:li:fsd_connection:ACoAAAXaD1oBIW55Wl5atd9B_MyOWWoGuvfZaV0",
+        "urn:li:fsd_connection:ACoAADlnknQBri1VWtZPftGhTMfzE0HGHfrFpKk",
+        "urn:li:fsd_connection:ACoAAC9A93gBqfO42GOMlYZDBtfII688siSoGoQ",
+        "urn:li:fsd_connection:ACoAABeU0qkBZhP3FeiwEW8YhGwO_4JR3rZTp-o",
+        "urn:li:fsd_connection:ACoAAAtCZDgB2YNyMtYtQ4WZit9M3PvzqHnDvzE",
+        "urn:li:fsd_connection:ACoAACYGegsBcP2M9xdJqt0Yy3wJAg1KboyNq-8",
+        "urn:li:fsd_connection:ACoAAB3U0KgBJaIjE9MnSDSc6y_1cfEMyiD76ow",
+        "urn:li:fsd_connection:ACoAADjFQEQBPbWKKTKyOMdXbCcOIyaoYd9Evpc",
+        "urn:li:fsd_connection:ACoAAAB5bzkBq3hMsjlSvv27ziGlTXxBpIDFDHo",
+        "urn:li:fsd_connection:ACoAADVM9Z0By857edJtBqXv-nErp1xqSP5umu0",
+        "urn:li:fsd_connection:ACoAAA6WyWYBcNWbh7mJ4BOkCcRr4q2G9qj3caU",
+        "urn:li:fsd_connection:ACoAAEvvb7cBSrstraUE7vXvIhdaotTHfbTBtOU",
+        "urn:li:fsd_connection:ACoAADL47ogBk0wRwFEYGE4HDqSWlJNhHpk3tZg",
+        "urn:li:fsd_connection:ACoAAAQY514BizhtyBvdnjaFCZSC7kTll9Da8js",
+        "urn:li:fsd_connection:ACoAAAPjdrYBmoth4OPkZcfkBLf15LuVCijJRPw",
+        "urn:li:fsd_connection:ACoAADw1cHYBwZztIp8efEJ-dIKxLEx6zEzlzE4",
+        "urn:li:fsd_connection:ACoAABrA6nEBlH2ntRbxWiCqlBGKgURFpDl_vGo",
+        "urn:li:fsd_connection:ACoAAACnXwEB3Yth43Kfg7fTu9tpYXqtb1mNo4Y",
+        "urn:li:fsd_connection:ACoAAAVXyaQBZdHEgLHYlUQfh19WZpdViBnORs8",
+        "urn:li:fsd_connection:ACoAAAAJ8FoB0Gc6g3rSCYEjtM8LOzJkwhAOLwQ",
+        "urn:li:fsd_connection:ACoAAEFnxrYBlhfmnzrNrNo0gePwXnwLVOcBTcQ",
+        "urn:li:fsd_connection:ACoAAAAKh_kBE1BVut3X9NoZgFXL9ZzxY6vNqTs",
+        "urn:li:fsd_connection:ACoAACKZIJoBgpspYlQkHy0cbopnWEzPj10thts",
+        "urn:li:fsd_connection:ACoAADD6sBwBpBKJ7JrWPgIMmWfRm4LY9eNv9gQ",
+        "urn:li:fsd_connection:ACoAABiVrvUB_5FAyeHvATYC1oPiToZwjCAScSg",
+        "urn:li:fsd_connection:ACoAAAAO_dMBg1gqgMSO5Q5Yxrft3dLkmFUsAvA",
+        "urn:li:fsd_connection:ACoAADSl44YBt2a1RIqETv8irvT0eCFkPnjSgHQ",
+        "urn:li:fsd_connection:ACoAACWoExoBSY2Ij1i2HHU6Nokniq505mTafmA",
+        "urn:li:fsd_connection:ACoAAAKTMLsBiq2BCz1r_S9_t-xg1gEUZSIvn0Q",
+        "urn:li:fsd_connection:ACoAAA4TwP0BSeAbIJfj53VzS6fsJck_LNc-VOk",
+        "urn:li:fsd_connection:ACoAAAe40bgBEOm1g-58TOYB2UKp8s1EyG37tO0",
+        "urn:li:fsd_connection:ACoAACKddaYB7I0dRz5uv_SEgay-0B8cs2g-xL8",
+        "urn:li:fsd_connection:ACoAACYjXXUBV-VwAIEWqu62eqLxV5MMu3o2msk",
+        "urn:li:fsd_connection:ACoAADKbO30BOXFHVRaGw8Tv0JZWv80BS-q98KU",
+        "urn:li:fsd_connection:ACoAADHxlHgB1EN0aBRUOvZixb7sNZD9-z_Ybww",
+        "urn:li:fsd_connection:ACoAACufJd8BnA--rYwD_wfJDQdlzw3kTz664g8",
+        "urn:li:fsd_connection:ACoAAB8sZbYB_vpfdHLgyp-yHeaKugHsuO1iCVY",
+        "urn:li:fsd_connection:ACoAADkYe2QBDjwZzuyyZI8jxiT4x2Jlv3JBeUQ",
+        "urn:li:fsd_connection:ACoAADGKz_EBBpCbAjyk1THf8tHVRhVjXmnCxwU",
+        "urn:li:fsd_connection:ACoAACuZVz4BsjoVRtk8-4lxxOfKk_qRgdrzg8Y",
+        "urn:li:fsd_connection:ACoAACUk9TEBpmL1ykzxPHPRNKq8z5c0N6yQazY",
+        "urn:li:fsd_connection:ACoAACzhUU4B19tS83h8O6COhel7Tf_inscnhfA",
+        "urn:li:fsd_connection:ACoAACJyvPYBlZO9w3NiCPrBkOEe54hcWgOH8wc",
+        "urn:li:fsd_connection:ACoAAA1An88B3SOnDuYKJ7EdYH4nzaOhBEhCdps",
+        "urn:li:fsd_connection:ACoAAA3ooHIBdQLDM1cKdnNBpOi9I-uI34IUu7g",
+        "urn:li:fsd_connection:ACoAAAKfZTYBSwtNF-yCq5WwceX6S94q8hBM09c",
+        "urn:li:fsd_connection:ACoAACusMPIBcl9OUjescUO-DsC0r-a2Dqs1NcE",
+        "urn:li:fsd_connection:ACoAAAqWc1EBOnnPT3fgWZD44xa_6IUKLWdyJR8",
+        "urn:li:fsd_connection:ACoAACe7JHcBMacx1LTsaVbjUcvJiZVP3Atir5A",
+        "urn:li:fsd_connection:ACoAADNw5kABrshiif0W9CafIj_rDwO4hUJzNGo",
+        "urn:li:fsd_connection:ACoAADBk1ccBy2gk1wQApLv8fpVO37T7KnZSPMw",
+        "urn:li:fsd_connection:ACoAADwonXEB8SByX6vbOTcjLPj8IzLMRV11xU4",
+        "urn:li:fsd_connection:ACoAADNW75AB6rQKrkTzt1LVHZDIfb03hri2yFE",
+        "urn:li:fsd_connection:ACoAAC_BJiwBiIU4xttoVoG-BYWDug3Epsrf7SU",
+        "urn:li:fsd_connection:ACoAAAudYqsB2NHKlp0EL-lbm-7Bb4H4w4Pi7qw",
+        "urn:li:fsd_connection:ACoAAAN7XxIBcyoIOw_uDHNXd5llX70t6eSixRc",
+        "urn:li:fsd_connection:ACoAABiMcvkBJsDh8Q7zw4Pe2qwDYruX6_Rm1uM",
+        "urn:li:fsd_connection:ACoAAAAKgC0Bm1k20S_nxpI5PPJuprDVZIRz1n0",
+        "urn:li:fsd_connection:ACoAAEG8ogkBcLBl_WRQNjVRdeGUuiCYNDD5EVs",
+        "urn:li:fsd_connection:ACoAABvE1mQBcNWzSlP0RkO1-Ye6uL80BdxbWVU",
+        "urn:li:fsd_connection:ACoAAChHD0UBdBPi7NKRI2auy_4Mgi1jMKJcSts",
+        "urn:li:fsd_connection:ACoAABAxNucB0xg1ViQcKsb55q7HxRu8-N6W7o0",
+        "urn:li:fsd_connection:ACoAAAhL-HwBImD3KOyBMIS87n-1-KqL3o_FlxY",
+        "urn:li:fsd_connection:ACoAACWtq1EBsCmC63KLov3qQZ1QASVdeJDIyQk",
+        "urn:li:fsd_connection:ACoAAAPiRCsBCO4tJ0q2SKm868bqmY2XyLGhGBo",
+        "urn:li:fsd_connection:ACoAADQNIBgBPrsDF7kfIUd0kHAhkgVa9SMF5m8",
+        "urn:li:fsd_connection:ACoAADg8nRsBQDU_zR-IpUKbTUwmFsCnKw4wShI",
+        "urn:li:fsd_connection:ACoAAAukqGoB4OEgpSHeZyEVrgi1NXHnfe-HpHA",
+        "urn:li:fsd_connection:ACoAAAsCM-wBBx3of2S-4QAx7piEk7vvQU3JK08",
+        "urn:li:fsd_connection:ACoAAAydYIAB4MHUdWRHTP-6RDCprqkWzmakvY4",
+        "urn:li:fsd_connection:ACoAAA7HImUBzeuOiESRyZul5yfJ1CP9DcEd_rk",
+        "urn:li:fsd_connection:ACoAACpzXEcBxd8cpKMvB8i4icZWbLwW4PeClUE",
+        "urn:li:fsd_connection:ACoAAAC4F6sB4BOOWa5Dz4olrEsQ2gcKU8Rp0Bs",
+        "urn:li:fsd_connection:ACoAACjBGJIB_3gLHlLgoVbS8m_i9RSYDaM4r08",
+        "urn:li:fsd_connection:ACoAACdbFvABEZncmojG37mefOA-2PN2EjKUaJ8",
+        "urn:li:fsd_connection:ACoAABWMFKABSHHDBzQtQiLHfhsLWjAP7V9vXL4",
+        "urn:li:fsd_connection:ACoAAB5KijQByC_K6cmJZx_OYPZb2xUvC46FCro",
+        "urn:li:fsd_connection:ACoAAB-sh40BzxvcB3UdMhGxsWeXepcncurypdo",
+        "urn:li:fsd_connection:ACoAABIbaJ8BOoDeEcyHTcJfARg416nMR3WHBs0",
+        "urn:li:fsd_connection:ACoAAAWrQHgBJOoG6i8Pbk5Q3UW3uYqe7F3ozQI",
+        "urn:li:fsd_connection:ACoAAB_aHUQBKbvyg-Reb9WMH3KmlTI5EKYWabY",
+        "urn:li:fsd_connection:ACoAABEqYhgBOgC9eRIOO65qgAVi3Vj7o_6OipA",
+        "urn:li:fsd_connection:ACoAACd2sBwBKVNbwkVdi-mkheke-qgtckUc8Ys",
+        "urn:li:fsd_connection:ACoAACo-DtsB_y3KHoVzLlTHPiegrJdluQXMlbk",
+        "urn:li:fsd_connection:ACoAAB5in7UB_oi6kOIYj_VJw486fZqR2-tCB4E",
+        "urn:li:fsd_connection:ACoAAAl_kZUBCF-NA2CK50m5uSGDY-bcH3lbUiA",
+        "urn:li:fsd_connection:ACoAACcTEr8BY3m2S-MWYVvSEGBQRBQige5EhAo",
+        "urn:li:fsd_connection:ACoAAB3Jg_gB8G0DMvKlWfMtn-1fTTDHdsIUAMA",
+        "urn:li:fsd_connection:ACoAAByhN5YBNwishcoCz7FQjhq0vm7uE7-uCZ4",
+        "urn:li:fsd_connection:ACoAACoW4KwBGQ4zmkg9AYlpe9eM-9EbR2jr_CQ",
+        "urn:li:fsd_connection:ACoAACKE6AYBMnCRfnbGfaDw-Auo_hBwNwMV40w",
+        "urn:li:fsd_connection:ACoAAD4UbIYBeMoui1x6KgECdrrogQMZ8-RqfAE",
+        "urn:li:fsd_connection:ACoAACXpRKsBZpVvKYaOC-sxm3RJvvJWgnHYTA8",
+        "urn:li:fsd_connection:ACoAAAB-vUQBTMsBoFmG0VZDC7Rl36yfDcaNrTo"
+      ],
+      "$type": "com.linkedin.restli.common.CollectionResponse"
+    },
+    "included": [
+      {
+        "createdAt": 1741396768000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAudYqsB2NHKlp0EL-lbm-7Bb4H4w4Pi7qw",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAudYqsB2NHKlp0EL-lbm-7Bb4H4w4Pi7qw",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1741760439000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADwonXEB8SByX6vbOTcjLPj8IzLMRV11xU4",
+        "entityUrn": "urn:li:fsd_connection:ACoAADwonXEB8SByX6vbOTcjLPj8IzLMRV11xU4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270169000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABvE1mQBcNWzSlP0RkO1-Ye6uL80BdxbWVU",
+        "entityUrn": "urn:li:fsd_connection:ACoAABvE1mQBcNWzSlP0RkO1-Ye6uL80BdxbWVU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1746016745000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB8sZbYB_vpfdHLgyp-yHeaKugHsuO1iCVY",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB8sZbYB_vpfdHLgyp-yHeaKugHsuO1iCVY",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1717158328000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACoW4KwBGQ4zmkg9AYlpe9eM-9EbR2jr_CQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAACoW4KwBGQ4zmkg9AYlpe9eM-9EbR2jr_CQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1742471416000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADNw5kABrshiif0W9CafIj_rDwO4hUJzNGo",
+        "entityUrn": "urn:li:fsd_connection:ACoAADNw5kABrshiif0W9CafIj_rDwO4hUJzNGo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1724211690000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACcTEr8BY3m2S-MWYVvSEGBQRBQige5EhAo",
+        "entityUrn": "urn:li:fsd_connection:ACoAACcTEr8BY3m2S-MWYVvSEGBQRBQige5EhAo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1750039656000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACKddaYB7I0dRz5uv_SEgay-0B8cs2g-xL8",
+        "entityUrn": "urn:li:fsd_connection:ACoAACKddaYB7I0dRz5uv_SEgay-0B8cs2g-xL8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1736514187000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB_aHUQBKbvyg-Reb9WMH3KmlTI5EKYWabY",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB_aHUQBKbvyg-Reb9WMH3KmlTI5EKYWabY",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762311620000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADVM9Z0By857edJtBqXv-nErp1xqSP5umu0",
+        "entityUrn": "urn:li:fsd_connection:ACoAADVM9Z0By857edJtBqXv-nErp1xqSP5umu0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761194666000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAPjdrYBmoth4OPkZcfkBLf15LuVCijJRPw",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAPjdrYBmoth4OPkZcfkBLf15LuVCijJRPw",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1750426289000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAe40bgBEOm1g-58TOYB2UKp8s1EyG37tO0",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAe40bgBEOm1g-58TOYB2UKp8s1EyG37tO0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1725277891000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAl_kZUBCF-NA2CK50m5uSGDY-bcH3lbUiA",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAl_kZUBCF-NA2CK50m5uSGDY-bcH3lbUiA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270121000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAPiRCsBCO4tJ0q2SKm868bqmY2XyLGhGBo",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAPiRCsBCO4tJ0q2SKm868bqmY2XyLGhGBo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1753100017000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADSl44YBt2a1RIqETv8irvT0eCFkPnjSgHQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAADSl44YBt2a1RIqETv8irvT0eCFkPnjSgHQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1736573056000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABIbaJ8BOoDeEcyHTcJfARg416nMR3WHBs0",
+        "entityUrn": "urn:li:fsd_connection:ACoAABIbaJ8BOoDeEcyHTcJfARg416nMR3WHBs0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1753751211000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABiVrvUB_5FAyeHvATYC1oPiToZwjCAScSg",
+        "entityUrn": "urn:li:fsd_connection:ACoAABiVrvUB_5FAyeHvATYC1oPiToZwjCAScSg",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270156000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAChHD0UBdBPi7NKRI2auy_4Mgi1jMKJcSts",
+        "entityUrn": "urn:li:fsd_connection:ACoAAChHD0UBdBPi7NKRI2auy_4Mgi1jMKJcSts",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1739368928000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACdbFvABEZncmojG37mefOA-2PN2EjKUaJ8",
+        "entityUrn": "urn:li:fsd_connection:ACoAACdbFvABEZncmojG37mefOA-2PN2EjKUaJ8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762695116000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB3U0KgBJaIjE9MnSDSc6y_1cfEMyiD76ow",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB3U0KgBJaIjE9MnSDSc6y_1cfEMyiD76ow",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1727838891000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB5in7UB_oi6kOIYj_VJw486fZqR2-tCB4E",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB5in7UB_oi6kOIYj_VJw486fZqR2-tCB4E",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1714481842000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACXpRKsBZpVvKYaOC-sxm3RJvvJWgnHYTA8",
+        "entityUrn": "urn:li:fsd_connection:ACoAACXpRKsBZpVvKYaOC-sxm3RJvvJWgnHYTA8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1736515239000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAWrQHgBJOoG6i8Pbk5Q3UW3uYqe7F3ozQI",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAWrQHgBJOoG6i8Pbk5Q3UW3uYqe7F3ozQI",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1759147842000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAEFnxrYBlhfmnzrNrNo0gePwXnwLVOcBTcQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAAEFnxrYBlhfmnzrNrNo0gePwXnwLVOcBTcQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761124974000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABrA6nEBlH2ntRbxWiCqlBGKgURFpDl_vGo",
+        "entityUrn": "urn:li:fsd_connection:ACoAABrA6nEBlH2ntRbxWiCqlBGKgURFpDl_vGo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270145000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAhL-HwBImD3KOyBMIS87n-1-KqL3o_FlxY",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAhL-HwBImD3KOyBMIS87n-1-KqL3o_FlxY",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1771443471000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAtMHUYBGnKcT4ezrDk-nvgObwdBQIfS5E4",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAtMHUYBGnKcT4ezrDk-nvgObwdBQIfS5E4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1760114446000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAACnXwEB3Yth43Kfg7fTu9tpYXqtb1mNo4Y",
+        "entityUrn": "urn:li:fsd_connection:ACoAAACnXwEB3Yth43Kfg7fTu9tpYXqtb1mNo4Y",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270150000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABAxNucB0xg1ViQcKsb55q7HxRu8-N6W7o0",
+        "entityUrn": "urn:li:fsd_connection:ACoAABAxNucB0xg1ViQcKsb55q7HxRu8-N6W7o0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740365819000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABiMcvkBJsDh8Q7zw4Pe2qwDYruX6_Rm1uM",
+        "entityUrn": "urn:li:fsd_connection:ACoAABiMcvkBJsDh8Q7zw4Pe2qwDYruX6_Rm1uM",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1743781587000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACusMPIBcl9OUjescUO-DsC0r-a2Dqs1NcE",
+        "entityUrn": "urn:li:fsd_connection:ACoAACusMPIBcl9OUjescUO-DsC0r-a2Dqs1NcE",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762327240000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAB5bzkBq3hMsjlSvv27ziGlTXxBpIDFDHo",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAB5bzkBq3hMsjlSvv27ziGlTXxBpIDFDHo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1771959198000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAELwboB_7RAtjTX0iPrh9DeR-RXCBUMRqQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1734584604000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABEqYhgBOgC9eRIOO65qgAVi3Vj7o_6OipA",
+        "entityUrn": "urn:li:fsd_connection:ACoAABEqYhgBOgC9eRIOO65qgAVi3Vj7o_6OipA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1771246585000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACFE-9kBg4ufA76L3jkrUM4E4Kuvih7DH7o",
+        "entityUrn": "urn:li:fsd_connection:ACoAACFE-9kBg4ufA76L3jkrUM4E4Kuvih7DH7o",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740379190000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAN7XxIBcyoIOw_uDHNXd5llX70t6eSixRc",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAN7XxIBcyoIOw_uDHNXd5llX70t6eSixRc",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1748400037000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADHxlHgB1EN0aBRUOvZixb7sNZD9-z_Ybww",
+        "entityUrn": "urn:li:fsd_connection:ACoAADHxlHgB1EN0aBRUOvZixb7sNZD9-z_Ybww",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1748691433000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADKbO30BOXFHVRaGw8Tv0JZWv80BS-q98KU",
+        "entityUrn": "urn:li:fsd_connection:ACoAADKbO30BOXFHVRaGw8Tv0JZWv80BS-q98KU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745680583000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACJyvPYBlZO9w3NiCPrBkOEe54hcWgOH8wc",
+        "entityUrn": "urn:li:fsd_connection:ACoAACJyvPYBlZO9w3NiCPrBkOEe54hcWgOH8wc",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740144312000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADg8nRsBQDU_zR-IpUKbTUwmFsCnKw4wShI",
+        "entityUrn": "urn:li:fsd_connection:ACoAADg8nRsBQDU_zR-IpUKbTUwmFsCnKw4wShI",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1763133504000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABeU0qkBZhP3FeiwEW8YhGwO_4JR3rZTp-o",
+        "entityUrn": "urn:li:fsd_connection:ACoAABeU0qkBZhP3FeiwEW8YhGwO_4JR3rZTp-o",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761911399000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAEvvb7cBSrstraUE7vXvIhdaotTHfbTBtOU",
+        "entityUrn": "urn:li:fsd_connection:ACoAAEvvb7cBSrstraUE7vXvIhdaotTHfbTBtOU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745632253000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAA3ooHIBdQLDM1cKdnNBpOi9I-uI34IUu7g",
+        "entityUrn": "urn:li:fsd_connection:ACoAAA3ooHIBdQLDM1cKdnNBpOi9I-uI34IUu7g",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1759224500000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAAJ8FoB0Gc6g3rSCYEjtM8LOzJkwhAOLwQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAAJ8FoB0Gc6g3rSCYEjtM8LOzJkwhAOLwQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1770812454000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACFOTr4BnxFqnPPtxDyeN1OktRo39wznJCQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAACFOTr4BnxFqnPPtxDyeN1OktRo39wznJCQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761908339000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADL47ogBk0wRwFEYGE4HDqSWlJNhHpk3tZg",
+        "entityUrn": "urn:li:fsd_connection:ACoAADL47ogBk0wRwFEYGE4HDqSWlJNhHpk3tZg",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740143654000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAukqGoB4OEgpSHeZyEVrgi1NXHnfe-HpHA",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAukqGoB4OEgpSHeZyEVrgi1NXHnfe-HpHA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1718264885000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAByhN5YBNwishcoCz7FQjhq0vm7uE7-uCZ4",
+        "entityUrn": "urn:li:fsd_connection:ACoAAByhN5YBNwishcoCz7FQjhq0vm7uE7-uCZ4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745994329000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADkYe2QBDjwZzuyyZI8jxiT4x2Jlv3JBeUQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAADkYe2QBDjwZzuyyZI8jxiT4x2Jlv3JBeUQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740144314000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADQNIBgBPrsDF7kfIUd0kHAhkgVa9SMF5m8",
+        "entityUrn": "urn:li:fsd_connection:ACoAADQNIBgBPrsDF7kfIUd0kHAhkgVa9SMF5m8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740143653000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAydYIAB4MHUdWRHTP-6RDCprqkWzmakvY4",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAydYIAB4MHUdWRHTP-6RDCprqkWzmakvY4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762528290000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADjFQEQBPbWKKTKyOMdXbCcOIyaoYd9Evpc",
+        "entityUrn": "urn:li:fsd_connection:ACoAADjFQEQBPbWKKTKyOMdXbCcOIyaoYd9Evpc",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745750670000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACzhUU4B19tS83h8O6COhel7Tf_inscnhfA",
+        "entityUrn": "urn:li:fsd_connection:ACoAACzhUU4B19tS83h8O6COhel7Tf_inscnhfA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1768980897000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACQwq5IBQ4yqkoyWCu7k0p0S6irOA-2PaeA",
+        "entityUrn": "urn:li:fsd_connection:ACoAACQwq5IBQ4yqkoyWCu7k0p0S6irOA-2PaeA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1742482756000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACe7JHcBMacx1LTsaVbjUcvJiZVP3Atir5A",
+        "entityUrn": "urn:li:fsd_connection:ACoAACe7JHcBMacx1LTsaVbjUcvJiZVP3Atir5A",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1749728268000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACYjXXUBV-VwAIEWqu62eqLxV5MMu3o2msk",
+        "entityUrn": "urn:li:fsd_connection:ACoAACYjXXUBV-VwAIEWqu62eqLxV5MMu3o2msk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745578933000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAKfZTYBSwtNF-yCq5WwceX6S94q8hBM09c",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAKfZTYBSwtNF-yCq5WwceX6S94q8hBM09c",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1736932012000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB-sh40BzxvcB3UdMhGxsWeXepcncurypdo",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB-sh40BzxvcB3UdMhGxsWeXepcncurypdo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1750427703000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAA4TwP0BSeAbIJfj53VzS6fsJck_LNc-VOk",
+        "entityUrn": "urn:li:fsd_connection:ACoAAA4TwP0BSeAbIJfj53VzS6fsJck_LNc-VOk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1750529041000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAKTMLsBiq2BCz1r_S9_t-xg1gEUZSIvn0Q",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAKTMLsBiq2BCz1r_S9_t-xg1gEUZSIvn0Q",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761895340000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAQY514BizhtyBvdnjaFCZSC7kTll9Da8js",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAQY514BizhtyBvdnjaFCZSC7kTll9Da8js",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1715395085000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAD4UbIYBeMoui1x6KgECdrrogQMZ8-RqfAE",
+        "entityUrn": "urn:li:fsd_connection:ACoAAD4UbIYBeMoui1x6KgECdrrogQMZ8-RqfAE",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1768643243000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAXaD1oBIW55Wl5atd9B_MyOWWoGuvfZaV0",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAXaD1oBIW55Wl5atd9B_MyOWWoGuvfZaV0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740141724000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAC4F6sB4BOOWa5Dz4olrEsQ2gcKU8Rp0Bs",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAC4F6sB4BOOWa5Dz4olrEsQ2gcKU8Rp0Bs",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270184000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAEG8ogkBcLBl_WRQNjVRdeGUuiCYNDD5EVs",
+        "entityUrn": "urn:li:fsd_connection:ACoAAEG8ogkBcLBl_WRQNjVRdeGUuiCYNDD5EVs",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740143653000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAsCM-wBBx3of2S-4QAx7piEk7vvQU3JK08",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAsCM-wBBx3of2S-4QAx7piEk7vvQU3JK08",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1771621651000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACwNG8EBJNUbxT_muZra5CnMZ4Ncz6zLVGs",
+        "entityUrn": "urn:li:fsd_connection:ACoAACwNG8EBJNUbxT_muZra5CnMZ4Ncz6zLVGs",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740140206000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACjBGJIB_3gLHlLgoVbS8m_i9RSYDaM4r08",
+        "entityUrn": "urn:li:fsd_connection:ACoAACjBGJIB_3gLHlLgoVbS8m_i9RSYDaM4r08",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745819638000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACuZVz4BsjoVRtk8-4lxxOfKk_qRgdrzg8Y",
+        "entityUrn": "urn:li:fsd_connection:ACoAACuZVz4BsjoVRtk8-4lxxOfKk_qRgdrzg8Y",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1714291923000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAB-vUQBTMsBoFmG0VZDC7Rl36yfDcaNrTo",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAB-vUQBTMsBoFmG0VZDC7Rl36yfDcaNrTo",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1742453745000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADBk1ccBy2gk1wQApLv8fpVO37T7KnZSPMw",
+        "entityUrn": "urn:li:fsd_connection:ACoAADBk1ccBy2gk1wQApLv8fpVO37T7KnZSPMw",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745803423000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACUk9TEBpmL1ykzxPHPRNKq8z5c0N6yQazY",
+        "entityUrn": "urn:li:fsd_connection:ACoAACUk9TEBpmL1ykzxPHPRNKq8z5c0N6yQazY",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1753761895000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADD6sBwBpBKJ7JrWPgIMmWfRm4LY9eNv9gQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAADD6sBwBpBKJ7JrWPgIMmWfRm4LY9eNv9gQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1754107119000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACKZIJoBgpspYlQkHy0cbopnWEzPj10thts",
+        "entityUrn": "urn:li:fsd_connection:ACoAACKZIJoBgpspYlQkHy0cbopnWEzPj10thts",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1741498678000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADNW75AB6rQKrkTzt1LVHZDIfb03hri2yFE",
+        "entityUrn": "urn:li:fsd_connection:ACoAADNW75AB6rQKrkTzt1LVHZDIfb03hri2yFE",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740270131000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACWtq1EBsCmC63KLov3qQZ1QASVdeJDIyQk",
+        "entityUrn": "urn:li:fsd_connection:ACoAACWtq1EBsCmC63KLov3qQZ1QASVdeJDIyQk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1751538465000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACWoExoBSY2Ij1i2HHU6Nokniq505mTafmA",
+        "entityUrn": "urn:li:fsd_connection:ACoAACWoExoBSY2Ij1i2HHU6Nokniq505mTafmA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1739036251000,
+        "connectedMember": "urn:li:fsd_profile:ACoAABWMFKABSHHDBzQtQiLHfhsLWjAP7V9vXL4",
+        "entityUrn": "urn:li:fsd_connection:ACoAABWMFKABSHHDBzQtQiLHfhsLWjAP7V9vXL4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745850043000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADGKz_EBBpCbAjyk1THf8tHVRhVjXmnCxwU",
+        "entityUrn": "urn:li:fsd_connection:ACoAADGKz_EBBpCbAjyk1THf8tHVRhVjXmnCxwU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762238307000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAA6WyWYBcNWbh7mJ4BOkCcRr4q2G9qj3caU",
+        "entityUrn": "urn:li:fsd_connection:ACoAAA6WyWYBcNWbh7mJ4BOkCcRr4q2G9qj3caU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1741440122000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAC_BJiwBiIU4xttoVoG-BYWDug3Epsrf7SU",
+        "entityUrn": "urn:li:fsd_connection:ACoAAC_BJiwBiIU4xttoVoG-BYWDug3Epsrf7SU",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1753186460000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAAO_dMBg1gqgMSO5Q5Yxrft3dLkmFUsAvA",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAAO_dMBg1gqgMSO5Q5Yxrft3dLkmFUsAvA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1763970545000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADlnknQBri1VWtZPftGhTMfzE0HGHfrFpKk",
+        "entityUrn": "urn:li:fsd_connection:ACoAADlnknQBri1VWtZPftGhTMfzE0HGHfrFpKk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1762835652000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACYGegsBcP2M9xdJqt0Yy3wJAg1KboyNq-8",
+        "entityUrn": "urn:li:fsd_connection:ACoAACYGegsBcP2M9xdJqt0Yy3wJAg1KboyNq-8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1715836320000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACKE6AYBMnCRfnbGfaDw-Auo_hBwNwMV40w",
+        "entityUrn": "urn:li:fsd_connection:ACoAACKE6AYBMnCRfnbGfaDw-Auo_hBwNwMV40w",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740143652000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAA7HImUBzeuOiESRyZul5yfJ1CP9DcEd_rk",
+        "entityUrn": "urn:li:fsd_connection:ACoAAA7HImUBzeuOiESRyZul5yfJ1CP9DcEd_rk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1722517907000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB3Jg_gB8G0DMvKlWfMtn-1fTTDHdsIUAMA",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB3Jg_gB8G0DMvKlWfMtn-1fTTDHdsIUAMA",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1746027823000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACufJd8BnA--rYwD_wfJDQdlzw3kTz664g8",
+        "entityUrn": "urn:li:fsd_connection:ACoAACufJd8BnA--rYwD_wfJDQdlzw3kTz664g8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1761138434000,
+        "connectedMember": "urn:li:fsd_profile:ACoAADw1cHYBwZztIp8efEJ-dIKxLEx6zEzlzE4",
+        "entityUrn": "urn:li:fsd_connection:ACoAADw1cHYBwZztIp8efEJ-dIKxLEx6zEzlzE4",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1730717813000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACd2sBwBKVNbwkVdi-mkheke-qgtckUc8Ys",
+        "entityUrn": "urn:li:fsd_connection:ACoAACd2sBwBKVNbwkVdi-mkheke-qgtckUc8Ys",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1763054066000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAtCZDgB2YNyMtYtQ4WZit9M3PvzqHnDvzE",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAtCZDgB2YNyMtYtQ4WZit9M3PvzqHnDvzE",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740365817000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAAKgC0Bm1k20S_nxpI5PPJuprDVZIRz1n0",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAAKgC0Bm1k20S_nxpI5PPJuprDVZIRz1n0",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1740143651000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACpzXEcBxd8cpKMvB8i4icZWbLwW4PeClUE",
+        "entityUrn": "urn:li:fsd_connection:ACoAACpzXEcBxd8cpKMvB8i4icZWbLwW4PeClUE",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1743203708000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAqWc1EBOnnPT3fgWZD44xa_6IUKLWdyJR8",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAqWc1EBOnnPT3fgWZD44xa_6IUKLWdyJR8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1755005221000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAAKh_kBE1BVut3X9NoZgFXL9ZzxY6vNqTs",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAAKh_kBE1BVut3X9NoZgFXL9ZzxY6vNqTs",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1738767218000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAB5KijQByC_K6cmJZx_OYPZb2xUvC46FCro",
+        "entityUrn": "urn:li:fsd_connection:ACoAAB5KijQByC_K6cmJZx_OYPZb2xUvC46FCro",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1763444537000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAC9A93gBqfO42GOMlYZDBtfII688siSoGoQ",
+        "entityUrn": "urn:li:fsd_connection:ACoAAC9A93gBqfO42GOMlYZDBtfII688siSoGoQ",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1745638842000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAA1An88B3SOnDuYKJ7EdYH4nzaOhBEhCdps",
+        "entityUrn": "urn:li:fsd_connection:ACoAAA1An88B3SOnDuYKJ7EdYH4nzaOhBEhCdps",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1759842956000,
+        "connectedMember": "urn:li:fsd_profile:ACoAAAVXyaQBZdHEgLHYlUQfh19WZpdViBnORs8",
+        "entityUrn": "urn:li:fsd_connection:ACoAAAVXyaQBZdHEgLHYlUQfh19WZpdViBnORs8",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      },
+      {
+        "createdAt": 1730629676000,
+        "connectedMember": "urn:li:fsd_profile:ACoAACo-DtsB_y3KHoVzLlTHPiegrJdluQXMlbk",
+        "entityUrn": "urn:li:fsd_connection:ACoAACo-DtsB_y3KHoVzLlTHPiegrJdluQXMlbk",
+        "$type": "com.linkedin.voyager.dash.relationships.Connection"
+      }
+    ]
+  },
+  "drift": {
+    "drifted": true,
+    "added_fields": [
+      "data.entityUrn",
+      "data.paging",
+      "data.paging.count",
+      "data.paging.start",
+      "data.paging.links",
+      "data.*elements",
+      "data.$type",
+      "included[].createdAt",
+      "included[].connectedMember",
+      "included[].entityUrn",
+      "included[].$type"
+    ],
+    "removed_fields": [],
+    "type_changes": []
+  }
+}
