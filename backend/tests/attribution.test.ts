@@ -9,8 +9,11 @@
 import { describe, it, expect } from "bun:test";
 import {
   computeAttribution,
+  computeSlashAdjustment,
   BASE_FEE_UC,
   DELTA_BONUS_UC,
+  SLASH_MIN_SAMPLE,
+  SLASH_WEIGHT,
 } from "../src/services/attribution.js";
 
 describe("computeAttribution — delta score calculation", () => {
@@ -116,5 +119,39 @@ describe("Attribution economics", () => {
       console.log(`  ${label}: δ=${delta_score.toFixed(2)} → ${fee_allocated_uc} µ¢ ($${usd})`);
     }
     expect(true).toBe(true);
+  });
+});
+
+describe("computeSlashAdjustment — opt-in failure slashing", () => {
+  const ample = SLASH_MIN_SAMPLE + 1;
+
+  it("no slash below the min-sample floor (never punishes noise)", () => {
+    expect(computeSlashAdjustment(0.9, SLASH_MIN_SAMPLE - 1).slash_delta).toBe(0);
+  });
+
+  it("no slash when no viable alternative existed (next_best=0)", () => {
+    expect(computeSlashAdjustment(0, ample).slash_delta).toBe(0);
+  });
+
+  it("slashes negatively, scaled by the displaced alternative's reliability", () => {
+    const { slash_delta } = computeSlashAdjustment(0.8, ample);
+    expect(slash_delta).toBeLessThan(0);
+    expect(slash_delta).toBeCloseTo(-(0.8 * SLASH_WEIGHT), 10);
+  });
+
+  it("a better displaced alternative costs more than a weak one", () => {
+    const strong = computeSlashAdjustment(0.9, ample).slash_delta;
+    const weak = computeSlashAdjustment(0.2, ample).slash_delta;
+    expect(strong).toBeLessThan(weak); // more negative
+  });
+
+  it("clamps next_best into [0,1] before scaling", () => {
+    expect(computeSlashAdjustment(5, ample).slash_delta).toBeCloseTo(-SLASH_WEIGHT, 10);
+    expect(computeSlashAdjustment(-1, ample).slash_delta).toBe(0);
+  });
+
+  it("respects a custom min-sample", () => {
+    expect(computeSlashAdjustment(0.9, 2, { minSample: 10 }).slash_delta).toBe(0);
+    expect(computeSlashAdjustment(0.9, 12, { minSample: 10 }).slash_delta).toBeLessThan(0);
   });
 });

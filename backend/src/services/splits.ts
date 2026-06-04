@@ -261,10 +261,11 @@ export async function updateContributorDelta(
       c.cumulative_delta *= DELTA_DECAY_RATE;
     }
 
-    // Credit the active contributor
+    // Credit (or, with a negative deltaScore from a slash, debit) the active
+    // contributor. Floored at 0 — standing never goes negative.
     const idx = contributors.findIndex((c) => c.agent_id === indexerId);
     if (idx >= 0) {
-      contributors[idx].cumulative_delta += deltaScore;
+      contributors[idx].cumulative_delta = Math.max(0, contributors[idx].cumulative_delta + deltaScore);
     }
 
     // Prune contributors below threshold — they've lost impact
