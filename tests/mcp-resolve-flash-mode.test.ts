@@ -102,3 +102,65 @@ describe("applyFlashMode — token-minimal resolve shortlist", () => {
     expect(ev.endsWith("..."), "over-long evidence is elided").toBe(true);
   });
 });
+
+// Intent-only resolves with no marketplace endpoints land on the Exa /
+// probe-fallback shape: { result: { data, exa_candidates: [...], ... } }.
+// flash must trim the heavy per-candidate highlights here too — before this it
+// was silently ignored on the most common path and returned the full rich shape.
+function exaResolveResult() {
+  return {
+    source: "exa",
+    result: {
+      data: ["The live Bitcoin price today is $63,819.42 USD ..."],
+      source_url: "https://coinmarketcap.com/currencies/bitcoin/",
+      exa_answer: true,
+      exa_candidates: [
+        {
+          url: "https://coinmarketcap.com/currencies/bitcoin/",
+          title: "Bitcoin price today",
+          score: 0,
+          highlights_excerpt: "Bitcoin price today, BTC to USD live price ".repeat(20),
+          next_step: { go: "unbrowse go ...", fetch: "unbrowse fetch ..." },
+        },
+        {
+          url: "https://www.coingecko.com/en/coins/bitcoin",
+          title: "Bitcoin Price: BTC/USD Live",
+          score: 0,
+          highlights_excerpt: "BTC $63,947.93 ".repeat(30),
+        },
+      ],
+      suggested_commands: ["unbrowse fetch --url \"https://coinmarketcap.com/currencies/bitcoin/\""],
+    },
+  };
+}
+
+describe("applyFlashMode — Exa / probe-fallback shape", () => {
+  test("flash=true trims each exa candidate to url + title + score + short flash_evidence", () => {
+    const out = applyFlashMode(exaResolveResult(), { flash: true });
+    expect(out.flash_mode, "flash_mode flag set").toBe(true);
+    const inner = out.result as Record<string, unknown>;
+    const cands = inner.exa_candidates as Array<Record<string, unknown>>;
+    expect(cands.length, "every candidate kept, only trimmed").toBe(2);
+    for (const c of cands) {
+      expect(Object.keys(c).sort(), "exactly the 4 minimal keys")
+        .toEqual(["flash_evidence", "score", "title", "url"]);
+      expect(c.highlights_excerpt, "heavy highlights_excerpt dropped").toBeUndefined();
+      expect(c.next_step, "per-candidate next_step dropped").toBeUndefined();
+      expect((c.flash_evidence as string).length, "flash_evidence capped at 160").toBeLessThanOrEqual(160);
+    }
+  });
+
+  test("flash keeps the answer and actionable next steps intact", () => {
+    const out = applyFlashMode(exaResolveResult(), { flash: true });
+    const inner = out.result as Record<string, unknown>;
+    expect(Array.isArray(inner.data), "data answer preserved").toBe(true);
+    expect(inner.source_url, "source_url preserved").toBe("https://coinmarketcap.com/currencies/bitcoin/");
+    expect(Array.isArray(inner.suggested_commands), "suggested_commands preserved").toBe(true);
+  });
+
+  test("flash=false leaves the exa shape untouched", () => {
+    const input = exaResolveResult();
+    const out = applyFlashMode(input, { flash: false });
+    expect(out, "no flash => unchanged reference").toBe(input);
+  });
+});

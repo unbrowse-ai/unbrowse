@@ -1900,23 +1900,52 @@ export function applyFlashMode(
 ): Record<string, unknown> {
   if (args.flash !== true) return result;
   const list = result.available_endpoints;
-  if (!Array.isArray(list)) return result;
-  const flashed = list.map((raw) => {
-    const c = isPlainObject(raw) ? raw : {};
-    const endpoint_id = typeof c.endpoint_id === "string" ? c.endpoint_id : undefined;
-    const skill_id = typeof c.skill_id === "string" ? c.skill_id : undefined;
-    const desc = typeof c.description === "string" ? c.description.trim() : "";
-    const url = typeof c.url === "string" ? c.url : "";
-    const score = typeof c.score === "number" ? c.score : undefined;
-    const evid: string[] = [];
-    if (desc) evid.push(desc);
-    if (score !== undefined) evid.push(`score ${score.toFixed(2)}`);
-    if (url) evid.push(url);
-    let flash_evidence = evid.join(" | ");
-    if (flash_evidence.length > 200) flash_evidence = `${flash_evidence.slice(0, 197)}...`;
-    return { endpoint_id, skill_id, flash_evidence };
-  });
-  return { ...result, available_endpoints: flashed, flash_mode: true };
+  if (Array.isArray(list)) {
+    const flashed = list.map((raw) => {
+      const c = isPlainObject(raw) ? raw : {};
+      const endpoint_id = typeof c.endpoint_id === "string" ? c.endpoint_id : undefined;
+      const skill_id = typeof c.skill_id === "string" ? c.skill_id : undefined;
+      const desc = typeof c.description === "string" ? c.description.trim() : "";
+      const url = typeof c.url === "string" ? c.url : "";
+      const score = typeof c.score === "number" ? c.score : undefined;
+      const evid: string[] = [];
+      if (desc) evid.push(desc);
+      if (score !== undefined) evid.push(`score ${score.toFixed(2)}`);
+      if (url) evid.push(url);
+      let flash_evidence = evid.join(" | ");
+      if (flash_evidence.length > 200) flash_evidence = `${flash_evidence.slice(0, 197)}...`;
+      return { endpoint_id, skill_id, flash_evidence };
+    });
+    return { ...result, available_endpoints: flashed, flash_mode: true };
+  }
+  // Exa / probe-fallback shape (intent-only resolves with no marketplace
+  // endpoints). The candidates live under the nested result payload and each
+  // carries a multi-hundred-char highlights_excerpt — exactly the bulk a flash
+  // caller wants dropped. Reduce each candidate to url + title + score + a short
+  // one-line flash_evidence, keeping the answer (data/source_*), next_step, and
+  // suggested_commands intact so the agent can still pick a candidate and fetch
+  // it. Without this, flash=true was silently ignored on the most common
+  // intent-only path and the agent got the full ~3KB rich shape.
+  const inner = isPlainObject(result.result) ? result.result : undefined;
+  if (inner && Array.isArray(inner.exa_candidates)) {
+    const flashedCandidates = inner.exa_candidates.map((raw) => {
+      const c = isPlainObject(raw) ? raw : {};
+      const url = typeof c.url === "string" ? c.url : undefined;
+      const title = typeof c.title === "string" ? c.title : undefined;
+      const score = typeof c.score === "number" ? c.score : undefined;
+      let flash_evidence = typeof c.highlights_excerpt === "string"
+        ? c.highlights_excerpt.replace(/\s+/g, " ").trim()
+        : "";
+      if (flash_evidence.length > 160) flash_evidence = `${flash_evidence.slice(0, 157)}...`;
+      return { url, title, score, flash_evidence };
+    });
+    return {
+      ...result,
+      result: { ...inner, exa_candidates: flashedCandidates },
+      flash_mode: true,
+    };
+  }
+  return result;
 }
 
 async function executeResolvedEndpoint(result: Record<string, unknown>, args: Record<string, unknown>, endpointId?: string): Promise<Record<string, unknown>> {
