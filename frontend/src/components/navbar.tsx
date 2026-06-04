@@ -44,7 +44,7 @@ export function Navbar() {
             height={28}
             priority
           />
-          <span className="font-semibold text-base tracking-tight text-white/90">
+          <span className="font-semibold text-base tracking-tight text-text-primary">
             unbrowse
           </span>
         </Link>
@@ -59,7 +59,7 @@ export function Navbar() {
           >
             <Link
               href="/search"
-              className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors inline-flex items-center gap-1"
+              className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors inline-flex items-center gap-1"
               onFocus={() => setMarketOpen(true)}
               onBlur={() => setMarketOpen(false)}
               aria-haspopup="menu"
@@ -111,7 +111,7 @@ export function Navbar() {
             href="https://docs.unbrowse.ai"
             target="_blank"
             rel="noopener"
-            className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Docs
           </a>
@@ -120,7 +120,7 @@ export function Navbar() {
             href="https://github.com/unbrowse-ai/unbrowse"
             target="_blank"
             rel="noopener"
-            className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors inline-flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors inline-flex items-center gap-1.5"
           >
             <svg
               className="w-[14px] h-[14px]"
@@ -146,7 +146,7 @@ export function Navbar() {
           {/* Theme toggle */}
           <button
             onClick={toggle}
-            className="w-8 h-8 flex items-center justify-center text-white/55 hover:text-white/90 transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
             aria-label="Toggle theme"
           >
             {theme === "light" ? (
@@ -351,7 +351,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="px-3 py-1.5 text-sm font-medium text-white/60 hover:text-white/95 transition-colors"
+      className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
     >
       {children}
     </Link>
