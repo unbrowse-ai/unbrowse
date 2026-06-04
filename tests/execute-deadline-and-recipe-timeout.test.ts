@@ -54,3 +54,31 @@ describe("replayRecipe — bounded fetch", () => {
     expect(result.status).toBe(0);
   });
 });
+
+describe("replayRecipe — curl-impersonate rescue on native-fetch stall", () => {
+  test("falls back to curl for a GET when native fetch fails, returning real data", async () => {
+    // Native fetch always fails (simulates bun stalling on the server's TLS/HTTP).
+    globalThis.fetch = (() => Promise.reject(new Error("native fetch stalled"))) as typeof fetch;
+    const recipe = { method: "GET", headers: {} } as unknown as Parameters<typeof replayRecipe>[0];
+    // Inject a curl fallback that succeeds (as curl_cffi does on usgs).
+    const curl = async () => ({
+      status: 200,
+      bytes: 42,
+      html: '{"type":"FeatureCollection","features":[]}',
+      final_url: "https://x.test/feed",
+      proxy_used: false,
+      impersonate: "chrome131",
+    });
+    const result = await replayRecipe(recipe, "https://x.test/feed", [], {}, {}, 50, curl);
+    expect(result.status).toBe(200);
+    expect((result.data as { type?: string }).type).toBe("FeatureCollection");
+  });
+
+  test("returns status 0 when the curl fallback also misses (graceful)", async () => {
+    globalThis.fetch = (() => Promise.reject(new Error("native fetch stalled"))) as typeof fetch;
+    const recipe = { method: "GET", headers: {} } as unknown as Parameters<typeof replayRecipe>[0];
+    const curl = async () => null; // helper unavailable
+    const result = await replayRecipe(recipe, "https://x.test/feed", [], {}, {}, 50, curl);
+    expect(result.status).toBe(0);
+  });
+});
