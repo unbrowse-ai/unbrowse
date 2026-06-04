@@ -1428,7 +1428,7 @@ export async function publishSkill(
   const proofCount = (draft.endpoints ?? []).filter(e => e.zk_proof).length;
   const proofHeaders: Record<string, string> = {};
   if (proofCount > 0) {
-    proofHeaders["X-Unbrowse-commitment proof-Count"] = String(proofCount);
+    proofHeaders["X-Unbrowse-commitmentProof-Count"] = String(proofCount);
   }
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
     ...draft,

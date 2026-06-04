@@ -25,7 +25,7 @@ export interface ProofCommitment {
  * verified provenance. `verified:true` is reserved for future notary-backed
  * proof systems after server-side verification.
  */
-export interface commitment proof {
+export interface commitmentProof {
   /** Proof system used: "tlsnotary" | "reclaim" | "commitment_only" */
   proof_type: "tlsnotary" | "reclaim" | "commitment_only";
   /** Base64-encoded proof data (opaque to Unbrowse, verified by proof system) */
@@ -45,7 +45,7 @@ export interface commitment proof {
 }
 
 /**
- * Result of verifying a ZK proof.
+ * Result of verifying a commitmentProof.
  */
 export interface ProofVerificationResult {
   valid: boolean;

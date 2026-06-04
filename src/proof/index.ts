@@ -1,14 +1,14 @@
 import { createCommitment, hashResponseBody } from "./commitment.js";
-import type { commitment proof, ProofCommitment } from "../types/proof.js";
+import type { commitmentProof, ProofCommitment } from "../types/proof.js";
 import { isNotaryAvailable, createNotaryClient } from "./notary.js";
 
 export { createCommitment, hashResponseBody, verifyCommitmentAgainstResponse } from "./commitment.js";
-export type { commitment proof, ProofCommitment, ProofVerificationResult } from "../types/proof.js";
+export type { commitmentProof, ProofCommitment, ProofVerificationResult } from "../types/proof.js";
 export { isNotaryAvailable, createNotaryClient } from "./notary.js";
 export type { NotaryClient } from "./notary.js";
 
 /**
- * Check if ZK proof generation is enabled.
+ * Check if commitmentProof generation is enabled.
  * Controlled by UNBROWSE_ZK_PROOF env var.
  * Off by default — opt-in for agents that want proof-backed endpoints.
  */
@@ -17,7 +17,7 @@ export function isProofEnabled(): boolean {
 }
 
 /**
- * Generate a ZK proof for a captured HTTP request.
+ * Generate a commitmentProof for a captured HTTP request.
  *
  * Currently supports:
  * - "commitment_only": local hash commitment (no TLS proof, fast, no external deps)
@@ -28,7 +28,7 @@ export function isProofEnabled(): boolean {
 export async function generateProof(
   request: { url: string; method: string; response_status: number; response_body?: string; timestamp: string },
   domain: string,
-): Promise<commitment proof> {
+): Promise<commitmentProof> {
   // Use TLSNotary if configured
   if (isNotaryAvailable()) {
     const client = createNotaryClient(process.env.UNBROWSE_NOTARY_URL!);
@@ -63,8 +63,8 @@ export async function generateProof(
 export async function generateProofsForCapture(
   requests: Array<{ url: string; method: string; response_status: number; response_body?: string; response_headers: Record<string, string>; timestamp: string }>,
   domain: string,
-): Promise<Map<string, commitment proof>> {
-  const proofs = new Map<string, commitment proof>();
+): Promise<Map<string, commitmentProof>> {
+  const proofs = new Map<string, commitmentProof>();
 
   for (const req of requests) {
     const contentType = req.response_headers["content-type"] ?? "";

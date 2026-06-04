@@ -282,7 +282,7 @@ export interface EndpointDescriptor {
    *  Replayed first by the executor before any probe/dispatch. */
   proven_recipe?: ProvenRecipe;
   /** Proof metadata or client-side commitment attached to this endpoint */
-  zk_proof?: import("./proof.js").commitment proof;
+  zk_proof?: import("./proof.js").commitmentProof;
   /**
    * Owner-submitted provenance flag. Set to `true` by the backend
    * `promoteOfficialSubmission` triage helper when a domain owner's canonical

@@ -2,7 +2,7 @@
  * zk-binding.test — the witness for ZK credential binding (src/values/zk-binding.ts),
  * the whitepaper's central contribution: prove a credential is bound to the wallet
  * WITHOUT revealing the credential. Proves: the proof round-trips; the credential
- * never appears in y or the proof (commitment-bound); a wrong credential / tampered
+ * never appears in y or the proof (commitmentBound); a wrong credential / tampered
  * proof / tampered binding all FAIL (fails closed); and the binding is to the REAL
  * wallet (a forged signature is rejected).
  */
@@ -21,7 +21,7 @@ describe("zk credential binding", () => {
     expect(verifySchnorr(y, prove(enc(CRED)))).toBe(true);
   });
 
-  it("commitment-bound: the credential never appears in y or the proof", () => {
+  it("commitmentBound: the credential never appears in y or the proof", () => {
     const y = bindingPoint(enc(CRED)).toString(16);
     const p: Proof = prove(enc(CRED), enc("ctx-domain"));
     const blob = y + JSON.stringify(p);

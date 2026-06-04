@@ -103,7 +103,7 @@ export interface CredentialHole { name: string; location: string; fill: string; 
  * Derive the credential HOLES a skill needs from its endpoints' auth surface.
  * Credentials are never embedded in a published skill — they are holes the
  * unbrowse runtime fills at call time, surfaced from the caller's private key
- * via commitment-bound (the hole-template / wallet-bind pattern): prove you hold
+ * via commitmentBound (the hole-template / wallet-bind pattern): prove you hold
  * the credential without the skill or marketplace ever seeing it. This lists
  * WHICH holes a caller must be able to fill, not the values.
  */
@@ -251,7 +251,7 @@ const FORBIDDEN_PUBLIC_TERMS: RegExp[] = [
   /zero[ -]?knowledge/i,
   /\bzk[ -]?proof/i,
   /zk-?hash/i,
-  /commitment-tag/i,
+  /commitmentTag/i,
   /route/i,
   /architecture/i,
   /restricted[ -]?pattern/i,

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/graph/index.js";
 import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
-import type { commitment proof } from "../src/types/proof.js";
+import type { commitmentProof } from "../src/types/proof.js";
 
-function makeProof(domain: string, verified: boolean, proofType: commitment proof["proof_type"] = "commitment_only"): commitment proof {
+function makeProof(domain: string, verified: boolean, proofType: commitmentProof["proof_type"] = "commitment_only"): commitmentProof {
   return {
     proof_type: proofType,
     proof_data: "x",
