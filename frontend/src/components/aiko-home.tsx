@@ -25,6 +25,13 @@ import { GenerativeUI, extractUiSpec, GENUI_SYSTEM_PROMPT } from "@/components/g
 
 const CHAT_ENDPOINT = "https://chat.unbrowse.ai/v1/chat/completions";
 
+// One-line product grounding, prepended to the first user turn (the backend
+// rejects a client system message). Without it the agent doesn't know its own
+// product and hallucinates on "what is unbrowse?". Kept short and factual —
+// numbers match the published 94-domain benchmark (arXiv:2604.00694).
+const AIKO_PRODUCT_CONTEXT =
+  "(Context — answer using this when relevant: Unbrowse turns any website into a reusable API route for AI agents. Capture a site once, replay it as a fast API forever; a peer-reviewed 94-domain benchmark shows 3.6× mean speedup and far fewer tokens than a fresh browser session. It runs as an MCP server, CLI, and SDK.)";
+
 const SUGGESTIONS = [
   "Cheapest SFO → SIN flight next month",
   "Compare memory foam vs hybrid mattresses",
@@ -157,13 +164,23 @@ export function AikoHome() {
     const tAns = performance.now();
     try {
       // NOTE: chat.unbrowse.ai prepends its own system prompt and 400s on a
-      // client system message ("System message must be at the beginning"), so
-      // generative UI cannot be triggered from the client. The json-ui
-      // instruction (GENUI_SYSTEM_PROMPT) must be added to the BACKEND system
-      // prompt. Until then we send the conversation as-is and render whatever the
-      // agent returns (markdown today; generative UI the moment the backend emits
-      // a json-ui spec — the frontend already renders it).
+      // client system message ("System message must be at the beginning"), so we
+      // cannot ground the model with a system role. Without grounding it doesn't
+      // know its own product and answers "what is unbrowse?" with a hallucinated
+      // guess. Workaround (verified against the live endpoint): prepend a one-line
+      // product context to the FIRST user turn — accepted, and it produces an
+      // accurate self-description. We mutate only the API payload, never the
+      // displayed `turns`, so the chat shows the user's clean text.
+      // (Same constraint blocks client-side generative UI; the json-ui instruction
+      // still needs to live in the BACKEND system prompt.)
       const messages = next.map((t) => ({ role: t.role, content: t.content }));
+      const firstUser = messages.findIndex((m) => m.role === "user");
+      if (firstUser >= 0) {
+        messages[firstUser] = {
+          ...messages[firstUser],
+          content: `${AIKO_PRODUCT_CONTEXT}\n\n${messages[firstUser].content}`,
+        };
+      }
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
