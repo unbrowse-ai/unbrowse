@@ -45,6 +45,9 @@ import type { PrivyClientConfig } from "@privy-io/react-auth";
  * `<PrivyLoginButtonOptional />`.
  */
 export const PRIVY_PATH_ALLOWLIST: readonly string[] = [
+  "/",        // Aiko chat homepage — wallet/Privy login lives in the top bar.
+              // The matcher treats "/" as an EXACT match (startsWith("//") is
+              // never true), so this enables Privy on the home route only.
   "/account",
   // Future Privy consumers go here. /login, /billing, /dashboard, /claim
   // currently use the magic-link AuthProvider only, no Privy.
