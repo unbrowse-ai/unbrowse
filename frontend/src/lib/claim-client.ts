@@ -9,9 +9,8 @@
  *   3. Official-API submission: POST /submit-official.
  *
  * Mirrors the pattern in `frontend/src/lib/account-client.ts` but without
- * the bearer-auth wrapper, since /claim/* is largely public per
- * `.claude/firmament-step2.md` (challenge mint + status are public; verify
- * checks caller wallet server-side).
+ * the bearer-auth wrapper, since /claim/* is largely public (challenge mint
+ * and status are public; verify checks the caller wallet server-side).
  */
 
 import { getConfiguredApiOrigin } from "./api-base";
@@ -65,6 +64,25 @@ export interface TakedownStatus {
   opted_out_at?: string;
   disabled_count?: number;
   message?: string;
+}
+
+/**
+ * Real read over on-chain settlement for a bound domain owner. Mirrors the
+ * public GET /v1/claim/earnings response. Amounts are a mirror of what already
+ * settled to the wallet on-chain — never a projection.
+ * Unverified (unbound) domains come back with `verified: false` and zeroes.
+ */
+export interface EarningsResult {
+  verified: boolean;
+  domain?: string;
+  wallet_address?: string;
+  earned_uc: number;
+  earned_usd: string;
+  pending_uc?: number;
+  pending_usd?: string;
+  payout_count?: number;
+  last_tx?: string | null;
+  last_settled_at?: string | null;
 }
 
 export interface OfficialEndpointInput {
@@ -181,6 +199,18 @@ export async function getStatus(domain: string): Promise<ClaimStatus> {
   return request<ClaimStatus>(
     "GET",
     `/v1/claim/status?domain=${encodeURIComponent(domain)}`,
+  );
+}
+
+/**
+ * Read what a bound domain's wallet has actually been paid on-chain. This is a
+ * read, not a withdrawal: the owner lane settles directly to the wallet's USDC
+ * account at settlement time, so the numbers returned mirror on-chain state.
+ */
+export async function getEarnings(domain: string): Promise<EarningsResult> {
+  return request<EarningsResult>(
+    "GET",
+    `/v1/claim/earnings?domain=${encodeURIComponent(domain)}`,
   );
 }
 

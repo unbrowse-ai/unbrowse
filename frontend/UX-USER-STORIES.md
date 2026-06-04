@@ -98,7 +98,17 @@ ships. Ordered cheapest-first to the first felt win.
    On a failed preview, return to the *problem* (the persona's job), not to pixels.
 
 ## What's settled vs open (honest ledger)
-- **[shipped]** S2 terminal cleanliness (clean `--help`); S5 local/cloud aiko toggle + baked method.
-- **[next]** S1 cold-visit first-result instrumentation; S3 trust-legibility copy; S4 skeptic-proof money page.
-- **[gate]** each preview ships to a real reviewer; the UX is "done" only when a real
-  product-taste reviewer signs off on the felt experience — not on this document.
+- **[shipped]** S2 terminal cleanliness (clean `--help` + piped-stdout cleanliness, gated);
+  S5 local/cloud aiko toggle + baked method.
+- **[built+verified, tree]** S1 live-resolve hero — homepage hero now ranks real
+  `/v1/skills/popular` route records in place on enter, with a real ~44× speed badge from
+  `/v1/stats/summary` (no fabricated number); honest miss-state. S3 trust legibility —
+  `/security` "When you bind a credential" section: one calm sentence ("your password
+  never leaves this computer"), zero-knowledge framed as safety. S4 skeptic-proof money —
+  `/how-unbrowse-pays` rewritten: visual pay→earn split, USDC settles usage, token only
+  bonds trust (de-emphasised), earnings are live `/v1/claim/earnings` reads or honestly
+  labelled. All three: tsc 0 errors, dev-server-rendered real data, no moat-vocab leak.
+- **[next]** deploy CF Pages preview (`wrangler.preview.jsonc`, `unbrowse-aiko-preview`);
+  hand the link to Lewis to relay to the product-taste reviewer.
+- **[gate]** the UX is "done" only when the real reviewer signs off on the felt
+  experience — not on this document, not on a green build.

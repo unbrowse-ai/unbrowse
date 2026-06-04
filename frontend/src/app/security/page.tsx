@@ -61,6 +61,44 @@ export default function SecurityPage() {
         bodies.
       </p>
 
+      <section className="mb-12 animate-fade-up stagger-2">
+        <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-orange-500 mb-4">
+          ## When you bind a credential
+        </h2>
+        <div className="border border-border rounded-md p-5 bg-surface-raised">
+          <p className="text-lg text-text-primary leading-relaxed font-medium">
+            Your password is locked to this computer and never leaves it. When your
+            agent signs in, it proves you have the credential without ever sending
+            the credential.
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-text-secondary leading-relaxed">
+            <li>
+              <strong className="text-text-primary">What is bound:</strong> the
+              credential is encrypted in your local vault and tied to your key — only
+              your machine can unlock it.
+            </li>
+            <li>
+              <strong className="text-text-primary">What never leaves:</strong> the
+              secret itself — the actual password, token, or cookie bytes. They stay
+              on your machine, full stop.
+            </li>
+            <li>
+              <strong className="text-text-primary">What travels instead:</strong> a
+              zero-knowledge proof — math that confirms you hold the credential
+              without revealing it. The site sees a valid sign-in; nobody sees your
+              secret.
+            </li>
+          </ul>
+          <p className="mt-4 text-xs font-mono text-text-muted leading-relaxed">
+            After <code className="text-orange-400">unbrowse auth</code> you see:{" "}
+            <span className="text-[rgba(108,255,175,0.85)]">
+              credential bound to your key · sealed in local vault
+            </span>{" "}
+            — never the secret printed back to you.
+          </p>
+        </div>
+      </section>
+
       <section className="mb-12">
         <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-orange-500 mb-4">
           ## Vault architecture

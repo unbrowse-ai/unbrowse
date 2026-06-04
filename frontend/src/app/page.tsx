@@ -16,12 +16,15 @@ const nf = new Intl.NumberFormat("en-US");
 
 export default async function Home() {
   let skills: PopularSkillSummary[] = [];
+  let resolvePool: PopularSkillSummary[] = [];
   let stats: StatsSummary | null = null;
   try {
-    [skills, stats] = await Promise.all([
-      listPopularSkills(12, { revalidate: 120 }),
+    [resolvePool, stats] = await Promise.all([
+      // Wider real pool for the live hero resolve; the grid shows the top slice.
+      listPopularSkills(50, { revalidate: 120 }),
       getStatsSummary().catch(() => null),
     ]);
+    skills = resolvePool.slice(0, 12);
   } catch {
     /* registry/stats unavailable — render the shell honestly */
   }
@@ -43,7 +46,7 @@ export default async function Home() {
             ? `Browse ${nf.format(stats.skills)} skills across ${nf.format(stats.domains)} domains · ${nf.format(stats.executions)} live calls`
             : "Resolve an intent to a ranked endpoint. Execute for real data. No per-site setup."}
         </p>
-        <RegistrySearch />
+        <RegistrySearch pool={resolvePool} perf={stats?.perf ?? null} />
       </section>
 
       {/* Categories */}

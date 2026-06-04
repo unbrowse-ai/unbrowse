@@ -1,0 +1,19 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "unbrowse-aiko-preview",
+	"main": ".open-next/worker.js",
+	"preview_urls": true,
+	"workers_dev": true,
+	"compatibility_date": "2025-12-01",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": { "binding": "ASSETS", "directory": ".open-next/assets" },
+	"images": { "binding": "IMAGES" },
+	"services": [
+		{ "binding": "WORKER_SELF_REFERENCE", "service": "unbrowse-aiko-preview" }
+	],
+	"r2_buckets": [
+		{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "unbrowse-frontend-cache" }
+	],
+	"observability": { "enabled": true },
+	"routes": []
+}

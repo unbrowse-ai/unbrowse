@@ -162,12 +162,28 @@ export interface AgentProfile {
   last_active_at?: string;
 }
 
+export interface StatsPerf {
+  total_resolves: number;
+  marketplace_hit_rate: number;
+  /** Mean ms to resolve an intent cold via a browser session. */
+  avg_resolve_ms: number;
+  /** Mean ms to serve an intent from an indexed marketplace route (1 call). */
+  avg_marketplace_ms: number;
+  avg_cache_ms: number;
+  p95_ms: number;
+  total_tokens_saved: number;
+  avg_time_saved_pct: number;
+  avg_tokens_saved_pct: number;
+}
+
 export interface StatsSummary {
   skills: number;
   endpoints: number;
   domains: number;
   executions: number;
   agents: number;
+  /** Real measured performance deltas (browser-session vs indexed route). */
+  perf?: StatsPerf;
 }
 
 export interface AgentHealth {
