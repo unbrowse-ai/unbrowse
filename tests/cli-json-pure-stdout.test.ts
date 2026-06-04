@@ -68,4 +68,33 @@ describe("CLI --json: stdout is pure JSON (contract 7ae6a26d)", () => {
     // stderr is allowed to carry whatever (it's NOT KEY 1).
     void stderr;
   }, 20_000);
+
+  // The agent-UX upgrade: machine-first commands must give clean stdout when
+  // PIPED, even WITHOUT --json. spawnSync's stdout is a pipe (not a TTY), so the
+  // reroute fires on `!process.stdout.isTTY`. A naive `unbrowse skills | jq`
+  // must work. Pre-fix repro: `[trace]` + `[unbrowse] ToS check` chatter led the
+  // stdout and broke JSON.parse. `skills` is a no-network local-cache read, so
+  // this is a deterministic gate.
+  it("skills (no --json, piped): stdout is pure JSON with no chatter", () => {
+    const { stdout, status } = runCli(["skills"], 40_000);
+    expect(status).toBe(0);
+    expect(() => JSON.parse(stdout)).not.toThrow();
+    expect(stdout).not.toContain("[trace]");
+    expect(stdout).not.toContain("ToS check");
+    expect(stdout).not.toContain("[exa]");
+    expect(stdout).not.toContain("[lifecycle]");
+  }, 50_000);
+
+  it("resolve (no --json, piped): stdout parses as a single JSON object", () => {
+    const { stdout, status } = runCli([
+      "resolve",
+      "--intent",
+      "github trending repositories",
+      "--url",
+      "https://github.com/trending",
+    ], 90_000);
+    expect(status).toBe(0);
+    expect(() => JSON.parse(stdout)).not.toThrow();
+    expect(JSON.parse(stdout).trace).toBeTypeOf("object");
+  }, 100_000);
 });
