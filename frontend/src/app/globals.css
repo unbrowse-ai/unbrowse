@@ -44,6 +44,23 @@
   --glow: rgba(255, 109, 0, 0.12);
   --glow-azure: rgba(59, 130, 246, 0.10);
   --noise-opacity: 0.03;
+
+  /* ═══ Design system (locked) — see design.md ═══
+     Editorial restraint: one accent ≤5%, hairline rules, named motion. Additive;
+     does not alter the color tokens above. */
+  --accent-spark: #06B6D4;            /* cyan — rare spark only, ≤1 element/viewport */
+  --rule: 1px solid var(--border);    /* the hairline is a primitive */
+  --font-display-serif: 'Cormorant Garamond', Georgia, serif;
+  /* Named easings — never the browser-default `ease`, never bounce on UI state */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 260ms;
+  --dur-slow: 520ms;
+  /* 4pt semantic spacing scale (parallels Tailwind utilities; named for portability) */
+  --space-xs: 0.25rem; --space-sm: 0.5rem; --space-md: 1rem;
+  --space-lg: 2rem; --space-xl: 4rem; --space-2xl: 8rem;
 }
 
 [data-theme="dark"] {
@@ -237,10 +254,44 @@ body {
   mix-blend-mode: overlay;
 }
 
-/* Phosphor glow on headings */
+/* Phosphor glow on headings — softened to a whisper (restraint; see design.md).
+   Linear/Anthropic use none; we keep a faint brand warmth, not a halo. */
 [data-theme="dark"] h1,
 [data-theme="dark"] h2 {
-  text-shadow: 0 0 60px rgba(255, 82, 0, 0.18);
+  text-shadow: 0 0 40px rgba(255, 82, 0, 0.07);
+}
+
+/* ═══ Editorial restraint utilities (design.md) ═══ */
+/* Mono uppercase eyebrow label — the technical voice above headings */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;        /* 11px */
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--orange-400);
+}
+/* Section head: hairline rule above, eyebrow, then heading — stacked, never tag-left */
+.section-head { border-top: var(--rule); padding-top: var(--space-lg); }
+.section-head > .eyebrow { display: block; margin-bottom: 0.5rem; }
+/* Editorial serif emphasis — one word, never a whole line */
+.serif-em {
+  font-family: var(--font-display-serif);
+  font-style: italic;
+  font-weight: 500;
+}
+/* Warm hero glow — one restrained radial, replaces the particle backdrop */
+.hero-glow {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(60% 50% at 50% 0%, var(--glow) 0%, transparent 70%);
+}
+/* Restrained single reveal — honors reduced-motion via the media block below */
+.reveal { opacity: 0; transform: translateY(16px); animation: fade-up var(--dur-slow) var(--ease-out) forwards; }
+.reveal-1 { animation-delay: 60ms; }
+.reveal-2 { animation-delay: 140ms; }
+.reveal-3 { animation-delay: 220ms; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: fade-in 150ms linear forwards; transform: none; }
 }
 
 

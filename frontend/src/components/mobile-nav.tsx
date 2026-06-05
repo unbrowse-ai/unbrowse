@@ -29,12 +29,12 @@ export function MobileNav() {
         type="button"
         style={{ background: 'rgba(6,4,2,0.85)', border: '1px solid rgba(255,122,32,0.3)', borderRadius: '2px' }}
       >
-        <span className="block w-4 h-px transition-all duration-200"
+        <span className="block w-4 h-px transition-[background-color,transform] duration-200"
           style={{ background: open ? 'rgba(255,176,96,0.9)' : 'rgba(255,122,32,0.7)',
             transform: open ? 'translateY(5px) rotate(45deg)' : 'none' }} />
-        <span className="block w-4 h-px transition-all duration-200"
+        <span className="block w-4 h-px transition-[background-color,opacity] duration-200"
           style={{ background: open ? 'transparent' : 'rgba(255,122,32,0.7)', opacity: open ? 0 : 1 }} />
-        <span className="block w-4 h-px transition-all duration-200"
+        <span className="block w-4 h-px transition-[background-color,transform] duration-200"
           style={{ background: open ? 'rgba(255,176,96,0.9)' : 'rgba(255,122,32,0.7)',
             transform: open ? 'translateY(-5px) rotate(-45deg)' : 'none' }} />
       </button>

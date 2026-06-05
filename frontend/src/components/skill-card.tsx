@@ -31,7 +31,7 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
         href={`/skills/${skill.skill_id}`}
         className="group flex flex-col h-full p-6 bg-surface rounded-2xl border border-border
                    hover:border-border-strong hover:bg-surface-raised
-                   transition-all duration-200"
+                   transition-colors duration-200"
       >
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -96,7 +96,7 @@ export function SkillCard({ skill }: { skill: SkillManifest | SkillListItem }) {
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-16 bg-surface-sunken rounded-full overflow-hidden border border-border">
             <div
-              className="h-full rounded-full bg-text-primary transition-all"
+              className="h-full rounded-full bg-text-primary transition-[width] duration-200"
               style={{ width: `${Math.round(avgScore * 100)}%` }}
             />
           </div>

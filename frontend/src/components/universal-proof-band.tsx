@@ -23,7 +23,7 @@ export function UniversalProofBand() {
     <section id="universal" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="text-center mb-8 flex flex-col items-center">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          <p className="eyebrow mb-3" style={{ letterSpacing: "0.3em" }}>
             ##  What &quot;universal&quot; means here
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary max-w-3xl">

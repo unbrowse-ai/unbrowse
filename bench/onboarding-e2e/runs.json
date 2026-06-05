@@ -1,0 +1,16 @@
+[
+  {
+    "mode": "fresh-onboarding+search",
+    "wallet_created": true,
+    "wallet": "C3xQUn4Jt5DFm5MqipsEu2NACkU3wmjzd1S2biRAsP5d",
+    "search_elapsed_s": 1.0,
+    "search_hits": 0
+  },
+  {
+    "mode": "fresh-onboarding+search",
+    "wallet_created": true,
+    "wallet": "91vvsrR5ockn52w9EPsCb2JYV1rGorg18qosyQWTLe59",
+    "search_elapsed_s": 25.1,
+    "search_hits": 0
+  }
+]

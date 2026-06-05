@@ -36,5 +36,5 @@ export const metadata: Metadata = {
 };
 
 export default function PuppeteerCompare() {
-  return <ComparisonPage slug="puppeteer" />;
+  return <ComparisonPage slug="puppeteer" eyebrow="vs Puppeteer" />;
 }

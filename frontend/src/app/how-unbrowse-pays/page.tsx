@@ -229,6 +229,7 @@ export default function HowUnbrowsePays() {
         >
           ← Home
         </Link>
+        <span className="eyebrow" style={{ display: "block" }}>Economics</span>
         <h1 className="text-3xl font-semibold tracking-tight text-text-primary">
           How Unbrowse pays
         </h1>

@@ -143,6 +143,13 @@ export function SiteFooter() {
             </a>
           </div>
         </div>
+
+        {/* NVIDIA Inception — required legal attribution per the NVIDIA Inception
+            program brand guidelines. Verbatim; trademarks in alphabetical order.
+            Applies site-wide because the badge is shown and NVIDIA is referenced. */}
+        <p className="mt-8 max-w-3xl text-[10px] leading-relaxed text-text-muted">
+          © 2025 NVIDIA, the NVIDIA logo, and NVIDIA Inception are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries.
+        </p>
       </div>
     </footer>
   );

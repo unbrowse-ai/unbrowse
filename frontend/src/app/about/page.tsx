@@ -101,7 +101,8 @@ export default function AboutPage() {
         Back
       </Link>
 
-      <h1 className="text-4xl font-bold tracking-tight mb-3 animate-fade-up">About Unbrowse</h1>
+      <span className="eyebrow" style={{ display: "block" }}>About</span>
+      <h1 className="text-4xl font-bold tracking-tight mt-3 mb-3 animate-fade-up">About Unbrowse</h1>
       <p className="text-text-secondary text-lg mb-10 leading-relaxed animate-fade-up stagger-1">
         Unbrowse is the route layer AI agents use to call internal APIs directly — replacing brittle headless
         browsers with shared, reusable skills. Built by{" "}

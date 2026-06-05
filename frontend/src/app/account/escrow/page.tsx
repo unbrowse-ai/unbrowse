@@ -199,7 +199,7 @@ export default function EscrowPage() {
           </p>
           <Link
             href="/account/wallet"
-            className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all"
+            className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200"
           >
             Pair wallet →
           </Link>
@@ -239,7 +239,7 @@ await unbrowse.fundEscrow({ amountUsdc: "5000000" });`}
         </p>
         <Link
           href="/account/session-key"
-          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all"
+          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200"
         >
           Register session key →
         </Link>

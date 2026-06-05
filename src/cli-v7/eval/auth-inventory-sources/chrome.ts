@@ -17,7 +17,7 @@
  *   3. If both fail, return `{ locked: true }` for that DB and skip
  *      the per-domain rows it would have contributed.
  */
-import { Database } from "bun:sqlite";
+import { Database } from "../../../compat/sqlite.js";
 import { existsSync, statSync, copyFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, homedir } from "node:os";

@@ -36,5 +36,5 @@ export const metadata: Metadata = {
 };
 
 export default function PlaywrightCompare() {
-  return <ComparisonPage slug="playwright" />;
+  return <ComparisonPage slug="playwright" eyebrow="vs Playwright" />;
 }

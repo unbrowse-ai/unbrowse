@@ -227,7 +227,7 @@ unbrowse setup --wallet-address $AGENT_WALLET_ADDRESS`}
         </p>
         <Link
           href="/account/escrow"
-          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all"
+          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200"
         >
           Fund escrow →
         </Link>

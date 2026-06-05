@@ -28,6 +28,9 @@ function makeEnv(): Env {
     R2_BUCKET: {} as R2Bucket,
     STATS_KV: {} as KVNamespace,
     ENVIRONMENT: "local-dev",
+    // Pin mainnet so the authorization mint assertion below targets mainnet USDC
+    // (the mint is network-driven via resolveFlexNetwork).
+    X402_NETWORK_MODE: "mainnet",
     ADMIN_KEY,
     FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   };

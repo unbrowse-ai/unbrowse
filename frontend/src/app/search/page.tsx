@@ -142,13 +142,12 @@ export default async function SearchPage({
   return (
     <div className="max-w-7xl mx-auto px-6 pt-28 pb-20">
       {/* Header */}
-      <div className="max-w-4xl mx-auto text-center mb-16">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-raised border border-border text-text-secondary text-xs font-mono font-medium uppercase tracking-widest mb-6 animate-fade-up">
-          <Database className="w-3.5 h-3.5" />
-          Skills Registry
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4 animate-fade-up stagger-1 text-balance">
-          Find any skill.
+      <div className="section-head max-w-4xl mx-auto text-center mb-16">
+        <span className="eyebrow animate-fade-up" style={{ display: "block" }}>
+          <Database className="mr-1.5 inline-block h-3 w-3 align-[-1px]" />Skills registry
+        </span>
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-3 mb-4 animate-fade-up stagger-1 text-balance">
+          Find any <span className="serif-em" style={{ color: "var(--orange-400, #FF6A00)" }}>skill</span>.
         </h1>
           <p className="text-text-secondary text-lg animate-fade-up stagger-2 max-w-2xl mx-auto leading-relaxed">
             Search mapped website endpoints by natural language intent.
@@ -236,7 +235,7 @@ export default async function SearchPage({
                   // Fallback for vector search results not found in the live registry.
                   const meta = parseSearchMetadata(r.metadata);
                   const href = getRegistrySkillHref(r.metadata, allSkills);
-                  const cardClassName = "group block p-6 bg-surface border border-border rounded-2xl hover:border-border-strong hover:bg-surface-raised transition-all duration-200 animate-fade-up flex flex-col h-full";
+                  const cardClassName = "group block p-6 bg-surface border border-border rounded-2xl hover:border-border-strong hover:bg-surface-raised hover:-translate-y-px transition-[border-color,background-color,transform] duration-200 animate-fade-up flex flex-col h-full";
                   const card = (
                     <>
                       <div className="flex items-start justify-between gap-4 mb-4">
@@ -315,7 +314,7 @@ export default async function SearchPage({
                   href={`/search?q=${encodeURIComponent(example)}`}
                   className="px-4 py-2 bg-surface border border-border rounded-xl
                              text-sm text-text-secondary hover:border-text-primary
-                             hover:text-text-primary transition-all shadow-sm"
+                             hover:text-text-primary transition-colors duration-200"
                 >
                   {example}
                 </Link>

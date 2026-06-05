@@ -97,10 +97,8 @@ export default function BrowserAutomationIsDeadPage() {
         </div>
 
         <header className="mb-12 border-b border-border pb-10">
-          <p className="text-xs font-mono font-medium uppercase tracking-[0.25em] text-orange-600 mb-4">
-            Engineering Blog
-          </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight">
+          <span className="eyebrow" style={{ display: "block" }}>Manifesto</span>
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight mt-3">
             {TITLE}
           </h1>
           <p className="mt-4 text-xl sm:text-2xl text-text-secondary font-medium text-balance">
@@ -326,7 +324,7 @@ export default function BrowserAutomationIsDeadPage() {
             <div className="rounded-xl border border-border p-4 sm:p-5">
               <div className="font-semibold text-text-primary mb-1">3. Browser fallback (cold path)</div>
               <p className="text-sm text-text-secondary">
-                No cached route exists. Unbrowse opens a real browser, captures network traffic, reverse-engineers the API endpoints, learns schemas and auth patterns, then publishes to the shared graph. Discovery averages 12.4 seconds and amortizes within 3-5 reuses.
+                No cached route exists. Unbrowse opens a real browser, captures the routes the site uses, turns them into reusable API calls, learns schemas and auth patterns, then publishes to the shared graph. Discovery averages 12.4 seconds and amortizes within 3-5 reuses.
               </p>
             </div>
           </div>

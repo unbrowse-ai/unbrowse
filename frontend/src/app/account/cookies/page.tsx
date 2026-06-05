@@ -192,7 +192,7 @@ export default function CookieVaultPage() {
                     type="button"
                     onClick={() => void remove(d.domain)}
                     disabled={busyDomain === d.domain}
-                    className="shrink-0 px-2 py-1 rounded-md border border-border bg-surface text-xs text-red-400 hover:bg-surface-raised transition-all disabled:opacity-50"
+                    className="shrink-0 px-2 py-1 rounded-md border border-border bg-surface text-xs text-red-400 hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
                   >
                     {busyDomain === d.domain ? "..." : "Remove"}
                   </button>
@@ -206,7 +206,7 @@ export default function CookieVaultPage() {
                 type="button"
                 onClick={() => void purgeAll()}
                 disabled={purging}
-                className="px-3 py-2 rounded-lg border border-border bg-surface text-sm text-red-400 hover:bg-surface-raised transition-all disabled:opacity-50"
+                className="px-3 py-2 rounded-lg border border-border bg-surface text-sm text-red-400 hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
               >
                 {purging ? "Purging..." : "Purge entire vault"}
               </button>

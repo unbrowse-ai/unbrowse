@@ -122,13 +122,13 @@ export function ApiKeyGenerator() {
             className="flex-1 px-4 py-3 rounded-lg bg-surface border border-border
                        text-sm font-mono text-text-primary placeholder:text-text-muted
                        focus:outline-none focus:border-text-primary focus:ring-1 focus:ring-text-primary
-                       transition-all shadow-sm"
+                       transition-[border-color,box-shadow] duration-200 shadow-sm"
           />
           <button
             onClick={handleRegister}
             disabled={loading || !name.trim() || !tosAccepted}
             className="px-6 py-3 rounded-lg bg-text-primary text-surface font-medium text-sm
-                       hover:opacity-90 active:scale-[0.98] transition-all
+                       hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-200
                        disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             {loading ? "Generating..." : "Generate Key"}
@@ -141,7 +141,7 @@ export function ApiKeyGenerator() {
               type="checkbox"
               checked={tosAccepted}
               onChange={(e) => setTosAccepted(e.target.checked)}
-              className="peer appearance-none w-4 h-4 border border-border rounded bg-surface checked:bg-text-primary checked:border-text-primary transition-all cursor-pointer"
+              className="peer appearance-none w-4 h-4 border border-border rounded bg-surface checked:bg-text-primary checked:border-text-primary transition-colors duration-200 cursor-pointer"
             />
             <Check className="absolute w-3 h-3 text-surface opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" strokeWidth={3} />
           </div>

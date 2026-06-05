@@ -66,7 +66,7 @@ function Field({
           <button
             type="button"
             onClick={() => copy(value as string)}
-            className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+            className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-colors duration-200"
           >
             Copy
           </button>
@@ -139,7 +139,7 @@ function ProfileSection({
         <button
           type="button"
           onClick={logout}
-          className="px-4 py-2 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-all"
+          className="px-4 py-2 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-colors duration-200"
         >
           Log out
         </button>
@@ -212,7 +212,7 @@ function FundingControl({
           type="button"
           onClick={() => void unbind()}
           disabled={busy}
-          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
         >
           {busy ? "..." : "Unbind"}
         </button>
@@ -237,7 +237,7 @@ function FundingControl({
           type="button"
           onClick={() => void bindCredit()}
           disabled={busy}
-          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+          className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
           title="Bind a prepaid credit budget so this key auto-pays paid skills"
         >
           {busy ? "..." : "Bind credits"}
@@ -349,14 +349,14 @@ function ApiKeysSection({
             <button
               type="button"
               onClick={() => copy(revealed.key)}
-              className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+              className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-colors duration-200"
             >
               Copy
             </button>
             <button
               type="button"
               onClick={() => setRevealed(null)}
-              className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-muted hover:bg-surface-raised transition-all"
+              className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-muted hover:bg-surface-raised transition-colors duration-200"
             >
               Dismiss
             </button>
@@ -377,7 +377,7 @@ function ApiKeysSection({
           type="button"
           onClick={() => void create()}
           disabled={busy}
-          className="px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200 disabled:opacity-50"
         >
           {busy ? "Creating..." : "Create key"}
         </button>
@@ -419,7 +419,7 @@ function ApiKeysSection({
                     <button
                       type="button"
                       onClick={() => copy(k.keyId)}
-                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-colors duration-200"
                     >
                       Copy
                     </button>
@@ -427,7 +427,7 @@ function ApiKeysSection({
                       type="button"
                       onClick={() => void rotate(k.keyId)}
                       disabled={acting || revoked}
-                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50"
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
                     >
                       {acting ? "..." : "Rotate"}
                     </button>
@@ -435,7 +435,7 @@ function ApiKeysSection({
                       type="button"
                       onClick={() => void revoke(k.keyId)}
                       disabled={acting || revoked}
-                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-red-400 hover:bg-surface-raised transition-all disabled:opacity-50"
+                      className="px-2 py-1 rounded-md border border-border bg-surface text-xs text-red-400 hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50"
                     >
                       Revoke
                     </button>
@@ -659,7 +659,7 @@ function SkillsSection({
                 onClick={() => void toggleVisibility(s)}
                 disabled={busy}
                 aria-pressed={isPublic}
-                className="shrink-0 px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 px-2 py-1 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-[background-color,opacity] duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 title={
                   isPublic
                     ? "Public: in marketplace + resolve. Click to make private."
@@ -756,12 +756,12 @@ function PreferencesSection({
           aria-label="Auto-publish discovered routes"
           onClick={onToggle}
           disabled={saving}
-          className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-[background-color,opacity] duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
             on ? "bg-text-primary" : "bg-surface"
           }`}
         >
           <span
-            className={`inline-block h-4 w-4 rounded-full transition-all ${
+            className={`inline-block h-4 w-4 rounded-full transition-[background-color,transform] duration-200 ${
               on
                 ? "translate-x-6 bg-surface"
                 : "translate-x-1 bg-text-secondary"
@@ -832,7 +832,7 @@ function BillingSummary({
         <div>
           <Link
             href="/billing"
-            className="inline-block px-4 py-2 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-all"
+            className="inline-block px-4 py-2 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-colors duration-200"
           >
             Enroll
           </Link>
@@ -864,7 +864,7 @@ function BillingSummary({
         </div>
         <Link
           href="/billing"
-          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+          className="px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-colors duration-200"
         >
           Manage
         </Link>
@@ -998,7 +998,7 @@ function FlexOnboardingSection({
               </div>
               <Link
                 href={s.href}
-                className="shrink-0 px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-all"
+                className="shrink-0 px-3 py-1.5 rounded-md border border-border bg-surface text-xs text-text-secondary hover:bg-surface-raised transition-colors duration-200"
               >
                 {done ? "Manage" : s.ctaLabel}
               </Link>
@@ -1340,7 +1340,7 @@ function QuickLinks() {
               href={l.href}
               target="_blank"
               rel="noreferrer"
-              className="text-sm text-text-primary hover:text-text-secondary transition-all"
+              className="text-sm text-text-primary hover:text-text-secondary transition-colors duration-200"
             >
               {l.label}
             </a>
@@ -1348,7 +1348,7 @@ function QuickLinks() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm text-text-primary hover:text-text-secondary transition-all"
+              className="text-sm text-text-primary hover:text-text-secondary transition-colors duration-200"
             >
               {l.label}
             </Link>

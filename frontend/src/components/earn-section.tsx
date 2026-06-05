@@ -48,14 +48,14 @@ export function EarnSection() {
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <Link
                 href="/how-unbrowse-pays"
-                className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm hover:bg-orange-600 active:translate-y-px transition-all"
+                className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm hover:bg-orange-600 active:translate-y-px transition-[background-color,transform] duration-200"
               >
                 <span>[ Start earning ]</span>
                 <IconArrow size={14} className="group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
                 href="/how-unbrowse-pays"
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200"
               >
                 How payouts work
               </Link>

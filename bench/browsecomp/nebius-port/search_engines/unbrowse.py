@@ -220,11 +220,26 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
             return results
         cap = int(os.environ.get("UNBROWSE_ENRICH_CHARS", "8000"))
 
+        warm = os.environ.get("WARM_SEARCH_URL", "").rstrip("/")
         async def _one(r: SearchResult) -> SearchResult:
             if not r.url:
                 return r
-            async with self._sem:
-                body, fok = await _run(["fetch", r.url])
+            if warm:
+                # WARM deep-fetch: full page content via the persistent server's
+                # /fetch (curl-impersonate, no bun cold-boot) — maxed retrieval depth
+                # without the per-call wedge.
+                try:
+                    import json as __j, urllib.request as __u
+                    req = __u.Request(f"{warm}/fetch", data=__j.dumps({"url": r.url}).encode(),
+                                      headers={"content-type": "application/json"})
+                    loop = asyncio.get_event_loop()
+                    raw = await loop.run_in_executor(None, lambda: __u.urlopen(req, timeout=60).read().decode())
+                    body = __j.loads(raw).get("html", ""); fok = bool(body)
+                except Exception:
+                    return r
+            else:
+                async with self._sem:
+                    body, fok = await _run(["fetch", r.url])
             if not fok:
                 return r
             full = _clean(body).strip()
@@ -255,26 +270,35 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         cands: list = []
         last_result: dict = {}
         _dec = _json.JSONDecoder()
+        warm = os.environ.get("WARM_SEARCH_URL", "").rstrip("/")
         for _attempt in range(2):
-            async with self._sem:
-                # No --url: a domain biases resolve toward (often junk) cached
-                # routes and blocks the exa fallback. Without it, resolve routes
-                # deterministically to the synthetic exa-web-search skill (global
-                # neural search). The orchestrator's quality gate may still discard
-                # low-score results (→ 0 candidates); the DDG fallback covers that.
-                out, ok = await _run(["search", "--intent", query, "--pretty"])
-            if not ok:
-                continue
-            clean = _clean(out)
-            start = clean.find("{")
-            if start < 0:
-                continue
-            try:
-                # raw_decode parses the first JSON object and ignores trailing log
-                # text (resolve prints JSON then more `info:` lines → "Extra data").
-                d, _end = _dec.raw_decode(clean[start:])
-            except Exception:
-                continue
+            if warm:
+                # WARM path: POST the intent to the persistent in-process server
+                # (built once, no per-call cold-boot) — the unblock that lets a
+                # strong agent run the full eval without the binary wedging.
+                try:
+                    import urllib.request as _u
+                    req = _u.Request(f"{warm}/v1/intent/resolve",
+                                     data=_json.dumps({"intent": query}).encode(),
+                                     headers={"content-type": "application/json"})
+                    loop = asyncio.get_event_loop()
+                    body = await loop.run_in_executor(None, lambda: _u.urlopen(req, timeout=90).read().decode())
+                    d = _json.loads(body)
+                except Exception:
+                    continue
+            else:
+                async with self._sem:
+                    out, ok = await _run(["search", "--intent", query, "--pretty"])
+                if not ok:
+                    continue
+                clean = _clean(out)
+                start = clean.find("{")
+                if start < 0:
+                    continue
+                try:
+                    d, _end = _dec.raw_decode(clean[start:])
+                except Exception:
+                    continue
             last_result = d.get("result") or last_result
             cands = (last_result).get("exa_candidates") or []
             if cands:

@@ -171,7 +171,7 @@ function LoginInner() {
               disabled={submitting || !email.trim()}
               className="w-full inline-flex items-center justify-center gap-2 px-7 py-2.5
                          bg-orange-500 text-white font-mono font-medium text-sm
-                         hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer
+                         hover:bg-orange-600 active:translate-y-px transition-[background-color,transform] duration-200 cursor-pointer
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Sending..." : "[ Send sign-in link ]"}
@@ -226,7 +226,7 @@ function LoginInner() {
               onClick={reset}
               className="w-full inline-flex items-center justify-center gap-2 px-7 py-2.5
                          bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono
-                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
+                         hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
             >
               <span>[ Try again ]</span>
             </button>

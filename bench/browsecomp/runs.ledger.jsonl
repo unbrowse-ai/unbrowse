@@ -1,0 +1,8 @@
+{"run": "run1", "n": 10, "score": 0.1, "latency_s": 706, "ts": "2026-06-04T15:29:55Z", "model": "nebius/openai/gpt-4.1", "log": "logs/run1.log", "per_query_s": 70.6}
+{"run": "run2", "n": 4, "score": 0.0, "latency_s": 323, "ts": "2026-06-04T16:07:10Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run2.log", "per_query_s": 80.8}
+{"run": "run3", "n": 4, "score": 0.0, "latency_s": 330, "ts": "2026-06-04T16:12:40Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run3.log", "per_query_s": 82.5}
+{"run": "run4", "n": 10, "score": 0.1, "latency_s": 698, "ts": "2026-06-04T19:24:46Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run4.log", "per_query_s": 69.8}
+{"run": "run5", "n": 10, "score": 0.1, "latency_s": 673, "ts": "2026-06-04T19:35:59Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run5.log", "per_query_s": 67.3}
+{"run": "run6", "n": 10, "score": 0.1, "latency_s": 581, "ts": "2026-06-04T19:45:40Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run6.log", "per_query_s": 58.1}
+{"run": "run7", "n": 10, "score": 0.1, "latency_s": 649, "ts": "2026-06-04T19:56:29Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run7.log", "per_query_s": 64.9}
+{"run": "run8", "n": 10, "score": 0.1, "latency_s": 654, "ts": "2026-06-04T20:07:23Z", "model": "nebius/moonshotai/Kimi-K2.6", "log": "logs/run8.log", "per_query_s": 65.4}

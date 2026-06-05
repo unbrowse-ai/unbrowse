@@ -34,14 +34,14 @@ export function SearchBar({ initial = "" }: { initial?: string }) {
             className="w-full pl-14 pr-32 py-4 bg-surface border border-border rounded-xl
                        text-base text-text-primary placeholder:text-text-muted
                        focus:outline-none focus:border-text-primary focus:ring-1 focus:ring-text-primary
-                       transition-all"
+                       transition-[border-color,box-shadow] duration-200"
           />
           <button
             type="submit"
             className="absolute right-3 top-1/2 -translate-y-1/2 px-5 py-2
                        bg-text-primary text-surface font-medium rounded-lg text-sm
                        hover:opacity-90 active:scale-[0.98]
-                       transition-all"
+                       transition-[opacity,transform] duration-200"
           >
           Search
         </button>

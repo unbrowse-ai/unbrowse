@@ -68,10 +68,10 @@ export default function BillingPage() {
           </div>
 
           <div className="flex gap-3">
-            <a href="https://lobster.cash" className="px-5 py-2.5 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all">
+            <a href="https://lobster.cash" className="px-5 py-2.5 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200">
               Set up a wallet
             </a>
-            <a href="/how-unbrowse-pays" className="px-5 py-2.5 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-all">
+            <a href="/how-unbrowse-pays" className="px-5 py-2.5 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-colors duration-200">
               How payment works
             </a>
           </div>
