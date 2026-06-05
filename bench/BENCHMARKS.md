@@ -19,9 +19,9 @@
 
 The principle Unbrowse applies to the web — call the real API, don't have an agent
 re-derive it — holds for models too: route to a real tool and execute, instead of
-guessing from weights. A small on-device agent plus a library of executable tools turns
-tasks it fails from weights alone into tasks it solves — every number the same on-device
-model, tools vs no tools, each backed by a re-runnable gate:
+guessing from weights. A small on-device model (Qwen2.5-1.5B) plus a library of
+executable tools turns tasks it fails from weights alone into tasks it solves — every
+number the same 1.5B model, tools vs no tools, each backed by a re-runnable gate:
 
 | task | from weights alone | + routed to a tool |
 |---|---|---|

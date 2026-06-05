@@ -84,8 +84,8 @@ export default function DocsBenchmarksPage() {
             Execute, don&apos;t guess — at model scale
           </p>
           <p className="text-[13px] text-text-secondary mt-2 mb-4 leading-relaxed max-w-2xl">
-            The same on-device 0.8B model, tools vs no tools — the architecture is the
-            capability, not the raw weights.
+            The same small on-device model (1.5B), tools vs no tools — the architecture
+            is the capability, not the raw weights.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-5">
             {[
