@@ -31,25 +31,33 @@ a learned energy + a content-addressed cache win. They stand on their own eviden
 
 The LLM/free-form side: honestly reported failures and ceilings, the inverse of Goodharting.
 
-## ⚠️ PROSE-ONLY — headline number, NO runnable witness found (the flag)
+## ✅ REAL — substantiated, witness in a SIBLING repo (corrected from a wrong "prose-only" flag)
 
-| claim | source | status |
+A first pass flagged the execute-don't-guess family as prose-only because the witnesses
+were not in the *unbrowse* repo or its git history. That flag was **wrong**: digging the
+`.claude` session logs (`tinytools-agent` session `325deed1…`) located every witness +
+run-log on disk in `~/Projects/tinytools-agent/`. The numbers are genuine held-out
+measurements, each PASS:
+
+| claim | exact run-log | witness (on disk, live-runnable) |
 |---|---|---|
-| **execute-don't-guess: code 25%→100%** | `bench/PROGRESS.md`, whitepaper | witness `codebench_witness.py` **NOT in repo or git history** |
-| **knowledge-not-in-weights: 0%→95%** | same | witness `farformula` **not found** |
-| **hard-reasoning: 50%→92%** | same | witness `specialist` **not found** |
-| **apply-skill: 63%→93%** | same | witness `skillfollow` **not found** |
-| latency 3.6× mean / 5.4× median | `paper/internal-apis…tex`, arXiv:2604.00694 | field study; `bench_live.py` needs live network (not a unit witness) |
+| code **25%→100%** | `codebench_run2.log`: base 25.0% → improved 100.0% (28 items, 7 families, target 70%) | `tinytools-agent/codebench_witness.py` (spawns server + `code_adapters`/`improved_adapters`) — CODEBENCH PASS |
+| knowledge **0%→95%** | `farformula_run2.log`: without-retrieval 0/20 → with-retrieval+exec **19/20** | `tinytools-agent/farformula_witness.py` — FARFORMULA PASS |
+| reasoning **50%→92%** | `specialist_run.log`: hard families r1 50% → unified_v2 **92%**, broad 100% | `tinytools-agent/specialist_witness.py` — SPECIALIST PASS |
+| skill **63%→93%** | `skillfollow_run.log`: retrieve-and-follow **28/30=93%** vs scratch **19/30=63%** | `tinytools-agent/skillfollow_witness.py` — SKILLFOLLOW PASS |
+| latency 3.6× / 5.4× median | field study, arXiv:2604.00694 | `paper/reference/bench/bench_live.py` (needs live network) |
 
-`git log -S 'codebench_witness'` shows the script *names* were only ever added to
-`PROGRESS.md` **prose** — the scripts themselves were never committed. So unbrowse's most
-prominent headline ("execute, don't guess: 25%→100%") currently has **no reproducible
-witness on disk**. It may be true (it's a plausible, gate-shaped claim), but per the
-discipline it is **unearned until a runnable scorer exists**.
+The witnesses are **self-contained and live-runnable** (each spawns the served 0.8B with the
+relevant adapter and scores a disjoint held-out set through the real generation+execution
+loop). They were never lost or fabricated — they simply live in the SLM repo
+(`tinytools-agent`), never vendored into `unbrowse/bench/`.
 
-**Honest fix (not done here — flagged):** either restore/commit the four execute-don't-guess
-scorers so the headline numbers re-run green, or soften the whitepaper/landing to "field-
-measured, witness pending." Don't ship a headline whose gate can't be run.
+**Honest gap (real, smaller than the first flag):** unbrowse's `PROGRESS.md`/whitepaper cites
+these witnesses by name, but a reader cloning *only* `unbrowse` cannot run them. Fix: either
+vendor the four witnesses (+ adapters or a download step) into `unbrowse/bench/execute-dont-guess/`,
+or point `PROGRESS.md` at the `tinytools-agent` witness paths. The claims are EARNED (real
+witnesses, real logs); the only debt is repo-locality of the proof. (Lesson: scope the
+witness search to the whole `.claude` corpus, not one repo — the proof can live next door.)
 
 ## The verdict (with Fractal JESPA in mind)
 
