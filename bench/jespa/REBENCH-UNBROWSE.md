@@ -64,9 +64,13 @@ witness search to the whole `.claude` corpus, not one repo — the proof can liv
 The rebench confirms the thesis at the claim-set level:
 - **Discrete-structure / mechanism claims are real and reproducible** (route-EBM, intent-type,
   EBM gates, sealed-cache reuse) — the jespa-winnable, deterministic, witnessed core.
-- **LLM-free-form claims split**: the *honest negatives* (browsecomp, distillation) are
-  witnessed and named; the *headline execute-don't-guess wins* are **prose-only** — the one
-  place the published claim set outruns its runnable evidence.
+- **The headline execute-don't-guess wins are REAL** (corrected from a wrong first flag):
+  witnesses + run-logs in `tinytools-agent`, live-re-run green (code 25→100 confirmed today),
+  and now reliability-hardened — seed-stable in-distribution, partial transfer out
+  (§ Reliability hardening). The only debt is repo-locality (vendor the witnesses into
+  unbrowse) + the honest scope (in-distribution, not universal). Not prose-only; earned.
+- **LLM-free-form NEGATIVES are witnessed and named** (browsecomp 0/15, distillation, rerank) —
+  the inverse of Goodharting.
 
 Reproduce the green ones: `bash bench/jespa/reproduce-all.sh` (+ the ebm/reuse gates above).
 The benchmark judged, not the name — including unbrowse's own.
