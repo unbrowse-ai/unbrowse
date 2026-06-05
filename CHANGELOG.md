@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## v8.2.0 (2026-06-05)
 
 ### What's New
+
+- **Learned ranking head embedded in every runtime.** The route-ranking head now
+  ships as an embedded fallback so every runtime (CLI, MCP, SDK) ranks endpoints
+  with the trained head out of the box, with deterministic ledger load order for a
+  stable split. Landing surfaces, comparison pages, and the benchmark harness were
+  refreshed to match.
 
 - **Website earnings visibility — `GET /v1/claim/earnings?domain=`.** A verified
   domain owner can now read what their bound wallet has been paid. Websites do not
