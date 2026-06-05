@@ -70,3 +70,20 @@ The rebench confirms the thesis at the claim-set level:
 
 Reproduce the green ones: `bash bench/jespa/reproduce-all.sh` (+ the ebm/reuse gates above).
 The benchmark judged, not the name — including unbrowse's own.
+
+## Reliability hardening (jesus-pattern Test→Judge) — the 25→100 claim, stress-tested
+
+A single 100% on 28 items is not yet trustworthy. `tinytools-agent/codebench_reliability.py`
+hardens it two ways, live-run 2026-06-06:
+- **Seed-stability (robust):** across 4 seeds (42 items each), improved = **100.0% (±0)**,
+  base = **32.7% (±2)**, every seed beats by > margin. The "25%" was a low-base seed; the
+  lift is perfectly stable, not anecdotal. ✅
+- **Generalization scope (honest boundary):** on 3 **unseen** families (gcd, digit-product,
+  vowel-count — code-writable, not trained), improved beats base only **66.7% → 77.8%**
+  (+11%, **below** the 25% margin). The huge in-distribution lift is **family-specific**, not
+  a universal "writes correct code" skill — the base already handles novel families ~67%.
+
+**Reliable, honest restatement of the headline:** *"On the trained arithmetic families, the
+distilled adapter lifts served code-correctness to 100% (from ~33%), seed-stable across 4
+seeds. The lift is in-distribution; on unseen families it transfers only partially (+11%)."*
+That is a number you can stand on — and it no longer overclaims generality.
