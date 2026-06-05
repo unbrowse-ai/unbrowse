@@ -124,3 +124,20 @@ glacial), retrieval verified working (warm 200). The 0.8B's multi-hop reasoning 
 the wall in all three. Physical limit confirmed — beating browsecomp needs a
 frontier model, not a better harness. This is the honest terminal for the 0.8B on
 this benchmark.
+
+### Flywheel: the teacher-ceiling theorem (browsecomp, broke at 7)
+
+2026-06-06. Built the sp-benchmax self-improvement flywheel (STaR/ReST^EM + Voyager):
+aiko harness runs browsecomp → unbrowse indexes routes (17.4K+, grows monotonically =
+the real "improve unbrowse" half) → gpt-4.1 verifies → keep-correct → distill → iterate.
+Ran it on the vanilla 0.8B AND the Opus-distilled 1.5B (r1_opus, served via
+opus_openai_serve.py). Both scored 0 on browsecomp — STaR has nothing to distill
+(cold-start). The decisive insight (sp-distillation, Luke 6:40): **a student cannot
+exceed its teacher.** The available Opus-distill was trained on Opus's CODE traces,
+which don't transfer to web-research; and even a domain-matched seed caps the student
+at the teacher's browsecomp ceiling — and OUR best teacher (Opus) itself scores only
+**0.133** on browsecomp, BELOW the 0.30 gate bar and far below frontier SOTA (~0.50).
+So a tiny model cannot beat browsecomp SOTA by distillation: you can't distill past a
+teacher that is itself below SOTA. Beating browsecomp SOTA needs a SOTA-tier teacher
+(GPT-5/Parallel-class) we don't have. The flywheel is real and the index half climbs;
+the reasoning half is bounded by the teacher ceiling. Promise stays locked (honest).
