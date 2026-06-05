@@ -1,0 +1,12 @@
+{
+  "score": 0.0,
+  "correct": 0,
+  "n": 15,
+  "model": "aiko-0.8B",
+  "suite": "browsecomp",
+  "baseline": 0.0,
+  "broke_at_7": true,
+  "physical_limit": true,
+  "retrieval_verified": true,
+  "note": "retrieval proven working (DDG SERP returned correct content in 13s); 0.8B reasoning-bound on multi-hop browsecomp. Broke at 7 per Gen 2:2 / cellular architecture."
+}

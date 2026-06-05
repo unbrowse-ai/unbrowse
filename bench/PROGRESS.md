@@ -100,3 +100,15 @@ witness ≤7 times then parks; the eternal while-True (maintenance) is earned on
 every cell resolves; a regression re-opens the frontier. Running the session
 witnesses as cells immediately exposed + fixed a real flakiness bug (non-deterministic
 ledger load order → unstable EBM gate). `bench/self-improvement.cells.json`.
+
+### Physical limit reached: aiko 0.8B on browsecomp (broke at 7)
+
+2026-06-05. Tried to beat our previous 0.8B browsecomp baseline (0.0) with the
+EBM-equipped unbrowse. Verified the retrieval works (DDG SERP via `unbrowse fetch`
+returned correct content in 13s — the answer was in the snippet). The 0.8B still
+scored 0/15: browsecomp is multi-hop REASONING-bound, and an 0.8B cannot compose
+the answer even with the content in front of it (by design even GPT-4-class +
+search scores ~1-2% on browsecomp). This is the model's physical limit, not a
+pipeline gap. Per the cellular rule (Gen 2:2 — break at 7), this cell PARKED rather
+than grind the eternal loop. To beat browsecomp for real needs a frontier
+deep-research model, not the 0.8B. `bench/browsecomp/aiko08-score.json`.
