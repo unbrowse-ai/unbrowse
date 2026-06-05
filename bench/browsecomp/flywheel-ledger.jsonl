@@ -1,0 +1,2 @@
+{"iter": 1, "model": "vanilla-0.8B", "n": 15, "correct": 0, "score": 0.0, "cold_start": true}
+{"iter": 1, "model": "opus-code-distill-1.5B", "n": 7, "correct": 0, "score": 0.0, "cold_start": true, "note": "r1_opus = code distill; does not transfer to browsecomp web-research"}
