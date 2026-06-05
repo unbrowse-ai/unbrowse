@@ -16,17 +16,41 @@ export default function DocsBenchmarksPage() {
         This page explains how Unbrowse benchmarks are derived, how to read the
         evidence rows they produce, and why the executor never writes its own
         pass/fail verdict. For the methodology in the codebase, see{" "}
-        <a href="https://github.com/unbrowse-ai/unbrowse-dev/blob/main/docs/benchmarks.md">
+        <a href="https://github.com/unbrowse-ai/unbrowse">
           <code>docs/benchmarks.md</code>
-        </a>
-        . For per-run numbers, see{" "}
-        <a href="https://github.com/unbrowse-ai/unbrowse-dev/blob/main/docs/benchmarks-history.md">
-          <code>docs/benchmarks-history.md</code>
-        </a>
-        . For the published paper benchmark (3.6× speedup vs Playwright across
+        </a>{" "}
+        in the open client. For the published paper benchmark (3.6× speedup vs Playwright across
         94 live domains), see{" "}
         <Link href="/benchmark-deep-dive">the benchmark deep-dive</Link>.
       </p>
+
+      <h2>Headline results (reproducible, gated)</h2>
+      <ul>
+        <li>
+          <strong>Anti-bot retrieval — 9/9 vs naive 0/9.</strong> On a
+          reproducible nine-post corpus across three communities of a major
+          JavaScript-challenge-gated social platform, ground-truthed against the
+          platform&apos;s own data, Unbrowse retrieves the real content on{" "}
+          <strong>9/9</strong> posts where a naive HTTP client is blocked on{" "}
+          <strong>100%</strong> of requests (HTTP 403).
+        </li>
+        <li>
+          <strong>Latency &amp; cost — 3.6× / 5.4× / 40×.</strong> Across 94
+          live domains: <strong>3.6× mean / 5.4× median</strong> speedup and{" "}
+          <strong>40× fewer tokens</strong>; on the API-native path ~30× faster
+          and ~90× cheaper than driving a browser.
+        </li>
+        <li>
+          <strong>Execute, don&apos;t guess — at model scale.</strong> The same
+          on-device agent, tools vs no tools, turns tasks it fails from weights
+          alone into tasks it solves: code-correctness{" "}
+          <strong>25% → 100%</strong>, knowledge-not-in-weights{" "}
+          <strong>0% → 95%</strong>, hard reasoning families{" "}
+          <strong>50% → 92%</strong>, and applying a retrieved skill vs
+          reasoning from scratch <strong>63% → 93%</strong>. The architecture is
+          the capability, not the raw weights.
+        </li>
+      </ul>
 
       <h2>The shape of a run</h2>
       <p>A run is three layers:</p>
@@ -72,7 +96,7 @@ export default function DocsBenchmarksPage() {
         </li>
         <li>
           <strong>Per-site heuristic creep.</strong>{" "}
-          <code>if (domain === &quot;x.com&quot;) op SearchTimeline +220</code> shaped
+          <code>if (domain === &quot;some-site.com&quot;) op SearchTimeline +220</code> shaped
           early rankers. It generalised to nothing, the 11th site shipped
           wrong, no one noticed, and the bench reported green because the
           heuristic that scored the call was the same heuristic that scored
@@ -171,8 +195,8 @@ export default function DocsBenchmarksPage() {
               in <code>{"{no_endpoints_extracted, all_endpoints_filtered_by_noise_rules}"}</code>
             </td>
             <td>
-              ✗ Fail (product capability gap &mdash; the bypass is exactly the
-              wedge we should differentiate on)
+              ✗ Fail (product capability gap &mdash; reliable access here is
+              exactly the wedge we should differentiate on)
             </td>
           </tr>
           <tr>
@@ -190,8 +214,8 @@ export default function DocsBenchmarksPage() {
               <code>SKIPPED_NO_FRESH_COOKIES</code>
             </td>
             <td>
-              Probe needs auth AND the local Chrome/Firefox cookie SQLite has no
-              fresh cookie for the domain
+              Probe needs auth AND the existing browser session has no fresh
+              cookie for the domain
             </td>
             <td>Excluded from coverage (skipping is honest; 401ing is noise)</td>
           </tr>
@@ -241,8 +265,8 @@ export default function DocsBenchmarksPage() {
         <code>ANTIBOT_BLOCK</code> counts toward the denominator deliberately.
         &quot;We have 100% coverage except for the blocked sites&quot; is dishonest when
         the blocked sites are exactly where Unbrowse needs to differentiate
-        (libcurl-impersonate, residential proxy fallback, JA4 spoof, real-Chrome
-        cookie injection, headful fallback). Counting them as a failure mode
+        (reliable access via its existing browser session and fallback paths).
+        Counting them as a failure mode
         makes the bench tell the truth.
       </p>
 
@@ -280,27 +304,29 @@ bun scripts/bench-reextract.ts .bench-local/run-<timestamp>`}</code>
 
       <h2>Latest agent verdict</h2>
       <p>
-        The most recent run sits at <strong>50% coverage</strong> on the
-        19-probe <code>harness/probes/corpus.txt</code> set:
+        The most recent run sits at <strong>50% coverage</strong> on a 19-probe
+        cross-section of the corpus (developer registries, news aggregators,
+        code hosts, social platforms, search, travel, public datasets):
       </p>
       <ul>
         <li>
-          <strong>PASS = 9</strong> &mdash; HN, hn.algolia, crates.io,
-          npm/openai, github.com/search, x.com/home, priceline.com,
-          openlibrary.org, beatsaver.com (via Exa fallback)
+          <strong>PASS = 9</strong> &mdash; developer registries, news
+          aggregators, code-search, a social home timeline, a travel search,
+          and a public dataset (one via search fallback)
         </li>
         <li>
-          <strong>ANTIBOT_BLOCK = 4</strong> &mdash; reddit.com/r/singularity
-          (recaptcha), reddit.com/r/programming (recaptcha), x.com/search
-          (auth-wall), nowsecure.nl (CF Turnstile)
+          <strong>ANTIBOT_BLOCK = 4</strong> &mdash; reCAPTCHA-gated community
+          threads, an auth-walled social search, and a Turnstile-gated probe
+          page
         </li>
         <li>
-          <strong>PRODUCT_FAIL = 5</strong> &mdash; x.com/elonmusk, jup.ag,
-          nusmods.com, pubmed, glassdoor.com (all hang at &quot;Still working.
-          Searching cached routes…&quot;)
+          <strong>PRODUCT_FAIL = 5</strong> &mdash; a profile timeline, a DeFi
+          app, a campus dataset, a biomedical index, and a reviews site (all
+          hang at &quot;Still working. Searching cached routes…&quot;)
         </li>
         <li>
-          <strong>AUTH_GATED = 1</strong> (excluded) &mdash; linkedin.com/feed
+          <strong>AUTH_GATED = 1</strong> (excluded) &mdash; a logged-in
+          professional-network feed
         </li>
       </ul>
       <p>

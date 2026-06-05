@@ -15,14 +15,15 @@
 
 The principle Unbrowse applies to the web — call the real API, don't have an agent
 re-derive it — holds for models too: route to a real tool and execute, instead of
-guessing from weights. A small on-device agent plus a library of executable tools beats
-far larger weights on tool-routable tasks, every number backed by a re-runnable gate:
+guessing from weights. A small on-device agent plus a library of executable tools turns
+tasks it fails from weights alone into tasks it solves — every number the same on-device
+model, tools vs no tools, each backed by a re-runnable gate:
 
-| task | result |
-|---|---|
-| code-correctness (route to a real executor) | **25% → 100%** |
-| knowledge not in the weights (retrieve + execute) | **0% → 95%** |
-| hard reasoning families (distilled routing) | **50% → 92%** |
-| vs a 5×-larger model, no tools, on exact tasks | **100% vs 62%** |
+| task | from weights alone | + routed to a tool |
+|---|---|---|
+| code-correctness (route to a real executor) | 25% | **100%** |
+| knowledge not in the weights (retrieve + execute) | 0% | **95%** |
+| hard reasoning families (distilled routing) | 50% | **92%** |
+| apply a retrieved skill vs reason from scratch | 63% | **93%** |
 
 The architecture is the capability — not the raw weights.
