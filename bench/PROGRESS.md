@@ -141,3 +141,15 @@ So a tiny model cannot beat browsecomp SOTA by distillation: you can't distill p
 teacher that is itself below SOTA. Beating browsecomp SOTA needs a SOTA-tier teacher
 (GPT-5/Parallel-class) we don't have. The flywheel is real and the index half climbs;
 the reasoning half is bounded by the teacher ceiling. Promise stays locked (honest).
+
+### Shipped: aiko-claude-distill pipeline (gitea, for Cayden)
+
+2026-06-06. Built + pushed `lekt8/aiko-claude-distill` (gitea): the real distillation
+pipeline that turns Opus `.claude`/`.codex` traces into the aiko 1.5B prior — the
+proven path past the cold-start (a student becomes like its teacher; r1_opus did the
+code subset, this generalizes it). Extracted **20,355 verified (instruction → Opus
+response) pairs from 10,509 real sessions** (code 10.4K / reasoning 4K / agentic 3.9K /
+research 2K); format → MLX LoRA SFT → aiko adapter. Witness `gate.sh` exit 0. Corpus
+gitignored (privacy); pipeline regenerates it. README documents the teacher-ceiling
+theorem plainly: inherits Opus's code/agentic/research competence (the winnable lift),
+does NOT beat BrowseComp SOTA (Opus ~0.13 there; can't distill past the teacher).
