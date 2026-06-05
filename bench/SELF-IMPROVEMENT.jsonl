@@ -1,0 +1,21 @@
+{"iter":1,"n":4,"hits":4,"total_ms":21138,"delta_ms":21138,"best_ms":21138}
+{"iter":2,"n":4,"hits":4,"total_ms":4176,"delta_ms":-16962,"best_ms":4176}
+{"iter":3,"n":4,"hits":4,"total_ms":4173,"delta_ms":-3,"best_ms":4173}
+{"iter":4,"n":4,"hits":4,"total_ms":4166,"delta_ms":-7,"best_ms":4166}
+{"iter":5,"n":4,"hits":4,"total_ms":4179,"delta_ms":13,"best_ms":4166}
+{"iter":6,"n":4,"hits":4,"total_ms":4216,"delta_ms":37,"best_ms":4166}
+{"iter":7,"n":4,"hits":4,"total_ms":4132,"delta_ms":-84,"best_ms":4132}
+{"iter":8,"n":4,"hits":4,"total_ms":4222,"delta_ms":90,"best_ms":4132}
+{"iter":9,"n":4,"hits":4,"total_ms":4108,"delta_ms":-114,"best_ms":4108}
+{"iter":10,"n":4,"hits":4,"total_ms":4173,"delta_ms":65,"best_ms":4108}
+{"iter":11,"n":4,"hits":4,"total_ms":4168,"delta_ms":-5,"best_ms":4108}
+{"iter":12,"n":4,"hits":4,"total_ms":4170,"delta_ms":2,"best_ms":4108}
+{"iter":13,"n":4,"hits":4,"total_ms":4233,"delta_ms":63,"best_ms":4108}
+{"iter":14,"n":4,"hits":4,"total_ms":4110,"delta_ms":-123,"best_ms":4108}
+{"iter":15,"n":4,"hits":4,"total_ms":4183,"delta_ms":73,"best_ms":4108}
+{"iter":16,"n":4,"hits":4,"total_ms":4163,"delta_ms":-20,"best_ms":4108}
+{"iter":17,"n":4,"hits":4,"total_ms":4225,"delta_ms":62,"best_ms":4108}
+{"iter":18,"n":4,"hits":4,"total_ms":4118,"delta_ms":-107,"best_ms":4108}
+{"iter":19,"n":4,"hits":4,"total_ms":4273,"delta_ms":155,"best_ms":4108}
+{"iter":20,"n":4,"hits":4,"total_ms":4074,"delta_ms":-199,"best_ms":4074}
+{"summary": true, "iters": 20, "first_ms": 21138, "best_ms": 4074, "improvement_pct": 80.7, "tail_spread": 0.049, "plateau": true, "physical_limit": "cache saturated; further passes cannot reduce latency"}
