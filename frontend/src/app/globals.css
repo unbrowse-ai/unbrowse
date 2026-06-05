@@ -980,3 +980,89 @@ h1, h2, .font-display {
 @media (max-width: 30rem) {
   .hl-figure__body { padding: 0.75rem; }
 }
+
+/* ── docs prose ──────────────────────────────────────────────────────────
+   Typography for /docs/* article content. The layout used tailwind's `prose`
+   classes, but @tailwindcss/typography is not installed, so they were inert —
+   every docs page rendered as raw unstyled HTML. This is the real type system,
+   in the site's own dark + orange brand. Scoped to skip `.not-prose` subtrees
+   so styled stat-card components keep their own look.                        */
+.docs-prose {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.75;
+  max-width: 46rem;
+}
+.docs-prose > :where(* + *):not(.not-prose *) { margin-top: 1.15rem; }
+.docs-prose :where(h1):not(.not-prose *) {
+  color: var(--text-primary);
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700; line-height: 1.08; letter-spacing: -0.02em;
+  margin-bottom: 0.4rem;
+}
+.docs-prose :where(h2):not(.not-prose *) {
+  color: var(--text-primary);
+  font-size: 1.5rem; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em;
+  margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+}
+.docs-prose :where(h3):not(.not-prose *) {
+  color: var(--text-primary); font-size: 1.15rem; font-weight: 600; margin-top: 2rem;
+}
+.docs-prose :where(h4):not(.not-prose *) {
+  color: var(--text-primary); font-size: 1rem; font-weight: 600; margin-top: 1.5rem;
+}
+.docs-prose :where(p):not(.not-prose *) { max-width: 46rem; }
+.docs-prose :where(strong):not(.not-prose *) { color: var(--text-primary); font-weight: 600; }
+.docs-prose :where(a):not(.not-prose *) {
+  color: rgba(255, 138, 61, 0.96); text-decoration: none;
+  border-bottom: 1px solid rgba(255, 122, 32, 0.3);
+  transition: color 0.15s, border-color 0.15s;
+}
+.docs-prose :where(a):not(.not-prose *):hover {
+  color: rgba(255, 176, 96, 1); border-bottom-color: rgba(255, 122, 32, 0.7);
+}
+.docs-prose :where(ul, ol):not(.not-prose *) { padding-left: 1.4rem; }
+.docs-prose :where(ul):not(.not-prose *) > li { list-style: none; position: relative; }
+.docs-prose :where(ul):not(.not-prose *) > li::before {
+  content: ""; position: absolute; left: -1.1rem; top: 0.72em;
+  width: 5px; height: 5px; border-radius: 1px; background: rgba(255, 122, 32, 0.6);
+}
+.docs-prose :where(ol):not(.not-prose *) { list-style: decimal; }
+.docs-prose :where(ol):not(.not-prose *) > li::marker { color: rgba(255, 122, 32, 0.65); }
+.docs-prose :where(li):not(.not-prose *) { margin-top: 0.5rem; padding-left: 0.15rem; }
+.docs-prose :where(:not(pre) > code):not(.not-prose *) {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em;
+  color: rgba(255, 176, 96, 0.96); background: rgba(255, 122, 32, 0.08);
+  border: 1px solid rgba(255, 122, 32, 0.16); border-radius: 5px; padding: 0.12em 0.4em;
+}
+.docs-prose :where(pre):not(.not-prose *) {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82rem; line-height: 1.6;
+  background: #070503; border: 1px solid var(--border); border-radius: 0.6rem;
+  padding: 1.1rem 1.25rem; overflow-x: auto; color: var(--text-primary);
+}
+.docs-prose :where(pre code):not(.not-prose *) {
+  background: none; border: none; padding: 0; color: inherit; font-size: inherit;
+}
+.docs-prose :where(table):not(.not-prose *) {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+  border: 1px solid var(--border); border-radius: 0.6rem; display: block; overflow-x: auto;
+}
+.docs-prose :where(thead):not(.not-prose *) { background: rgba(255, 122, 32, 0.06); }
+.docs-prose :where(th):not(.not-prose *) {
+  text-align: left; font-weight: 600; color: var(--text-primary);
+  padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.docs-prose :where(td):not(.not-prose *) {
+  padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+.docs-prose :where(tbody tr:last-child td):not(.not-prose *) { border-bottom: none; }
+.docs-prose :where(tbody tr):not(.not-prose *):hover { background: rgba(255, 122, 32, 0.03); }
+.docs-prose :where(blockquote):not(.not-prose *) {
+  border-left: 2px solid rgba(255, 122, 32, 0.45); padding-left: 1rem;
+  color: var(--text-muted); font-style: italic;
+}
+.docs-prose :where(hr):not(.not-prose *) { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+@media (max-width: 640px) {
+  .docs-prose { font-size: 0.92rem; }
+  .docs-prose :where(h2):not(.not-prose *) { margin-top: 2.25rem; }
+}

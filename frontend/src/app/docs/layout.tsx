@@ -35,7 +35,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           ))}
         </nav>
       </aside>
-      <article className="prose prose-neutral max-w-none dark:prose-invert prose-pre:rounded-md prose-pre:border prose-pre:bg-muted/50">
+      <article className="docs-prose min-w-0">
         {children}
       </article>
     </div>
