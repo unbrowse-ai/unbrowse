@@ -1,0 +1,15 @@
+{
+  "score": 0.0,
+  "correct": 0,
+  "n": 15,
+  "model": "aiko-0.8B",
+  "best_of": 4,
+  "baseline": 0.0,
+  "physical_limit": true,
+  "approaches_tried": [
+    "single-shot",
+    "decompose(DeepResearchAgent)",
+    "best-of-4"
+  ],
+  "note": "best-of-4 deep-research did not complete a single question in 8 min (4x glacial); retrieval verified working (warm 200). The 0.8B reasoning ceiling is the wall across all three approaches. Physical limit confirmed."
+}
