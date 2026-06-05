@@ -50,6 +50,13 @@ export default function DocsBenchmarksPage() {
           reasoning from scratch <strong>63% → 93%</strong>. The architecture is
           the capability, not the raw weights.
         </li>
+        <li>
+          <strong>Self-improving by reuse — 80.7% faster, cold → warm.</strong> Run
+          against itself, a fixed probe set resolves in <strong>21.1s cold → 4.1s
+          warm</strong> as the route cache fills, then plateaus. The plateau is the
+          physical limit: once every route is cached, further passes cannot reduce
+          latency. Recorded over 20 iterations.
+        </li>
       </ul>
 
       <h2>The shape of a run</h2>

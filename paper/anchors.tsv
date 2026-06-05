@@ -40,3 +40,4 @@ anti-bot retrieval	bench/reddit/run_reddit.py
 BrowseComp	bench/browsecomp/run-and-record.sh
 sealed to the holder's wallet	src/values/auth-vault.ts
 Execute, don't guess	bench/BENCHMARKS.md
+Self-improving by reuse	bench/self-improve-loop.sh

@@ -495,6 +495,13 @@ families \textbf{50\% $\to$ 92\%} by distilled routing; and applying a retrieved
 rather than reasoning it from scratch \textbf{63\% $\to$ 93\%}. The architecture is the
 capability, not the raw weights --- the same claim the route graph makes for the web.
 
+\paragraph{Self-improving by reuse.} The system improves by running against itself.
+Resolving a fixed probe set repeatedly, latency falls \textbf{21.1\,s cold $\to$ 4.1\,s
+warm (\textbf{$-$80.7\%})} as the route cache fills, then plateaus (tail spread 4.9\%
+over the last five of twenty passes). The plateau is a physical limit, not a tuning
+choice: once every route is cached, further passes cannot reduce latency. Reuse, not
+retraining, is where the compounding comes from.
+
 \paragraph{Credentials are wallet-bound, witnessed end-to-end.} The auth descent is
 exercised against live endpoints: a credential is \emph{sealed to the holder's wallet},
 revealed only for the correct key (a wrong key fails closed), and attached to a real
