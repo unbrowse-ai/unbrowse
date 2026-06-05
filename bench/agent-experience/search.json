@@ -1,0 +1,25 @@
+{
+  "scenario": "search",
+  "auth": false,
+  "ok": true,
+  "intent": "Who is the CEO of Anthropic and what did they found",
+  "latency_ms": 14860,
+  "evidence": {
+    "result_count": 10,
+    "top": [
+      {
+        "title": "Dario Amodei",
+        "url": "https://en.wikipedia.org/wiki/Dario_Amodei"
+      },
+      {
+        "title": "Anthropic",
+        "url": "https://en.wikipedia.org/wiki/Anthropic"
+      },
+      {
+        "title": "Dario Amodei",
+        "url": "https://www.darioamodei.com/"
+      }
+    ],
+    "answer_excerpt": "Dario Amodei (born 1983) is an American artificial intelligence(AI) researcher and entrepreneur. In 2021, he and his sister Daniela Amodei co-founded Anthropic,"
+  }
+}

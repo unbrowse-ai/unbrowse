@@ -35,3 +35,8 @@ Sybil resistance	paper/reference/network/sybil.py
 ERC-8004	paper/reference/network/erc8004.py
 staking by abiding	paper/reference/network/vault_cycle.py
 network interface	src/capture/curl-impersonate-fallback.ts
+wallet-signed value copy	src/values/wallet-seal.ts
+anti-bot retrieval	bench/reddit/run_reddit.py
+BrowseComp	bench/browsecomp/run-and-record.sh
+sealed to the holder's wallet	src/values/auth-vault.ts
+Execute, don't guess	bench/BENCHMARKS.md

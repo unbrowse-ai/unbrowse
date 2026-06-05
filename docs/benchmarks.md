@@ -1,5 +1,13 @@
 # How Unbrowse benchmarks work
 
+## Headline results (reproducible, gated)
+
+- **Anti-bot retrieval — 9/9 vs naive 0/9.** On a reproducible nine-post corpus across three communities of a major JavaScript-challenge-gated social platform (ground-truthed against the platform's own data), Unbrowse retrieves the real content on **9/9** posts where a naive HTTP client is blocked on **100%** of requests (HTTP 403).
+- **Latency & cost — 3.6× / 5.4× / 40×.** Peer-reviewed across 94 live domains: **3.6× mean / 5.4× median speedup, 40× fewer tokens**; ~30× faster and ~90× cheaper than driving a browser ([arXiv:2604.00694](https://arxiv.org/abs/2604.00694)).
+- **Execute, don't guess — at model scale.** A small on-device agent routed to executable tools beats far larger weights on tool-routable tasks: code-correctness **25% → 100%**, knowledge-not-in-weights **0% → 95%**, and **100% vs 62%** against a 5× larger model with no tools.
+
+---
+
 This document explains how Unbrowse benchmarks are derived, how to read
 the evidence rows they produce, and why the executor never renders its
 own pass/fail verdict.

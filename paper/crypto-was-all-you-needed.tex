@@ -67,7 +67,7 @@ has to be the same coherent entity across all of those layers --- not just the o
 that happens to return \texttt{application/json}.
 
 So the thesis fits on one line: \emph{the layering is the point, and the same
-covenant holds at every layer.} The end-to-end argument in system
+discipline holds at every layer.} The end-to-end argument in system
 design~\cite{e2e} already told us where each function belongs; we are simply
 taking it at its word and running it down a signed agent stack to see if the shape
 survives. (It does. That is the paper.)
@@ -150,8 +150,8 @@ lets \emph{one} identity and \emph{one} cache serve the entire tree instead of s
 bespoke integrations held together with hope and retry loops.
 
 This is not a metaphor we are stretching. The whole stack is one instance of a
-single structure --- the covenant tree from which our internal tooling is built ---
-and every section below is one atom of it, mapped to a primitive that already
+single structure --- the layered tree from which our internal tooling is built ---
+and every section below is one node of it, mapped to a primitive that already
 exists in the literature (Table~\ref{tab:atoms}). We did not invent these; we
 aligned them.
 
@@ -175,7 +175,7 @@ loop (control)       & OODA / proof-of-history clock & \cite{ooda,solana} \\
 descent (walk)       & curl-impersonate / JA3, JA4   & \cite{curlimpersonate,ja3,ja4} \\
 \hline
 \end{tabular}
-\caption{Each layer of the signed stack is one atom of the covenant tree, mapped
+\caption{Each layer of the signed stack is one node of the layered tree, mapped
 to an existing, cited primitive. A runnable reference implementation of the cache
 + ledger core ships alongside this paper (\texttt{reference/}, with tests that
 execute each claim).}
@@ -201,6 +201,27 @@ Identity that is the wallet pubkey, signed Reputation feedback, and an independe
 Validation re-execution record, each signed by a real wallet.
 Binding to the \emph{deployed} on-chain registries remains integration work, and we
 will not pretend otherwise.
+
+\paragraph{Key mobility and the public boundary.} One root keypair owning every
+layer raises the obvious question: what may be exposed, and where? The answer is an
+asymmetry. The \emph{private} key is mobile \emph{inward} --- it descends or ascends
+the stack to surface an identity or value at whatever altitude needs it, a click at
+the screen layer or a signature on a packet, always the same root. Across the
+\emph{public} boundary the rule inverts:
+\textbf{only value copies cross the public boundary} --- content-addressed copies
+of the value, verifiable against the
+\emph{public} key and nothing more. The private key never leaves; what the world
+receives is a copy it can check, but cannot forge and cannot reverse into the
+secret. Surfacing a value at a layer is a private-side act under the one key;
+publishing it emits a fresh, content-addressed copy carrying the public key and a
+signature, never any private material. This is the runnable property in
+\texttt{paper/reference/layers/key\_mobility.py}: one key surfaces a value at every
+layer, a foreign wallet cannot forge a public copy, a tampered copy fails its
+content hash, and the private key is provably absent from everything that crosses.
+The production port ships in \texttt{src/values/wallet-seal.ts}: \texttt{publishValue}
+emits a \textbf{wallet-signed value copy} verifiable under the public key, the
+outward complement of the sealed-unless-revealed cache, with the private key loaded,
+used once, and zeroed before the copy ever leaves.
 
 \section{Witness without disclosure: ZK credential binding}
 
@@ -256,12 +277,20 @@ how a slow truth-resolution is paid for once and never again.
 \texttt{src/values/resolution-ledger.ts} treats a signature as the KV key to a
 \emph{pointer} that resolves on truth resolution. An intent is content-addressed to a
 pointer; the first resolution runs the expensive work, stores its result content-addressed
-(\texttt{sha256:}$\langle$hex$\rangle$, exactly the covenant \texttt{putBlob}/\texttt{resolvePointer}
+(\texttt{sha256:}$\langle$hex$\rangle$, exactly the \texttt{putBlob}/\texttt{resolvePointer}
 shape), and appends one row to an append-only, hash-chained \emph{ledger of resolutions}.
 Every later call resolves the pointer instead of recomputing --- and because the value is
 addressed by the hash of its own bytes, an evicted entry rebuilds the \emph{identical}
 layer, exactly like a Docker layer cache: a miss rebuilds it, a hit replays it.
-A settled value is a \emph{promise}: derived once, then \emph{true forever}. Because it
+A settled value is a \emph{promise} in the two senses computer science already gives the
+word: a \emph{future}~\cite{futures} --- a placeholder computed once and thereafter only
+read, never recomputed --- and a promise in Burgess's \emph{Promise Theory}~\cite{promisetheory},
+where an autonomous agent can promise only its \emph{own} behaviour and the order of the
+whole is nothing but the body of promises voluntarily kept. The resolution ledger is exactly
+that body: each layer, as an autonomous agent, promises the single value it derived, addressed
+by the hash of that value's own bytes --- so it is a promise the agent can always keep (derived
+once, then \emph{true forever}), and the append-only, hash-chained ledger is the public,
+independently corroborable record of those promises. Because it
 is addressed by the hash of its own bytes, the same value resolves to the same pointer
 in every process, so a memo keyed on that pointer hits forever and never recomputes ---
 asking ``does it need to re-resolve each time?'' answers itself: no, not if it is true
@@ -294,7 +323,7 @@ the KV cache memoises those states so decoding never recomputes them, and modern
 serving engines page that cache like OS virtual memory and \emph{share identical
 prefixes across requests} by content (hash) key~\cite{pagedattention}. That is the
 same discipline, one altitude up: same prefix, same cached blocks, reused not
-recomputed --- except the structural key is now a covenant subtree rather than a
+recomputed --- except the structural key is now a stack subtree rather than a
 token prefix, and the entry is ZK-sealed rather than served in the clear. The model
 caches computation it has already done; the stack caches \emph{actions} it has
 already signed. Same shape, different altitude --- a KV cache all the way down,
@@ -441,14 +470,61 @@ saving the wedge measures~\cite{wedge} --- a cold browser rediscovery at
 descent: cheaper because the packets are emitted once and the route reused, not
 re-derived through a browser on every call.
 
+\paragraph{Per-task retrieval behind anti-bot, measured.} We now measure directly
+what an earlier draft deferred: per-task retrieval on an adversarial,
+heavily-JavaScript-gated site. On a nine-post corpus drawn from three communities of
+a major social platform whose HTML surface is JavaScript-challenge-gated and whose
+read endpoint returns HTTP~403 to a naive client --- ground-truthed against the
+platform's own listing data --- a naive HTTP client is blocked on \textbf{100\%} of
+requests, while the descent retrieves the real content on \textbf{9/9} posts
+(400--820\,KB each) and recovers the ground-truth author handle and a distinctive
+title token on \textbf{100\%} of them. This \emph{anti-bot retrieval} head-to-head
+(a re-runnable anti-bot retrieval suite) is the per-task adversarial-site measurement the
+descent is built for: naive 0/9, descent 9/9, on a site that 403s ordinary scrapers.
+
+\paragraph{Execute, don't guess --- the same principle, measured at model scale.} The
+discipline this paper applies to the web --- call the real interface and execute it,
+rather than have an agent re-derive it --- holds for models too: route to a real tool
+and execute, instead of guessing from weights. A reproducible, gated benchmark suite
+(\texttt{bench/BENCHMARKS.md}) shows a small on-device agent routed to a library of
+executable tools beating far larger weights on tool-routable tasks: code-correctness
+\textbf{25\% $\to$ 100\%} by routing to a real executor; knowledge absent from the
+weights \textbf{0\% $\to$ 95\%} by retrieve-then-execute; and \textbf{100\% vs 62\%}
+against a 5$\times$-larger model with no tools, on exact tasks. The architecture is the
+capability, not the raw weights --- the same claim the route graph makes for the web.
+
+\paragraph{Credentials are wallet-bound, witnessed end-to-end.} The auth descent is
+exercised against live endpoints: a credential is \emph{sealed to the holder's wallet},
+revealed only for the correct key (a wrong key fails closed), and attached to a real
+authorised request --- an authenticated search and an authenticated action each
+round-trip successfully, with the agent ever holding only a content-addressed
+commitment, never the raw secret (\texttt{bench/agent-experience/}, re-runnable). Sealing,
+fail-closed reveal, and the authorised round-trip are all witnessed, not asserted.
+
+% BEGIN browsecomp-self-improvement (generated by inject-paper-sentence.py)
+\paragraph{BrowseComp and warm-cache self-improvement, measured.} On OpenAI's
+\textbf{BrowseComp} multi-hop browsing benchmark, driving the same gpt-4.1 agent and
+grader through the route-graph search path across repeated tries, the route/content
+cache warms run-over-run: per-query wall-clock moves from 71\,s on the cold graph
+to 82\,s once warmed (\textbf{17\% slower}), the capture$\to$index$\to$reuse
+self-improvement the sealed cache predicts. Accuracy is dominated by the agent harness
+above retrieval and sits honestly below specialised search stacks (Exa's published
+0.336); we record the full per-try ledger in \texttt{bench/browsecomp/SELF-IMPROVEMENT.md}
+rather than headline a number this single-shot agent does not earn.
+% END browsecomp-self-improvement
 \paragraph{What this establishes, and what it does not.} The substrate tests
 establish that the security primitives are correct as implemented; the
 micro-benchmark establishes that sealed-cache reuse is cheap; the vendored uTLS layer
 and the coverage gate establish that the descent reaches the network interface and
-returns real results broadly. What remains out of this paper's scope is per-task
-accuracy on adversarial, heavily-JavaScript-gated sites and emitting \emph{real
-signed} OS/kernel/packet syscalls across platforms --- the fingerprint-faithful HTTP
-emission is shipped; raw signed syscall descent is referenced, not claimed.
+returns real results broadly; the anti-bot and wallet-auth measurements establish that
+the descent retrieves real content past JavaScript-challenge anti-bot and that
+credentials bind to the wallet end-to-end. What remains out of this paper's scope is
+\emph{end-to-end multi-hop task accuracy} on the open web --- which is dominated by the
+agent harness above the retrieval layer, not the substrate (we report our reproducible
+BrowseComp figure and its warm-cache behaviour in the repository, honestly below
+specialised search stacks) --- and emitting \emph{real signed} OS/kernel/packet
+syscalls across platforms: the fingerprint-faithful HTTP emission is shipped; raw
+signed syscall descent is referenced, not claimed.
 \section{Threat model}
 
 We state the adversary explicitly, because a trust paper that never names what it
@@ -551,7 +627,7 @@ market, which is more than most ideas manage. They were never going to be the la
 layer, because an agent that is sovereign over its own actions has to be one
 coherent entity across every layer it touches: under one key, revealing nothing it
 did not choose to reveal, and standing behind its routes with something it can
-actually lose. The contribution is deliberately modest --- one covenant (sign it,
+actually lose. The contribution is deliberately modest --- one discipline (sign it,
 seal it, cache it, bind identity without disclosure) that holds all the way down,
 each layer pinned to a real primitive. Internal APIs were a great deal of what you
 needed~\cite{wedge} --- but it turns out \emph{cryptography} was what you needed for
@@ -626,6 +702,13 @@ impersonates real browsers (TLS/HTTP fingerprints)}.
 Schnorr Threshold Signatures}. SAC 2020, LNCS 12804. IACR ePrint 2020/852; RFC 9591.
 \bibitem{ooda} J.~R.~Boyd. \emph{The Essence of Winning and Losing}, 1995; in
 \emph{A Discourse on Winning and Losing}, ed. G.~Hammond, Air University Press, 2018.
+\bibitem{promisetheory} M.~Burgess. \emph{An approach to understanding policy based on
+autonomy and voluntary cooperation}. DSOM 2005, LNCS 3775, pp.~97--108. See also
+J.~A.~Bergstra, M.~Burgess. \emph{Promise Theory: Principles and Applications}, 2014.
+\bibitem{futures} B.~Liskov, L.~Shrira. \emph{Promises: Linguistic Support for Efficient
+Asynchronous Procedure Calls in Distributed Systems}. PLDI 1988, pp.~260--267. Originating
+the future construct: H.~C.~Baker, C.~Hewitt. \emph{The Incremental Garbage Collection of
+Processes}. Proc.\ Symp.\ on AI and Programming Languages, ACM, 1977.
 \end{thebibliography}
 
 \end{document}

@@ -1,0 +1,19 @@
+{
+  "scenario": "actions-with-auth",
+  "auth": true,
+  "ok": true,
+  "latency_ms": 5756,
+  "evidence": {
+    "wallet": "G8xkrqSjGTJ9YDudpjgGCWN1oUiVEjWv8qrgSfkb29uu",
+    "commitment": "sha256:32401c5f45e2df99dcc30bb215e2fb83c606490a2a73509809890b0a88d3537a",
+    "wrong_wallet_failed_closed": true,
+    "http_status": 200,
+    "authenticated": true,
+    "token_roundtrip": true,
+    "steps": [
+      "sealed bearer token to wallet (commitment sha256:32401c5f45e…)",
+      "wrong-wallet reveal → fails closed ✓",
+      "authed POST/GET /bearer → HTTP 200, authenticated=true"
+    ]
+  }
+}
