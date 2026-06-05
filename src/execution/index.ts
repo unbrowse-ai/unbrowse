@@ -6412,7 +6412,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // to beat it on held-out + cold cells: scripts/ebm-layers-gate.py). Centered on neutral so
     // a route with no signal gets ZERO net effect. Magnitude matches reliability (±40). Fails
     // neutral; disable layer 1 with UNBROWSE_LEDGER_ENERGY=0, layer 3 with UNBROWSE_LEARNED_ENERGY=0.
-    score += (routeEnergy(skillDomain, ep.endpoint_id, ep.source) - LEDGER_NEUTRAL) * 80;
+    score += (routeEnergy(skillDomain, ep.endpoint_id, ep.source, intent) - LEDGER_NEUTRAL) * 80;
 
     // === Domain affinity ===
     if (skillDomain) {

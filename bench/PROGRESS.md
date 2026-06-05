@@ -45,3 +45,26 @@ same-model self-deltas above. A cross-model claim returns only with a paired 0.8
 The winnable benchmarks are at/near 100%. The hard benchmarks are bounded by the
 0.8B's reasoning capacity, which is the actual physical limit referenced here — passing
 them needs a larger model, not a better harness.
+
+## Self-improvement iteration: closed the learned-ranker loop (INTERNAL — not public)
+
+2026-06-05. Audited the learned route-energy ranker; layer-3 was open-loop (the live
+ranker ran on the train-free back-off baseline alone). Two real defects, both fixed:
+
+1. **Dead features.** The live call site (`src/execution/index.ts:6415`) dropped
+   `intent` into `routeEnergy`, AND the trainer read intent from a phantom key —
+   the runtime records it under `goal` (`telemetry.ts` emitRouteTrace), but
+   `ledger_ebm.py` read `r.get("intent")`. Fix: pass `intent` at the call site +
+   read `r.get("intent") or r.get("goal")`. Intent coverage on the real ledger went
+   **0% → 100%** (10,930 rows).
+2. **Wrong success metric.** The trainer gated on overall held-out `lift`, which is
+   structurally ~0 because the back-off baseline already ranks WARM cells near-
+   perfectly. Layer-3's actual job is COLD cells (back-off blind, NEUTRAL there).
+   Re-gated on cold-cell generalisation: `auc_cold >= 0.53` AND no overall
+   degradation. Real result: **cold-cell AUC 0.750** (vs 0.5 blind), real
+   (synthetic:false) head shipped, prod loader loads it (`learnedEnergy=0.8325`).
+
+Witness: `bench/ebm-closed-loop-gate.sh` (exit 0). The loop is closed on real data.
+Remaining (follow-on): schedule the refit so the head auto-updates; bundle the head
+into the deployed worker/npm runtime (CLI-from-source loads it today). This stays
+INTERNAL — the learned-ranker mechanism is never named on a public surface.

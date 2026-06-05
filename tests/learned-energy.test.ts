@@ -16,7 +16,7 @@
  */
 import { test, expect, beforeAll } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { learnedEnergy, __resetLearnedCache } from "../src/ranking/signals/learned-energy.js";
 
@@ -47,6 +47,21 @@ test("learned head ranks a good route above a bad route", () => {
   expect(good).toBeGreaterThan(bad);
   // the gap should be material (the head recovered source/endpoint quality)
   expect(good - bad).toBeGreaterThan(0.1);
+});
+
+test("live ranker call site passes intent into routeEnergy (dead-feature regression guard)", () => {
+  // The dropped-intent bug: src/execution/index.ts called routeEnergy(domain, ep, source)
+  // without intent, so the head's n-gram features were always zero. This asserts the
+  // 4th argument (intent) is present — if it is ever dropped again, this fails.
+  const src = readFileSync(join(REPO, "src/execution/index.ts"), "utf8");
+  expect(src).toMatch(/routeEnergy\([^)]*,\s*intent\s*\)/);
+});
+
+test("trainer reads intent from the real trace key (goal), not a phantom key", () => {
+  // The runtime records intent under "goal" (telemetry.ts emitRouteTrace); the trainer
+  // must accept either key or every real row has empty intent.
+  const py = readFileSync(join(REPO, "scripts/ebm/ledger_ebm.py"), "utf8");
+  expect(py).toMatch(/r\.get\("intent"\)\s*or\s*r\.get\("goal"/);
 });
 
 test("fails closed to null when disabled", () => {
