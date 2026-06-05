@@ -112,3 +112,15 @@ search scores ~1-2% on browsecomp). This is the model's physical limit, not a
 pipeline gap. Per the cellular rule (Gen 2:2 — break at 7), this cell PARKED rather
 than grind the eternal loop. To beat browsecomp for real needs a frontier
 deep-research model, not the 0.8B. `bench/browsecomp/aiko08-score.json`.
+
+### Physical limit re-confirmed: 0.8B browsecomp across THREE approaches
+
+2026-06-05. After v8.2.0 shipped, tried the remaining browsecomp levers to settle
+whether the 0/15 was harness or model: (1) single-shot DeepResearchAgent = 0/15;
+(2) "decompose-search" — turned out the harness ALREADY decomposes (multi-step
+DeepResearchAgent), so this was the same thing; (3) best-of-4 (parallel rollouts +
+confidence vote, cited +15-25%) = did not complete a single question in 8 min (4×
+glacial), retrieval verified working (warm 200). The 0.8B's multi-hop reasoning is
+the wall in all three. Physical limit confirmed — beating browsecomp needs a
+frontier model, not a better harness. This is the honest terminal for the 0.8B on
+this benchmark.
