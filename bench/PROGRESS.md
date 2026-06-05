@@ -80,3 +80,23 @@ returns warm=0.8325 / cold=0.6357 (back-off blind at 0.5). Witness:
 all `UNBROWSE_EBM_*` env vars (the public client had leaked the term in env-var
 names); public tree now fully EBM-clean, `public-tree-leak-gate` green. Remaining:
 schedule the refit so the embedded head auto-regenerates.
+
+### Self-improvement iteration: ebllm EBM as a domain-matched route ranker (INTERNAL)
+
+2026-06-05. Trained ebllm's native MiniTransformer energy head (InfoNCE over the
+[intent <SEP> route] pair) on **8,205 real unbrowse route traces** (`ebllm/extract_unbrowse_routes.py`).
+On held-out intents it ranks the true route among 99 distractors: **R@1 0.0593 (5.6×
+the untrained base, 5.9× the random floor), MRR 0.1141 (2.0× base)**. This is the
+honest "ebm harness": an energy model trained on real route features — NOT the ARC
+grid-EBM or the ebllm KJV-couplet head (foreign feature spaces, rejected as cross-
+domain theater). Witness `ebllm/route_ebm_gate.sh` (exit 0). Honest ceiling: 66% of
+traces resolve to a generic fallback (many intents → one route, unlearnable), so
+R@1 ~0.06 is the real data ceiling, not a tuning miss. Stays INTERNAL.
+
+### Architecture: the self-improvement loop is cellular (break at 7)
+
+The loop now runs as covenant cells (`cellular_loop.py`): each cell attempts its
+witness ≤7 times then parks; the eternal while-True (maintenance) is earned only when
+every cell resolves; a regression re-opens the frontier. Running the session
+witnesses as cells immediately exposed + fixed a real flakiness bug (non-deterministic
+ledger load order → unstable EBM gate). `bench/self-improvement.cells.json`.
