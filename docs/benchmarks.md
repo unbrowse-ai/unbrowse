@@ -50,7 +50,7 @@ binding:
    reported success and the agent got nothing useful — a category
    error that classifier rules silently propagated to every downstream
    bench report.
-2. **Per-site heuristic creep.** `if domain == "x.com" then op
+2. **Per-site heuristic creep.** `if domain == "some-site.com" then op
    SearchTimeline +220` shaped early rankers. It generalised to nothing,
    the 11th site shipped wrong, no one noticed, and the bench reported
    green because the heuristic that scored the call was the same
