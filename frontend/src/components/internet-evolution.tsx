@@ -51,12 +51,11 @@ export function InternetEvolution() {
     <section className="relative py-32 border-b border-border bg-surface">
       <div className="relative max-w-6xl mx-auto px-6">
         
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-raised border border-border text-text-secondary text-xs font-mono font-medium uppercase tracking-widest mb-6">
-            <History className="w-3.5 h-3.5" />
-            Internet Evolution
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-2 text-balance text-text-primary">
+        <div className="section-head text-center mb-16">
+          <span className="eyebrow" style={{ display: "block" }}>
+            <History className="mr-1.5 inline-block h-3 w-3 align-[-1px]" />Internet evolution
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 text-balance text-text-primary">
             The transition to agentic actions
           </h2>
         </div>
@@ -65,7 +64,7 @@ export function InternetEvolution() {
           {eras.map((e, idx) => {
             const Icon = e.icon;
             return (
-              <div key={e.era} className={`group relative p-8 rounded-2xl border ${e.border} ${e.bg} ${e.glow || ''} text-center overflow-hidden transition-all duration-300`}>
+              <div key={e.era} className={`group relative p-8 rounded-2xl border ${e.border} ${e.bg} ${e.glow || ''} text-center overflow-hidden transition-colors duration-300`}>
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Icon className={`w-16 h-16 ${e.iconColor}`} />
                 </div>

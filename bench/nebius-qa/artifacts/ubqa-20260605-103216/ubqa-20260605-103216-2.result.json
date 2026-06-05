@@ -1,0 +1,14 @@
+{
+  "host": "ubqa-20260605-103216",
+  "node_version": "v20.20.2",
+  "npm_version": "10.8.2",
+  "unbrowse_version": "8.1.1",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["health: [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN).", "fetch rc=1 bytes=0; [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN).", "search rc=1 bytes=0; [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN)."]
+}

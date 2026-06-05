@@ -6,19 +6,18 @@ export function SpeedComparison() {
   return (
     <section className="relative py-32 border-b border-border bg-surface-sunken">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-raised border border-border text-text-secondary text-xs font-mono font-medium uppercase tracking-widest mb-6">
-            <Timer className="w-3.5 h-3.5" />
-            Why It Matters
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-4 text-balance text-text-primary">
+        <div className="section-head text-center mb-16">
+          <span className="eyebrow" style={{ display: "block" }}>
+            <Timer className="mr-1.5 inline-block h-3 w-3 align-[-1px]" />Why it matters
+          </span>
+          <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
             Computer Use vs Unbrowse
           </h2>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Computer Use — slow */}
-          <div className="p-8 rounded-2xl border border-border bg-surface transition-all shadow-sm">
+          <div className="p-8 rounded-2xl border border-border bg-surface transition-colors duration-200">
             <div className="flex items-center gap-4 mb-8">
               <div className="w-12 h-12 rounded-xl bg-surface-raised flex items-center justify-center border border-border">
                 <BoxSelect className="w-6 h-6 text-text-muted" />
@@ -56,7 +55,7 @@ export function SpeedComparison() {
           </div>
 
           {/* Unbrowse — fast */}
-          <div className="p-8 rounded-2xl border-2 border-orange-500/30 bg-surface transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.2)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.3)] hover:border-orange-500/50 z-10">
+          <div className="p-8 rounded-2xl border border-orange-500/40 bg-surface transition-[border-color,transform] duration-200 hover:-translate-y-px hover:border-orange-500/60 z-10" style={{ boxShadow: "0 24px 70px -48px var(--glow, rgba(255,82,0,0.45))" }}>
             <div className="flex items-center gap-4 mb-8">
               <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center border border-orange-600 shadow-[0_0_16px_rgba(255,109,0,0.4)]">
                 <Zap className="w-6 h-6 text-white" />

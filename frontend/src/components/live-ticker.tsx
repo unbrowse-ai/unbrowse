@@ -174,7 +174,7 @@ export function LiveTicker() {
             boxShadow: blink
               ? '0 0 8px rgba(255,82,0,0.85)'
               : '0 0 4px rgba(255,82,0,0.4)',
-            transition: reduceMotion ? 'none' : 'all 220ms ease-out',
+            transition: reduceMotion ? 'none' : 'background 220ms cubic-bezier(0.16,1,0.3,1), box-shadow 220ms cubic-bezier(0.16,1,0.3,1)',
             flexShrink: 0,
           }}
         />

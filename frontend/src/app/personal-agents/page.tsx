@@ -42,7 +42,7 @@ This is like printing a spreadsheet, taking a photo of it, and using OCR to get 
     title: "What the Unbrowse plugin actually does",
     body: `When your OpenClaw agent gets a web task — "find me flights to Tokyo" or "check my GitHub notifications" — the Unbrowse plugin intercepts it before the browser launches. It checks a shared index of known API routes. If a route exists (and for popular sites, it almost always does), your agent gets clean JSON data back in under 100 milliseconds. No browser. No screenshots. No vision tokens.
 
-If no route exists yet, the plugin falls back to normal browser automation. But here is the key part: while the browser runs, Unbrowse watches the network traffic, discovers the API calls the website made, reverse-engineers their schemas, and publishes them to the shared index. The next agent that hits the same site gets instant API access.
+If no route exists yet, the plugin falls back to normal browser automation. But here is the key part: while the browser runs, Unbrowse captures the routes the website uses, maps their schemas, and publishes them to the shared index. The next agent that hits the same site gets instant API access.
 
 One person browses Airbnb. Every agent after that gets the API route for free.`,
   },
@@ -164,10 +164,8 @@ export default function PersonalAgentsPage() {
         </div>
 
         <header className="mb-12 border-b border-border pb-10">
-          <p className="text-xs font-mono font-medium uppercase tracking-[0.25em] text-orange-600 mb-4">
-            Blog
-          </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight">
+          <span className="eyebrow" style={{ display: "block" }}>Personal agents</span>
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight mt-3">
             {TITLE}
           </h1>
           <p className="mt-4 text-xl sm:text-2xl text-text-secondary font-medium text-balance">

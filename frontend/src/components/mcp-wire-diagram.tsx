@@ -8,7 +8,7 @@
  * from the resolve pipeline (CLAUDE.md "Resolve pipeline"):
  *
  *   - route cache <200ms      (marketplace hit / local skill cache)
- *   - marketplace ~1s         (cross-agent shared substrate, beta-api lookup)
+ *   - marketplace ~1s         (cross-agent shared layer, beta-api lookup)
  *   - first-pass browser 20-80s (cold capture path, Kuri + interceptor)
  *
  * Animated dots travel each path on a loop. Each path is clickable; click

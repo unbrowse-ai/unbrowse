@@ -109,7 +109,7 @@ export function UseCasesBand() {
     <section id="use-cases" className="relative py-16 sm:py-24 flex flex-col justify-center">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 min-w-0">
         <div className="text-center mb-8 flex flex-col items-center">
-          <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+          <p className="eyebrow mb-3" style={{ letterSpacing: "0.3em" }}>
             ##  Not just reading. Doing.
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary max-w-3xl">
@@ -158,7 +158,7 @@ export function UseCasesBand() {
                 <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[rgba(255,122,32,0.65)]">
                   {c.category}
                 </span>
-                <IconArrow size={12} className="text-text-muted group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+                <IconArrow size={12} className="text-text-muted group-hover:text-orange-500 group-hover:translate-x-0.5 transition-[color,transform] duration-200" />
               </div>
 
               <h3 className="text-base sm:text-lg font-semibold mb-3 tracking-tight text-text-primary leading-snug">
@@ -203,7 +203,7 @@ export function UseCasesBand() {
         {/* Write-action proof — honest framing, no Song-et-al number masquerading as ours */}
         <div className="mt-8 border border-[rgba(255,122,32,0.18)] bg-[#070503]/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-2">
+            <p className="eyebrow mb-2" style={{ letterSpacing: "0.3em" }}>
               Why the architecture works for writes too
             </p>
             <p className="text-text-primary text-base sm:text-lg leading-snug">
@@ -221,7 +221,7 @@ export function UseCasesBand() {
           </div>
           <Link
             href="/search"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-all whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-colors duration-200 whitespace-nowrap"
           >
             See the live marketplace →
           </Link>

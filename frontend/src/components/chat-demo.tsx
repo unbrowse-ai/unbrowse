@@ -532,7 +532,7 @@ export function ChatDemo() {
           {messagesToRender.map((msg, i) => (
             <div
               key={i}
-              className={`flex flex-col transition-all duration-500 ${
+              className={`flex flex-col transition-[color,background-color,border-color,transform,opacity] duration-500 ${
                 msg.role === "user" ? "items-end" : "items-start"
               }`}
             >

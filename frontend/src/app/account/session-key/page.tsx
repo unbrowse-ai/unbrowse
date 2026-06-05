@@ -179,7 +179,7 @@ export default function SessionKeyPage() {
           </p>
           <Link
             href="/account/escrow"
-            className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all"
+            className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200"
           >
             Fund escrow →
           </Link>
@@ -223,7 +223,7 @@ await unbrowse.registerSessionKey({
         </p>
         <Link
           href="/account"
-          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-all"
+          className="inline-block px-4 py-2 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200"
         >
           Back to account →
         </Link>

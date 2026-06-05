@@ -36,5 +36,5 @@ export const metadata: Metadata = {
 };
 
 export default function BrowserUseCompare() {
-  return <ComparisonPage slug="browser-use" />;
+  return <ComparisonPage slug="browser-use" eyebrow="vs Browser Use" />;
 }

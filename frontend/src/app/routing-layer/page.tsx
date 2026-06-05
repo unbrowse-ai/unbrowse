@@ -106,10 +106,8 @@ export default function RoutingLayerPage() {
         </div>
 
         <header className="mb-12 border-b border-border pb-10">
-          <p className="text-xs font-mono font-medium uppercase tracking-[0.25em] text-orange-600 mb-4">
-            Thesis
-          </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight">
+          <span className="eyebrow" style={{ display: "block" }}>Architecture</span>
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight mt-3">
             {TITLE}
           </h1>
           <p className="mt-4 text-xl sm:text-2xl text-text-secondary font-medium text-balance">
@@ -196,7 +194,7 @@ export default function RoutingLayerPage() {
           <p className="mt-6 text-base sm:text-lg leading-8 text-text-secondary">
             Worse, every agent pays this tax independently. If a thousand agents
             need Airbnb pricing data today, a thousand agents will each spend 30
-            seconds reverse-engineering the same page structure, finding the same
+            seconds mapping the same page structure, finding the same
             API endpoints, and parsing the same response formats. The collective
             waste is staggering. Millions of redundant browser sessions. Billions
             of wasted tokens. All because there is no shared memory of what was
@@ -315,7 +313,7 @@ export default function RoutingLayerPage() {
               passive observation of real agent traffic
             </strong>
             . When any agent browses a website through Unbrowse, the network
-            traffic is captured, the API endpoints are reverse-engineered, their
+            routes it uses are captured, the API endpoints are mapped, their
             schemas are extracted, and the routes are published to a shared
             graph. The agent that discovered the route gets credit. Every agent
             that uses the route afterward pays a micro-fee that flows back to the

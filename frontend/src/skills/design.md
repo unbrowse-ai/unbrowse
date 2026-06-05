@@ -27,7 +27,7 @@ description: >-
 
 First principle: **never design from a blank page; design from the best existing
 answer, then improve it.** Before touching a layout, capture a reference UI and
-reverse-engineer its decisions:
+map its decisions:
 
 1. **Capture** the reference live (`/agent-browser` snap/screenshot, or read the
    real DOM). e.g. Google's Gemini "AI Mode" — https://gemini.google.com — the

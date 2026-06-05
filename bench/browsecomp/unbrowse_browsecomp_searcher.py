@@ -235,21 +235,35 @@ class UnbrowseSearchEngine(AsyncSearchEngine):
         cands: list = []
         last_result: dict = {}
         _dec = _json.JSONDecoder()
+        # WARM path: when WARM_SEARCH_URL is set, POST the intent to the persistent
+        # in-process server (built once, no per-call cold-boot) — the unblock that
+        # lets a strong agent run the full eval without the binary wedging.
+        warm = os.environ.get("WARM_SEARCH_URL", "").rstrip("/")
         for _attempt in range(2):
-            async with self._sem:
-                out, ok = await _run(["search", "--intent", query, "--pretty"])
-            if not ok:
-                continue
-            clean = _clean(out)
-            start = clean.find("{")
-            if start < 0:
-                continue
-            try:
-                # raw_decode parses the first JSON object and ignores trailing log
-                # text (resolve prints JSON then more `info:` lines → "Extra data").
-                d, _end = _dec.raw_decode(clean[start:])
-            except Exception:
-                continue
+            if warm:
+                try:
+                    import urllib.request as _u
+                    req = _u.Request(f"{warm}/v1/intent/resolve",
+                                     data=_json.dumps({"intent": query}).encode(),
+                                     headers={"content-type": "application/json"})
+                    loop = asyncio.get_event_loop()
+                    body = await loop.run_in_executor(None, lambda: _u.urlopen(req, timeout=90).read().decode())
+                    d = _json.loads(body)
+                except Exception:
+                    continue
+            else:
+                async with self._sem:
+                    out, ok = await _run(["search", "--intent", query, "--pretty"])
+                if not ok:
+                    continue
+                clean = _clean(out)
+                start = clean.find("{")
+                if start < 0:
+                    continue
+                try:
+                    d, _end = _dec.raw_decode(clean[start:])
+                except Exception:
+                    continue
             last_result = d.get("result") or last_result
             cands = (last_result).get("exa_candidates") or []
             if cands:

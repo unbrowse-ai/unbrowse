@@ -10,7 +10,7 @@
  * fallback. Same security invariants: cookie VALUES never read; history
  * and bookmark URL paths never returned (hostnames only).
  */
-import { Database } from "bun:sqlite";
+import { Database } from "../../../compat/sqlite.js";
 import { existsSync, statSync, copyFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";

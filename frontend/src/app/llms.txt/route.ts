@@ -18,7 +18,7 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
+> Unbrowse is an open-source tool that maps the internal API routes behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
 ## Getting Started
 

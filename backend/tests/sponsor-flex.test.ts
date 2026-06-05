@@ -231,7 +231,9 @@ describe("sendSponsorFlexPayment", () => {
   });
 
   test("calls serializePaymentAuthorization with mint='EPjFW…' and the supplied splits", async () => {
-    const env = envFlexReady();
+    // Mint is network-driven (resolveFlexNetwork); assert the mainnet mint under
+    // explicit mainnet config.
+    const env = envFlexReady({ X402_NETWORK_MODE: "mainnet" });
     let capturedArgs: Record<string, unknown> | null = null;
     const result = await sendSponsorFlexPayment(
       env,

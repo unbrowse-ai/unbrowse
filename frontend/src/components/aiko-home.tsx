@@ -188,23 +188,81 @@ export function AikoHome() {
         // max_tokens, so a 1500-cap was spent entirely on reasoning and left
         // `content` null — every answer rendered as "(empty response)". Disable
         // thinking so it emits the answer directly (also far faster: no 15s think).
-        body: JSON.stringify({ messages, max_tokens: 1500, chat_template_kwargs: { enable_thinking: false } }),
+        // stream:true → the endpoint emits OpenAI-style SSE; we paint tokens live.
+        body: JSON.stringify({ messages, max_tokens: 1500, stream: true, chat_template_kwargs: { enable_thinking: false } }),
       });
-      const elapsed = Math.round(performance.now() - tAns);
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-        x_trace_id?: string;
-        x_queries_remaining?: number;
-        error?: { message?: string };
-      };
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const e = (await res.json()) as { error?: { message?: string } };
+          msg = e?.error?.message || msg;
+        } catch { /* non-JSON error body */ }
         setStatus("error");
-        setError(data?.error?.message || `HTTP ${res.status}`);
+        setError(msg);
         return;
       }
-      const content = data?.choices?.[0]?.message?.content || "(empty response)";
-      if (typeof data?.x_queries_remaining === "number") setRemaining(data.x_queries_remaining);
-      setTurns([...next, { role: "assistant", content, traceId: data?.x_trace_id, answerMs: elapsed }]);
+
+      // Append one assistant turn, then grow its content as SSE chunks arrive.
+      // Frame shape (verified live): `event: trace` → {id, credits_reserved,
+      // mode}; then `data: {choices:[{delta:{content}}]}` token chunks; `[DONE]`.
+      type StreamChunk = {
+        id?: string;
+        credits_reserved?: number;
+        x_queries_remaining?: number;
+        choices?: { delta?: { content?: string } }[];
+      };
+      const assistantIndex = next.length;
+      setTurns([...next, { role: "assistant", content: "" }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      let buffer = "";
+      let traceId: string | undefined;
+      let painted = false;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const ev of events) {
+          for (const line of ev.split("\n")) {
+            const m = line.match(/^data:\s?(.*)$/);
+            if (!m) continue;
+            const payload = m[1].trim();
+            if (!payload || payload === "[DONE]") continue;
+            let chunk: StreamChunk;
+            try { chunk = JSON.parse(payload) as StreamChunk; } catch { continue; }
+            // Trace/control frame (no choices): capture id + remaining quota.
+            if (!chunk.choices && (chunk.id || chunk.credits_reserved !== undefined)) {
+              traceId = traceId ?? chunk.id;
+              if (typeof chunk.x_queries_remaining === "number") setRemaining(chunk.x_queries_remaining);
+              continue;
+            }
+            const delta = chunk.choices?.[0]?.delta?.content;
+            if (typeof delta === "string" && delta.length) {
+              acc += delta;
+              if (!painted) { painted = true; setStatus("ok"); }
+              setTurns((cur) => {
+                const copy = cur.slice();
+                const t = copy[assistantIndex];
+                if (t && t.role === "assistant") copy[assistantIndex] = { ...t, content: acc };
+                return copy;
+              });
+              scrollDown();
+            }
+          }
+        }
+      }
+      const elapsed = Math.round(performance.now() - tAns);
+      setTurns((cur) => {
+        const copy = cur.slice();
+        const t = copy[assistantIndex];
+        if (t && t.role === "assistant") {
+          copy[assistantIndex] = { ...t, content: acc || "(empty response)", traceId, answerMs: elapsed };
+        }
+        return copy;
+      });
       setStatus("ok");
       scrollDown();
     } catch (err) {

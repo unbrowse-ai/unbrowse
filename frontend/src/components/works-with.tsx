@@ -20,14 +20,14 @@ export function WorksWith() {
   return (
       <section className="py-16 sm:py-20 border-b border-border bg-surface-sunken">
        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <p className="text-center text-xs font-mono text-text-muted uppercase tracking-widest mb-10 font-medium">
+        <p className="eyebrow text-center mb-10" style={{ display: "block", color: "var(--text-muted)" }}>
           Works with your stack
         </p>
         <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
           {tools.map(({ name, Icon }) => (
             <div
               key={name}
-              className="group inline-flex items-center gap-3 px-6 py-3 rounded-sm border border-border bg-surface hover:border-orange-500/30 hover:bg-orange-50/50 transition-all cursor-default shadow-sm"
+              className="group inline-flex items-center gap-3 px-6 py-3 rounded-sm border border-border bg-surface hover:border-orange-500/30 hover:bg-orange-50/50 transition-colors duration-200 cursor-default"
             >
               <Icon size={16} className="text-text-muted group-hover:text-orange-500 transition-colors" />
               <span className="text-sm font-medium text-text-secondary group-hover:text-orange-600 transition-colors">{name}</span>

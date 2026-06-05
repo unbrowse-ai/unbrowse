@@ -62,7 +62,7 @@ export function ZeroSetupBand() {
           </div>
 
           {/* Card B — Auth intelligence (sharpened with stale-endpoint demotion) */}
-          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors duration-200 overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconSeal size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Auth intelligence</span>
@@ -89,7 +89,7 @@ export function ZeroSetupBand() {
           </div>
 
           {/* Card C — No injected JS */}
-          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+          <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors duration-200 overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
             <div className="mb-3 flex items-center gap-2 text-orange-500">
               <IconScript size={16} />
               <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Extraction</span>

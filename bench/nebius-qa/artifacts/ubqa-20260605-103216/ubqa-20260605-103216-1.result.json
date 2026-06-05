@@ -1,0 +1,14 @@
+{
+  "host": "ubqa-20260605-103216",
+  "node_version": "v18.19.1",
+  "npm_version": "none",
+  "unbrowse_version": "none",
+  "install_ok": false,
+  "version_ok": false,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["npm install -g unbrowse failed", "unexpected version: none", "health: timeout: failed to run command \u2018unbrowse\u2019: No such file or directory", "fetch rc=127 bytes=0; timeout: failed to run command \u2018unbrowse\u2019: No such file or directory", "search rc=127 bytes=0; timeout: failed to run command \u2018unbrowse\u2019: No such file or directory"]
+}

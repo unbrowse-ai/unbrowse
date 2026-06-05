@@ -302,7 +302,7 @@ export function Navbar() {
               target="_blank"
               rel="noopener"
               onClick={() => setMobileOpen(false)}
-              className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-all"
+              className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-colors duration-200"
             >
               Docs
             </a>
@@ -314,7 +314,7 @@ export function Navbar() {
               target="_blank"
               rel="noopener"
               onClick={() => setMobileOpen(false)}
-              className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-all"
+              className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-colors duration-200"
             >
               GitHub
             </a>
@@ -378,7 +378,7 @@ function MobileNavLink({
     <Link
       href={href}
       onClick={onClick}
-      className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-all"
+      className="block px-3 py-2.5 text-sm font-medium text-text-muted hover:text-text-primary border-l-2 border-transparent hover:border-border transition-colors duration-200"
     >
       {children}
     </Link>

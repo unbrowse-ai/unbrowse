@@ -14,7 +14,7 @@
  */
 
 import type { Env, SkillManifest } from "../types.js";
-import { flexRefundTimeoutSlots } from "./flex-facilitator.js";
+import { flexRefundTimeoutSlots, resolveFlexNetwork } from "./flex-facilitator.js";
 
 /**
  * Role tag for a FlexSplit entry. Off-chain only — the Flex on-chain
@@ -102,9 +102,6 @@ export const OWNER_BPS = 1500;
 export const MAINTAINER_BPS_DEFAULT = 0;
 export const TREASURY_BPS_DEFAULT = 0;
 
-// Mainnet USDC. Devnet/test override happens via the facilitator service in
-// Day-5, not here — this module is pure assembly.
-const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 /**
  * Real implementation: pure arithmetic.
@@ -351,9 +348,14 @@ export async function buildFlexAuthorization(
   const refundTimeout = flexRefundTimeoutSlots(env);
   const expiresAtSlot = (opts.currentSlot + refundTimeout).toString(10);
 
+  // Mint must match the facilitator's resolved network (devnet vs mainnet) —
+  // the client signs the authorization against this mint, so a mismatch would
+  // settle on the wrong cluster. See resolveFlexNetwork.
+  const { usdcMint } = resolveFlexNetwork(env);
+
   return {
     escrow: opts.agentEscrow,
-    mint: USDC_MINT_MAINNET,
+    mint: usdcMint,
     maxAmount: opts.maxAmountUc.toString(10),
     authorizationId,
     expiresAtSlot,

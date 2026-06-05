@@ -78,13 +78,13 @@ export function OpsLoader() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/login"
-            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm w-full sm:w-auto hover:bg-orange-600 active:translate-y-px transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-orange-500 text-white font-mono font-medium text-sm w-full sm:w-auto hover:bg-orange-600 active:translate-y-px transition-[background-color,transform] duration-200 cursor-pointer"
           >
             <span>[ Sign in with email ]</span>
           </Link>
           <Link
             href="/#get-started"
-            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
           >
             <span>[ Get CLI key ]</span>
           </Link>
@@ -123,7 +123,7 @@ export function OpsLoader() {
         <p className="mt-3 text-sm text-red-400">{error}</p>
         <button
           onClick={logout}
-          className="mt-6 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-all cursor-pointer"
+          className="mt-6 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
         >
           <span>[ Logout ]</span>
         </button>

@@ -12,8 +12,12 @@ export default function InstallPage() {
     <>
       <Chapter
         id="install-hero"
-        name="Install"
-        title={<>Install the Unbrowse MCP.</>}
+        title={
+          <>
+            <span className="eyebrow" style={{ display: "block" }}>Install</span>
+            Install the Unbrowse MCP.
+          </>
+        }
         lede={
           isAuthenticated
             ? "Your API key is baked into the command below. Pick your MCP host and copy."

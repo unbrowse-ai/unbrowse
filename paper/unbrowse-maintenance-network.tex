@@ -317,7 +317,7 @@ signers participate, with no single party able to forge the result alone. A
 trust-tier freshness claim is finalised by such a $t$-of-$n$ quorum, so a tier
 does not advance on one operator's say-so and one dishonest or compromised
 maintainer cannot settle a claim by itself. The quorum is the structural form of
-the two-witness rule applied to finality.
+the two-corroborator rule applied to finality.
 
 We are deliberately precise about what the bond purchases. Bonding buys
 \emph{credibility} --- the right to make a claim a counterparty has reason to
@@ -354,7 +354,7 @@ it is settled by independent parties who do not trust either side re-running the
 index and comparing what they observe against the committed proof of indexing. This
 is the role The Graph assigns to its \emph{Fishermen}, who may dispute a published
 Proof of Indexing and, where the dispute resolves against the indexer, trigger a
-slash of its stake~\cite{thegraph}. It is the two-witness principle made
+slash of its stake~\cite{thegraph}. It is the two-corroborator principle made
 operational: a proof stands only on independent corroboration, never on one party's
 assertion (neither the maintainer's original proof nor the challenger's accusation
 is self-validating). ERC-8004's Validation registry~\cite{erc8004} is the surface
@@ -432,8 +432,8 @@ it does not eliminate the attack.
 This section makes one argument, and it is an argument about security, not about
 markets. The conclusion is uncomfortable for a token paper to state plainly:
 \emph{a coordination asset launched for money cannot become trustworthy, so the
-only way to make it trustworthy was to launch it for something else and hide it
-from the money-motive at the root.} That is not a marketing posture dressed as
+only way to make it trustworthy was to launch it for something else and keep it
+clear of the money-motive at the root.} That is not a marketing posture dressed as
 virtue --- it is a property the system needs in order to function, and the rest of
 this section derives it.
 
@@ -447,23 +447,23 @@ be denominated in an asset whose value is tied to the network's own
 integrity~\cite{internalapis}. Payment surface and security stake are kept strictly
 separate, because the moment a holder is forced to spend the security asset to
 \emph{use} the network, the asset becomes a tollgate and the holder a
-beggar-at-the-gate. This is the old wisdom that ``No one can serve two masters''
-(Matt 6:24) read as an engineering constraint: USDC settles usage; FDRY
+beggar-at-the-gate. This is a separation-of-concerns constraint: a single asset
+cannot be both the payment rail and the security stake --- USDC settles usage; FDRY
 only bonds. An asset asked to do both jobs does neither honestly.
 
 \paragraph{Why the distribution is a security parameter.} The non-obvious constraint
-is on FDRY's \emph{distribution}, and it falls straight out of the same witness
+is on FDRY's \emph{distribution}, and it falls straight out of the same corroboration
 logic that governs route trust. Accountability is credible only when many
 \emph{independent} parties hold the bond --- the same way a claim stands on two
-independent witnesses rather than one. A security asset concentrated in insider
-hands is a single witness wearing many hats: it contradicts the very
+independent corroborators rather than one. A security asset concentrated in insider
+hands is a single party wearing many hats: it contradicts the very
 decentralisation it is meant to underwrite. So FDRY launched fair by necessity, not
 branding: no pre-sale, no team allocation, no insider round; supply placed on a
 public Solana pool at launch, acquirable only on the open market at the same price
 for the founder as for everyone else. The fair launch is therefore not a gesture of
 goodwill --- it is the parameter that makes the bond mean anything. The fair launch
 and platform-fee collection are live. The vault cycle that returns the platform's
-USDC fee to the distributed holders --- \emph{staking by abiding} rather than by
+USDC fee to the distributed holders --- \emph{staking by holding} rather than by
 lock-up --- ships as a runnable, tested reference
 (\texttt{reference/network/vault\_cycle.py}): a test confirms the fee
 pool is split pro rata to each holder's balance $\times$ duration held, that the
@@ -485,19 +485,19 @@ thing strangers are right to distrust. FDRY clears this bar only because money w
 not its point: it was distributed with no issuer advantage and then repurposed as
 the security stake. The asset earns trust the same way a route does in this system
 --- by what it does for the network, corroborated by independent holders, not by
-what it promised its founder. This is the grain-of-wheat constraint stated as
-economics: a seed kept for itself ``remains by itself alone,'' and bears only by
-falling into the ground first (John 12:24). Trust precedes value here; the value is
-the fruit of the trust, never its bait.
+what it promised its founder. This is a sequencing constraint stated as
+economics: an asset held purely for its own appreciation generates no trust, and
+accrues real value only after it has first done useful work for the network. Trust
+precedes value here; the value follows from the trust, never the other way round.
 
 \paragraph{Disclosed in full, including the address.} None of this is a license to
 be coy. A trust paper that is evasive about money is not trustworthy, so we state
 the economics plainly --- who pays, who earns, who opts in --- and we print the
-contract address on purpose: \CA{}. What the doctrine refuses is the
+contract address on purpose: \CA{}. What the design refuses is the
 \emph{investment narrative}, the framing of the token as a bet on its own price.
 The ``what'' is fully disclosed; only the money-as-motive framing is denied,
-because that framing is exactly what would poison the soil the security layer has to
-grow in. We make no promise of profit: the mechanism is the claim, not a guarantee.
+because that framing is exactly what would corrupt the trust the security layer
+depends on. We make no promise of profit: the mechanism is the claim, not a guarantee.
 
 \section{What is shipped, what is referenced}
 
@@ -537,7 +537,7 @@ attributed contribution remains an open problem with a cited
 foundation~\cite{sybil}; the reference is the bound, not the closed solution.
 \item ERC-8004 trustless-agent records --- Identity, Reputation,
 Validation, each wallet-signed (\texttt{reference/network/erc8004.py})~\cite{erc8004};
-and the vault fee-return cycle, ``staking by abiding,'' split pro rata to
+and the vault fee-return cycle, ``staking by holding,'' split pro rata to
 balance $\times$ duration (\texttt{reference/network/vault\_cycle.py}). Binding to
 the deployed registries and on-chain settlement of the cycle are integration work.
 \end{itemize}
@@ -577,7 +577,7 @@ the boundary is not secrecy for its own sake but the difference between giving a
 real APIs and handing out an unattributed scraping fleet. Internal APIs were a great
 first layer. The maintained, attributed, bonded graph above them --- kept fresh,
 paid for in proportion to the value it creates, and underwritten by an asset that
-had to be hidden from money before it could be trusted with it --- is the layer that
+had to be kept clear of money before it could be trusted with it --- is the layer that
 was never all you needed, and is the one worth building.
 
 \begin{thebibliography}{99}

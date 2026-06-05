@@ -96,6 +96,7 @@ export default function Classic() {
           className="sr-only"
           data-agent="true"
         >
+          <span className="eyebrow" style={{ display: "block" }}>Overview</span>
           <h2>Unbrowse: direct access to anything on the web, without setting up another MCP</h2>
           <p>
             One MCP server, any website. The first time your agent visits a site,

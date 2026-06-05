@@ -1,0 +1,23 @@
+[10:34:19] installing Node 20 via NodeSource
+[10:35:23] node=v18.19.1 npm=none
+[10:35:23] npm install -g unbrowse@latest
+[10:35:23] unbrowse=none
+[10:35:23] unbrowse health
+[10:35:23] unbrowse fetch (real web content)
+[10:35:23] unbrowse search --intent
+<<<QA_JSON_BEGIN>>>
+{
+  "host": "ubqa-20260605-103226",
+  "node_version": "v18.19.1",
+  "npm_version": "none",
+  "unbrowse_version": "none",
+  "install_ok": false,
+  "version_ok": false,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["npm install -g unbrowse failed", "unexpected version: none", "health: timeout: failed to run command \u2018unbrowse\u2019: No such file or directory", "fetch rc=127 bytes=0; timeout: failed to run command \u2018unbrowse\u2019: No such file or directory", "search rc=127 bytes=0; timeout: failed to run command \u2018unbrowse\u2019: No such file or directory"]
+}
+<<<QA_JSON_END>>>

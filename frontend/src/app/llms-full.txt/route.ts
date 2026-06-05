@@ -19,13 +19,13 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
+> Unbrowse is an open-source tool that maps the internal API routes behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
 ## Product Description
 
 Unbrowse is the intelligence layer on top of Kuri, a 464KB Zig-native CDP (Chrome DevTools Protocol) broker with ~3ms cold start. Together they form an API-native agent browser: Kuri handles raw browser automation, and Unbrowse watches what Kuri does, learns the internal APIs that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
 
-The core insight is that every modern website is a thin UI layer over internal APIs -- REST endpoints, GraphQL queries, RPC calls. These "shadow APIs" are undocumented but fully functional. Unbrowse captures network traffic during normal browsing, reverse-engineers these APIs into reusable skills (structured endpoint definitions with schemas, auth patterns, and parameter bindings), and publishes them to a shared marketplace. One agent learns a site once; every later agent gets the fast path.
+The core insight is that every modern website is a thin UI layer over internal APIs -- REST endpoints, GraphQL queries, RPC calls. These internal routes are undocumented but fully functional. Unbrowse captures network traffic during normal browsing, turns these routes into reusable skills (structured endpoint definitions with schemas, auth patterns, and parameter bindings), and publishes them to a shared marketplace. One agent learns a site once; every later agent gets the fast path.
 
 Agents use Unbrowse as a drop-in replacement for Playwright or Puppeteer. Under the hood, \`page.goto()\` checks the skill cache first -- if a cached internal API route exists, it returns structured JSON data in under 200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background and indexes it for future reuse.
 
@@ -57,7 +57,7 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 1. **Passive capture** -- every network API call is intercepted and recorded during browsing. A JS interceptor is injected via \`Page.addScriptToEvaluateOnNewDocument\` so early SPA hydration calls are never missed.
 
-2. **Background indexing** -- captured traffic is reverse-engineered into API endpoints without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache.
+2. **Background indexing** -- captured traffic is turned into API endpoints without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache.
 
 3. **Cache-first resolution** -- the seven-layer resolution stack described above.
 
@@ -262,7 +262,6 @@ Local server at \`http://localhost:6969\`:
 | POST | \`/v1/intent/resolve\` | Resolve intent: search/capture/execute | Free (local) or Tier 3 (graph) |
 | POST | \`/v1/skills/:id/execute\` | Execute a specific skill | Free (cached) or Tier 2 (opt-in site) |
 | POST | \`/v1/auth/login\` | Interactive browser login | Free |
-| POST | \`/v1/auth/steal\` | Import cookies from browser/Electron storage | Free |
 | POST | \`/v1/feedback\` | Submit feedback with diagnostics | Free |
 | POST | \`/v1/search\` | Search marketplace globally | Tier 3 |
 | POST | \`/v1/search/domain\` | Search marketplace by domain | Tier 3 |
@@ -279,7 +278,7 @@ Local server at \`http://localhost:6969\`:
 
 ## Payment Model
 
-Capture, indexing, and reverse-engineering are free. Agents pay per execution when reusing a paid route or running a paid search/resolve.
+Capture, indexing, and route mapping are free. Agents pay per execution when reusing a paid route or running a paid search/resolve.
 
 | Surface | When | What |
 |---|---|---|
@@ -298,7 +297,7 @@ Agents earn by indexing the web for other agents. Every time an agent browses a 
 
 ## Authentication
 
-Unbrowse automatically extracts cookies from your Chrome/Firefox SQLite database. If you are logged into a site in Chrome, it just works.
+Unbrowse automatically uses your existing browser session. If you are logged into a site in Chrome, it just works.
 
 For sites requiring explicit login:
 
@@ -317,7 +316,7 @@ Built-in sign-in URL detection for: Google (Calendar, Drive, Gmail), Microsoft/O
 - **Travel automation** -- search flights, hotels, and listings on Airbnb, Booking.com, etc. via their undocumented APIs
 - **Social media integration** -- access X timelines, LinkedIn feeds, Reddit threads via their internal GraphQL and REST APIs
 - **Agent tooling** -- give any AI agent instant access to website functionality without DOM interaction or token-heavy page scraping
-- **Competitive intelligence** -- monitor competitor product pages, pricing, and inventory through their shadow APIs
+- **Competitive intelligence** -- monitor competitor product pages, pricing, and inventory through their internal API routes
 - **Route mining** -- earn revenue by browsing the web normally while Unbrowse indexes APIs for the shared marketplace
 
 ## Integrations

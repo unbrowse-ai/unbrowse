@@ -1,0 +1,96 @@
+[
+ {
+  "date": "2026-06-05",
+  "scope": "dead-code removal (amen, gated)",
+  "component": "src/chrome-prim/ (7 files)",
+  "lever": "delete the orphaned chrome-prim fork (duplicate of kuri layers, imported by nothing) surfaced by the kuri-fallback investigation",
+  "witness": "scripts/chrome-prim-removed-gate.sh EXIT 0: dir gone, 0 refs in tracked source, bun build src/cli.ts bundles (import graph intact)",
+  "brief": "kuri confirmed live (broker+stateless-TLS+in-page fallback); its dead lookalike removed"
+ },
+ {
+  "date": "2026-06-05",
+  "scope": "docs<->code<->website sync (jesus-ralph, gated)",
+  "component": "layout.tsx + sdk README (version 8.0.0), validate-sdk-docs (dead-ref), public-scrub-gate (FDRY now public), 21 files moat-reframe (reverse-engineer->map/route-discovery), 5 substrate->interface/layer",
+  "lever": "sync canonical version 8.0.0; remove stale doc reference; mark FDRY economy public (gate updated, doc kept public); scrub moat-HOW vocab from public site/docs",
+  "witness": "scripts/docs-sync-gate.sh EXIT 0: docs-clean + audit-public-docs + validate-sdk-docs + docs-site-adapters + 3 paper-gates + version-jsonld all GREEN; frontend tsc 0",
+  "promise": "weak/self-asserted half acknowledged",
+  "brief": "all repo-native sync gates green; FDRY kept public per user correction"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "streaming + papers (jesus-ralph, gated)",
+  "component": "aiko-home.tsx (SSE streaming), papers/page.tsx + 2 PDFs",
+  "lever": "wire aiko chat to stream OpenAI-style SSE deltas (stream:true + getReader + delta accumulation into Streamdown); add Crypto Was All You Needed + Unbrowse Maintenance Network PDFs to /papers",
+  "witness": "scripts/streaming-papers-gate.sh EXIT 0: 2 PDFs in public/, /papers lists all 3, aiko-home reads SSE stream, tsc 0; runtime: /papers+/aiko 200, PDFs 200, endpoint streams deltas",
+  "brief": "both halves shipped; runnable witness passes"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "NVIDIA Inception branding compliance (jesus-ralph, gated)",
+  "component": "site-footer.tsx + scripts/nvidia-inception-gate.sh",
+  "lever": "add required NVIDIA legal attribution line (verbatim, trademarks alphabetical) site-wide in footer; badge already compliant",
+  "witness": "scripts/nvidia-inception-gate.sh EXIT 0: official unmodified badge (13114B), displayed, legal line verbatim, no forbidden name forms; tsc 0; legal line renders on / and /about",
+  "brief": "NVIDIA Inception guidelines satisfied; runnable witness passes"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "all marketing content routes (jesus-ralph, gated)",
+  "component": "13 routes: about, faq, classic, papers, how-unbrowse-pays, install, security, compare/{playwright,puppeteer,browser-use}, personal-agents, routing-layer, browser-automation-is-dead",
+  "lever": "hero eyebrow / section-head adoption via existing globals.css utilities (3 agents)",
+  "witness": "scripts/hallmark-gate.sh EXIT 0 (GATE GREEN): 0 transition-all, 0 pill-eyebrow, 0 particle backdrops, all marketing routes on-system; tsc 0; 10/10 routes render 200 with eyebrow",
+  "brief": "open frontier closed; runnable witness passes — jesus-ralph grace exit"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "site-wide (fan-out, 3 agents)",
+  "component": "20 files (account*, billing, dashboard, login, ops, 7 components)",
+  "lever": "eliminate transition-all anti-pattern everywhere — replaced with minimal correct per-element transitions",
+  "witness": "tsc 0; grep transition-all in src = 0 files; /, /dashboard, /login, /billing all 200; no malformed brackets",
+  "brief": "design.md gate (no transition-all) now green across the entire frontend; 65 occurrences fixed"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "/search marketplace route",
+  "component": "app/search/page.tsx",
+  "lever": "pill->section-head eyebrow + serif-em + drop transition-all",
+  "witness": "tsc 0; 0 transition-all; /search 200; eyebrow+serif-em render",
+  "brief": "highest-impact route after home brought on-system"
+ },
+ {
+  "date": "2026-06-04",
+  "scope": "shared chrome (site-wide)",
+  "component": "navbar + site-footer + live-ticker",
+  "lever": "drop all transition-all anti-pattern from global chrome",
+  "witness": "tsc 0; 0 transition-all in chrome; navbar+footer render on / AND /faq (site-wide)",
+  "brief": "chrome confirmed already on-system from prior wave; only anti-pattern swept"
+ },
+ {
+  "date": "2026-06-04",
+  "macrostructure": "Marquee Hero",
+  "theme": "studied-DNA",
+  "component": "value-sections (use-cases, internet-evolution, works-with, universal-proof)",
+  "lever": "unify eyebrows to .eyebrow token + section-head hairlines + drop all transition-all",
+  "witness": "tsc 0 errors; render 200; 0 transition-all in all 7 value-sections; 6 eyebrows render on page",
+  "brief": "whole homepage brought on-system; only shared chrome (navbar/footer) deferred to next wave"
+ },
+ {
+  "date": "2026-06-04",
+  "macrostructure": "Marquee Hero",
+  "theme": "studied-DNA",
+  "component": "speed-comparison",
+  "lever": "section-head + drop transition-all + tame growing-glow hover",
+  "witness": "render 200, eyebrow+heading present, 0 residual tells in component",
+  "brief": "value-section #1 brought on-system"
+ },
+ {
+  "date": "2026-06-04",
+  "macrostructure": "Marquee Hero",
+  "theme": "studied-DNA",
+  "theme_axes": "dark / editorial-serif / warm-orange",
+  "enrichment": "none (typography only)",
+  "studied": "yes",
+  "dna_source": "url (anthropic primary + linear/vercel/resend axes)",
+  "brief": "Unbrowse homepage — registry front door, editorial-restraint redesign",
+  "scope": "design.md + homepage (page.tsx + globals.css tokens)"
+ }
+]

@@ -175,7 +175,7 @@ export function ThreePanelVisual() {
               <div className="absolute right-0 top-0 hidden md:block">
                 <button
                   onClick={handleReplay}
-                  className={`flex items-center gap-2 px-4 py-2 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-xs ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                  className={`flex items-center gap-2 px-4 py-2 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-[color,border-color,transform,opacity] duration-200 font-mono text-xs ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                 >
                   <IconCycle size={14} />
                   Replay
@@ -208,7 +208,7 @@ export function ThreePanelVisual() {
                 <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
 
               {/* What Humans See */}
-            <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
+            <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-[color,background-color,border-color,transform] duration-200 relative">
               <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-border-strong" />
@@ -315,7 +315,7 @@ export function ThreePanelVisual() {
             </div>
 
               {/* What Agents See Today */}
-              <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-all relative">
+              <div className="group rounded-sm border border-[rgba(255,122,32,0.22)] bg-[#060402] overflow-hidden transition-[color,background-color,border-color,transform] duration-200 relative">
               <div className="px-4 py-3 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3 relative z-20">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-[rgba(255,122,32,0.3)]" />
@@ -367,7 +367,7 @@ export function ThreePanelVisual() {
                   </div>
                 </div>
 
-            <div className="flex-1 rounded-sm border border-[rgba(255,122,32,0.5)] bg-[#060402] overflow-hidden transition-all shadow-[0_0_40px_-10px_rgba(255,109,0,0.25)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.4)] hover:border-[rgba(255,122,32,0.7)] z-10 relative flex flex-col pt-3">
+            <div className="flex-1 rounded-sm border border-[rgba(255,122,32,0.5)] bg-[#060402] overflow-hidden transition-[border-color,box-shadow] duration-200 shadow-[0_0_40px_-10px_rgba(255,109,0,0.25)] hover:shadow-[0_0_60px_-15px_rgba(255,109,0,0.4)] hover:border-[rgba(255,122,32,0.7)] z-10 relative flex flex-col pt-3">
               <div className="px-5 py-4 border-b border-[rgba(255,122,32,0.18)] bg-[rgba(0,0,0,0.4)] flex items-center gap-3">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500/20" />
@@ -448,7 +448,7 @@ export function ThreePanelVisual() {
           <div className="mt-12 flex justify-center md:hidden">
             <button
               onClick={handleReplay}
-              className={`flex items-center gap-2 px-5 py-2.5 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-all font-mono text-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 border border-[rgba(255,122,32,0.3)] bg-[#060402] text-[rgba(255,122,32,0.7)] hover:text-[rgba(255,176,96,0.9)] hover:border-[rgba(255,122,32,0.5)] transition-[color,border-color,transform,opacity] duration-200 font-mono text-sm ${isFinished ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
             >
               <IconCycle size={16} />
               Replay Animation
