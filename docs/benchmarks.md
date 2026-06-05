@@ -4,7 +4,7 @@
 
 - **Anti-bot retrieval — 9/9 vs naive 0/9.** On a reproducible nine-post corpus across three communities of a major JavaScript-challenge-gated social platform (ground-truthed against the platform's own data), Unbrowse retrieves the real content on **9/9** posts where a naive HTTP client is blocked on **100%** of requests (HTTP 403).
 - **Latency & cost — 3.6× / 5.4× / 40×.** Peer-reviewed across 94 live domains: **3.6× mean / 5.4× median speedup, 40× fewer tokens**; ~30× faster and ~90× cheaper than driving a browser ([arXiv:2604.00694](https://arxiv.org/abs/2604.00694)).
-- **Execute, don't guess — at model scale.** A small on-device agent routed to executable tools beats far larger weights on tool-routable tasks: code-correctness **25% → 100%**, knowledge-not-in-weights **0% → 95%**, and **100% vs 62%** against a 5× larger model with no tools.
+- **Execute, don't guess — at model scale.** The same on-device agent, tools vs no tools, turns tasks it fails from weights alone into tasks it solves: code-correctness **25% → 100%**, knowledge-not-in-weights **0% → 95%**, hard reasoning families **50% → 92%**, and applying a retrieved skill vs reasoning from scratch **63% → 93%**.
 
 ---
 
