@@ -1,0 +1,21 @@
+{
+  "benchmark": "route-retrieval R@1 (I-JEPA masked-intent, real .bench-gate corpus)",
+  "n_routes": 101,
+  "n_cand": 10,
+  "seeds": [
+    {
+      "seed": 7,
+      "lambda": 0.8,
+      "jespa_r_at_1": 0.7097,
+      "baseline_r_at_1": 0.7419,
+      "n_eval": 31
+    },
+    {
+      "seed": 13,
+      "lambda": 0.1,
+      "jespa_r_at_1": 0.6452,
+      "baseline_r_at_1": 0.7419,
+      "n_eval": 31
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "benchmark": "route access-pattern type classification (.bench-gate, 7-class)",
+  "n_routes": 101,
+  "seeds": [
+    {
+      "seed": 7,
+      "jespa_acc": 0.7097,
+      "baseline_acc": 0.3226,
+      "majority": 0.3226,
+      "keyword_nc": 0.2903,
+      "n_eval": 31
+    },
+    {
+      "seed": 13,
+      "jespa_acc": 0.8065,
+      "baseline_acc": 0.3871,
+      "majority": 0.2903,
+      "keyword_nc": 0.3871,
+      "n_eval": 31
+    }
+  ]
+}
