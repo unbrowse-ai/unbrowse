@@ -59,7 +59,10 @@ def load_real_ledger(dir_: str | None = None):
     d = Path(dir_ or os.environ.get("UNBROWSE_TRACES", str(Path.home() / ".unbrowse" / "traces")))
     rows = []
     try:
-        files = [f for f in d.iterdir() if f.suffix == ".json"]
+        # Sort for a DETERMINISTIC load order — iterdir() is filesystem-ordered, so an
+        # unsorted load makes the seeded train/test split non-deterministic across runs
+        # and the cold-cell AUC flaky around the gate threshold. Sorting fixes the split.
+        files = sorted((f for f in d.iterdir() if f.suffix == ".json"), key=lambda p: p.name)
     except Exception:
         return rows
     for f in files[:20000]:
