@@ -94,6 +94,22 @@ def main():
         "auc_cold_cells": round(auc_cold, 4) if auc_cold is not None else None,
         "trained_on": src}, indent=2) + "\n")
 
+    # Embed a REAL, passing head as a compiled-in TS module so the loaded ranker
+    # reaches every runtime — the bundled npm/worker build flattens paths and the
+    # vocab-scrub renames files, so an on-disk pointer alone never ships to users.
+    # A static import always travels with the bundle. Synthetic / failing heads are
+    # NOT embedded (they must never move real-domain ranking).
+    if not synthetic and success:
+        emb = REPO / "src" / "ranking" / "signals" / "route-head.embedded.ts"
+        emb.write_text(
+            "// GENERATED — do not edit by hand (produced by the ranking-head refit).\n"
+            "// A content-addressed ranking head compiled into the bundle so the loaded\n"
+            "// ranker works in every runtime (source, npm, worker). Weights are hashed\n"
+            "// feature buckets — opaque numbers, no readable content.\n"
+            "export const EMBEDDED_HEAD: { weights: number[]; synthetic: boolean; sha: string } = {\n"
+            f"  synthetic: false,\n  sha: {json.dumps(sha)},\n  weights: {json.dumps(w)},\n}};\n"
+        )
+
     if not quiet:
         print(f"[layer3] trained on {src}")
         print(f"[layer3] held-out AUC: baseline(back-off)={auc_base:.3f}  learned={auc_head:.3f}  lift={lift:+.3f}")

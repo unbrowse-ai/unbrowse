@@ -20,6 +20,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ledgerEnergyCached, LEDGER_NEUTRAL } from "./ledger-energy.js";
+import { EMBEDDED_HEAD } from "./route-head.embedded.js";
 
 const FEAT_DIM = 512;
 
@@ -61,28 +62,45 @@ interface Head {
 let cached: Head | null = null;
 let lastPointer = "";
 
+/**
+ * The compiled-in fallback head. On-disk pointers exist on a source checkout and a
+ * machine that has run the refit, but the bundled npm/worker build flattens paths and
+ * the vocab-scrub renames files — so no on-disk pointer ships to users. A static import
+ * always travels with the bundle, so the loaded ranker works in EVERY runtime. Synthetic
+ * embeds are refused (the generator only emits real, passing heads).
+ */
+function embeddedHead(): Head | null {
+  const h = EMBEDDED_HEAD as { weights?: number[]; synthetic?: boolean; sha?: string } | null;
+  if (!h || h.synthetic) return null;
+  if (!Array.isArray(h.weights) || h.weights.length !== FEAT_DIM) return null;
+  if (cached && lastPointer === "embedded" && cached.sha === h.sha) return cached;
+  cached = { weights: h.weights, mtimeMs: 0, sha: h.sha || "embedded" };
+  lastPointer = "embedded";
+  return cached;
+}
+
 /** Load the shipped head, re-reading when the pointer file changes (rollout). null = none. */
 function loadHead(): Head | null {
   if (process.env.UNBROWSE_LEARNED_ENERGY === "0") return null;
   const ptr = pointerPath();
   try {
-    if (!existsSync(ptr)) return null;
+    if (!existsSync(ptr)) return embeddedHead();
     const st = statSync(ptr);
     if (cached && lastPointer === ptr && cached.mtimeMs === st.mtimeMs) return cached;
     const meta = JSON.parse(readFileSync(ptr, "utf8")) as { pointer?: string; sha256_8?: string; synthetic?: boolean };
     const artName = meta.pointer;
-    if (!artName) return null;
+    if (!artName) return embeddedHead();
     // The production ranker only trusts a head fit on the REAL ledger. A synthetic
     // (witness-only) head is refused unless explicitly allowed, so it can never move
     // real-domain ranking even if it lands in the live pointer.
-    if (meta.synthetic && process.env.UNBROWSE_EBM_ALLOW_SYNTHETIC !== "1") return null;
+    if (meta.synthetic && process.env.UNBROWSE_EBM_ALLOW_SYNTHETIC !== "1") return embeddedHead();
     const art = JSON.parse(readFileSync(join(dirname(ptr), artName), "utf8")) as { weights?: number[] };
-    if (!Array.isArray(art.weights) || art.weights.length !== FEAT_DIM) return null;
+    if (!Array.isArray(art.weights) || art.weights.length !== FEAT_DIM) return embeddedHead();
     cached = { weights: art.weights, mtimeMs: st.mtimeMs, sha: meta.sha256_8 || "" };
     lastPointer = ptr;
     return cached;
   } catch {
-    return null;
+    return embeddedHead();
   }
 }
 
