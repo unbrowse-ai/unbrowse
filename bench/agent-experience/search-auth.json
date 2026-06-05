@@ -1,0 +1,18 @@
+{
+  "scenario": "search-with-auth",
+  "auth": true,
+  "ok": true,
+  "latency_ms": 1632,
+  "evidence": {
+    "wallet": "G8xkrqSjGTJ9YDudpjgGCWN1oUiVEjWv8qrgSfkb29uu",
+    "commitment": "sha256:374df5c9eaa5eec0a966178dfd0870ac09228a121c330047f95b5ba2af3e90a9",
+    "wrong_wallet_failed_closed": true,
+    "authed_result_count": 5,
+    "steps": [
+      "sealed EXA api key to wallet G8xkrqSjGT… (commitment sha256:374df5c9eaa…)",
+      "wrong-wallet reveal → fails closed ✓",
+      "correct-wallet reveal → ok ✓ (agent never saw raw key)",
+      "authed Exa search → HTTP 200, 5 results"
+    ]
+  }
+}
