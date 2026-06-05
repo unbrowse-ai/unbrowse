@@ -68,8 +68,11 @@ def load_real_ledger(dir_: str | None = None):
         except Exception:
             continue
         if r.get("outcome") in ("success", "failure") and r.get("endpoint_id"):
+            # The runtime records the agent's intent under "goal" (telemetry.ts
+            # emitRouteTrace); accept either key so the n-gram features are live.
+            intent = r.get("intent") or r.get("goal", "")
             rows.append({"domain": r.get("domain", ""), "endpoint_id": r["endpoint_id"],
-                         "source": r.get("source", ""), "intent": r.get("intent", ""),
+                         "source": r.get("source", ""), "intent": intent,
                          "outcome": r["outcome"]})
     return rows
 

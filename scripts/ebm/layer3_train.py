@@ -59,31 +59,48 @@ def main():
     cold = [(h, y) for h, b, y in zip(head_scores, base_scores, labels) if abs(b - 0.5) < 1e-9]
     auc_cold = auc([h for h, _ in cold], [y for _, y in cold]) if cold else None
 
+    # Layer-3's JOB is the COLD cell — where the back-off statistic has no opinion
+    # (NEUTRAL 0.5) and is structurally blind. On WARM cells the back-off is already
+    # near-perfect, so overall `lift` cannot show layer-3's value there. Success is
+    # therefore: the head does not DEGRADE overall ranking AND it either lifts overall
+    # OR generalises on cold cells (auc_cold clears 0.5 + MIN_LIFT). A head that only
+    # matches back-off on warm cells but ranks cold cells (which back-off cannot) is a
+    # real win — that is exactly the generalisation the layer was built for.
+    cold_win = auc_cold is not None and auc_cold >= 0.5 + MIN_LIFT
+    success = auc_head >= auc_base - 1e-6 and auc_head > 0.5 and (lift >= MIN_LIFT or cold_win)
+
     OUT.mkdir(parents=True, exist_ok=True)
     model = {"dim": len(w), "weights": w, "trained_on": src, "synthetic": synthetic, "metric": {
         "auc_baseline": round(auc_base, 4), "auc_learned": round(auc_head, 4),
         "lift": round(lift, 4), "auc_cold_cells": round(auc_cold, 4) if auc_cold is not None else None,
-        "n_train": len(train), "n_test": len(test)}}
+        "cold_win": cold_win, "n_train": len(train), "n_test": len(test)}}
     blob = json.dumps(model, sort_keys=True)
     sha = hashlib.sha256(blob.encode()).hexdigest()[:8]
     art = OUT / f"energy-head.{sha}.json"
     art.write_text(blob)
     # The LIVE pointer the production ranker reads (energy-head.latest.json) only ever
-    # carries a REAL-ledger head. A synthetic head (the witness) ships to a separate
-    # pointer so it can never pollute real-domain ranking — the ranker reads `.latest`.
-    pointer_name = "energy-head.latest.json" if not synthetic else "energy-head.synthetic.json"
+    # carries a REAL-ledger head that PASSED the success criterion. A synthetic head
+    # (the witness) ships to a separate pointer so it can never pollute real-domain
+    # ranking. A real head that did NOT clear the bar does not advance the live pointer.
+    if synthetic:
+        pointer_name = "energy-head.synthetic.json"
+    elif success:
+        pointer_name = "energy-head.latest.json"
+    else:
+        pointer_name = "energy-head.rejected.json"
     (OUT / pointer_name).write_text(json.dumps({
         "pointer": f"energy-head.{sha}.json", "sha256_8": sha, "synthetic": synthetic,
         "auc_baseline": round(auc_base, 4), "auc_learned": round(auc_head, 4), "lift": round(lift, 4),
+        "auc_cold_cells": round(auc_cold, 4) if auc_cold is not None else None,
         "trained_on": src}, indent=2) + "\n")
 
     if not quiet:
         print(f"[layer3] trained on {src}")
         print(f"[layer3] held-out AUC: baseline(back-off)={auc_base:.3f}  learned={auc_head:.3f}  lift={lift:+.3f}")
         if auc_cold is not None:
-            print(f"[layer3] cold-cell AUC (back-off blind here): learned={auc_cold:.3f}")
-        print(f"[layer3] shipped pointer energy-head.{sha}.json -> energy-head.latest.json")
-    sys.exit(0 if lift >= MIN_LIFT and auc_head > 0.5 else 1)
+            print(f"[layer3] cold-cell AUC (back-off blind here): learned={auc_cold:.3f}  cold_win={cold_win}")
+        print(f"[layer3] success={success} -> shipped energy-head.{sha}.json as {pointer_name}")
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()
