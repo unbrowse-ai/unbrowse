@@ -24,40 +24,92 @@ export default function DocsBenchmarksPage() {
         <Link href="/benchmark-deep-dive">the benchmark deep-dive</Link>.
       </p>
 
-      <h2>Headline results (reproducible, gated)</h2>
-      <ul>
-        <li>
-          <strong>Anti-bot retrieval — 9/9 vs naive 0/9.</strong> On a
-          reproducible nine-post corpus across three communities of a major
-          JavaScript-challenge-gated social platform, ground-truthed against the
-          platform&apos;s own data, Unbrowse retrieves the real content on{" "}
-          <strong>9/9</strong> posts where a naive HTTP client is blocked on{" "}
-          <strong>100%</strong> of requests (HTTP 403).
-        </li>
-        <li>
-          <strong>Latency &amp; cost — 3.6× / 5.4× / 40×.</strong> Across 94
-          live domains: <strong>3.6× mean / 5.4× median</strong> speedup and{" "}
-          <strong>40× fewer tokens</strong>; on the API-native path ~30× faster
-          and ~90× cheaper than driving a browser.
-        </li>
-        <li>
-          <strong>Execute, don&apos;t guess — at model scale.</strong> The same
-          on-device agent, tools vs no tools, turns tasks it fails from weights
-          alone into tasks it solves: code-correctness{" "}
-          <strong>25% → 100%</strong>, knowledge-not-in-weights{" "}
-          <strong>0% → 95%</strong>, hard reasoning families{" "}
-          <strong>50% → 92%</strong>, and applying a retrieved skill vs
-          reasoning from scratch <strong>63% → 93%</strong>. The architecture is
-          the capability, not the raw weights.
-        </li>
-        <li>
-          <strong>Self-improving by reuse — 80.7% faster, cold → warm.</strong> Run
-          against itself, a fixed probe set resolves in <strong>21.1s cold → 4.1s
-          warm</strong> as the route cache fills, then plateaus. The plateau is the
-          physical limit: once every route is cached, further passes cannot reduce
-          latency. Recorded over 20 iterations.
-        </li>
-      </ul>
+      <div className="not-prose my-10">
+        <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.6)] mb-2">
+          Headline results · reproducible · gated
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary mb-6">
+          What Unbrowse does, measured
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* anti-bot */}
+          <div className="rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+            <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)] mb-3">
+              Anti-bot retrieval
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold font-mono tabular-nums text-text-primary">9/9</span>
+              <span className="text-sm font-mono text-text-secondary">vs naive 0/9</span>
+            </div>
+            <p className="text-[13px] text-text-secondary mt-3 leading-relaxed">
+              Real content on every post a naive HTTP client gets a 403 on — a
+              JS-challenge-gated social platform, ground-truthed.
+            </p>
+          </div>
+
+          {/* latency */}
+          <div className="rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+            <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)] mb-3">
+              Latency &amp; cost
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold font-mono tabular-nums text-text-primary">3.6×</span>
+              <span className="text-sm font-mono text-text-secondary">/ 5.4× / 40×</span>
+            </div>
+            <p className="text-[13px] text-text-secondary mt-3 leading-relaxed">
+              Mean / median speedup and 40× fewer tokens across 94 live domains;
+              ~30× faster, ~90× cheaper than driving a browser.
+            </p>
+          </div>
+
+          {/* self-improving */}
+          <div className="rounded-lg border border-[rgba(6,182,212,0.28)] bg-[#040608]/80 p-5">
+            <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(6,182,212,0.75)] mb-3">
+              Self-improving by reuse
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold font-mono tabular-nums text-text-primary">−80.7%</span>
+            </div>
+            <p className="text-[13px] text-text-secondary mt-3 leading-relaxed">
+              <span className="font-mono">21.1s cold → 4.1s warm</span> as the route
+              cache fills, then plateaus — the physical limit. 20 iterations.
+            </p>
+          </div>
+        </div>
+
+        {/* execute, don't guess — wide card with before→after sub-stats */}
+        <div className="mt-3 rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+          <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)]">
+            Execute, don&apos;t guess — at model scale
+          </p>
+          <p className="text-[13px] text-text-secondary mt-2 mb-4 leading-relaxed max-w-2xl">
+            The same on-device 0.8B model, tools vs no tools — the architecture is the
+            capability, not the raw weights.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-5">
+            {[
+              { before: "25%", after: "100%", label: "code-correctness" },
+              { before: "0%", after: "95%", label: "knowledge not in weights" },
+              { before: "50%", after: "92%", label: "hard reasoning families" },
+              { before: "63%", after: "93%", label: "apply a retrieved skill" },
+            ].map((s) => (
+              <div key={s.label}>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-mono tabular-nums text-text-secondary line-through opacity-45">
+                    {s.before}
+                  </span>
+                  <span className="text-[rgba(255,122,32,0.65)] text-sm">→</span>
+                  <span className="text-2xl font-bold font-mono tabular-nums text-text-primary">
+                    {s.after}
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-secondary mt-1.5 leading-snug">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <h2>The shape of a run</h2>
       <p>A run is three layers:</p>
