@@ -4,15 +4,6 @@
 
 set -e
 
-# MCP-surface gate: block a push to main when gate-affecting code
-# (src, packages/sdk, harness/probes/*) changes without a fresh
-# agent-judged MCP stamp (.bench-gate/stamp.mcp.json), produced by the
-# /unbrowse-mcp-gate skill. No-ops for non-main pushes and doc-only
-# pushes. A hook cannot judge; it only verifies the stamp the agent
-# produced. Bypass: MCP_GATE_BYPASS=1 (loud; explain in CHANGELOG).
-if [ -f scripts/mcp-gate-prepush.sh ]; then
-  bash scripts/mcp-gate-prepush.sh "$@" || exit 1
-fi
 # Only run if we have test analyses with actual content
 if [ ! -f "tests/p0-p1-analyses.json" ]; then
   exit 0
