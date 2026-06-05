@@ -153,3 +153,44 @@ research 2K); format → MLX LoRA SFT → aiko adapter. Witness `gate.sh` exit 0
 gitignored (privacy); pipeline regenerates it. README documents the teacher-ceiling
 theorem plainly: inherits Opus's code/agentic/research competence (the winnable lift),
 does NOT beat BrowseComp SOTA (Opus ~0.13 there; can't distill past the teacher).
+
+### JESPA benchmark scorecard — honest (2026-06-06)
+
+"Turn unbrowse jespa-based to beat as many benchmarks as we can." Walked it; the
+benchmark judged, not the name. Witness `bench/jespa/jespa-benchmarks-gate.sh` (exit 0,
+target = honest reproduced-win count = 1). Ledger `bench/jespa/benchmarks-ledger.jsonl`.
+
+| benchmark | jespa | baseline | verdict |
+|---|---|---|---|
+| route-EBM retrieval (R@1, 99 distractors, real 8,205-trace corpus) | **0.0488 (4.6× base)** | 0.0106 | **WIN** (reproduced from scratch; `ebllm/route_ebm_gate.sh` PASS) |
+| LLM distillation before→after (blind A/B vs Opus teacher, gpt-4o judge, n=30) | 0.333 | 0.600 | **honest negative** — base beats distilled 18–10 |
+| public route-retrieval (101-route .bench-gate corpus) | 0.53 | 0.89 | **honest negative** — keyword wins; corpus too small |
+
+Two real findings worth keeping:
+- **The distillation did NOT beat base.** Held-out val loss dropped `3.427 → 1.679`, but
+  the distilled adapter's *generations* are judged worse than the base instruct model
+  (LoRA degraded a strong base). Per-type: base wins overall and on code (5–11); a weak,
+  underpowered distilled-favoring signal on reasoning (4–2, n=6) — NOT banked as a win.
+  The original "distilled beats base" completion-promise is honestly unmet.
+- **A broken judge nearly hid it.** `gpt-4.1` rejected `max_tokens=400` → 400 error → the
+  judge's silent `except: TIE` produced a fake **30/30 ties**. Caught it (too uniform),
+  switched to `gpt-4o`, made the judge fail LOUD. The real verdict (base>distilled) only
+  appeared after the fix. Silent-failure lesson, re-learned.
+
+The one genuine jespa win on unbrowse is route-ranking energy (route-EBM) — real, large
+(4.6× base), reproduced. unbrowse's live ranker is already energy-based (`routeEnergy`,
+src/execution/index.ts:6415). We beat the one we genuinely can; the rest we named honestly.
+
+### JESPA scorecard update — win #2 (2026-06-06)
+
+A second genuinely-winnable unbrowse benchmark, found by the jespa-bench loop (target 2):
+**route access-pattern type classification** (anchor / ssr-list / graphql / auth-gated /
+semantic-rank / hostile / auth-cookies) from URL+structure tokens, real .bench-gate corpus,
+held-out by URL. The learned energy classifier beats the *stronger* baseline (majority +
+keyword nearest-centroid) by **+0.39 / +0.42** (≈2.1×) on both seeds — `jespa 0.71–0.81 vs
+base 0.32–0.39`. Witness `bench/jespa/intent-type-gate.sh` (re-runs from scratch). Not
+p-hacked: distinct task, beats the stronger baseline, large margin, two seeds.
+
+Ledger now: **2 reproduced jespa wins** (route-EBM retrieval 4.6×; intent-type 2.1×) +
+3 honest negatives (distillation, public-retrieval, the teacher-capped SOTA). The winnable
+that we can find, we jespa-max; the rest stay honest negatives.
