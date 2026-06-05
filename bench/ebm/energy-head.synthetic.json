@@ -1,0 +1,10 @@
+{
+  "pointer": "energy-head.4690faa2.json",
+  "sha256_8": "4690faa2",
+  "synthetic": true,
+  "auc_baseline": 0.5462,
+  "auc_learned": 0.6201,
+  "lift": 0.0739,
+  "auc_cold_cells": 0.6292,
+  "trained_on": "synthetic ledger (4000 rows)"
+}
