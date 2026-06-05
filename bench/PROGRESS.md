@@ -65,6 +65,18 @@ ranker ran on the train-free back-off baseline alone). Two real defects, both fi
    (synthetic:false) head shipped, prod loader loads it (`learnedEnergy=0.8325`).
 
 Witness: `bench/ebm-closed-loop-gate.sh` (exit 0). The loop is closed on real data.
-Remaining (follow-on): schedule the refit so the head auto-updates; bundle the head
-into the deployed worker/npm runtime (CLI-from-source loads it today). This stays
-INTERNAL — the learned-ranker mechanism is never named on a public surface.
+
+### Follow-on shipped: the closed loop now reaches the bundled runtime (INTERNAL)
+
+The head loaded from a source checkout but not the scrubbed npm/worker bundle
+(`repoRoot()` won't resolve in a flattened bundle; the vocab-scrub renames the
+loader + the `energy-head` filename). Fix: the trainer now also emits a compiled-in
+fallback `src/ranking/signals/route-head.embedded.ts` (a real, passing head only —
+never synthetic), and the loader falls back to it when no on-disk pointer is found.
+A static import always travels with the bundle, so the loaded ranker now works in
+EVERY runtime (source, npm, worker) — proven: with NO file on disk the loader
+returns warm=0.8325 / cold=0.6357 (back-off blind at 0.5). Witness:
+`bench/ebm-runtime-ship-gate.sh` (exit 0). Also tightened `scrub-vocab.sh` to rename
+all `UNBROWSE_EBM_*` env vars (the public client had leaked the term in env-var
+names); public tree now fully EBM-clean, `public-tree-leak-gate` green. Remaining:
+schedule the refit so the embedded head auto-regenerates.

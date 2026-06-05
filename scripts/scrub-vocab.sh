@@ -68,7 +68,7 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     # The product uses energy-based ranking; the public surface calls it confidence/ranking
     # and never names the EBM. Specific identifiers + non-public tool paths first, then generic. ---
     s{(?:scripts/ebm[A-Za-z0-9_./\-]*|bench/ebm[A-Za-z0-9_./\-]*)}{(internal tooling)}g;
-    s/UNBROWSE_EBM_HEAD/UNBROWSE_RANKING_HEAD/g;
+    s/UNBROWSE_EBM_/UNBROWSE_RANKING_/g;
     s/UNBROWSE_LEDGER_ENERGY/UNBROWSE_LEDGER_CONFIDENCE/g; s/UNBROWSE_LEARNED_ENERGY/UNBROWSE_LEARNED_CONFIDENCE/g;
     s/ledger-energy/ledger-confidence/g; s/learned-energy/learned-confidence/g;
     s/ledgerEnergyCached/ledgerConfidenceCached/g; s/learnedEnergyCached/learnedConfidenceCached/g;
