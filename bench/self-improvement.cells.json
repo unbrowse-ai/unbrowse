@@ -2,5 +2,6 @@
   {"name": "benchmarks-published", "cmd": "bash /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/bench/whitepaper-benchmarks-gate.sh >/dev/null 2>&1"},
   {"name": "self-improve-20x",     "cmd": "bash /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/bench/self-improve-gate.sh >/dev/null 2>&1"},
   {"name": "ebm-loop-closed",      "cmd": "bash /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/bench/ebm-closed-loop-gate.sh >/dev/null 2>&1"},
-  {"name": "ebm-reaches-runtime",  "cmd": "bash /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/bench/ebm-runtime-ship-gate.sh >/dev/null 2>&1"}
+  {"name": "ebm-reaches-runtime",  "cmd": "bash /Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/bench/ebm-runtime-ship-gate.sh >/dev/null 2>&1"},
+  {"name": "route-ebm-ranks",      "cmd": "bash /Users/lekt9/Projects/ebllm/route_ebm_gate.sh >/dev/null 2>&1"}
 ]
