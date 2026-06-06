@@ -1,0 +1,27 @@
+[06:57:49] waiting for cloud-init + apt lock to settle
+[06:58:32] installing Node 22 (active LTS, >= 22.5 for node:sqlite) via NodeSource
+[06:59:15] node=v22.22.3 npm=10.9.8
+[06:59:15] installing Bun (unbrowse runtime)
+[06:59:15] bun=none
+[06:59:15] npm install -g unbrowse@8.3.0-preview.1
+[06:59:52] unbrowse=8.3.0-preview.1
+[06:59:52] unbrowse health
+[06:59:54] unbrowse fetch (real web content)
+[07:00:20] unbrowse search --intent
+<<<QA_JSON_BEGIN>>>
+{
+  "host": "ubqa-20260606-065530",
+  "node_version": "v22.22.3",
+  "npm_version": "10.9.8",
+  "bun_version": "none",
+  "unbrowse_version": "8.3.0-preview.1",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": true,
+  "fetch_ok": false,
+  "fetch_bytes": 119,
+  "search_ok": true,
+  "search_bytes": 21398,
+  "errors": ["fetch rc=1 bytes=119; [06:59:55.021] [trace] sid=- scope=inproc phase=get-app-first-build BEGIN", "[unbrowse] ToS check skipped (non-interactive/server mode)", "[06:59:55.055] [trace] sid=- scope=inproc phase=build-ratelimit BEG"]
+}
+<<<QA_JSON_END>>>

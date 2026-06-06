@@ -110,6 +110,9 @@ for idx in "${!INSTANCE_IDS[@]}"; do
   if ! $up; then say "  $name: ssh never came up"; continue; fi
   say "  $name: ssh up — copying + running e2e (this installs node+unbrowse)"
   scp "${SSH_OPTS[@]}" "$HERE/vm_e2e.sh" "lekt9@$ip:/tmp/vm_e2e.sh" >/dev/null 2>&1
+  # konmari E2E: ship the local lightened tarball if provided (vm_e2e installs it over npm)
+  [ -n "${UNBROWSE_LOCAL_TGZ:-}" ] && [ -f "$UNBROWSE_LOCAL_TGZ" ] && \
+    scp "${SSH_OPTS[@]}" "$UNBROWSE_LOCAL_TGZ" "lekt9@$ip:/tmp/unbrowse-local.tgz" >/dev/null 2>&1 && say "  shipped local tarball → /tmp/unbrowse-local.tgz"
   out="$(ssh "${SSH_OPTS[@]}" "lekt9@$ip" "UNBROWSE_NPM_REF='${UNBROWSE_NPM_REF:-latest}' bash /tmp/vm_e2e.sh" 2>"$RUN_DIR/$name.ssh.err")"
   printf '%s\n' "$out" > "$RUN_DIR/$name.raw.txt"
   # pull the remote log too

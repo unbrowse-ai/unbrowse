@@ -1,0 +1,27 @@
+[06:51:54] waiting for cloud-init + apt lock to settle
+[06:52:37] installing Node 20 via NodeSource
+[06:53:16] node=v20.20.2 npm=10.8.2
+[06:53:16] installing Bun (unbrowse runtime)
+[06:53:16] bun=none
+[06:53:16] npm install -g unbrowse@8.3.0-preview.1
+[06:53:48] unbrowse=8.3.0-preview.1
+[06:53:48] unbrowse health
+[06:53:48] unbrowse fetch (real web content)
+[06:53:48] unbrowse search --intent
+<<<QA_JSON_BEGIN>>>
+{
+  "host": "ubqa-20260606-064919",
+  "node_version": "v20.20.2",
+  "npm_version": "10.8.2",
+  "bun_version": "none",
+  "unbrowse_version": "8.3.0-preview.1",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["health: [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run.", "fetch rc=1 bytes=0; [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run.", "search rc=1 bytes=0; [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run."]
+}
+<<<QA_JSON_END>>>
