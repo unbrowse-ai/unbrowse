@@ -1,10 +1,10 @@
 {
-  "pointer": "energy-head.1e20c0e5.json",
-  "sha256_8": "1e20c0e5",
+  "pointer": "energy-head.d6ee7e48.json",
+  "sha256_8": "d6ee7e48",
   "synthetic": false,
   "auc_baseline": 1.0,
   "auc_learned": 1.0,
   "lift": 0.0,
   "auc_cold_cells": 0.9286,
-  "trained_on": "real ledger (11126 rows)"
+  "trained_on": "real ledger (11127 rows)"
 }
