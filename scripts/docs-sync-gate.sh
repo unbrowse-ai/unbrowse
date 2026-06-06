@@ -21,7 +21,10 @@ done
 
 # Current-version consistency: the canonical published version is the npm `unbrowse`
 # version; the machine-read JSON-LD softwareVersion must match it (no stale claim).
+# Public docs advertise the latest STABLE release — an in-flight preview prerelease
+# (e.g. 8.3.0-preview.0 in package.json) must NOT force the public site to claim a preview.
 VER="$(node -e "console.log(require('./package.json').version)" 2>/dev/null)"
+case "$VER" in *-*) VER="$(git tag --list 'v*' --sort=-v:refname | grep -vE '\-' | head -1 | sed 's/^v//')";; esac
 if grep -q "softwareVersion: \"${VER}\"" frontend/src/app/layout.tsx 2>/dev/null; then
   echo "ok   version-jsonld (softwareVersion=${VER})"
 else
