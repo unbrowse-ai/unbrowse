@@ -273,3 +273,4 @@ packages/skill/runtime/
 # transient local scratch + jesus-ralph loop state (not part of any release)
 /cats/
 .claude/jesus-ralph.local.md
+.tmp-prodcli-runtime/

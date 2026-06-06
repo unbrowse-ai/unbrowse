@@ -491,12 +491,14 @@ models too: route to a real tool and execute, instead of guessing from
 weights. A reproducible, gated benchmark suite (`bench/BENCHMARKS.md`)
 shows a small on-device model (Qwen2.5-1.5B) routed to a library of
 executable tools turning tasks it fails from weights alone into tasks it
-solves reliably --- every number the same 1.5B model, tools versus no
-tools: code-correctness **68% $\to$ 100%** (raw base $\to$ distilled,
-in-distribution); knowledge absent from the weights **0% $\to$ 95%** by
-retrieve-then-execute; hard reasoning families **50% $\to$ 92%** by
-distilled routing; and applying a retrieved skill rather than reasoning
-it from scratch **63% $\to$ 93%**. The architecture is the capability,
+solves reliably. Two are genuine tools-versus-no-tools gains on the same
+1.5B model: knowledge absent from the weights **0% $\to$ 95%** by
+retrieve-then-execute, and applying a retrieved skill rather than
+reasoning it from scratch **63% $\to$ 93%**. Two are distillation gains
+on the served model: code-correctness **68% $\to$ 100%** (raw base $\to$
+distilled, in-distribution), and hard reasoning families **50% $\to$
+92%** by distilled routing --- against a trained-specialist baseline, a
+scope we flag rather than overclaim. The architecture is the capability,
 not the raw weights --- the same claim the route graph makes for the
 web.
 

@@ -11,12 +11,12 @@ TEX="paper/crypto-was-all-you-needed.tex"
 # 1. the pbcopy md exists + carries the honest wins
 B="bench/BENCHMARKS.md"
 [ -s "$B" ] || fail "no $B (the pbcopy benchmarks md)"
-grep -qE '9/9' "$B" && grep -qE '25% . 100%|25%.*100%' "$B" || fail "$B missing the anti-bot or execute-don't-guess result"
+grep -qE '9/9' "$B" && grep -qE '68%.*100%' "$B" || fail "$B missing the anti-bot or execute-don't-guess result (honest 68%->100%)"
 ok "benchmarks md present (anti-bot 9/9 + execute-don't-guess)"
 
 # 2. the whitepaper tex includes the anti-bot retrieval result AND the execute-don't-guess thesis
 grep -qE '9/9|9,9' "$TEX" || fail "paper tex missing anti-bot 9/9 result"
-grep -qiE 'execute,? not guess|execute.don.t.guess|route to a real tool|25.*100' "$TEX" || fail "paper tex missing the execute-don't-guess benchmark"
+grep -qiE 'execute,? not guess|execute.don.t.guess|route to a real tool|68.*100' "$TEX" || fail "paper tex missing the execute-don't-guess benchmark"
 ok "whitepaper tex includes anti-bot + execute-don't-guess benchmarks"
 
 # 3. paper renders (pdf + md fresh) — both >= tex mtime

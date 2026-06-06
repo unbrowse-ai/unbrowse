@@ -488,11 +488,13 @@ rather than have an agent re-derive it --- holds for models too: route to a real
 and execute, instead of guessing from weights. A reproducible, gated benchmark suite
 (\texttt{bench/BENCHMARKS.md}) shows a small on-device model (Qwen2.5-1.5B) routed to a
 library of executable tools turning tasks it fails from weights alone into tasks it
-solves reliably --- every number the same 1.5B model, tools versus no tools:
-code-correctness \textbf{25\% $\to$ 100\%} by routing to a real executor; knowledge
-absent from the weights \textbf{0\% $\to$ 95\%} by retrieve-then-execute; hard reasoning
-families \textbf{50\% $\to$ 92\%} by distilled routing; and applying a retrieved skill
-rather than reasoning it from scratch \textbf{63\% $\to$ 93\%}. The architecture is the
+solves reliably. Two are genuine tools-versus-no-tools gains on the same 1.5B model:
+knowledge absent from the weights \textbf{0\% $\to$ 95\%} by retrieve-then-execute, and
+applying a retrieved skill rather than reasoning it from scratch \textbf{63\% $\to$ 93\%}.
+Two are distillation gains on the served model: code-correctness \textbf{68\% $\to$ 100\%}
+(raw base to distilled, in-distribution) by routing to a real executor, and hard-reasoning
+families \textbf{50\% $\to$ 92\%} by distilled routing --- measured against a
+trained-specialist baseline, a scope we flag rather than overclaim. The architecture is the
 capability, not the raw weights --- the same claim the route graph makes for the web.
 
 \paragraph{Self-improving by reuse.} The system improves by running against itself.
