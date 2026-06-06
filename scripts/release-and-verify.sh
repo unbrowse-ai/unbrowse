@@ -47,7 +47,9 @@ bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed
 # Some CLI imports refresh the generated build-info manifest during tests.
 # Release-it owns the final versioned manifest, so restore it before enforcing
 # a clean worktree.
-git checkout -- src/build-info.generated.ts
+# Restore only if the file is tracked + checkout-able; never abort the release on it
+# (it is a generated manifest — when it is not index-restorable, the on-disk copy is fine).
+git checkout -- src/build-info.generated.ts 2>/dev/null || true
 log "local tests passed"
 
 # ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
