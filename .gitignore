@@ -276,3 +276,6 @@ packages/skill/runtime/
 .tmp-prodcli-runtime/
 .tmp-prodlive/
 .tmp-registry-live/
+
+# jesus-loop session sidecars (scratch, never in a release)
+.claude/jesus-loop.*
