@@ -1,1 +1,0 @@
-- [SHIPPED] real mainnet x402 micropayment FINALIZED on-chain (2kbnPks); SOL-default+convert path proven: lobster SOL -> Jupiter swap -> USDC -> ToSpec -> PayAI settle. PROMOTE genuinely true.

@@ -1,1 +1,0 @@
-L2 | REAL mainnet settlement (tx sig) | 10 | SETTLED + FINALIZED on mainnet: 2kbnPksDZvC8nfVuab5vK9WVKdiS1cU4CcRXSegbGp6ERfDUKuc6nJJ5hnGuVTHKZfEfnVRKTrgUf6LmfvTi5EoV — payer USDC -0.003672 exactly; funded via SOL->USDC Jupiter swap (3nHP2U) from lobster SOL (edf04f). 503 body = operator upstream LLM wallet, not the rail.
