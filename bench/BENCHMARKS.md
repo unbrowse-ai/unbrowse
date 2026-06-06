@@ -25,7 +25,7 @@ number the same 1.5B model, tools vs no tools, each backed by a re-runnable gate
 
 | task | from weights alone | + routed to a tool |
 |---|---|---|
-| code-correctness (route to a real executor) | 25% | **100%** |
+| code-correctness (distilled, in-distribution) | 68% (raw base) | **100%** |
 | knowledge not in the weights (retrieve + execute) | 0% | **95%** |
 | hard reasoning families (distilled routing) | 50% | **92%** |
 | apply a retrieved skill vs reason from scratch | 63% | **93%** |

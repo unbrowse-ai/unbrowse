@@ -11,7 +11,7 @@ self-delta, no model-size confound. Each has a re-runnable witness.
 
 | task | from weights alone | + routed to a tool | witness |
 |---|---|---|---|
-| code-correctness (route to a real executor) | 25% | **100%** | `codebench_witness.py` (PASS, RC=0) |
+| code-correctness (distilled, in-distribution) | 68% (raw base) | **100%** | `codebench_witness.py` (PASS, RC=0) |
 | knowledge not in the weights (retrieve+execute) | 0% | **95%** | `farformula` witness (19/20) |
 | hard reasoning families (distilled routing) | 50% | **92%** | `specialist` witness |
 | apply a retrieved skill vs reason from scratch | 63% | **93%** | `skillfollow` witness (28/30 vs 19/30) |
