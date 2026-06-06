@@ -51,9 +51,9 @@ bun_version="$(bun --version 2>/dev/null || echo none)"
 say "bun=$bun_version"
 
 # ---- 2. install unbrowse from npm -----------------------------------------
-say "npm install -g unbrowse@latest"
+say "npm install -g unbrowse@${UNBROWSE_NPM_REF:-latest}"
 for try in 1 2 3; do
-  if sudo npm install -g unbrowse@latest >>"$LOG" 2>&1; then install_ok=true; break; fi
+  if sudo npm install -g "unbrowse@${UNBROWSE_NPM_REF:-latest}" >>"$LOG" 2>&1; then install_ok=true; break; fi
   say "  npm install retry $try"; sleep 10
 done
 $install_ok || errors+=("npm install -g unbrowse failed after retries")
