@@ -93,6 +93,30 @@ So the claim is a reframe, deliberately narrow:
 > decisively and reproducibly; on the latter we report an honest negative, because it scores
 > a capability we offload by design.
 
+### 4a. "Don't need to beat," not "don't matter": the tool layer is not the agent
+
+The sharper statement is not that raw-reasoning benchmarks stopped mattering — it is that
+**they are not our benchmark to beat.** BrowseComp scores an *agent* solving multi-hop web
+tasks end to end. unbrowse is not that agent; it is the **tool layer the agent calls** —
+`resolve` (intent → a ranked route), `execute` (route → real data), `capture` (browser when
+no route exists). The benchmark for a tool layer is **tool-reliability**: when the agent
+routes to a tool, does the correct answer come out? That is exactly the execute-don't-guess
+suite (§2) and the route-ranking results (§6), all of which unbrowse wins.
+
+So the division of labor is the whole answer to *"do we need to beat it?"*: **the reasoning
+is the agent's job; the reliable tool-call is unbrowse's.** A capable agent that reasons well
+*plus* unbrowse's reliable tools is what clears BrowseComp — and the 0.8B experiments show
+that even a *small* agent clears the tool-completable subset once the tools are reliable. The
+0/15 is the small model's reasoning score; it is not a measure of whether the tool layer
+delivers, and the tool layer is what unbrowse ships.
+
+This is a claim we have to *earn*, not just assert: it holds only if unbrowse is honestly
+positioned and measured as a tool layer. Where a product instead promises end-to-end research
+from the tiny model alone, the agent-reasoning score is fair game and the honest path is to
+pair unbrowse with a capable agent — never to pretend the 0.8B did the reasoning. With that
+honesty kept, the answer to *"why don't those benchmarks need to be beaten for us?"* is:
+**because they grade the caller, and we are the tool the caller holds.**
+
 ## 5. The boundary (where the reframe is FALSE — stated plainly)
 
 The reframe is *not* "reasoning benchmarks don't matter." They matter exactly as the measure
