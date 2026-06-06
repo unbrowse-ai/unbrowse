@@ -41,3 +41,15 @@ BrowseComp	bench/browsecomp/run-and-record.sh
 sealed to the holder's wallet	src/values/auth-vault.ts
 Execute, don't guess	bench/BENCHMARKS.md
 Self-improving by reuse	bench/self-improve-loop.sh
+codebench_witness.py	bench/execute-dont-guess/codebench_witness.py
+farformula_witness.py	bench/execute-dont-guess/farformula_witness.py
+specialist_witness.py	bench/execute-dont-guess/specialist_witness.py
+skillfollow_witness.py	bench/execute-dont-guess/skillfollow_witness.py
+codebench_reliability.py	bench/execute-dont-guess/codebench_reliability.py
+browsecomp-gate.sh	bench/browsecomp/browsecomp-gate.sh
+machine-readable ledger of record	bench/jespa/benchmarks-ledger.jsonl
+bench/energy/route-ranking-gate.sh	bench/energy/route-ranking-gate.sh
+bench/energy/intent-type-gate.sh	bench/energy/intent-type-gate.sh
+bench/ebm-closed-loop-gate.sh	bench/ebm-closed-loop-gate.sh
+bench/ebm-runtime-ship-gate.sh	bench/ebm-runtime-ship-gate.sh
+bench/energy/reproduce-all.sh	bench/energy/reproduce-all.sh
