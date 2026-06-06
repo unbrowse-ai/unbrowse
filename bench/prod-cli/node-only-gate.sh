@@ -44,6 +44,17 @@ echo "[node-only] resolve (route graph / node:sqlite, bun absent) ..."
 ROUT="$(env PATH="$NODEONLY" "$BIN" resolve --intent "search open library for dune" --no-execute 2>&1)"
 if printf '%s' "$ROUT" | grep -qiE '"success":true|exa_candidates|skill_id'; then echo "[node-only] resolve OK ✅"; else echo "[node-only] resolve FAILED ❌"; fail=1; fi
 
+# The exact qa.sh fresh-VM checks (health + search), so this local gate is a complete
+# proxy for the VM matrix: a green here predicts install=Y version=Y health=Y fetch=Y search=Y.
+echo "[node-only] health (qa.sh check, bun absent) ..."
+HOUT="$(env PATH="$NODEONLY" "$BIN" health 2>&1)"
+if printf '%s' "$HOUT" | grep -qiE '"status"\s*:\s*"ok"|healthy|uptime|package_version'; then echo "[node-only] health OK ✅"; else echo "[node-only] health FAILED ❌"; fail=1; fi
+
+echo "[node-only] search (qa.sh check, bun absent) ..."
+SOUT="$(env PATH="$NODEONLY" "$BIN" search --intent "open library dune" 2>&1)"
+if printf '%s' "$SOUT" | grep -qi 'this build runs on Bun'; then echo "[node-only] search STILL requires Bun ❌"; fail=1; fi
+if printf '%s' "$SOUT" | grep -qiE 'exa|candidate|skill|"success"'; then echo "[node-only] search OK ✅"; else echo "[node-only] search FAILED ❌"; fail=1; fi
+
 echo "================================================"
 [ "$fail" -eq 0 ] && { echo "[node-only] PASS — prod CLI runs on a clean Node-only machine (no Bun)"; exit 0; } \
                   || { echo "[node-only] FAIL"; exit 1; }
