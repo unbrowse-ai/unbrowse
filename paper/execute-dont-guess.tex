@@ -117,9 +117,13 @@ dramatic version depended on an unfair baseline. This correction was forced by m
 the witness bare-clone reproducible --- the discipline doing its job on our own
 number.
 
-\paragraph{$\ddagger$ Open flag (hard reasoning).} The hard-reasoning row uses a
-\emph{trained} r1 baseline ($50\%$); whether the raw base model scores above that is
-unverified, and we flag it as open in \S7. We keep the flag rather than drop it.
+\paragraph{$\ddagger$ Resolved flag (hard reasoning).} The hard-reasoning row uses a
+\emph{trained} r1 baseline ($50\%$). We measured whether the raw base model beats it: on the
+hard families (n-choose-k, lcm) the raw base scores \textbf{4.2\%} ($1/24$), far \emph{below}
+the r1 baseline. So --- unlike the code row, where a degraded trained baseline inflated the
+lift --- the trained r1 baseline here is \emph{conservative}: the true raw-base$\to$unified
+lift is $\approx 4\%\!\to\!92\%$, larger than $50\!\to\!92$. The row understates rather than
+overclaims. Witness: \texttt{specialist\_basebaseline.py}.
 
 The unifying mechanism is \textbf{execute, don't guess}: the small model is not asked
 to \emph{be} the oracle; it is asked to \emph{write the program}, \emph{retrieve the
@@ -252,8 +256,9 @@ $92\%$ / $93\%$ on its target task classes, seed-stable), and record honestly th
 raw-reasoning score it does not chase ($0/15$). We do not claim the older benchmarks
 stopped mattering. We claim they measure a different quantity than the one this
 architecture optimizes --- and we are willing to be judged by the witnesses, not the
-prose. One open item remains flagged: the hard-reasoning row's baseline is a trained
-r1 specialist, and whether the raw base model beats it is unverified (\S2,
+prose. The one previously-open item is now resolved by measurement: the hard-reasoning
+row's baseline is a trained r1 specialist, and the raw base scores only $4.2\%$ on those
+families --- below the baseline --- so the row is conservative, not inflated (\S2,
 $\ddagger$).
 
 \end{document}
