@@ -1,0 +1,27 @@
+[05:14:50] waiting for cloud-init + apt lock to settle
+[05:15:32] installing Node 20 via NodeSource
+[05:16:09] node=v20.20.2 npm=10.8.2
+[05:16:09] installing Bun (unbrowse runtime)
+[05:16:10] bun=none
+[05:16:10] npm install -g unbrowse@latest
+[05:16:43] unbrowse=8.2.0
+[05:16:43] unbrowse health
+[05:16:45] unbrowse fetch (real web content)
+[05:16:45] unbrowse search --intent
+<<<QA_JSON_BEGIN>>>
+{
+  "host": "ubqa-20260606-051227",
+  "node_version": "v20.20.2",
+  "npm_version": "10.8.2",
+  "bun_version": "none",
+  "unbrowse_version": "8.2.0",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["health: [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN).", "fetch rc=1 bytes=0; [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN).", "search rc=1 bytes=0; [unbrowse] this build runs on Bun. Install it from https://bun.sh, then re-run (or set UNBROWSE_BUN_BIN)."]
+}
+<<<QA_JSON_END>>>
