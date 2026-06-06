@@ -275,3 +275,4 @@ packages/skill/runtime/
 .claude/jesus-ralph.local.md
 .tmp-prodcli-runtime/
 .tmp-prodlive/
+.tmp-registry-live/
