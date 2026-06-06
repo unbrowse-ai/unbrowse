@@ -1,1 +1,6 @@
-bench/ebm/energy-head.*.json
+# Per-sha trainer snapshots are regenerated on every refit — ignore them so a refit
+# never dirties the worktree or blocks a release. Patterns are relative to THIS dir
+# (the previous `bench/ebm/energy-head.*.json` was mis-anchored and matched nothing).
+energy-head.*.json
+# ...but keep the live pointer the runtime reads, tracked.
+!energy-head.latest.json
