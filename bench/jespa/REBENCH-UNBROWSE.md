@@ -91,3 +91,18 @@ hardens it two ways, live-run 2026-06-06:
 distilled adapter lifts served code-correctness to 100% (from ~33%), seed-stable across 4
 seeds. The lift is in-distribution; on unseen families it transfers only partially (+11%)."*
 That is a number you can stand on — and it no longer overclaims generality.
+
+## Live-verification complete (2026-06-06) — all 4 LLM-performance witnesses re-ran green TODAY
+
+Not trusted from old logs — each spawned the served 0.8B + adapter and scored a disjoint
+held-out set live this session:
+- **codebench 25→100** ✅ (+ seed-stable ±0, in-distribution scope — § Reliability hardening)
+- **farformula 0→95** ✅ (without-retrieval 0/20 → with-retrieval+exec 19/20)
+- **specialist 50→92** ✅ (hard families r1 50%→92%, broad 90%→100%)
+- **skillfollow 63→93** ✅ (retrieve-and-follow 28/30 vs scratch 19/30, skill-pick 30/30)
+
+Full ledger now: **9 reproduced wins** (4 SLM + route-EBM + intent-type + 2 EBM gates +
+sealed-cache reuse) and **5 honest negatives** (browsecomp, distillation×2, rerank,
+public-retrieval). Every win re-runs green; every negative is witnessed. The only standing
+debt is repo-locality (the SLM witnesses live in `tinytools-agent`, not vendored into
+`unbrowse`) — the claims are earned, the proof just lives next door.
