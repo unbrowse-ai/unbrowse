@@ -33,6 +33,25 @@ if [ -z "$NUM" ]; then echo "[konmari] FAIL: could not measure package size ($LI
   if [ "$OVER" = "0" ]; then echo "[konmari] unpacked ${MB} MB <= ${SIZE_CEIL_MB} MB ✓"; else echo "[konmari] FAIL: unpacked ${MB} MB > ${SIZE_CEIL_MB} MB ceiling"; fail=1; fi
 fi
 
+echo "=== INSTALL: pruned on-disk footprint under ceiling (the host-only binary win) ==="
+# Pack + install in a throwaway prefix; the postinstall prune deletes foreign binaries, so
+# the on-disk install is host-only. Skip with KONMARI_SKIP_INSTALL=1 (the fast dep+weight
+# checks above still run). Ceiling tuned via INSTALL_CEIL_MB (default 28).
+if [ "${KONMARI_SKIP_INSTALL:-0}" = "1" ]; then
+  echo "[konmari] install footprint check skipped (KONMARI_SKIP_INSTALL=1)"
+else
+  INSTALL_CEIL_MB=${INSTALL_CEIL_MB:-28}
+  WK="$(mktemp -d /tmp/konmari-install.XXXXXX)"
+  if npm pack --workspace packages/skill --pack-destination "$WK" >/dev/null 2>&1; then
+    TGZ="$(ls "$WK"/unbrowse-*.tgz 2>/dev/null | head -1)"
+    ( cd "$WK" && npm init -y >/dev/null 2>&1 && npm install "$TGZ" --no-audit --no-fund >/dev/null 2>&1 )
+    IMB="$(du -sm "$WK/node_modules/unbrowse" 2>/dev/null | cut -f1)"
+    if [ -n "$IMB" ] && [ "$IMB" -le "$INSTALL_CEIL_MB" ]; then echo "[konmari] installed (host-only) ${IMB} MB <= ${INSTALL_CEIL_MB} MB ✓"
+    else echo "[konmari] FAIL: installed ${IMB:-?} MB > ${INSTALL_CEIL_MB} MB (prune not effective?)"; fail=1; fi
+  else echo "[konmari] FAIL: pack failed for install check"; fail=1; fi
+  rm -rf "$WK"
+fi
+
 echo "================================================"
-[ "$fail" -eq 0 ] && { echo "[konmari] PASS — light held (deps cut, weight under ceiling)"; exit 0; } \
+[ "$fail" -eq 0 ] && { echo "[konmari] PASS — light held (deps cut, weight + pruned-install under ceiling)"; exit 0; } \
                   || { echo "[konmari] FAIL — konmari regressed"; exit 1; }

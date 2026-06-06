@@ -25,6 +25,7 @@
     "vendor/utls-proxy",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
+    "scripts/prune-foreign-binaries.mjs",
     "scripts/postinstall-ping.mjs",
     "scripts/verify-release-assets.mjs",
     "README.md",
