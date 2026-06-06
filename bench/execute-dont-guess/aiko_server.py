@@ -129,7 +129,7 @@ SYSTEM = ("You are a tool-using assistant. When a question needs precise computa
 print(f"loading {BASE} + {ADAPTER} ...", flush=True)
 from mlx_lm import load, generate
 from mlx_lm.sample_utils import make_sampler
-_model, _tok = load(BASE, adapter_path=ADAPTER)
+_model, _tok = load(BASE, adapter_path=ADAPTER) if ADAPTER else load(BASE)
 _sampler = make_sampler(temp=0.0)
 # MLX generation on a shared model is NOT thread-safe: two concurrent generate() calls (e.g. an agent
 # that pipelines requests) race on Metal and crash the process. Serialize generation behind one lock —
