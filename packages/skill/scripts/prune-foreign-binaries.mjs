@@ -22,8 +22,11 @@ const root = rootArgIdx !== -1 ? process.argv[rootArgIdx + 1]
 const platform = process.platform;
 const arch = process.arch;
 const goarch = arch === "x64" ? "amd64" : arch === "arm64" ? "arm64" : arch;
-const hostKuriDir = `${platform}-${arch}`;            // e.g. darwin-arm64
-const hostUtlsBin = `utls-proxy-${platform}-${goarch}`; // e.g. utls-proxy-darwin-arm64
+// Match the runtime resolver EXACTLY (src/kuri/client.ts: win32+x64 → "win-x64", NOT
+// "win32-x64"); a mismatch here makes the prune inert on that platform (or, worse, treat the
+// host's own dir as foreign). Mirror currentBundledKuriTarget().
+const hostKuriDir = (platform === "win32" && arch === "x64") ? "win-x64" : `${platform}-${arch}`;
+const hostUtlsBin = `utls-proxy-${platform}-${goarch}`; // resolver uses the same raw formula (utls-daemon.ts)
 
 const du = (p) => {
   try { return statSync(p).isDirectory() ? readdirSync(p).reduce((a, f) => a + du(join(p, f)), 0) : statSync(p).size; }
