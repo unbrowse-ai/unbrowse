@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Auth Echo</title></head>
+<body><h1>Auth Echo</h1>
+<button id="go" aria-label="pending">pending</button>
+<script>
+  var c = document.cookie || '';
+  var sid = (c.match(/sid=([^;]+)/) || [,'NONE'])[1];
+  var b = document.getElementById('go');
+  b.textContent = 'SID:' + sid; b.setAttribute('aria-label','SID:' + sid);
+</script></body></html>

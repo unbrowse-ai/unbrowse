@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Stateless Click Testbed</title></head>
+<body>
+  <h1>Agent Click Testbed</h1>
+  <!-- A deterministic clickable: clicking it mutates the DOM and fires an XHR, so a stateless
+       click can be witnessed two ways — the post-click snapshot text AND the captured network. -->
+  <button id="go" data-testid="go" aria-label="Run the action">Run the action</button>
+  <div id="result" role="status">IDLE</div>
+  <script>
+    document.getElementById('go').addEventListener('click', function () {
+      // Mutate the BUTTON's own label so the change shows up in the interactive a11y snapshot
+      // (the status div is non-interactive and would be filtered out). This is the click witness.
+      var b = document.getElementById('go');
+      b.textContent = 'CLICKED-OK';
+      b.setAttribute('aria-label', 'CLICKED-OK');
+      document.getElementById('result').textContent = 'CLICKED';
+      // a real action triggers an API call — exercise the {network} capture too
+      try { fetch('/api/action?clicked=1').catch(function(){}); } catch (e) {}
+    });
+  </script>
+</body>
+</html>
