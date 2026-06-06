@@ -42,23 +42,19 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
-    "@fastify/rate-limit": "^10.3.0",
-    "@solana/kit": "^6.6.0",
-    "@x402/fetch": "^2.9.0",
     "bs58": "^6.0.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
-    "tsx": "^4.20.6",
     "ws": "^8.19.0"
   },
   "optionalDependencies": {
-    "keytar": "^7.9.0",
-    "@faremeter/flex-solana": "^0.2.1"
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "@types/node": "^24.6.1"
+    "@types/node": "^24.6.1",
+    "tsx": "^4.20.6"
   },
   "engines": {
     "node": ">=22.5"
