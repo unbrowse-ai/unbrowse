@@ -18,6 +18,9 @@ fail() {
 }
 
 sdk_version=$(node -p "require('./packages/sdk/package.json').version")
+# Public README advertises the latest STABLE release; an in-flight preview prerelease in
+# package.json must not force the README to a preview version.
+case "$sdk_version" in *-*) sdk_version="$(git tag --list 'v*' --sort=-v:refname | grep -vE '\-' | head -1 | sed 's/^v//')";; esac
 if ! grep -qF "Current version: **${sdk_version}**." packages/sdk/README.md; then
   fail "packages/sdk/README.md current version does not match package.json (${sdk_version})"
 fi
