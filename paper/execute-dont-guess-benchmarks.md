@@ -139,8 +139,8 @@ delivers, but the right yardstick for the capability it does not.*
 # the discrete-structure / mechanism wins (no model serving needed)
 bash bench/jespa/reproduce-all.sh                 # route ranking 4.6x, type-class 2.1x, EBM gates, cache 92x
 
-# the four execute-don't-guess wins (spawn the served 0.8B + adapters, score held-out)
-cd ~/Projects/tinytools-agent
+# the four execute-don't-guess wins — now vendored IN this repo (spawn the served 0.8B, score held-out)
+cd bench/execute-dont-guess && bash setup.sh    # resolve adapters (or codebench trains its own)
 python3 codebench_witness.py        # code        25% -> 100%
 python3 farformula_witness.py       # knowledge    0% ->  95%
 python3 specialist_witness.py       # reasoning   50% ->  92%

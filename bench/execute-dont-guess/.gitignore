@@ -1,0 +1,9 @@
+# adapters + data (resolved by setup.sh, ~280M — never committed)
+*_adapters/
+*_data/
+nck_specialist/
+*.safetensors
+__pycache__/
+*.log
+.codebench_proof
+.claude/
