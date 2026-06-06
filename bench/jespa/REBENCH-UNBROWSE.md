@@ -106,3 +106,13 @@ sealed-cache reuse) and **5 honest negatives** (browsecomp, distillation×2, rer
 public-retrieval). Every win re-runs green; every negative is witnessed. The only standing
 debt is repo-locality (the SLM witnesses live in `tinytools-agent`, not vendored into
 `unbrowse`) — the claims are earned, the proof just lives next door.
+
+## Honest correction (2026-06-06) — codebench baseline was inflated; the bare-clone fix caught it
+
+Making the witness bare-clone reproducible (drop the fixed `code_adapters` artifact, use the
+raw base model as baseline) surfaced a real overclaim: the "25%→100%" used a *degraded*
+code-adapter baseline that scored below the raw instruct model. **Honest number: base model
+67.9% → improved 100.0%** (+32, seed-stable). The execute-don't-guess effect is real; the
+dramatic 25→100 depended on an unfair baseline. (The hard-reasoning 50→92 row uses a trained
+r1 baseline — whether the raw base beats it is unverified, flagged open.) The discipline
+working on our own headline.

@@ -51,10 +51,21 @@ re-run live and green this cycle.
 
 | capability | mechanism | baseline → result | held-out |
 |---|---|---|---|
-| **write correct code** | distil correct decomposed code traces; execute the output | **25% → 100%** | 28 items, 7 arithmetic families |
+| **write correct code** | distil correct decomposed code traces; execute the output | **68% → 100%** (raw base → improved)† | 28 items, 7 arithmetic families |
 | **know the unknowable** | retrieve the formula, run it as code | **0% → 95%** (19/20) | 20 made-up formulas, 4 families |
-| **hard reasoning** | a specialist teaches the generalist where self-distillation is blind | **50% → 92%** (broad held 100%) | n-choose-k + broad families |
+| **hard reasoning** | a specialist teaches the generalist where self-distillation is blind | **50% → 92%** (broad held 100%)‡ | n-choose-k + broad families |
 | **follow a procedure** | retrieve the right skill (100%) and apply it | **63% → 93%** (28/30 vs 19/30) | 30 tasks, 10 skill types |
+
+> **† Correction (honest baseline).** An earlier statement of this row read "25% → 100%".
+> That 25% was measured against a *weak code-adapter* baseline (`code_adapters`), which —
+> being a degraded artifact — scored *below* the raw instruct model. When the baseline is the
+> **raw base model** (the true "before" state, and the only one a bare clone can reproduce
+> without a fixed artifact), it scores **67.9%**, and the improved adapter reaches **100%**.
+> The execute-don't-guess effect is real (+32 pts to a perfect score, seed-stable), but the
+> honest lift is 68→100, not 25→100; the dramatic version depended on an unfair baseline.
+> This correction was forced by making the witness bare-clone reproducible — the discipline
+> doing its job on our own number. ‡ The hard-reasoning row uses a *trained* r1 baseline
+> (50%); whether the raw base scores above that is unverified and flagged as open (§7).
 
 The unifying mechanism is **execute, don't guess**: the small model is not asked to *be* the
 oracle; it is asked to *write the program*, *retrieve the fact*, or *follow the procedure*

@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); os.chdir(HERE)
 PY = sys.executable
 M = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 IMPROVED = "improved_adapters"
-BASELINE_ADAPTER = "code_adapters"
+BASELINE_ADAPTER = ""  # the base model (no adapter) — the true pre-distillation baseline, bare-clone reproducible
 TARGET = 0.70
 MARGIN = 0.25
 
