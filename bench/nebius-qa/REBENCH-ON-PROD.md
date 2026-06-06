@@ -64,3 +64,20 @@ is ready for the benchmark suite the moment the prod CLI runs on a clean VM.
 `PORT=8770 python3 aiko_serve.py` → `llama-server` OpenAI-compatible on `:8770`; completion
 smoke returned exactly `AIKO_OK`. No GPU/training needed (the `codegraff-1780664998` name was a
 `/tmp` scratch dir, not a model). codegraff itself is gitea-mirrored (`lekt8/codegraff`).
+
+## UPDATE (2026-06-06) — the wall is FIXED (Bun dropped from the runtime)
+
+Per the steer "probably bun shouldn't be used at all": the published runtime is now built
+`--target=node` and the launcher runs it via plain Node — no Bun required. The code was
+already runtime-agnostic (`node:sqlite`, koffi FFI fallback, zero `Bun.*` calls), so the
+change was the build target + the launcher + a Node>=22.5 guard. Commit `8855380d`.
+
+Witness `bench/prod-cli/node-only-gate.sh` (exit 0): packs the publishable package (prepack
+builds the node runtime), installs the tarball with **bun absent from PATH**, and the full
+launcher chain runs `fetch` (200 + real content) and `resolve` (route graph / node:sqlite) —
+no "this build runs on Bun". Bun stays the builder + dev runner only.
+
+Remaining: this reaches the registry only via a release (the published `@latest`/`@preview`
+still carry the old Bun build until re-published). Cutting a preview + re-running `qa.sh`
+against it on a fresh VM is the final live proof (expected: install=Y version=Y health=Y
+fetch=Y search=Y).
