@@ -1,0 +1,15 @@
+{
+  "host": "ubqa-20260606-065530",
+  "node_version": "v22.22.3",
+  "npm_version": "10.9.8",
+  "bun_version": "none",
+  "unbrowse_version": "8.3.0-preview.1",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": true,
+  "fetch_ok": false,
+  "fetch_bytes": 119,
+  "search_ok": true,
+  "search_bytes": 21398,
+  "errors": ["fetch rc=1 bytes=119; [06:59:55.021] [trace] sid=- scope=inproc phase=get-app-first-build BEGIN", "[unbrowse] ToS check skipped (non-interactive/server mode)", "[06:59:55.055] [trace] sid=- scope=inproc phase=build-ratelimit BEG"]
+}

@@ -1,0 +1,15 @@
+{
+  "host": "ubqa-20260606-064919",
+  "node_version": "v20.20.2",
+  "npm_version": "10.8.2",
+  "bun_version": "none",
+  "unbrowse_version": "8.3.0-preview.1",
+  "install_ok": true,
+  "version_ok": true,
+  "health_ok": false,
+  "fetch_ok": false,
+  "fetch_bytes": 0,
+  "search_ok": false,
+  "search_bytes": 0,
+  "errors": ["health: [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run.", "fetch rc=1 bytes=0; [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run.", "search rc=1 bytes=0; [unbrowse] unbrowse needs Node >= 22.5 (you have 20.20.2). Upgrade Node (e.g. via nvm or https://nodejs.org), then re-run."]
+}

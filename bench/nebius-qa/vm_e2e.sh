@@ -26,11 +26,12 @@ for _ in $(seq 1 60); do
   sleep 5
 done
 
-# ---- 1. Node 20 (NodeSource) — npm is needed to INSTALL the package --------
-if ! command -v node >/dev/null 2>&1 || [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -lt 20 ]; then
-  say "installing Node 20 via NodeSource"
+# ---- 1. Node 22 LTS (NodeSource) — unbrowse needs Node >= 22.5 (node:sqlite).
+# Node 20 is EOL in 2026; provision the supported active-LTS line. Upgrade if < 22.
+if ! command -v node >/dev/null 2>&1 || [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -lt 22 ]; then
+  say "installing Node 22 (active LTS, >= 22.5 for node:sqlite) via NodeSource"
   for try in 1 2 3; do
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - >>"$LOG" 2>&1
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >>"$LOG" 2>&1
     if sudo apt-get install -y nodejs >>"$LOG" 2>&1; then break; fi
     say "  node install retry $try"; sleep 10
   done
@@ -50,13 +51,18 @@ export UNBROWSE_BUN_BIN="$BUN_INSTALL/bin/bun"
 bun_version="$(bun --version 2>/dev/null || echo none)"
 say "bun=$bun_version"
 
-# ---- 2. install unbrowse from npm -----------------------------------------
-say "npm install -g unbrowse@${UNBROWSE_NPM_REF:-latest}"
+# ---- 2. install unbrowse: a local tarball (konmari E2E) or from npm --------
+INSTALL_SRC="unbrowse@${UNBROWSE_NPM_REF:-latest}"
+[ -f /tmp/unbrowse-local.tgz ] && INSTALL_SRC="/tmp/unbrowse-local.tgz"
+say "npm install -g $INSTALL_SRC"
 for try in 1 2 3; do
-  if sudo npm install -g "unbrowse@${UNBROWSE_NPM_REF:-latest}" >>"$LOG" 2>&1; then install_ok=true; break; fi
+  if sudo npm install -g "$INSTALL_SRC" >>"$LOG" 2>&1; then install_ok=true; break; fi
   say "  npm install retry $try"; sleep 10
 done
 $install_ok || errors+=("npm install -g unbrowse failed after retries")
+# konmari witness: installed footprint on this fresh VM (host-only after the postinstall prune)
+gdir="$(npm root -g 2>/dev/null)/unbrowse"
+[ -d "$gdir" ] && say "installed footprint: $(du -sm "$gdir" 2>/dev/null | cut -f1) MB · kuri kept: $(ls "$gdir/vendor/kuri" 2>/dev/null | grep -v manifest | tr '\n' ' ')"
 
 # ---- 3. version ------------------------------------------------------------
 unbrowse_version="$(unbrowse --version 2>/dev/null | head -1 || echo none)"
