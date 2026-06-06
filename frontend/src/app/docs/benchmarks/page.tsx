@@ -89,7 +89,7 @@ export default function DocsBenchmarksPage() {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-5">
             {[
-              { before: "25%", after: "100%", label: "code-correctness" },
+              { before: "68%", after: "100%", label: "code-correctness (in-dist.)" },
               { before: "0%", after: "95%", label: "knowledge not in weights" },
               { before: "50%", after: "92%", label: "hard reasoning families" },
               { before: "63%", after: "93%", label: "apply a retrieved skill" },
