@@ -27,30 +27,6 @@ const papers = [
     description:
       "The economics companion: how per-use settlement over stablecoin rails turns a shared API route graph into a self-sustaining marketplace — discovery stays free, and the agents that execute a captured route pay the operators who maintain it.",
   },
-  {
-    title: "Unbrowse Maintenance Network",
-    subtitle: "Keeping a Shared API Route Graph Alive as the Web Changes",
-    href: "/unbrowse-maintenance-network.pdf",
-    pdf: true,
-    description:
-      "The maintenance layer: how a network of operators keeps captured routes fresh as websites change, turning a one-time capture into a durable, collectively-maintained API surface for agents.",
-  },
-  {
-    title: "Execute, Don't Guess",
-    subtitle: "Reproduced-Win Benchmarks for Small-Model Tool Routing",
-    href: "/execute-dont-guess.pdf",
-    pdf: true,
-    description:
-      "A benchmark protocol where every published number is a runnable witness: a 0.8B tool-routing agent lifts code-correctness 68→100% (in-distribution), knowledge 0→95%, and skill-following 63→93% by routing to executors, retrieval, and specialists — with honest negatives (BrowseComp 0/15) reported, not hidden.",
-  },
-  {
-    title: "Energy-Based Route Ranking",
-    subtitle: "Learned Selection over an Agent's Tool Library",
-    href: "/energy-route-ranking.pdf",
-    pdf: true,
-    description:
-      "An energy-based model scores intent–route compatibility to rank an agent's tool library, lifting top-1 route retrieval 4.6× over a keyword baseline and access-type classification ~2× — with the honest boundary that the method wins on discrete structure and not on free-form generation.",
-  },
 ];
 
 export default function PapersIndexPage() {
