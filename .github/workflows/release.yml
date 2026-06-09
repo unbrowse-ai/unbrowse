@@ -227,6 +227,8 @@ jobs:
         run: bash scripts/leak-guard.sh
       - name: Paper gate — public paper reflects code + leaks no moat term
         run: bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex
+      - name: Backend coverage gate — every backend module is classified against the papers
+        run: python3 paper/scripts/backend-paper-coverage.py --gate
 
       - name: Read package metadata
         id: pkg

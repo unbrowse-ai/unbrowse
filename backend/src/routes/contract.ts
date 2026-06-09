@@ -603,7 +603,7 @@ function processFallbackLedger(): ContractLedger {
  * in prod). Fallback: process-scoped in-memory when env is absent or
  * lacks the KV bindings.
  */
-function ledgerForRequest(env: Env | undefined): ContractLedger {
+export function ledgerForRequest(env: Env | undefined): ContractLedger {
   if (!env) return processFallbackLedger();
   const wide = env as Env & { USE_PGKV?: string };
   const hasLocalDev = wide.ENVIRONMENT === "local-dev";
