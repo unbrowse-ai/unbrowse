@@ -113,7 +113,7 @@ authRoutes.post("/auth/email/start", async (c) => {
     console.error("magic-link storage failed", (err as Error).message);
     return c.json({
       error: "storage_unavailable",
-      message: "Backend storage (EMERGENTDB_API_KEY or DATABASE_URL) not configured — magic-link signup unavailable.",
+      message: "Backend storage (EMERGENTDB_API_KEY) not configured — magic-link signup unavailable.",
     }, 503);
   }
 

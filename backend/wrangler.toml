@@ -481,7 +481,6 @@ PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 # --- gate-staging environment (MCP release-gate harness uses this) ---
 # Deploy: wrangler deploy --env gate-staging
 # Provision STATS_KV first: wrangler kv namespace create STATS_KV --env gate-staging  (and --preview)
-# Secrets: wrangler secret put DATABASE_URL --env gate-staging  (point at same Neon DB; ns isolation is in kv.ts)
 #          wrangler secret put EMERGENTDB_API_KEY --env gate-staging  (fallback)
 # Isolation: ENVIRONMENT="gate-staging" routes marketplace writes to PgKV ns "gate-staging-skills-v3"
 #            and stats writes to "gate-staging-stats" via backend/src/services/kv.ts.

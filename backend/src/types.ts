@@ -3,7 +3,6 @@ export interface Env {
   LANDING_PUBLISH_KEY?: string;
   /** Shared secret for /v1/blog/publish. Set via `wrangler secret put BLOG_PUBLISH_KEY`. */
   BLOG_PUBLISH_KEY?: string;
-  DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   EMERGENTDB_TIMEOUT_MS?: string;
   /** BUG-011 (contract 311771e1): per-value byte cap for EdbKV.put. Default 10240. */

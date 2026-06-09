@@ -220,7 +220,7 @@ adminRoutes.get("/analytics/payments", async (c) => {
   const day = 24 * 60 * 60 * 1000;
   const month = 30 * day;
   // Read all sponsor rows; filter to 24h / 30d windows in-memory. (KV
-  // listWithValues is zero-fetch on the LocalKV / PgKV paths used in prod, so
+  // listWithValues is zero-fetch on the LocalKV / EdbKV paths used in prod, so
   // the row count is bounded by sponsor activity, not by listing cost.)
   const all = await readSponsorLedgerRows(c.env);
   const sponsor24h = all.filter((row) => {

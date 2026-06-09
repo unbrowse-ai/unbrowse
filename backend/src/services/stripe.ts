@@ -17,7 +17,6 @@ import Stripe from "stripe";
 import type { Context } from "hono";
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
-import { getNeonClient } from "./neon.js";
 import type {
   MinimalStripeEvent,
   STRIPE_SUB_CACHE,
@@ -41,6 +40,16 @@ export const KV_KEYS = {
    * tier-grant routing.)
    */
   customerUser: (customerId: string) => `stripe:customer:${customerId}:user`,
+  /**
+   * IQ-only billing (replaces Neon `usage_counters`). Monotonic per-period
+   * usage meter. KV has no atomic increment — see recordUsage for the ACID note.
+   */
+  usage: (userId: string, period: string) => `billing:usage:${userId}:${period}`,
+  /**
+   * IQ-only billing event marker (replaces Neon `billing_events`). Presence =
+   * "this Stripe event was already processed" — webhook re-deliveries noop.
+   */
+  billingEvent: (eventId: string) => `billing:event:${eventId}`,
 } as const;
 
 type AuthCtx = Context<{
@@ -114,66 +123,15 @@ const ALLOWED_EVENTS: ReadonlySet<string> = new Set([
   "payment_intent.created",
 ]);
 
-// DDL bootstrap — one init promise per DATABASE_URL, mirrors neon.ts pattern.
-const _billingInitCache = new Map<string, Promise<void>>();
-
-async function ensureBillingTables(env: Env): Promise<unknown> {
-  const url = env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL is required for billing tables");
-  }
-  const sql = await getNeonClient(url);
-  let init = _billingInitCache.get(url);
-  if (!init) {
-    init = (async () => {
-      await sql`
-        CREATE TABLE IF NOT EXISTS usage_counters (
-          user_id text NOT NULL,
-          period text NOT NULL,
-          consumed integer NOT NULL DEFAULT 0,
-          PRIMARY KEY (user_id, period)
-        )
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS billing_events (
-          id text PRIMARY KEY,
-          customer_id text NOT NULL,
-          user_id text,
-          event_type text NOT NULL,
-          payload_json jsonb NOT NULL,
-          created_at timestamptz NOT NULL DEFAULT now()
-        )
-      `;
-      await sql`
-        CREATE INDEX IF NOT EXISTS billing_events_customer_idx
-        ON billing_events(customer_id, created_at DESC)
-      `;
-    })().catch((e) => {
-      _billingInitCache.delete(url);
-      throw e;
-    });
-    _billingInitCache.set(url, init);
-  }
-  await init;
-  return sql;
-}
-
 async function peekUsage(
   env: Env,
   userId: string,
   period: string,
 ): Promise<number> {
-  const sql = (await ensureBillingTables(env)) as (
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ) => Promise<Array<{ consumed: number }>>;
-  const rows = await sql`
-    SELECT consumed FROM usage_counters
-    WHERE user_id = ${userId} AND period = ${period}
-    LIMIT 1
-  `;
-  if (!rows || rows.length === 0) return 0;
-  return Number(rows[0].consumed) || 0;
+  const kv = statsKV(env);
+  const raw = (await kv.get(KV_KEYS.usage(userId, period))) as string | null;
+  const n = Number(raw ?? "0");
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +317,7 @@ export async function subscriptionAdmits(
 }
 
 // ---------------------------------------------------------------------------
-// Atomic usage counter — Neon upsert; not KV RMW (Landmine 2)
+// Usage counter — IQ-only (EdbKV). ACID note below.
 // ---------------------------------------------------------------------------
 
 export async function recordUsage(
@@ -367,19 +325,20 @@ export async function recordUsage(
   userId: string,
   units: number,
 ): Promise<{ consumed: number }> {
-  const sql = (await ensureBillingTables(env)) as (
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ) => Promise<Array<{ consumed: number }>>;
+  // IQ-only: the per-period usage meter lives in EdbKV (statsKV), which has no
+  // atomic increment. This is a read-modify-write: two concurrent debits in the
+  // same period can both read N and both write N+units, losing one increment.
+  // That biases the meter to UNDERcount — it favours the user and never
+  // overcharges. Accepted as the Neon->IQ tradeoff; the quota gate +
+  // auto-refill still catch real overage, and `period` rolls monthly so any
+  // drift resets and never accumulates.
+  const kv = statsKV(env);
   const period = currentPeriod();
-  const rows = await sql`
-    INSERT INTO usage_counters (user_id, period, consumed)
-    VALUES (${userId}, ${period}, ${units})
-    ON CONFLICT (user_id, period)
-    DO UPDATE SET consumed = usage_counters.consumed + EXCLUDED.consumed
-    RETURNING consumed
-  `;
-  const consumed = rows && rows[0] ? Number(rows[0].consumed) : units;
+  const key = KV_KEYS.usage(userId, period);
+  const prev = Number(((await kv.get(key)) as string | null) ?? "0");
+  const base = Number.isFinite(prev) && prev > 0 ? prev : 0;
+  const consumed = base + units;
+  await kv.put(key, String(consumed));
   return { consumed };
 }
 
@@ -485,15 +444,23 @@ export async function processBillingEvent(
     return;
   }
 
-  const sql = (await ensureBillingTables(env)) as (
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ) => Promise<unknown[]>;
-  await sql`
-    INSERT INTO billing_events (id, customer_id, user_id, event_type, payload_json)
-    VALUES (${event.id}, ${customerId}, ${null}, ${event.type}, ${JSON.stringify(event)}::jsonb)
-    ON CONFLICT (id) DO NOTHING
-  `;
+  // IQ-only audit/idempotency marker (replaces Neon `billing_events`). We store
+  // metadata only, not the full Stripe payload, to stay within EdbKV's
+  // per-value size budget; the authoritative state effect is
+  // syncStripeDataToUserKV below (itself idempotent). Presence of the marker
+  // means "already processed" — webhook re-deliveries are a cheap noop.
+  const kv = statsKV(env);
+  const evKey = KV_KEYS.billingEvent(event.id);
+  if (!(await kv.get(evKey))) {
+    await kv.put(
+      evKey,
+      JSON.stringify({
+        customer_id: customerId,
+        event_type: event.type,
+        created_at: Date.now(),
+      }),
+    );
+  }
 
   await syncStripeDataToUserKV(env, customerId);
 
