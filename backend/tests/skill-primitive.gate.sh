@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."   # backend/
 FILES=(
   tests/skills-chat.test.ts                # Gap 1+2+3 units (skill=/contract, follow, runSkillChat)
   tests/skill-contract-persist.test.ts     # Layer 2 persist + edges + pointer invariant
+  tests/skill-contract-cache.test.ts       # memoized promise: hit/miss/invalidate/indirection (docker-cache)
   tests/skill-primitive-creatures.test.ts  # read-back round-trip, hostile ids, injection framing, 503 degrade
   tests/skills-chat-route.test.ts          # real route happy + STORM isolation (mock.module — isolated)
   tests/unbrowse-llm-free-fallback.test.ts # compiler chain regression (shared runContractLlmChain)
