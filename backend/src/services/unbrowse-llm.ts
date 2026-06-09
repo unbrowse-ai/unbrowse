@@ -50,7 +50,7 @@ export function getUnbrowseLlmBinding(env: Env): UnbrowseLlmBinding | null {
  * here when the upstream model lineup changes — do not parameterize via
  * env: "no caller-visible options".
  */
-const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string }> = [
+const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string; freeKey?: boolean }> = [
   {
     url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
     model: "nvidia/nemotron-3-super-120b-a12b",
@@ -63,6 +63,15 @@ const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string }> = [
     url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
     model: "Qwen/Qwen3.5-397B-A17B",
   },
+  {
+    // FREE fallback (rate-limited, NOT private): NVIDIA direct. A zero-cost safety net when the
+    // paid Nebius tiers above are unavailable — the same free lane baked into aiko-ebllm. Uses
+    // NVIDIA_API_KEY (not the Nebius UNBROWSE_LLM_API_KEY). Skipped when that key is absent (fail
+    // closed — never a fabricated success).
+    url: "https://integrate.api.nvidia.com/v1/chat/completions",
+    model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    freeKey: true,
+  },
 ];
 
 const COMPILE_SYSTEM_PROMPT =
@@ -72,19 +81,24 @@ export async function compileAikoPromptToTree(
   env: Env,
   prompt: string,
 ): Promise<AikoCompiledContract | null> {
-  const token = env.UNBROWSE_LLM_API_KEY?.trim();
-  if (!token) return null;
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "*/*",
-    Authorization: `Bearer ${token}`,
-    "X-Unbrowse-LLM-Policy": "server-owned-only",
-  };
+  const paidToken = env.UNBROWSE_LLM_API_KEY?.trim();
+  const freeToken = env.NVIDIA_API_KEY?.trim();
+  if (!paidToken && !freeToken) return null;          // no usable key on any tier
 
   const errors: string[] = [];
 
   for (const tier of CONTRACT_LLM_CHAIN) {
+    const token = tier.freeKey ? freeToken : paidToken;
+    if (!token) {                                     // skip a tier whose key is absent (fail closed)
+      errors.push(`${tier.model}@${hostOf(tier.url)}: no key`);
+      continue;
+    }
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+      Authorization: `Bearer ${token}`,
+      "X-Unbrowse-LLM-Policy": "server-owned-only",
+    };
     try {
       const res = await fetch(tier.url, {
         method: "POST",

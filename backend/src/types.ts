@@ -471,6 +471,12 @@ export interface Env {
    */
   UNBROWSE_LLM_API_KEY?: string;
   /**
+   * NVIDIA direct-API key for the FREE fallback tier of the /contract LLM chain
+   * (integrate.api.nvidia.com — rate-limited, NOT private). Zero-cost safety net when
+   * the paid Nebius tiers are unavailable; mirrors aiko-ebllm's free lane.
+   */
+  NVIDIA_API_KEY?: string;
+  /**
    * Optional override for the unbrowse-llm chat URL (used by the
    * lightweight `getUnbrowseLlmBinding` helper). The three-tier
    * tokenfactory chain in `compileAikoPromptToTree` is hardcoded and
