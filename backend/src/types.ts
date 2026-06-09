@@ -277,8 +277,6 @@ export interface Env {
   CLOUDFLARE_ZONE_ID?: string;
   /** Optional GitHub PAT for traction stats fetch. Raises rate limit to 5000/hr. */
   GITHUB_TOKEN?: string;
-  /** Exa web search — parallel step in resolve, surfaces highlights when marketplace misses. */
-  EXA_API_KEY?: string;
   /**
    * Master key-encryption-key for the per-account cookie vault (L4). The
    * vault wraps each user's random data key with AES-GCM under this secret

@@ -1,8 +1,8 @@
 /**
- * semantic-cache — a similarity cache for the slow/paid Exa web-search path.
+ * semantic-cache — a similarity cache for the slow web-search path.
  *
- * The Exa web search (`exaSearch`, /v1/search/web) costs a network round-trip
- * (~0.7–5s) and real money per call. Many queries repeat with reworded phrasing
+ * The web search (`webSearch`, /v1/search/web) costs a network round-trip
+ * (~0.7–5s) per call. Many queries repeat with reworded phrasing
  * ("CEO of OpenAI" vs "who leads OpenAI as chief executive"). A plain key-value
  * cache misses those — the strings differ. This cache keys on MEANING instead:
  *

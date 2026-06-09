@@ -183,7 +183,6 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_previ
 #   NEBIUS_API_KEY  — also drives the publish-time LLM PII scrubber
 #                     (backend/src/services/ai-scrub.ts, contract 101b1f77).
 #                     Soft-fails if unset; the regex layer remains authoritative.
-#   EXA_API_KEY  — Exa web search, optional; resolve still works without it
 #   ADMIN_KEY  — gates /v1/admin/* read surfaces (sponsor-ledger).
 #                NEVER put the value in this file or any committed env file —
 #                always `wrangler secret put ADMIN_KEY` (per env if needed).
