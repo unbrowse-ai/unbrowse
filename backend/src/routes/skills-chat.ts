@@ -22,6 +22,12 @@ import { skillToContract } from "../services/skill-contract.js";
 import { persistSkillContract } from "../services/skill-contract-persist.js";
 import { handleDeclare, ledgerForRequest } from "./contract.js";
 import { chatFollowingSkill, type AikoCompiledContract } from "../services/unbrowse-llm.js";
+import { statsKV } from "../services/kv.js";
+import { fingerprintSkillContract, memoizeSkillValue, kvContentStore, kvPointerIndex } from "../services/skill-contract-cache.js";
+
+/** Stable label for the pinned /contract LLM chain — part of the memo fingerprint
+ *  (a chain change must bust the cache). */
+const SKILL_CHAT_MODEL_ID = "contract-llm-chain-v1";
 
 export interface SkillChatInput {
   message: string;
@@ -125,7 +131,34 @@ function liveDeps(env: Env): SkillChatDeps {
       }
       return null;
     },
-    chat: (skill, message) => chatFollowingSkill(env, skill, message),
+    // Memoized promise (docker-layer-cache): the grounded answer is cached under a
+    // content-addressed fingerprint; a changed skill (version/reliability/freshness)
+    // or intent moves the hash → MISS → re-execute. Best-effort: a KV outage degrades
+    // to always-recompute, never a wrong value.
+    chat: async (skill, message) => {
+      const recompute = async () => {
+        const ans = await chatFollowingSkill(env, skill, message);
+        if (ans == null) throw new SkillChatError("llm_unavailable", "no grounded LLM key configured on this Worker", 503);
+        return ans;
+      };
+      try {
+        const raw = statsKV(env as never);
+        const kv = {
+          get: async (k: string) => { const v = await raw.get(k); return typeof v === "string" ? v : null; },
+          put: (k: string, v: string) => raw.put(k, v),
+        };
+        const memo = await memoizeSkillValue({
+          store: kvContentStore(kv),
+          index: kvPointerIndex(kv),
+          fingerprint: fingerprintSkillContract(skill, message, SKILL_CHAT_MODEL_ID),
+          recompute,
+        });
+        return memo.value;
+      } catch (e) {
+        if (e instanceof SkillChatError) throw e;   // 503 propagates (recompute threw)
+        return recompute();                         // memo infra unavailable → serve uncached
+      }
+    },
   };
 }
 
