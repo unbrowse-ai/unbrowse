@@ -104,12 +104,30 @@ export async function runContractLlmChain(
 ): Promise<string | null> {
   const paidToken = env.UNBROWSE_LLM_API_KEY?.trim();
   const freeToken = env.NVIDIA_API_KEY?.trim();
-  if (!paidToken && !freeToken) return null;          // no usable key on any tier
+  const researchToken = env.RESEARCH_LLM_API_KEY?.trim();
+
+  // Optional research tier — a stronger brain for accuracy-critical paths, OFF by
+  // default (the free nano-9b stays the default for cheap traffic). Enabled only
+  // when both RESEARCH_LLM_MODEL and RESEARCH_LLM_API_KEY are set; it then leads
+  // the chain (tried first), falling back to the standard free/paid tiers. Kept
+  // flag-gated so it never bills a per-request frontier model unless turned on.
+  const researchTier = env.RESEARCH_LLM_MODEL && researchToken
+    ? [{
+        url: env.RESEARCH_LLM_URL?.trim() || "https://openrouter.ai/api/v1/chat/completions",
+        model: env.RESEARCH_LLM_MODEL.trim(),
+        keyKind: "research" as const,
+      }]
+    : [];
+  const chain = [
+    ...researchTier,
+    ...CONTRACT_LLM_CHAIN.map((t) => ({ url: t.url, model: t.model, keyKind: (t.freeKey ? "free" : "paid") as "free" | "paid" })),
+  ];
+  if (!paidToken && !freeToken && !researchToken) return null; // no usable key on any tier
 
   const errors: string[] = [];
 
-  for (const tier of CONTRACT_LLM_CHAIN) {
-    const token = tier.freeKey ? freeToken : paidToken;
+  for (const tier of chain) {
+    const token = tier.keyKind === "research" ? researchToken : tier.keyKind === "free" ? freeToken : paidToken;
     if (!token) {                                     // skip a tier whose key is absent (fail closed)
       errors.push(`${tier.model}@${hostOf(tier.url)}: no key`);
       continue;

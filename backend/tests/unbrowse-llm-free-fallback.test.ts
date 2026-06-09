@@ -51,3 +51,42 @@ test("no keys -> fails closed (no fabricated success)", async () => {
     expect(await compileAikoPromptToTree(env, "p")).toBeNull();  // null = no usable key on any tier
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("research tier (flag-gated) LEADS the chain when configured — free nano-9b not hit first", async () => {
+  const calls: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: unknown) => {
+    const u = String(url); calls.push(u);
+    if (u.includes("openrouter.ai")) return JSON_OK();          // research tier serves
+    return new Response("no", { status: 404 });
+  }) as typeof fetch;
+  try {
+    const env = {
+      NVIDIA_API_KEY: "nvidia-key",
+      RESEARCH_LLM_MODEL: "openai/gpt-5.4",
+      RESEARCH_LLM_API_KEY: "openrouter-key",
+    } as never;
+    const tree = await compileAikoPromptToTree(env, "p");
+    expect(tree).not.toBeNull();
+    expect(calls[0].includes("openrouter.ai")).toBe(true);     // strong tier tried FIRST
+    expect(calls.some((c) => c.includes("nvidia.com"))).toBe(false); // never needed the free tier
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("research tier OFF by default — free nano-9b stays primary when unset", async () => {
+  const calls: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: unknown) => {
+    const u = String(url); calls.push(u);
+    if (u.includes("integrate.api.nvidia.com")) return JSON_OK();
+    return new Response("no", { status: 404 });
+  }) as typeof fetch;
+  try {
+    // RESEARCH_LLM_API_KEY present but no MODEL → tier stays off (both required).
+    const env = { NVIDIA_API_KEY: "nvidia-key", RESEARCH_LLM_API_KEY: "openrouter-key" } as never;
+    const tree = await compileAikoPromptToTree(env, "p");
+    expect(tree).not.toBeNull();
+    expect(calls[0].includes("integrate.api.nvidia.com")).toBe(true);  // free primary, unchanged
+    expect(calls.some((c) => c.includes("openrouter.ai"))).toBe(false);
+  } finally { globalThis.fetch = realFetch; }
+});

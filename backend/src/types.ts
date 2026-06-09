@@ -484,6 +484,16 @@ export interface Env {
    */
   NVIDIA_API_KEY?: string;
   /**
+   * Optional STRONG research tier for the contract LLM chain — a stronger brain
+   * for accuracy-critical paths, OFF by default. Set RESEARCH_LLM_MODEL +
+   * RESEARCH_LLM_API_KEY (+ optional RESEARCH_LLM_URL, default OpenRouter) to
+   * lead the chain with it; the free nano-9b stays the default when unset so
+   * normal traffic never bills a per-request frontier model.
+   */
+  RESEARCH_LLM_MODEL?: string;
+  RESEARCH_LLM_API_KEY?: string;
+  RESEARCH_LLM_URL?: string;
+  /**
    * Optional override for the unbrowse-llm chat URL (used by the
    * lightweight `getUnbrowseLlmBinding` helper). The three-tier
    * tokenfactory chain in `compileAikoPromptToTree` is hardcoded and
