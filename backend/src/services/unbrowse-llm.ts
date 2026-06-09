@@ -51,29 +51,36 @@ export function getUnbrowseLlmBinding(env: Env): UnbrowseLlmBinding | null {
  * here when the upstream model lineup changes — do not parameterize via
  * env: "no caller-visible options".
  */
+// Two tiers only: Nemotron-3-Nano-Omni (paid Nebius, private) → NVIDIA free fallback.
+// Reasoning is OFF for all calls (see runContractLlmChain's "detailed thinking off" injection).
 const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string; freeKey?: boolean }> = [
-  {
-    url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
-    model: "nvidia/nemotron-3-super-120b-a12b",
-  },
   {
     url: "https://api.tokenfactory.nebius.com/v1/chat/completions",
     model: "nvidia/Nemotron-3-Nano-Omni",
   },
   {
-    url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
-    model: "Qwen/Qwen3.5-397B-A17B",
-  },
-  {
-    // FREE fallback (rate-limited, NOT private): NVIDIA direct. A zero-cost safety net when the
-    // paid Nebius tiers above are unavailable — the same free lane baked into aiko-ebllm. Uses
-    // NVIDIA_API_KEY (not the Nebius UNBROWSE_LLM_API_KEY). Skipped when that key is absent (fail
-    // closed — never a fabricated success).
+    // FREE fallback (rate-limited, NOT private): NVIDIA direct. Zero-cost safety net when the
+    // paid Nebius tier is unavailable. Uses NVIDIA_API_KEY (not UNBROWSE_LLM_API_KEY); skipped
+    // when that key is absent (fail closed — never a fabricated success).
     url: "https://integrate.api.nvidia.com/v1/chat/completions",
     model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
     freeKey: true,
   },
 ];
+
+/** Nemotron reasoning is turned off via the documented "detailed thinking off" system
+ *  directive. Prepend it to the first system message (or add one) so every call —
+ *  /contract compile AND skill chat — runs non-reasoning. Pure text, no risky body params. */
+function withReasoningOff(messages: ChatMessage[]): ChatMessage[] {
+  const out = messages.map((m) => ({ ...m }));
+  const sys = out.find((m) => m.role === "system");
+  if (sys && typeof sys.content === "string") {
+    sys.content = `detailed thinking off\n\n${sys.content}`;
+  } else {
+    out.unshift({ role: "system", content: "detailed thinking off" });
+  }
+  return out;
+}
 
 const COMPILE_SYSTEM_PROMPT =
   "Compile one aiko prompt into a minimal non-contradicting recursive aiko contract tree. Return only JSON: {\"prompt\":string,\"posthook_pointer\":\"optional http(s) or contract: pointer\",\"wallet_identity\":\"optional wallet pointer\",\"replicated_from_contract_id\":\"optional out-of-lineage contract id requiring paid replication\",\"network_tunnel_contract_id\":\"optional tunnel adapter contract pointer\",\"network_tunnel_kind\":\"optional tunnel class\",\"evaluators\":[{\"prompt\":string,\"metric\":{\"source\":\"api|ledger|external\",\"pointer\":string,\"assertion\":string}}],\"children\":[same shape]}. Every node and evaluator is an aiko declaration prompt. A goal is true only when external/self-check metrics resolve true. Posthooks are typed pointers called after promotion with full context and parent wallet identity. Do not add verbs, local paths, PII, secrets, execution payloads, or prose outside JSON.";
@@ -116,7 +123,7 @@ export async function runContractLlmChain(
       const res = await fetch(tier.url, {
         method: "POST",
         headers,
-        body: JSON.stringify({ model: tier.model, messages }),
+        body: JSON.stringify({ model: tier.model, messages: withReasoningOff(messages) }),
       });
       if (!res.ok) {
         errors.push(`${tier.model}@${hostOf(tier.url)}: HTTP ${res.status}`);
