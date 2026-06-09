@@ -7,6 +7,7 @@ import { backfillFromProfiles } from "../services/analytics.js";
 import { summarizeEmergentDBError } from "../services/emergentdb.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { seedBibleChaptersBatch, type ChapterSeed } from "../services/bible-anchor.js";
 import { deleteHttpCache } from "../services/http-cache.js";
 
 export const opsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
@@ -89,6 +90,31 @@ opsRoutes.post("/ops/migrate-index", bearerAuth, async (c) => {
   ]);
 
   return c.json({ ok: true, message: "Split indexes deleted. Next read will re-migrate from legacy _idx." });
+});
+
+/**
+ * POST /v1/ops/seed-bible-chapters — admin: seed a batch of canonical chapters
+ * into the bible-chapters vector namespace + KV sidecar, server-side, using the
+ * worker's own EmergentDB + Nebius secrets (so the prod account is seeded
+ * without its key leaving the worker). Idempotent; post in batches of <=60.
+ * Body: { chapters: [{ idx:number, ref:string, text:string }] }
+ * Powers the internal bible-anchor ordering organ (services/bible-anchor.ts).
+ */
+opsRoutes.post("/ops/seed-bible-chapters", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  const body = await c.req.json<{ chapters?: ChapterSeed[] }>().catch(() => null);
+  const chapters = body?.chapters;
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    return c.json({ error: "chapters[] required, each {idx, ref, text}" }, 400);
+  }
+  if (chapters.length > 60) {
+    return c.json({ error: "max 60 chapters per batch (Worker CPU budget)" }, 400);
+  }
+  const result = await seedBibleChaptersBatch(c.env, chapters);
+  return c.json({ ok: true, ...result });
 });
 
 // Debug: check what Nebius embedding returns (staging only)

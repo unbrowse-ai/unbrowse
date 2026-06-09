@@ -15,6 +15,7 @@ import { getOrSetHttpCache } from "../services/http-cache.js";
 import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { rankEndpointsServer, type RankRequest } from "../services/rank.js";
+import { orderResolvedResults } from "../services/bible-anchor.js";
 import {
   withCache,
   resolveCacheKey,
@@ -408,7 +409,14 @@ searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) 
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
-    return c.json(cacheResult.value);
+    // Internal canonical-anchor ordering — presentation-time, non-destructive,
+    // default-OFF. The relevance cache above is untouched (still relevance-
+    // ordered); when enabled + confident, the finalists are sequenced by their
+    // nearest canonical anchor. Fail-closed: unchanged on any miss/low-confidence.
+    const value = c.env.BIBLE_ANCHOR_ORDER === "1"
+      ? await orderResolvedResults(c.env, cacheResult.value as Parameters<typeof orderResolvedResults>[1])
+      : cacheResult.value;
+    return c.json(value);
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);
     return c.json({ domain_results: [], global_results: [], skipped_global: false });
