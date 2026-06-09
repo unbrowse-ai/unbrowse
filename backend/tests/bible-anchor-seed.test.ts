@@ -24,10 +24,14 @@ mock.module("../src/services/emergentdb.js", () => ({
 }));
 
 function embedOK() {
-  globalThis.fetch = (async (url: unknown) =>
-    String(url).includes("nebius")
-      ? new Response(JSON.stringify({ data: [{ embedding: new Array(1536).fill(0.01) }] }), { status: 200 })
-      : new Response("no", { status: 404 })) as typeof fetch;
+  // Batch-aware: return one embedding PER input (embedBatch sends input[]).
+  globalThis.fetch = (async (url: unknown, opts?: { body?: string }) => {
+    if (!String(url).includes("nebius")) return new Response("no", { status: 404 });
+    const input = JSON.parse(opts?.body ?? "{}").input as string[] | string;
+    const n = Array.isArray(input) ? input.length : 1;
+    const data = Array.from({ length: n }, (_, i) => ({ index: i, embedding: new Array(1536).fill(0.01) }));
+    return new Response(JSON.stringify({ data }), { status: 200 });
+  }) as typeof fetch;
 }
 
 const { seedBibleChaptersBatch } = await import("../src/services/bible-anchor.js");

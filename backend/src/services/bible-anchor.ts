@@ -25,7 +25,9 @@ export const BIBLE_VECTORS_NAMESPACE = "bible-chapters";
 /** Nebius embedding (client-side; IQ /vectors does NOT auto-embed). Mirrors
  *  semantic-cache.ts so the model + dims match the rest of the system. */
 const NEBIUS_EMBED_URL = "https://api.tokenfactory.nebius.com/v1/embeddings";
-export const EMBED_MODEL = "Qwen/Qwen3-Embedding-8B";
+const OPENROUTER_EMBED_URL = "https://openrouter.ai/api/v1/embeddings";
+export const EMBED_MODEL = "Qwen/Qwen3-Embedding-8B";       // Nebius slug (primary)
+const OPENROUTER_EMBED_MODEL = "qwen/qwen3-embedding-8b";   // OpenRouter slug (fallback)
 export const EMBED_DIMS = 1536;
 /** KV sidecar key: the content-addressed vector id -> {idx, ref}. Needed because
  *  IQ /vectors carries no metadata and assigns its own id (the input id is
@@ -63,23 +65,64 @@ type GraphSearchResult = {
 };
 type VectorSearchResult = { results?: Array<{ id: number; score?: number }> };
 
-type EmbedEnv = { NEBIUS_API_KEY?: string };
+type EmbedEnv = { NEBIUS_API_KEY?: string; OPENROUTER_API_KEY?: string };
 
-/** Embed text via Nebius (client-side; IQ /vectors does not auto-embed). Used
- *  by the vectors fallback here and by the seed script. Null on any failure. */
-export async function embedText(env: EmbedEnv, text: string): Promise<number[] | null> {
-  const key = env.NEBIUS_API_KEY?.trim();
-  if (!key) return null;
+/** One provider call: embeds a batch (array input), returns aligned vectors or null. */
+async function embedViaProvider(
+  url: string, key: string, model: string, inputs: string[], nebiusDims: boolean,
+): Promise<(number[] | null)[] | null> {
   try {
-    const res = await fetch(NEBIUS_EMBED_URL, {
+    const body: Record<string, unknown> = { model, input: inputs };
+    if (nebiusDims) body.dimensions = EMBED_DIMS; else body.encoding_format = "float";
+    const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: EMBED_MODEL, input: text.slice(0, MAX_CHAPTER_TEXT), dimensions: EMBED_DIMS }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { data?: { embedding?: number[] }[] };
-    const v = data.data?.[0]?.embedding;
-    return Array.isArray(v) && v.length === EMBED_DIMS ? v : null;
+    const data = (await res.json()) as { data?: Array<{ embedding?: number[]; index?: number }> };
+    const rows = data.data;
+    if (!Array.isArray(rows) || rows.length !== inputs.length) return null;
+    // honour the provider's index field if present (ordering safety)
+    const out: (number[] | null)[] = new Array(inputs.length).fill(null);
+    rows.forEach((r, i) => {
+      const at = typeof r.index === "number" ? r.index : i;
+      out[at] = Array.isArray(r.embedding) && r.embedding.length === EMBED_DIMS ? r.embedding : null;
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Batch-embed texts (one provider call for the whole batch — the rate-limit
+ * killer). Primary Nebius `Qwen3-Embedding-8B`; FALLBACK OpenRouter
+ * `qwen/qwen3-embedding-8b` (same model, different host) when Nebius is missing
+ * or rate-limits. Returns a vector per input (null where it failed).
+ */
+export async function embedBatch(env: EmbedEnv, texts: string[]): Promise<(number[] | null)[]> {
+  if (texts.length === 0) return [];
+  const inputs = texts.map((t) => t.slice(0, MAX_CHAPTER_TEXT));
+  const nk = env.NEBIUS_API_KEY?.trim();
+  if (nk) {
+    const v = await embedViaProvider(NEBIUS_EMBED_URL, nk, EMBED_MODEL, inputs, true);
+    if (v) return v;
+  }
+  const ok = env.OPENROUTER_API_KEY?.trim();
+  if (ok) {
+    const v = await embedViaProvider(OPENROUTER_EMBED_URL, ok, OPENROUTER_EMBED_MODEL, inputs, false);
+    if (v) return v;
+  }
+  return texts.map(() => null);
+}
+
+/** Embed one text — via the batched, fallback-backed path. Null on failure. */
+export async function embedText(env: EmbedEnv, text: string): Promise<number[] | null> {
+  if (!text?.trim()) return null;
+  try {
+    const [v] = await embedBatch(env, [text]);
+    return v ?? null;
   } catch {
     return null;
   }
@@ -249,9 +292,14 @@ export type SeedResult = { seeded: number; failed: number; total: number };
 export async function seedBibleChaptersBatch(env: Env, chapters: ChapterSeed[]): Promise<SeedResult> {
   const kv = statsKV(env);
   let seeded = 0, failed = 0;
-  for (const c of chapters) {
+  // One embed call for the whole batch (Nebius -> OpenRouter fallback) so a 60-
+  // chapter batch is 1 embed request, not 60 — kills the rate-limit that lost
+  // 14/20 server-side. The /vectors + KV writes stay per-chapter.
+  const vectors = await embedBatch(env, chapters.map((c) => c.text));
+  for (let n = 0; n < chapters.length; n++) {
+    const c = chapters[n];
+    const vector = vectors[n];
     try {
-      const vector = await embedText(env, c.text);
       if (!vector) { failed++; continue; }
       await emergentDBRequest(env, "POST", "/vectors/insert", {
         id: c.idx, vector, namespace: BIBLE_VECTORS_NAMESPACE,

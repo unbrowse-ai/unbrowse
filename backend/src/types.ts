@@ -16,6 +16,8 @@ export interface Env {
    */
   BIBLE_ANCHOR_ORDER?: string;
   NEBIUS_API_KEY: string;
+  /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */
+  OPENROUTER_API_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;
   GITHUB_PR_BOT_LABEL?: string;

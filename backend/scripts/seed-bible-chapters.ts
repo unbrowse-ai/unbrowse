@@ -99,7 +99,7 @@ async function seedGraph(chapters: Chapter[]): Promise<void> {
 }
 
 async function seedVectors(chapters: Chapter[]): Promise<void> {
-  const env = { EMERGENTDB_API_KEY: apiKey(), NEBIUS_API_KEY: process.env.NEBIUS_API_KEY } as never;
+  const env = { EMERGENTDB_API_KEY: apiKey(), NEBIUS_API_KEY: process.env.NEBIUS_API_KEY, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY } as never;
   if (!process.env.NEBIUS_API_KEY?.trim()) throw new Error("vectors fallback needs NEBIUS_API_KEY");
   const kv = statsKV(env);
   console.log(`[seed:vectors] embedding+inserting ${chapters.length} chapters into namespace ${BIBLE_VECTORS_NAMESPACE}`);
@@ -135,7 +135,7 @@ async function seedVectors(chapters: Chapter[]): Promise<void> {
 
 /** Anchor witness — uses the live organ path (graph→vectors fallback). */
 async function probe(query: string): Promise<void> {
-  const env = { EMERGENTDB_API_KEY: apiKey(), NEBIUS_API_KEY: process.env.NEBIUS_API_KEY } as never;
+  const env = { EMERGENTDB_API_KEY: apiKey(), NEBIUS_API_KEY: process.env.NEBIUS_API_KEY, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY } as never;
   const { bibleAnchor } = await import("../src/services/bible-anchor.js");
   const a = await bibleAnchor(env, query);
   console.log(`  probe ${JSON.stringify(query.slice(0, 44))} -> ${a ? `${a.ref ?? "?"} (idx=${a.idx}, sim=${a.sim.toFixed(3)})` : "(no anchor)"}`);
