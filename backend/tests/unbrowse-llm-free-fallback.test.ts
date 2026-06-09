@@ -25,7 +25,7 @@ test("contract LLM chain falls back to the NVIDIA free tier when the paid Nebius
     const tree = await compileAikoPromptToTree(env, "p");
     expect(tree).not.toBeNull();
     expect(calls.some((c) => c.includes("integrate.api.nvidia.com"))).toBe(true);   // free tier fired
-    expect(calls.filter((c) => c.includes("nebius.com")).length).toBe(3);            // after all 3 paid tiers
+    expect(calls.filter((c) => c.includes("nebius.com")).length).toBe(1);   // chain trimmed to 1 paid Nebius tier            // after the 1 paid Nebius tier
   } finally {
     globalThis.fetch = realFetch;
   }
