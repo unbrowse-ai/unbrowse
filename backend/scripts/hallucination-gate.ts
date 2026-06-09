@@ -14,8 +14,9 @@ import type { SkillManifest } from "../src/types";
 import { chatFollowingSkill } from "../src/services/unbrowse-llm";
 
 const KEY = process.env.NEBIUS_API_KEY || process.env.UNBROWSE_LLM_API_KEY || "";
-if (!KEY) { console.error("GATE: no NEBIUS_API_KEY / UNBROWSE_LLM_API_KEY"); process.exit(2); }
-const env = { UNBROWSE_LLM_API_KEY: KEY } as never;
+const NV = process.env.NVIDIA_API_KEY || "";
+if (!KEY && !NV) { console.error("GATE: no NVIDIA_API_KEY / NEBIUS_API_KEY"); process.exit(2); }
+const env = { UNBROWSE_LLM_API_KEY: KEY, NVIDIA_API_KEY: NV } as never;  // NVIDIA = free primary (128k, holds gospels)
 
 const SKILL = {
   skill_id: "skill_acme", version: "1.0.0", schema_version: "1", name: "acme-api",
