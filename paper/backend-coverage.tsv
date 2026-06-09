@@ -1,0 +1,183 @@
+# backend module <TAB> paper-id   — FIRST-CUT topical map (which paper discusses this module).
+# Editable data, reviewed by hand. Modules absent from this file are ORPHANS (no paper represents them).
+# paper-id ∈ internal-apis | energy-ranking | execute | crypto | maintenance | out-of-scope
+#   out-of-scope = the module is DELIBERATELY not paper-claimed (operational/growth/infra).
+#   A module absent from this file entirely is an ORPHAN (not-yet-triaged) — drive that count to zero.
+# Generated/checked by paper/scripts/backend-paper-coverage.py. This is the REVERSE of anchors.tsv
+# (anchors.tsv = paper-claim → code; this = code → paper). Topical ≠ anchored: an entry here only
+# claims the paper discusses the subsystem, not that a gate-enforced claim anchor exists.
+
+# --- internal-apis: shadow APIs, shared discovery, the route library, capture→resolve→execute ---
+routes/extract	internal-apis
+routes/reveng	internal-apis
+routes/skills	internal-apis
+routes/contract	internal-apis
+routes/demos	internal-apis
+services/discovery	internal-apis
+services/descriptions	internal-apis
+services/skillmd	internal-apis
+services/exa	internal-apis
+services/neural-contract	internal-apis
+services/contract-ledger	internal-apis
+services/contract-ledger-kv	internal-apis
+services/stateless-substrate	internal-apis
+
+# --- energy-ranking: energy-based selection over the route library ---
+routes/search	energy-ranking
+routes/graph	energy-ranking
+services/rank	energy-ranking
+services/rank-bm25	energy-ranking
+services/rank-freshness	energy-ranking
+services/rank-noise-patterns	energy-ranking
+services/scoring	energy-ranking
+services/popularity	energy-ranking
+services/graph-confidence	energy-ranking
+services/graph	energy-ranking
+services/semantic-augment	energy-ranking
+services/semantic-cache	energy-ranking
+
+# --- execute: execute-don't-guess, small-model tool routing / the execute path ---
+routes/openai-tools	execute
+routes/llm	execute
+services/openai-tools	execute
+services/unbrowse-llm	execute
+services/meter-on-execute	execute
+
+# --- crypto: signed layer-descending stack — identity, auth, payments, ZK, settlement, economics ---
+routes/account	crypto
+routes/auth	crypto
+routes/billing	crypto
+routes/credits	crypto
+routes/claim	crypto
+routes/fees	crypto
+routes/transactions	crypto
+routes/wallet	crypto
+routes/covenant	crypto
+services/flex	crypto
+services/flex-facilitator	crypto
+services/flex-metered	crypto
+services/flex-payment-terms	crypto
+services/flex-route-helpers	crypto
+services/flex-upto-handler	crypto
+services/sponsor-flex	crypto
+services/sponsor-pay	crypto
+services/sponsor-pool	crypto
+services/sponsor-session-key	crypto
+services/settlement	crypto
+services/splits	crypto
+services/crypto-sub	crypto
+services/declare-signature	crypto
+services/exec-token	crypto
+services/privy	crypto
+services/wallet-balance	crypto
+services/wallet-signer	crypto
+services/proof-verifier	crypto
+services/domain-claim	crypto
+services/domain-claim-effects	crypto
+services/domain-reservations	crypto
+services/domain-suppression	crypto
+services/domain-verifier	crypto
+services/stripe	crypto
+services/stripe-grants	crypto
+services/stripe-meter-ring	crypto
+services/stripe-tier-detection	crypto
+services/user-credits	crypto
+services/credits	crypto
+services/fees	crypto
+services/keys	crypto
+services/xgate	crypto
+services/covenant-core	crypto
+services/covenant-peer	crypto
+services/economics	crypto
+middleware/sponsor	crypto
+middleware/x402-gate	crypto
+middleware/exec-token	crypto
+middleware/flex-onboarding-required	crypto
+middleware/flex-onboarding-soft-block	crypto
+
+# --- maintenance: proof of indexing, freshness, bonded accountability, the shared route graph ---
+routes/miners	maintenance
+routes/attribution	maintenance
+routes/trace	maintenance
+routes/audit	maintenance
+routes/synthetic	maintenance
+services/marketplace	maintenance
+services/miner-demand	maintenance
+services/miner-demand-derive	maintenance
+services/freshness-probe	maintenance
+services/routing-telemetry	maintenance
+services/validator	maintenance
+services/official-submissions	maintenance
+services/release-manifest	maintenance
+services/shadow-earnings	maintenance
+services/vine-buyback-trigger	maintenance
+services/attribution	maintenance
+services/audit	maintenance
+services/traction	maintenance
+services/flywheel	maintenance
+services/publish-sanitize	maintenance
+services/rail-rotation	maintenance
+# (routes/telemetry + services/install-telemetry moved to out-of-scope: growth/funnel instrumentation, not proof-of-indexing — Day-8 audit)
+services/savings	maintenance
+services/pricing	maintenance
+
+# === Day-3 triage: every remaining module sorted after its kind (first-cut, reviewable) ===
+# slips fixed to topical (identity/auth/payments → crypto; sessions+caches → internal-apis; webhooks/telemetry → maintenance)
+routes/agents	crypto
+routes/cookies	crypto
+routes/session	internal-apis
+routes/session-state	internal-apis
+routes/webhooks	maintenance
+services/accounts	crypto
+services/agents	crypto
+services/cookie-vault	crypto
+services/transactions	crypto
+services/ai-scrub	maintenance
+services/github-webhooks	maintenance
+services/trace-state	maintenance
+services/edge-cache	internal-apis
+services/http-cache	internal-apis
+services/kv-cache	internal-apis
+services/session-state	internal-apis
+middleware/auth	crypto
+# deliberately out-of-scope: operational / growth / infra (papers should NOT claim these)
+routes/admin	out-of-scope
+routes/analytics	out-of-scope
+routes/blog	out-of-scope
+routes/dashboard	out-of-scope
+routes/faremeter-test	out-of-scope
+routes/health	out-of-scope
+routes/issues	out-of-scope
+routes/landing	out-of-scope
+routes/ops	out-of-scope
+routes/provision-pod	out-of-scope
+routes/proxy	out-of-scope
+routes/screenshot	out-of-scope
+routes/settings	out-of-scope
+routes/stats	out-of-scope
+routes/tts	out-of-scope
+services/acquisition	out-of-scope
+services/aggregates	out-of-scope
+services/analytics	out-of-scope
+services/campaign-feedback	out-of-scope
+services/demo-pipeline	out-of-scope
+services/email	out-of-scope
+services/emergentdb	out-of-scope
+services/founder-allowlist	out-of-scope
+services/funnel	out-of-scope
+services/issues	out-of-scope
+services/kv	out-of-scope
+services/landing	out-of-scope
+services/landing-experiments	out-of-scope
+services/metrics	out-of-scope
+services/neon	out-of-scope
+services/perf	out-of-scope
+services/pg-kv	out-of-scope
+services/runpod-pod-adapter	out-of-scope
+services/screenshot-blob	out-of-scope
+services/settings-state	out-of-scope
+services/stats-kv-guard	out-of-scope
+services/storm-safe	out-of-scope
+middleware/rate-limit	out-of-scope
+routes/telemetry	out-of-scope
+services/install-telemetry	out-of-scope

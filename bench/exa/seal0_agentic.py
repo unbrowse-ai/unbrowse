@@ -40,36 +40,47 @@ from unbrowse_searcher import UnbrowseSearcher  # noqa: E402
 from openai import OpenAI  # noqa: E402
 
 NEBIUS_BASE = "https://api.tokenfactory.nebius.com/v1"
-AGENT_MODEL = os.environ.get("SEAL0_AGENT_MODEL", "moonshotai/Kimi-K2.5")
 
-# Provider registry: name -> (base_url | None for OpenAI, key_env, default grader model).
-# An independent grader (different vendor from the Kimi agent) is the cleaner two-witness.
+# Provider registry: name -> (base_url | None for OpenAI, key_env, default model).
 PROVIDERS = {
-    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "openai/gpt-4o-mini"),
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "google/gemini-2.5-flash"),
     "nebius":     (NEBIUS_BASE,                    "NEBIUS_API_KEY",     "moonshotai/Kimi-K2.5"),
     "openai":     (None,                           "OPENAI_API_KEY",     "gpt-4o"),
 }
-# Grader defaults to OpenRouter (independent frontier model, OpenAI key has no quota).
+# Agent: OpenRouter (Kimi-K2.5 returned empty completions + echoed queries).
+AGENT_PROVIDER = os.environ.get("SEAL0_AGENT_PROVIDER", "openrouter")
+AGENT_MODEL = os.environ.get("SEAL0_AGENT_MODEL", PROVIDERS[AGENT_PROVIDER][2])
+# Grader: independent frontier model on OpenRouter (≠ agent model = cleaner witness).
 GRADER_PROVIDER = os.environ.get("SEAL0_GRADER_PROVIDER", "openrouter")
-GRADER_MODEL = os.environ.get("SEAL0_GRADER_MODEL", PROVIDERS[GRADER_PROVIDER][2])
-MAX_ROUNDS = int(os.environ.get("SEAL0_MAX_ROUNDS", "5"))
+GRADER_MODEL = os.environ.get("SEAL0_GRADER_MODEL", "openai/gpt-4o-mini")
+N_ANGLES = int(os.environ.get("SEAL0_N_ANGLES", "3"))
+MAX_ROUNDS = int(os.environ.get("SEAL0_MAX_ROUNDS", "2"))   # adaptive follow-up rounds
 MIN_SEARCHES = int(os.environ.get("SEAL0_MIN_SEARCHES", "2"))
 RESULTS_PER_SEARCH = int(os.environ.get("SEAL0_RESULTS_PER_SEARCH", "5"))
 RESULT_CHARS = int(os.environ.get("SEAL0_RESULT_CHARS", "1200"))   # per-snippet, in-context
 CTX_SNIPPET_CHARS = int(os.environ.get("SEAL0_CTX_SNIPPET_CHARS", "320"))  # planner digest
 EVIDENCE_KEEP = int(os.environ.get("SEAL0_EVIDENCE_KEEP", "8"))    # snippets into reconciler
 
-# Phase A — planner: decide the next web query, or stop. It sees only a COMPACT digest
-# (titles + short snippets) so the context never bloats into empty-completion territory.
-PLANNER_SYS = (
-    "You research one hard fact-seeking question whose web results often CONFLICT or are "
-    "stale. Propose web searches that find the answer from AUTHORITATIVE PRIMARY sources, "
-    "and probe the exact framing of the question (e.g. a record 'as engineer' vs 'as artist'; "
-    "a roster count on a specific date). Do NOT answer from memory — the obvious popular "
-    "answer is usually the trap.\n"
-    "Reply with EXACTLY ONE JSON object and nothing else:\n"
-    '  {\"action\":\"search\",\"query\":\"<web query>\"}   to gather more, or\n'
-    '  {\"action\":\"ready\"}   once the evidence pins the precise answer.'
+# Phase A.1 — decompose: propose N DISTINCT search angles up front. Diversity is the
+# lever: the single naive query returns only the popular (trap) answer.
+DECOMPOSE_SYS = (
+    "You research one hard fact-seeking question whose web results often CONFLICT, are "
+    "stale, or hide a non-obvious correct answer behind the popular one. Propose {N} "
+    "DISTINCT web search queries that attack the question from different angles and "
+    "surface AUTHORITATIVE PRIMARY sources. At least one query MUST probe the exact, "
+    "literal framing of the question (e.g. a record counting engineers/producers, not just "
+    "artists; a count as of a specific date/season). Do NOT just restate the question.\n"
+    'Reply with EXACTLY ONE JSON object: {\"queries\":[\"q1\",\"q2\",\"q3\"]} (no commentary).'
+)
+
+# Phase A.2 — follow-up: given a compact digest, request ONE more targeted query if the
+# answer is not yet pinned, else stop. Keeps context small (no empty-completion bloat).
+FOLLOWUP_SYS = (
+    "You are gathering evidence for one hard question whose sources may CONFLICT. Given the "
+    "evidence digest, if a single precise answer is NOT yet firmly supported by an "
+    "authoritative source, request ONE more targeted query that would resolve the conflict. "
+    "Otherwise stop.\n"
+    'Reply with EXACTLY ONE JSON object: {\"action\":\"search\",\"query\":\"<q>\"} or {\"action\":\"ready\"}.'
 )
 
 # Phase B — reconciler: given the gathered evidence, name the candidate answers and their
@@ -153,31 +164,37 @@ async def run_agent(searcher: UnbrowseSearcher, agent: OpenAI, tr: Trace) -> Non
             for e in evidence[-EVIDENCE_KEEP:]
         )
 
-    # ---- Phase A: gather (planner sees only the compact digest) ----
-    for rnd in range(1, MAX_ROUNDS + 1):
-        tr.rounds = rnd
-        force_ready = rnd == MAX_ROUNDS
-        plan_msgs = [
-            {"role": "system", "content": PLANNER_SYS},
-            {"role": "user", "content": (
-                f"Question: {question}\n\nEvidence gathered so far:\n{digest()}\n\n"
-                f"Searches run: {len(tr.searches)}. Next action JSON:"
-            )},
-        ]
-        content = await _chat(agent, plan_msgs, max_tokens=300)
-        act = _extract_json(content)
-        ready = act.get("action") == "ready"
-        # Force at least MIN_SEARCHES distinct gathers before allowing "ready".
-        if ready and len(tr.searches) >= MIN_SEARCHES:
-            break
-        q = str(act.get("query") or question)[:300]
-        if ready and len(tr.searches) < MIN_SEARCHES:
-            q = f"{question} authoritative source"  # nudge a second angle
+    async def _gather(q: str) -> None:
+        q = q[:300]
+        if not q or q in tr.searches:
+            return
         results = await searcher.search(q, num_results=RESULTS_PER_SEARCH)
         tr.searches.append(q)
         for i, r in enumerate(results):
             evidence.append({"query": q, "rank": i, "title": r.title or r.url,
                              "url": r.url, "text": (r.text or "")[:RESULT_CHARS]})
+
+    # ---- Phase A.1: decompose into N distinct angles, run them concurrently ----
+    dec = await _chat(agent, [
+        {"role": "system", "content": DECOMPOSE_SYS.replace("{N}", str(N_ANGLES))},
+        {"role": "user", "content": f"Question: {question}\n\nJSON:"},
+    ], max_tokens=300)
+    angles = [str(x) for x in _extract_json(dec).get("queries", []) if str(x).strip()]
+    if not angles:
+        angles = [question, f"{question} (exact record holder, including non-obvious)"]
+    await asyncio.gather(*[_gather(a) for a in angles[:N_ANGLES]])
+
+    # ---- Phase A.2: up to MAX_ROUNDS adaptive follow-ups to resolve a conflict ----
+    for rnd in range(1, MAX_ROUNDS + 1):
+        tr.rounds = rnd
+        act = _extract_json(await _chat(agent, [
+            {"role": "system", "content": FOLLOWUP_SYS},
+            {"role": "user", "content": f"Question: {question}\n\nEvidence digest:\n{digest()}\n\nJSON:"},
+        ], max_tokens=200))
+        if act.get("action") == "ready" and len(tr.searches) >= MIN_SEARCHES:
+            break
+        if act.get("query"):
+            await _gather(str(act["query"]))
 
     tr.n_evidence = len(evidence)
 
@@ -233,14 +250,15 @@ async def main() -> None:
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     ledger = args.ledger or f"bench/exa/seal0_run_{stamp}.jsonl"
 
-    agent = _client(NEBIUS_BASE, "NEBIUS_API_KEY")
+    a_base, a_key_env, _ = PROVIDERS[AGENT_PROVIDER]
+    agent = _client(a_base, a_key_env)
     g_base, g_key_env, _ = PROVIDERS[GRADER_PROVIDER]
     grader = _client(g_base, g_key_env)
     searcher = UnbrowseSearcher()
 
-    print(f"SEAL-0 agentic run | n={n} agent={AGENT_MODEL} "
+    print(f"SEAL-0 agentic run | n={n} agent={AGENT_MODEL}({AGENT_PROVIDER}) "
           f"grader={GRADER_MODEL}({GRADER_PROVIDER}) "
-          f"rounds<={MAX_ROUNDS} workers={args.workers}\nledger={ledger}", flush=True)
+          f"angles={N_ANGLES} followups<={MAX_ROUNDS} workers={args.workers}\nledger={ledger}", flush=True)
 
     sem = asyncio.Semaphore(args.workers)
 
