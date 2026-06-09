@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "get figma file canvas",
-  "context_url": "https://www.figma.com/files/recent",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}

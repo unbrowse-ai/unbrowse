@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search glassdoor for engineering salaries",
-  "context_url": "https://www.glassdoor.com/Salaries/software-engineer-salary-SRCH_KO0,17.htm",
-  "params": {},
-  "note": "crashed_during_collect"
-}

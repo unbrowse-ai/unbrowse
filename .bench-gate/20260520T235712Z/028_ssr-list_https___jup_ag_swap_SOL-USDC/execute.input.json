@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search jupiter swap SOL to USDC",
-  "context_url": "https://jup.ag/swap/SOL-USDC",
-  "params": {},
-  "note": "crashed_during_collect"
-}

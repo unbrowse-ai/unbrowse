@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search tweets about AI agents",
-  "context_url": "https://x.com/search?q=AI+agents&src=typed_query",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}

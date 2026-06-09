@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "get github personal repos",
-  "context_url": "https://github.com/settings/repositories",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}

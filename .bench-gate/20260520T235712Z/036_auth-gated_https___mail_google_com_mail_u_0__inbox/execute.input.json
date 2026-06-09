@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "get gmail inbox messages",
-  "context_url": "https://mail.google.com/mail/u/0/#inbox",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}

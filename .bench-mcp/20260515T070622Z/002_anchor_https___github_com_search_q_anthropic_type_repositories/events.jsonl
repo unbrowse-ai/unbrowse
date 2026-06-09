@@ -1,5 +1,0 @@
-{"type":"thread.started","thread_id":"019e2a75-3568-7481-a347-07b17176e053"}
-{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`[features].codex_hooks` is deprecated. Use `[features].hooks` instead. (Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.)"}}
-{"type":"turn.started"}
-{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"INTENT_NOT_SATISFIED: unbrowse_tools_unavailable"}}
-{"type":"turn.completed","usage":{"input_tokens":80117,"cached_input_tokens":59008,"output_tokens":510,"reasoning_output_tokens":424}}

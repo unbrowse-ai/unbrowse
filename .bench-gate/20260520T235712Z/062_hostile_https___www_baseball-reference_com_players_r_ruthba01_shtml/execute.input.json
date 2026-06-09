@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "get baseball-reference player stats",
-  "context_url": "https://www.baseball-reference.com/players/r/ruthba01.shtml",
-  "params": {},
-  "note": "no_match: execute not run"
-}

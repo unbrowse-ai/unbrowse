@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search google maps for coffee shops in sf",
-  "context_url": "https://www.google.com/maps/search/coffee+shops+san+francisco",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}
