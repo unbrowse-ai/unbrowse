@@ -54,6 +54,27 @@ test("put throws ONLY when BOTH stores fail (no silent loss)", async () => {
   await expect(kv.put("k4", "v4")).rejects.toThrow(/both stores/);
 });
 
+test("listWithValues falls back to CF on a DEGRADED-EMPTY primary (no throw)", async () => {
+  // The live-prod bug: a degraded EmergentDB returns [] WITHOUT erroring; the
+  // write-through mirror in CF still has the data, so the read must use it.
+  const degraded = { listWithValues: async () => [] }; // empty, no throw
+  const cf = fakeCf();
+  cf.store.set("stats:contract:abc:event:1", JSON.stringify({ e: 1 }));
+  cf.store.set("stats:contract:abc:event:2", JSON.stringify({ e: 2 }));
+  const kv = new FallbackKV(degraded as never, cf as never, "stats");
+  const rows = await kv.listWithValues("contract:abc:event:");
+  expect(rows.length).toBe(2);                       // recovered from CF, not the empty primary
+  expect(rows.map((r) => r.name).sort()).toEqual(["contract:abc:event:1", "contract:abc:event:2"]);
+});
+
+test("list falls back to CF on a degraded-empty primary", async () => {
+  const degraded = { list: async () => ({ keys: [], list_complete: true, cursor: undefined }) };
+  const cf = fakeCf(); cf.store.set("stats:p:1", "a");
+  const kv = new FallbackKV(degraded as never, cf as never, "stats");
+  const r = await kv.list({ prefix: "p:" });
+  expect(r.keys.map((k) => k.name)).toEqual(["p:1"]);
+});
+
 test("json round-trips through the CF fallback", async () => {
   const down = { get: async () => { throw new Error("down"); }, put: async () => { throw new Error("down"); } };
   const cf = fakeCf();

@@ -532,32 +532,41 @@ export class FallbackKV {
     await Promise.allSettled([this.primary.delete(key), this.cf.delete(this.ck(key))]);
   }
 
+  // Fall back to CF on a throw OR an EMPTY result: a degraded EmergentDB returns
+  // an empty list without erroring, and the write-through mirror in CF still has
+  // the data. (This is the bug the live contract-ledger read exposed.)
+  private async cfList(prefix: string): Promise<ValuedEntry[]> {
+    const res = await this.cf.list({ prefix: this.ck(prefix) });
+    const out: ValuedEntry[] = [];
+    for (const k of res.keys) {
+      const raw = await this.cf.get(k.name).catch(() => null);
+      const name = this.strip(k.name);
+      out.push({ name, key: name, value: raw ?? "" });
+    }
+    return out;
+  }
+
   async list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<ListResult> {
+    let primary: ListResult | null = null;
+    try { primary = await this.primary.list(opts); } catch { /* fall through */ }
+    if (primary && primary.keys.length > 0) return primary;
     try {
-      return await this.primary.list(opts);
-    } catch {
       const res = await this.cf.list({ prefix: this.ck(opts.prefix), limit: opts.limit, cursor: opts.cursor });
       return {
         keys: res.keys.map((k) => ({ name: this.strip(k.name) })),
         list_complete: res.list_complete,
         cursor: res.list_complete ? undefined : (res as { cursor?: string }).cursor,
       };
+    } catch {
+      return primary ?? { keys: [], list_complete: true, cursor: undefined };
     }
   }
 
   async listWithValues(prefix: string): Promise<ValuedEntry[]> {
-    try {
-      return await this.primary.listWithValues(prefix);
-    } catch {
-      const res = await this.cf.list({ prefix: this.ck(prefix) });
-      const out: ValuedEntry[] = [];
-      for (const k of res.keys) {
-        const raw = await this.cf.get(k.name).catch(() => null);
-        const name = this.strip(k.name);
-        out.push({ name, key: name, value: raw ?? "" });
-      }
-      return out;
-    }
+    let primary: ValuedEntry[] = [];
+    try { primary = await this.primary.listWithValues(prefix); } catch { primary = []; }
+    if (primary.length > 0) return primary;
+    try { return await this.cfList(prefix); } catch { return primary; }
   }
 
   async resetSplitIndex(): Promise<void> {
