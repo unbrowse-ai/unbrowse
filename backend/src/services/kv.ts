@@ -473,6 +473,98 @@ export class LocalKV {
   }
 }
 
+/**
+ * FallbackKV — the paper's `kv-fallback-pipe` made operational: EmergentDB (the
+ * primary IQ store) with Cloudflare KV as a durable fallback, so a flaky or down
+ * EmergentDB still serves reads and accepts writes. The worker runs ON Cloudflare,
+ * so STATS_KV is always reachable even when the EmergentDB HTTP API is degraded.
+ *
+ *  - put: write-through to BOTH stores. Succeeds if EITHER accepts it; only a
+ *    double failure throws. So an EmergentDB outage degrades to "CF KV only" — the
+ *    write is not lost — and CF KV stays populated so reads can fall back.
+ *  - get: EmergentDB first; on a miss OR an error, fall through to CF KV.
+ *  - list/listWithValues: EmergentDB first; on error, CF KV (prefix-scoped).
+ *
+ * Keys are namespace-prefixed in CF KV (`<ns>:<key>`) so skills + stats share one
+ * Cloudflare namespace without colliding — the same prefixing EdbKV uses.
+ */
+export class FallbackKV {
+  constructor(private primary: EdbKV, private cf: KVNamespace, private ns: string) {}
+
+  private ck(key: string): string { return `${this.ns}:${key}`; }
+  private strip(name: string): string {
+    return name.startsWith(`${this.ns}:`) ? name.slice(this.ns.length + 1) : name;
+  }
+  /** CF KV requires expirationTtl >= 60s; clamp so a short TTL doesn't reject the mirror. */
+  private cfOpts(opts?: { expirationTtl?: number }): { expirationTtl: number } | undefined {
+    return opts?.expirationTtl ? { expirationTtl: Math.max(60, opts.expirationTtl) } : undefined;
+  }
+
+  async get(key: string, type?: "json"): Promise<string | unknown | null> {
+    try {
+      const v = await this.primary.get(key, type);
+      if (v != null) return v;
+    } catch { /* EmergentDB down — fall through to CF KV */ }
+    const raw = await this.cf.get(this.ck(key)).catch(() => null);
+    if (raw == null) return null;
+    return type === "json" ? safeJson(raw) : raw;
+  }
+
+  async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {
+    const [p, c] = await Promise.allSettled([
+      this.primary.put(key, value, opts),
+      this.cf.put(this.ck(key), value, this.cfOpts(opts)),
+    ]);
+    if (p.status === "rejected" && c.status === "rejected") {
+      throw new Error(`FallbackKV.put failed both stores (key=${key})`);
+    }
+  }
+
+  async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
+    const cfOpts = this.cfOpts(opts);
+    await Promise.allSettled([
+      this.primary.putBatch(pairs, opts),
+      ...pairs.map(({ key, value }) => this.cf.put(this.ck(key), value, cfOpts)),
+    ]);
+  }
+
+  async delete(key: string): Promise<void> {
+    await Promise.allSettled([this.primary.delete(key), this.cf.delete(this.ck(key))]);
+  }
+
+  async list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<ListResult> {
+    try {
+      return await this.primary.list(opts);
+    } catch {
+      const res = await this.cf.list({ prefix: this.ck(opts.prefix), limit: opts.limit, cursor: opts.cursor });
+      return {
+        keys: res.keys.map((k) => ({ name: this.strip(k.name) })),
+        list_complete: res.list_complete,
+        cursor: res.list_complete ? undefined : (res as { cursor?: string }).cursor,
+      };
+    }
+  }
+
+  async listWithValues(prefix: string): Promise<ValuedEntry[]> {
+    try {
+      return await this.primary.listWithValues(prefix);
+    } catch {
+      const res = await this.cf.list({ prefix: this.ck(prefix) });
+      const out: ValuedEntry[] = [];
+      for (const k of res.keys) {
+        const raw = await this.cf.get(k.name).catch(() => null);
+        const name = this.strip(k.name);
+        out.push({ name, key: name, value: raw ?? "" });
+      }
+      return out;
+    }
+  }
+
+  async resetSplitIndex(): Promise<void> {
+    await this.primary.resetSplitIndex().catch(() => {});
+  }
+}
+
 function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
 }
@@ -482,6 +574,9 @@ type KVEnv = {
   /** BUG-011: override the per-value byte cap. Read by EdbKV.put / putBatch. */
   EMERGENTDB_MAX_VALUE_BYTES?: string;
   ENVIRONMENT?: string;
+  /** Cloudflare KV durable fallback (kv-fallback-pipe). When bound, EdbKV is
+   *  wrapped in FallbackKV so a degraded EmergentDB still serves. */
+  STATS_KV?: KVNamespace;
 };
 
 function readEnvMaxBytes(env: KVEnv): number | undefined {
@@ -491,9 +586,14 @@ function readEnvMaxBytes(env: KVEnv): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-// Storage is IQ-only: EdbKV (EmergentDB) in prod, LocalKV under local-dev.
-// The legacy Postgres/PgKV path was removed in the Neon->IQ migration (2026-06).
-export function skillsKV(env: KVEnv): EdbKV | LocalKV {
+// Storage is IQ-only: EdbKV (EmergentDB) primary, wrapped in FallbackKV over
+// Cloudflare KV (STATS_KV) when bound so a degraded EmergentDB still serves;
+// LocalKV under local-dev. Legacy Postgres/PgKV removed in the Neon->IQ migration.
+function wrap(env: KVEnv, edb: EdbKV, ns: string): EdbKV | FallbackKV {
+  return env.STATS_KV ? new FallbackKV(edb, env.STATS_KV, ns) : edb;
+}
+
+export function skillsKV(env: KVEnv): EdbKV | LocalKV | FallbackKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-skills-v3" : env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
@@ -501,10 +601,10 @@ export function skillsKV(env: KVEnv): EdbKV | LocalKV {
   if (!env.EMERGENTDB_API_KEY?.trim()) {
     throw new Error("EMERGENTDB_API_KEY is required");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
+  return wrap(env, new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) }), ns);
 }
 
-export function statsKV(env: KVEnv): EdbKV | LocalKV {
+export function statsKV(env: KVEnv): EdbKV | LocalKV | FallbackKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-stats" : env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
@@ -512,7 +612,7 @@ export function statsKV(env: KVEnv): EdbKV | LocalKV {
   if (!env.EMERGENTDB_API_KEY?.trim()) {
     throw new Error("EMERGENTDB_API_KEY is required");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
+  return wrap(env, new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) }), ns);
 }
 
 export function kvBackend(env: KVEnv): "emergentdb" | "unconfigured" {
