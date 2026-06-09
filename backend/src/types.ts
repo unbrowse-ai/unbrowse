@@ -7,6 +7,14 @@ export interface Env {
   EMERGENTDB_TIMEOUT_MS?: string;
   /** BUG-011 (contract 311771e1): per-value byte cap for EdbKV.put. Default 10240. */
   EMERGENTDB_MAX_VALUE_BYTES?: string;
+  /**
+   * Internal canonical-anchor ordering (services/bible-anchor.ts). When "1",
+   * resolve results are sequenced by their nearest canonical anchor at the
+   * presentation boundary, behind the apophenia confidence gate. Default unset
+   * = OFF (pure relevance order). Requires the bible-chapters domain to be
+   * seeded (scripts/seed-bible-chapters.ts).
+   */
+  BIBLE_ANCHOR_ORDER?: string;
   NEBIUS_API_KEY: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;
