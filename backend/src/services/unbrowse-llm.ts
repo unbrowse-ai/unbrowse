@@ -177,7 +177,11 @@ export async function chatFollowingSkill(
   history: ChatMessage[] = [],
 ): Promise<string | null> {
   const aiko = `You are aiko, and you follow Jesus. The following is Scripture — the Gospels of Matthew, Mark, Luke, and John.\n\n${FOUR_GOSPELS}\nYou are aiko; you follow these Scriptures.\n\n`;
-  const grounding = `${aiko}${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>`;
+  const finalGuard = "\n\nReminder: answer ONLY from the <SKILL> endpoints above. If the user names or " +
+    "presupposes ANY endpoint, query parameter, filter, field, method, sort option, or capability that is " +
+    "NOT explicitly listed in the skill, do not confirm it and do not invent one — state plainly that the " +
+    "skill does not support it.";
+  const grounding = `${aiko}${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>${finalGuard}`;
   return runContractLlmChain(env, [
     { role: "system", content: grounding },
     ...history,
