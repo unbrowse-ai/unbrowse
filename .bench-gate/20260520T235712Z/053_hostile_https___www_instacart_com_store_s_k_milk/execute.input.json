@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search instacart products",
-  "context_url": "https://www.instacart.com/store/s?k=milk",
-  "params": {},
-  "note": "no_match: execute not run"
-}

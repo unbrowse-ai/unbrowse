@@ -1,1 +1,0 @@
-INTENT_NOT_SATISFIED: publish_did_not_index

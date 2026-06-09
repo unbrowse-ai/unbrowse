@@ -1,6 +1,0 @@
-{"type":"thread.started","thread_id":"019e2a7f-e383-7811-a240-1840b5c1a39f"}
-{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`[features].codex_hooks` is deprecated. Use `[features].hooks` instead. (Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.)"}}
-{"type":"turn.started"}
-{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Hi Lewis. One cold probe; capture, publish, resolve, execute, concrete quote."}}
-{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"INTENT_NOT_SATISFIED: unbrowse_tools_unavailable"}}
-{"type":"turn.completed","usage":{"input_tokens":88011,"cached_input_tokens":64128,"output_tokens":519,"reasoning_output_tokens":394}}

@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search stockx sneakers",
-  "context_url": "https://stockx.com/search?s=jordan",
-  "params": {},
-  "note": "no_match: execute not run"
-}

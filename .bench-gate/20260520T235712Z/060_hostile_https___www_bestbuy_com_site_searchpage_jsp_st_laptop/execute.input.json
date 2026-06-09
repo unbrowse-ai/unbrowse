@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search bestbuy laptops",
-  "context_url": "https://www.bestbuy.com/site/searchpage.jsp?st=laptop",
-  "params": {},
-  "note": "crashed_during_collect"
-}

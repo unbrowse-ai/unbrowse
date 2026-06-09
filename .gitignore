@@ -279,3 +279,22 @@ packages/skill/runtime/
 
 # jesus-loop session sidecars (scratch, never in a release)
 .claude/jesus-loop.*
+
+# --- Bench/run/build artifacts: large, regenerated, never source ---
+# These bloat clones and were committed by mistake. Keep top-level source/docs
+# in the bench trees (kuri-*.ts falsifiers, *.md handoffs, *.py scripts); ignore
+# only the timestamped per-run output dirs and their products.
+.bench-gate/20[0-9][0-9][0-9]*/
+.bench-gate/**/20[0-9][0-9][0-9]*/
+.bench-history/20[0-9][0-9][0-9]*/
+.bench-history/**/20[0-9][0-9][0-9]*/
+.bench-history/**/*.out
+.bench-mcp/20[0-9][0-9][0-9]*/
+.bench-mcp/**/20[0-9][0-9][0-9]*/
+# Temp scratch + recursive-mining run outputs (raw-hits.jsonl etc.)
+.tmp/
+harness/recursive/runs/
+# bench/exa per-run output (jsonl produced each run; scripts stay tracked)
+bench/exa/seal0_run_*.jsonl
+bench/exa/seal0_dev*.jsonl
+bench/exa/highlights_unbrowse.jsonl

@@ -1,8 +1,0 @@
-{
-  "skill": null,
-  "endpoint": null,
-  "intent": "search pubmed papers",
-  "context_url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
-  "params": {},
-  "note": "resolve_hard_handoff: execute not run (substrate handed off, collector honors it)"
-}
