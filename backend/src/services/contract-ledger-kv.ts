@@ -28,15 +28,12 @@ import type {
 
 /**
  * Minimal env shape statsKV needs. Mirrors KVEnv in `kv.ts` so this
- * module doesn't depend on the full backend `Env` (which doesn't
- * declare USE_PGKV anyway — it's read off process.env in the gate).
+ * module doesn't depend on the full backend `Env`.
  */
 export interface KvLedgerEnv {
   ENVIRONMENT?: string;
-  DATABASE_URL?: string;
   EMERGENTDB_API_KEY?: string;
   EMERGENTDB_MAX_VALUE_BYTES?: string;
-  USE_PGKV?: string;
 }
 
 /** A short random hex suffix so two writes within the same millisecond don't collide. */

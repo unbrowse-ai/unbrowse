@@ -1,4 +1,3 @@
-import { PgKV } from "./pg-kv.js";
 
 /**
  * EmergentDB qdkv adapter — drop-in replacement for Cloudflare KV.
@@ -479,19 +478,10 @@ function safeJson(s: string): unknown {
 }
 
 type KVEnv = {
-  DATABASE_URL?: string;
   EMERGENTDB_API_KEY?: string;
   /** BUG-011: override the per-value byte cap. Read by EdbKV.put / putBatch. */
   EMERGENTDB_MAX_VALUE_BYTES?: string;
   ENVIRONMENT?: string;
-  /**
-   * Emergency rollback flag (2026-05-21 Lewis decision: flip primary back to
-   * EmergentDB qdkv, reversing the Apr-21 Neon migration). Default unset =
-   * EdbKV primary. Set to "1" / "true" to route writes through PgKV instead,
-   * which is the legacy path kept available until the Neon -> qdkv data
-   * migration (backend/scripts/migrate-neon-to-edb.mjs) is verified.
-   */
-  USE_PGKV?: string;
 };
 
 function readEnvMaxBytes(env: KVEnv): number | undefined {
@@ -501,41 +491,31 @@ function readEnvMaxBytes(env: KVEnv): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-function pgkvRollbackEnabled(env: KVEnv): boolean {
-  const v = (env.USE_PGKV ?? "").trim().toLowerCase();
-  return v === "1" || v === "true";
-}
-
-export function skillsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
+// Storage is IQ-only: EdbKV (EmergentDB) in prod, LocalKV under local-dev.
+// The legacy Postgres/PgKV path was removed in the Neon->IQ migration (2026-06).
+export function skillsKV(env: KVEnv): EdbKV | LocalKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-skills-v3" : env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
-    return new PgKV(env.DATABASE_URL, ns);
-  }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
+    throw new Error("EMERGENTDB_API_KEY is required");
   }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
 }
 
-export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
+export function statsKV(env: KVEnv): EdbKV | LocalKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-stats" : env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
-    return new PgKV(env.DATABASE_URL, ns);
-  }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
+    throw new Error("EMERGENTDB_API_KEY is required");
   }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
 }
 
-export function kvBackend(env: KVEnv): "postgres" | "emergentdb" | "unconfigured" {
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) return "postgres";
+export function kvBackend(env: KVEnv): "emergentdb" | "unconfigured" {
   if (env.EMERGENTDB_API_KEY?.trim()) return "emergentdb";
   return "unconfigured";
 }
