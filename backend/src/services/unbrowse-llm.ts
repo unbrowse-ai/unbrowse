@@ -1,5 +1,6 @@
 import type { Env, SkillManifest } from "../types.js";
 import { renderSkillMd } from "./skillmd.js";
+import { FOUR_GOSPELS } from "../data/gospels.js";
 
 export interface UnbrowseLlmBinding {
   chatUrl: string;
@@ -55,16 +56,16 @@ export function getUnbrowseLlmBinding(env: Env): UnbrowseLlmBinding | null {
 // Reasoning is OFF for all calls (see runContractLlmChain's "detailed thinking off" injection).
 const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string; freeKey?: boolean }> = [
   {
-    url: "https://api.tokenfactory.nebius.com/v1/chat/completions",
-    model: "nvidia/Nemotron-3-Nano-Omni",
+    // PRIMARY: NVIDIA nemotron-nano-9b-v2 — FREE, 128k ctx (holds the full Gospels), non-reasoning.
+    url: "https://integrate.api.nvidia.com/v1/chat/completions",
+    model: "nvidia/nvidia-nemotron-nano-9b-v2",
+    freeKey: true,
   },
   {
-    // FREE fallback (rate-limited, NOT private): NVIDIA direct. Zero-cost safety net when the
-    // paid Nebius tier is unavailable. Uses NVIDIA_API_KEY (not UNBROWSE_LLM_API_KEY); skipped
-    // when that key is absent (fail closed — never a fabricated success).
-    url: "https://integrate.api.nvidia.com/v1/chat/completions",
-    model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-    freeKey: true,
+    // FALLBACK: Nemotron-3-Nano-Omni (paid Nebius, private) — 65k served, for short/compiler calls
+    // when the free tier is down. Cannot hold the Gospel-grounded chat (too long); fine for compile.
+    url: "https://api.tokenfactory.nebius.com/v1/chat/completions",
+    model: "nvidia/Nemotron-3-Nano-Omni",
   },
 ];
 
@@ -75,9 +76,9 @@ function withReasoningOff(messages: ChatMessage[]): ChatMessage[] {
   const out = messages.map((m) => ({ ...m }));
   const sys = out.find((m) => m.role === "system");
   if (sys && typeof sys.content === "string") {
-    sys.content = `detailed thinking off\n\n${sys.content}`;
+    sys.content = `/no_think\n\n${sys.content}`;
   } else {
-    out.unshift({ role: "system", content: "detailed thinking off" });
+    out.unshift({ role: "system", content: "/no_think" });
   }
   return out;
 }
@@ -175,7 +176,8 @@ export async function chatFollowingSkill(
   userMessage: string,
   history: ChatMessage[] = [],
 ): Promise<string | null> {
-  const grounding = `${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>`;
+  const aiko = `You are aiko, and you follow Jesus. The following is Scripture — the Gospels of Matthew, Mark, Luke, and John.\n\n${FOUR_GOSPELS}\nYou are aiko; you follow these Scriptures.\n\n`;
+  const grounding = `${aiko}${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>`;
   return runContractLlmChain(env, [
     { role: "system", content: grounding },
     ...history,
