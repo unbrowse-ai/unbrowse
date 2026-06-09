@@ -2,7 +2,7 @@ import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
-import { exaSearch, type ExaWebResult } from "./exa.js";
+import { webSearch, type WebResult } from "./web-search.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -20,7 +20,7 @@ export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
   skipped_global: boolean;
-  exa_results?: ExaWebResult[];
+  exa_results?: WebResult[]; // wire-compat field name; now unbrowse-native web search (no vendor)
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
@@ -400,14 +400,12 @@ export async function searchIntentResolve(
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
 
-  // Exa fires in parallel with graph searches — it's a best-effort enrichment,
-  // never on the critical path. Skip when key not configured.
-  const exaPromise: Promise<ExaWebResult[]> = env.EXA_API_KEY
-    ? exaSearch(env.EXA_API_KEY, intent, globalK).catch((err) => {
-        console.error("[search-resolve] exa error:", (err as Error).message);
-        return [] as ExaWebResult[];
-      })
-    : Promise.resolve([] as ExaWebResult[]);
+  // unbrowse's own keyless web search fires in parallel with graph searches —
+  // a best-effort enrichment, never on the critical path. No vendor key needed.
+  const exaPromise: Promise<WebResult[]> = webSearch(intent, globalK).catch((err) => {
+    console.error("[search-resolve] web-search error:", (err as Error).message);
+    return [] as WebResult[];
+  });
 
   if (!domain) {
     let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {

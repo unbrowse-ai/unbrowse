@@ -1,7 +1,7 @@
 import { Hono, type Context, type Next } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoints, type EndpointSearchHit } from "../services/discovery.js";
-import { exaSearch } from "../services/exa.js";
+import { webSearch } from "../services/web-search.js";
 import { getOrComputeSemantic } from "../services/semantic-cache.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
@@ -97,8 +97,8 @@ async function requireSearchPayment<E extends { Bindings: Env }>(
  * The priced search/x402 gate: subscription admit → sponsor → 402 Flex terms →
  * verify+settle. Factored out so it can be reused at a different price. The
  * (currently free) local `/search` calls it only when payment is enabled; the
- * new `/search/web` (Exa-backed) calls it ALWAYS for non-owner callers, since
- * Exa has a real per-query cost. Returns a Response to short-circuit (402 /
+ * `/search/web` external web search calls it ALWAYS for non-owner callers, since
+ * the web round-trip has a real cost. Returns a Response to short-circuit (402 /
  * onboarding), or null to admit.
  */
 async function runPricedSearchGate<E extends { Bindings: Env }>(
@@ -231,43 +231,38 @@ searchRoutes.use("/search/rank", rateLimit({ limit: 60, window: 60, prefix: "sea
 searchRoutes.use("/search/endpoints", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/web", rateLimit({ limit: 30, window: 60, prefix: "search-web" }));
 
-// Web search price (USD). Exa charges per query (~$0.005); the owner's own key
-// is used for owner ("__admin__") requests at no charge, and external callers
+// Web search price (USD). The owner ("__admin__") runs free; external callers
 // pay this via x402 — the split then settles through the existing Flex gate.
 const WEB_SEARCH_PRICE_USD = 0.01;
 
 /**
- * Owner-exempt, otherwise-priced gate for the Exa-backed web search.
- * Owner ("__admin__", i.e. the platform operator's key) → admit free, the
- * request runs on the platform's own Exa key. Everyone else → the standard
- * x402 path (priced at WEB_SEARCH_PRICE_USD, settled via Flex).
+ * Owner-exempt, otherwise-priced gate for the external web search.
+ * Owner ("__admin__", i.e. the platform operator's key) → admit free. Everyone
+ * else → the standard x402 path (priced at WEB_SEARCH_PRICE_USD, settled via Flex).
  */
 async function requireWebSearchPayment<E extends { Bindings: Env }>(c: Context<E>): Promise<Response | null> {
   const agentId = (c as unknown as { get: (k: string) => string | undefined }).get("agent_id");
-  if (agentId === "__admin__") return null; // owner — uses the platform Exa key, free.
+  if (agentId === "__admin__") return null; // owner → free.
   return runPricedSearchGate(c, "web", WEB_SEARCH_PRICE_USD);
 }
 
 /**
- * POST /v1/search/web — Exa-backed external web search ("find the trees").
+ * POST /v1/search/web — unbrowse's own external web search ("find the trees").
  *
- * Owner (admin key) requests run on the platform's own Exa key for free; every
- * other caller pays via x402 before the Exa call runs. Distinct from POST
- * /v1/search, which is free local-index discovery (PR #816) and never calls Exa.
+ * Owner (admin key) requests run free; every other caller pays via x402 before
+ * the search runs. Distinct from POST /v1/search, which is free local-index
+ * discovery (PR #816). Keyless — runs DuckDuckGo retrieval from the Worker.
  */
 searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) => {
   const { query, k } = await c.req.json<{ query?: string; k?: number }>().catch(() => ({ query: undefined, k: undefined }));
   if (!query || !query.trim()) return c.json({ error: "query required" }, 400);
-  if (!c.env.EXA_API_KEY) {
-    return c.json({ error: "web_search_unavailable", message: "Exa web search is not configured on this deployment." }, 503);
-  }
   const gate = await requireWebSearchPayment(c);
   if (gate) return gate; // 402 Flex terms / onboarding for external callers.
   try {
     const topK = Math.min(Math.max(k ?? 5, 1), 20);
-    // Semantic cache: a reworded repeat of a prior query returns the cached Exa
-    // results without paying the live Exa round-trip. Fail-open — any cache
-    // trouble falls through to the live exaSearch. (Keyed per-k so a k=5 cache
+    // Semantic cache: a reworded repeat of a prior query returns the cached
+    // results without re-running the live web round-trip. Fail-open — any cache
+    // trouble falls through to a live webSearch. (Keyed per-k so a k=5 cache
     // never serves a k=20 request.)
     // Defer the cache write-through past the response (EmergentDB writes ~5s).
     const waitUntil = (p: Promise<unknown>) => {
@@ -277,12 +272,12 @@ searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) =
       c.env,
       `web:k${topK}`,
       query.trim(),
-      () => exaSearch(c.env.EXA_API_KEY!, query.trim(), topK),
+      () => webSearch(query.trim(), topK),
       waitUntil,
     );
     return c.json({ query: query.trim(), results, cached });
   } catch (err) {
-    console.error("[search/web] exa failed:", (err as Error).message);
+    console.error("[search/web] web search failed:", (err as Error).message);
     return c.json({ query: query.trim(), results: [] });
   }
 });
