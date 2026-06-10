@@ -1,5 +1,5 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { indexEndpoints, searchIntent } from "../src/services/discovery";
+import { indexEndpoints, searchIntent, __resetSearchCacheForTests } from "../src/services/discovery";
 
 // DOMINION (end-to-end across the seam): the north-star path at the code level —
 // a skill WRITTEN by indexEndpoints must come BACK from searchIntent on the same
@@ -23,8 +23,12 @@ beforeEach(() => {
   globalThis.fetch = (async (_url: string) =>
     new Response(JSON.stringify({ results: [] }), { status: 200, headers: { "content-type": "application/json" } })
   ) as typeof fetch;
+  // Clear the module-scoped search cache so each test exercises a FRESH BM25 read
+  // of its own fakeKV — not a stale hit served from a prior test (cache-pollution
+  // would let a test pass without ever traversing the path it claims to prove).
+  __resetSearchCacheForTests();
 });
-afterEach(() => { globalThis.fetch = realFetch; });
+afterEach(() => { globalThis.fetch = realFetch; __resetSearchCacheForTests(); });
 
 const env = () => ({ STATS_KV: fakeKV(), ENVIRONMENT: "local", EMERGENTDB_API_KEY: "x" }) as never;
 
@@ -40,16 +44,23 @@ test("e2e: a skill indexed by indexEndpoints is returned by searchIntent (graph 
   expect(results.map((r) => String(r.id))).toContain("skillCheckout:place");
 });
 
-test("e2e: search discriminates — an unrelated query does not surface the skill", async () => {
+test("e2e: search discriminates — returns the matching skill, NOT the unrelated one", async () => {
   const e = env();
+  // Index BOTH a matching skill and an unrelated one, so the assertion is non-vacuous:
+  // the query MUST return the airline skill (proves search ran) AND exclude the weather
+  // skill (proves it discriminates) — not merely "results happened to be empty".
   await indexEndpoints(e, "skillWeather",
     [{ endpoint_id: "f", method: "GET", url_template: "https://w.example/forecast",
        description: "get the weather forecast for a city" }],
     { domain: "w.example" });
+  await indexEndpoints(e, "skillAirline",
+    [{ endpoint_id: "b", method: "GET", url_template: "https://air.example/tickets",
+       description: "purchase airline tickets and add checked baggage" }],
+    { domain: "air.example" });
 
-  // BM25 scores>0 only on term overlap; a totally unrelated intent must not match.
-  const results = await searchIntent(e, "purchase airline tickets baggage", 5);
-  expect(results.map((r) => String(r.id))).not.toContain("skillWeather:f");
+  const ids = (await searchIntent(e, "purchase airline tickets baggage", 5)).map((r) => String(r.id));
+  expect(ids).toContain("skillAirline:b");        // search actually ran and matched
+  expect(ids).not.toContain("skillWeather:f");    // and discriminated out the unrelated skill
 });
 
 test("e2e: two domains indexed, the right one wins for an intent", async () => {
