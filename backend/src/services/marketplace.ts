@@ -174,11 +174,22 @@ export async function publishSkill(
   const submitterAgentId = context?.submitter_agent_id;
   const isAdminSubmission = submitterAgentId === "__admin__";
 
-  // Ownership gate (security/audit-and-patches): a domain-level skill is owned
-  // by the agent that first published it. Subsequent publishes from any other
-  // non-admin agent are rejected. Admins may always publish (used for
-  // marketplace seeding).
-  if (existing && existing.owner_agent_id && submitterAgentId && !isAdminSubmission) {
+  // Ownership gate: exclusive publish rights are earned by DNS verification, NOT by
+  // publishing first. A domain that is NOT yet DNS-verified is communal — any
+  // wallet-identified agent may contribute routes (publishes merge endpoints below),
+  // because indexing public APIs is the whole point and no agent should be able to
+  // wall off a domain merely by being first. Only once a domain is DNS-proven
+  // (`_unbrowse-claim` TXT → existing.domain_verified) does its verified owner gain
+  // exclusivity; from then on non-owner non-admin publishes are rejected. Reserved
+  // brand/infra domains stay admin-only (gate below), and the takedown gate above
+  // remains the verified owner's reactive remedy against an abusive communal route.
+  if (
+    existing &&
+    existing.owner_agent_id &&
+    existing.domain_verified === true &&
+    submitterAgentId &&
+    !isAdminSubmission
+  ) {
     if (existing.owner_agent_id !== submitterAgentId) {
       throw new Error("publish_forbidden_not_owner");
     }

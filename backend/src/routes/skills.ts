@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { mapPublishError } from "./publish-error-map.js";
 import type { Env } from "../types.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
@@ -640,28 +641,11 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
     });
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.startsWith("publish_forbidden_reserved_domain:")) {
-      const reserved = msg.slice("publish_forbidden_reserved_domain:".length);
-      return c.json({
-        error: "publish_forbidden_reserved_domain",
-        message: `"${reserved}" is on the reserved-domain list and may only be published by admin keys.`,
-        reserved_domain: reserved,
-      }, 403);
-    }
-    if (msg.startsWith("publish_forbidden_domain_unverified:")) {
-      const domain = msg.slice("publish_forbidden_domain_unverified:".length);
-      return c.json({
-        error: "publish_forbidden_domain_unverified",
-        message: `Domain control for "${domain}" has not been verified. POST /v1/skills/by-domain/${domain}/verify/challenge to start the .well-known probe flow.`,
-        domain,
-        next_step: `/v1/skills/by-domain/${domain}/verify/challenge`,
-      }, 403);
-    }
-    if (msg.startsWith("release_manifest_")) {
-      return c.json({ error: msg }, 400);
-    }
-    console.error("[publish] error:", msg, (err as Error).stack);
-    return c.json({ error: "Failed to publish skill" }, 500);
+    const mapped = mapPublishError(msg);
+    // Only a genuinely unexpected error (the 500 fall-through) is logged with a stack;
+    // known refusals are expected control flow and surface their own reason.
+    if (mapped.status === 500) console.error("[publish] error:", msg, (err as Error).stack);
+    return c.json(mapped.body, mapped.status);
   }
 
   // Roll up proof verification status across endpoints. Cheap to compute and

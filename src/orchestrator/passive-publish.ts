@@ -128,7 +128,10 @@ export function queuePassiveSkillPublish(
       skill,
       readWorkflowArtifact(skill.skill_id),
       {
-        publishStatus: "published",
+        // Honest status: "published" only if the skill actually reached the remote
+        // marketplace. A silent local-cache fallback (remote failure) is "indexed",
+        // not "published" — never claim a cloud publish that did not happen.
+        publishStatus: published.published_remotely ? "published" : "indexed",
         publishedAt: new Date().toISOString(),
         endpointIds: selection.closure_endpoint_ids,
         rootEndpointIds: selection.root_endpoint_ids,

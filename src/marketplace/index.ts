@@ -102,12 +102,19 @@ export function _marketplaceCacheSizeForTests(): number {
   return marketplaceCache.size;
 }
 
+/** publishSkill's result, tagged with whether the skill actually reached the remote
+ * marketplace (`published_remotely: true`) or only the local cache after a remote
+ * failure / local-only mode (`false`). Callers MUST read this rather than assume a
+ * returned SkillManifest means "published" — the old silent local fallback is exactly
+ * the false-success that made the `marketplace_published` flag lie. (1 Cor 5:6-7.) */
+export type PublishedSkill = SkillManifest & { published_remotely: boolean };
+
 export async function publishSkill(
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
     skill_id?: string;
     version?: string;
   }
-): Promise<SkillManifest> {
+): Promise<PublishedSkill> {
   // Pre-cache locally so the skill is immediately available even if the remote publish
   // fails or EmergentDB hasn't indexed it yet (eventual consistency).
   const now = new Date().toISOString();
@@ -121,7 +128,7 @@ export async function publishSkill(
   client.cachePublishedSkill(preCache);
 
   if (client.isLocalOnlyMode()) {
-    return preCache;
+    return { ...preCache, published_remotely: false };
   }
 
   // Transport boundary: sanitize endpoints before any data leaves the client.
@@ -140,10 +147,10 @@ export async function publishSkill(
     // Phase 8.1 — invalidate TTL cache so other agents see the new skill
     invalidateMarketplaceCache(skill.skill_id);
     if (skill.domain) invalidateMarketplaceCache(skill.domain);
-    return skill;
+    return { ...skill, published_remotely: true };
   } catch (err) {
     console.error("[publish] remote publish failed, using local cache:", (err as Error).message);
-    return preCache;
+    return { ...preCache, published_remotely: false };
   }
 }
 
