@@ -1,4 +1,10 @@
-import { test, expect, mock } from "bun:test";
+import { test, expect, mock, afterAll } from "bun:test";
+// Capture the real emergentdb module before mock.module replaces it (imports are
+// hoisted, so _realEdb is the real module here). mock.module mutates the GLOBAL
+// registry and mock.restore() does not undo it, so without re-installing the real
+// exports in afterAll this stub leaks into every sibling that imports emergentdb.
+import * as _realEdb from "../src/services/emergentdb.js";
+const _REAL_EDB = { ..._realEdb };
 
 // Witness for the internal bible-anchor ordering organ. The substrate
 // (/graph/search) is mocked — these prove the anchor parsing, the apophenia
@@ -19,6 +25,7 @@ const ROUTER: Array<{ match: string; idx: number; ref: string; score: number }> 
 ];
 
 mock.module("../src/services/emergentdb.js", () => ({
+  ..._REAL_EDB,
   emergentDBRequest: async (_env: unknown, _m: string, path: string, body: { query?: string }) => {
     if (path !== "/graph/search") return {};
     const q = (body.query ?? "").toLowerCase();
@@ -27,6 +34,7 @@ mock.module("../src/services/emergentdb.js", () => ({
     return fakeResult(hit.idx, hit.ref, hit.score);
   },
 }));
+afterAll(() => { mock.module("../src/services/emergentdb.js", () => _REAL_EDB); mock.restore(); });
 
 const {
   bibleAnchor,

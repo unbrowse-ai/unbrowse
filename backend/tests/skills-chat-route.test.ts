@@ -3,11 +3,34 @@ import { Hono } from "hono";
 import { makeSkill } from "./fixtures/skill";
 import { parseEndpointPointer } from "../src/services/skill-contract";
 
+// Capture the REAL modules BEFORE mock.module replaces them, so afterAll can
+// re-install them. mock.module mutates the GLOBAL registry and mock.restore()
+// does NOT undo it (it only resets spy fns) — so without an explicit re-mock to
+// the real exports, these stubs leak into every sibling file that imports these
+// modules and crash on the exports this file omits.
+import * as _realContract from "../src/routes/contract";
+import * as _realDiscovery from "../src/services/discovery";
+import * as _realMarketplace from "../src/services/marketplace";
+import * as _realLlm from "../src/services/unbrowse-llm";
+import * as _realAuth from "../src/middleware/auth";
+import * as _realRateLimit from "../src/middleware/rate-limit";
+const REAL = {
+  "../src/routes/contract": { ..._realContract },
+  "../src/services/discovery": { ..._realDiscovery },
+  "../src/services/marketplace": { ..._realMarketplace },
+  "../src/services/unbrowse-llm": { ..._realLlm },
+  "../src/middleware/auth": { ..._realAuth },
+  "../src/middleware/rate-limit": { ..._realRateLimit },
+} as const;
+
 // Real POST /skills/chat exercised end-to-end. The data/LLM/ledger leaves are faked
 // so it runs hermetically; the route's own resolve→ground→follow→answer→persist
-// wiring is REAL. mock.module mutates the global registry — restore after this file
-// so the mocks don't leak into siblings (Layer 1's real chatFollowingSkill, the compiler).
-afterAll(() => mock.restore());
+// wiring is REAL. Re-install every mocked module's REAL exports after this file so
+// the mocks don't leak into siblings (Layer 1's real chatFollowingSkill, the compiler).
+afterAll(() => {
+  for (const [path, real] of Object.entries(REAL)) mock.module(path, () => real);
+  mock.restore();
+});
 
 // Single-endpoint skill so the happy-path provenance assertion is exact (1 child).
 const FIXTURE = makeSkill({ endpoints: [

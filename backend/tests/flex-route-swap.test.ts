@@ -9,9 +9,14 @@
  * No real Solana RPC, no Faremeter init. Stubs the facilitator via the DI
  * seam in `createFlexFacilitator(env, { handler })`.
  */
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
 import type { FlexFacilitatorHandler } from "../src/services/flex-facilitator.js";
+// Capture the real flex-facilitator before mocking — mock.module is global and
+// mock.restore() does not undo it. Spread keeps resolveFlexNetwork/etc. real;
+// afterAll re-installs the whole real module so it never leaks into siblings.
+import * as _realFlexFac from "../src/services/flex-facilitator.js";
+const _REAL_FLEXFAC = { ..._realFlexFac };
 
 const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
@@ -47,6 +52,7 @@ const stubHandler: FlexFacilitatorHandler = {
 // Swap the facilitator factory so the route's `createFlexFacilitator(env)`
 // call resolves to our stub (no Solana RPC, no Faremeter init).
 mock.module("../src/services/flex-facilitator.js", () => ({
+  ..._REAL_FLEXFAC,
   createFlexFacilitator: async () => ({
     handler: stubHandler,
     flush: async () => ({ submitted: 0, finalized: 0, results: [] }),
@@ -58,6 +64,7 @@ mock.module("../src/services/flex-facilitator.js", () => ({
     env.FLEX_PLATFORM_RECIPIENT_USDC_ATA ?? PLATFORM_USDC_ATA,
   flexRefundTimeoutSlots: () => 150n,
 }));
+afterAll(() => { mock.module("../src/services/flex-facilitator.js", () => _REAL_FLEXFAC); mock.restore(); });
 
 import { publicSkillRoutes } from "../src/routes/skills.js";
 import type { Env, SkillManifest, AgentProfile } from "../src/types.js";
