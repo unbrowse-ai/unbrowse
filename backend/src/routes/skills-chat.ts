@@ -22,6 +22,7 @@ import { skillToContract } from "../services/skill-contract.js";
 import { persistSkillContract } from "../services/skill-contract-persist.js";
 import { handleDeclare, ledgerForRequest } from "./contract.js";
 import { chatFollowingSkill, type AikoCompiledContract } from "../services/unbrowse-llm.js";
+import { recommendCommandCached, recommendationCacheKey, proposeViaLlm, type ValidatedCommand, type RecommendationCache } from "../services/recommend-command.js";
 import { statsKV } from "../services/kv.js";
 import { fingerprintSkillContract, memoizeSkillValue, kvContentStore, kvPointerIndex } from "../services/skill-contract-cache.js";
 
@@ -42,6 +43,9 @@ export interface SkillChatResult {
   /** the resolved skill projected into the /contract tree — provenance for the DAG */
   contract: AikoCompiledContract;
   resolved_by: "domain" | "semantic";
+  /** path-A: a structured, validated command the caller can EXECUTE (not just
+   *  prose). Present only when a recommend dep is wired. */
+  recommended_command?: ValidatedCommand;
 }
 
 export class SkillChatError extends Error {
@@ -56,6 +60,9 @@ export interface SkillChatDeps {
   resolveSkill: (intent: string, domain?: string) => Promise<{ skill: SkillManifest; via: "domain" | "semantic" } | null>;
   /** answer by grounding the LLM on the skill; null = no LLM key (fail closed) */
   chat: (skill: SkillManifest, message: string) => Promise<string | null>;
+  /** path-A: produce a structured, validated, executable command for the skill +
+   *  message. Optional — when absent, the result omits recommended_command. */
+  recommend?: (skill: SkillManifest, message: string) => Promise<ValidatedCommand>;
 }
 
 /**
@@ -93,12 +100,25 @@ export async function runSkillChat(deps: SkillChatDeps, input: SkillChatInput): 
     throw new SkillChatError("llm_unavailable", "no grounded LLM key configured on this Worker", 503);
   }
 
+  // path-A: alongside the prose answer, surface a structured, validated command
+  // the caller can execute. Best-effort — a recommend failure never sinks the
+  // answer (the prose still ships).
+  let recommended_command: ValidatedCommand | undefined;
+  if (deps.recommend) {
+    try {
+      recommended_command = await deps.recommend(resolved.skill, message);
+    } catch {
+      /* recommendation is additive; the answer stands without it */
+    }
+  }
+
   return {
     answer,
     skill_id: resolved.skill.skill_id,
     domain: resolved.skill.domain,
     contract: redactContract(skillToContract(resolved.skill)),  // provenance, sans owner wallet
     resolved_by: resolved.via,
+    ...(recommended_command ? { recommended_command } : {}),
   };
 }
 
@@ -158,6 +178,24 @@ function liveDeps(env: Env): SkillChatDeps {
         if (e instanceof SkillChatError) throw e;   // 503 propagates (recompute threw)
         return recompute();                         // memo infra unavailable → serve uncached
       }
+    },
+    // path-A: the structured, validated, executable recommendation. The LLM
+    // proposes a command grounded on the skill; validateRecommendation seals it
+    // to the skill's real endpoints; the recommendation is memoised by
+    // (skill identity, intent) in KV so a recurring intent skips the model.
+    recommend: async (skill, message) => {
+      const kv = statsKV(env as never);
+      const cache: RecommendationCache = {
+        get: async (k) => {
+          try {
+            const v = await kv.get(k);
+            return typeof v === "string" ? (JSON.parse(v) as ValidatedCommand) : null;
+          } catch { return null; }
+        },
+        set: async (k, v) => { try { await kv.put(k, JSON.stringify(v)); } catch { /* cache is best-effort */ } },
+      };
+      void recommendationCacheKey; // keying handled inside recommendCommandCached
+      return recommendCommandCached(skill, message, proposeViaLlm(env), cache);
     },
   };
 }
