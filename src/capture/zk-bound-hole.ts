@@ -16,9 +16,23 @@
  * auditable end to end.
  */
 import { bind, prove, verifyBinding, verifyEd25519, type Binding, type Proof } from "../values/zk-binding.js";
+import { bindSecretToWallet } from "./wallet-bind.js";
 import type { Hole } from "./hole-template.js";
 
 const TAG = "zkbind:";
+
+/**
+ * Map of `sha16 → real ZK binding`, keyed by the SAME 16-hex tag the redactor
+ * stamps into the obfuscated capture (`[bound:<sha16>]`, see wallet-bind.ts
+ * `bindingTag`). This is the out-of-band channel that carries the real binding
+ * from the one place the secret is live (obfuscation, Seam 2) to hole
+ * construction (Seam 1), without ever putting the long `{y,root,sig}` inline on
+ * the wire or routing an async `bind()` through the sync redactor.
+ */
+export type BindingMap = Record<string, Binding>;
+
+/** Proofs the holder generates at fill time, keyed by hole name (Seam 3). */
+export type HoleProofs = Record<string, Proof>;
 
 /** Serialise a binding into the hole's `bound` string (no secret in it). */
 export function boundTag(b: Binding): string {
@@ -36,6 +50,30 @@ export function parseBoundTag(tag: string | undefined): Binding | null {
  *  the secret — only the one-way point y and the wallet's signature over it. */
 export async function bindHole(hole: Hole, secret: Uint8Array): Promise<Hole> {
   return { ...hole, bound: boundTag(await bind(secret)) };
+}
+
+/**
+ * Seam 2 (the binding mint): at obfuscation time — the ONE place the plaintext
+ * secrets are live — mint a real ZK binding for each, keyed by the same `sha16`
+ * the redactor stamps (`bindingTag` → `[bound:<sha16>]`). The secret bytes never
+ * leave: only `{y,root,sig}` (one-way point + wallet signature) enter the map.
+ * The result rides out-of-band to hole construction (Seam 1), where it upgrades
+ * each matching `Hole.bound` from the bare commitment to the real `zkbind:` tag,
+ * reviving the already-wired backend `verifyHoleAttested` check.
+ *
+ * `walletPubkey` MUST be the same wallet the ambient signer (`bind`) uses, so the
+ * commitment key and the binding's `root` agree — pass the capture wallet pubkey.
+ */
+export async function zkBindKnownSecrets(secrets: string[], walletPubkey: string): Promise<BindingMap> {
+  const map: BindingMap = {};
+  const enc = new TextEncoder();
+  for (const secret of secrets) {
+    if (typeof secret !== "string" || secret.length === 0) continue;
+    const sha16 = bindSecretToWallet(secret, walletPubkey).slice(0, 16);
+    if (map[sha16]) continue; // same secret already bound this pass
+    map[sha16] = await bind(enc.encode(secret));
+  }
+  return map;
 }
 
 /** Backend: confirm the wallet really bound this slot (signed y) — checkable with
