@@ -545,10 +545,11 @@ export interface SkillManifest {
   /** Server-owned graph trust state. */
   trust?: SkillTrustMetadata;
   /**
-   * ISO timestamp when the calling agent reviewed this skill via
-   * `unbrowse_review`. Acts as the gate for public marketplace publish:
-   * skills without `reviewed_at` carry heuristic descriptions and are
-   * held back from the public marketplace. See `processIndexJob` in
+   * ISO timestamp when the calling agent ACTUALLY reviewed this skill via
+   * `unbrowse_review` — provenance, never forged. With `auto_review=false`
+   * it gates public marketplace publish (unreviewed skills are held back);
+   * with `auto_review=true` skills publish without it, and the manifest
+   * honestly shows no review happened. See `shouldPublishAfterIndex` in
    * src/indexer/index.ts.
    */
   reviewed_at?: string;
