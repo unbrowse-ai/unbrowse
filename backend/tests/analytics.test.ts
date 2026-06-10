@@ -2,14 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { AgentProfile, Env } from "../src/types.js";
 import { getAgent, recordAgentExecution } from "../src/services/agents.js";
 import { getActivation, getAgentHealth, getEngagement, getRetention } from "../src/services/analytics.js";
-import { statsKV } from "../src/services/kv.js";
+import { statsKV, clearKVCacheForTests } from "../src/services/kv.js";
 
 const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  // local-dev → statsKV returns an in-memory LocalKV. "staging" routes to a
+  // network-backed FallbackKV (EdbKV + CF STATS_KV); with the fake bindings here
+  // both stores reject and put() throws. These pins exercise analytics
+  // computation, not the KV backend — they need the in-memory substrate.
+  ENVIRONMENT: "local-dev",
 };
 
 function isoDaysAgo(days: number): string {
@@ -62,6 +66,9 @@ describe("analytics telemetry", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    // LocalKV (local-dev) shares its store by namespace across tests; clear the
+    // whole "stats" namespace so profiles from a prior test don't inflate counts.
+    clearKVCacheForTests("stats");
     await statsKV(env).resetSplitIndex();
   });
 
