@@ -209,4 +209,37 @@ describe("zkseal Seam 3 — the proof moves in the live fill pipeline (Day 5 cre
     const resp: RevengResponse = { templates: [template] };
     expect(verifyClientHoleProofs(resp, [{}])).toBe(false); // missing proof → false
   });
+
+  it("DOMINION E2E: the whole caller journey in one flow — obfuscate → mint → hole → attest → fill → prove → verify → concrete request", async () => {
+    const wallet = Buffer.from(await getWalletPubkey()).toString("hex");
+    const secret = "tok-e2e-journey-7788";
+
+    // 1) client obfuscates its capture (secret never leaves; sink records the bound value)
+    const sink = new Set<string>();
+    const skeleton = obfuscateRequestForReveng(reqWithSecret(secret), { walletPubkey: wallet, secrets: [secret], boundSink: sink });
+    expect(JSON.stringify(skeleton)).not.toContain(secret); // 2) no plaintext on the wire
+
+    // 3) client mints the real ZK bindings over the exact bound values
+    const bindings = await zkBindKnownSecrets([...sink], wallet);
+
+    // 4) holes are extracted and upgraded to real zkbind tags
+    const template = extractHoles(skeleton, bindings);
+    const authHole = template.holes.find((h) => h.name === "authorization")!;
+    expect(authHole.bound?.startsWith("zkbind:")).toBe(true);
+
+    // 5) backend attests the slot was wallet-bound — without the secret, without a proof
+    expect(verifyHoleAttested(authHole)).toBe(true);
+
+    // 6) client fills sealed-to-wallet AND proves knowledge of the bound value
+    const resp: RevengResponse = { templates: [template] };
+    const { requests, proofs } = clientFillAndProve(resp, [{ authorization: [...sink][0] }], deriveSealKey());
+
+    // 7) backend verifies the proofs (gate open) — secret still never seen
+    expect(verifyClientHoleProofs(resp, proofs)).toBe(true);
+    expect(JSON.stringify(proofs)).not.toContain(secret);
+
+    // 8) the concrete request is reconstituted locally with the real value
+    expect(requests.length).toBe(1);
+    expect(requests[0].request_headers?.authorization).toContain(secret); // only here, client-side
+  });
 });
