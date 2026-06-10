@@ -10,7 +10,7 @@
  *
  * The LLM proposes; this disposes. No LLM, no network here.
  */
-import type { SkillManifest, EndpointDescriptor } from "../types";
+import type { Env, SkillManifest, EndpointDescriptor } from "../types";
 
 export interface ProposedCommand {
   /** Preferred: name the endpoint the recommendation targets. */
@@ -115,4 +115,76 @@ export function validateRecommendation(skill: SkillManifest, proposed: ProposedC
   }
 
   return { ok: false, reason: "recommendation must name an endpoint_id or a url" };
+}
+
+/* ------------------------------------------------------------------ *
+ *  recommendCommand — the structured recommender (path-A brick 1).
+ *  The LLM PROPOSES; validateRecommendation DISPOSES. On a rejected
+ *  (hallucinated) proposal it retries once, feeding the rejection reason
+ *  back so the model can self-correct, then returns the validated command
+ *  or an honest rejection.
+ * ------------------------------------------------------------------ */
+
+/** Injectable proposer: given a skill + prompt, return a candidate command (or
+ *  null). The default (proposeViaLlm) grounds an LLM on the skill's SKILL.md and
+ *  parses a structured JSON proposal; tests inject a deterministic stub. */
+export type ProposeFn = (skill: SkillManifest, prompt: string) => Promise<ProposedCommand | null>;
+
+export interface RecommendOptions {
+  /** Max LLM attempts (1 + retries-on-invalid). Default 2. */
+  maxAttempts?: number;
+}
+
+export async function recommendCommand(
+  skill: SkillManifest,
+  prompt: string,
+  propose: ProposeFn,
+  options: RecommendOptions = {},
+): Promise<ValidatedCommand> {
+  const maxAttempts = Math.max(1, options.maxAttempts ?? 2);
+  let prompt_i = prompt;
+  let last: ValidatedCommand = { ok: false, reason: "no proposal" };
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const proposed = await propose(skill, prompt_i);
+    if (!proposed) {
+      last = { ok: false, reason: "model proposed nothing" };
+      break;
+    }
+    const validated = validateRecommendation(skill, proposed);
+    if (validated.ok) return validated;
+    last = validated;
+    // Feed the rejection reason back so the next attempt can self-correct.
+    prompt_i = `${prompt}\n\n(Your previous proposal was rejected: ${validated.reason}. Choose only from this skill's listed endpoints and fill every {param}.)`;
+  }
+  return last;
+}
+
+/** Default proposer: ground an LLM on the skill's SKILL.md and ask for a
+ *  STRUCTURED JSON command. Returns null when no LLM key is configured (the
+ *  caller then degrades honestly). Imported lazily to keep this module's unit
+ *  surface (validateRecommendation + recommendCommand) free of LLM deps. */
+export function proposeViaLlm(env: Env): ProposeFn {
+  return async (skill, prompt) => {
+    const { runContractLlmChain } = await import("./unbrowse-llm.js");
+    const { renderSkillMd } = await import("./skillmd.js");
+    const system =
+      "You choose ONE command to satisfy the user's request using ONLY the endpoints in <SKILL>. " +
+      'Return ONLY JSON, no prose: {"endpoint_id":"<one of the skill\'s endpoint ids>","params":{"<placeholder>":"<value>"}}. ' +
+      "Fill every {placeholder} in that endpoint's URL template. Never invent an endpoint, host, or parameter not in the skill.";
+    const grounding = `${system}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>`;
+    const raw = await runContractLlmChain(env, [
+      { role: "system", content: grounding },
+      { role: "user", content: prompt },
+    ]);
+    if (!raw) return null;
+    try {
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start < 0 || end <= start) return null;
+      const obj = JSON.parse(raw.slice(start, end + 1)) as ProposedCommand;
+      return obj;
+    } catch {
+      return null;
+    }
+  };
 }
