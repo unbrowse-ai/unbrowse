@@ -61,13 +61,26 @@ export function __resetSearchCacheForTests(): void {
   _memCache.clear();
 }
 
+// Search-cache epoch. Bumped on any index DELETE so every cached search result (both
+// _memCache and the QDKV search-cache:* keys) is invalidated at once — without it a
+// deleted, deprecated, or taken-down skill keeps being served from cache for up to
+// SEARCH_CACHE_TTL (~5 min). The epoch rides in the cache key, so old-epoch entries are
+// simply never read again and TTL-expire — no per-skill enumeration needed. (1 Cor 5:6-7.)
+let _searchCacheEpoch = 0;
+/** Invalidate ALL cached search results — call after any index mutation that removes
+ * docs, so /v1/search never serves a skill that no longer exists. */
+export function invalidateSearchCache(): void {
+  _searchCacheEpoch++;
+  _memCache.clear();
+}
+
 function searchCacheKey(intent: string, k: number, domain?: string): string {
-  const base = `${intent.toLowerCase().trim()}:${k}`;
+  const base = `e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${k}`;
   return domain ? `${base}:${domain}` : base;
 }
 
 function searchResolveCacheKey(intent: string, domain: string | undefined, domainK: number, globalK: number): string {
-  return `resolve:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
+  return `resolve:e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
 }
 
 export function extractSkillId(metadata: Record<string, unknown>): string | null {
@@ -177,7 +190,10 @@ function shardForId(id: string): number {
  * naturally drains, so search unions the shards with the legacy key. */
 function globalReadKeys(env: Env): string[] {
   const g = normalizeDomain(env, "global");
-  return [`bm25-idx:${g}`, ...Array.from({ length: GLOBAL_SHARD_COUNT }, (_, i) => globalShardKey(env, i))];
+  // Shards FIRST, legacy LAST. bm25SearchGlobal dedups by first-seen id, so a skill
+  // re-published post-shard (now in a shard) must shadow its STALE copy still sitting in
+  // the legacy key — reading shards first keeps the fresh shard version, not the old one.
+  return [...Array.from({ length: GLOBAL_SHARD_COUNT }, (_, i) => globalShardKey(env, i)), `bm25-idx:${g}`];
 }
 
 /** Search the global BM25 index across all shards + the legacy key, dedup by id, score. */
@@ -706,6 +722,9 @@ async function removeFromBm25Index(
       if (filtered.length !== docs.length) await env.STATS_KV.put(key, JSON.stringify(filtered));
     } catch { /* corrupt key — a future write self-heals; never throw from a delete */ }
   }));
+  // Removing docs from the index must also invalidate cached search results, or
+  // /v1/search keeps serving the just-removed skill for up to SEARCH_CACHE_TTL.
+  invalidateSearchCache();
 }
 
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
