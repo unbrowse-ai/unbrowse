@@ -205,6 +205,8 @@ describe("route-ledger — server-side tamper-evident publish ledger", () => {
     expect(await publish(env, "ledger-c.example.com", "2026-04-04T00:00:00.000Z")).toBe(201);
     clearKVCacheForTests();
 
+    const rootBefore = (await ledgerRoot(skillsKV(env))).root;
+
     // Corrupt the leaf bytes the ledger actually reads (the inline index value),
     // forging a different committed value_hash than the one the address binds.
     const tampered = tamperInlineLeaf(store, (leaf) => { leaf.value_hash = "deadbeef".repeat(8); });
@@ -214,6 +216,9 @@ describe("route-ledger — server-side tamper-evident publish ledger", () => {
     const audit = await verifyLedger(skillsKV(env));
     expect(audit.ok).toBe(false); // tamper detected — leaf no longer hashes to its key
     expect(audit.bad.length).toBe(1);
+    // the commitment also MOVES: the tampered leaf is excluded, so the root over
+    // the surviving (here empty) set differs from the pre-tamper root.
+    expect((await ledgerRoot(skillsKV(env))).root).not.toBe(rootBefore);
   });
 
   it("the content-addressed leaf key is idempotent under retry (identical bytes → one row)", async () => {

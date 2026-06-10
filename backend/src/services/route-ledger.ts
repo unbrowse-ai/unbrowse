@@ -57,11 +57,16 @@ export interface RouteLeaf {
   skill_id: string;
   /** sha256(canonical skill manifest) — the off-log value's content hash */
   value_hash: string;
-  /** wallet pubkey hex of the publisher, or "platform" when unsigned */
+  /** publisher identity that attested this leaf: the submitter agent id when the
+   *  publish carried a release signature, else "platform". NOTE: this is an
+   *  identity label, not necessarily a wallet pubkey — `sig` is recorded but not
+   *  yet cryptographically verified here (publisher-sig verification + on-chain
+   *  checkpoint of the root are the deployment step, honestly out of scope). */
   signer: string;
   /** publish timestamp (ms) */
   ts: number;
-  /** publisher Ed25519 signature over the leaf core (hex), or "" if unsigned */
+  /** publisher release signature (hex) when supplied, else "". Recorded for the
+   *  on-chain checkpoint to verify; NOT verified by verifyLedger today. */
   sig: string;
 }
 

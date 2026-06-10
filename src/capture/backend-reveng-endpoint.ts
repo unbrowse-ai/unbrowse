@@ -111,11 +111,16 @@ export function clientFillSealed(
 }
 
 /**
- * Client step 3 + ZK proof (Seam 3 live): fill each template sealed-to-wallet AND
+ * Client step 3 + ZK proof (Seam 3): fill each template sealed-to-wallet AND
  * generate a Schnorr proof per real-bound hole that the holder knows the value it
  * filled. The proofs ride to the backend alongside the concrete requests and
  * carry no secret bytes; the backend confirms them with `verifyClientHoleProofs`.
- * This completes the three-party protocol in the runtime path, not only in tests.
+ *
+ * Status (honest): this completes the three-party protocol and is exercised
+ * end-to-end by the witness (tests/zkseal-hole-binding.test.ts). It is the
+ * integration surface — the live execute/replay path does not yet invoke
+ * `clientFillAndProve`; wiring it into that caller is the remaining integration
+ * step, labelled here rather than overclaimed.
  */
 export function clientFillAndProve(
   resp: RevengResponse,
