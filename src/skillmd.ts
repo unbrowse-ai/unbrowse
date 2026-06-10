@@ -219,6 +219,38 @@ function endpointPublicHoles(urlTemplate: string): Hole[] {
   return holes;
 }
 
+/** Fill a holed tool's PUBLIC (fill:llm) query/path holes from caller-supplied
+ *  values, returning the executable URL. Secret (fill:vault) holes are NOT
+ *  filled here — the runtime supplies them from the local vault at call time, so
+ *  they need no value. A missing public hole, or any leftover non-secret
+ *  placeholder, is an honest rejection (never execute a half-filled URL). Mirror
+ *  of the frontend helper so the CLI/backend can populate a holed tool too. */
+export function fillHoledTool(
+  tool: HoledTool,
+  values: Record<string, string>,
+): { ok: true; url: string; method: string } | { ok: false; reason: string } {
+  const secretNames = new Set(
+    tool.holes.filter((h) => h.fill === "vault").map((h) => h.name),
+  );
+  for (const h of tool.holes) {
+    if (h.fill !== "llm") continue;
+    if (values[h.name] === undefined || values[h.name] === "") {
+      return { ok: false, reason: `unfilled hole: ${h.name}` };
+    }
+  }
+  const url = tool.url_template.replace(/\{([^}]+)\}/g, (_m, key: string) => {
+    if (values[key] !== undefined && values[key] !== "") return encodeURIComponent(values[key]);
+    return `{${key}}`; // leave unresolved; checked below
+  });
+  // Any remaining {placeholder} must belong to a secret hole (vault-filled at
+  // call time); a leftover public placeholder means an incomplete fill.
+  const leftover = [...url.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+  for (const name of leftover) {
+    if (!secretNames.has(name)) return { ok: false, reason: `unfilled placeholder: ${name}` };
+  }
+  return { ok: true, url, method: tool.method };
+}
+
 export function endpointToHoledTool(skill: SkillManifest, ep: EndpointDescriptor): HoledTool {
   const urlTemplate = ep.url_template ?? (ep as { url?: string }).url ?? "";
   return {
