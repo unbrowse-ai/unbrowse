@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { Env } from "../src/types.js";
 import { scanVersionHistory } from "../src/services/traction.js";
-import { statsKV } from "../src/services/kv.js";
+import { statsKV, clearKVCacheForTests } from "../src/services/kv.js";
 
 const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function createMockFetch(store: Map<string, string>) {
@@ -46,6 +46,7 @@ describe("scanVersionHistory", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("stats");
     await statsKV(env).resetSplitIndex();
   });
 

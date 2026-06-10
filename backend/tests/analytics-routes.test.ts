@@ -8,7 +8,7 @@ const env: Env = {
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function isoDaysAgo(days: number): string {
