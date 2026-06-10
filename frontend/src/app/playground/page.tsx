@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { UnbrowseChatLive } from "@/components/unbrowse-chat-live";
-import { AskAnythingChat } from "@/components/ask-anything-chat";
+import { HeroChat } from "@/components/hero-chat";
 
 const CANONICAL_PATH = "/playground";
-const TITLE = "Playground — try Unbrowse and the chat API live";
+const TITLE = "Playground — try Unbrowse live";
 const DESCRIPTION =
-  "Anonymous, no-signup trial of both Unbrowse (resolve an intent against the public skill marketplace) and the Foundry chat API (10 free queries per day, Qwen3.5-397B-A17B). Both fully live, both free to test.";
+  "Anonymous, no-signup trial of Unbrowse: resolve an intent against the public route marketplace, or ask the live agent — it searches captured routes, executes the best one, and answers from real data.";
 
 export const metadata: Metadata = {
   title: `${TITLE} | Unbrowse`,
@@ -50,8 +50,8 @@ export default function PlaygroundPage() {
           <p className="text-base leading-relaxed" style={{ color: "rgba(255,250,242,0.65)" }}>
             On the left: <span style={{ color: "#FFB060" }}>Unbrowse resolve</span> — type an intent and a
             site; we hit the public marketplace and rank skills.
-            On the right: <span style={{ color: "#FFB060" }}>ask anything</span> — talk to the live
-            chat API. 10 free queries per IP per day, no account.
+            On the right: <span style={{ color: "#FFB060" }}>ask the agent</span> — the live tool loop
+            that searches routes, executes one, and answers from real data.
           </p>
           <p className="text-sm" style={{ color: "rgba(255,176,96,0.55)" }}>
             Neither widget asks for keys. Both call real backends. If something looks off, the latency
@@ -100,22 +100,22 @@ export default function PlaygroundPage() {
                 className="text-[11px] font-mono uppercase tracking-[0.2em]"
                 style={{ color: "#FF7A20" }}
               >
-                ▸ ask anything
+                ▸ ask the agent
               </h2>
-              <a
-                href="https://chat.unbrowse.ai"
-                target="_blank"
-                rel="noopener"
+              <Link
+                href="/aiko"
                 className="text-[10px] font-mono uppercase tracking-[0.18em]"
                 style={{ color: "rgba(255,122,32,0.55)" }}
               >
-                docs / buy credits →
-              </a>
+                full page →
+              </Link>
             </div>
-            <AskAnythingChat />
+            <div className="text-left">
+              <HeroChat />
+            </div>
             <p className="text-[11px] font-mono leading-relaxed" style={{ color: "rgba(255,122,32,0.55)" }}>
-              Direct prose answers — no scaffolding, no JSON dumps, no chain-of-thought leak. OpenAI-compatible at{" "}
-              <span style={{ color: "#FFB060" }}>chat.unbrowse.ai/v1/chat/completions</span>.
+              The same agent as the homepage hero: it searches captured routes, executes the best
+              endpoint with a real HTTP call, and shows every step it took.
             </p>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function PlaygroundPage() {
           style={{ color: "rgba(255,250,242,0.55)" }}
         >
           <FactCard label="resolve latency" value="~150–400ms" hint="bm25 + embedding rerank over the marketplace" />
-          <FactCard label="chat backend" value="Qwen3.5-397B-A17B" hint="thinking model · reasoning channel hidden" />
+          <FactCard label="agent loop" value="search → execute → answer" hint="live tool calls against the route marketplace" />
           <FactCard label="cost to test" value="$0" hint="anonymous free tier on both widgets" />
         </div>
       </section>

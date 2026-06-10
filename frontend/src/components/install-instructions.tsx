@@ -68,6 +68,22 @@ const TABS = [
       { type: "cmd",     text: "  $  npx @crossmint/lobster-cli setup" },
     ] as TLine[],
   },
+  {
+    id: "elizaos",
+    label: "ELIZAOS",
+    copyText: "npm install @unbrowse/plugin-elizaos unbrowse",
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE PLUGIN  ·  ELIZAOS" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  install the plugin into your agent project" },
+      { type: "cmd",     text: "  $  npm install @unbrowse/plugin-elizaos unbrowse" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  add to your character config" },
+      { type: "cmd",     text: '  {  "plugins": ["@unbrowse/plugin-elizaos"]  }' },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  web tasks now route through captured APIs, not Playwright" },
+    ] as TLine[],
+  },
 ] as const;
 function lineStyle(type: LineType): React.CSSProperties {
   switch (type) {
