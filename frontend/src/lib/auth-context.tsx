@@ -27,13 +27,52 @@ interface AuthContextValue extends AuthState {
   }) => void;
   logout: () => void;
   isAuthenticated: boolean;
-  hydrated?: boolean;
+  // True once the client has read localStorage after mount. Any consumer gating
+  // UX on `isAuthenticated` MUST treat `!hydrated` as a loading state, not a
+  // logged-out state (otherwise the user sees a "Sign in" flash on every
+  // navigation, before the first client render reads storage). Server-side
+  // render always emits `hydrated: false`.
+  hydrated: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "unbrowse_auth";
 const API_URL = getConfiguredApiOrigin();
+
+const EMPTY_AUTH: AuthState = {
+  apiKey: null,
+  agentId: null,
+  agentName: null,
+  email: null,
+  userId: null,
+};
+
+/** Read persisted auth synchronously. Returns EMPTY_AUTH on the server (no
+ *  window) and on any malformed/partial stored blob — never trusts a stale
+ *  shape that could set apiKey:undefined. The lazy useState initializer below
+ *  calls this on the very first client render so a logged-in user never flashes
+ *  the logged-out view. */
+function readStoredAuth(): AuthState {
+  if (typeof window === "undefined") return EMPTY_AUTH;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return EMPTY_AUTH;
+    const parsed = JSON.parse(stored) as Partial<AuthState> | null;
+    if (!parsed || typeof parsed !== "object" || typeof parsed.apiKey !== "string") {
+      return EMPTY_AUTH;
+    }
+    return {
+      apiKey: parsed.apiKey ?? null,
+      agentId: parsed.agentId ?? null,
+      agentName: parsed.agentName ?? null,
+      email: parsed.email ?? null,
+      userId: parsed.userId ?? null,
+    };
+  } catch {
+    return EMPTY_AUTH;
+  }
+}
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 300_000;
@@ -60,19 +99,22 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    apiKey: null,
-    agentId: null,
-    agentName: null,
-    email: null,
-    userId: null,
-  });
+  // Lazy initializer reads localStorage on the very first client render, so a
+  // logged-in user never renders the logged-out view for a tick after a nav.
+  // The server still gets EMPTY_AUTH (no localStorage), so `hydrated`
+  // distinguishes "loading" from "actually logged out".
+  const [state, setState] = useState<AuthState>(readStoredAuth);
+  const [hydrated, setHydrated] = useState<boolean>(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setState(JSON.parse(stored));
-    } catch { /* ignore */ }
+    // Re-read after mount to cover the SSR pass (where readStoredAuth returned
+    // EMPTY_AUTH because window was undefined). Idempotent; only updates state
+    // if the freshly-read shape actually differs from the current one.
+    const fresh = readStoredAuth();
+    setState((prev) =>
+      prev.apiKey === fresh.apiKey && prev.agentId === fresh.agentId ? prev : fresh,
+    );
+    setHydrated(true);
   }, []);
 
   const persist = useCallback((next: AuthState) => {
@@ -222,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         ...state,
+        hydrated,
         register,
         loginWithEmail,
         consumeMagicToken,
