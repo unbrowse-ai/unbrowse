@@ -142,6 +142,93 @@ export function credentialHoleToRuntimeHole(h: CredentialHole): Hole {
   return { location: { in: "header", name: headerName }, name: h.name, kind: "secret", fill: "vault" };
 }
 
+/**
+ * A single endpoint exposed as a TOOL WITH HOLES — the PII-censored shape the
+ * server recommends and the CLIENT populates. The url_template + the typed slots
+ * the client fills itself: query/path params from its own prompt (kind:id,
+ * fill:llm), auth headers / cookies from its local vault (kind:secret, fill:vault).
+ * Carries NO values and NO credentials: the server provides the capability, the
+ * client provides the data. This is the node atom (callable interface) sealed
+ * (schemas only, never credentials).
+ */
+export interface HoledTool {
+  endpoint_id: string;
+  method: string;
+  url_template: string;
+  /** every slot the client must fill — query/path params (llm) + auth (vault). */
+  holes: Hole[];
+}
+
+/** Derive the secret credential holes for ONE endpoint (mirrors credentialHoles,
+ *  scoped to a single endpoint + the skill-level auth profile). */
+function endpointSecretHoles(skill: SkillManifest, ep: EndpointDescriptor): Hole[] {
+  const seen = new Set<string>();
+  const holes: Hole[] = [];
+  const addHeader = (name: string) => {
+    const key = `header:${name.toLowerCase()}`;
+    if (!name || seen.has(key)) return;
+    seen.add(key);
+    holes.push({ location: { in: "header", name }, name, kind: "secret", fill: "vault" });
+  };
+  for (const k of Object.keys(ep.headers_template ?? {})) {
+    if (SECRET_HEADER.test(k)) addHeader(k);
+  }
+  for (const t of (ep.auth_tokens ?? [])) {
+    const nm = (t as { name?: string; header?: string; key?: string; param?: string }).name
+      ?? (t as { header?: string }).header
+      ?? (t as { key?: string }).key
+      ?? (t as { param?: string }).param;
+    if (typeof nm === "string") addHeader(nm);
+  }
+  if (ep.csrf_plan?.param_name) addHeader(ep.csrf_plan.param_name);
+  if (skill.auth_profile_ref && !seen.has("header:cookie")) {
+    holes.push({ location: { in: "header", name: "cookie" }, name: "session", kind: "secret", fill: "vault" });
+  }
+  return holes;
+}
+
+/** Parse the public (caller-filled, llm) holes out of a URL template: every
+ *  {placeholder} in a query value or a path segment. These hold no secret — the
+ *  client's agent fills them from the prompt. */
+function endpointPublicHoles(urlTemplate: string): Hole[] {
+  const holes: Hole[] = [];
+  // Query params of the form key={key} (or key={anything}).
+  const qIdx = urlTemplate.indexOf("?");
+  if (qIdx >= 0) {
+    const query = urlTemplate.slice(qIdx + 1);
+    for (const pair of query.split("&")) {
+      const eq = pair.indexOf("=");
+      if (eq < 0) continue;
+      const key = pair.slice(0, eq);
+      const val = pair.slice(eq + 1);
+      if (/^\{[^}]+\}$/.test(val) && key) {
+        holes.push({ location: { in: "query", name: key }, name: key, kind: "id", fill: "llm" });
+      }
+    }
+  }
+  // Path segments of the form {name}.
+  const pathPart = qIdx >= 0 ? urlTemplate.slice(0, qIdx) : urlTemplate;
+  let m: RegExpExecArray | null;
+  const segRe = /\{([^}]+)\}/g;
+  while ((m = segRe.exec(pathPart)) !== null) {
+    const name = m[1];
+    if (name && !holes.some((h) => h.name === name)) {
+      holes.push({ location: { in: "path", index: -1 }, name, kind: "id", fill: "llm" });
+    }
+  }
+  return holes;
+}
+
+export function endpointToHoledTool(skill: SkillManifest, ep: EndpointDescriptor): HoledTool {
+  const urlTemplate = ep.url_template ?? (ep as { url?: string }).url ?? "";
+  return {
+    endpoint_id: ep.endpoint_id,
+    method: String(ep.method ?? "GET"),
+    url_template: urlTemplate,
+    holes: [...endpointPublicHoles(urlTemplate), ...endpointSecretHoles(skill, ep)],
+  };
+}
+
 /** agentskills.io `metadata.contributors` frontmatter lines — one entry per
  *  agent who added delta, with their marginal contribution + payout share.
  *  Empty (no metadata block) for single-author skills. */
