@@ -142,6 +142,23 @@ export function credentialHoleToRuntimeHole(h: CredentialHole): Hole {
   return { location: { in: "header", name: headerName }, name: h.name, kind: "secret", fill: "vault" };
 }
 
+/** agentskills.io `metadata.contributors` frontmatter lines — one entry per
+ *  agent who added delta, with their marginal contribution + payout share.
+ *  Empty (no metadata block) for single-author skills. */
+function renderContributorMetadata(skill: SkillManifest): string[] {
+  const contributors = (skill as { contributors?: Array<{ agent_id: string; wallet_address?: string; endpoints_contributed: number; cumulative_delta: number; share: number }> }).contributors;
+  if (!contributors || contributors.length === 0) return [];
+  const lines = ["metadata:", "  contributors:"];
+  for (const c of contributors) {
+    lines.push(`    - agent_id: ${escapeYaml(c.agent_id)}`);
+    if (c.wallet_address) lines.push(`      wallet_address: ${escapeYaml(c.wallet_address)}`);
+    lines.push(`      endpoints_contributed: ${c.endpoints_contributed}`);
+    lines.push(`      cumulative_delta: ${c.cumulative_delta}`);
+    lines.push(`      share: ${c.share}`);
+  }
+  return lines;
+}
+
 export function renderSkillMd(skill: SkillManifest): string {
   const intents = Array.from(new Set([skill.intent_signature, ...(skill.intents ?? [])])).filter(Boolean);
   const endpoints = skill.endpoints ?? [];
@@ -166,6 +183,11 @@ export function renderSkillMd(skill: SkillManifest): string {
     ...(skill.owner_wallet_address ? [`x402_reward: ${escapeYaml(skill.owner_wallet_address)}`] : []),
     `version: ${escapeYaml(skill.version)}`,
     `updated_at: ${escapeYaml(skill.updated_at)}`,
+    // agentskills.io `metadata` block — multi-contributor delta attribution.
+    // Every agent who added delta to this skill is surfaced with their marginal
+    // contribution + payout share, so the public SKILL.md never reads as if a
+    // multi-contributor skill had a single author.
+    ...renderContributorMetadata(skill),
     "---",
     "",
   ];

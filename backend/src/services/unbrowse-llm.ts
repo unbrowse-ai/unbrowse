@@ -16,6 +16,16 @@ export interface AikoCompiledContract {
   network_tunnel_kind?: string;
   evaluators: AikoCompiledEvaluator[];
   children: AikoCompiledContract[];
+  /** Multi-contributor delta attribution, carried through the /contract
+   *  projection so the canonical contract form never erases who built the
+   *  skill or their marginal delta / payout share. */
+  contributors?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    endpoints_contributed: number;
+    cumulative_delta: number;
+    share: number;
+  }>;
 }
 
 export interface AikoCompiledEvaluator {
