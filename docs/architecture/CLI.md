@@ -1,5 +1,12 @@
 # CLI, MCP Server, SDK & Local Engine
 
+> **At a glance** — one Bun-compiled binary exposes the same engine three
+> ways: 60+ CLI commands, ~45 MCP tools over stdio, and an embedded SDK.
+> The engine pipeline is capture → index → rank → execute, with secrets
+> kept as vault pointers (never plaintext in artifacts). Client payment
+> rails (x402 envelope signing, OWS vault, lobster.cash delegation) resolve
+> a wallet at request time and always report honest outcomes.
+
 > Surface: everything that runs on the user's machine. Source of truth:
 > `src/` and `packages/` at v8.3.0-preview.2.
 

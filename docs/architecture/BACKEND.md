@@ -1,5 +1,13 @@
 # Backend (Cloudflare Worker API)
 
+> **At a glance** — a Hono app on Cloudflare Workers (Neon Postgres + 7 KV
+> namespaces). Auth is email magic link → SHA-256-hashed API keys with a
+> ToS gate and global kill switch. Billing admits a request via any of four
+> rails — Stripe sub, USDC sub, per-request x402, or platform sponsorship —
+> all converging on one subscription-cache shape and one settlement-split
+> function. Marketplace publishing sanitizes secrets and verifies domain
+> ownership via `.well-known` or dual-provider DNS TXT.
+
 > Source of truth: `backend/` at v8.3.0-preview.2. Public base URL:
 > `https://beta-api.unbrowse.ai`.
 
