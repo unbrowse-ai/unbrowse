@@ -114,9 +114,9 @@
 | Spec | Status |
 |---|---|
 | Contributor payout selection (delta-weighted, wallet-less skipped) | **Exists** — `backend/tests/splits`/flex suites |
-| First-discoverer binding immutable; self-discovery owes nothing | **GAP** — unit on the toll ledger module (`src/`, `*-toll-ledger.ts`) |
-| Meter conservation: lanes sum exactly to charge | **GAP** — unit on toll meter |
-| Emission never throws into request path; failures in result shape | **GAP** — unit on the toll emitter (`src/`, `*-toll-emit.ts`) |
+| First-discoverer binding immutable; self-discovery owes nothing | **Exists** — toll-ledger suite in `tests/` (`*-toll-ledger.test.ts`: first-writer-wins, self-discovery cut returns to payer) |
+| Meter conservation: lanes sum exactly to charge | **Exists** — toll-ledger suite ("sums EXACTLY to amount — no value leaks") |
+| Emission never throws into request path; failures in result shape | **Exists** — toll-emit suite in `tests/` (`*-toll-emit.test.ts`: negative amount and over-10000-bps guards absorbed, never thrown) |
 | Earnings dashboard derives from settled ledger | **Exists** — `backend/tests/claim-earnings.test.ts`, analytics suites |
 
 ## 11. CLI / MCP (AC-CLI-*)
@@ -154,8 +154,9 @@
 4. **Wallet resolution units** (§8) — OWS policy/vault and adapter-level
    precedence now covered; the full `getWalletContext()` provider matrix
    remains open.
-5. **Toll ledger conservation/immutability units** (§10) — earnings
-   integrity.
+5. ~~Toll ledger conservation/immutability units~~ — already covered by
+   the toll-ledger and toll-emit suites in `tests/` (9/9 green; the
+   original GAP rows were a survey error).
 6. **MCP protocol harness** (§11) — primary agent-facing surface.
 7. **Frontend auth/billing component tests** (§12) — currently zero unit
    coverage in `frontend/`.
