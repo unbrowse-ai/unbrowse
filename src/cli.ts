@@ -4241,7 +4241,11 @@ async function cmdRegister(flags: Record<string, unknown>) {
   }
   await ensureRegistered({ promptForEmail: !flags["no-prompt"], exitOnFailure: false });
   if (getApiKey()) {
-    info("Registration complete. You can now publish skills and check earnings.");
+    // Honest: a key is minted, but publishing also depends on the share_pointers gate
+    // (auto-publish can be off) and earnings require an attached wallet (L1 anon has
+    // none). Don't claim "you can now publish + earn" unconditionally — point to the
+    // command that shows the real state instead of overstating capability.
+    info("Registration complete — API key saved. Run `unbrowse account` to see publish/earnings status (publishing needs sharing on; earnings need an attached wallet).");
     stopServerAfterReset();
   } else {
     info("Registration skipped or failed. Unbrowse still works locally — publish/earnings are disabled.");
