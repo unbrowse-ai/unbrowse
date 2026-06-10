@@ -179,12 +179,13 @@ describe("contract 9474c6ab — sponsor middleware Stripe integration is gated a
     },
   );
 
-  test("C-fallback. UNBROWSE_BILLING_ENABLED=1 + sub seeded but no DATABASE_URL: gate throws, falls through to legacy path", async () => {
-    // Same seed as C, but without TEST_DATABASE_URL the peekUsage call inside
-    // subscriptionAdmits throws "DATABASE_URL is required". The outer try/
-    // catch in the sponsor middleware must swallow that and fall through to
-    // the legacy platform-sponsor path. Verifies the integration NEVER
-    // crashes the sponsor decision on a Stripe-side failure.
+  test("C-iq. UNBROWSE_BILLING_ENABLED=1 + active sub seeded: Stripe lane admits with no DB (EmergentDB-only usage meter)", async () => {
+    // Post EmergentDB-only migration (004c0205, 2026-06-09): the per-period
+    // usage meter `peekUsage` reads statsKV (LocalKV in tests), not Neon, so
+    // subscriptionAdmits no longer needs DATABASE_URL. A seeded active sub
+    // under quota therefore admits and the Stripe lane fires BEFORE the
+    // platform wallet check — exactly case C's intent, now with no DB
+    // dependency. (no wallet seeded — proves the Stripe lane fires first.)
     const userId = "user-Cf";
     const customerId = "cus_TEST_Cf";
     const subCache = {
@@ -207,9 +208,19 @@ describe("contract 9474c6ab — sponsor middleware Stripe integration is gated a
     const env = makeEnv({ billingEnabled: true, withWallet: false });
     const c = makeContext(env, { userId });
     const decision = await maybeSponsor(c, STD_TERMS, "agent-Cf");
-    expect(decision.kind).toBe("exhausted");
-    if (decision.kind === "exhausted") {
-      expect(decision.reason).toBe("no_wallet");
+
+    expect(decision.kind).toBe("sponsored");
+    if (decision.kind === "sponsored") {
+      expect(decision.method).toBe("stripe");
+      expect(decision.tx_hash).toMatch(/^stripe:/);
+      expect(decision.ledger_id).toMatch(/^str-\d{4}-\d{2}-\d{2}-[a-f0-9]{8}$/);
+
+      const row = (await localKv.get(`sponsor:ledger:${decision.ledger_id}`)) as
+        | string
+        | null;
+      expect(row).not.toBeNull();
+      const parsed = JSON.parse(row!) as { payment_method?: string };
+      expect(parsed.payment_method).toBe("stripe");
     }
   });
 

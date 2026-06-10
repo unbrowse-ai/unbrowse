@@ -26,10 +26,20 @@ const env: Env = {
   ENVIRONMENT: "production",
 };
 
+// Each request gets a unique source IP. The register rate-limiter keys on the
+// caller IP in a module-level in-memory bucket shared across the whole suite;
+// without a distinct IP every register test in every file lands in the same
+// `rl:register:unknown` bucket and exhausts the 10/300s limit, so this gate
+// test would intermittently see 429 instead of its expected 400/201 (suite
+// pollution — passes alone). A per-request IP isolates this file's calls.
+let _ipSeq = 0;
 function makeRequest(body: Record<string, unknown>): Request {
   return new Request("http://local.test/v1/agents/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "cf-connecting-ip": `10.0.0.${_ipSeq++}`,
+    },
     body: JSON.stringify(body),
   });
 }

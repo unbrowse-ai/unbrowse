@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
 import type { AgentProfile, Env } from "../src/types.js";
-import { statsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, statsKV } from "../src/services/kv.js";
+import { createLocalKey } from "../src/services/keys.js";
 import { recordAttribution } from "../src/services/attribution.js";
 import { recordGraphFee } from "../src/services/fees.js";
 import { recordTransaction } from "../src/services/transactions.js";
@@ -12,8 +13,29 @@ const env: Env = {
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
+
+// Under local-dev, verifyLocalKey requires a REAL minted key, so each logical
+// "token" maps to a real { key, keyId }. We send `key` as the Bearer and key the
+// agent profile by `keyId` (bearerAuth sets agent_id = keyId, and the dashboard
+// reads `agent:${keyId}`). Tokens that are never sent as Bearer (transaction
+// counterparties) still resolve to a stable real keyId so ids line up.
+const tokenRegistry = new Map<string, { key: string; keyId: string }>();
+
+async function registerToken(token: string): Promise<{ key: string; keyId: string }> {
+  const existing = tokenRegistry.get(token);
+  if (existing) return existing;
+  const { key, keyId } = await createLocalKey(env, token);
+  const entry = { key, keyId };
+  tokenRegistry.set(token, entry);
+  return entry;
+}
+
+/** Real minted secret to send as `Bearer <key>` for an authenticated token. */
+async function bearerFor(token: string): Promise<string> {
+  return (await registerToken(token)).key;
+}
 
 function createMockFetch(store: Map<string, string>) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -44,19 +66,17 @@ function createMockFetch(store: Map<string, string>) {
   };
 }
 
+/** Real keyId for a token (must have been registered via seedProfile/registerToken). */
 function agentIdForToken(token: string): string {
-  return `staging_${token.slice(0, 8)}`;
+  const entry = tokenRegistry.get(token);
+  if (!entry) throw new Error(`token not registered: ${token}`);
+  return entry.keyId;
 }
 
-async function putProfile(profile: AgentProfile): Promise<void> {
-  await statsKV(env).put(`agent:${profile.agent_id}`, JSON.stringify(profile));
-}
-
-function makeProfile(token: string, overrides: Partial<AgentProfile> = {}): AgentProfile {
-  const agentId = agentIdForToken(token);
+function makeProfile(agentId: string, name: string, overrides: Partial<AgentProfile> = {}): AgentProfile {
   return {
     agent_id: agentId,
-    name: token,
+    name,
     created_at: "2026-01-01T00:00:00.000Z",
     skills_discovered: [],
     total_executions: 0,
@@ -68,6 +88,19 @@ function makeProfile(token: string, overrides: Partial<AgentProfile> = {}): Agen
   };
 }
 
+/** Register a token's real key and write its profile keyed by the real keyId. */
+async function seedProfile(token: string, overrides: Partial<AgentProfile> = {}): Promise<string> {
+  const { keyId } = await registerToken(token);
+  const profile = makeProfile(keyId, overrides.name ?? token, overrides);
+  await statsKV(env).put(`agent:${keyId}`, JSON.stringify(profile));
+  return keyId;
+}
+
+/** Stable real keyId for a transaction counterparty that is never authenticated. */
+async function counterpartyId(token: string): Promise<string> {
+  return (await registerToken(token)).keyId;
+}
+
 describe("dashboard and leaderboard routes", () => {
   const store = new Map<string, string>();
   const originalFetch = globalThis.fetch;
@@ -75,6 +108,9 @@ describe("dashboard and leaderboard routes", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    tokenRegistry.clear();
+    clearKVCacheForTests("stats");
+    clearKVCacheForTests("skills-v2");
     await statsKV(env).resetSplitIndex();
   });
 
@@ -84,10 +120,10 @@ describe("dashboard and leaderboard routes", () => {
 
   it("returns a zero-state dashboard for a brand-new agent", async () => {
     const token = "alpha123456";
-    await putProfile(makeProfile(token, { name: "Alpha Agent" }));
+    await seedProfile(token, { name: "Alpha Agent" });
 
     const res = await app.fetch(new Request("http://local.test/v1/dashboard/me", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${await bearerFor(token)}` },
     }), env);
     expect(res.status).toBe(200);
 
@@ -121,23 +157,21 @@ describe("dashboard and leaderboard routes", () => {
   it("claims wallets, rejects conflicts, and serves wallet dashboards", async () => {
     const alphaToken = "alpha123456";
     const betaToken = "beta123456";
-    const alphaId = agentIdForToken(alphaToken);
-
-    await putProfile(makeProfile(alphaToken, {
+    const alphaId = await seedProfile(alphaToken, {
       name: "Alpha Agent",
       total_executions: 4,
       total_feedback_given: 1,
       skills_discovered: ["skill-a"],
-    }));
-    await putProfile(makeProfile(betaToken, {
+    });
+    await seedProfile(betaToken, {
       name: "Beta Agent",
       total_executions: 1,
-    }));
+    });
 
     const claimRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${alphaToken}`,
+        Authorization: `Bearer ${await bearerFor(alphaToken)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ wallet_address: "wallet-alpha" }),
@@ -147,7 +181,7 @@ describe("dashboard and leaderboard routes", () => {
     const repeatClaimRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${alphaToken}`,
+        Authorization: `Bearer ${await bearerFor(alphaToken)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ wallet_address: "wallet-alpha" }),
@@ -157,7 +191,7 @@ describe("dashboard and leaderboard routes", () => {
     const conflictingRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${betaToken}`,
+        Authorization: `Bearer ${await bearerFor(betaToken)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ wallet_address: "wallet-alpha" }),
@@ -166,7 +200,7 @@ describe("dashboard and leaderboard routes", () => {
 
     await recordTransaction(env, {
       transaction_id: "tx-wallet",
-      consumer_id: agentIdForToken("otherwallet"),
+      consumer_id: await counterpartyId("otherwallet"),
       creator_id: alphaId,
       skill_id: "skill-wallet",
       endpoint_id: "execute",
@@ -191,20 +225,16 @@ describe("dashboard and leaderboard routes", () => {
     const alphaToken = "alpha123456";
     const betaToken = "beta123456";
     const gammaToken = "gamma123456";
-    const alphaId = agentIdForToken(alphaToken);
-    const betaId = agentIdForToken(betaToken);
-    const gammaId = agentIdForToken(gammaToken);
-
-    await putProfile(makeProfile(alphaToken, {
+    const alphaId = await seedProfile(alphaToken, {
       name: "Alpha Agent",
       created_at: "2026-01-01T00:00:00.000Z",
       total_executions: 7,
       total_feedback_given: 3,
       skills_discovered: ["skill-a", "skill-b"],
       activity_dates: ["2026-04-01"],
-    }));
-    await putProfile(makeProfile(betaToken, { name: "Beta Agent", total_executions: 2, skills_discovered: ["skill-c"] }));
-    await putProfile(makeProfile(gammaToken, { name: "Gamma Agent", total_executions: 1 }));
+    });
+    const betaId = await seedProfile(betaToken, { name: "Beta Agent", total_executions: 2, skills_discovered: ["skill-c"] });
+    const gammaId = await seedProfile(gammaToken, { name: "Gamma Agent", total_executions: 1 });
 
     await recordTransaction(env, {
       transaction_id: "tx-spend",
@@ -256,7 +286,7 @@ describe("dashboard and leaderboard routes", () => {
     const perfRes = await app.fetch(new Request("http://local.test/v1/stats/perf", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${alphaToken}`,
+        Authorization: `Bearer ${await bearerFor(alphaToken)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(perfReq),
@@ -264,7 +294,7 @@ describe("dashboard and leaderboard routes", () => {
     expect(perfRes.status).toBe(200);
 
     const res = await app.fetch(new Request("http://local.test/v1/dashboard/me", {
-      headers: { Authorization: `Bearer ${alphaToken}` },
+      headers: { Authorization: `Bearer ${await bearerFor(alphaToken)}` },
     }), env);
     expect(res.status).toBe(200);
 
@@ -328,33 +358,30 @@ describe("dashboard and leaderboard routes", () => {
     const alphaToken = "alphaaaaa1";
     const betaToken = "betaaaaa2";
     const zeroToken = "zeroaaaa3";
-    const alphaId = agentIdForToken(alphaToken);
-    const betaId = agentIdForToken(betaToken);
-
-    await putProfile(makeProfile(alphaToken, {
+    const alphaId = await seedProfile(alphaToken, {
       name: "Alpha",
       created_at: "2026-01-01T00:00:00.000Z",
       total_executions: 5,
       skills_discovered: ["a", "b"],
-    }));
-    await putProfile(makeProfile(betaToken, {
+    });
+    const betaId = await seedProfile(betaToken, {
       name: "Beta",
       created_at: "2026-02-01T00:00:00.000Z",
       total_executions: 5,
       skills_discovered: ["a", "b"],
-    }));
-    await putProfile(makeProfile(zeroToken, { name: "Zero" }));
+    });
+    await seedProfile(zeroToken, { name: "Zero" });
 
     await recordTransaction(env, {
       transaction_id: "tx-alpha",
-      consumer_id: agentIdForToken("other1111"),
+      consumer_id: await counterpartyId("other1111"),
       creator_id: alphaId,
       skill_id: "skill-a",
       price_usd: 0.01,
     });
     await recordTransaction(env, {
       transaction_id: "tx-beta",
-      consumer_id: agentIdForToken("other2222"),
+      consumer_id: await counterpartyId("other2222"),
       creator_id: betaId,
       skill_id: "skill-b",
       price_usd: 0.01,
@@ -370,13 +397,12 @@ describe("dashboard and leaderboard routes", () => {
 
   it("rejects malformed savings telemetry and accumulates valid perf payloads", async () => {
     const token = "perf123456";
-    const agentId = agentIdForToken(token);
-    await putProfile(makeProfile(token, { name: "Perf Agent" }));
+    const agentId = await seedProfile(token, { name: "Perf Agent" });
 
     const invalidRes = await app.fetch(new Request("http://local.test/v1/stats/perf", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${await bearerFor(token)}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -405,7 +431,7 @@ describe("dashboard and leaderboard routes", () => {
       const res = await app.fetch(new Request("http://local.test/v1/stats/perf", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${await bearerFor(token)}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -428,7 +454,7 @@ describe("dashboard and leaderboard routes", () => {
     }
 
     const dashRes = await app.fetch(new Request("http://local.test/v1/dashboard/me", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${await bearerFor(token)}` },
     }), env);
     expect(dashRes.status).toBe(200);
     const body = await dashRes.json() as {
@@ -452,6 +478,7 @@ describe("dashboard and leaderboard routes", () => {
     expect(body.savings.time_saved_ms).toBe(9000);
     expect(body.savings.cost_saved_uc).toBe(3500);
     expect(body.economics.paid_execution_usd).toBe(0.005);
-    expect(agentId).toContain("staging_");
+    // bearerAuth resolved the request to the same real keyId we seeded the profile under.
+    expect(agentId).toBe(agentIdForToken(token));
   });
 });

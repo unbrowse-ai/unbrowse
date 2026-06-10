@@ -88,8 +88,17 @@ const CREATOR_INDEX_KEY = "tx:creators:index";
 function sanitizeConsumerId(rawId: string): string {
   const trimmed = (rawId ?? "").trim();
   if (!trimmed) return "anonymous";
+  // An authenticated request resolves to an internal keyId from
+  // generateLocalKey(): exactly 32 lowercase-hex chars (16 bytes). That is the
+  // intended ledger key, NOT PII -- the plaintext `ubr_...` key is never the
+  // consumer_id, only its derived keyId is. Exempt that exact shape so the
+  // consumer ledger reconciles on both write and read. Real bearer tokens
+  // (ubr_*, sk_*, gh*_*, "bearer ...", longer/mixed-case opaque strings) are
+  // still redacted so the public consumer endpoint can never leak a key.
+  const isInternalKeyId = /^[0-9a-f]{32}$/.test(trimmed);
+  if (isInternalKeyId) return trimmed;
   // Common bearer-token shapes used by unbrowse: ubr_<hex|alnum>, sk_*, ghp_*,
-  // or bare 24+ char hex/base64 strings. Reject and replace with a hashed
+  // or bare 32+ char hex/base64 strings. Reject and replace with a hashed
   // synthetic id so the ledger row still reconciles.
   const looksLikeKey =
     /^ubr_[a-zA-Z0-9_-]{16,}$/.test(trimmed) ||
