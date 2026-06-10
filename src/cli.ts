@@ -3931,33 +3931,47 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
   const results: Record<string, unknown> = { site: pack.site, waves: [], _deps: { parallel_safe: true } };
   const waveResults: unknown[] = [];
 
+  // Each task resolves IN-PROCESS (client-first: local cache + local execute,
+  // server-proxy fallback underneath). The remaining work is fanned out — but
+  // BOUNDED (DEFAULT_FANOUT_CONCURRENCY, override with --concurrency N), never
+  // the old unbounded Promise.all that opened one egress per task at once.
+  const { fanOut, DEFAULT_FANOUT_CONCURRENCY } = await import("./execution/fan-out.js");
+  const concurrency =
+    typeof flags.concurrency === "string" && Number.isFinite(Number(flags.concurrency))
+      ? Math.max(1, Number(flags.concurrency))
+      : DEFAULT_FANOUT_CONCURRENCY;
+
+  async function runTask(cmd: string): Promise<{ task: string; result?: unknown; error?: string }> {
+    const parts = cmd.split(" ");
+    const task = parts[parts.length - 1];
+    const taskDef = findTask(pack, task);
+    if (!taskDef) return { task, error: "unknown task" };
+    if (task === "login") {
+      return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
+    }
+    const body: Record<string, unknown> = {
+      intent: taskDef.intent,
+      params: { url: taskDef.url },
+      context: { url: taskDef.url },
+    };
+    if (flags["force-capture"]) body.force_capture = true;
+    body.projection = { raw: true };
+    const res = (await api("POST", "/v1/intent/resolve", body)) as Record<string, unknown>;
+    return { task, result: slimTrace(res) };
+  }
+
   for (const wave of waves) {
     const waveStart = Date.now();
-    const promises = wave.commands.map(async (cmd) => {
-      const parts = cmd.split(" ");
-      const task = parts[parts.length - 1];
-      const taskDef = findTask(pack, task);
-      if (!taskDef) return { task, error: "unknown task" };
-
-      if (task === "login") {
-        return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
-      }
-      const body: Record<string, unknown> = {
-        intent: taskDef.intent,
-        params: { url: taskDef.url },
-        context: { url: taskDef.url },
-      };
-      if (flags["force-capture"]) body.force_capture = true;
-      body.projection = { raw: true };
-      const res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
-      return { task, result: slimTrace(res) };
-    });
-
-    const waveResult = await Promise.all(promises);
+    const settled = await fanOut(wave.commands, (cmd) => runTask(cmd), { concurrency });
+    // fanOut isolates failures into settled entries; surface them per task.
+    const waveResult = settled.map((r) =>
+      r.ok ? r.value : { task: "unknown", error: r.error ?? "fan-out worker failed" },
+    );
     waveResults.push({
       wave: wave.wave,
       reason: wave.reason,
       elapsed_ms: Date.now() - waveStart,
+      concurrency,
       tasks: waveResult,
     });
   }
@@ -4241,7 +4255,11 @@ async function cmdRegister(flags: Record<string, unknown>) {
   }
   await ensureRegistered({ promptForEmail: !flags["no-prompt"], exitOnFailure: false });
   if (getApiKey()) {
-    info("Registration complete. You can now publish skills and check earnings.");
+    // Honest: a key is minted, but publishing also depends on the share_pointers gate
+    // (auto-publish can be off) and earnings require an attached wallet (L1 anon has
+    // none). Don't claim "you can now publish + earn" unconditionally — point to the
+    // command that shows the real state instead of overstating capability.
+    info("Registration complete — API key saved. Run `unbrowse account` to see publish/earnings status (publishing needs sharing on; earnings need an attached wallet).");
     stopServerAfterReset();
   } else {
     info("Registration skipped or failed. Unbrowse still works locally — publish/earnings are disabled.");
