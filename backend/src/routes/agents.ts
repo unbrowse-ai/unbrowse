@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { registerAgent, getAgent, listAgents, acceptTos, updateAgentWallet } from "../services/agents.js";
 import { bearerAuthNoTos } from "../middleware/auth.js";
+import { setKeyFunding } from "../services/keys.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
 import { getOrSetHttpCache } from "../services/http-cache.js";
@@ -168,6 +169,15 @@ publicAgentRoutes.post("/agents/wallet", bearerAuthNoTos, async (c) => {
 
   try {
     const result = await updateAgentWallet(c.env, agentId, { wallet_address, wallet_provider });
+    // WRAP the api_key with the wallet (L6 api-key-wrapping-x402). Updating the agent
+    // profile alone is not enough — without this binding the key is unfunded and the
+    // agent's published routes pay out to nobody (the L1->L2 upgrade silently earned
+    // zero). Binding here makes "the api_key wraps the wallet" actually true.
+    if (typeof wallet_address === "string" && wallet_address.trim().length >= 8 && agentId !== "__admin__") {
+      await setKeyFunding(c.env, agentId, { kind: "wallet", wallet: wallet_address.trim() }).catch((err) => {
+        console.warn(`[wallet] setKeyFunding failed for ${agentId}: ${(err as Error).message}`);
+      });
+    }
     return c.json({ ok: true, status: result.status });
   } catch (err) {
     if ((err as Error).message === "wallet_already_claimed") {

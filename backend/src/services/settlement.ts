@@ -60,6 +60,7 @@ import {
 import { platformRecipientUsdcAta } from "./flex-facilitator.js";
 import { sendSponsorFlexPayment } from "./sponsor-flex.js";
 import { buildOptOutKey } from "./domain-claim.js";
+import { resolveContributorWallets } from "./splits.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -253,8 +254,13 @@ export async function aggregateUnsettled(
       }
     }
 
+    // Resolve wallets from key-funding bindings BEFORE the split math, so a contributor
+    // who attached a wallet after publishing (empty wallet_address on the stored skill)
+    // is paid rather than filtered out. The split functions stay pure; this only fills
+    // a missing wallet, never overrides a set one.
+    const resolvedContributors = await resolveContributorWallets(env, manifest.contributors);
     const skillForSplits = {
-      contributors: manifest.contributors,
+      contributors: resolvedContributors,
       owner_compensation_opt_in: ownerOptIn,
       owner_wallet_usdc_ata: manifest.owner_wallet_usdc_ata,
       markup_bps: manifest.markup_bps,

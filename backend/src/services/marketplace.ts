@@ -8,6 +8,7 @@ import { skillsKV, statsKV } from "./kv.js";
 import { appendRouteAttestation, hashValue } from "./route-ledger.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
+import { buildOptOutKey } from "./domain-claim.js";
 import { matchedReservedDomain } from "./domain-reservations.js";
 
 function kvKey(skillId: string): string {
@@ -163,10 +164,14 @@ export async function publishSkill(
 
   // Site-owner takedown gate (PR #483): if the verified domain owner has hit
   // /v1/claim/takedown, all future publishes for that domain are refused —
-  // regardless of submitter, including admin overrides. See
-  // backend/src/services/domain-claim.ts::buildTakedownKey.
+  // regardless of submitter, including admin overrides. The claim flow writes the
+  // key via buildOptOutKey (`domain-optout:<domain>`); read it through the SAME
+  // helper so the gate can't silently drift to a key the writer never sets — the
+  // bug this fixes: the gate read `domain-takedown:` while claims wrote
+  // `domain-optout:`, so every takedown was silently ignored and any agent could
+  // keep publishing to a domain its verified owner had taken down.
   const takedownRaw = (await statsKV(env).get(
-    `domain-takedown:${draft.domain.trim().toLowerCase()}`,
+    buildOptOutKey(draft.domain),
   )) as string | null;
   if (takedownRaw) {
     throw new Error(`publish_forbidden_taken_down:${draft.domain.toLowerCase()}`);
