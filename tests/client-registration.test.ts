@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -29,6 +29,17 @@ function makeConfigDirWithConfig(config: Record<string, unknown>): string {
 async function loadClientModule() {
   return import(`../src/client/index.ts?test=${Date.now()}-${Math.random()}`);
 }
+
+beforeEach(() => {
+  // Assert a PRISTINE machine. getWalletContext() (src/payments/wallet.ts)
+  // probes the developer's real ~/.ows vault and ~/.lobster config — on a dev
+  // box that resolves to an actual OWS wallet and shadows the LOBSTER_WALLET_ADDRESS
+  // these tests set, so the wallet-sync + claimed-retry assertions read the dev's
+  // wallet instead of the fixture. The documented opt-out (wallet.ts comment) is
+  // this flag: with it set, the vault probe is skipped and the env-provided wallet
+  // is the only signal — deterministic on any machine, CI or dev.
+  process.env.UNBROWSE_DISABLE_LOCAL_WALLET = "1";
+});
 
 afterEach(() => {
   for (const key of Object.keys(process.env)) {
