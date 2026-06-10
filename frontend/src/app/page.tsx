@@ -1,161 +1,465 @@
-/* Homepage — the unbrowse skill registry (Smithery-style: search over a visible
- * grid). The registry is the front door (the moat: websites → API routes); the
- * Aiko chat is a flagship feature at /aiko, surfaced as a section here. The old
- * long-form marketing site lives at /classic.
- */
-
-/* Visual layer governed by design.md (editorial-restraint DNA). Content + IA + routes
- * preserved; particle/constellation backdrop dropped per the locked system. */
+import { Suspense } from "react";
 import Link from "next/link";
-import { listPopularSkills, getStatsSummary, type PopularSkillSummary, type StatsSummary } from "@/lib/api";
-import { RegistrySearch } from "@/components/registry-search";
-import { RegistryCard } from "@/components/registry-card";
-// Restored cool sections from the pre-registry homepage — woven back in to enrich
-// the front door (the value-narrative the minimal registry had dropped).
-import { SpeedComparison } from "@/components/speed-comparison";
-import { WorksWith } from "@/components/works-with";
-import { UseCasesBand } from "@/components/use-cases-band";
-import { InternetEvolution } from "@/components/internet-evolution";
-import { UniversalProofBand } from "@/components/universal-proof-band";
-import { AdoptersRail } from "@/components/adopters-rail";
-import { TrustStrip } from "@/components/trust-strip";
+import Image from "next/image";
+import { InstallInstructions } from "@/components/install-instructions";
+import { ThreePanelVisual } from "@/components/three-panel-visual";
+import { RegistryShowcase } from "@/components/registry-showcase";
+import { ScrollToButton } from "@/components/full-page-scroll";
+import { FlowingDotField } from "@/components/flowing-dot-field";
+import { HeroHands } from "@/components/hero-hands";
+import { HeroChat } from "@/components/hero-chat";
+import { InstallFigure } from "@/components/install-figure";
+import { MobileNav } from "@/components/mobile-nav";
+import { Github } from "lucide-react";
+import { getStatsSummary, listPopularSkills, type StatsSummary, type PopularSkillSummary } from "@/lib/api";
+import {
+  IconHourglass,
+  IconCompass,
+  IconSeal,
+  IconScript,
+  IconDiamondCheck,
+  IconChevron,
+} from "@/components/archival-icons";
 
-export const revalidate = 120;
+// Re-generate the homepage at most every 60s so Cloudflare can serve a static
+// HTML response on warm cache. Removes the 6.8s TTFB observed on cold
+// renders where the server was awaiting upstream fetches before streaming.
+export const revalidate = 60;
 
-const CATEGORIES = ["Travel", "Food", "Finance", "Shopping", "Social", "News", "Crypto", "Dev tools"];
-const nf = new Intl.NumberFormat("en-US");
+const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
+const SHOW_ALL_INSTALL_OPTIONS = true;
+const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
+  ? "Run npx unbrowse setup --mcp. Unbrowse auto-detects your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) and registers the MCP server in one step. For Claude Code specifically: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients you can also drop {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} into your mcp.json. Restart the host and Unbrowse is wired in."
+  : "Run npx unbrowse setup --mcp and your MCP client (Claude, Cursor, Codex, OpenClaw) gets wired in one step.";
 
-export default async function Home() {
-  let skills: PopularSkillSummary[] = [];
-  let resolvePool: PopularSkillSummary[] = [];
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "How does Unbrowse work?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Unbrowse is the API layer for AI agents. The first time your agent visits a website, Unbrowse captures the real APIs the site uses to render itself. The next call skips the browser entirely, sub-500ms direct API instead of multi-second pixel-clicking. The shared marketplace already covers 600+ domains, so most calls are instant on first try. Open source, runs locally, plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How much faster is Unbrowse than headless browser automation?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Unbrowse is roughly 100x faster per page than headless browser automation. Headless browsers take 5 to 30 seconds per page interaction; Unbrowse makes direct API calls in 50 to 200 milliseconds, and uses about 200 tokens per action against 8,000 tokens for scraped HTML. Speed compounds because the shared marketplace already covers 600+ domains, so most calls are instant on first try without re-discovery work. For agent loops where the web step is the bottleneck, that turns minutes of work into seconds.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is Unbrowse free?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Unbrowse is 100% free and open source under the AGPL-3.0 license. There are no paid tiers, cloud proxies, or usage credits. Everything runs locally on your machine.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What websites does Unbrowse support?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so the agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is Unbrowse secure? Do my credentials leave my machine?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Unbrowse runs entirely locally and your credentials never leave your device. There are no cloud proxies, no man-in-the-middle interception, browser cookies stay on your machine, and authentication credentials are encrypted with AES-256-CBC in a local vault. Only discovered API endpoint patterns (URL templates and schemas, never your data or credentials) are shared with the registry, and only when you opt in via `unbrowse mode`. That makes Unbrowse safe to install on a work machine without changing your existing security posture.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How do I install Unbrowse?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Run npx unbrowse setup --mcp for one-command installation that registers the Unbrowse MCP server with Claude Code, Claude Desktop, Cursor, Windsurf, Codex, or OpenClaw. For Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients, add {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} to your mcp.json and restart the host.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is the skill registry?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, the result is published so every other agent can call those endpoints without re-discovering them. Value compounds because every new capture lowers the cost for the next agent that needs the same data, the way Wikipedia gets more useful with every edit. That is what turns Unbrowse from a per-agent tool into shared infrastructure for the agent web.",
+      },
+    },
+  ],
+};
+
+async function HeroStats() {
   let stats: StatsSummary | null = null;
   try {
-    [resolvePool, stats] = await Promise.all([
-      // Wider real pool for the live hero resolve; the grid shows the top slice.
-      listPopularSkills(50, { revalidate: 120 }),
-      getStatsSummary().catch(() => null),
-    ]);
-    skills = resolvePool.slice(0, 12);
+    stats = await getStatsSummary();
   } catch {
-    /* registry/stats unavailable — render the shell honestly */
+    // Stats unavailable — hero renders with cached claims
   }
 
   return (
-    <main className="relative mx-auto max-w-6xl px-5 sm:px-8">
-      <section aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
-        <h1>Unbrowse — the registry of website API routes for AI agents</h1>
-        <p>Search skills by intent, resolve to a ranked endpoint, execute for real data. MCP setup: npx unbrowse setup --mcp. Conversational demo at /aiko. Full overview at /classic.</p>
-      </section>
-
-      {/* Hero — H1 Marquee: eyebrow → editorial headline → the live action.
-          One restrained warm radial glow replaces the particle backdrop. */}
-      <section className="relative overflow-hidden pt-20 sm:pt-28 pb-12 text-center">
-        <div className="hero-glow" aria-hidden="true" />
-        <div className="relative z-10">
-          <span className="eyebrow reveal reveal-1">The registry of website API routes</span>
-          <h1
-            className="reveal reveal-2 mx-auto mt-4 mb-4 max-w-3xl font-semibold text-text-primary"
-            style={{ fontSize: "clamp(2.25rem, 6vw, 4rem)", lineHeight: 1.05, letterSpacing: "-0.025em" }}
-          >
-            Any website, <span className="serif-em" style={{ color: "var(--orange-400, #FF6A00)" }}>instantly</span> an API for your agent
-          </h1>
-          <p className="reveal reveal-2 mx-auto mb-9 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-            {stats
-              ? `Browse ${nf.format(stats.skills)} skills across ${nf.format(stats.domains)} domains · ${nf.format(stats.executions)} live calls`
-              : "Resolve an intent to a ranked endpoint. Execute for real data. No per-site setup."}
-          </p>
-          <div className="reveal reveal-3">
-            <RegistrySearch pool={resolvePool} perf={stats?.perf ?? null} />
-          </div>
-          {/* Peer-reviewed credibility — the paper's strongest citable proof, surfaced
-              on the front door. Numbers are the published benchmark (arXiv:2604.00694);
-              link goes to the full deep-dive. Kept subordinate to the live search. */}
-          <p className="reveal reveal-3 mt-6 text-[12px] text-text-muted">
-            <span className="eyebrow" style={{ color: "var(--text-muted)" }}>Peer-reviewed</span>{" · "}
-            <Link
-              href="/benchmark-deep-dive"
-              className="font-medium underline underline-offset-2 transition-opacity hover:opacity-80"
-              style={{ color: "var(--orange-400, #FF6A00)" }}
-            >
-              94-domain benchmark
-            </Link>
-            {" "}· 3.6× mean speedup (5.4× median), 100% win rate
-          </p>
+    <div className="flex flex-col items-center mt-12">
+      <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)] mb-3">
+        ##  Live in production
+      </p>
+      <div className="flex items-center gap-6 justify-center text-xs font-mono text-[rgba(255,122,32,0.5)]">
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.skills ? stats.skills.toLocaleString() : "4,200+"}</div>
+          <div className="uppercase tracking-wider">SKILLS</div>
         </div>
-      </section>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.endpoints ? stats.endpoints.toLocaleString() : "18,000+"}</div>
+          <div className="uppercase tracking-wider">ENDPOINTS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.domains ? stats.domains.toLocaleString() : "600+"}</div>
+          <div className="uppercase tracking-wider">DOMAINS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.executions ? stats.executions.toLocaleString() : "1.2M+"}</div>
+          <div className="uppercase tracking-wider">EXECUTIONS</div>
+        </div>
+        <span className="text-[rgba(255,122,32,0.2)]">|</span>
+        <div className="text-center">
+          <div className="text-xl font-bold text-[rgba(255,176,96,1)]">{stats?.agents ? stats.agents.toLocaleString() : "3,500+"}</div>
+          <div className="uppercase tracking-wider">AGENTS</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* Categories */}
-      <nav className="flex flex-wrap gap-2 justify-center pb-14">
-        {CATEGORIES.map((c) => (
-          <Link key={c} href={`/search?q=${encodeURIComponent(c)}`} className="rounded-full px-3.5 py-1.5 text-[13px] transition-colors duration-200 hover:text-text-primary hover:border-border-strong" style={{ border: "var(--rule)", color: "var(--text-secondary)" }}>
-            {c}
+async function PopularSkillsGrid() {
+  let skills: PopularSkillSummary[] = [];
+  try {
+    skills = await listPopularSkills(6);
+  } catch {
+    // Fallback to static
+  }
+
+  if (skills.length === 0) return null;
+
+  return (
+    <div className="max-w-5xl mx-auto mt-10 px-4 sm:px-6">
+      <p className="text-center text-xs font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)] mb-5">
+        ##  Live From the Registry
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {skills.map((s) => (
+          <Link
+            key={s.skill_id}
+            href={`/skills/${s.skill_id}`}
+            className="group block p-4 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 hover:border-[rgba(255,122,32,0.35)] rounded-sm transition-all"
+          >
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h4 className="text-sm font-semibold text-[rgba(255,176,96,0.9)] group-hover:text-orange-500 transition-colors line-clamp-1">{s.name}</h4>
+              <span className="text-[10px] font-mono text-text-muted shrink-0 uppercase">{s.domain}</span>
+            </div>
+            <p className="text-xs text-text-secondary line-clamp-2 mb-3">{s.description}</p>
+            <div className="flex items-center justify-between text-[10px] font-mono text-text-muted">
+              <span>{s.endpoint_count} endpoints</span>
+              <span className="text-orange-500/70">{s.avg_reliability_score > 0 ? `${Math.round(s.avg_reliability_score * 100)}%` : "—"}</span>
+            </div>
           </Link>
         ))}
-      </nav>
+      </div>
+    </div>
+  );
+}
 
-      {/* Popular skills grid — the catalog is the proof of value */}
-      <section className="pb-20">
-        <div className="section-head">
-          <span className="eyebrow">Catalog</span>
-          <div className="flex items-end justify-between gap-4">
-            <h2 className="text-[20px] font-semibold tracking-tight text-text-primary">Most-used skills</h2>
-            <Link href="/search" className="shrink-0 text-[13px] transition-opacity hover:opacity-80" style={{ color: "var(--orange-400, #FF6A00)" }}>Browse all →</Link>
-          </div>
-          {/* Explain the catalog once here, not on every card — the cards then carry
-              only their own real signals (domain, routes, calls, reliability). */}
-          <p className="mt-2 mb-6 max-w-xl text-[13px] leading-relaxed text-text-secondary">Captured routes you replay as a direct API — no browser, no scraping.</p>
-        </div>
-        {skills.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-surface-raised p-8 text-center text-[14px] text-text-muted">
-            Registry warming up — <Link href="/search" className="underline">search by intent</Link> or <Link href="/aiko" className="underline">ask Aiko</Link>.
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {skills.map((s) => <RegistryCard key={s.skill_id} skill={s} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Restored value-narrative sections (woven into the registry homepage),
-          ordered: why it matters → what you do → the vision → proof → integrations
-          → who runs it. */}
-      <SpeedComparison />
-      <UseCasesBand />
-      <InternetEvolution />
-      <UniversalProofBand />
-      <WorksWith />
-      <AdoptersRail />
-      <TrustStrip />
-
-      {/* Try Aiko live — the chat is the demo of the registry */}
-      <section className="pb-20">
-        <div className="rounded-3xl bg-surface-raised p-9 sm:p-12 text-center" style={{ border: "var(--rule)", boxShadow: "0 24px 90px -56px var(--glow, rgba(255,82,0,0.45))" }}>
-          <span className="eyebrow">✦ aiko-0.8b</span>
-          <h2 className="mt-3 mb-2 font-semibold text-text-primary" style={{ fontSize: "clamp(1.5rem, 3.5vw, 1.875rem)", letterSpacing: "-0.02em" }}>
-            See it work — ask Aiko <span className="serif-em">anything</span>
-          </h2>
-          <p className="mx-auto mb-7 max-w-lg text-[14px] leading-relaxed text-text-secondary">
-            Aiko answers live through these routes. Watch a real question resolve and execute in seconds — the registry, in motion.
+export default function Home() {
+  return (
+    <>
+    <FlowingDotField />
+    <MobileNav />
+    <div className="relative selection:bg-orange-500/30" style={{ zIndex: 2 }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      {/* ═══ Agent-Readable Instructions ═══ */}
+      <section id="agent-instructions" aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
+          <h2>Unbrowse — The API-native browser agent</h2>
+          <p>
+            Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <Link href="/aiko" className="inline-block rounded-xl px-6 py-3 text-[14px] font-medium transition-transform duration-200 hover:-translate-y-px" style={{ background: "var(--orange-500, #FF5200)", color: "#0c0500" }}>
-            Open Aiko →
-          </Link>
+          <p>MCP setup (default): npx unbrowse setup --mcp</p>
+          <p>Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp</p>
+          <p>Manual MCP wiring: add to mcp.json with command &quot;npx&quot; args [&quot;-y&quot;, &quot;unbrowse&quot;, &quot;mcp&quot;]</p>
+          <p>Community: https://discord.gg/VWugEeFNsG</p>
+          <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
+      </section>
+
+      {/* ═══ Hero ═══ */}
+      <section className="relative flex flex-col justify-start overflow-hidden" style={{ minHeight: '90vh' }}>
+
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-[13vh] pb-8 text-center flex flex-col items-center">
+
+          <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href="https://github.com/unbrowse-ai/unbrowse"
+              target="_blank"
+              rel="noopener"
+              className="group inline-flex items-center gap-2.5
+                         text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
+                         border-b border-[rgba(255,122,32,0.3)] pb-1.5
+                         hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
+            >
+              <Github className="w-3.5 h-3.5" />
+              <span>Free, open source, runs locally</span>
+              <span className="text-[rgba(255,122,32,0.4)]">·</span>
+              <span className="flex items-center gap-1">Star on GitHub <IconChevron size={11} className="group-hover:translate-x-0.5 transition-transform" /></span>
+            </a>
+          </div>
+
+          <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
+            The <span className="text-orange-500">API-native browser agent.</span>
+          </h1>
+
+          <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
+            Ask it anything below. It answers through the site&apos;s real APIs —
+            no browser window, no pixel-clicking. Capture once, replay everywhere.
+          </p>
+
+          <div className="animate-fade-up stagger-3 w-full mt-10">
+            <HeroChat />
+          </div>
+
+          <div className="animate-fade-up stagger-3 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
+            <ScrollToButton sectionId="install" className="hover:text-[rgba(255,176,96,1)] transition-colors cursor-pointer">
+              [ npx unbrowse setup → ]
+            </ScrollToButton>
+            <span className="text-[rgba(255,122,32,0.3)]">·</span>
+            <a
+              href="https://discord.gg/VWugEeFNsG"
+              target="_blank"
+              rel="noopener"
+              className="hover:text-[rgba(255,176,96,1)] transition-colors"
+            >
+              join discord
+            </a>
+            <span className="text-[rgba(255,122,32,0.3)]">·</span>
+            <a
+              href={WHITEPAPER_URL}
+              target="_blank"
+              rel="noopener"
+              className="hover:text-[rgba(255,176,96,1)] transition-colors"
+            >
+              read the paper
+            </a>
+          </div>
+
+        </div>
+
+        <HeroHands />
+      </section>
+
+      {/* ═══ Install ═══ */}
+      <section
+        id="install"
+        className="relative py-20 sm:py-28 flex flex-col items-center px-4 sm:px-6"
+      >
+        {/* Card + figure — wrapper is relative so figure can bleed out */}
+        <div className="relative w-full max-w-4xl">
+
+          {/* Terminal card */}
+          <div className="relative w-full border border-[rgba(255,122,32,0.45)] bg-[#060402] overflow-hidden rounded-sm shadow-2xl shadow-black/40">
+              <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  MCP Install</p>
+                    <h2 className="mt-1 text-xl sm:text-2xl font-mono tracking-tight text-[#FFB060]" style={{ textShadow: '0 0 20px rgba(255,176,96,0.4)' }}>
+                      $ unbrowse setup --mcp
+                    </h2>
+                  </div>
+                  <p className="max-w-sm text-sm leading-relaxed text-[rgba(255,122,32,0.55)] font-mono">
+                    Wires the Unbrowse MCP server into your agent host. One command per client.
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <InstallInstructions />
+              </div>
+          </div>
+
+          <InstallFigure />
+        </div>
+
+        {/* Plugs into agent stack — normal flow below the card */}
+        <div className="w-full max-w-4xl mt-6 max-sm:flex max-sm:justify-center sm:flex">
+          <div
+            className="inline-flex flex-col gap-3 px-6 py-4 rounded-sm max-sm:items-center"
+            style={{ background: 'rgba(6,4,2,0.82)', border: '1px solid rgba(255,122,32,0.18)' }}
+          >
+            <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">Plugs into the agent stack you already use</p>
+            <div className="flex flex-wrap max-sm:justify-center items-center gap-x-5 gap-y-2 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
+              <span className="text-sm font-mono tracking-tight">Claude Code</span>
+              <span className="text-sm font-mono tracking-tight">Claude Desktop</span>
+              <span className="text-sm font-mono tracking-tight">Cursor</span>
+              <span className="text-sm font-mono tracking-tight">Codex</span>
+              <span className="text-sm font-mono tracking-tight">Windsurf</span>
+              <span className="text-sm font-mono tracking-tight">OpenClaw</span>
+              <span className="text-sm font-mono tracking-tight">Any MCP framework</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Earnings nudge — Crossmint lobster.cash payout flow */}
+        <div className="w-full max-w-4xl mt-4 max-sm:flex max-sm:justify-center sm:flex">
+          <p className="text-xs font-mono text-[rgba(255,122,32,0.55)] max-sm:text-center">
+            <span className="text-[rgba(255,176,96,0.85)]">$</span> Earn from discovered routes — set up Crossmint lobster.cash during setup.
+          </p>
         </div>
       </section>
 
-      {/* Install */}
-      <section className="pb-28">
-        <div className="section-head text-center">
-          <span className="eyebrow" style={{ display: "block" }}>Get started</span>
-          <h2 className="mt-2 mb-5 text-[20px] font-semibold tracking-tight text-text-primary">Wire it into your agent</h2>
-          <code className="inline-block rounded-xl px-4 py-2.5 font-mono text-[13px]" style={{ background: "var(--code-bg, rgba(8,7,6,0.96))", border: "var(--rule)", color: "var(--orange-400, #FF6A00)" }}>
-            npx unbrowse setup --mcp
-          </code>
-          <div className="mt-5 text-[13px]">
-            <Link href="/classic" className="transition-opacity hover:opacity-80" style={{ color: "var(--text-muted)" }}>The full overview →</Link>
+       {/* ═══ Value Props — Bento Grid ═══ */}
+       <section id="how-it-works" className="relative py-16 sm:py-24 flex flex-col justify-center">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="relative text-center mb-6 flex flex-col items-center">
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
+                ##  After You Install
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">
+                Bypass the DOM completely.
+              </h2>
+            </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+              {/* Speed - Spans 2 cols */}
+              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 overflow-hidden md:col-span-2 transition-colors hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+                <div className="relative z-10 flex-1">
+                  <div className="mb-3 flex items-center gap-2 text-orange-500">
+                    <IconHourglass size={16} />
+                    <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Speed</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">Skip the rendering engine</h3>
+                  <p className="text-text-secondary text-sm leading-relaxed max-w-md">
+                    Headless browsers are slow and flaky. Unbrowse taps directly into the hidden shadow APIs that power the frontend, returning data instantly.
+                  </p>
+                </div>
+                <div className="relative z-10 w-full md:w-auto md:flex-1 bg-[#060402] border border-[rgba(255,122,32,0.18)] p-5 rounded-sm flex flex-col items-center justify-center">
+                  <span className="text-5xl font-bold font-display text-orange-500 tracking-tighter mb-1">100x</span>
+                  <span className="text-[10px] font-mono text-text-muted uppercase tracking-[0.2em] mb-4">faster per page</span>
+                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-mono bg-black/20 border border-[rgba(255,122,32,0.1)] px-4 py-2 w-full rounded-sm">
+                    <span className="text-text-muted line-through">5-30s headless</span>
+                    <span className="text-text-muted opacity-50">→</span>
+                    <span className="text-orange-500 font-medium">50-200ms API</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cost - Spans 1 col */}
+              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+                <div className="mb-3 flex items-center gap-2 text-orange-500">
+                  <IconScript size={16} />
+                  <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Tokens</span>
+                </div>
+                <h3 className="text-lg font-semibold mb-2 tracking-tight">40x fewer tokens</h3>
+                <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
+                  Why burn context on 8,000 tokens of HTML? Your agent gets the exact JSON data it needs — nothing else.
+                </p>
+                <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
+                  <div className="flex justify-between items-center text-xs font-mono mb-2">
+                    <span className="text-text-muted">Scraping HTML</span>
+                    <span className="text-text-muted">~8,000t</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-text-primary font-medium">Direct API</span>
+                    <span className="text-orange-500 font-medium">~200t</span>
+                  </div>
+                </div>
+              </div>
+
+            {/* Reverse Engineer - Spans 1 col */}
+            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+              <div className="mb-3 flex items-center gap-2 text-orange-500">
+                <IconCompass size={16} />
+                <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Discovery</span>
+              </div>
+              <h3 className="text-lg font-semibold mb-2 tracking-tight">Auto-discovers APIs</h3>
+              <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
+                Your agent calls Unbrowse over MCP and the right shadow endpoint comes back — schemas, parameters, sample values, all ready to call.
+              </p>
+              <div className="pt-4 border-t border-[rgba(255,122,32,0.12)] space-y-2">
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                  <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> Zero config needed
+                </div>
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                  <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> Shared skill registry
+                </div>
+              </div>
+            </div>
+
+            {/* Security - Spans 2 cols */}
+            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden md:col-span-2 hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+              <div className="relative z-10 flex-1">
+                <div className="mb-3 flex items-center gap-2 text-orange-500">
+                  <IconSeal size={16} />
+                  <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Security</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">Integrate with anything. Behind auth.</h3>
+                <p className="text-text-secondary text-sm leading-relaxed max-w-md">
+                  No cloud proxies, no expensive credits. Unbrowse runs locally, leveraging your actual browser sessions to securely access <strong className="text-orange-500 font-medium">auth-protected content</strong>.
+                </p>
+              </div>
+              <div className="relative z-10 w-full md:w-auto md:flex-1 bg-[#060402] border border-[rgba(255,122,32,0.18)] p-4 font-mono text-xs rounded-sm">
+                <div className="flex items-center justify-between mb-3 text-text-muted text-[10px] uppercase tracking-[0.2em] border-b border-[rgba(255,122,32,0.12)] pb-2">
+                  <span>Security Check</span>
+                  <span className="text-orange-500 font-medium flex items-center gap-1"><IconSeal size={10} /> Passed</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between gap-4"><span className="text-text-muted">Proxy Server</span><span className="text-text-secondary">None</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-text-muted">MITM</span><span className="text-text-secondary">Disabled</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-text-muted">Cookies leave device</span><span className="text-text-secondary">False</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-text-muted">Execution</span><span className="text-orange-500 font-medium">Local Only</span></div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
-    </main>
+
+      <Suspense fallback={<div aria-hidden style={{ minHeight: 90 }} />}>
+        <HeroStats />
+      </Suspense>
+      <Suspense fallback={<div aria-hidden style={{ minHeight: 220 }} />}>
+        <PopularSkillsGrid />
+      </Suspense>
+
+      {/* The live demo IS the hero chat bar; the old scripted replay section was
+          removed so the only chat on the site is the real agent loop. */}
+
+       {/* ═══ Registry Showcase ═══ */}
+       <RegistryShowcase />
+
+       {/* ═══ 3-Panel Visual ═══ */}
+       <ThreePanelVisual />
+
+      {/* ═══ Fixed Footer Bar ═══ */}
+      <footer className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/90 backdrop-blur-sm" style={{ borderTop: '1px solid rgba(255,122,32,0.2)' }}>
+        <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between gap-4">
+          <span className="text-xs text-[rgba(255,122,32,0.4)] font-mono">$ &copy; {new Date().getFullYear()} Unbrowse AI Pte. Ltd.</span>
+          <div className="hidden sm:flex items-center gap-5 text-xs text-[rgba(255,122,32,0.55)] font-mono">
+            <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-[rgba(255,176,96,0.9)] transition-colors">GitHub</a>
+            <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-[rgba(255,176,96,0.9)] transition-colors">Discord</a>
+            <Link href="/faq" className="hover:text-[rgba(255,176,96,0.9)] transition-colors">FAQ</Link>
+            <Link href="/terms" className="hover:text-[rgba(255,176,96,0.9)] transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-[rgba(255,176,96,0.9)] transition-colors">Privacy</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+    </>
   );
 }

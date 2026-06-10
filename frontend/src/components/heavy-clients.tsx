@@ -3,7 +3,7 @@
 // PERF: heavy below-fold components — dynamic-imported with ssr:false +
 // layout-preserving placeholders SIZED to match the components'
 // actual rendered heights so the swap is reflow-free. Heights were
-// measured in-browser at 1440x900: ChatDemo ~614 (its parent
+// measured in-browser at 1440x900: the heavy clients (their parents
 // #demo carries py-16/24), ThreePanelVisual uses min-h-screen
 // (100vh), RegistryShowcase uses h-screen (100vh). Each placeholder
 // also carries `contain: layout` so any internal reflow on mount
@@ -17,16 +17,6 @@ const placeholder = (h: string): React.CSSProperties => ({
   minHeight: h,
   contain: "layout",
 });
-
-export const ChatDemo = dynamic(
-  () => import("@/components/chat-demo").then((m) => m.ChatDemo),
-  {
-    ssr: false,
-    // ChatDemo renders inside #demo section (py-16/24) — actual content
-    // box ~450-500px on desktop; 60vh leaves a small safety margin.
-    loading: () => <div aria-hidden style={placeholder("60vh")} />,
-  },
-);
 
 export const ThreePanelVisual = dynamic(
   () =>

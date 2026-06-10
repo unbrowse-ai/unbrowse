@@ -14,10 +14,10 @@ import { AgentWireTerminal } from "@/components/agent-wire-terminal";
 import { MCPWireDiagram } from "@/components/mcp-wire-diagram";
 import { InstallInstructions } from "@/components/install-instructions";
 import {
-  ChatDemo,
   ThreePanelVisual,
   RegistryShowcase,
 } from "@/components/heavy-clients";
+import { HeroChat } from "@/components/hero-chat";
 import { HeroTerminalGated } from "@/components/hero-terminal-gated";
 import { EarnSection } from "@/components/earn-section";
 import { ObjectionFaq } from "@/components/objection-faq";
@@ -239,14 +239,13 @@ export function ChapterSpine() {
         }
       >
         {/* Live MCP wire diagram — the resolve ladder as a picture. Click a
-            lane to re-fire its dot. Lives ABOVE the ChatDemo because the
-            picture explains the mechanism the demo then enacts. */}
+            lane to re-fire its dot. Lives ABOVE the chat because the
+            picture explains the mechanism the live agent then enacts. */}
         <div style={{ marginBottom: "clamp(2rem, 4vw, 3rem)" }}>
           <MCPWireDiagram />
         </div>
-        <Suspense fallback={<div aria-hidden style={{ minHeight: 420 }} />}>
-          <ChatDemo />
-        </Suspense>
+        {/* The ONE chat on the site — the real agent loop, not a scripted replay. */}
+        <HeroChat />
         <HallmarkRows>
           <HallmarkRow
             label="Capture on first visit"

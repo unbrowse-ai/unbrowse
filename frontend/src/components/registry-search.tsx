@@ -157,7 +157,7 @@ export function RegistrySearch({
 
       {miss && !resolving && (
         <div className="mt-3 rounded-2xl border border-border bg-surface-raised p-5 text-center text-[13px] text-text-muted">
-          No indexed route for “{miss}” yet — <Link href={`/search?q=${encodeURIComponent(miss)}`} className="underline">search the full registry</Link> or <Link href="/aiko" className="underline">ask Aiko</Link> to capture it live.
+          No indexed route for “{miss}” yet — <Link href={`/search?q=${encodeURIComponent(miss)}`} className="underline">search the full registry</Link> or <Link href="/aiko" className="underline">ask the live agent</Link> to fetch it now.
         </div>
       )}
 
@@ -168,7 +168,7 @@ export function RegistrySearch({
           </button>
         ))}
         <a href="/aiko" className="px-3 py-1.5 rounded-full text-[12px]" style={{ border: "1px solid var(--border)", color: "var(--orange-400, #FF6A00)" }}>
-          ✦ or ask Aiko →
+          ✦ or ask the agent →
         </a>
       </div>
     </div>
