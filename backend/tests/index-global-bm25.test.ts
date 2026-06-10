@@ -58,3 +58,52 @@ test("the GLOBAL key ACCUMULATES across publishes and DEDUPS by id", async () =>
   const a = global.find((d: { id: string }) => d.id === "skillA:e1");
   expect(a.text).toContain("list posts v2");                             // newest version kept
 });
+
+// EDGE: endpoints with no description are filtered out — early return, no empty write.
+test("edge: undescribed endpoints → early return, no global key written", async () => {
+  const kv = fakeKV();
+  const env = { STATS_KV: kv, ENVIRONMENT: "local", EMERGENTDB_API_KEY: "x" } as never;
+  await indexEndpoints(env, "skillX",
+    [{ endpoint_id: "e1", method: "GET", url_template: "https://x.example/" }] as never,
+    { domain: "x.example" });
+  expect(kv.store.size).toBe(0); // nothing indexed (no description) — no junk in the index
+});
+
+// EDGE: a malformed existing global value must not crash — recover to a clean write.
+test("edge: malformed existing global JSON → recovers, writes clean", async () => {
+  const kv = fakeKV();
+  kv.store.set("bm25-idx:v2-global", "{not valid json");
+  const env = { STATS_KV: kv, ENVIRONMENT: "local", EMERGENTDB_API_KEY: "x" } as never;
+  await indexEndpoints(env, "skillA", [ep("e1", "list posts", "https://a.example/posts")], { domain: "a.example" });
+  const global = JSON.parse(kv.store.get("bm25-idx:v2-global")!); // must parse now (recovered)
+  expect(global.length).toBe(1);
+  expect(global[0].id).toBe("skillA:e1");
+});
+
+// DEGRADED: when the graph (fetch) throws, the KV index must ALREADY be written — the
+// whole point of the fix is KV-before-graph so search survives a down graph.
+test("degraded: graph insert throws AFTER the KV index is already written", async () => {
+  const kv = fakeKV();
+  globalThis.fetch = (async () => { throw new Error("graph down"); }) as typeof fetch;
+  const env = { STATS_KV: kv, ENVIRONMENT: "local", EMERGENTDB_API_KEY: "x" } as never;
+  let threw = false;
+  try {
+    await indexEndpoints(env, "skillA", [ep("e1", "list posts", "https://a.example/posts")], { domain: "a.example" });
+  } catch { threw = true; }
+  expect(threw).toBe(true);                                  // graph failure surfaces
+  expect(kv.store.has("bm25-idx:v2-global")).toBe(true);     // but KV index was written FIRST (search survives)
+  expect(JSON.parse(kv.store.get("bm25-idx:v2-global")!)[0].id).toBe("skillA:e1");
+});
+
+// ADVERSARIAL: 50 domains churned through the global key — accumulates all, no loss, deduped.
+test("adversarial: 50 publishes accumulate into the global key without loss", async () => {
+  const kv = fakeKV();
+  globalThis.fetch = (async () => new Response("{}", { status: 200 })) as typeof fetch;
+  const env = { STATS_KV: kv, ENVIRONMENT: "local", EMERGENTDB_API_KEY: "x" } as never;
+  for (let i = 0; i < 50; i++) {
+    await indexEndpoints(env, `skill${i}`, [ep("e1", `task ${i}`, `https://d${i}.example/x`)], { domain: `d${i}.example` });
+  }
+  const global = JSON.parse(kv.store.get("bm25-idx:v2-global")!);
+  expect(global.length).toBe(50);                            // every publish present, none clobbered
+  expect(new Set(global.map((d: { id: string }) => d.id)).size).toBe(50); // all distinct
+});
