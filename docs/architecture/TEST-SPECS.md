@@ -18,8 +18,8 @@
 | Email shape validation rejects malformed addresses | **Exists** — `backend/tests/auth-*` email-validation suite |
 | Expired/reused/forged token rejected (adversarial cases) | **Exists** — `backend/tests/auth-*` token-adversarial suite |
 | Concurrent verification of one token → single success | **Exists** — `backend/tests/auth-*` concurrency suite |
-| ToS version gate returns 403 with re-accept pointer | **GAP** — assert explicitly in middleware tests |
-| Sign-in response does not reveal account existence (enumeration) | **GAP** |
+| ToS version gate returns 403 with re-accept pointer | **Exists** — `backend/tests/auth-tos-gate.test.ts` (stale version 403, fresh auto-accept, no-ToS bypass for accept-tos) |
+| Sign-in response does not reveal account existence (enumeration) | **Exists** — `backend/tests/auth-tos-gate.test.ts` (identical response shape for any email; malformed → 400 with no send) |
 
 ## 2. API keys (AC-KEY-*)
 | Spec | Status |
@@ -34,11 +34,11 @@
 ## 3. Key funding / wallet wrapping (AC-FUND-*)
 | Spec | Status |
 |---|---|
-| Bind `wallet` funding; read-back roundtrip | partial — exercised via `backend/tests/billing-admission-creatures.test.ts`; add direct route unit |
+| Bind `wallet` funding; read-back roundtrip | **Exists** — `backend/tests/key-funding-routes.test.ts` (wallet + credit, input validation) |
 | Bind `credit` funding; debit on paid call; exhaustion stops admission | **Exists** — admission suite (`billing-admission-creatures.test.ts`) |
 | Retroactive contributor wallet fill at settlement | **Exists** — `backend/tests/claim-earnings.test.ts` + `splits` suite |
-| Auto-bind wallet on registration carrying an address | **GAP** — unit on `backend/src/routes/agents.ts` path |
-| Cross-tenant funding write rejected | **GAP** |
+| Auto-bind wallet on registration carrying an address | **Exists** — `backend/tests/key-funding-routes.test.ts` (wallet claim funds the key without a separate call) |
+| Cross-tenant funding write rejected | **Exists** — `backend/tests/key-funding-routes.test.ts` (B on A's key → 404 read and write; A's funding untouched) |
 
 ## 4. Stripe (AC-STR-*)
 | Spec | Status |
@@ -90,7 +90,7 @@
 ## 8. Wallets & OWS (AC-WAL-*)
 | Spec | Status |
 |---|---|
-| Resolution precedence (OWS → lobster → generic → Privy → none) | partial — adapter-level precedence in `tests/x402-fetch-outcomes.test.ts`; full `getWalletContext()` matrix still open |
+| Resolution precedence (OWS → lobster → generic → Privy → none) | **Exists** — `tests/wallet-context-matrix.test.ts` (full matrix incl. disable-flag lanes, both agents.json shapes, corrupt-file tolerance) + adapter-level lanes in `tests/x402-fetch-outcomes.test.ts` |
 | OWS policy engine: deny blocks, warn allows+logs, expiry honored | **Exists** — `tests/ows-vault-policy.test.ts` (AND-combined rules, expiry, empty set) |
 | OWS vault parsing (CAIP-10 accounts, first-EVM pick, env override) | **Exists** — `tests/ows-vault-policy.test.ts` (both camelCase and snake_case shapes, corrupt-blob skip, hermetic OWS_HOME) |
 | `unbrowse wallet` mismatch detection is read-only | **GAP** |
@@ -126,7 +126,7 @@
 | Regression suite for shipped issues | **Exists** — `tests/github-issue-regressions.test.ts` |
 | Path-parameter handling | **Exists** — `tests/path-params.test.ts` |
 | Quality gate on resolve/execute outcomes | **Exists** — `evals/quality-gate.test.ts` |
-| MCP: tools/list + each tool returns structured result/error over stdio | **GAP** — protocol-level harness across supported versions |
+| MCP: tools/list + each tool returns structured result/error over stdio | **Exists** — `tests/mcp-protocol-harness.test.ts` (real spawned server: handshake, tool surface + schemas, health call, unknown-method resilience) |
 | CLI/MCP parity (same op, same engine, same effect) | **GAP** |
 | Config/profile isolation (`UNBROWSE_PROFILE`) | **GAP** |
 | auth-capture stores pointers only; no plaintext secrets in artifacts | partial — `src/capture/obfuscate-audit.ts` exists; add dedicated leak test |
@@ -140,6 +140,7 @@
 | Billing page renders sponsor status states (sponsored/exhausted/opted-out) | **GAP** |
 | Wallet pairing validates address; no key material in page | **GAP** |
 | Registry/search/skill pages render from API fixtures | **GAP** |
+| Pure lib units (API-origin precedence, domain humanizer, MCP snippet) | **Exists** — `frontend/src/lib/api-helpers.test.ts` (first unit coverage in `frontend/`) |
 | Landing funnel e2e | **Exists** — `tests/landing-funnel-e2e.test.ts` |
 
 ## Priority of gaps (standard-practice risk order)
@@ -151,12 +152,14 @@
    states are covered by `tests/x402-fetch-outcomes.test.ts`.
 3. ~~Key verification/revocation direct units + kill switch~~ — closed by
    `backend/tests/keys-service.test.ts`.
-4. **Wallet resolution units** (§8) — OWS policy/vault and adapter-level
-   precedence now covered; the full `getWalletContext()` provider matrix
-   remains open.
+4. ~~Wallet resolution units~~ — closed: OWS policy/vault, adapter-level
+   precedence, and the full `getWalletContext()` matrix
+   (`tests/wallet-context-matrix.test.ts`).
 5. ~~Toll ledger conservation/immutability units~~ — already covered by
    the toll-ledger and toll-emit suites in `tests/` (9/9 green; the
    original GAP rows were a survey error).
-6. **MCP protocol harness** (§11) — primary agent-facing surface.
-7. **Frontend auth/billing component tests** (§12) — currently zero unit
-   coverage in `frontend/`.
+6. ~~MCP protocol harness~~ — closed by `tests/mcp-protocol-harness.test.ts`.
+7. **Frontend auth/billing component tests** (§12) — lib-level units now
+   exist (`frontend/src/lib/api-helpers.test.ts`); component/page tests
+   (auth context, billing states, wallet pairing) still need a DOM test
+   stack and remain open.
