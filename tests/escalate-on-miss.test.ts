@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import { getWalletPubkey } from "../src/values/signer.js";
-import { resolveOrEscalate, type DiscoveredRoute } from "../src/capture/escalate-on-miss.js";
+import { resolveOrEscalate, escalationDirective, type DiscoveredRoute } from "../src/capture/escalate-on-miss.js";
 import { verifyHoleAttested } from "../src/capture/zk-bound-hole.js";
 import type { RawRequest } from "../src/capture/index.js";
 
@@ -100,5 +100,25 @@ describe("Layer 3 — auto-descend on resolve MISS", () => {
     expect(authHole.bound?.startsWith("zkbind:")).toBe(true);
     expect(verifyHoleAttested(authHole)).toBe(true); // wallet really bound the discovered slot
     expect(JSON.stringify(publishedRoute)).not.toContain(secret);
+  });
+});
+
+describe("Layer 3 — resolve emits a live descend directive on MISS (the wire into the runtime)", () => {
+  it("MISS with a URL → a descend directive (this is what resolve.ts now emits)", () => {
+    const d = escalationDirective([], "https://api.example.com/v1/search", "search");
+    expect(d).not.toBeNull();
+    expect(d!.action).toBe("descend");
+    expect(d!.reason).toBe("no_route");
+    expect(d!.url).toContain("api.example.com");
+    expect(d!.hint).toContain("indexed back");
+  });
+
+  it("HIT → no directive (highest layer worked, do not descend)", () => {
+    expect(escalationDirective([{ endpoint_id: "x" }], "https://api.example.com", "search")).toBeNull();
+  });
+
+  it("MISS without a URL → no directive (nothing to descend into)", () => {
+    expect(escalationDirective([], null, "search")).toBeNull();
+    expect(escalationDirective([], undefined, "search")).toBeNull();
   });
 });

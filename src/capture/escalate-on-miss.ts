@@ -47,6 +47,43 @@ export interface EscalationDeps {
   secrets?: string[];
 }
 
+/**
+ * The live signal a resolve emits on a MISS so the agent descends instead of
+ * stopping at a dead empty shortlist. In Unbrowse's two-tool architecture the
+ * agent is the orchestrator: on receiving this directive it opens the browser
+ * (breath go), captures the request down to the packet layer, and the captured
+ * route auto-indexes back to the signed ledger. Null when there is no miss (a
+ * non-empty shortlist) or no URL context to descend into.
+ */
+export interface EscalationDirective {
+  reason: "no_route";
+  action: "descend";
+  url: string;
+  intent: string;
+  hint: string;
+}
+
+/**
+ * Pure decision: should resolve signal a descent? Yes iff the shortlist is empty
+ * (a real miss) AND there is a URL to descend into. Extracted so the resolve CLI
+ * stays a thin emitter and the decision is unit-witnessable.
+ */
+export function escalationDirective(
+  shortlist: unknown[],
+  url: string | null | undefined,
+  intent: string,
+): EscalationDirective | null {
+  if (Array.isArray(shortlist) && shortlist.length > 0) return null; // highest layer worked
+  if (!url) return null; // nothing to descend into
+  return {
+    reason: "no_route",
+    action: "descend",
+    url,
+    intent,
+    hint: "no indexed route for this intent — open the browser (unbrowse go <url>), perform the action, and the captured request is indexed back to the route ledger for reuse",
+  };
+}
+
 export interface EscalationResult {
   /** true iff a MISS triggered the descent + capture + publish. */
   escalated: boolean;
