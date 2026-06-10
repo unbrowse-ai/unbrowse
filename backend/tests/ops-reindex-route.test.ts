@@ -6,18 +6,21 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
-import { clearKVCacheForTests } from "../src/services/kv.js";
+import { clearKVCacheForTests, skillsKV } from "../src/services/kv.js";
 import type { Env, SkillManifest } from "../src/types.js";
 
 const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
+  // Benign in-memory STATS_KV: indexEndpoints() writes its BM25 lexical index
+  // directly via env.STATS_KV (not the KV service). Under local-dev the KV
+  // service ignores STATS_KV entirely, so this stub never triggers FallbackKV.
   STATS_KV: {
     put: async () => {},
     get: async () => null,
   } as unknown as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function makeSkill(id: string, domain: string): SkillManifest {
@@ -64,24 +67,19 @@ describe("POST /v1/ops/reindex (contract 311771e1)", () => {
   let store: Map<string, string>;
   let batchInsertHits: Array<{ domain: string; itemCount: number }>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     clearKVCacheForTests();
     store = new Map();
     batchInsertHits = [];
 
-    // Seed two active skills under the real staging-skills-v3 namespace +
-    // their _idx entries so listSkills() can find them.
+    // Seed two active skills into the in-memory LocalKV (local-dev) under the
+    // same skillsKV(env) instance the reindex route reads via listSkills().
+    // LocalKV keys are bare "skill:<id>" (the namespace is the Map identity).
     const skillA = makeSkill("skill-a", "alpha.example.com");
     const skillB = makeSkill("skill-b", "beta.example.com");
-    store.set("staging-skills-v3:skill:skill-a", JSON.stringify(skillA));
-    store.set("staging-skills-v3:skill:skill-b", JSON.stringify(skillB));
-    // _idx format: bare array of { k, v } entries — matches _parseIdxResponse.
-    const idx = JSON.stringify([
-      { k: "skill:skill-a", v: JSON.stringify(skillA) },
-      { k: "skill:skill-b", v: JSON.stringify(skillB) },
-    ]);
-    store.set("staging-skills-v3:_idx:main", idx);
-    store.set("staging-skills-v3:_idx:large", JSON.stringify([]));
+    const kv = skillsKV(env);
+    await kv.put("skill:skill-a", JSON.stringify(skillA));
+    await kv.put("skill:skill-b", JSON.stringify(skillB));
 
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);

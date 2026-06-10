@@ -1,8 +1,17 @@
+// SKIP: src/services/cascade.js was removed in commit c1a9f668
+// ("refactor(payments): remove Cascade splits SDK — Faremeter Flex is the only
+// rail"). ensureSkillCascadeSplit has no replacement — the Cascade split sync
+// it exercised no longer exists. Tracking: re-enable only if a cascade-split
+// equivalent is reintroduced. The dead import is commented out so the file
+// loads under describe.skip instead of crashing at module evaluation.
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { Env, SkillManifest } from "../src/types.js";
 import { skillsKV, statsKV } from "../src/services/kv.js";
-import { ensureSkillCascadeSplit } from "../src/services/cascade.js";
+// import { ensureSkillCascadeSplit } from "../src/services/cascade.js"; // removed in c1a9f668
 import { updateContributorDelta } from "../src/services/splits.js";
+const ensureSkillCascadeSplit = (..._args: unknown[]): never => {
+  throw new Error("ensureSkillCascadeSplit removed in c1a9f668; suite is describe.skip");
+};
 
 const env: Env = {
   API_KEY: "admin",
@@ -88,7 +97,7 @@ const skill: SkillManifest = {
   updated_at: "2026-04-02T00:00:00.000Z",
 };
 
-describe("backend cascade split sync", () => {
+describe.skip("backend cascade split sync (SKIP: cascade.js removed in c1a9f668)", () => {
   const store = new Map<string, string>();
   const originalFetch = globalThis.fetch;
 
