@@ -231,7 +231,7 @@ export default function HowUnbrowsePays() {
         </Link>
         <span className="eyebrow" style={{ display: "block" }}>Economics</span>
         <h1 className="text-3xl font-semibold tracking-tight text-text-primary">
-          How Unbrowse pays
+          How Unbrowse Pays
         </h1>
         <p className="max-w-[60ch] text-base text-text-secondary">
           The short version: you pay for real usage in USDC, per request, and the

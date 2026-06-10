@@ -1,4 +1,5 @@
 import { getConfiguredApiOrigin } from "@/lib/api-base";
+import { checkAuthInvalidResponse } from "@/lib/auth-invalid-event";
 
 const API_URL = getConfiguredApiOrigin();
 const SUPPRESSED_MARKETPLACE_DOMAINS = new Set(["pearlpediatric.curvehero.com"]);
@@ -674,6 +675,10 @@ export async function updateAccountPreferences(
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
+    // Surface a rotated/revoked-key signal to the global banner BEFORE throwing,
+    // so the user gets the "sign in to mint a new key" recovery CTA instead of a
+    // bare error. A normal invalid-key 401 is left untouched (no dispatch).
+    await checkAuthInvalidResponse(res);
     const data = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
