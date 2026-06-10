@@ -22,6 +22,8 @@ import Link from "next/link";
 import { Streamdown } from "streamdown";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
 import { searchRoutes, getRoute } from "@/lib/hero-marketplace";
+import { parseManifest, urlBelongsToSkill, type SkillManifestLite } from "@/lib/recommend-guard";
+import { resolveHoledExecute } from "@/lib/holed-execute";
 
 const SUGGESTIONS = [
   "Top stories on Hacker News right now",
@@ -177,6 +179,7 @@ export function HeroChat() {
     const apiOrigin = getConfiguredApiOrigin();
     const t0 = performance.now();
     const steps: HeroStep[] = [];
+    const seenManifests: SkillManifestLite[] = []; // resolved skills, for the execute seal
     const messages: LoopMessage[] = history.map((t) => ({ role: t.role, content: t.content }));
 
     for (let round = 0; round <= MAX_ROUNDS; round++) {
@@ -204,9 +207,42 @@ export function HeroChat() {
             out = { output: r.output, label: `search · ${String(parsed.intent ?? "").slice(0, 50)}`, ok: r.ok };
           } else if (tc.function.name === "get_route") {
             const r = await getRoute(apiOrigin, String(parsed.skill_id ?? ""));
+            // Capture the resolved-skill manifest so execute_route can be sealed
+            // to it (path-A brick 3b): the LLM may only execute the skill it resolved.
+            const m = r.ok ? parseManifest(r.output) : null;
+            if (m) seenManifests.push(m);
             out = { output: r.output, label: `manifest · ${r.domain}`, ok: r.ok };
           } else if (tc.function.name === "execute_route") {
-            out = await executeClientFirst(parsed as Parameters<typeof executeClientFirst>[0]);
+            // verb atom (tool-with-holes): prefer the holed path — the LLM names
+            // an endpoint_id of a skill it resolved + supplies hole values, and we
+            // BUILD the URL from that manifest's own template. The model can't
+            // write an off-skill URL at all. Falls back to the raw-url path
+            // (with the seal) for the cold path / older schema. No regression.
+            const resolved = resolveHoledExecute(parsed as Parameters<typeof resolveHoledExecute>[0], seenManifests);
+            if (resolved.kind === "holed" && !resolved.ok) {
+              out = { output: `blocked: ${resolved.reason}. Resolve the skill first, then execute its endpoint_id with the hole values.`, label: `✗ unknown endpoint`, ok: false };
+            } else {
+              const execUrl = resolved.kind === "holed" ? resolved.url : resolved.url;
+              // Seal: if the URL's host belongs to a skill we resolved this loop,
+              // it must match one of that skill's endpoints — else the model has
+              // wandered off-skill and we refuse (return an error so it re-picks).
+              // Holed URLs are template-built so they always pass; the check is
+              // defense-in-depth and the real gate for the raw-url cold path.
+              const host = (() => { try { return new URL(execUrl).host.toLowerCase(); } catch { return ""; } })();
+              const owning = seenManifests.find((mm) =>
+                (mm.domain && mm.domain.toLowerCase() === host) ||
+                (mm.endpoints ?? []).some((e) => { try { return new URL(e.url ?? e.url_template ?? "").host.toLowerCase() === host; } catch { return false; } }),
+              );
+              const seal = owning ? urlBelongsToSkill(owning, execUrl) : { ok: true as const };
+              if (!seal.ok) {
+                out = { output: `blocked: ${seal.reason}. Use only an endpoint from the resolved skill's manifest.`, label: `✗ off-skill url blocked`, ok: false };
+              } else {
+                const execArgs = resolved.kind === "holed"
+                  ? { ...(parsed as Record<string, unknown>), url: resolved.url, method: resolved.method }
+                  : parsed;
+                out = await executeClientFirst(execArgs as Parameters<typeof executeClientFirst>[0]);
+              }
+            }
           } else {
             out = { output: `unknown tool: ${tc.function.name}`, label: tc.function.name, ok: false };
           }
