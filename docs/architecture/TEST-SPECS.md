@@ -24,12 +24,12 @@
 ## 2. API keys (AC-KEY-*)
 | Spec | Status |
 |---|---|
-| Create returns plaintext once; KV stores hash + reverse index | partial — covered via auth flow; add dedicated `keys.ts` unit |
-| Verify: valid / unknown / revoked / malformed → correct result | **GAP** — direct unit on `verifyLocalKey` |
-| Revoke is idempotent and flips both KV records | **GAP** — direct unit on `revokeLocalKey` |
+| Create returns plaintext once; KV stores hash + reverse index | **Exists** — `backend/tests/keys-service.test.ts` (plaintext-absence scan over all stored entries) |
+| Verify: valid / unknown / revoked / malformed → correct result | **Exists** — `backend/tests/keys-service.test.ts` |
+| Revoke is idempotent and flips both KV records | **Exists** — `backend/tests/keys-service.test.ts` (also: funding binding cleared on revoke; credit debit lanes) |
 | Timing-safe comparison used on verification path | **GAP** (assert code path, not timing itself) |
 | List shows only caller's keys, no hash/plaintext leakage | **Exists** — `backend/tests/account-*` key-visibility suite |
-| Global kill switch rejects all keys with 401 + pointer | **GAP** |
+| Global kill switch rejects all keys with 401 + pointer | **Exists** — `backend/tests/keys-service.test.ts` (valid key, legacy admin key, missing header) |
 
 ## 3. Key funding / wallet wrapping (AC-FUND-*)
 | Spec | Status |
@@ -148,8 +148,8 @@
 2. **Client frozen-splits unit** (§6) — `flex-pay.ts` must pay server-frozen
    splits verbatim; the other client x402 outcome states are now covered by
    `tests/x402-fetch-outcomes.test.ts`.
-3. **Key verification/revocation direct units + kill switch** (§2) — auth
-   core.
+3. ~~Key verification/revocation direct units + kill switch~~ — closed by
+   `backend/tests/keys-service.test.ts`.
 4. **Wallet resolution + OWS policy units** (§8) — payment routing
    correctness.
 5. **Toll ledger conservation/immutability units** (§10) — earnings
