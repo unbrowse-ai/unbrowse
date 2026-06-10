@@ -272,7 +272,6 @@ async function bm25Search(env: Env, domain: string, query: string, k: number): P
 }
 
 /** Reciprocal Rank Fusion over two result lists. */
-/** Reciprocal Rank Fusion over two result lists. */
 export function rrfFuse(listA: SearchResult, listB: SearchResult, k: number): SearchResult {
   const scores = new Map<string, { score: number; metadata: Record<string, unknown> }>();
   const addList = (list: SearchResult) => {
