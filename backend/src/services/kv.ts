@@ -1,4 +1,3 @@
-import { PgKV } from "./pg-kv.js";
 
 /**
  * EmergentDB qdkv adapter — drop-in replacement for Cloudflare KV.
@@ -474,24 +473,133 @@ export class LocalKV {
   }
 }
 
+/**
+ * FallbackKV — the paper's `kv-fallback-pipe` made operational: EmergentDB (the
+ * primary IQ store) with Cloudflare KV as a durable fallback, so a flaky or down
+ * EmergentDB still serves reads and accepts writes. The worker runs ON Cloudflare,
+ * so STATS_KV is always reachable even when the EmergentDB HTTP API is degraded.
+ *
+ *  - put: write-through to BOTH stores. Succeeds if EITHER accepts it; only a
+ *    double failure throws. So an EmergentDB outage degrades to "CF KV only" — the
+ *    write is not lost — and CF KV stays populated so reads can fall back.
+ *  - get: EmergentDB first; on a miss OR an error, fall through to CF KV.
+ *  - list/listWithValues: EmergentDB first; on error, CF KV (prefix-scoped).
+ *
+ * Keys are namespace-prefixed in CF KV (`<ns>:<key>`) so skills + stats share one
+ * Cloudflare namespace without colliding — the same prefixing EdbKV uses.
+ */
+export class FallbackKV {
+  constructor(private primary: EdbKV, private cf: KVNamespace, private ns: string) {}
+
+  private ck(key: string): string { return `${this.ns}:${key}`; }
+  private strip(name: string): string {
+    return name.startsWith(`${this.ns}:`) ? name.slice(this.ns.length + 1) : name;
+  }
+  /** CF KV requires expirationTtl >= 60s; clamp so a short TTL doesn't reject the mirror. */
+  private cfOpts(opts?: { expirationTtl?: number }): { expirationTtl: number } | undefined {
+    return opts?.expirationTtl ? { expirationTtl: Math.max(60, opts.expirationTtl) } : undefined;
+  }
+
+  // CF KV calls are best-effort by contract ("EmergentDB down — fall through";
+  // mirror writes never gate the primary). A malformed/stub binding whose
+  // methods throw SYNCHRONOUSLY would otherwise escape before a .catch or
+  // Promise.allSettled can absorb it and 500 the request — the async wrapper
+  // converts sync throws into rejections so the existing handling applies.
+  private async cfCall<T>(fn: () => Promise<T> | T): Promise<T | null> {
+    try { return await fn(); } catch { return null; }
+  }
+
+  async get(key: string, type?: "json"): Promise<string | unknown | null> {
+    try {
+      const v = await this.primary.get(key, type);
+      if (v != null) return v;
+    } catch { /* EmergentDB down — fall through to CF KV */ }
+    const raw = await this.cfCall(() => this.cf.get(this.ck(key)));
+    if (raw == null) return null;
+    return type === "json" ? safeJson(raw) : raw;
+  }
+
+  async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {
+    const cfPut = this.cfCall(() => this.cf.put(this.ck(key), value, this.cfOpts(opts)))
+      .then((r) => (r === null ? Promise.reject(new Error("cf put failed")) : r));
+    const [p, c] = await Promise.allSettled([
+      this.primary.put(key, value, opts),
+      cfPut,
+    ]);
+    if (p.status === "rejected" && c.status === "rejected") {
+      throw new Error(`FallbackKV.put failed both stores (key=${key})`);
+    }
+  }
+
+  async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
+    const cfOpts = this.cfOpts(opts);
+    await Promise.allSettled([
+      this.primary.putBatch(pairs, opts),
+      ...pairs.map(({ key, value }) => this.cfCall(() => this.cf.put(this.ck(key), value, cfOpts))),
+    ]);
+  }
+
+  async delete(key: string): Promise<void> {
+    await Promise.allSettled([
+      this.primary.delete(key),
+      this.cfCall(() => this.cf.delete(this.ck(key))),
+    ]);
+  }
+
+  // Fall back to CF on a throw OR an EMPTY result: a degraded EmergentDB returns
+  // an empty list without erroring, and the write-through mirror in CF still has
+  // the data. (This is the bug the live contract-ledger read exposed.)
+  private async cfList(prefix: string): Promise<ValuedEntry[]> {
+    const res = await this.cf.list({ prefix: this.ck(prefix) });
+    const out: ValuedEntry[] = [];
+    for (const k of res.keys) {
+      const raw = await this.cf.get(k.name).catch(() => null);
+      const name = this.strip(k.name);
+      out.push({ name, key: name, value: raw ?? "" });
+    }
+    return out;
+  }
+
+  async list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<ListResult> {
+    let primary: ListResult | null = null;
+    try { primary = await this.primary.list(opts); } catch { /* fall through */ }
+    if (primary && primary.keys.length > 0) return primary;
+    try {
+      const res = await this.cf.list({ prefix: this.ck(opts.prefix), limit: opts.limit, cursor: opts.cursor });
+      return {
+        keys: res.keys.map((k) => ({ name: this.strip(k.name) })),
+        list_complete: res.list_complete,
+        cursor: res.list_complete ? undefined : (res as { cursor?: string }).cursor,
+      };
+    } catch {
+      return primary ?? { keys: [], list_complete: true, cursor: undefined };
+    }
+  }
+
+  async listWithValues(prefix: string): Promise<ValuedEntry[]> {
+    let primary: ValuedEntry[] = [];
+    try { primary = await this.primary.listWithValues(prefix); } catch { primary = []; }
+    if (primary.length > 0) return primary;
+    try { return await this.cfList(prefix); } catch { return primary; }
+  }
+
+  async resetSplitIndex(): Promise<void> {
+    await this.primary.resetSplitIndex().catch(() => {});
+  }
+}
+
 function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
 }
 
 type KVEnv = {
-  DATABASE_URL?: string;
   EMERGENTDB_API_KEY?: string;
   /** BUG-011: override the per-value byte cap. Read by EdbKV.put / putBatch. */
   EMERGENTDB_MAX_VALUE_BYTES?: string;
   ENVIRONMENT?: string;
-  /**
-   * Emergency rollback flag (2026-05-21 Lewis decision: flip primary back to
-   * EmergentDB qdkv, reversing the Apr-21 Neon migration). Default unset =
-   * EdbKV primary. Set to "1" / "true" to route writes through PgKV instead,
-   * which is the legacy path kept available until the Neon -> qdkv data
-   * migration (backend/scripts/migrate-neon-to-edb.mjs) is verified.
-   */
-  USE_PGKV?: string;
+  /** Cloudflare KV durable fallback (kv-fallback-pipe). When bound, EdbKV is
+   *  wrapped in FallbackKV so a degraded EmergentDB still serves. */
+  STATS_KV?: KVNamespace;
 };
 
 function readEnvMaxBytes(env: KVEnv): number | undefined {
@@ -501,41 +609,36 @@ function readEnvMaxBytes(env: KVEnv): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-function pgkvRollbackEnabled(env: KVEnv): boolean {
-  const v = (env.USE_PGKV ?? "").trim().toLowerCase();
-  return v === "1" || v === "true";
+// Storage is IQ-only: EdbKV (EmergentDB) primary, wrapped in FallbackKV over
+// Cloudflare KV (STATS_KV) when bound so a degraded EmergentDB still serves;
+// LocalKV under local-dev. Legacy Postgres/PgKV removed in the Neon->IQ migration.
+function wrap(env: KVEnv, edb: EdbKV, ns: string): EdbKV | FallbackKV {
+  return env.STATS_KV ? new FallbackKV(edb, env.STATS_KV, ns) : edb;
 }
 
-export function skillsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
+export function skillsKV(env: KVEnv): EdbKV | LocalKV | FallbackKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-skills-v3" : env.ENVIRONMENT === "staging" ? "staging-skills-v3" : "skills-v2";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
-    return new PgKV(env.DATABASE_URL, ns);
-  }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
+    throw new Error("EMERGENTDB_API_KEY is required");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
+  return wrap(env, new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) }), ns);
 }
 
-export function statsKV(env: KVEnv): PgKV | EdbKV | LocalKV {
+export function statsKV(env: KVEnv): EdbKV | LocalKV | FallbackKV {
   const ns = env.ENVIRONMENT === "gate-staging" ? "gate-staging-stats" : env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
   if (env.ENVIRONMENT === "local-dev") {
     return new LocalKV(ns);
   }
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) {
-    return new PgKV(env.DATABASE_URL, ns);
-  }
   if (!env.EMERGENTDB_API_KEY?.trim()) {
-    throw new Error("EMERGENTDB_API_KEY is required (set USE_PGKV=1 + DATABASE_URL for legacy PgKV path)");
+    throw new Error("EMERGENTDB_API_KEY is required");
   }
-  return new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) });
+  return wrap(env, new EdbKV(env.EMERGENTDB_API_KEY, ns, { maxValueBytes: readEnvMaxBytes(env) }), ns);
 }
 
-export function kvBackend(env: KVEnv): "postgres" | "emergentdb" | "unconfigured" {
-  if (pgkvRollbackEnabled(env) && env.DATABASE_URL?.trim()) return "postgres";
+export function kvBackend(env: KVEnv): "emergentdb" | "unconfigured" {
   if (env.EMERGENTDB_API_KEY?.trim()) return "emergentdb";
   return "unconfigured";
 }

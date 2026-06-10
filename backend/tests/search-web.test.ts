@@ -1,15 +1,13 @@
 /**
- * /v1/search/web — Exa-backed external web search, owner-vs-x402 routing.
+ * /v1/search/web — unbrowse's own keyless web search, owner-vs-x402 routing.
  *
- *   - Owner ("__admin__" via the master API key) → runs on the platform's own
- *     Exa key, FREE (no 402, no payment headers).
+ *   - Owner ("__admin__" via the master API key) → runs free (no 402, no payment).
  *   - External caller (no/other key, no payment) → x402: 402 Payment Required.
- *   - No EXA_API_KEY configured → 503 (feature unavailable).
  *   - Missing query → 400.
  *
- * The Exa HTTP call is mocked via global fetch; the routing decision is what
- * this suite verifies (the live Exa call + Flex settlement reuse already-tested
- * paths).
+ * No vendor key: the search runs DuckDuckGo HTML retrieval from the Worker. The
+ * DDG HTTP call is mocked via global fetch; the routing decision + the keyless
+ * parse are what this suite verifies (Flex settlement reuses already-tested paths).
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { searchRoutes } from "../src/routes/search.js";
@@ -27,25 +25,28 @@ const BASE_ENV: Env = {
   PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
   FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
   FLEX_REFUND_TIMEOUT_SLOTS: "150",
-  EXA_API_KEY: "test-exa-key",
 };
 
-describe("/search/web — owner-vs-x402 routing", () => {
+// A minimal DuckDuckGo HTML payload matching the webSearch parser (result__a
+// anchor with a uddg-wrapped href, plus a result__snippet).
+const DDG_HTML = `<div class="result">
+  <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa&rut=x">Example A</a>
+  <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa">A snippet about agents.</a>
+</div>`;
+
+describe("/search/web — owner-vs-x402 routing (keyless)", () => {
   const originalFetch = globalThis.fetch;
-  let exaCalls: Array<{ apiKey: string | null; query: string }>;
+  let webCalls: Array<{ query: string }>;
 
   beforeEach(() => {
     clearKVCacheForTests();
-    exaCalls = [];
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    webCalls = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.exa.ai")) {
-        const headers = (init?.headers ?? {}) as Record<string, string>;
-        const body = JSON.parse(String(init?.body ?? "{}")) as { query?: string };
-        exaCalls.push({ apiKey: headers["x-api-key"] ?? null, query: body.query ?? "" });
-        return new Response(JSON.stringify({
-          results: [{ url: "https://example.com/a", title: "A", score: 0.9, highlights: ["hi"] }],
-        }), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.includes("duckduckgo.com")) {
+        const q = new URL(url).searchParams.get("q") ?? "";
+        webCalls.push({ query: q });
+        return new Response(DDG_HTML, { status: 200, headers: { "content-type": "text/html" } });
       }
       // KV / cache / sponsor / subscription lookups → benign empty.
       return new Response(JSON.stringify({ found: false, value: null, results: [] }), {
@@ -58,7 +59,7 @@ describe("/search/web — owner-vs-x402 routing", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("owner (admin key) → free Exa search on the platform key, no payment", async () => {
+  it("owner (admin key) → free keyless web search, no payment, results parsed", async () => {
     const res = await searchRoutes.request("http://localhost/search/web", {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
@@ -66,16 +67,17 @@ describe("/search/web — owner-vs-x402 routing", () => {
     }, BASE_ENV);
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { query: string; results: unknown[] };
+    const body = await res.json() as { query: string; results: Array<{ url: string; title?: string; highlights?: string[] }> };
     expect(body.results.length).toBe(1);
+    expect(body.results[0]?.url).toBe("https://example.com/a"); // uddg unwrapped
+    expect(body.results[0]?.title).toBe("Example A");
+    expect(body.results[0]?.highlights?.[0]).toContain("snippet");
     expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
-    // Ran on the platform's own Exa key.
-    expect(exaCalls.length).toBe(1);
-    expect(exaCalls[0]?.apiKey).toBe("test-exa-key");
-    expect(exaCalls[0]?.query).toBe("best ai agents");
+    expect(webCalls.length).toBe(1);
+    expect(webCalls[0]?.query).toBe("best ai agents");
   });
 
-  it("external caller (no payment) → 402, Exa is NOT called", async () => {
+  it("external caller (no payment) → 402, web search is NOT called", async () => {
     const res = await searchRoutes.request("http://localhost/search/web", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -83,17 +85,7 @@ describe("/search/web — owner-vs-x402 routing", () => {
     }, BASE_ENV);
 
     expect(res.status).toBe(402);
-    expect(exaCalls.length).toBe(0); // gated before the paid Exa call
-  });
-
-  it("no EXA_API_KEY configured → 503", async () => {
-    const env = { ...BASE_ENV, EXA_API_KEY: undefined };
-    const res = await searchRoutes.request("http://localhost/search/web", {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${BASE_ENV.API_KEY}` },
-      body: JSON.stringify({ query: "x" }),
-    }, env);
-    expect(res.status).toBe(503);
+    expect(webCalls.length).toBe(0); // gated before the priced web call
   });
 
   it("missing query → 400", async () => {

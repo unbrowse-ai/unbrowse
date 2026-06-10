@@ -2,14 +2,16 @@
  * Popular-unreviewed query primitive.
  *
  * Surfaces local skills that:
- *   - have NO `reviewed_at` stamp (held back from public marketplace), AND
+ *   - have NO `reviewed_at` stamp AND no published publish-artifact
+ *     (i.e. genuinely never shipped to the public marketplace), AND
  *   - have been used N+ times locally (proven utility), AND
  *   - have a healthy success rate.
  *
  * The substrate's job is to TELL the truth about what exists locally. It does
  * NOT decide what to publish. The MCP tool that exposes this primitive
  * returns evidence (execution_count, success_rate, last_used) so the calling
- * agent can decide whether to batch-stamp `reviewed_at` and publish.
+ * agent can decide whether to batch-publish (no reviewed_at is stamped —
+ * that field records an actual unbrowse_review).
  *
  * Why this exists when `auto_review` defaults to true:
  *   - Existing users who installed before auto_review existed have a backlog
@@ -24,6 +26,7 @@
 
 import * as client from "../client/index.js";
 import { getRecentTraces, type StoredTrace } from "../graph/trace-store.js";
+import { readWorkflowPublishArtifact } from "../workflow/publish.js";
 import type { SkillManifest } from "../types/skill.js";
 
 export interface PopularUnreviewedSkill {
@@ -64,6 +67,9 @@ export async function getPopularUnreviewedSkills(
 
   for (const skill of all) {
     if (skill.reviewed_at) continue;
+    // Auto-published skills carry no reviewed_at (the stamp records an
+    // actual review) — the publish artifact is the publish-state witness.
+    if (readWorkflowPublishArtifact(skill.skill_id)?.publish_status === "published") continue;
     if (!skill.domain) continue;
     if (!skill.endpoints?.length) continue;
 

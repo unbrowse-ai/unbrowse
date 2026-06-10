@@ -26,7 +26,7 @@ import type { RawRequest } from "./index.js";
 import { obfuscateAuditedCapture, type ObfuscationAudit } from "./obfuscate-audit.js";
 import { extractHoles, type HoleTemplate } from "./hole-template.js";
 import { sealFills, fillHolesSealed } from "./sealed-fill.js";
-import { verifyHoleAttested } from "./zk-bound-hole.js";
+import { verifyHoleAttested, proveHoles, verifyHoleProofs, type HoleProofs } from "./zk-bound-hole.js";
 
 /** What the CLIENT sends up: ONLY the obfuscated capture (every secret already a
  *  redacted/wallet-bound placeholder). No plaintext secret, no vault, no engine. */
@@ -108,4 +108,40 @@ export function clientFillSealed(
   key: Uint8Array,
 ): RawRequest[] {
   return resp.templates.map((t, i) => fillHolesSealed(t, sealFills(fillsPerRequest[i] ?? {}, key), key));
+}
+
+/**
+ * Client step 3 + ZK proof (Seam 3): fill each template sealed-to-wallet AND
+ * generate a Schnorr proof per real-bound hole that the holder knows the value it
+ * filled. The proofs ride to the backend alongside the concrete requests and
+ * carry no secret bytes; the backend confirms them with `verifyClientHoleProofs`.
+ *
+ * Status (honest): this completes the three-party protocol and is exercised
+ * end-to-end by the witness (tests/zkseal-hole-binding.test.ts). It is the
+ * integration surface — the live execute/replay path does not yet invoke
+ * `clientFillAndProve`; wiring it into that caller is the remaining integration
+ * step, labelled here rather than overclaimed.
+ */
+export function clientFillAndProve(
+  resp: RevengResponse,
+  fillsPerRequest: Record<string, string>[],
+  key: Uint8Array,
+): { requests: RawRequest[]; proofs: HoleProofs[] } {
+  const requests: RawRequest[] = [];
+  const proofs: HoleProofs[] = [];
+  resp.templates.forEach((t, i) => {
+    const fills = fillsPerRequest[i] ?? {};
+    requests.push(fillHolesSealed(t, sealFills(fills, key), key));
+    proofs.push(proveHoles(t.holes, fills));
+  });
+  return { requests, proofs };
+}
+
+/**
+ * Backend verifier — every real-bound hole across the response's templates must
+ * carry a valid proof from the holder. Closes the gate (false) if any bound hole
+ * is unproven; the secret is never seen.
+ */
+export function verifyClientHoleProofs(resp: RevengResponse, proofs: HoleProofs[]): boolean {
+  return resp.templates.every((t, i) => verifyHoleProofs(t.holes, proofs[i] ?? {}));
 }

@@ -599,18 +599,16 @@ function processFallbackLedger(): ContractLedger {
 
 /**
  * Pick the ledger for this request. Canonical path: KV-backed via
- * `statsKV(env)` (LocalKV under `ENVIRONMENT=local-dev`, EdbKV / PgKV
- * in prod). Fallback: process-scoped in-memory when env is absent or
- * lacks the KV bindings.
+ * `statsKV(env)` (LocalKV under `ENVIRONMENT=local-dev`, EdbKV in prod).
+ * Fallback: process-scoped in-memory when env is absent or lacks the KV
+ * bindings.
  */
 export function ledgerForRequest(env: Env | undefined): ContractLedger {
   if (!env) return processFallbackLedger();
-  const wide = env as Env & { USE_PGKV?: string };
-  const hasLocalDev = wide.ENVIRONMENT === "local-dev";
-  const hasEdb = !!wide.EMERGENTDB_API_KEY?.trim();
-  const hasPgkv = !!wide.DATABASE_URL?.trim() && !!wide.USE_PGKV;
-  if (hasLocalDev || hasEdb || hasPgkv) {
-    return kvLedger(wide);
+  const hasLocalDev = env.ENVIRONMENT === "local-dev";
+  const hasEdb = !!env.EMERGENTDB_API_KEY?.trim();
+  if (hasLocalDev || hasEdb) {
+    return kvLedger(env);
   }
   return processFallbackLedger();
 }
@@ -1040,7 +1038,7 @@ contractRoutes.get("/contract/tools", (c) => {
     ],
     local_capabilities: ["kuri", "cookies", "vault", "browser", "fs"],
     persistence_note:
-      "wave-2b: KV-backed canonical ledger via statsKV(env). LocalKV under ENVIRONMENT=local-dev; EdbKV/PgKV in prod. Falls back to process-scoped memory when env is absent (unit-test path only).",
+      "wave-2b: KV-backed canonical ledger via statsKV(env). LocalKV under ENVIRONMENT=local-dev; EdbKV in prod. Falls back to process-scoped memory when env is absent (unit-test path only).",
     admission_gate:
       "x-aiko-spawn-signature + x-aiko-lineage-chain headers verified against hardcoded LEWIS_DEPLOYER_PUBKEY_v1; legacy-anonymous admission honored until " +
       LEGACY_WINDOW_ENDS,

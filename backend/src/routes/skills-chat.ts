@@ -22,8 +22,10 @@ import { skillToContract } from "../services/skill-contract.js";
 import { persistSkillContract } from "../services/skill-contract-persist.js";
 import { handleDeclare, ledgerForRequest } from "./contract.js";
 import { chatFollowingSkill, type AikoCompiledContract } from "../services/unbrowse-llm.js";
+import { recommendCommandCached, recommendationCacheKey, proposeViaLlm, type ValidatedCommand, type RecommendationCache } from "../services/recommend-command.js";
 import { statsKV } from "../services/kv.js";
 import { fingerprintSkillContract, memoizeSkillValue, kvContentStore, kvPointerIndex } from "../services/skill-contract-cache.js";
+import { endpointToHoledTool, type HoledTool } from "../../../src/skillmd.js";
 
 /** Stable label for the pinned /contract LLM chain — part of the memo fingerprint
  *  (a chain change must bust the cache). */
@@ -42,6 +44,14 @@ export interface SkillChatResult {
   /** the resolved skill projected into the /contract tree — provenance for the DAG */
   contract: AikoCompiledContract;
   resolved_by: "domain" | "semantic";
+  /** path-A: a structured, validated command the caller can EXECUTE (not just
+   *  prose). Present only when a recommend dep is wired. */
+  recommended_command?: ValidatedCommand;
+  /** path-A (holed): the endpoint as a PII-censored TOOL WITH HOLES — the shape
+   *  the client populates itself (query/path holes from its prompt, auth holes
+   *  from its vault). Carries no values/credentials. Present only when a
+   *  recommendTool dep is wired. */
+  recommended_tool?: HoledTool;
 }
 
 export class SkillChatError extends Error {
@@ -56,6 +66,18 @@ export interface SkillChatDeps {
   resolveSkill: (intent: string, domain?: string) => Promise<{ skill: SkillManifest; via: "domain" | "semantic" } | null>;
   /** answer by grounding the LLM on the skill; null = no LLM key (fail closed) */
   chat: (skill: SkillManifest, message: string) => Promise<string | null>;
+  /** path-A: produce a structured, validated, executable command for the skill +
+   *  message. Optional — when absent, the result omits recommended_command. */
+  recommend?: (skill: SkillManifest, message: string) => Promise<ValidatedCommand>;
+  /** path-A (holed): produce the PII-censored TOOL WITH HOLES for the skill +
+   *  message — the shape the client populates. Optional — when absent, the
+   *  result omits recommended_tool. */
+  recommendTool?: (skill: SkillManifest, message: string) => Promise<HoledTool | null>;
+  /** Write-side (Layer 2): persist the resolved result as a ledger contract.
+   *  Fire-and-forget — the route schedules it AFTER the answer is on its way, so
+   *  a failure here never sinks the read-side answer. Optional — when absent,
+   *  the route skips persistence (the answer still ships). */
+  persistSkill?: (result: SkillChatResult) => Promise<void>;
 }
 
 /**
@@ -93,12 +115,39 @@ export async function runSkillChat(deps: SkillChatDeps, input: SkillChatInput): 
     throw new SkillChatError("llm_unavailable", "no grounded LLM key configured on this Worker", 503);
   }
 
+  // path-A: alongside the prose answer, surface a structured, validated command
+  // the caller can execute. Best-effort — a recommend failure never sinks the
+  // answer (the prose still ships).
+  let recommended_command: ValidatedCommand | undefined;
+  if (deps.recommend) {
+    try {
+      recommended_command = await deps.recommend(resolved.skill, message);
+    } catch {
+      /* recommendation is additive; the answer stands without it */
+    }
+  }
+
+  // path-A (holed): surface the endpoint as a PII-censored TOOL WITH HOLES — the
+  // shape the client fills itself. Best-effort, same as recommend: a failure or a
+  // null pick never sinks the answer.
+  let recommended_tool: HoledTool | undefined;
+  if (deps.recommendTool) {
+    try {
+      const tool = await deps.recommendTool(resolved.skill, message);
+      if (tool) recommended_tool = tool;
+    } catch {
+      /* the holed tool is additive; the answer stands without it */
+    }
+  }
+
   return {
     answer,
     skill_id: resolved.skill.skill_id,
     domain: resolved.skill.domain,
     contract: redactContract(skillToContract(resolved.skill)),  // provenance, sans owner wallet
     resolved_by: resolved.via,
+    ...(recommended_command ? { recommended_command } : {}),
+    ...(recommended_tool ? { recommended_tool } : {}),
   };
 }
 
@@ -159,7 +208,67 @@ function liveDeps(env: Env): SkillChatDeps {
         return recompute();                         // memo infra unavailable → serve uncached
       }
     },
+    // path-A: the structured, validated, executable recommendation. The LLM
+    // proposes a command grounded on the skill; validateRecommendation seals it
+    // to the skill's real endpoints; the recommendation is memoised by
+    // (skill identity, intent) in KV so a recurring intent skips the model.
+    recommend: async (skill, message) => {
+      const kv = statsKV(env as never);
+      const cache: RecommendationCache = {
+        get: async (k) => {
+          try {
+            const v = await kv.get(k);
+            return typeof v === "string" ? (JSON.parse(v) as ValidatedCommand) : null;
+          } catch { return null; }
+        },
+        set: async (k, v) => { try { await kv.put(k, JSON.stringify(v)); } catch { /* cache is best-effort */ } },
+      };
+      void recommendationCacheKey; // keying handled inside recommendCommandCached
+      return recommendCommandCached(skill, message, proposeViaLlm(env), cache);
+    },
+    // path-A (holed): the endpoint as a PII-censored TOOL WITH HOLES. Keep the
+    // pick simple + safe — the SHAPE is the point, not a fancy ranker: take the
+    // first endpoint carrying an endpoint_id and project it via endpointToHoledTool
+    // (typed holes only, no values, no credentials).
+    recommendTool: async (skill, _message) => {
+      const ep = (skill.endpoints ?? []).find((e) => typeof e?.endpoint_id === "string" && e.endpoint_id.length > 0);
+      return ep ? endpointToHoledTool(skill, ep) : null;
+    },
+    // Write-side (Layer 2): persist the resolved skill as a ledger contract.
+    // Identical to the previous inline schedule block — re-hydrate the skill,
+    // build the ledger + declare wiring, and seed the parent + per-endpoint child rows.
+    persistSkill: async (result) => {
+      const skill = (await getSkill(env, result.skill_id)) ?? (await getSkillByDomain(env, result.domain));
+      if (!skill) return;
+      const ledger = ledgerForRequest(env);
+      await persistSkillContract(
+        {
+          ledger,
+          declareParent: async (req) => (await handleDeclare(req, ledger, { admission: "legacy-anonymous" })).id,
+        },
+        skill,
+      );
+    },
   };
+}
+
+/** Production-safe DI seam. Defaults to `liveDeps` — production wiring is
+ *  unchanged. A test (or any caller) may inject a deps factory so the HTTP route
+ *  runs against a hermetic stub WITHOUT `mock.module` (which can't replace a
+ *  module a sibling test already evaluated — Bun's global-registry race). The
+ *  override is module-scoped and reset via `setSkillChatDeps(null)`. */
+let skillChatDepsFactory: ((env: Env) => SkillChatDeps) | null = null;
+
+/** Override the deps factory the route wires (testing seam). Pass `null` to
+ *  restore the live wiring. No effect on production unless explicitly called. */
+export function setSkillChatDeps(factory: ((env: Env) => SkillChatDeps) | null): void {
+  skillChatDepsFactory = factory;
+}
+
+/** Resolve the deps factory the route should use — the injected override when
+ *  set, otherwise the real `liveDeps`. */
+function depsFor(env: Env): SkillChatDeps {
+  return (skillChatDepsFactory ?? liveDeps)(env);
 }
 
 type ChatRouteEnv = { Bindings: Env; Variables: { agent_id?: string; user_id?: string } };
@@ -199,26 +308,18 @@ skillChatRoutes.post(
     // The actual work: resolve → ground → follow → answer + provenance, then async persist.
     const serve = async (): Promise<Response> => {
       try {
-        const result = await runSkillChat(liveDeps(c.env), input);
+        const deps = depsFor(c.env);
+        const result = await runSkillChat(deps, input);
         // Write-side (Layer 2): persist the resolved skill as a ledger contract,
         // ENTIRELY async so the answer is already on its way. Settles on next graph read.
-        schedule(
-          c,
-          (async () => {
-            const skill =
-              (await getSkill(c.env, result.skill_id)) ?? (await getSkillByDomain(c.env, result.domain));
-            if (!skill) return;
-            const ledger = ledgerForRequest(c.env);
-            await persistSkillContract(
-              {
-                ledger,
-                declareParent: async (req) =>
-                  (await handleDeclare(req, ledger, { admission: "legacy-anonymous" })).id,
-              },
-              skill,
-            );
-          })().catch((e) => console.warn("[skills-chat] persist deferred:", (e as Error).message)),
-        );
+        if (deps.persistSkill) {
+          schedule(
+            c,
+            deps
+              .persistSkill(result)
+              .catch((e) => console.warn("[skills-chat] persist deferred:", (e as Error).message)),
+          );
+        }
         return c.json(result);
       } catch (err) {
         if (err instanceof SkillChatError) {

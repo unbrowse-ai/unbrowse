@@ -142,6 +142,142 @@ export function credentialHoleToRuntimeHole(h: CredentialHole): Hole {
   return { location: { in: "header", name: headerName }, name: h.name, kind: "secret", fill: "vault" };
 }
 
+/**
+ * A single endpoint exposed as a TOOL WITH HOLES — the PII-censored shape the
+ * server recommends and the CLIENT populates. The url_template + the typed slots
+ * the client fills itself: query/path params from its own prompt (kind:id,
+ * fill:llm), auth headers / cookies from its local vault (kind:secret, fill:vault).
+ * Carries NO values and NO credentials: the server provides the capability, the
+ * client provides the data. This is the node atom (callable interface) sealed
+ * (schemas only, never credentials).
+ */
+export interface HoledTool {
+  endpoint_id: string;
+  method: string;
+  url_template: string;
+  /** every slot the client must fill — query/path params (llm) + auth (vault). */
+  holes: Hole[];
+}
+
+/** Derive the secret credential holes for ONE endpoint (mirrors credentialHoles,
+ *  scoped to a single endpoint + the skill-level auth profile). */
+function endpointSecretHoles(skill: SkillManifest, ep: EndpointDescriptor): Hole[] {
+  const seen = new Set<string>();
+  const holes: Hole[] = [];
+  const addHeader = (name: string) => {
+    const key = `header:${name.toLowerCase()}`;
+    if (!name || seen.has(key)) return;
+    seen.add(key);
+    holes.push({ location: { in: "header", name }, name, kind: "secret", fill: "vault" });
+  };
+  for (const k of Object.keys(ep.headers_template ?? {})) {
+    if (SECRET_HEADER.test(k)) addHeader(k);
+  }
+  for (const t of (ep.auth_tokens ?? [])) {
+    const nm = (t as { name?: string; header?: string; key?: string; param?: string }).name
+      ?? (t as { header?: string }).header
+      ?? (t as { key?: string }).key
+      ?? (t as { param?: string }).param;
+    if (typeof nm === "string") addHeader(nm);
+  }
+  if (ep.csrf_plan?.param_name) addHeader(ep.csrf_plan.param_name);
+  if (skill.auth_profile_ref && !seen.has("header:cookie")) {
+    holes.push({ location: { in: "header", name: "cookie" }, name: "session", kind: "secret", fill: "vault" });
+  }
+  return holes;
+}
+
+/** Parse the public (caller-filled, llm) holes out of a URL template: every
+ *  {placeholder} in a query value or a path segment. These hold no secret — the
+ *  client's agent fills them from the prompt. */
+function endpointPublicHoles(urlTemplate: string): Hole[] {
+  const holes: Hole[] = [];
+  // Query params of the form key={key} (or key={anything}).
+  const qIdx = urlTemplate.indexOf("?");
+  if (qIdx >= 0) {
+    const query = urlTemplate.slice(qIdx + 1);
+    for (const pair of query.split("&")) {
+      const eq = pair.indexOf("=");
+      if (eq < 0) continue;
+      const key = pair.slice(0, eq);
+      const val = pair.slice(eq + 1);
+      if (/^\{[^}]+\}$/.test(val) && key) {
+        holes.push({ location: { in: "query", name: key }, name: key, kind: "id", fill: "llm" });
+      }
+    }
+  }
+  // Path segments of the form {name}.
+  const pathPart = qIdx >= 0 ? urlTemplate.slice(0, qIdx) : urlTemplate;
+  let m: RegExpExecArray | null;
+  const segRe = /\{([^}]+)\}/g;
+  while ((m = segRe.exec(pathPart)) !== null) {
+    const name = m[1];
+    if (name && !holes.some((h) => h.name === name)) {
+      holes.push({ location: { in: "path", index: -1 }, name, kind: "id", fill: "llm" });
+    }
+  }
+  return holes;
+}
+
+/** Fill a holed tool's PUBLIC (fill:llm) query/path holes from caller-supplied
+ *  values, returning the executable URL. Secret (fill:vault) holes are NOT
+ *  filled here — the runtime supplies them from the local vault at call time, so
+ *  they need no value. A missing public hole, or any leftover non-secret
+ *  placeholder, is an honest rejection (never execute a half-filled URL). Mirror
+ *  of the frontend helper so the CLI/backend can populate a holed tool too. */
+export function fillHoledTool(
+  tool: HoledTool,
+  values: Record<string, string>,
+): { ok: true; url: string; method: string } | { ok: false; reason: string } {
+  const secretNames = new Set(
+    tool.holes.filter((h) => h.fill === "vault").map((h) => h.name),
+  );
+  for (const h of tool.holes) {
+    if (h.fill !== "llm") continue;
+    if (values[h.name] === undefined || values[h.name] === "") {
+      return { ok: false, reason: `unfilled hole: ${h.name}` };
+    }
+  }
+  const url = tool.url_template.replace(/\{([^}]+)\}/g, (_m, key: string) => {
+    if (values[key] !== undefined && values[key] !== "") return encodeURIComponent(values[key]);
+    return `{${key}}`; // leave unresolved; checked below
+  });
+  // Any remaining {placeholder} must belong to a secret hole (vault-filled at
+  // call time); a leftover public placeholder means an incomplete fill.
+  const leftover = [...url.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+  for (const name of leftover) {
+    if (!secretNames.has(name)) return { ok: false, reason: `unfilled placeholder: ${name}` };
+  }
+  return { ok: true, url, method: tool.method };
+}
+
+export function endpointToHoledTool(skill: SkillManifest, ep: EndpointDescriptor): HoledTool {
+  const urlTemplate = ep.url_template ?? (ep as { url?: string }).url ?? "";
+  return {
+    endpoint_id: ep.endpoint_id,
+    method: String(ep.method ?? "GET"),
+    url_template: urlTemplate,
+    holes: [...endpointPublicHoles(urlTemplate), ...endpointSecretHoles(skill, ep)],
+  };
+}
+
+/** agentskills.io `metadata.contributors` frontmatter lines — one entry per
+ *  agent who added delta, with their marginal contribution + payout share.
+ *  Empty (no metadata block) for single-author skills. */
+function renderContributorMetadata(skill: SkillManifest): string[] {
+  const contributors = (skill as { contributors?: Array<{ agent_id: string; wallet_address?: string; endpoints_contributed: number; cumulative_delta: number; share: number }> }).contributors;
+  if (!contributors || contributors.length === 0) return [];
+  const lines = ["metadata:", "  contributors:"];
+  for (const c of contributors) {
+    lines.push(`    - agent_id: ${escapeYaml(c.agent_id)}`);
+    if (c.wallet_address) lines.push(`      wallet_address: ${escapeYaml(c.wallet_address)}`);
+    lines.push(`      endpoints_contributed: ${c.endpoints_contributed}`);
+    lines.push(`      cumulative_delta: ${c.cumulative_delta}`);
+    lines.push(`      share: ${c.share}`);
+  }
+  return lines;
+}
+
 export function renderSkillMd(skill: SkillManifest): string {
   const intents = Array.from(new Set([skill.intent_signature, ...(skill.intents ?? [])])).filter(Boolean);
   const endpoints = skill.endpoints ?? [];
@@ -166,6 +302,11 @@ export function renderSkillMd(skill: SkillManifest): string {
     ...(skill.owner_wallet_address ? [`x402_reward: ${escapeYaml(skill.owner_wallet_address)}`] : []),
     `version: ${escapeYaml(skill.version)}`,
     `updated_at: ${escapeYaml(skill.updated_at)}`,
+    // agentskills.io `metadata` block — multi-contributor delta attribution.
+    // Every agent who added delta to this skill is surfaced with their marginal
+    // contribution + payout share, so the public SKILL.md never reads as if a
+    // multi-contributor skill had a single author.
+    ...renderContributorMetadata(skill),
     "---",
     "",
   ];

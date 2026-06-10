@@ -183,7 +183,6 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_previ
 #   NEBIUS_API_KEY  — also drives the publish-time LLM PII scrubber
 #                     (backend/src/services/ai-scrub.ts, contract 101b1f77).
 #                     Soft-fails if unset; the regex layer remains authoritative.
-#   EXA_API_KEY  — Exa web search, optional; resolve still works without it
 #   ADMIN_KEY  — gates /v1/admin/* read surfaces (sponsor-ledger).
 #                NEVER put the value in this file or any committed env file —
 #                always `wrangler secret put ADMIN_KEY` (per env if needed).
@@ -481,7 +480,6 @@ PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
 # --- gate-staging environment (MCP release-gate harness uses this) ---
 # Deploy: wrangler deploy --env gate-staging
 # Provision STATS_KV first: wrangler kv namespace create STATS_KV --env gate-staging  (and --preview)
-# Secrets: wrangler secret put DATABASE_URL --env gate-staging  (point at same Neon DB; ns isolation is in kv.ts)
 #          wrangler secret put EMERGENTDB_API_KEY --env gate-staging  (fallback)
 # Isolation: ENVIRONMENT="gate-staging" routes marketplace writes to PgKV ns "gate-staging-skills-v3"
 #            and stats writes to "gate-staging-stats" via backend/src/services/kv.ts.

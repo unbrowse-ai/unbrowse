@@ -18,10 +18,27 @@
  * carries its commitment) and the sealed cache (a filled value can be sealed).
  */
 import type { RawRequest } from "./index.js";
+import { boundTag, type BindingMap } from "./zk-bound-hole.js";
 
 const REDACTED_TOKEN = "[REDACTED]";
 const BOUND_RE = /^\[bound:([0-9a-f]{16})\]$/;
 const ID_TOKEN = "{id}";
+
+/**
+ * Seam 1 graft: upgrade a classified secret hole's `bound` from the bare
+ * commitment placeholder (`[bound:<sha16>]`) to the REAL ZK binding tag
+ * (`zkbind:{y,root,sig}`) when the obfuscation pass minted one for that sha16.
+ * Without a binding map (no wallet / legacy path) the commitment is kept
+ * unchanged — backward compatible. This is what revives the already-wired
+ * backend `verifyHoleAttested` check, which requires the `zkbind:` prefix.
+ */
+function applyBinding<T extends { bound?: string }>(c: T, bindings?: BindingMap): T {
+	if (!c.bound || !bindings) return c;
+	const m = BOUND_RE.exec(c.bound);
+	if (!m) return c;
+	const binding = bindings[m[1]];
+	return binding ? { ...c, bound: boundTag(binding) } : c;
+}
 
 export type HoleKind = "secret" | "id";
 /** Where the client sources the fill: its local vault (auth/secret) or its LLM
@@ -68,13 +85,13 @@ function classifyToken(value: string): { kind: HoleKind; fill: FillSource; bound
  * that obfuscation marked as placeholders become holes; everything else is
  * inert structure the client does not touch.
  */
-export function extractHoles(skeleton: RawRequest): HoleTemplate {
+export function extractHoles(skeleton: RawRequest, bindings?: BindingMap): HoleTemplate {
 	const holes: Hole[] = [];
 
 	// Headers.
 	for (const [name, value] of Object.entries(skeleton.request_headers ?? {})) {
 		const c = classifyToken(String(value));
-		if (c) holes.push({ location: { in: "header", name }, name, ...c });
+		if (c) holes.push({ location: { in: "header", name }, name, ...applyBinding(c, bindings) });
 	}
 
 	// URL query + path.
@@ -82,7 +99,7 @@ export function extractHoles(skeleton: RawRequest): HoleTemplate {
 		const u = new URL(skeleton.url);
 		for (const [name, value] of u.searchParams.entries()) {
 			const c = classifyToken(value);
-			if (c) holes.push({ location: { in: "query", name }, name, ...c });
+			if (c) holes.push({ location: { in: "query", name }, name, ...applyBinding(c, bindings) });
 		}
 		// new URL() percent-encodes the {id} route placeholder in pathname
 		// (%7Bid%7D); decode each segment for detection while keeping the split
@@ -96,7 +113,7 @@ export function extractHoles(skeleton: RawRequest): HoleTemplate {
 				/* keep raw */
 			}
 			const c = classifyToken(decoded);
-			if (c) holes.push({ location: { in: "path", index }, name: `path[${index}]`, ...c });
+			if (c) holes.push({ location: { in: "path", index }, name: `path[${index}]`, ...applyBinding(c, bindings) });
 		});
 	} catch {
 		/* non-URL — no url holes */
@@ -107,7 +124,7 @@ export function extractHoles(skeleton: RawRequest): HoleTemplate {
 		const trimmed = skeleton.request_body.trim();
 		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
 			try {
-				walkBody(JSON.parse(trimmed), [], holes);
+				walkBody(JSON.parse(trimmed), [], holes, bindings);
 			} catch {
 				/* not JSON — skip */
 			}
@@ -117,18 +134,18 @@ export function extractHoles(skeleton: RawRequest): HoleTemplate {
 	return { skeleton, holes };
 }
 
-function walkBody(node: unknown, pointer: string[], holes: Hole[]): void {
+function walkBody(node: unknown, pointer: string[], holes: Hole[], bindings?: BindingMap): void {
 	if (typeof node === "string") {
 		const c = classifyToken(node);
-		if (c) holes.push({ location: { in: "body", pointer: [...pointer] }, name: pointer[pointer.length - 1] ?? "body", ...c });
+		if (c) holes.push({ location: { in: "body", pointer: [...pointer] }, name: pointer[pointer.length - 1] ?? "body", ...applyBinding(c, bindings) });
 		return;
 	}
 	if (Array.isArray(node)) {
-		node.forEach((v, i) => walkBody(v, [...pointer, String(i)], holes));
+		node.forEach((v, i) => walkBody(v, [...pointer, String(i)], holes, bindings));
 		return;
 	}
 	if (node && typeof node === "object") {
-		for (const [k, v] of Object.entries(node)) walkBody(v, [...pointer, k], holes);
+		for (const [k, v] of Object.entries(node)) walkBody(v, [...pointer, k], holes, bindings);
 	}
 }
 
