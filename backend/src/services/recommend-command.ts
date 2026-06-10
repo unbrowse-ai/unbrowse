@@ -159,6 +159,51 @@ export async function recommendCommand(
   return last;
 }
 
+/* ------------------------------------------------------------------ *
+ *  Recommendation cache (path-A brick 2) — the cost reconciliation.
+ *  Memoise the validated command by (skill identity, normalized intent)
+ *  so a recurring intent skips the LLM. The fast path returns as a CACHE
+ *  WITHIN the one path, not a separate deterministic path — keeping the
+ *  single LLM-recommends path honest against f_route < c_rediscovery.
+ * ------------------------------------------------------------------ */
+
+export interface RecommendationCache {
+  get(key: string): Promise<ValidatedCommand | null>;
+  set(key: string, value: ValidatedCommand): Promise<void>;
+}
+
+/** Normalize an intent so trivial variants (case, surrounding/inner whitespace)
+ *  share a cache entry. */
+function normalizeIntent(prompt: string): string {
+  return prompt.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Cache key bound to the skill's IDENTITY AND VERSION — when the skill is
+ *  re-published (updated_at changes) its endpoints may have changed, so a stale
+ *  recommendation could point at a removed endpoint; a new key orphans the old
+ *  entry, invalidating it. */
+export function recommendationCacheKey(skill: SkillManifest, prompt: string): string {
+  const version = skill.updated_at || skill.version || "0";
+  return `rec:${skill.skill_id}:${version}:${normalizeIntent(prompt)}`;
+}
+
+export async function recommendCommandCached(
+  skill: SkillManifest,
+  prompt: string,
+  propose: ProposeFn,
+  cache: RecommendationCache,
+  options: RecommendOptions = {},
+): Promise<ValidatedCommand> {
+  const key = recommendationCacheKey(skill, prompt);
+  const hit = await cache.get(key);
+  if (hit && hit.ok) return hit; // recurring intent → instant, no LLM
+  const result = await recommendCommand(skill, prompt, propose, options);
+  // Only memoise a VALID recommendation — never cache a rejection (the model
+  // may succeed on a fresh attempt next time; a cached failure would be sticky).
+  if (result.ok) await cache.set(key, result);
+  return result;
+}
+
 /** Default proposer: ground an LLM on the skill's SKILL.md and ask for a
  *  STRUCTURED JSON command. Returns null when no LLM key is configured (the
  *  caller then degrades honestly). Imported lazily to keep this module's unit
