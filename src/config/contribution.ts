@@ -38,11 +38,12 @@ export interface ContributionConfig {
   contribution: {
     share_pointers: boolean;
     /**
-     * When true, the substrate stamps `reviewed_at` automatically on
-     * close/sync, allowing publish without an explicit `unbrowse_review`
-     * call. Heuristic + LLM-augmented endpoint descriptions are accepted
-     * as-is. Default true: optimizes for marketplace flywheel volume.
-     * Flip false to force the agent to review each skill before publish.
+     * When true, captures publish on close/sync without an explicit
+     * `unbrowse_review` call — and WITHOUT a `reviewed_at` stamp, which is
+     * reserved for actual reviews. Heuristic + LLM-augmented endpoint
+     * descriptions are accepted as-is. Default true: optimizes for
+     * marketplace flywheel volume. Flip false to force the agent to review
+     * each skill before publish.
      */
     auto_review: boolean;
     /**
@@ -66,8 +67,9 @@ export interface ContributionConfig {
 
 const DEFAULT: ContributionConfig = {
   // You are opted in by default: skills publish publicly to the marketplace.
-  // auto_review=true means captures auto-stamp reviewed_at and publish on
-  // close/sync without an explicit `unbrowse_review` call. To require the
+  // auto_review=true means captures publish on close/sync without an
+  // explicit `unbrowse_review` call (and without a reviewed_at stamp —
+  // that field records an actual review). To require the
   // agent to review each skill before publish, set auto_review=false. To
   // disable publish entirely (keep all captures local), call
   // `unbrowse_settings share_pointers=false` or run `unbrowse mode private`.

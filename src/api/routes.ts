@@ -929,7 +929,7 @@ export async function registerRoutes(app: FastifyInstance) {
     } else if (!settings.auto_publish_checkpoints) {
       next_step = "share_pointers=true but auto_publish_checkpoints=false: reviewed skills will not auto-publish on close/sync. Use unbrowse_publish explicitly, or re-enable auto_publish.";
     } else if (autoReview) {
-      next_step = "share_pointers=true + auto_review=true (you are fully opted in). Every capture auto-stamps reviewed_at on close/sync and publishes publicly with heuristic + LLM-augmented descriptions. Flip auto_review=false to require explicit unbrowse_review before publish.";
+      next_step = "share_pointers=true + auto_review=true (you are fully opted in). Every capture publishes publicly on close/sync with heuristic + LLM-augmented descriptions — without a reviewed_at stamp; only explicit unbrowse_review sets that. Flip auto_review=false to require review before publish.";
     } else {
       next_step = "share_pointers=true, auto_review=false: only skills the agent reviews via unbrowse_review publish to the marketplace. Unreviewed captures stay local. Set auto_review=true to skip the review step.";
     }
@@ -1588,14 +1588,14 @@ export async function registerRoutes(app: FastifyInstance) {
       share_pointers: contribution.share_pointers,
       next_step: suggestions.length === 0
         ? "No popular unreviewed skills found locally."
-        : `Found ${suggestions.length} popular skill(s) used locally but never published. POST /v1/skills/publish-suggestions/apply with skill_ids[] to stamp reviewed_at and publish, or set auto_review=true for future captures.`,
+        : `Found ${suggestions.length} popular skill(s) used locally but never published. POST /v1/skills/publish-suggestions/apply with skill_ids[] to publish them, or set auto_review=true for future captures.`,
     });
   });
 
-  // POST /v1/skills/publish-suggestions/apply — accept the suggestion: stamp
-  // reviewed_at on each named skill, re-index, and publish. Equivalent to
-  // calling /review with no endpoint edits — heuristic + LLM-augmented
-  // descriptions are accepted as-is.
+  // POST /v1/skills/publish-suggestions/apply — accept the suggestion:
+  // re-index and publish each named skill. Heuristic + LLM-augmented
+  // descriptions are accepted as-is, and reviewed_at is NOT stamped — that
+  // field records an actual unbrowse_review, which this path skips.
   app.post("/v1/skills/publish-suggestions/apply", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const body = (req.body ?? {}) as { skill_ids?: string[] };
@@ -1619,9 +1619,8 @@ export async function registerRoutes(app: FastifyInstance) {
           results.push({ skill_id, ok: false, error: "not_found" });
           continue;
         }
-        const reviewedAt = new Date().toISOString();
-        skill.reviewed_at = reviewedAt;
-        skill.updated_at = reviewedAt;
+        // No reviewed_at stamp: this is a publish decision, not a review.
+        skill.updated_at = new Date().toISOString();
 
         const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
         const checkpointDecision = decideCheckpointPublish(indexed.domain);
