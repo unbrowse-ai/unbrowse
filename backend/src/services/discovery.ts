@@ -674,12 +674,47 @@ export async function reindexSkill(
 }
 
 /** Remove a skill's vectors from the graph index. */
+/** Remove a skill's docs from the BM25 KV index — the per-domain key, the skill's
+ * global shard, and the legacy global key. Without this, the graph deletes below leave
+ * the KV/BM25 docs in place, so a deleted, deprecated, or taken-down skill stays
+ * searchable in /v1/search forever (the KV path is now the authoritative index). With
+ * endpointIds, only those `${skillId}:${epId}` docs are removed; otherwise every doc
+ * whose id starts with `${skillId}:` is removed. (John 15:2 — bear no fruit, be taken away.) */
+async function removeFromBm25Index(
+  env: Env,
+  skillId: string,
+  domain: string,
+  endpointIds?: string[],
+): Promise<void> {
+  const toRemove = endpointIds && endpointIds.length > 0
+    ? new Set(endpointIds.map((ep) => `${skillId}:${ep}`))
+    : null;
+  const keep = (id: string): boolean =>
+    toRemove ? !toRemove.has(id) : !id.startsWith(`${skillId}:`);
+  const g = normalizeDomain(env, "global");
+  const keys = [
+    `bm25-idx:${normalizeDomain(env, domain)}`,   // per-domain index
+    globalShardKey(env, shardForId(skillId)),     // the skill's global shard
+    `bm25-idx:${g}`,                              // legacy global key (pre-shard back-compat)
+  ];
+  await Promise.all(keys.map(async (key) => {
+    try {
+      const raw = await env.STATS_KV.get(key);
+      if (!raw) return;
+      const docs = JSON.parse(raw) as Bm25Doc[];
+      const filtered = docs.filter((doc) => keep(doc.id));
+      if (filtered.length !== docs.length) await env.STATS_KV.put(key, JSON.stringify(filtered));
+    } catch { /* corrupt key — a future write self-heals; never throw from a delete */ }
+  }));
+}
+
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
   const d = normalizeDomain(env, domain);
   const g = normalizeDomain(env, "global");
   await Promise.all([
     edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }),
     edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }),
+    removeFromBm25Index(env, skillId, domain), // BM25 KV — the authoritative search index
   ]);
 }
 
@@ -699,7 +734,7 @@ export async function removeEndpointsFromIndex(
       edbRequest(env, "POST", "/graph/delete", { domain: g, id }),
     ];
   });
-  await Promise.all(deletes);
+  await Promise.all([...deletes, removeFromBm25Index(env, skillId, domain, endpointIds)]);
 }
 
 /** Purge all endpoint vectors for a skill from both domain and global indexes. */
@@ -727,6 +762,8 @@ export async function purgeSkillVectors(
     edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }).catch(() => {}),
     edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }).catch(() => {}),
   );
+  // Purge the skill's BM25 KV docs too — graph deletes alone leave it searchable.
+  deletes.push(removeFromBm25Index(env, skillId, domain).catch(() => {}));
 
   await Promise.all(deletes);
   return { deleted: endpointIds.length };
