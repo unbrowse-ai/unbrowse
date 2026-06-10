@@ -973,12 +973,26 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
       );
     } catch (err) {
       const msg = (err as Error).message ?? "";
-      if (!wallet.wallet_address || !msg.includes("wallet_already_claimed")) throw err;
-      console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
-      registeredWallet = {};
-      registration = await api<{ agent_id: string; api_key: string }>(
-        "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
-      );
+      if (wallet.wallet_address && msg.includes("wallet_already_claimed")) {
+        console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else if (msg.includes("flex_onboarding_incomplete")) {
+        // Fresh install with no wallet/Flex onboarding (the default). The full
+        // register is Flex-gated, but publishing must not wait on a wallet: fall
+        // back to the L1 anonymous endpoint, which mints a usable api_key in one
+        // call so captures publish to the official cloud by default. Identity is
+        // wallet-first — the wallet attaches later (L2) to WRAP this key for
+        // earnings (POST /v1/agents/wallet). See backend /v1/agents/register-anon.
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register-anon", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else {
+        throw err;
+      }
     }
     const { agent_id, api_key } = registration;
 
@@ -1430,8 +1444,19 @@ export async function publishSkill(
   if (proofCount > 0) {
     proofHeaders["X-Unbrowse-Zk-Proof-Count"] = String(proofCount);
   }
+  // Normalize auth_profile_ref to the backend's required self-scoped form. The
+  // security validator (backend validator.ts) rejects any auth_profile_ref that
+  // isn't exactly `auth:<skill.domain>`; the CLI's internal form is
+  // `<domain>-session` (execution/index.ts), so an un-normalized publish 400s and
+  // silently falls back to local cache (the skill never reaches the cloud). We map
+  // only the OUTGOING copy — local credential lookup already tries `auth:<domain>`
+  // first, so storage/lookup are untouched and no re-auth is forced.
+  const publishDraft =
+    draft.auth_profile_ref && draft.domain && !draft.auth_profile_ref.startsWith("auth:")
+      ? { ...draft, auth_profile_ref: `auth:${draft.domain}` }
+      : draft;
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
-    ...draft,
+    ...publishDraft,
     ...(wallet.wallet_address ? wallet : {}),
   }, { timeoutMs: PUBLISH_TIMEOUT_MS, extraHeaders: proofHeaders });
 
