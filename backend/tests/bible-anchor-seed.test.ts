@@ -7,11 +7,36 @@ import { test, expect, mock } from "bun:test";
 // is COUNTED, never thrown (a partial batch still records what it could).
 
 const puts: Record<string, string> = {};
+// Faithful to the real LocalKV/EdbKV surface. Bun's mock.module is GLOBAL and
+// does NOT auto-restore between files, so an INCOMPLETE stub here leaks into
+// every later test that calls statsKV(env).{delete,listWithValues,resetSplitIndex,…}
+// → "not a function" across the suite. A complete surface keeps the leak harmless.
+const kvSurface = {
+  get: async (k: string, type?: "json") => {
+    const v = puts[k] ?? null;
+    if (v == null) return null;
+    return type === "json" ? JSON.parse(v) : v;
+  },
+  put: async (k: string, v: string) => { puts[k] = v; },
+  putBatch: async (pairs: Array<{ key: string; value: string }>) => {
+    for (const { key, value } of pairs) puts[key] = value;
+  },
+  delete: async (k: string) => { delete puts[k]; },
+  list: async ({ prefix, limit, cursor }: { prefix: string; limit?: number; cursor?: string }) => {
+    const keys = Object.keys(puts).filter((k) => k.startsWith(prefix));
+    const off = cursor ? parseInt(cursor, 10) : 0;
+    const lim = limit ?? 1000;
+    const page = keys.slice(off, off + lim);
+    const done = off + lim >= keys.length;
+    return { keys: page.map((name) => ({ name })), list_complete: done, cursor: done ? undefined : String(off + lim) };
+  },
+  listWithValues: async (prefix: string) =>
+    Object.entries(puts).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => ({ name: k, key: k, value: v })),
+  resetSplitIndex: async () => { delete puts["_idx"]; delete puts["_idx:main"]; delete puts["_idx:large"]; },
+};
 mock.module("../src/services/kv.js", () => ({
-  statsKV: () => ({
-    get: async (k: string) => puts[k] ?? null,
-    put: async (k: string, v: string) => { puts[k] = v; },
-  }),
+  statsKV: () => kvSurface,
+  kvBackend: () => "unconfigured" as const,
 }));
 
 let assignedId = 5000; // IQ assigns its own content-addressed id on insert/search
