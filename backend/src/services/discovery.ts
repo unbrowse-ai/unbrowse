@@ -180,11 +180,27 @@ export async function indexEndpoints(
     };
   });
 
-  // Store BM25 docs in KV for lexical search (fire-and-forget)
+  // Store BM25 docs in KV for lexical search. AWAITED (was fire-and-forget): KV is the
+  // reliable lexical index that carries /v1/search when the EmergentDB graph is degraded.
   const bm25Docs = items.map((item) => ({ id: item.id, text: item.text, metadata: item.metadata }));
-  env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs)).catch(() => {});
+  type Bm25Doc = (typeof bm25Docs)[number];
+  await env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs));
 
-  // Insert into both domain and global namespaces
+  // Merge into the GLOBAL key too — global /v1/search reads `bm25-idx:<global>`, which was
+  // NEVER written (only the graph global namespace was), so global search saw nothing.
+  // Read-modify-write, dedup by id so a publish ACCUMULATES into the global index instead
+  // of overwriting it. NOTE(scale): a single global KV value hits CF's 25MB cap at
+  // ~5-10k skills — cloud-scale needs sharded global keys or a fixed graph (see CLOUD_10K_DESIGN).
+  const globalKey = `bm25-idx:${normalizeDomain(env, "global")}`;
+  const existingGlobal = await env.STATS_KV.get(globalKey)
+    .then((raw) => (raw ? (JSON.parse(raw) as Bm25Doc[]) : []))
+    .catch(() => [] as Bm25Doc[]);
+  const merged = new Map<string, Bm25Doc>();
+  for (const doc of existingGlobal) merged.set(doc.id, doc);
+  for (const doc of bm25Docs) merged.set(doc.id, doc);
+  await env.STATS_KV.put(globalKey, JSON.stringify(Array.from(merged.values())));
+
+  // Graph insert is now BEST-EFFORT enrichment (degraded substrate; KV above is authoritative).
   await Promise.all([
     edbRequest(env, "POST", "/graph/batch_insert", { domain, items }),
     edbRequest(env, "POST", "/graph/batch_insert", {
