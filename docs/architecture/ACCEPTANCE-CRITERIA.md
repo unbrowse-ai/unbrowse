@@ -1,5 +1,11 @@
 # User Acceptance Criteria
 
+> **At a glance** — 60 Given/When/Then criteria across 12 subsystems, each
+> tagged (AC-AUTH-1 …) and naming its implementing module. §N here maps to
+> §N in [TEST-SPECS.md](./TEST-SPECS.md), which says which criteria are
+> tested today and which are gaps. Recurring themes: fail closed on money,
+> report honest failures, never store or publish plaintext secrets.
+
 > Per-subsystem acceptance criteria in Given/When/Then form, reflecting
 > standard practice for an API-key + payments product. Each block names the
 > implementing module. Test-level detail lives in

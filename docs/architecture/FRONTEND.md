@@ -1,5 +1,13 @@
 # Frontends
 
+> **At a glance** — two unrelated Next.js apps. The product UI
+> (`unbrowse.ai`) does registry browsing, magic-link sign-in with
+> localStorage sessions, dashboards, wallet pairing, and sponsored-tier
+> billing display. The metrics dashboard (`launch.unbrowse.ai`) is a
+> public, no-auth showcase fed by Unkey/GitHub/npm — it never calls the
+> Unbrowse backend. Known gaps: no key-management UI, no Stripe pricing
+> page, client-side-only auth gating.
+
 > Two apps. `frontend/` (in this monorepo) is the canonical product UI at
 > `unbrowse.ai`. `unbrowse-dashboard` (sibling repo) is a public, read-only
 > metrics page at `launch.unbrowse.ai` and does not talk to the backend.

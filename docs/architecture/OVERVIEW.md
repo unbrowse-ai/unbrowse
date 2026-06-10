@@ -1,10 +1,16 @@
 # Unbrowse Architecture — System Overview
 
+> **At a glance** — Unbrowse turns captured website interactions into
+> reusable API routes ("skills"). Three product surfaces (CLI/MCP binary,
+> Cloudflare-Workers backend, Next.js frontend) share one identity system
+> (email magic link → `ubr_` API key) and four money rails (Stripe, USDC
+> subscription, per-request x402, platform-sponsored). An API key can be
+> bound to a wallet or credit budget — the key fronts the money. Earnings
+> from paid executions are split deterministically among platform, site
+> owner, contributors, and first discoverer.
+
 > Generated 2026-06-10 from the code at monorepo v8.3.0-preview.2. Every claim
-> cites a real file path. Companion docs: [CLI.md](./CLI.md),
-> [BACKEND.md](./BACKEND.md), [FRONTEND.md](./FRONTEND.md),
-> [ACCEPTANCE-CRITERIA.md](./ACCEPTANCE-CRITERIA.md),
-> [TEST-SPECS.md](./TEST-SPECS.md).
+> cites a real file path. Start at [README.md](./README.md) for reading paths.
 
 ## What Unbrowse is
 

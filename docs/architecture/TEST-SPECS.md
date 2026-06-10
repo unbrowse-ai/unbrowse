@@ -1,10 +1,15 @@
 # Unit Test Specifications
 
-> What standard practice requires per subsystem, mapped to the tests that
-> already exist (backend suite: ~190 files under `backend/tests/`; CLI/core
-> tests under `tests/`). **Exists** = present today; **GAP** = expected by
-> standard practice but not found. IDs reference
-> [ACCEPTANCE-CRITERIA.md](./ACCEPTANCE-CRITERIA.md).
+> **At a glance** — the test coverage map: per subsystem, what standard
+> practice requires vs what the ~190 existing backend tests (plus CLI/core
+> suites) already cover. Backend billing/marketplace coverage is strong;
+> the biggest holes are Stripe webhook signature verification, client-side
+> x402 outcome states, wallet-resolution units, and the frontend (zero unit
+> coverage). The priority-ordered gap list is at the bottom.
+
+> §N here maps to §N in [ACCEPTANCE-CRITERIA.md](./ACCEPTANCE-CRITERIA.md).
+> **Exists** = present today; **GAP** = expected by standard practice but
+> not found.
 
 ## 1. Auth (AC-AUTH-*)
 | Spec | Status |
