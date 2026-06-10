@@ -500,20 +500,31 @@ export class FallbackKV {
     return opts?.expirationTtl ? { expirationTtl: Math.max(60, opts.expirationTtl) } : undefined;
   }
 
+  // CF KV calls are best-effort by contract ("EmergentDB down — fall through";
+  // mirror writes never gate the primary). A malformed/stub binding whose
+  // methods throw SYNCHRONOUSLY would otherwise escape before a .catch or
+  // Promise.allSettled can absorb it and 500 the request — the async wrapper
+  // converts sync throws into rejections so the existing handling applies.
+  private async cfCall<T>(fn: () => Promise<T> | T): Promise<T | null> {
+    try { return await fn(); } catch { return null; }
+  }
+
   async get(key: string, type?: "json"): Promise<string | unknown | null> {
     try {
       const v = await this.primary.get(key, type);
       if (v != null) return v;
     } catch { /* EmergentDB down — fall through to CF KV */ }
-    const raw = await this.cf.get(this.ck(key)).catch(() => null);
+    const raw = await this.cfCall(() => this.cf.get(this.ck(key)));
     if (raw == null) return null;
     return type === "json" ? safeJson(raw) : raw;
   }
 
   async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {
+    const cfPut = this.cfCall(() => this.cf.put(this.ck(key), value, this.cfOpts(opts)))
+      .then((r) => (r === null ? Promise.reject(new Error("cf put failed")) : r));
     const [p, c] = await Promise.allSettled([
       this.primary.put(key, value, opts),
-      this.cf.put(this.ck(key), value, this.cfOpts(opts)),
+      cfPut,
     ]);
     if (p.status === "rejected" && c.status === "rejected") {
       throw new Error(`FallbackKV.put failed both stores (key=${key})`);
@@ -524,12 +535,15 @@ export class FallbackKV {
     const cfOpts = this.cfOpts(opts);
     await Promise.allSettled([
       this.primary.putBatch(pairs, opts),
-      ...pairs.map(({ key, value }) => this.cf.put(this.ck(key), value, cfOpts)),
+      ...pairs.map(({ key, value }) => this.cfCall(() => this.cf.put(this.ck(key), value, cfOpts))),
     ]);
   }
 
   async delete(key: string): Promise<void> {
-    await Promise.allSettled([this.primary.delete(key), this.cf.delete(this.ck(key))]);
+    await Promise.allSettled([
+      this.primary.delete(key),
+      this.cfCall(() => this.cf.delete(this.ck(key))),
+    ]);
   }
 
   // Fall back to CF on a throw OR an EMPTY result: a degraded EmergentDB returns
