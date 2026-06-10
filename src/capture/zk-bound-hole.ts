@@ -99,3 +99,37 @@ export function verifyHoleProof(hole: Hole, proof: Proof): boolean {
   const b = parseBoundTag(hole.bound);
   return b ? verifyBinding(b, proof) : false;
 }
+
+/**
+ * Seam 3 (fill boundary) — at fill time, for every hole carrying a REAL ZK
+ * binding (`zkbind:`), the holder proves knowledge of the value it is filling in
+ * (`fills[hole.name]`, the exact bound string). Holes without a real binding
+ * (plain `[REDACTED]`/commitment, or LLM-sourced ids) need no proof and are
+ * skipped. The returned proofs ride to the backend ALONGSIDE the sealed fills —
+ * they carry no secret bytes (Schnorr NIZK), only `{t,s,ctx}`.
+ */
+export function proveHoles(holes: Hole[], fills: Record<string, string>): HoleProofs {
+  const enc = new TextEncoder();
+  const out: HoleProofs = {};
+  for (const h of holes) {
+    if (!parseBoundTag(h.bound)) continue; // only real zkbind holes are provable
+    const value = fills[h.name];
+    if (typeof value !== "string") continue; // nothing filled here
+    out[h.name] = proveHole(enc.encode(value));
+  }
+  return out;
+}
+
+/**
+ * Backend verifier — every real-bound hole must carry a proof that verifies
+ * against its binding. A bound hole with a missing or failing proof closes the
+ * gate (false); holes with no real binding impose no proof requirement.
+ */
+export function verifyHoleProofs(holes: Hole[], proofs: HoleProofs): boolean {
+  for (const h of holes) {
+    if (!parseBoundTag(h.bound)) continue;
+    const proof = proofs[h.name];
+    if (!proof || !verifyHoleProof(h, proof)) return false;
+  }
+  return true;
+}

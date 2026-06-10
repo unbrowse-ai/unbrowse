@@ -15,7 +15,9 @@ import { bindingTag } from "../src/capture/wallet-bind.js";
 import { zkBindKnownSecrets, proveHole, verifyHoleAttested, verifyHoleProof } from "../src/capture/zk-bound-hole.js";
 import { verifyBinding } from "../src/values/zk-binding.js";
 import { obfuscateRequestForReveng } from "../src/capture/obfuscate.js";
-import { extractHoles } from "../src/capture/hole-template.js";
+import { extractHoles, type HoleTemplate } from "../src/capture/hole-template.js";
+import { clientFillAndProve, verifyClientHoleProofs, type RevengResponse } from "../src/capture/backend-reveng-endpoint.js";
+import { deriveSealKey } from "../src/values/signer.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 const enc = new TextEncoder();
@@ -133,5 +135,78 @@ describe("zkseal Seam 1+3 — end-to-end binding through the capture-hole path (
     expect(authHole).toBeDefined();
     expect(authHole!.bound?.startsWith("zkbind:")).toBeFalsy();
     expect(verifyHoleAttested(authHole!)).toBe(false);
+  });
+});
+
+describe("zkseal Seam 3 — the proof moves in the live fill pipeline (Day 5 creatures)", () => {
+  // Build the client-side RevengResponse the way the holder would: obfuscate
+  // (mint bindings), then extractHoles WITH the bindings so the holes carry the
+  // real zkbind tag. fills maps hole.name -> the exact bound value.
+  async function clientTemplate(req: RawRequest, secrets: string[]) {
+    const wallet = Buffer.from(await getWalletPubkey()).toString("hex");
+    const sink = new Set<string>();
+    const skeleton = obfuscateRequestForReveng(req, { walletPubkey: wallet, secrets, boundSink: sink });
+    const bindings = await zkBindKnownSecrets([...sink], wallet);
+    const template: HoleTemplate = extractHoles(skeleton, bindings);
+    return { template, bound: [...sink] };
+  }
+
+  it("GOLDEN: clientFillAndProve emits proofs the backend verifies; secret never on the wire", async () => {
+    const secret = "tok-golden-001";
+    const { template, bound } = await clientTemplate(reqWithSecret(secret), [secret]);
+    const resp: RevengResponse = { templates: [template] };
+    const key = deriveSealKey();
+    // the holder fills the auth hole with the exact bound value
+    const fills = [{ authorization: bound[0] }];
+
+    const { requests, proofs } = clientFillAndProve(resp, fills, key);
+    expect(requests.length).toBe(1);
+    expect(verifyClientHoleProofs(resp, proofs)).toBe(true);
+    // proofs carry no secret bytes
+    expect(JSON.stringify(proofs)).not.toContain(secret);
+  });
+
+  it("EDGE: an id-hole (LLM-sourced, unbound) requires no proof and does not block verification", async () => {
+    // a request with an {id} path placeholder and no secret
+    const req = { method: "GET", url: "https://api.example.com/v1/users/{id}", request_headers: {}, request_body: undefined, response_headers: {}, response_body: undefined } as RawRequest;
+    const template = extractHoles(obfuscateRequestForReveng(req, {}));
+    const resp: RevengResponse = { templates: [template] };
+    const { proofs } = clientFillAndProve(resp, [{ "path[4]": "42" }], deriveSealKey());
+    expect(verifyClientHoleProofs(resp, proofs)).toBe(true); // no bound holes → nothing to prove
+  });
+
+  it("EDGE: multiple bound holes in one request are each proven", async () => {
+    const s1 = "tok-multi-aaa", s2 = "tok-multi-bbb";
+    const req = { method: "POST", url: "https://api.example.com/v1/act", request_headers: { authorization: `Bearer ${s1}`, "x-api-key": s2 }, request_body: undefined, response_headers: {}, response_body: undefined } as RawRequest;
+    const wallet = Buffer.from(await getWalletPubkey()).toString("hex");
+    const sink = new Set<string>();
+    const skeleton = obfuscateRequestForReveng(req, { walletPubkey: wallet, secrets: [s1, s2], boundSink: sink });
+    const bindings = await zkBindKnownSecrets([...sink], wallet);
+    const template = extractHoles(skeleton, bindings);
+    const resp: RevengResponse = { templates: [template] };
+    // fill each bound hole with its bound value
+    const fills: Record<string, string> = {};
+    for (const h of template.holes) {
+      const boundVal = [...sink].find((v) => v.includes(h.name === "authorization" ? s1 : s2));
+      if (boundVal) fills[h.name] = boundVal;
+    }
+    const { proofs } = clientFillAndProve(resp, [fills], deriveSealKey());
+    expect(verifyClientHoleProofs(resp, proofs)).toBe(true);
+  });
+
+  it("ADVERSARIAL: filling a bound hole with the WRONG value fails backend verification", async () => {
+    const secret = "tok-adversary-xyz";
+    const { template } = await clientTemplate(reqWithSecret(secret), [secret]);
+    const resp: RevengResponse = { templates: [template] };
+    // holder fills with a value they do NOT actually hold for this binding
+    const { proofs } = clientFillAndProve(resp, [{ authorization: "Bearer wrong-value" }], deriveSealKey());
+    expect(verifyClientHoleProofs(resp, proofs)).toBe(false); // gate closes
+  });
+
+  it("ADVERSARIAL: a bound hole with NO proof supplied closes the gate", async () => {
+    const secret = "tok-missing-proof";
+    const { template } = await clientTemplate(reqWithSecret(secret), [secret]);
+    const resp: RevengResponse = { templates: [template] };
+    expect(verifyClientHoleProofs(resp, [{}])).toBe(false); // missing proof → false
   });
 });
