@@ -1,5 +1,5 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex, searchIntent, __resetSearchCacheForTests } from "../src/services/discovery";
+import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex, purgeSkillVectors, searchIntent, __resetSearchCacheForTests } from "../src/services/discovery";
 
 // Witness: deleting a skill must also remove its docs from the BM25 KV index, so
 // /v1/search (searchIntent) no longer returns it. Before the fix the delete paths only
@@ -44,4 +44,14 @@ test("removeEndpointsFromIndex removes only the named endpoint, keeps the rest",
   expect(carIds).not.toContain("skillMulti:drop");   // removed endpoint gone
   const flightIds = (await searchIntent(e, "search flights between airports", 5)).map((r) => String(r.id));
   expect(flightIds).toContain("skillMulti:keep");     // kept endpoint still findable
+});
+
+test("purgeSkillVectors makes a skill UNFINDABLE — the mechanism the takedown route uses", async () => {
+  const e = env();
+  await indexEndpoints(e, "skillTaken", [ep("e1", "premium widget marketplace listing", "https://taken.example/x")], { domain: "taken.example" });
+  __resetSearchCacheForTests();
+  expect((await searchIntent(e, "premium widget marketplace", 5)).map((r) => String(r.id))).toContain("skillTaken:e1");
+  await purgeSkillVectors(e, "skillTaken", ["e1"], "taken.example");
+  __resetSearchCacheForTests();
+  expect((await searchIntent(e, "premium widget marketplace", 5)).map((r) => String(r.id))).not.toContain("skillTaken:e1");
 });
