@@ -1420,6 +1420,24 @@ export async function listSkills(): Promise<SkillManifest[]> {
   return data.skills;
 }
 
+/**
+ * Normalize a skill's auth_profile_ref to the backend's required self-scoped form
+ * (`auth:<domain>`). The CLI's internal credential form is `<domain>-session`; the
+ * security validator rejects anything that isn't `auth:<skill.domain>`, so an
+ * un-normalized publish 400s and silently falls back to local cache. This maps any
+ * non-`auth:` ref to `auth:<domain>` — which also FORCES self-scoping, so a malicious
+ * `victim-bank.com-session` ref on a shop.example skill becomes `auth:shop.example`,
+ * never loading another domain's cookies. Refs already in `auth:` form pass through
+ * unchanged (idempotent); a missing ref or missing domain is left as-is.
+ */
+export function normalizePublishedAuthRef(
+  authRef: string | undefined,
+  domain: string | undefined,
+): string | undefined {
+  if (authRef && domain && !authRef.startsWith("auth:")) return `auth:${domain}`;
+  return authRef;
+}
+
 export async function publishSkill(
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
     skill_id?: string;
@@ -1444,17 +1462,12 @@ export async function publishSkill(
   if (proofCount > 0) {
     proofHeaders["X-Unbrowse-Zk-Proof-Count"] = String(proofCount);
   }
-  // Normalize auth_profile_ref to the backend's required self-scoped form. The
-  // security validator (backend validator.ts) rejects any auth_profile_ref that
-  // isn't exactly `auth:<skill.domain>`; the CLI's internal form is
-  // `<domain>-session` (execution/index.ts), so an un-normalized publish 400s and
-  // silently falls back to local cache (the skill never reaches the cloud). We map
-  // only the OUTGOING copy — local credential lookup already tries `auth:<domain>`
-  // first, so storage/lookup are untouched and no re-auth is forced.
+  // Normalize the OUTGOING auth_profile_ref to the backend's self-scoped form so the
+  // publish isn't rejected (see normalizePublishedAuthRef). Local storage/lookup are
+  // untouched — execution lookup already tries `auth:<domain>` first — so no re-auth.
+  const normalizedRef = normalizePublishedAuthRef(draft.auth_profile_ref, draft.domain);
   const publishDraft =
-    draft.auth_profile_ref && draft.domain && !draft.auth_profile_ref.startsWith("auth:")
-      ? { ...draft, auth_profile_ref: `auth:${draft.domain}` }
-      : draft;
+    normalizedRef === draft.auth_profile_ref ? draft : { ...draft, auth_profile_ref: normalizedRef };
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
     ...publishDraft,
     ...(wallet.wallet_address ? wallet : {}),
