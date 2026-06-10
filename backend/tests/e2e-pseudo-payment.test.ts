@@ -203,13 +203,13 @@ function req(env: Env, path: string, opts: { method?: string; bearer?: string; b
   );
 }
 
-async function user(env: Env, email: string): Promise<{ key: string; keyId: string }> {
+async function user(env: Env, email: string): Promise<{ key: string; keyId: string; userId: string }> {
   const startRes = await req(env, "/v1/auth/email/start", { method: "POST", body: { email } });
   const { token } = (await startRes.json()) as { token: string };
   await req(env, `/v1/auth/email/verify?token=${token}`);
-  const poll = (await (await req(env, `/v1/auth/email/poll?token=${token}`)).json()) as { api_key: string };
+  const poll = (await (await req(env, `/v1/auth/email/poll?token=${token}`)).json()) as { api_key: string; user_id: string };
   const keys = (await (await req(env, "/v1/account/keys", { bearer: poll.api_key })).json()) as { keys: Array<{ keyId: string }> };
-  return { key: poll.api_key, keyId: keys.keys[0].keyId };
+  return { key: poll.api_key, keyId: keys.keys[0].keyId, userId: poll.user_id };
 }
 
 // The production agent path: POST /v1/agents/register with the full Flex
@@ -320,6 +320,26 @@ describe("pseudo-payment e2e: publish → paid access lanes", () => {
     const body = (await exec.json()) as { accepts?: Array<{ scheme: string }> };
     expect(Array.isArray(body.accepts)).toBe(true);
     expect(body.accepts!.length).toBeGreaterThan(0);
+  });
+
+  it("SUBSCRIPTION lane: an active-sub caller is served 200 before the onboarding soft-block (no chain)", async () => {
+    // The hermetic sponsored-SUCCESS equivalent: a caller with an active
+    // subscription is admitted by subscriptionAdmits() and served BEFORE
+    // the Flex soft-block — no wallet, no escrow, no on-chain settlement.
+    // The subscription is written via the crypto-sub activation seam (the
+    // operator/webhook-already-settled state); the ROUTE admission is what
+    // this exercises end-to-end.
+    const env = makeEnv();
+    const creator = await user(env, "creator-sub@e2e.test");
+    const skillId = await publishPaidSkill(env, creator.key, "paid-sub.example");
+
+    const caller = await user(env, "caller-sub@e2e.test"); // magic-link user: has user_id, no wallet
+    const { activateCryptoSubscription } = await import("../src/services/crypto-sub.js");
+    await activateCryptoSubscription(env, { userId: caller.userId, plan: "base", priceId: "price_base_e2e" });
+
+    const exec = await req(env, `/v1/skills/${skillId}`, { bearer: caller.key });
+    expect(exec.status).toBe(200);
+    expect(exec.headers.get("X-Unbrowse-Billing") ?? "").toContain("subscription");
   });
 
   it("HONEST 402 (onboarding): un-onboarded caller is soft-blocked with remediation, never a free ride", async () => {
