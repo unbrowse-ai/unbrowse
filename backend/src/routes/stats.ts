@@ -332,14 +332,15 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
     c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
   }
   // Tier 1 attribution: credit the indexer if execution succeeded.
-  // Derive indexer_id from: client payload > stored skill manifest > skip (#232).
+  // SECURITY: the indexer to credit is ALWAYS derived from the STORED skill (the
+  // authoritative record of who indexed it, set at publish by the authenticated
+  // publisher), NEVER from the client `body.indexer_id` — trusting the body let any
+  // caller credit earnings to an arbitrary (victim or self) agent_id. The execution
+  // reporter (a consumer) is not the indexer, so we cannot use the authed agent here;
+  // the skill itself is the source of truth.
   if (trace.success) {
-    let indexerId = body.indexer_id;
-    if (!indexerId) {
-      // Server-side fallback: look up the skill's stored indexer_id
-      const storedSkill = await getSkill(c.env, skill_id);
-      indexerId = storedSkill?.indexer_id;
-    }
+    const storedSkill = await getSkill(c.env, skill_id);
+    const indexerId = storedSkill?.indexer_id;
     if (indexerId) {
       const { getStats } = await import("../services/scoring.js");
       const stats = await getStats(c.env, skill_id, endpoint_id);
@@ -363,11 +364,10 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
     // Opt-in slashing: a FAILED execution where a viable alternative existed
     // reduces the publisher's standing (mirror of the success-path credit).
     // Default-off — live payout economics are unchanged unless ATTRIBUTION_SLASHING=1.
-    let indexerId = body.indexer_id;
-    if (!indexerId) {
-      const storedSkill = await getSkill(c.env, skill_id);
-      indexerId = storedSkill?.indexer_id;
-    }
+    // Same security rule as the success path: derive the indexer from the STORED skill,
+    // never from the forgeable client body.
+    const storedSkill = await getSkill(c.env, skill_id);
+    const indexerId = storedSkill?.indexer_id;
     if (indexerId) {
       const { recordFailureAttribution } = await import("../services/attribution.js");
       c.executionCtx.waitUntil(
