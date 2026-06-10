@@ -1283,9 +1283,16 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
 
-      // Mirror the share_pointers gate so the agent sees what actually happened.
+      // marketplace_published must report what ACTUALLY happened, not merely that the
+      // share_pointers gate was open. The real remote-publish outcome rides on the
+      // learned skill as `published_remotely` (set by marketplace publishSkill): true
+      // only when the skill reached the cloud, false on a silent local-cache fallback.
+      // ANDing it in means the flag never claims a publish that did not land — the
+      // false-success that misled debugging all session. If the publish path didn't
+      // run, the marker is absent → false (honest: we did not publish remotely).
       const sharePointers = getContributionConfig().contribution.share_pointers;
-      const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true;
+      const publishedRemotely = (learned as { published_remotely?: boolean } | null)?.published_remotely === true;
+      const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true && publishedRemotely;
 
       // Per-domain extraction notes (LLM-prose memory). Fire-and-forget — never
       // blocks the response. Notes are injected back into the LLM augment pass
