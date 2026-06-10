@@ -46,8 +46,8 @@
 | Unconfigured Stripe fails closed (no silent admission) | **Exists** — `backend/tests/billing-stripe-f1-anon-x402-sentinel.test.ts` |
 | KV key-convention isolation (single writer) | **Exists** — `backend/tests/billing-stripe-f2-single-writer.test.ts` |
 | Webhook → subscription cache roundtrip | **Exists** — `backend/tests/billing-stripe-roundtrip.test.ts` |
-| Non-allow-listed webhook events ignored | **GAP** — explicit negative case |
-| Webhook signature verification rejects bad signatures | **GAP** — critical standard practice |
+| Non-allow-listed webhook events ignored | **Exists** — `backend/tests/billing-webhook-signature.test.ts` |
+| Webhook signature verification rejects bad signatures | **Exists** — `backend/tests/billing-webhook-signature.test.ts` (real HMAC: tampered body, wrong secret, stale timestamp, unconfigured secret) |
 | Tier detection from priceId + usage | **Exists** — `backend/tests/stripe-tier-detection.test.ts` |
 | Metering increments on execute (per-call billing contract) | **Exists** — `backend/tests/meter-on-execute.test.ts` |
 | Overage → auto-refill path | partial — `backend/tests/stripe-grants-wave3.test.ts`; add explicit overage unit |
@@ -143,7 +143,8 @@
 | Landing funnel e2e | **Exists** — `tests/landing-funnel-e2e.test.ts` |
 
 ## Priority of gaps (standard-practice risk order)
-1. **Stripe webhook signature verification test** (§4) — financial integrity.
+1. ~~Stripe webhook signature verification~~ — closed by
+   `backend/tests/billing-webhook-signature.test.ts`.
 2. **Client frozen-splits unit** (§6) — `flex-pay.ts` must pay server-frozen
    splits verbatim; the other client x402 outcome states are now covered by
    `tests/x402-fetch-outcomes.test.ts`.
