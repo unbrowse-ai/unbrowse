@@ -1,4 +1,12 @@
-import { test, expect, mock } from "bun:test";
+import { test, expect, mock, afterAll } from "bun:test";
+// Capture the real kv + emergentdb modules before mocking. mock.module is global
+// and mock.restore() does not undo it, so afterAll must re-install the real
+// modules or these stubs leak into every sibling file (spread keeps unlisted
+// exports real during this file too).
+import * as _realKv from "../src/services/kv.js";
+import * as _realEdb from "../src/services/emergentdb.js";
+const _REAL_KV = { ..._realKv };
+const _REAL_EDB = { ..._realEdb };
 
 // Witness for the server-side seed (services/bible-anchor.ts seedBibleChaptersBatch,
 // the engine behind POST /v1/ops/seed-bible-chapters). The substrate is mocked: it
@@ -35,18 +43,25 @@ const kvSurface = {
   resetSplitIndex: async () => { delete puts["_idx"]; delete puts["_idx:main"]; delete puts["_idx:large"]; },
 };
 mock.module("../src/services/kv.js", () => ({
+  ..._REAL_KV,
   statsKV: () => kvSurface,
   kvBackend: () => "unconfigured" as const,
 }));
 
 let assignedId = 5000; // IQ assigns its own content-addressed id on insert/search
 mock.module("../src/services/emergentdb.js", () => ({
+  ..._REAL_EDB,
   emergentDBRequest: async (_e: unknown, _m: string, path: string) => {
     if (path === "/vectors/insert") return { success: true };
     if (path === "/vectors/search") return { results: [{ id: assignedId++, score: 1.0 }] };
     return {};
   },
 }));
+afterAll(() => {
+  mock.module("../src/services/kv.js", () => _REAL_KV);
+  mock.module("../src/services/emergentdb.js", () => _REAL_EDB);
+  mock.restore();
+});
 
 function embedOK() {
   // Batch-aware: return one embedding PER input (embedBatch sends input[]).

@@ -1,4 +1,9 @@
-import { expect, test, mock } from "bun:test";
+import { expect, test, mock, afterAll } from "bun:test";
+// Capture the real keys module before mocking — mock.module is global and
+// mock.restore() does not undo it. Spreading _REAL_KEYS keeps verifyLocalKey/
+// getKeyMeta/etc. real (every auth'd route imports them); afterAll re-installs all.
+import * as _realKeys from "../src/services/keys.js";
+const _REAL_KEYS = { ..._realKeys };
 
 // Witness for the L1->L2 payout fix: resolveContributorWallets must fill a missing
 // wallet_address from the agent's key-funding binding, so an agent who attached a wallet
@@ -7,12 +12,14 @@ import { expect, test, mock } from "bun:test";
 // Mock getKeyFunding: agent "a-funded" has a wallet binding; "a-credit" has credit;
 // "a-none" has nothing.
 mock.module("../src/services/keys.js", () => ({
+  ..._REAL_KEYS,
   getKeyFunding: async (_env: unknown, keyId: string) => {
     if (keyId === "a-funded") return { kind: "wallet", wallet: "WALLET_FUNDED", bound_at: "x" };
     if (keyId === "a-credit") return { kind: "credit", budget_uc: 1000, bound_at: "x" };
     return null;
   },
 }));
+afterAll(() => { mock.module("../src/services/keys.js", () => _REAL_KEYS); mock.restore(); });
 
 const { resolveContributorWallets } = await import("../src/services/splits.js");
 const env = {} as never;
