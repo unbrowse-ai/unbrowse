@@ -470,7 +470,11 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
           // Ledger write (best-effort, non-blocking).
           schedule(c, recordTransaction(c.env, {
             transaction_id: `flex-${Date.now()}-${skill.skill_id.slice(0, 8)}`,
-            consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+            // Auth-resolved keyId, never the raw bearer: the raw header is a
+            // secret (the sanitizer redacts most shapes, but the resolved id is
+            // the correct ledger key — what /dashboard/me reads, so spend
+            // reconciles).
+            consumer_id: c.get("agent_id") ?? "anonymous",
             creator_id: resolveSkillPaymentRecipient(skill, c.env),
             skill_id: skill.skill_id,
             price_usd: priceResult.price_usd,
