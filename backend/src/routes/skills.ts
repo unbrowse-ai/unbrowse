@@ -629,6 +629,23 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
 
   let skill;
   const agentId = c.get("agent_id");
+  // SECURITY: contributor attribution affects PAYOUTS. `indexer_id` becomes the
+  // contributor's agent_id (and thus the wallet/key-funding payout target), so a
+  // request that claims a DIFFERENT indexer_id than the authenticated agent would let
+  // an attacker route earnings to (or frame) a victim. The legit publish never sends a
+  // different indexer_id — it defaults to the authed agent — and everything downstream
+  // (getKeyFunding, earnings lookups) is keyed by the authed agent_id (keyId). Reject
+  // the mismatch for non-admins; admin seeding may attribute on behalf of others.
+  if (
+    typeof body.indexer_id === "string" &&
+    body.indexer_id !== agentId &&
+    agentId !== "__admin__"
+  ) {
+    return c.json({
+      error: "indexer_id_mismatch",
+      message: "indexer_id must match the authenticated agent; cross-agent attribution is not permitted.",
+    }, 403);
+  }
   try {
     skill = await publishSkill(c.env, body as Parameters<typeof publishSkill>[1], {
       submitter_agent_id: agentId,
