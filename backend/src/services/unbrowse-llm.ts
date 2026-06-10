@@ -1,5 +1,6 @@
 import type { Env, SkillManifest } from "../types.js";
 import { renderSkillMd } from "./skillmd.js";
+import { FOUR_GOSPELS } from "../data/gospels.js";
 
 export interface UnbrowseLlmBinding {
   chatUrl: string;
@@ -15,6 +16,16 @@ export interface AikoCompiledContract {
   network_tunnel_kind?: string;
   evaluators: AikoCompiledEvaluator[];
   children: AikoCompiledContract[];
+  /** Multi-contributor delta attribution, carried through the /contract
+   *  projection so the canonical contract form never erases who built the
+   *  skill or their marginal delta / payout share. */
+  contributors?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    endpoints_contributed: number;
+    cumulative_delta: number;
+    share: number;
+  }>;
 }
 
 export interface AikoCompiledEvaluator {
@@ -51,29 +62,36 @@ export function getUnbrowseLlmBinding(env: Env): UnbrowseLlmBinding | null {
  * here when the upstream model lineup changes — do not parameterize via
  * env: "no caller-visible options".
  */
+// Two tiers only: Nemotron-3-Nano-Omni (paid Nebius, private) → NVIDIA free fallback.
+// Reasoning is OFF for all calls (see runContractLlmChain's "detailed thinking off" injection).
 const CONTRACT_LLM_CHAIN: ReadonlyArray<{ url: string; model: string; freeKey?: boolean }> = [
   {
-    url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
-    model: "nvidia/nemotron-3-super-120b-a12b",
+    // PRIMARY: NVIDIA nemotron-nano-9b-v2 — FREE, 128k ctx (holds the full Gospels), non-reasoning.
+    url: "https://integrate.api.nvidia.com/v1/chat/completions",
+    model: "nvidia/nvidia-nemotron-nano-9b-v2",
+    freeKey: true,
   },
   {
+    // FALLBACK: Nemotron-3-Nano-Omni (paid Nebius, private) — 65k served, for short/compiler calls
+    // when the free tier is down. Cannot hold the Gospel-grounded chat (too long); fine for compile.
     url: "https://api.tokenfactory.nebius.com/v1/chat/completions",
     model: "nvidia/Nemotron-3-Nano-Omni",
   },
-  {
-    url: "https://api.tokenfactory.us-central1.nebius.com/v1/chat/completions",
-    model: "Qwen/Qwen3.5-397B-A17B",
-  },
-  {
-    // FREE fallback (rate-limited, NOT private): NVIDIA direct. A zero-cost safety net when the
-    // paid Nebius tiers above are unavailable — the same free lane baked into aiko-ebllm. Uses
-    // NVIDIA_API_KEY (not the Nebius UNBROWSE_LLM_API_KEY). Skipped when that key is absent (fail
-    // closed — never a fabricated success).
-    url: "https://integrate.api.nvidia.com/v1/chat/completions",
-    model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-    freeKey: true,
-  },
 ];
+
+/** Nemotron reasoning is turned off via the documented "detailed thinking off" system
+ *  directive. Prepend it to the first system message (or add one) so every call —
+ *  /contract compile AND skill chat — runs non-reasoning. Pure text, no risky body params. */
+function withReasoningOff(messages: ChatMessage[]): ChatMessage[] {
+  const out = messages.map((m) => ({ ...m }));
+  const sys = out.find((m) => m.role === "system");
+  if (sys && typeof sys.content === "string") {
+    sys.content = `/no_think\n\n${sys.content}`;
+  } else {
+    out.unshift({ role: "system", content: "/no_think" });
+  }
+  return out;
+}
 
 const COMPILE_SYSTEM_PROMPT =
   "Compile one aiko prompt into a minimal non-contradicting recursive aiko contract tree. Return only JSON: {\"prompt\":string,\"posthook_pointer\":\"optional http(s) or contract: pointer\",\"wallet_identity\":\"optional wallet pointer\",\"replicated_from_contract_id\":\"optional out-of-lineage contract id requiring paid replication\",\"network_tunnel_contract_id\":\"optional tunnel adapter contract pointer\",\"network_tunnel_kind\":\"optional tunnel class\",\"evaluators\":[{\"prompt\":string,\"metric\":{\"source\":\"api|ledger|external\",\"pointer\":string,\"assertion\":string}}],\"children\":[same shape]}. Every node and evaluator is an aiko declaration prompt. A goal is true only when external/self-check metrics resolve true. Posthooks are typed pointers called after promotion with full context and parent wallet identity. Do not add verbs, local paths, PII, secrets, execution payloads, or prose outside JSON.";
@@ -96,12 +114,30 @@ export async function runContractLlmChain(
 ): Promise<string | null> {
   const paidToken = env.UNBROWSE_LLM_API_KEY?.trim();
   const freeToken = env.NVIDIA_API_KEY?.trim();
-  if (!paidToken && !freeToken) return null;          // no usable key on any tier
+  const researchToken = env.RESEARCH_LLM_API_KEY?.trim();
+
+  // Optional research tier — a stronger brain for accuracy-critical paths, OFF by
+  // default (the free nano-9b stays the default for cheap traffic). Enabled only
+  // when both RESEARCH_LLM_MODEL and RESEARCH_LLM_API_KEY are set; it then leads
+  // the chain (tried first), falling back to the standard free/paid tiers. Kept
+  // flag-gated so it never bills a per-request frontier model unless turned on.
+  const researchTier = env.RESEARCH_LLM_MODEL && researchToken
+    ? [{
+        url: env.RESEARCH_LLM_URL?.trim() || "https://openrouter.ai/api/v1/chat/completions",
+        model: env.RESEARCH_LLM_MODEL.trim(),
+        keyKind: "research" as const,
+      }]
+    : [];
+  const chain = [
+    ...researchTier,
+    ...CONTRACT_LLM_CHAIN.map((t) => ({ url: t.url, model: t.model, keyKind: (t.freeKey ? "free" : "paid") as "free" | "paid" })),
+  ];
+  if (!paidToken && !freeToken && !researchToken) return null; // no usable key on any tier
 
   const errors: string[] = [];
 
-  for (const tier of CONTRACT_LLM_CHAIN) {
-    const token = tier.freeKey ? freeToken : paidToken;
+  for (const tier of chain) {
+    const token = tier.keyKind === "research" ? researchToken : tier.keyKind === "free" ? freeToken : paidToken;
     if (!token) {                                     // skip a tier whose key is absent (fail closed)
       errors.push(`${tier.model}@${hostOf(tier.url)}: no key`);
       continue;
@@ -116,7 +152,7 @@ export async function runContractLlmChain(
       const res = await fetch(tier.url, {
         method: "POST",
         headers,
-        body: JSON.stringify({ model: tier.model, messages }),
+        body: JSON.stringify({ model: tier.model, messages: withReasoningOff(messages) }),
       });
       if (!res.ok) {
         errors.push(`${tier.model}@${hostOf(tier.url)}: HTTP ${res.status}`);
@@ -168,7 +204,12 @@ export async function chatFollowingSkill(
   userMessage: string,
   history: ChatMessage[] = [],
 ): Promise<string | null> {
-  const grounding = `${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>`;
+  const aiko = `You are aiko, and you follow Jesus. The following is Scripture — the Gospels of Matthew, Mark, Luke, and John.\n\n${FOUR_GOSPELS}\nYou are aiko; you follow these Scriptures.\n\n`;
+  const finalGuard = "\n\nReminder: answer ONLY from the <SKILL> endpoints above. If the user names or " +
+    "presupposes ANY endpoint, query parameter, filter, field, method, sort option, or capability that is " +
+    "NOT explicitly listed in the skill, do not confirm it and do not invent one — state plainly that the " +
+    "skill does not support it.";
+  const grounding = `${aiko}${FOLLOW_SYSTEM_PREAMBLE}\n\n<SKILL>\n${renderSkillMd(skill)}\n</SKILL>${finalGuard}`;
   return runContractLlmChain(env, [
     { role: "system", content: grounding },
     ...history,

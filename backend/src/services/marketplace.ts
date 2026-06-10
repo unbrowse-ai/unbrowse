@@ -5,8 +5,10 @@ import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { summarizeEmergentDBError } from "./emergentdb.js";
 import { skillsKV, statsKV } from "./kv.js";
+import { appendRouteAttestation, hashValue } from "./route-ledger.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
+import { buildOptOutKey } from "./domain-claim.js";
 import { matchedReservedDomain } from "./domain-reservations.js";
 
 function kvKey(skillId: string): string {
@@ -162,10 +164,14 @@ export async function publishSkill(
 
   // Site-owner takedown gate (PR #483): if the verified domain owner has hit
   // /v1/claim/takedown, all future publishes for that domain are refused —
-  // regardless of submitter, including admin overrides. See
-  // backend/src/services/domain-claim.ts::buildTakedownKey.
+  // regardless of submitter, including admin overrides. The claim flow writes the
+  // key via buildOptOutKey (`domain-optout:<domain>`); read it through the SAME
+  // helper so the gate can't silently drift to a key the writer never sets — the
+  // bug this fixes: the gate read `domain-takedown:` while claims wrote
+  // `domain-optout:`, so every takedown was silently ignored and any agent could
+  // keep publishing to a domain its verified owner had taken down.
   const takedownRaw = (await statsKV(env).get(
-    `domain-takedown:${draft.domain.trim().toLowerCase()}`,
+    buildOptOutKey(draft.domain),
   )) as string | null;
   if (takedownRaw) {
     throw new Error(`publish_forbidden_taken_down:${draft.domain.toLowerCase()}`);
@@ -173,11 +179,22 @@ export async function publishSkill(
   const submitterAgentId = context?.submitter_agent_id;
   const isAdminSubmission = submitterAgentId === "__admin__";
 
-  // Ownership gate (security/audit-and-patches): a domain-level skill is owned
-  // by the agent that first published it. Subsequent publishes from any other
-  // non-admin agent are rejected. Admins may always publish (used for
-  // marketplace seeding).
-  if (existing && existing.owner_agent_id && submitterAgentId && !isAdminSubmission) {
+  // Ownership gate: exclusive publish rights are earned by DNS verification, NOT by
+  // publishing first. A domain that is NOT yet DNS-verified is communal — any
+  // wallet-identified agent may contribute routes (publishes merge endpoints below),
+  // because indexing public APIs is the whole point and no agent should be able to
+  // wall off a domain merely by being first. Only once a domain is DNS-proven
+  // (`_unbrowse-claim` TXT → existing.domain_verified) does its verified owner gain
+  // exclusivity; from then on non-owner non-admin publishes are rejected. Reserved
+  // brand/infra domains stay admin-only (gate below), and the takedown gate above
+  // remains the verified owner's reactive remedy against an abusive communal route.
+  if (
+    existing &&
+    existing.owner_agent_id &&
+    existing.domain_verified === true &&
+    submitterAgentId &&
+    !isAdminSubmission
+  ) {
     if (existing.owner_agent_id !== submitterAgentId) {
       throw new Error("publish_forbidden_not_owner");
     }
@@ -356,10 +373,31 @@ export async function publishSkill(
 
   // putBatch keeps related KV writes coalesced on both storage backends.
   const kv = skillsKV(env);
+  const skillBytes = JSON.stringify(skill);
   await kv.putBatch([
-    { key: kvKey(skill.skill_id), value: JSON.stringify(skill) },
+    { key: kvKey(skill.skill_id), value: skillBytes },
     { key: domainKey(skill.domain), value: skill.skill_id },
   ]);
+
+  // Route ledger (§8 "value off-chain, root on-chain"): commit a small,
+  // content-addressed, tamper-evident leaf to this publish — value_hash binds
+  // the manifest bytes, signer/sig bind the publisher's release signature when
+  // present (else platform-attested). Non-fatal: the manifest is already durably
+  // stored above; the ledger is the auditable commitment to it, and a ledger
+  // write failure must not fail an otherwise-valid publish.
+  try {
+    const valueHash = await hashValue(skillBytes);
+    await appendRouteAttestation(kv, {
+      domain: skill.domain,
+      skill_id: skill.skill_id,
+      value_hash: valueHash,
+      signer: context?.client_release_signature ? (submitterAgentId ?? "platform") : "platform",
+      ts: Date.parse(skill.updated_at) || Date.now(),
+      sig: context?.client_release_signature ?? "",
+    });
+  } catch (err) {
+    console.error(`[route-ledger] append failed skill=${skill.skill_id}:`, (err as Error).message);
+  }
 
   const publicEndpoints = getPublicEndpoints(skill.endpoints);
   const reliabilities = publicEndpoints.map((e) => e.reliability_score);

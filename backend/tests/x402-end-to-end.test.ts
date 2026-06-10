@@ -15,8 +15,13 @@
  * end.test.ts` against the Flex facilitator instead.
  */
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
+// Capture real sponsor-pay before mocking; mock.module is global and persists
+// (mock.restore() does not undo it) — re-install the real module in afterAll so
+// the stubbed sendSponsorPayment never leaks into sibling sponsor tests.
+import * as _realSponsorPay from "../src/services/sponsor-pay.js";
+const _REAL_SPONSOR_PAY = { ..._realSponsorPay };
 
 // Stub the sponsor-pay module FIRST so the route's dynamic import resolves
 // to our stub rather than the real Solana signer. mock.module is per-process
@@ -27,6 +32,7 @@ const sponsorPayState: { mode: "success" | "throw" | "fail"; signature?: string 
   signature: "0xsig-e2e-default",
 };
 mock.module("../src/services/sponsor-pay.js", () => ({
+  ..._REAL_SPONSOR_PAY,
   sendSponsorPayment: async (
     _env: unknown,
     _recipient: string,
@@ -37,6 +43,7 @@ mock.module("../src/services/sponsor-pay.js", () => ({
     return { success: true, signature: sponsorPayState.signature ?? "0xsig-default" };
   },
 }));
+afterAll(() => { mock.module("../src/services/sponsor-pay.js", () => _REAL_SPONSOR_PAY); mock.restore(); });
 
 import { publicSkillRoutes } from "../src/routes/skills.js";
 import {

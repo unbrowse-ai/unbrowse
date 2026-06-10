@@ -7,6 +7,34 @@
 
 import type { AgentProfile, Env, SkillManifest, SkillContributor } from "../types.js";
 import { skillsKV, statsKV } from "./kv.js";
+import { getKeyFunding } from "./keys.js";
+
+/**
+ * Resolve payout wallets for contributors at settlement time. A contributor's
+ * `wallet_address` is captured at PUBLISH time, so an agent who publishes at L1 (no
+ * wallet) then attaches a wallet later (`setKeyFunding{kind:wallet}`) has an EMPTY
+ * wallet_address on the stored skill and would be filtered out of the payout — earning
+ * nothing. This fills the missing wallet from the agent's key-funding binding (the READ
+ * side of "api_key wraps wallet"), so the wallet-attach actually pays out on existing
+ * skills. It NEVER overrides an already-set wallet, and only resolves `kind:"wallet"`
+ * bindings. Contributors that already have a wallet skip the KV lookup entirely.
+ */
+export async function resolveContributorWallets(
+  env: Env,
+  contributors: SkillContributor[] | undefined,
+): Promise<SkillContributor[]> {
+  if (!contributors || contributors.length === 0) return contributors ?? [];
+  return Promise.all(
+    contributors.map(async (c) => {
+      if (c.wallet_address?.trim() || !c.agent_id) return c;
+      const funding = await getKeyFunding(env, c.agent_id).catch(() => null);
+      if (funding && funding.kind === "wallet" && funding.wallet.trim()) {
+        return { ...c, wallet_address: funding.wallet.trim() };
+      }
+      return c;
+    }),
+  );
+}
 
 // Platform share out of 100 (legacy 100-share split model; Flex uses 1000-of-10000 bps natively in flex.ts::computeFlexSplits)
 const PLATFORM_SHARE = 10;

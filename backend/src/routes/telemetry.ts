@@ -149,11 +149,13 @@ telemetryRoutes.post("/telemetry/web", async (c) => {
 // POST /telemetry/session     — receive a session JSONL trace from a client
 // DELETE /telemetry/sessions  — purge by client_seed (opt-out / GDPR)
 //
-// Storage: Neon Postgres via DATABASE_URL (matches existing pattern in
-// backend/src/services/{neon,traction,stripe}.ts). Schema defined in
-// backend/schema/telemetry-sessions.sql.
-
-import { getNeonClient } from "../services/neon.js";
+// Storage: RETIRED with the Neon->IQ migration (2026-06). These admin-only
+// session/analytics endpoints validate input but no longer persist. The
+// cohort/retention/aggregation queries had no efficient KV form, and
+// re-architecting telemetry onto a new store is an explicit non-goal — so the
+// analytics feed was retired rather than ported. Endpoints below acknowledge
+// requests (so fire-and-forget clients never error) and return
+// reason:"telemetry_storage_retired".
 
 const MAX_EVENTS_PER_SESSION = 2_000;
 const MAX_PAYLOAD_BYTES = 256_000;
@@ -200,115 +202,24 @@ telemetryRoutes.post("/telemetry/session", async (c) => {
     if (!v.ok) return c.json({ error: "invalid_event", reason: v.reason }, 400);
   }
 
-  const env = c.env;
-  if (!env.DATABASE_URL) {
-    return c.json({ error: "storage_not_configured" }, 503);
-  }
-
-  const fingerprint = c.req.header("x-agent-kind-fingerprint") ?? "unknown";
-
-  // Per-fingerprint rate limit via a transient row in app_kv. Falls open if
-  // the rate-limit query throws — we would rather lose a rate limit than
-  // drop telemetry. (Same posture as the rest of this route.)
-  try {
-    const sql = await getNeonClient(env.DATABASE_URL);
-    const minute = Math.floor(Date.now() / 60_000);
-    const rateKey = `telemetry-rate:${fingerprint}:${minute}`;
-    const rows = await sql`
-      SELECT value FROM app_kv WHERE namespace = ${"telemetry-rate"} AND key = ${rateKey}
-    ` as Array<{ value: string }>;
-    const current = parseInt(rows[0]?.value ?? "0", 10);
-    if (current >= RATE_LIMIT_PER_MIN) {
-      return c.json({ error: "rate_limited", limit: `${RATE_LIMIT_PER_MIN}/min` }, 429);
-    }
-    const next = String(current + 1);
-    const expires = new Date(Date.now() + 120_000).toISOString();
-    await sql`
-      INSERT INTO app_kv (namespace, key, value, expires_at, updated_at)
-      VALUES (${"telemetry-rate"}, ${rateKey}, ${next}, ${expires}, NOW())
-      ON CONFLICT (namespace, key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = NOW()
-    `;
-  } catch (err) {
-    console.warn("[telemetry/session] rate-limit check failed:", err instanceof Error ? err.message : String(err));
-  }
-
-  // Derive summary metadata for indexing/triage.
-  const start = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "session_start");
-  const end = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "session_end");
-  const refl = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "reflection");
-  const reflMissing = body.events.find((e): e is TelemetryEvent => (e as TelemetryEvent)?.event === "reflection_missing");
-
-  const reflection_status: string =
-    typeof refl?.intent_status === "string"
-      ? String(refl.intent_status)
-      : reflMissing
-        ? "missing"
-        : "unknown";
-
-  const duration_ms_total = typeof end?.duration_ms_total === "number" ? end.duration_ms_total : null;
-  const tool_calls_total = typeof end?.tool_calls_total === "number" ? end.tool_calls_total : null;
-  const errors_total = typeof end?.errors_total === "number" ? end.errors_total : null;
-  const mcp_version = typeof start?.mcp_version === "string" ? start.mcp_version : null;
-  const platform = typeof start?.platform === "string" ? start.platform : null;
-  const client_seed_fp = typeof start?.client_seed_fp === "string" ? start.client_seed_fp : null;
-
-  try {
-    const sql = await getNeonClient(env.DATABASE_URL);
-    await sql`
-      INSERT INTO telemetry_sessions
-        (session_id, received_at, duration_ms_total, tool_calls_total, errors_total,
-         reflection_status, events_json, agent_kind_fingerprint, mcp_version, platform, client_seed_fp)
-      VALUES (
-        ${body.session_id}, NOW(), ${duration_ms_total}, ${tool_calls_total}, ${errors_total},
-        ${reflection_status}, ${JSON.stringify(body.events)}, ${fingerprint}, ${mcp_version},
-        ${platform}, ${client_seed_fp}
-      )
-      ON CONFLICT (session_id) DO UPDATE SET
-        received_at = NOW(),
-        duration_ms_total = EXCLUDED.duration_ms_total,
-        tool_calls_total = EXCLUDED.tool_calls_total,
-        errors_total = EXCLUDED.errors_total,
-        reflection_status = EXCLUDED.reflection_status,
-        events_json = EXCLUDED.events_json,
-        agent_kind_fingerprint = EXCLUDED.agent_kind_fingerprint,
-        mcp_version = EXCLUDED.mcp_version,
-        platform = EXCLUDED.platform,
-        client_seed_fp = EXCLUDED.client_seed_fp
-    `;
-  } catch (err) {
-    console.error("[telemetry/session] Postgres insert failed:", err instanceof Error ? err.message : String(err));
-    return c.json({ error: "storage_failed" }, 500);
-  }
-
-  return c.json({ ok: true, session_id: body.session_id, events_stored: body.events.length });
+  // Storage retired with the Neon->IQ migration. Validation above still
+  // rejects malformed payloads; accepted events are acknowledged but not
+  // persisted. Acknowledging (not erroring) keeps fire-and-forget MCP clients
+  // from surfacing a failure on a retired analytics feed.
+  return c.json({
+    ok: true,
+    stored: false,
+    reason: "telemetry_storage_retired",
+    session_id: body.session_id,
+  });
 });
 
 telemetryRoutes.delete("/telemetry/sessions", async (c) => {
   const seed = c.req.query("seed");
   if (!seed) return c.json({ error: "seed_required" }, 400);
-  if (!c.env.DATABASE_URL) return c.json({ error: "storage_not_configured" }, 503);
-
-  // Hash on the server side. The client sent its raw seed; we apply sha256 ×
-  // 16-char-hex to match the client_seed_fp stored at session_start.
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
-  const seedFp = Array.from(new Uint8Array(bytes))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-    .slice(0, 16);
-
-  try {
-    const sql = await getNeonClient(c.env.DATABASE_URL);
-    const result = await sql`
-      DELETE FROM telemetry_sessions WHERE client_seed_fp = ${seedFp}
-    ` as { count?: number };
-    // postgres.js returns rows; neon serverless returns Array with .count.
-    // Fall back to length on the array shape.
-    const deleted = (result as { count?: number; length?: number }).count ?? (result as { length?: number }).length ?? 0;
-    return c.json({ ok: true, deleted });
-  } catch (err) {
-    console.error("[telemetry/sessions DELETE] failed:", err instanceof Error ? err.message : String(err));
-    return c.json({ error: "delete_failed" }, 500);
-  }
+  // Storage retired: nothing is persisted, so there is nothing to delete.
+  // Returns ok so opt-out / GDPR-erasure clients get a clean success.
+  return c.json({ ok: true, deleted: 0, reason: "telemetry_storage_retired" });
 });
 
 // ============================================================================
@@ -324,78 +235,10 @@ telemetryRoutes.get("/telemetry/recent-failures", bearerAuth, async (c) => {
   if (agentId !== "__admin__") {
     return c.json({ error: "Admin only" }, 403);
   }
-  if (!c.env.DATABASE_URL) {
-    return c.json({ error: "storage_not_configured" }, 503);
-  }
-
-  const limitRaw = parseInt(c.req.query("limit") ?? "200", 10);
-  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 1000)) : 200;
-  const sinceRaw = c.req.query("since");
-  const since = sinceRaw && !Number.isNaN(Date.parse(sinceRaw))
-    ? new Date(sinceRaw).toISOString()
-    : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  try {
-    const sql = await getNeonClient(c.env.DATABASE_URL);
-    const rows = await sql`
-      SELECT session_id, received_at, reflection_status, events_json,
-             mcp_version, platform, agent_kind_fingerprint
-      FROM telemetry_sessions
-      WHERE reflection_status IN ('failed', 'partial', 'unknown', 'missing')
-        AND received_at >= ${since}
-      ORDER BY received_at DESC
-      LIMIT ${limit}
-    ` as Array<{
-      session_id: string;
-      received_at: string;
-      reflection_status: string;
-      events_json: unknown;
-      mcp_version: string | null;
-      platform: string | null;
-      agent_kind_fingerprint: string;
-    }>;
-
-    const failures: Array<Record<string, unknown>> = [];
-    for (const row of rows) {
-      const events = Array.isArray(row.events_json) ? row.events_json : [];
-      const refl = events.find((e: unknown): e is Record<string, unknown> => {
-        return Boolean(e && typeof e === "object" && (e as { event?: string }).event === "reflection");
-      });
-      const sessionStart = events.find((e: unknown): e is Record<string, unknown> => {
-        return Boolean(e && typeof e === "object" && (e as { event?: string }).event === "session_start");
-      });
-      const lastTool = [...events].reverse().find((e: unknown): e is Record<string, unknown> => {
-        const ev = (e && typeof e === "object") ? (e as { event?: string }).event : undefined;
-        return typeof ev === "string" && (ev === "tool_call" || ev === "tool_result" || ev === "error");
-      });
-
-      failures.push({
-        session_id: row.session_id,
-        received_at: row.received_at,
-        reflection_status: row.reflection_status,
-        intent: refl?.intent ?? sessionStart?.intent ?? null,
-        url: refl?.url ?? sessionStart?.url ?? null,
-        intent_status: refl?.intent_status ?? null,
-        error_class: lastTool?.error_class ?? lastTool?.error ?? null,
-        last_tool: lastTool?.tool ?? lastTool?.name ?? null,
-        mcp_version: row.mcp_version,
-        platform: row.platform,
-        agent_kind_fingerprint: row.agent_kind_fingerprint,
-      });
-    }
-
-    c.header("Cache-Control", "no-store");
-    return c.json({
-      ok: true,
-      since,
-      limit,
-      count: failures.length,
-      failures,
-    });
-  } catch (err) {
-    console.error("[telemetry/recent-failures] query failed:", err instanceof Error ? err.message : String(err));
-    return c.json({ error: "query_failed" }, 500);
-  }
+  // Storage retired with Neon->IQ. The bench-feeder failure feed was admin-only
+  // analytics; it returns an empty set rather than a broken store.
+  c.header("Cache-Control", "no-store");
+  return c.json({ ok: true, count: 0, failures: [], reason: "telemetry_storage_retired" });
 });
 
 // ============================================================================
@@ -410,119 +253,35 @@ telemetryRoutes.get("/telemetry/retention", bearerAuth, async (c) => {
   if (agentId !== "__admin__") {
     return c.json({ error: "Admin only" }, 403);
   }
-  if (!c.env.DATABASE_URL) {
-    return c.json({ error: "storage_not_configured" }, 503);
-  }
-
-  try {
-    const sql = await getNeonClient(c.env.DATABASE_URL);
-    const [aggregates] = await sql`
-      SELECT
-        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '24 hours') AS dau,
-        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '7 days')   AS wau,
-        COUNT(DISTINCT client_seed_fp) FILTER (WHERE received_at >= NOW() - INTERVAL '30 days')  AS mau,
-        COUNT(*)                       FILTER (WHERE received_at >= NOW() - INTERVAL '24 hours') AS sessions_24h,
-        COUNT(*)                       FILTER (WHERE received_at >= NOW() - INTERVAL '7 days')   AS sessions_7d,
-        COALESCE(SUM(tool_calls_total) FILTER (WHERE received_at >= NOW() - INTERVAL '7 days'),  0) AS tool_calls_7d,
-        COUNT(DISTINCT client_seed_fp) FILTER (
-          WHERE received_at >= NOW() - INTERVAL '7 days'
-          AND tool_calls_total IS NOT NULL AND tool_calls_total >= 10
-        ) AS power_users_7d
-      FROM telemetry_sessions
-    ` as Array<{
-      dau: string | number; wau: string | number; mau: string | number;
-      sessions_24h: string | number; sessions_7d: string | number;
-      tool_calls_7d: string | number; power_users_7d: string | number;
-    }>;
-
-    // d7 retention: of distinct fingerprints first-seen 7-14 days ago,
-    // how many returned in the last 7 days.
-    const [retention_d7] = await sql`
-      WITH first_seen AS (
-        SELECT client_seed_fp, MIN(received_at) AS first_at
-        FROM telemetry_sessions
-        WHERE client_seed_fp IS NOT NULL
-        GROUP BY client_seed_fp
-      ),
-      cohort_d7 AS (
-        SELECT client_seed_fp FROM first_seen
-        WHERE first_at >= NOW() - INTERVAL '14 days'
-          AND first_at <  NOW() - INTERVAL '7 days'
-      )
-      SELECT
-        (SELECT COUNT(*) FROM cohort_d7)::int AS cohort_size,
-        (SELECT COUNT(DISTINCT t.client_seed_fp)
-         FROM telemetry_sessions t
-         INNER JOIN cohort_d7 c ON t.client_seed_fp = c.client_seed_fp
-         WHERE t.received_at >= NOW() - INTERVAL '7 days')::int AS retained
-    ` as Array<{ cohort_size: number; retained: number }>;
-
-    // d30 retention: of distinct fingerprints first-seen 30-37 days ago,
-    // how many returned in the last 7 days.
-    const [retention_d30] = await sql`
-      WITH first_seen AS (
-        SELECT client_seed_fp, MIN(received_at) AS first_at
-        FROM telemetry_sessions
-        WHERE client_seed_fp IS NOT NULL
-        GROUP BY client_seed_fp
-      ),
-      cohort_d30 AS (
-        SELECT client_seed_fp FROM first_seen
-        WHERE first_at >= NOW() - INTERVAL '37 days'
-          AND first_at <  NOW() - INTERVAL '30 days'
-      )
-      SELECT
-        (SELECT COUNT(*) FROM cohort_d30)::int AS cohort_size,
-        (SELECT COUNT(DISTINCT t.client_seed_fp)
-         FROM telemetry_sessions t
-         INNER JOIN cohort_d30 c ON t.client_seed_fp = c.client_seed_fp
-         WHERE t.received_at >= NOW() - INTERVAL '7 days')::int AS retained
-    ` as Array<{ cohort_size: number; retained: number }>;
-
-    c.header("Cache-Control", "no-store");
-    return c.json({
-      ok: true,
-      generated_at: new Date().toISOString(),
-      active_users: {
-        dau: Number(aggregates?.dau ?? 0),
-        wau: Number(aggregates?.wau ?? 0),
-        mau: Number(aggregates?.mau ?? 0),
-      },
-      activity: {
-        sessions_24h: Number(aggregates?.sessions_24h ?? 0),
-        sessions_7d:  Number(aggregates?.sessions_7d ?? 0),
-        tool_calls_7d: Number(aggregates?.tool_calls_7d ?? 0),
-      },
-      retention: {
-        d7:  { cohort_size: retention_d7?.cohort_size ?? 0,  retained: retention_d7?.retained ?? 0 },
-        d30: { cohort_size: retention_d30?.cohort_size ?? 0, retained: retention_d30?.retained ?? 0 },
-      },
-      power_users_7d: Number(aggregates?.power_users_7d ?? 0),
-    });
-  } catch (err) {
-    console.error("[telemetry/retention] query failed:", err instanceof Error ? err.message : String(err));
-    return c.json({ error: "query_failed" }, 500);
-  }
+  // Storage retired with Neon->IQ. DAU/WAU/MAU + cohort retention were
+  // Postgres aggregations with no efficient KV form; the dashboard feed is
+  // retired rather than re-architected (explicit non-goal). Returns zeros.
+  c.header("Cache-Control", "no-store");
+  return c.json({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    reason: "telemetry_storage_retired",
+    active_users: { dau: 0, wau: 0, mau: 0 },
+    activity: { sessions_24h: 0, sessions_7d: 0, tool_calls_7d: 0 },
+    retention: { d7: { cohort_size: 0, retained: 0 }, d30: { cohort_size: 0, retained: 0 } },
+    power_users_7d: 0,
+  });
 });
 
 // ============================================================================
 // Per-execute telemetry ledger (semantic resolution improvement feed).
 // Receives one row per executeEndpoint call: intent, skill_id, endpoint_id,
 // outcome, status_code, latency_ms, proxy_used, block_signals.
-// Stored in telemetry_executions (Neon Postgres) — same connection pool as
-// telemetry_sessions. Falls open (200 ok=true) when DATABASE_URL is absent so
-// the client fire-and-forget is never penalised.
+// Storage RETIRED with Neon->IQ. This per-execute ledger fed the endpoint
+// penalty scoring in routes/graph.ts (a Postgres GROUP BY); both were retired
+// together. Acknowledges (200 ok=true, stored=false) so fire-and-forget
+// callers are never penalised.
 // ============================================================================
 telemetryRoutes.post("/telemetry/execute", async (c) => {
   const body = await c.req.json<{
-    intent?: string;
     skill_id?: string;
     endpoint_id?: string;
     outcome?: string;
-    status_code?: number;
-    latency_ms?: number;
-    proxy_used?: boolean;
-    block_signals?: string[];
   }>().catch(() => null);
 
   if (!body?.skill_id || !body.endpoint_id || !body.outcome) {
@@ -531,40 +290,5 @@ telemetryRoutes.post("/telemetry/execute", async (c) => {
 
   c.header("Cache-Control", "no-store");
   c.header("Access-Control-Allow-Origin", "*");
-
-  if (!c.env.DATABASE_URL) {
-    // Fall open — don't penalise the client for missing infra.
-    return c.json({ ok: true, stored: false, reason: "storage_not_configured" });
-  }
-
-  try {
-    const sql = await getNeonClient(c.env.DATABASE_URL);
-    await sql`
-      INSERT INTO telemetry_executions
-        (intent, skill_id, endpoint_id, outcome, status_code, latency_ms,
-         proxy_used, block_signals, received_at)
-      VALUES (
-        ${body.intent ?? null},
-        ${body.skill_id},
-        ${body.endpoint_id},
-        ${body.outcome},
-        ${body.status_code ?? null},
-        ${body.latency_ms ?? null},
-        ${body.proxy_used ?? false},
-        ${JSON.stringify(body.block_signals ?? [])},
-        NOW()
-      )
-    `;
-  } catch (err) {
-    // Fall open — telemetry write failure must never break a caller's execute
-    // path. Log for ops visibility but return ok=true so fire-and-forget
-    // callers don't surface this as an error.
-    console.warn(
-      "[telemetry/execute] insert failed:",
-      err instanceof Error ? err.message : String(err),
-    );
-    return c.json({ ok: true, stored: false, reason: "insert_failed" });
-  }
-
-  return c.json({ ok: true, stored: true });
+  return c.json({ ok: true, stored: false, reason: "telemetry_storage_retired" });
 });

@@ -39,6 +39,7 @@ import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
 import { safeZero } from "../../values/memzero.js";
+import { escalationDirective } from "../../capture/escalate-on-miss.js";
 import {
   STATELESS_SIGNATURE_SCHEME,
   canonicalizeSignedFragment,
@@ -243,6 +244,14 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         audit_emit: auditEmit,
         count: shortlist.length,
         shortlist,
+        // Layer 3 — auto-descend signal: on a real MISS (ok but empty shortlist)
+        // with a URL to descend into, emit a live directive so the agent opens
+        // the browser, captures down to the packet layer, and the captured route
+        // auto-indexes back — instead of stopping at a dead empty list.
+        ...(() => {
+          const esc = ok ? escalationDirective(shortlist, urlFlag, intent) : null;
+          return esc ? { escalation: esc } : {};
+        })(),
         ...(ok
           ? {}
           : {

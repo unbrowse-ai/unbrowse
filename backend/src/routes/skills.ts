@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { mapPublishError } from "./publish-error-map.js";
 import type { Env } from "../types.js";
 import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
@@ -469,7 +470,11 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
           // Ledger write (best-effort, non-blocking).
           schedule(c, recordTransaction(c.env, {
             transaction_id: `flex-${Date.now()}-${skill.skill_id.slice(0, 8)}`,
-            consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+            // Auth-resolved keyId, never the raw bearer: the raw header is a
+            // secret (the sanitizer redacts most shapes, but the resolved id is
+            // the correct ledger key — what /dashboard/me reads, so spend
+            // reconciles).
+            consumer_id: c.get("agent_id") ?? "anonymous",
             creator_id: resolveSkillPaymentRecipient(skill, c.env),
             skill_id: skill.skill_id,
             price_usd: priceResult.price_usd,
@@ -628,6 +633,23 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
 
   let skill;
   const agentId = c.get("agent_id");
+  // SECURITY: contributor attribution affects PAYOUTS. `indexer_id` becomes the
+  // contributor's agent_id (and thus the wallet/key-funding payout target), so a
+  // request that claims a DIFFERENT indexer_id than the authenticated agent would let
+  // an attacker route earnings to (or frame) a victim. The legit publish never sends a
+  // different indexer_id — it defaults to the authed agent — and everything downstream
+  // (getKeyFunding, earnings lookups) is keyed by the authed agent_id (keyId). Reject
+  // the mismatch for non-admins; admin seeding may attribute on behalf of others.
+  if (
+    typeof body.indexer_id === "string" &&
+    body.indexer_id !== agentId &&
+    agentId !== "__admin__"
+  ) {
+    return c.json({
+      error: "indexer_id_mismatch",
+      message: "indexer_id must match the authenticated agent; cross-agent attribution is not permitted.",
+    }, 403);
+  }
   try {
     skill = await publishSkill(c.env, body as Parameters<typeof publishSkill>[1], {
       submitter_agent_id: agentId,
@@ -640,28 +662,11 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
     });
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.startsWith("publish_forbidden_reserved_domain:")) {
-      const reserved = msg.slice("publish_forbidden_reserved_domain:".length);
-      return c.json({
-        error: "publish_forbidden_reserved_domain",
-        message: `"${reserved}" is on the reserved-domain list and may only be published by admin keys.`,
-        reserved_domain: reserved,
-      }, 403);
-    }
-    if (msg.startsWith("publish_forbidden_domain_unverified:")) {
-      const domain = msg.slice("publish_forbidden_domain_unverified:".length);
-      return c.json({
-        error: "publish_forbidden_domain_unverified",
-        message: `Domain control for "${domain}" has not been verified. POST /v1/skills/by-domain/${domain}/verify/challenge to start the .well-known probe flow.`,
-        domain,
-        next_step: `/v1/skills/by-domain/${domain}/verify/challenge`,
-      }, 403);
-    }
-    if (msg.startsWith("release_manifest_")) {
-      return c.json({ error: msg }, 400);
-    }
-    console.error("[publish] error:", msg, (err as Error).stack);
-    return c.json({ error: "Failed to publish skill" }, 500);
+    const mapped = mapPublishError(msg);
+    // Only a genuinely unexpected error (the 500 fall-through) is logged with a stack;
+    // known refusals are expected control flow and surface their own reason.
+    if (mapped.status === 500) console.error("[publish] error:", msg, (err as Error).stack);
+    return c.json(mapped.body, mapped.status);
   }
 
   // Roll up proof verification status across endpoints. Cheap to compute and

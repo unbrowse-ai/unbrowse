@@ -1287,7 +1287,7 @@ const TOOL_GUIDANCE_BY_NAME: Record<string, string> = {
   unbrowse_execute: "Only call with skill_id and endpoint_id from unbrowse_resolve. After presenting results to user, you MUST call unbrowse_feedback. On first use of a domain, also call unbrowse_review then unbrowse_publish. For write actions, preview with dry_run first.",
   unbrowse_feedback: "MANDATORY after every unbrowse_execute where results were shown. Rating: 5=right+fast, 4=right+slow, 3=incomplete, 2=wrong endpoint, 1=useless. Do not skip this step.",
   unbrowse_index: "Recomputes local graph and workflow contracts for a cached skill without remote share. Use after review metadata changes or before an explicit publish.",
-  unbrowse_review: "Describe each captured endpoint (proper description, action_kind, resource_kind) before public publish. This stamps reviewed_at on the skill - the gate the indexer uses to decide whether to publish. You are opted in by default; after review: skill auto-publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. Opt out anytime via unbrowse_settings share_pointers=false BEFORE review.",
+  unbrowse_review: "Describe each captured endpoint (proper description, action_kind, resource_kind) before public publish. This stamps reviewed_at on the skill (provenance that a real review happened; with auto_review=false it is also the publish gate). You are opted in by default; after review: skill auto-publishes to the public marketplace and earns x402 rewards on execution. Rewards land in your wallet - run `unbrowse setup` to pair one if you have not already. Opt out anytime via unbrowse_settings share_pointers=false BEFORE review.",
   unbrowse_publish: "Explicit publish. If reviews were already submitted via unbrowse_review, this is idempotent. Phase 1 (skill only) returns the publish-review surface. Phase 2 (with endpoints + confirm_publish=true) shares to marketplace. Blocked if endpoints still need review.",
   unbrowse_settings: "Inspect or update local marketplace/publish policy. Key knob: share_pointers (true by default (opted in)). Set false to keep all captures private and forfeit rewards. Also gates auto-publish and per-domain blacklist/promptlist (e.g. banking).",
   unbrowse_auth_capture: "Call on auth_required (or proactively before hitting gated content). Opens a Kuri tab so the USER can sign in to the site; cookies persist for subsequent fetch/resolve/execute calls.",
@@ -2510,7 +2510,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_review",
-    description: "Describe each captured endpoint (description, action_kind, resource_kind) before the skill leaves your machine. Stamps reviewed_at on the skill - the gate the indexer uses to decide whether to publish publicly. You are opted in by default; after review: skill auto-publishes to the public Unbrowse marketplace and earns x402 rewards when other agents execute it. Rewards land in your wallet - pair one via `unbrowse setup` if needed. To stay private instead, call unbrowse_settings with share_pointers=false BEFORE you review (any unreviewed capture is held locally regardless). The substrate enforces this - heuristic-described skills do not reach the public marketplace.",
+    description: "Describe each captured endpoint (description, action_kind, resource_kind) before the skill leaves your machine. Stamps reviewed_at on the skill (provenance that a real review happened; with auto_review=false it is also the publish gate). You are opted in by default; after review: skill auto-publishes to the public Unbrowse marketplace and earns x402 rewards when other agents execute it. Rewards land in your wallet - pair one via `unbrowse setup` if needed. To stay private instead, call unbrowse_settings with share_pointers=false BEFORE you review (with auto_review=false, any unreviewed capture is held locally; with the default auto_review=true, captures publish without a reviewed_at stamp).",
     inputSchema: {
       type: "object",
       properties: {
@@ -2642,7 +2642,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_publish_suggestions",
-    description: "List local skills that have been USED N+ times locally but were never published (no `reviewed_at`). Use to retroactively publish working captures that fell through the review gate — typically existing-user backlog from before `auto_review` defaulted on, or skills captured while `share_pointers=false` was set. Returns evidence (execution_count, success_rate, last_used, most_used_endpoint) so the agent decides whether to apply. Call with `apply=true` and a `skill_ids` array to stamp reviewed_at + publish in one shot. New captures with `auto_review=true` publish automatically and never appear here.",
+    description: "List local skills that have been USED N+ times locally but were never published (no `reviewed_at` and no published publish-artifact). Use to retroactively publish working captures that fell through the review gate — typically existing-user backlog from before `auto_review` defaulted on, or skills captured while `share_pointers=false` was set. Returns evidence (execution_count, success_rate, last_used, most_used_endpoint) so the agent decides whether to apply. Call with `apply=true` and a `skill_ids` array to publish in one shot (no reviewed_at is stamped — that field records an actual unbrowse_review). New captures with `auto_review=true` publish automatically and never appear here.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2660,7 +2660,7 @@ const tools: ToolDefinition[] = [
         },
         apply: {
           type: "boolean",
-          description: "When true, the substrate stamps reviewed_at and publishes the named skill_ids. Combine with skill_ids[].",
+          description: "When true, the substrate publishes the named skill_ids (without stamping reviewed_at — only unbrowse_review sets that). Combine with skill_ids[].",
         },
         skill_ids: {
           type: "array",
@@ -2681,7 +2681,7 @@ const tools: ToolDefinition[] = [
         }
         return successResult(
           await api("POST", "/v1/skills/publish-suggestions/apply", { skill_ids: args.skill_ids }),
-          "Applied publish suggestions: reviewed_at stamped and publish attempted for each skill_id.",
+          "Applied publish suggestions: publish attempted for each skill_id (no reviewed_at stamped — only unbrowse_review sets that).",
         );
       }
 
@@ -2720,7 +2720,7 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "unbrowse_settings",
-    description: "Show or update local marketplace/publish policy. Two headline knobs: (1) `share_pointers` - true by default (you are opted in): skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Set false to keep every capture local. (2) `auto_review` - true by default: substrate auto-stamps `reviewed_at` on close/sync, so captures publish without an explicit `unbrowse_review` call. Set false to require the agent to review each skill (heuristic + LLM-augmented descriptions only ship when reviewed). Rewards land in your wallet - pair one via `unbrowse setup`. Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs). Returns `sponsor_status` with daily-credit info and remaining sponsored amount: `cap_daily_usd` is the per-agent platform-sponsor cap, `spent_today_usd` is what the platform has already covered today on your behalf, and `remaining_today_usd` tells you how many more 402 calls will be sponsored before you fall through to your own x402 wallet.",
+    description: "Show or update local marketplace/publish policy. Two headline knobs: (1) `share_pointers` - true by default (you are opted in): skills publish publicly to the Unbrowse marketplace and earn x402 rewards when other agents execute them. Set false to keep every capture local. (2) `auto_review` - true by default: captures publish on close/sync without an explicit `unbrowse_review` call (and without a `reviewed_at` stamp - that field records an actual review). Set false to require the agent to review each skill (heuristic + LLM-augmented descriptions only ship when reviewed). Rewards land in your wallet - pair one via `unbrowse setup`. Also controls auto-publish after sync/close, and per-domain blacklist/prompt-list rules that block publish even when share_pointers=true (use for banking, healthcare, internal/draft URLs). Returns `sponsor_status` with daily-credit info and remaining sponsored amount: `cap_daily_usd` is the per-agent platform-sponsor cap, `spent_today_usd` is what the platform has already covered today on your behalf, and `remaining_today_usd` tells you how many more 402 calls will be sponsored before you fall through to your own x402 wallet.",
     inputSchema: {
       type: "object",
       properties: {
@@ -2730,7 +2730,7 @@ const tools: ToolDefinition[] = [
         },
         auto_review: {
           type: "boolean",
-          description: "Auto-stamp `reviewed_at` on close/sync so captures publish without an explicit `unbrowse_review` call. true (default) = heuristic + LLM-augmented descriptions accepted as-is; false = the agent must call `unbrowse_review` before each skill publishes.",
+          description: "Publish captures on close/sync without an explicit `unbrowse_review` call (no `reviewed_at` is stamped - that field records an actual review). true (default) = heuristic + LLM-augmented descriptions accepted as-is; false = the agent must call `unbrowse_review` before each skill publishes.",
         },
         auto_publish: {
           type: "boolean",

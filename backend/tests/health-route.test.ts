@@ -22,14 +22,19 @@ describe("health route", () => {
     expect(data.storage_backend).toBe("emergentdb");
   });
 
-  it("reports Postgres when DATABASE_URL is configured", async () => {
+  // Storage is IQ-only since the Neon->IQ migration (src/services/kv.ts:614
+  // "Legacy Postgres/PgKV removed in the Neon->IQ migration."). DATABASE_URL /
+  // USE_PGKV are dead inputs (not on Env, read nowhere), so EmergentDB wins
+  // regardless. This test was pinned to "postgres" back when Postgres was the
+  // backend (310014f7) and was never updated when Postgres was removed.
+  it("stays on EmergentDB even when legacy Postgres env vars are present", async () => {
     const res = await app.fetch(
       new Request("http://local.test/health"),
-      { ...baseEnv, DATABASE_URL: "postgres://test", USE_PGKV: "1" },
+      { ...baseEnv, DATABASE_URL: "postgres://test", USE_PGKV: "1" } as Env,
     );
     const data = await res.json() as { storage_backend?: string };
 
     expect(res.status).toBe(200);
-    expect(data.storage_backend).toBe("postgres");
+    expect(data.storage_backend).toBe("emergentdb");
   });
 });

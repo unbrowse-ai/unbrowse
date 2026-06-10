@@ -99,5 +99,16 @@ export function skillToContract(skill: SkillManifest): AikoCompiledContract {
     children,
   };
   if (skill.owner_agent_id) contract.wallet_identity = skill.owner_agent_id;
+  // Carry multi-contributor delta attribution into the canonical /contract
+  // form — never erase who built the skill or their marginal delta / share.
+  if (skill.contributors && skill.contributors.length > 0) {
+    contract.contributors = skill.contributors.map((c) => ({
+      agent_id: c.agent_id,
+      ...(c.wallet_address ? { wallet_address: c.wallet_address } : {}),
+      endpoints_contributed: c.endpoints_contributed,
+      cumulative_delta: c.cumulative_delta,
+      share: c.share,
+    }));
+  }
   return contract;
 }

@@ -2,7 +2,7 @@ import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
-import { exaSearch, type ExaWebResult } from "./exa.js";
+import { webSearch, type WebResult } from "./web-search.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -20,7 +20,7 @@ export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
   skipped_global: boolean;
-  exa_results?: ExaWebResult[];
+  exa_results?: WebResult[]; // wire-compat field name; now unbrowse-native web search (no vendor)
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
@@ -55,13 +55,32 @@ function filterSuppressedResolvedSearchResults(env: Env, results: ResolvedSearch
 // In-memory search cache — survives within a single Worker isolate lifetime.
 const _memCache = new Map<string, { value: string; expires: number }>();
 
+/** Test-only: clear the in-memory search cache so a test exercises a fresh BM25
+ * read rather than serving a stale hit from a prior test (cache-pollution). */
+export function __resetSearchCacheForTests(): void {
+  _memCache.clear();
+}
+
+// Search-cache epoch. Bumped on any index DELETE so every cached search result (both
+// _memCache and the QDKV search-cache:* keys) is invalidated at once — without it a
+// deleted, deprecated, or taken-down skill keeps being served from cache for up to
+// SEARCH_CACHE_TTL (~5 min). The epoch rides in the cache key, so old-epoch entries are
+// simply never read again and TTL-expire — no per-skill enumeration needed. (1 Cor 5:6-7.)
+let _searchCacheEpoch = 0;
+/** Invalidate ALL cached search results — call after any index mutation that removes
+ * docs, so /v1/search never serves a skill that no longer exists. */
+export function invalidateSearchCache(): void {
+  _searchCacheEpoch++;
+  _memCache.clear();
+}
+
 function searchCacheKey(intent: string, k: number, domain?: string): string {
-  const base = `${intent.toLowerCase().trim()}:${k}`;
+  const base = `e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${k}`;
   return domain ? `${base}:${domain}` : base;
 }
 
 function searchResolveCacheKey(intent: string, domain: string | undefined, domainK: number, globalK: number): string {
-  return `resolve:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
+  return `resolve:e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
 }
 
 export function extractSkillId(metadata: Record<string, unknown>): string | null {
@@ -154,6 +173,45 @@ async function graphSearch(
   return data.results ?? [];
 }
 
+// The global BM25 index is SHARDED across GLOBAL_SHARD_COUNT keys by hash(skillId).
+// A single `bm25-idx:<global>` key hit CF's 25MB value cap at ~7.4k skills (~37k docs)
+// and its read-modify-write was a concurrent-write data-loss hazard. Sharding gives
+// N× capacity and 1/N-sized writes. All docs from one publish share a skillId, so they
+// land in ONE shard — exactly one read-modify-write per publish, of ~1/Nth the data.
+const GLOBAL_SHARD_COUNT = 16;
+function globalShardKey(env: Env, shard: number): string {
+  return `bm25-idx:${normalizeDomain(env, "global")}:s${shard.toString(16)}`;
+}
+function shardForId(id: string): number {
+  return hashToInt(id) % GLOBAL_SHARD_COUNT;
+}
+/** All global BM25 READ keys: every shard PLUS the legacy single key. Back-compat:
+ * pre-shard data still lives in `bm25-idx:<global>` and must stay searchable until it
+ * naturally drains, so search unions the shards with the legacy key. */
+function globalReadKeys(env: Env): string[] {
+  const g = normalizeDomain(env, "global");
+  // Shards FIRST, legacy LAST. bm25SearchGlobal dedups by first-seen id, so a skill
+  // re-published post-shard (now in a shard) must shadow its STALE copy still sitting in
+  // the legacy key — reading shards first keeps the fresh shard version, not the old one.
+  return [...Array.from({ length: GLOBAL_SHARD_COUNT }, (_, i) => globalShardKey(env, i)), `bm25-idx:${g}`];
+}
+
+/** Search the global BM25 index across all shards + the legacy key, dedup by id, score. */
+async function bm25SearchGlobal(env: Env, query: string, k: number): Promise<SearchResult> {
+  const raws = await Promise.all(globalReadKeys(env).map((key) => env.STATS_KV.get(key).catch(() => null)));
+  const docs: Bm25Doc[] = [];
+  const seen = new Set<string>();
+  for (const raw of raws) {
+    if (!raw) continue;
+    try {
+      for (const d of JSON.parse(raw) as Bm25Doc[]) {
+        if (!seen.has(d.id)) { seen.add(d.id); docs.push(d); }
+      }
+    } catch { /* skip a corrupt shard — the others still serve */ }
+  }
+  return bm25Score(docs, query, k);
+}
+
 /** Index endpoints via Graph API batch_insert — auto-embeds server-side. */
 export async function indexEndpoints(
   env: Env,
@@ -180,11 +238,26 @@ export async function indexEndpoints(
     };
   });
 
-  // Store BM25 docs in KV for lexical search (fire-and-forget)
+  // Store BM25 docs in KV for lexical search. AWAITED (was fire-and-forget): KV is the
+  // reliable lexical index that carries /v1/search when the EmergentDB graph is degraded.
   const bm25Docs = items.map((item) => ({ id: item.id, text: item.text, metadata: item.metadata }));
-  env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs)).catch(() => {});
+  type Bm25Doc = (typeof bm25Docs)[number];
+  await env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs));
 
-  // Insert into both domain and global namespaces
+  // Merge into the GLOBAL index so global /v1/search finds this skill. SHARDED by
+  // hash(skillId) — all of this publish's docs share the skillId, so they land in ONE
+  // shard: a single read-modify-write of ~1/Nth the global data (was the whole 25MB-bound
+  // key). Dedup by id so a re-publish ACCUMULATES into its shard rather than overwriting.
+  const shardKey = globalShardKey(env, shardForId(skillId));
+  const existingShard = await env.STATS_KV.get(shardKey)
+    .then((raw) => (raw ? (JSON.parse(raw) as Bm25Doc[]) : []))
+    .catch(() => [] as Bm25Doc[]);
+  const merged = new Map<string, Bm25Doc>();
+  for (const doc of existingShard) merged.set(doc.id, doc);
+  for (const doc of bm25Docs) merged.set(doc.id, doc);
+  await env.STATS_KV.put(shardKey, JSON.stringify(Array.from(merged.values())));
+
+  // Graph insert is now BEST-EFFORT enrichment (degraded substrate; KV above is authoritative).
   await Promise.all([
     edbRequest(env, "POST", "/graph/batch_insert", { domain, items }),
     edbRequest(env, "POST", "/graph/batch_insert", {
@@ -255,7 +328,6 @@ async function bm25Search(env: Env, domain: string, query: string, k: number): P
   }
 }
 
-/** Reciprocal Rank Fusion over two result lists. */
 /** Reciprocal Rank Fusion over two result lists. */
 export function rrfFuse(listA: SearchResult, listB: SearchResult, k: number): SearchResult {
   const scores = new Map<string, { score: number; metadata: Record<string, unknown> }>();
@@ -400,14 +472,12 @@ export async function searchIntentResolve(
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
 
-  // Exa fires in parallel with graph searches — it's a best-effort enrichment,
-  // never on the critical path. Skip when key not configured.
-  const exaPromise: Promise<ExaWebResult[]> = env.EXA_API_KEY
-    ? exaSearch(env.EXA_API_KEY, intent, globalK).catch((err) => {
-        console.error("[search-resolve] exa error:", (err as Error).message);
-        return [] as ExaWebResult[];
-      })
-    : Promise.resolve([] as ExaWebResult[]);
+  // unbrowse's own keyless web search fires in parallel with graph searches —
+  // a best-effort enrichment, never on the critical path. No vendor key needed.
+  const exaPromise: Promise<WebResult[]> = webSearch(intent, globalK).catch((err) => {
+    console.error("[search-resolve] web-search error:", (err as Error).message);
+    return [] as WebResult[];
+  });
 
   if (!domain) {
     let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
@@ -487,12 +557,11 @@ export async function searchIntent(
   // path (docs in STATS_KV `bm25-idx:<domain>`) carries the metadata we wrote
   // at index time, so RRF-fusing the two gives us identifiable, rescorable
   // results even when graph metadata is unavailable. Contract 8b2f65ea.
-  const normGlobal = normalizeDomain(env, "global");
   let results: SearchResult;
   try {
     const [graphSettled, bm25Settled] = await Promise.allSettled([
       graphSearch(env, "global", intent, k),
-      bm25Search(env, normGlobal, intent, k),
+      bm25SearchGlobal(env, intent, k),
     ]);
     const graphResults = graphSettled.status === "fulfilled" ? graphSettled.value : [];
     const bm25Results = bm25Settled.status === "fulfilled" ? bm25Settled.value : [];
@@ -621,12 +690,50 @@ export async function reindexSkill(
 }
 
 /** Remove a skill's vectors from the graph index. */
+/** Remove a skill's docs from the BM25 KV index — the per-domain key, the skill's
+ * global shard, and the legacy global key. Without this, the graph deletes below leave
+ * the KV/BM25 docs in place, so a deleted, deprecated, or taken-down skill stays
+ * searchable in /v1/search forever (the KV path is now the authoritative index). With
+ * endpointIds, only those `${skillId}:${epId}` docs are removed; otherwise every doc
+ * whose id starts with `${skillId}:` is removed. (John 15:2 — bear no fruit, be taken away.) */
+async function removeFromBm25Index(
+  env: Env,
+  skillId: string,
+  domain: string,
+  endpointIds?: string[],
+): Promise<void> {
+  const toRemove = endpointIds && endpointIds.length > 0
+    ? new Set(endpointIds.map((ep) => `${skillId}:${ep}`))
+    : null;
+  const keep = (id: string): boolean =>
+    toRemove ? !toRemove.has(id) : !id.startsWith(`${skillId}:`);
+  const g = normalizeDomain(env, "global");
+  const keys = [
+    `bm25-idx:${normalizeDomain(env, domain)}`,   // per-domain index
+    globalShardKey(env, shardForId(skillId)),     // the skill's global shard
+    `bm25-idx:${g}`,                              // legacy global key (pre-shard back-compat)
+  ];
+  await Promise.all(keys.map(async (key) => {
+    try {
+      const raw = await env.STATS_KV.get(key);
+      if (!raw) return;
+      const docs = JSON.parse(raw) as Bm25Doc[];
+      const filtered = docs.filter((doc) => keep(doc.id));
+      if (filtered.length !== docs.length) await env.STATS_KV.put(key, JSON.stringify(filtered));
+    } catch { /* corrupt key — a future write self-heals; never throw from a delete */ }
+  }));
+  // Removing docs from the index must also invalidate cached search results, or
+  // /v1/search keeps serving the just-removed skill for up to SEARCH_CACHE_TTL.
+  invalidateSearchCache();
+}
+
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
   const d = normalizeDomain(env, domain);
   const g = normalizeDomain(env, "global");
   await Promise.all([
     edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }),
     edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }),
+    removeFromBm25Index(env, skillId, domain), // BM25 KV — the authoritative search index
   ]);
 }
 
@@ -646,7 +753,7 @@ export async function removeEndpointsFromIndex(
       edbRequest(env, "POST", "/graph/delete", { domain: g, id }),
     ];
   });
-  await Promise.all(deletes);
+  await Promise.all([...deletes, removeFromBm25Index(env, skillId, domain, endpointIds)]);
 }
 
 /** Purge all endpoint vectors for a skill from both domain and global indexes. */
@@ -674,6 +781,8 @@ export async function purgeSkillVectors(
     edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }).catch(() => {}),
     edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }).catch(() => {}),
   );
+  // Purge the skill's BM25 KV docs too — graph deletes alone leave it searchable.
+  deletes.push(removeFromBm25Index(env, skillId, domain).catch(() => {}));
 
   await Promise.all(deletes);
   return { deleted: endpointIds.length };

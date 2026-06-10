@@ -973,12 +973,26 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
       );
     } catch (err) {
       const msg = (err as Error).message ?? "";
-      if (!wallet.wallet_address || !msg.includes("wallet_already_claimed")) throw err;
-      console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
-      registeredWallet = {};
-      registration = await api<{ agent_id: string; api_key: string }>(
-        "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
-      );
+      if (wallet.wallet_address && msg.includes("wallet_already_claimed")) {
+        console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else if (msg.includes("flex_onboarding_incomplete")) {
+        // Fresh install with no wallet/Flex onboarding (the default). The full
+        // register is Flex-gated, but publishing must not wait on a wallet: fall
+        // back to the L1 anonymous endpoint, which mints a usable api_key in one
+        // call so captures publish to the official cloud by default. Identity is
+        // wallet-first — the wallet attaches later (L2) to WRAP this key for
+        // earnings (POST /v1/agents/wallet). See backend /v1/agents/register-anon.
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register-anon", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else {
+        throw err;
+      }
     }
     const { agent_id, api_key } = registration;
 
@@ -1406,6 +1420,24 @@ export async function listSkills(): Promise<SkillManifest[]> {
   return data.skills;
 }
 
+/**
+ * Normalize a skill's auth_profile_ref to the backend's required self-scoped form
+ * (`auth:<domain>`). The CLI's internal credential form is `<domain>-session`; the
+ * security validator rejects anything that isn't `auth:<skill.domain>`, so an
+ * un-normalized publish 400s and silently falls back to local cache. This maps any
+ * non-`auth:` ref to `auth:<domain>` — which also FORCES self-scoping, so a malicious
+ * `victim-bank.com-session` ref on a shop.example skill becomes `auth:shop.example`,
+ * never loading another domain's cookies. Refs already in `auth:` form pass through
+ * unchanged (idempotent); a missing ref or missing domain is left as-is.
+ */
+export function normalizePublishedAuthRef(
+  authRef: string | undefined,
+  domain: string | undefined,
+): string | undefined {
+  if (authRef && domain && !authRef.startsWith("auth:")) return `auth:${domain}`;
+  return authRef;
+}
+
 export async function publishSkill(
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
     skill_id?: string;
@@ -1430,8 +1462,14 @@ export async function publishSkill(
   if (proofCount > 0) {
     proofHeaders["X-Unbrowse-Zk-Proof-Count"] = String(proofCount);
   }
+  // Normalize the OUTGOING auth_profile_ref to the backend's self-scoped form so the
+  // publish isn't rejected (see normalizePublishedAuthRef). Local storage/lookup are
+  // untouched — execution lookup already tries `auth:<domain>` first — so no re-auth.
+  const normalizedRef = normalizePublishedAuthRef(draft.auth_profile_ref, draft.domain);
+  const publishDraft =
+    normalizedRef === draft.auth_profile_ref ? draft : { ...draft, auth_profile_ref: normalizedRef };
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
-    ...draft,
+    ...publishDraft,
     ...(wallet.wallet_address ? wallet : {}),
   }, { timeoutMs: PUBLISH_TIMEOUT_MS, extraHeaders: proofHeaders });
 

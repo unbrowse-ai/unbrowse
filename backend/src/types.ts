@@ -3,12 +3,21 @@ export interface Env {
   LANDING_PUBLISH_KEY?: string;
   /** Shared secret for /v1/blog/publish. Set via `wrangler secret put BLOG_PUBLISH_KEY`. */
   BLOG_PUBLISH_KEY?: string;
-  DATABASE_URL?: string;
   EMERGENTDB_API_KEY: string;
   EMERGENTDB_TIMEOUT_MS?: string;
   /** BUG-011 (contract 311771e1): per-value byte cap for EdbKV.put. Default 10240. */
   EMERGENTDB_MAX_VALUE_BYTES?: string;
+  /**
+   * Internal canonical-anchor ordering (services/bible-anchor.ts). When "1",
+   * resolve results are sequenced by their nearest canonical anchor at the
+   * presentation boundary, behind the apophenia confidence gate. Default unset
+   * = OFF (pure relevance order). Requires the bible-chapters domain to be
+   * seeded (scripts/seed-bible-chapters.ts).
+   */
+  BIBLE_ANCHOR_ORDER?: string;
   NEBIUS_API_KEY: string;
+  /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */
+  OPENROUTER_API_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GITHUB_PR_BOT_TOKEN?: string;
   GITHUB_PR_BOT_LABEL?: string;
@@ -268,8 +277,6 @@ export interface Env {
   CLOUDFLARE_ZONE_ID?: string;
   /** Optional GitHub PAT for traction stats fetch. Raises rate limit to 5000/hr. */
   GITHUB_TOKEN?: string;
-  /** Exa web search — parallel step in resolve, surfaces highlights when marketplace misses. */
-  EXA_API_KEY?: string;
   /**
    * Master key-encryption-key for the per-account cookie vault (L4). The
    * vault wraps each user's random data key with AES-GCM under this secret
@@ -476,6 +483,16 @@ export interface Env {
    * the paid Nebius tiers are unavailable; mirrors aiko-ebllm's free lane.
    */
   NVIDIA_API_KEY?: string;
+  /**
+   * Optional STRONG research tier for the contract LLM chain — a stronger brain
+   * for accuracy-critical paths, OFF by default. Set RESEARCH_LLM_MODEL +
+   * RESEARCH_LLM_API_KEY (+ optional RESEARCH_LLM_URL, default OpenRouter) to
+   * lead the chain with it; the free nano-9b stays the default when unset so
+   * normal traffic never bills a per-request frontier model.
+   */
+  RESEARCH_LLM_MODEL?: string;
+  RESEARCH_LLM_API_KEY?: string;
+  RESEARCH_LLM_URL?: string;
   /**
    * Optional override for the unbrowse-llm chat URL (used by the
    * lightweight `getUnbrowseLlmBinding` helper). The three-tier

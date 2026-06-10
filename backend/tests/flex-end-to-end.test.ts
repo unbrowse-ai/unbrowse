@@ -29,14 +29,21 @@
  * `createFlexFacilitator` impl and `test.skip`'d.
  */
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, test } from "bun:test";
 
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
 
+// Capture real sponsor-pay before mocking; mock.module is global and persists
+// (mock.restore() does not undo it) — re-install the real module in afterAll so
+// the stubbed sendSponsorPayment never leaks into sibling sponsor tests.
+import * as _realSponsorPay from "../src/services/sponsor-pay.js";
+const _REAL_SPONSOR_PAY = { ..._realSponsorPay };
 // Module-level fake for the sponsor-pay seam (matches x402-end-to-end.test.ts).
 mock.module("../src/services/sponsor-pay.js", () => ({
+  ..._REAL_SPONSOR_PAY,
   sendSponsorPayment: async () => ({ success: true, signature: "0xsig-flex-e2e" }),
 }));
+afterAll(() => { mock.module("../src/services/sponsor-pay.js", () => _REAL_SPONSOR_PAY); mock.restore(); });
 
 import app from "../src/index.js";
 import { publicSkillRoutes } from "../src/routes/skills.js";

@@ -5,8 +5,9 @@ import { listAgents, countAgents } from "../services/agents.js";
 import { reindexSkill, removeSkillFromIndex, purgeSkillVectors } from "../services/discovery.js";
 import { backfillFromProfiles } from "../services/analytics.js";
 import { summarizeEmergentDBError } from "../services/emergentdb.js";
-import { skillsKV, statsKV, EdbKV } from "../services/kv.js";
+import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { seedBibleChaptersBatch, type ChapterSeed } from "../services/bible-anchor.js";
 import { deleteHttpCache } from "../services/http-cache.js";
 
 export const opsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
@@ -89,6 +90,31 @@ opsRoutes.post("/ops/migrate-index", bearerAuth, async (c) => {
   ]);
 
   return c.json({ ok: true, message: "Split indexes deleted. Next read will re-migrate from legacy _idx." });
+});
+
+/**
+ * POST /v1/ops/seed-bible-chapters — admin: seed a batch of canonical chapters
+ * into the bible-chapters vector namespace + KV sidecar, server-side, using the
+ * worker's own EmergentDB + Nebius secrets (so the prod account is seeded
+ * without its key leaving the worker). Idempotent; post in batches of <=60.
+ * Body: { chapters: [{ idx:number, ref:string, text:string }] }
+ * Powers the internal bible-anchor ordering organ (services/bible-anchor.ts).
+ */
+opsRoutes.post("/ops/seed-bible-chapters", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  const body = await c.req.json<{ chapters?: ChapterSeed[] }>().catch(() => null);
+  const chapters = body?.chapters;
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    return c.json({ error: "chapters[] required, each {idx, ref, text}" }, 400);
+  }
+  if (chapters.length > 60) {
+    return c.json({ error: "max 60 chapters per batch (Worker CPU budget)" }, 400);
+  }
+  const result = await seedBibleChaptersBatch(c.env, chapters);
+  return c.json({ ok: true, ...result });
 });
 
 // Debug: check what Nebius embedding returns (staging only)
@@ -350,208 +376,4 @@ opsRoutes.post("/ops/backfill-analytics", bearerAuth, async (c) => {
   }
   const result = await backfillFromProfiles(c.env);
   return c.json(result);
-});
-
-/**
- * POST /v1/ops/migrate-pgkv-to-edb — port PgKV (Neon) rows into EmergentDB qdkv.
- *
- * Contract e65c7118. The Worker has DATABASE_URL + EMERGENTDB_API_KEY bound,
- * which lets us run the migration server-side without exposing those secrets
- * to a developer machine. Idempotent (qdkv/set is upsert); resumable via the
- * `offset` body field.
- *
- * Body:
- *   - dry_run    (bool, default false) — count rows, no writes
- *   - namespace  (string, optional)    — limit to one namespace
- *   - offset     (int, default 0)      — start cursor across namespaces
- *   - max_rows   (int, default 500)    — soft cap per call (CF Worker CPU budget)
- *
- * Returns { namespaces: [{name, total, written, failed, examples_failed}],
- *           next_offset, has_more, written_total, failed_total }
- *
- * Auth: bearerAuth + agent_id === "__admin__" (same as /v1/ops/reindex).
- */
-type MigBody = {
-  dry_run?: boolean;
-  namespace?: string;
-  offset?: number;
-  max_rows?: number;
-};
-opsRoutes.post("/ops/migrate-pgkv-to-edb", bearerAuth, async (c) => {
-  const agentId = c.get("agent_id");
-  if (agentId !== "__admin__") {
-    return c.json({ error: "Admin only" }, 403);
-  }
-  if (!c.env.DATABASE_URL?.trim()) {
-    return c.json({ error: "DATABASE_URL not bound on this worker" }, 400);
-  }
-  if (!c.env.EMERGENTDB_API_KEY?.trim()) {
-    return c.json({ error: "EMERGENTDB_API_KEY not bound on this worker" }, 400);
-  }
-
-  const body: MigBody = (await c.req.json<MigBody>().catch(() => ({} as MigBody))) as MigBody;
-  const dryRun = Boolean(body.dry_run);
-  const namespaceFilter = (body.namespace ?? "").trim() || null;
-  const offset = Math.max(0, Number.isFinite(body.offset) ? Number(body.offset) : 0);
-  const maxRows = Math.min(2000, Math.max(50, Number.isFinite(body.max_rows) ? Number(body.max_rows) : 500));
-
-  const { getNeonClient } = await import("../services/neon.js");
-  const sql = await getNeonClient(c.env.DATABASE_URL);
-
-  type NsRow = { namespace: string; n: number };
-  const allRows = (await sql`
-    SELECT namespace, COUNT(*)::int AS n
-    FROM app_kv
-    GROUP BY namespace
-    ORDER BY namespace
-  `) as Array<NsRow>;
-  const targets = namespaceFilter
-    ? allRows.filter((r) => r.namespace === namespaceFilter)
-    : allRows;
-
-  if (targets.length === 0) {
-    return c.json({
-      error: "no_namespaces_to_migrate",
-      filter: namespaceFilter,
-      all_namespaces: allRows,
-    }, 404);
-  }
-
-  if (dryRun) {
-    return c.json({
-      dry_run: true,
-      all_namespaces: allRows,
-      targets,
-      total_rows: targets.reduce((s, r) => s + r.n, 0),
-    });
-  }
-
-  // Use the EdbKV class — it carries the BUG-011 pre-write size gate
-  // (qdkv/set returns {ok:true} for values > 10KB but silently drops them).
-  // Going via raw fetch here would re-introduce the silent-drop on large
-  // skill manifests; routing through EdbKV makes the failure LOUD.
-  // EmergentDB rate-limits CF Worker traffic per-isolate; we still chunk
-  // the writes to stay under the CPU budget.
-  const namespaceResults: Array<{
-    namespace: string;
-    total: number;
-    written: number;
-    failed: number;
-    oversize: number;
-    examples_failed: string[];
-  }> = [];
-
-  let remaining = maxRows;
-  let cursorOffset = offset;
-  let hasMore = false;
-  let nextOffset = offset;
-
-  let consumed = 0;
-  for (const ns of targets) {
-    if (remaining <= 0) { hasMore = true; break; }
-    if (cursorOffset >= consumed + ns.n) {
-      consumed += ns.n;
-      continue;
-    }
-    const intraOffset = Math.max(0, cursorOffset - consumed);
-    const take = Math.min(remaining, ns.n - intraOffset);
-
-    const rows = (await sql`
-      SELECT key, value
-      FROM app_kv
-      WHERE namespace = ${ns.namespace}
-        AND (expires_at IS NULL OR expires_at > NOW())
-      ORDER BY key
-      OFFSET ${intraOffset}
-      LIMIT ${take}
-    `) as Array<{ key: string; value: string }>;
-
-    // Instantiate EdbKV per-namespace — its put() carries the BUG-011 size
-    // gate (refuses to send > EMERGENTDB_MAX_VALUE_BYTES, default 10 KB).
-    // qdkv/set returns ok:true even on silent-drop above the limit, so
-    // raw-fetch writes would report success while losing the data.
-    const edb = new EdbKV(c.env.EMERGENTDB_API_KEY, ns.namespace);
-    let written = 0;
-    let failed = 0;
-    let oversize = 0;
-    const examplesFailed: string[] = [];
-    // CHUNK_SIZE=6 stays gentle on EmergentDB's per-isolate rate limit
-    // (empirically 16 → 50% 429s; 6 → near-zero 429s). 429 retry once.
-    const CHUNK_SIZE = 6;
-    const writeOne = async (row: { key: string; value: string }): Promise<{ ok: true } | { ok: false; reason: string; oversize?: boolean }> => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          await edb.put(row.key, row.value);
-          return { ok: true };
-        } catch (err) {
-          const msg = (err as Error).message;
-          if (msg.startsWith("value_too_large")) {
-            return { ok: false, reason: msg.slice(0, 80), oversize: true };
-          }
-          if (msg.includes("429") && attempt === 0) {
-            await new Promise((res) => setTimeout(res, 250));
-            continue;
-          }
-          if (attempt === 0) {
-            await new Promise((res) => setTimeout(res, 250));
-            continue;
-          }
-          return { ok: false, reason: msg.slice(0, 80) };
-        }
-      }
-      return { ok: false, reason: "retry exhausted" };
-    };
-    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-      const chunk = rows.slice(i, i + CHUNK_SIZE);
-      const results = await Promise.allSettled(chunk.map(async (row) => ({ row, res: await writeOne(row) })));
-      for (const settled of results) {
-        if (settled.status === "fulfilled") {
-          const { row, res } = settled.value;
-          if (res.ok) {
-            written++;
-          } else {
-            failed++;
-            if (res.oversize) oversize++;
-            if (examplesFailed.length < 5) {
-              examplesFailed.push(`${row.key.slice(0, 60)} :: ${res.reason}`);
-            }
-          }
-        } else {
-          failed++;
-          if (examplesFailed.length < 5) {
-            examplesFailed.push(`network :: ${String(settled.reason).slice(0, 60)}`);
-          }
-        }
-      }
-    }
-
-    namespaceResults.push({
-      namespace: ns.namespace,
-      total: ns.n,
-      written,
-      failed,
-      oversize,
-      examples_failed: examplesFailed,
-    });
-
-    consumed += ns.n;
-    cursorOffset += rows.length;
-    nextOffset = cursorOffset;
-    remaining -= rows.length;
-    if (intraOffset + rows.length < ns.n) { hasMore = true; break; }
-  }
-
-  if (!hasMore) {
-    const totalAcrossAll = allRows.reduce((s, r) => s + r.n, 0);
-    if (nextOffset < totalAcrossAll) hasMore = true;
-  }
-
-  return c.json({
-    dry_run: false,
-    next_offset: nextOffset,
-    has_more: hasMore,
-    namespaces: namespaceResults,
-    written_total: namespaceResults.reduce((s, r) => s + r.written, 0),
-    failed_total: namespaceResults.reduce((s, r) => s + r.failed, 0),
-  });
 });

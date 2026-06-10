@@ -196,14 +196,8 @@ export default {
   fetch: app.fetch,
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(flushQueuedGithubNotifications(env));
-    ctx.waitUntil(
-      import("./jobs/triage-telemetry.js").then(({ runTelemetryTriage }) =>
-        runTelemetryTriage(env).then(
-          (r) => console.log("[triage-telemetry]", JSON.stringify(r)),
-          (e) => console.error("[triage-telemetry] failed:", e instanceof Error ? e.message : String(e)),
-        ),
-      ),
-    );
+    // [triage-telemetry] retired with the Neon->IQ migration — its source was
+    // a Postgres GROUP BY over telemetry_sessions, which no longer exists.
     // Vine buyback trigger (Malachi 3:10 storehouse signal).
     // Reads PAYMENT_RECIPIENT USDC balance; emits a structured
     // "buyback:fire" log when ≥ threshold so the operator (or future

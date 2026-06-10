@@ -67,7 +67,7 @@ import { statsKV } from "./kv.js";
 /**
  * Minimal KV interface — matches the shape returned by `statsKV(env)`.
  * Declared here as a structural type so tests can inject an in-memory
- * stub without dragging the full PgKV/EdbKV/LocalKV chain.
+ * stub without dragging the full EdbKV/LocalKV chain.
  */
 export interface UptoSplitsKV {
   get(key: string): Promise<string | null>;

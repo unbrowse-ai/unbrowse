@@ -495,8 +495,9 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
  *      handler stamps `reviewed_at` and re-runs this predicate.
  *
  * `auto_review=true` short-circuits door 2: heuristic-described skills are
- * accepted as-is. The caller is expected to stamp `reviewed_at` before
- * persisting so the marketplace receives a normal manifest.
+ * accepted as-is and publish WITHOUT a `reviewed_at` stamp. `reviewed_at`
+ * is provenance — it records that an actual `unbrowse_review` happened —
+ * so auto-published manifests must never carry it.
  *
  * Returns the decision plus a human-readable reason that callers can log
  * or surface to the agent. Exported so unit tests can exercise all doors
@@ -535,12 +536,10 @@ export function shouldPublishAfterIndex(
 }
 
 async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
-  // auto_review: stamp reviewed_at BEFORE indexing so persistence captures it.
-  // The publish gate below then sees reviewed_at set and returns ok.
+  // auto_review publishes through the gate's auto_review door WITHOUT
+  // stamping reviewed_at — that field records an actual unbrowse_review,
+  // and forging it here would make unreviewed manifests claim review.
   const { contribution } = getContributionConfig();
-  if (job.publishAfterIndex && contribution.auto_review && !job.skill.reviewed_at) {
-    job.skill.reviewed_at = new Date().toISOString();
-  }
 
   const indexed = await indexSkillLocally(job);
   console.error(`[capture-pipeline] local index completed for ${indexed.domain} -> ${indexed.skill.skill_id}`);

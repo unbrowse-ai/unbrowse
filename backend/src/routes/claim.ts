@@ -17,7 +17,8 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
 import { statsKV, skillsKV } from "../services/kv.js";
-import { listSkills } from "../services/marketplace.js";
+import { listSkills, invalidateSkillListCaches } from "../services/marketplace.js";
+import { purgeSkillVectors } from "../services/discovery.js";
 import { stampOwnerOnDomainSkills } from "../services/domain-claim-effects.js";
 import {
   buildBindingKey,
@@ -539,6 +540,16 @@ claimRoutes.post("/claim/takedown/verify", async (c) => {
   const updatedAt = new Date().toISOString();
   let disabledCount = 0;
   for (const skill of matching) {
+    // Purge the skill from the search index (graph + BM25 KV) so a taken-down domain's
+    // skills actually LEAVE /v1/search — disabling lifecycle alone only hides them from
+    // list views, not from direct search. purgeSkillVectors also invalidates the search
+    // cache. Done for already-disabled skills too (back-fill skills disabled before this fix).
+    await purgeSkillVectors(
+      c.env,
+      skill.skill_id,
+      (skill.endpoints ?? []).map((ep) => ep.endpoint_id),
+      skill.domain ?? domain,
+    ).catch(() => {});
     if (skill.lifecycle === "disabled") {
       disabledCount += 1;
       continue;
@@ -551,6 +562,8 @@ claimRoutes.post("/claim/takedown/verify", async (c) => {
       .catch(() => {});
     disabledCount += 1;
   }
+  // List/card caches must drop the now-disabled skills too.
+  await invalidateSkillListCaches(c.env).catch(() => {});
 
   // Persistent opt-out record. NO TTL — once a domain opts out, the publish
   // path stays gated indefinitely until an admin manually clears the key.

@@ -13,14 +13,14 @@ import {
 } from "../src/services/metrics.js";
 import { recordGraphFee } from "../src/services/fees.js";
 import { recordPerf } from "../src/services/perf.js";
-import { skillsKV, statsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, skillsKV, statsKV } from "../src/services/kv.js";
 
 const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function isoDaysAgo(days: number): string {
@@ -73,6 +73,8 @@ describe("canonical analytics metrics", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("stats");
+    clearKVCacheForTests("skills-v2");
     await Promise.all([
       statsKV(env).resetSplitIndex(),
       skillsKV(env).resetSplitIndex(),

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
 import type { Env } from "../src/types.js";
-import { statsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, statsKV } from "../src/services/kv.js";
 import {
   getLandingHomepageExperimentConfig,
   mintLandingHomepageToken,
@@ -13,7 +13,7 @@ const env: Env = {
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function isoHoursAgo(hours: number): string {
@@ -56,6 +56,7 @@ describe("landing homepage experiments", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests();
     await statsKV(env).resetSplitIndex();
   });
 

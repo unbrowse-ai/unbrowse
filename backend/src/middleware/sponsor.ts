@@ -187,7 +187,7 @@ function todayUtc(now: Date): string {
  * Prefers statsKV(env) (Pg / EmergentDB / LocalKV per env). Falls back to the
  * raw env.STATS_KV (CloudFlare KVNamespace) when statsKV() is unavailable —
  * keeps unit tests that pass a hand-rolled KV-shaped object working even when
- * EMERGENTDB_API_KEY / DATABASE_URL aren't set. */
+ * EMERGENTDB_API_KEY isn't set. */
 async function readSpend(env: Env, key: string): Promise<number> {
   try {
     let raw: string | null = null;
