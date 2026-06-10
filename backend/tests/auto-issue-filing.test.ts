@@ -17,7 +17,7 @@ import {
   buildIssueTemplate,
   ISSUE_FILING_THRESHOLD,
 } from "../src/services/issues.js";
-import { statsKV } from "../src/services/kv.js";
+import { statsKV, clearKVCacheForTests } from "../src/services/kv.js";
 import app from "../src/index.js";
 import type { Env } from "../src/types.js";
 
@@ -29,8 +29,7 @@ const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
-  STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function createMockFetch(store: Map<string, string>) {
@@ -160,6 +159,7 @@ describe("POST /v1/issues/auto-file", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("stats");
     await statsKV(env).resetSplitIndex();
   });
 

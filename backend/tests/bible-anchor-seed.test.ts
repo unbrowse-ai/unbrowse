@@ -7,6 +7,11 @@ import * as _realKv from "../src/services/kv.js";
 import * as _realEdb from "../src/services/emergentdb.js";
 const _REAL_KV = { ..._realKv };
 const _REAL_EDB = { ..._realEdb };
+// globalThis.fetch is patched below (embedOK / the 503 stub) and, like
+// mock.module, does NOT auto-restore between files — an un-restored stub here
+// answers every later sibling's real fetch (e.g. v7-covenant-endpoint's real
+// Bun.serve /op round-trip) with a 503, failing it. Capture + restore in afterAll.
+const _REAL_FETCH = globalThis.fetch;
 
 // Witness for the server-side seed (services/bible-anchor.ts seedBibleChaptersBatch,
 // the engine behind POST /v1/ops/seed-bible-chapters). The substrate is mocked: it
@@ -61,6 +66,7 @@ afterAll(() => {
   mock.module("../src/services/kv.js", () => _REAL_KV);
   mock.module("../src/services/emergentdb.js", () => _REAL_EDB);
   mock.restore();
+  globalThis.fetch = _REAL_FETCH;
 });
 
 function embedOK() {

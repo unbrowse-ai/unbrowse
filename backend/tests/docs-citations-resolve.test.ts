@@ -251,11 +251,11 @@ describe("docs/Step-3 citations resolve to real file:line", () => {
       { path: "backend/src/services/flex.ts", start: 66 },
       { path: "backend/src/types.ts", start: 437 },
       { path: "backend/src/types.ts", start: 516, end: 531 },
-      // Step 5 (PR #480): the page shrank from 285 lines to 39 when it
-      // became a markdown renderer. The lobster-cash citation now lives
-      // in docs/HOW_UNBROWSE_PAYS.md itself; the guard pins the renderer
-      // module as the new structural anchor.
-      { path: "frontend/src/lib/docs-renderer.ts" },
+      // (Removed) frontend/src/lib/docs-renderer.ts was dropped when
+      // docs/HOW_UNBROWSE_PAYS.md was rewritten in cc76bc38 ("align the
+      // public surface on the free-discovery + x402 story"); the doc no
+      // longer cites that module (grep -> 0 hits), so it is no longer a
+      // canonical anchor.
       { path: "backend/src/routes/auth.ts", start: 53, end: 172 },
       { path: "backend/src/routes/claim.ts" },
       { path: "backend/src/services/domain-claim.ts" },
