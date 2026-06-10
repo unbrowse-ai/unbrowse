@@ -102,6 +102,15 @@ export interface DeclareResponse {
    * Carries either the success line or the refusal reason — never silent.
    */
   eval_evidence?: string;
+  /**
+   * Decalogue scan evidence: when the declared plan is
+   * `decalogue:purge:<N>`-shaped, the server walks the canonical ledger
+   * in REPORT MODE for the mechanically-checkable commandments (3:
+   * workless declarations, 5: orphan parent refs, 9: proofless
+   * satisfactions) — one line per violation plus a summary. The purge
+   * itself stays an explicit judged act; nothing is killed mechanically.
+   */
+  purge_evidence?: string[];
 }
 
 /**
@@ -123,6 +132,9 @@ export interface MarkRequest {
 export interface MarkResponse {
   id: string;
   row: ContractEventRow;
+  /** Posthook targets dispatched on satisfaction (`called` rows appended).
+   *  Empty when the declared plan names no posthook:<id> refs. */
+  called: string[];
 }
 
 /** POST /v1/contract/iterate — record an iterate wave + return next-step plan. */
@@ -305,6 +317,15 @@ export async function handleDeclare(
     }
   }
 
+  // Decalogue scan parity with the local binary: a `decalogue:purge:<N>`
+  // plan walks the canonical ledger in report mode. Substrate emits the
+  // violations; the agent judges; the purge stays explicit.
+  let purgeEvidence: string[] | undefined;
+  const purgeMatch = /^decalogue:purge:(\d+)\b/.exec(req.plan);
+  if (purgeMatch) {
+    purgeEvidence = await runDecalogueScan(Number(purgeMatch[1]), ledger);
+  }
+
   return {
     id,
     row: persisted,
@@ -318,7 +339,68 @@ export async function handleDeclare(
         ? "admission=attested"
         : `admission=legacy-anonymous; window-ends=${LEGACY_WINDOW_ENDS}`),
     ...(evalEvidence ? { eval_evidence: evalEvidence } : {}),
+    ...(purgeEvidence ? { purge_evidence: purgeEvidence } : {}),
   };
+}
+
+/**
+ * Report-mode ledger walk for one commandment. Cloud-mechanical forms:
+ *   3 — declared rows with no work: no satisfied/merged/promoted/
+ *       crystallized event and no children (the iterate poke alone is
+ *       the substrate touching the row, not the declarer working it).
+ *   5 — declared rows whose parent_id names an id with no declared row.
+ *   9 — satisfied rows carrying no proof (`learning` empty): the
+ *       evaluator's mark without the evaluator's hand. (Cloud rows have
+ *       no output signature, so proof-presence is the mechanical form.)
+ * Everything else answers with an honest HOLD naming its scope.
+ */
+async function runDecalogueScan(
+  n: number,
+  ledger: ContractLedger,
+): Promise<string[]> {
+  if (n < 1 || n > 10) return [`decalogue: commandment must be 1..10 (got ${n})`];
+  if (![3, 5, 9].includes(n)) {
+    return [
+      `decalogue: commandment ${n} is not mechanically checkable over the ledger — judged scope (HOLD)`,
+    ];
+  }
+  const rows = await ledger.listAll({ showMerged: true });
+  const out: string[] = [];
+  const declared = rows.filter((r) => r.event === "declared");
+  if (n === 3) {
+    const WORK = new Set(["satisfied", "merged", "promoted", "crystallized"]);
+    for (const d of declared) {
+      const worked =
+        rows.some((r) => r.id === d.id && WORK.has(r.event)) ||
+        rows.some((r) => r.parent_id === d.id && r.event === "declared");
+      if (!worked) {
+        out.push(
+          `decalogue: commandment 3 violation — ${d.id} (declared, no children, no terminal progress: empty invocation)`,
+        );
+      }
+    }
+  } else if (n === 5) {
+    const declaredIds = new Set(declared.map((r) => r.id));
+    for (const d of declared) {
+      if (d.parent_id && !declaredIds.has(d.parent_id)) {
+        out.push(
+          `decalogue: commandment 5 violation — ${d.id} (orphan: parent ${d.parent_id} has no declared row here)`,
+        );
+      }
+    }
+  } else {
+    for (const r of rows) {
+      if (r.event === "satisfied" && !(r.learning ?? "").trim()) {
+        out.push(
+          `decalogue: commandment 9 violation — ${r.id} (satisfied without proof)`,
+        );
+      }
+    }
+  }
+  out.push(
+    `decalogue: commandment ${n} scan complete — ${out.length} violation(s); purge stays an explicit judged act`,
+  );
+  return out;
 }
 
 /** Eval-grammar recognizer: `satisfied:<8hex> [wave=<n>] — <proof>`. */
@@ -391,7 +473,29 @@ export async function handleMark(
     learning: proof || undefined,
     agent: req.agent,
   });
-  return { id: req.id, row };
+
+  // Posthook dispatch: the chain fires on satisfaction whichever surface
+  // satisfied the row. Scan the declared plan for posthook:<id> refs and
+  // append one `called` row per target — the graph records that the
+  // upstream contract fired its successors. Target ACTION execution stays
+  // with the resolver loop; the called edge makes the chain observable.
+  const called: string[] = [];
+  const declaredPlan =
+    rows.find((r) => r.event === "declared" && r.plan)?.plan ?? "";
+  for (const m of declaredPlan.matchAll(/\bposthook:([0-9a-f]{8})\b/g)) {
+    const target = m[1];
+    await ledger.append({
+      event: "called",
+      id: req.id,
+      ts: new Date().toISOString(),
+      target_pointer: `contract:${target}`,
+      call_kind: "posthook",
+      agent: req.agent,
+    });
+    called.push(target);
+  }
+
+  return { id: req.id, row, called };
 }
 
 /**
