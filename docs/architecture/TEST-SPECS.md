@@ -90,9 +90,9 @@
 ## 8. Wallets & OWS (AC-WAL-*)
 | Spec | Status |
 |---|---|
-| Resolution precedence (OWS → lobster → generic → Privy → none) | **GAP** — unit on `getWalletContext()` matrix |
-| OWS policy engine: deny blocks, warn allows+logs, expiry honored | **GAP** — unit on `src/payments/ows.ts` |
-| OWS vault parsing (CAIP-10 accounts, first-EVM pick, env override) | **GAP** |
+| Resolution precedence (OWS → lobster → generic → Privy → none) | partial — adapter-level precedence in `tests/x402-fetch-outcomes.test.ts`; full `getWalletContext()` matrix still open |
+| OWS policy engine: deny blocks, warn allows+logs, expiry honored | **Exists** — `tests/ows-vault-policy.test.ts` (AND-combined rules, expiry, empty set) |
+| OWS vault parsing (CAIP-10 accounts, first-EVM pick, env override) | **Exists** — `tests/ows-vault-policy.test.ts` (both camelCase and snake_case shapes, corrupt-blob skip, hermetic OWS_HOME) |
 | `unbrowse wallet` mismatch detection is read-only | **GAP** |
 | Provider choice persists + syncs; non-interactive skip | **GAP** — partial coverage via CLI e2e (`tests/cli-e2e.test.ts`) |
 | lobster CLI absent → graceful fallback (no hang) | **GAP** |
@@ -151,8 +151,9 @@
    states are covered by `tests/x402-fetch-outcomes.test.ts`.
 3. ~~Key verification/revocation direct units + kill switch~~ — closed by
    `backend/tests/keys-service.test.ts`.
-4. **Wallet resolution + OWS policy units** (§8) — payment routing
-   correctness.
+4. **Wallet resolution units** (§8) — OWS policy/vault and adapter-level
+   precedence now covered; the full `getWalletContext()` provider matrix
+   remains open.
 5. **Toll ledger conservation/immutability units** (§10) — earnings
    integrity.
 6. **MCP protocol harness** (§11) — primary agent-facing surface.
