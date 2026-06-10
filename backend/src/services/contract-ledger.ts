@@ -39,7 +39,11 @@ export type ContractEventType =
   | "corroborated"
   | "learned"
   | "crystallized"
-  | "promoted";
+  | "promoted"
+  /** Hook dispatch record — the satisfied row fired a declared posthook. */
+  | "called"
+  /** Decalogue purge judgment — terminal-nullifying, audit-preserved. */
+  | "purged";
 
 /**
  * Pointer types — categorizes how the action resolves. `cli` runs a
@@ -126,6 +130,12 @@ export interface ContractEventRow {
   agent_verdict?: string | null;
   /** Child IDs spawned during this iterate. */
   children_spawned?: string[];
+
+  // called-event fields (posthook dispatch — the chain is observable)
+  /** Synapse-shaped pointer the dispatch targeted (e.g. contract:<id>). */
+  target_pointer?: string;
+  /** Dispatch class — "posthook" today; prehook/pretool reserved. */
+  call_kind?: string;
 
   // merged-event fields
   /** Winner id this row's contract was superseded into. */
