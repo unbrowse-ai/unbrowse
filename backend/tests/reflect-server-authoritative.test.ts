@@ -11,17 +11,20 @@
 import { createHmac } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
+import { clearKVCacheForTests } from "../src/services/kv.js";
 import type { Env, SkillManifest } from "../src/types.js";
 
 const env: Env = {
   API_KEY: "admin",
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
+  // Benign in-memory STATS_KV for any direct env.STATS_KV writers. Under
+  // local-dev the KV service uses in-memory LocalKV and never touches this.
   STATS_KV: {
     put: async () => {},
     get: async () => null,
   } as unknown as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
   REQUIRE_DOMAIN_VERIFICATION: "0",
   RELEASE_MANIFEST_SIGNING_SECRET: "release-secret",
 };
@@ -87,9 +90,21 @@ describe("reflect → server-authoritative reliability", () => {
   let store: Map<string, string>;
 
   beforeEach(() => {
+    clearKVCacheForTests();
     store = new Map();
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);
+      // ai-scrub fires a Nebius chat call on publish. Return a valid no-leak
+      // verdict so the scrub path completes cleanly instead of soft-failing.
+      if (url.hostname === "api.tokenfactory.nebius.com") {
+        if (url.pathname === "/v1/chat/completions") {
+          return Response.json({ choices: [{ message: { content: JSON.stringify({ leaks: [] }) } }] });
+        }
+        if (url.pathname === "/v1/embeddings") {
+          return Response.json({ data: [{ embedding: new Array(8).fill(0) }] });
+        }
+        return Response.json({ choices: [{ message: { content: "{}" } }] });
+      }
       if (url.hostname !== "api.emergentdb.com") {
         throw new Error(`Unexpected fetch: ${url.toString()}`);
       }
@@ -124,7 +139,11 @@ describe("reflect → server-authoritative reliability", () => {
     const res = await app.fetch(new Request("http://local.test/v1/skills", {
       method: "POST",
       headers: {
-        Authorization: "Bearer alpha123456",
+        // local-dev: verifyKey no longer blanket-accepts any bearer (that was
+        // staging-only), so authenticate as the env API_KEY admin to publish
+        // the fixture. The reflect/feedback assertions don't depend on the
+        // publisher's agent identity.
+        Authorization: "Bearer admin",
         "Content-Type": "application/json",
         ...signedReleaseHeaders(),
       },

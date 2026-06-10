@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
 import type { Env } from "../src/types.js";
 import { computeBottleneckMetrics, computePercentile, getBottleneckMetrics } from "../src/services/analytics.js";
-import { statsKV, skillsKV } from "../src/services/kv.js";
+import { statsKV, skillsKV, clearKVCacheForTests } from "../src/services/kv.js";
 
 const env: Env = {
   API_KEY: "admin",
@@ -105,12 +105,19 @@ describe("getBottleneckMetrics (KV-backed)", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    // Wipe the module-level kv caches (_cache + _localStores). resetSplitIndex
+    // only drops the index keys, NOT the seeded skill:* values a sibling test
+    // left in the shared in-memory store — those leaked skills/domains skew
+    // skills_per_domain (the cross-file isolation defect). Clear both, fully.
+    clearKVCacheForTests();
     await statsKV(env).resetSplitIndex();
     await skillsKV(env).resetSplitIndex();
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    // Don't leak THIS file's seeded skills into siblings either.
+    clearKVCacheForTests();
   });
 
   it("returns zero metrics when no perf data exists", async () => {

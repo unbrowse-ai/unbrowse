@@ -73,6 +73,11 @@ export interface SkillChatDeps {
    *  message — the shape the client populates. Optional — when absent, the
    *  result omits recommended_tool. */
   recommendTool?: (skill: SkillManifest, message: string) => Promise<HoledTool | null>;
+  /** Write-side (Layer 2): persist the resolved result as a ledger contract.
+   *  Fire-and-forget — the route schedules it AFTER the answer is on its way, so
+   *  a failure here never sinks the read-side answer. Optional — when absent,
+   *  the route skips persistence (the answer still ships). */
+  persistSkill?: (result: SkillChatResult) => Promise<void>;
 }
 
 /**
@@ -229,7 +234,41 @@ function liveDeps(env: Env): SkillChatDeps {
       const ep = (skill.endpoints ?? []).find((e) => typeof e?.endpoint_id === "string" && e.endpoint_id.length > 0);
       return ep ? endpointToHoledTool(skill, ep) : null;
     },
+    // Write-side (Layer 2): persist the resolved skill as a ledger contract.
+    // Identical to the previous inline schedule block — re-hydrate the skill,
+    // build the ledger + declare wiring, and seed the parent + per-endpoint child rows.
+    persistSkill: async (result) => {
+      const skill = (await getSkill(env, result.skill_id)) ?? (await getSkillByDomain(env, result.domain));
+      if (!skill) return;
+      const ledger = ledgerForRequest(env);
+      await persistSkillContract(
+        {
+          ledger,
+          declareParent: async (req) => (await handleDeclare(req, ledger, { admission: "legacy-anonymous" })).id,
+        },
+        skill,
+      );
+    },
   };
+}
+
+/** Production-safe DI seam. Defaults to `liveDeps` — production wiring is
+ *  unchanged. A test (or any caller) may inject a deps factory so the HTTP route
+ *  runs against a hermetic stub WITHOUT `mock.module` (which can't replace a
+ *  module a sibling test already evaluated — Bun's global-registry race). The
+ *  override is module-scoped and reset via `setSkillChatDeps(null)`. */
+let skillChatDepsFactory: ((env: Env) => SkillChatDeps) | null = null;
+
+/** Override the deps factory the route wires (testing seam). Pass `null` to
+ *  restore the live wiring. No effect on production unless explicitly called. */
+export function setSkillChatDeps(factory: ((env: Env) => SkillChatDeps) | null): void {
+  skillChatDepsFactory = factory;
+}
+
+/** Resolve the deps factory the route should use — the injected override when
+ *  set, otherwise the real `liveDeps`. */
+function depsFor(env: Env): SkillChatDeps {
+  return (skillChatDepsFactory ?? liveDeps)(env);
 }
 
 type ChatRouteEnv = { Bindings: Env; Variables: { agent_id?: string; user_id?: string } };
@@ -269,26 +308,18 @@ skillChatRoutes.post(
     // The actual work: resolve → ground → follow → answer + provenance, then async persist.
     const serve = async (): Promise<Response> => {
       try {
-        const result = await runSkillChat(liveDeps(c.env), input);
+        const deps = depsFor(c.env);
+        const result = await runSkillChat(deps, input);
         // Write-side (Layer 2): persist the resolved skill as a ledger contract,
         // ENTIRELY async so the answer is already on its way. Settles on next graph read.
-        schedule(
-          c,
-          (async () => {
-            const skill =
-              (await getSkill(c.env, result.skill_id)) ?? (await getSkillByDomain(c.env, result.domain));
-            if (!skill) return;
-            const ledger = ledgerForRequest(c.env);
-            await persistSkillContract(
-              {
-                ledger,
-                declareParent: async (req) =>
-                  (await handleDeclare(req, ledger, { admission: "legacy-anonymous" })).id,
-              },
-              skill,
-            );
-          })().catch((e) => console.warn("[skills-chat] persist deferred:", (e as Error).message)),
-        );
+        if (deps.persistSkill) {
+          schedule(
+            c,
+            deps
+              .persistSkill(result)
+              .catch((e) => console.warn("[skills-chat] persist deferred:", (e as Error).message)),
+          );
+        }
         return c.json(result);
       } catch (err) {
         if (err instanceof SkillChatError) {

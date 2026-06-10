@@ -5,7 +5,7 @@ import {
   flushQueuedGithubNotifications,
   verifyGithubWebhookSignature,
 } from "../src/services/github-webhooks.js";
-import { statsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, statsKV } from "../src/services/kv.js";
 
 const env: Env = {
   API_KEY: "admin",
@@ -18,7 +18,7 @@ const env: Env = {
   TELEGRAM_BOT_TOKEN: "tg-token",
   TELEGRAM_CHAT_ID: "1234",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 const sampleSecret = "It's a Secret to Everybody";
@@ -163,6 +163,7 @@ describe("github webhook automation", () => {
     state.dispatches = [];
     globalThis.fetch = createMockFetch(store, state) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("stats");
     await statsKV(env).resetSplitIndex();
   });
 
