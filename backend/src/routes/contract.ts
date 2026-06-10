@@ -95,6 +95,34 @@ export interface DeclareResponse {
   memory_chain: string[];
   admission_evidence: string;
   compile_evidence?: string;
+  /**
+   * Eval-grammar evidence: when the declared plan is `satisfied:<id>`-
+   * shaped, the server also attempts to land the satisfied event on the
+   * canonical target row (parity with the local binary's goal grammar).
+   * Carries either the success line or the refusal reason — never silent.
+   */
+  eval_evidence?: string;
+}
+
+/**
+ * POST /v1/contract/mark — the KEY-2 exit the iterate prompt has always
+ * referenced: land the `satisfied` event on a declared row. Same honest
+ * guards as the local `_mark` surface: the target must be declared, and
+ * a present-but-thin proof (under 20 chars, no pointer prefix) is
+ * refused — trivial proofs are indistinguishable from rubber-stamping.
+ */
+export interface MarkRequest {
+  id: string;
+  /** Substantive narrative or pointer-prefixed evidence. Optional —
+   *  the KEY-2 prompt contract is a bare {id}; thin NON-EMPTY proofs
+   *  are refused. */
+  proof?: string;
+  wave?: number;
+  agent?: string;
+}
+export interface MarkResponse {
+  id: string;
+  row: ContractEventRow;
 }
 
 /** POST /v1/contract/iterate — record an iterate wave + return next-step plan. */
@@ -251,6 +279,32 @@ export async function handleDeclare(
     admission: opts.admission,
   };
   const persisted = await ledger.append(row);
+
+  // Eval-grammar parity with the local binary: a `satisfied:<id>`-shaped
+  // plan ALSO lands the satisfied event on the canonical target row, with
+  // the same honest guard (target must be declared here). The narrative
+  // row above is the witness; the satisfied event is the settlement.
+  // Refusals surface in eval_evidence — visible, never silent, and never
+  // blocking the declaration itself.
+  let evalEvidence: string | undefined;
+  const evalGoal = parseSatisfiedPlan(req.plan);
+  if (evalGoal) {
+    try {
+      const marked = await handleMark(
+        {
+          id: evalGoal.id,
+          proof: evalGoal.proof,
+          wave: evalGoal.wave,
+          agent: req.agent,
+        },
+        ledger,
+      );
+      evalEvidence = `satisfied event landed on ${evalGoal.id} (wave ${marked.row.wave})`;
+    } catch (e) {
+      evalEvidence = `${e instanceof Error ? e.message : String(e)} — narrative only`;
+    }
+  }
+
   return {
     id,
     row: persisted,
@@ -263,7 +317,81 @@ export async function handleDeclare(
       (opts.admission === "attested"
         ? "admission=attested"
         : `admission=legacy-anonymous; window-ends=${LEGACY_WINDOW_ENDS}`),
+    ...(evalEvidence ? { eval_evidence: evalEvidence } : {}),
   };
+}
+
+/** Eval-grammar recognizer: `satisfied:<8hex> [wave=<n>] — <proof>`. */
+function parseSatisfiedPlan(
+  plan: string,
+): { id: string; wave?: number; proof: string } | null {
+  const m = /^satisfied:([0-9a-f]{8})\b/.exec(plan);
+  if (!m) return null;
+  const waveMatch = /\bwave=(\d+)\b/.exec(plan);
+  const dash = plan.indexOf("— ");
+  const proof = dash >= 0 ? plan.slice(dash + 2).trim() : "";
+  return {
+    id: m[1],
+    wave: waveMatch ? Number(waveMatch[1]) : undefined,
+    proof,
+  };
+}
+
+const MIN_PROOF_CHARS = 20;
+const PROOF_POINTER_PREFIXES = [
+  "file:",
+  "contract:",
+  "url:",
+  "http://",
+  "https://",
+  "machine:",
+  "sha256:",
+  "agent:",
+  "x402:",
+  "bridge:",
+  "pointer:",
+  "ssh://",
+  "git+",
+  "ipfs://",
+];
+
+/** A present-but-trivial proof is refused; pointer-prefixed proofs pass at
+ *  any length (the pointer IS the evidence); empty stays allowed per the
+ *  bare-{id} KEY-2 contract. ONE named place for this heuristic. */
+function isThinProof(proof: string): boolean {
+  if (proof.length === 0) return false;
+  if (PROOF_POINTER_PREFIXES.some((p) => proof.startsWith(p))) return false;
+  return proof.length < MIN_PROOF_CHARS;
+}
+
+export async function handleMark(
+  req: MarkRequest,
+  ledger: ContractLedger,
+): Promise<MarkResponse> {
+  if (!req.id) throw new Error("MarkRequest requires id");
+  const rows = await ledger.get(req.id);
+  if (!rows || !rows.some((r) => r.event === "declared")) {
+    throw new Error(`contract ${req.id} not declared`);
+  }
+  const proof = req.proof ?? "";
+  if (isThinProof(proof)) {
+    throw new Error(
+      "proof too thin — provide a substantive narrative (>=20 chars) or a pointer-prefixed proof",
+    );
+  }
+  const priorMarks = rows.filter((r) => r.event === "satisfied").length;
+  const wave = req.wave ?? priorMarks + 1;
+  const row = await ledger.append({
+    event: "satisfied",
+    id: req.id,
+    ts: new Date().toISOString(),
+    wave,
+    // `learning` is the crystallize-on-satisfy field — the proof narrative
+    // rides it so downstream crystallization picks it up.
+    learning: proof || undefined,
+    agent: req.agent,
+  });
+  return { id: req.id, row };
 }
 
 /**
@@ -880,6 +1008,20 @@ contractRoutes.post("/contract/iterate", async (c) => {
   }
 });
 
+contractRoutes.post("/contract/mark", async (c) => {
+  const req = await c.req.json<MarkRequest>();
+  try {
+    const ledger = ledgerForRequest(c.env as Env | undefined);
+    const result = await handleMark(req, ledger);
+    return c.json(result);
+  } catch (err) {
+    if (isStatsKVBindingMissingError(err)) {
+      return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/mark" }), 503);
+    }
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+  }
+});
+
 contractRoutes.get("/contract/status", async (c) => {
   const id = c.req.query("id");
   if (!id) return c.json({ error: "?id query param required" }, 400);
@@ -1031,6 +1173,7 @@ contractRoutes.get("/contract/tools", (c) => {
     routes: [
       { method: "POST", path: "/v1/contract/declare", purpose: "declare a new truth claim" },
       { method: "POST", path: "/v1/contract/iterate", purpose: "run one wave + return key2 prompt" },
+      { method: "POST", path: "/v1/contract/mark", purpose: "KEY-2 exit — land the satisfied event (thin proofs refused)" },
       { method: "GET", path: "/v1/contract/status", purpose: "projection over all events for an id" },
       { method: "POST", path: "/v1/contract/plan-for-intent", purpose: "ranked shortlist over satisfied cells" },
       { method: "POST", path: "/v1/contract/mirror", purpose: "Π4 doctrine mirror — accepts raw ContractEventRow (alias /v1/contracts/mirror)" },
