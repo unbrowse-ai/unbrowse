@@ -55,6 +55,12 @@ function filterSuppressedResolvedSearchResults(env: Env, results: ResolvedSearch
 // In-memory search cache — survives within a single Worker isolate lifetime.
 const _memCache = new Map<string, { value: string; expires: number }>();
 
+/** Test-only: clear the in-memory search cache so a test exercises a fresh BM25
+ * read rather than serving a stale hit from a prior test (cache-pollution). */
+export function __resetSearchCacheForTests(): void {
+  _memCache.clear();
+}
+
 function searchCacheKey(intent: string, k: number, domain?: string): string {
   const base = `${intent.toLowerCase().trim()}:${k}`;
   return domain ? `${base}:${domain}` : base;
