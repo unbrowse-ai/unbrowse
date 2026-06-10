@@ -25,6 +25,7 @@ import { chatFollowingSkill, type AikoCompiledContract } from "../services/unbro
 import { recommendCommandCached, recommendationCacheKey, proposeViaLlm, type ValidatedCommand, type RecommendationCache } from "../services/recommend-command.js";
 import { statsKV } from "../services/kv.js";
 import { fingerprintSkillContract, memoizeSkillValue, kvContentStore, kvPointerIndex } from "../services/skill-contract-cache.js";
+import { endpointToHoledTool, type HoledTool } from "../../../src/skillmd.js";
 
 /** Stable label for the pinned /contract LLM chain — part of the memo fingerprint
  *  (a chain change must bust the cache). */
@@ -46,6 +47,11 @@ export interface SkillChatResult {
   /** path-A: a structured, validated command the caller can EXECUTE (not just
    *  prose). Present only when a recommend dep is wired. */
   recommended_command?: ValidatedCommand;
+  /** path-A (holed): the endpoint as a PII-censored TOOL WITH HOLES — the shape
+   *  the client populates itself (query/path holes from its prompt, auth holes
+   *  from its vault). Carries no values/credentials. Present only when a
+   *  recommendTool dep is wired. */
+  recommended_tool?: HoledTool;
 }
 
 export class SkillChatError extends Error {
@@ -63,6 +69,10 @@ export interface SkillChatDeps {
   /** path-A: produce a structured, validated, executable command for the skill +
    *  message. Optional — when absent, the result omits recommended_command. */
   recommend?: (skill: SkillManifest, message: string) => Promise<ValidatedCommand>;
+  /** path-A (holed): produce the PII-censored TOOL WITH HOLES for the skill +
+   *  message — the shape the client populates. Optional — when absent, the
+   *  result omits recommended_tool. */
+  recommendTool?: (skill: SkillManifest, message: string) => Promise<HoledTool | null>;
 }
 
 /**
@@ -112,6 +122,19 @@ export async function runSkillChat(deps: SkillChatDeps, input: SkillChatInput): 
     }
   }
 
+  // path-A (holed): surface the endpoint as a PII-censored TOOL WITH HOLES — the
+  // shape the client fills itself. Best-effort, same as recommend: a failure or a
+  // null pick never sinks the answer.
+  let recommended_tool: HoledTool | undefined;
+  if (deps.recommendTool) {
+    try {
+      const tool = await deps.recommendTool(resolved.skill, message);
+      if (tool) recommended_tool = tool;
+    } catch {
+      /* the holed tool is additive; the answer stands without it */
+    }
+  }
+
   return {
     answer,
     skill_id: resolved.skill.skill_id,
@@ -119,6 +142,7 @@ export async function runSkillChat(deps: SkillChatDeps, input: SkillChatInput): 
     contract: redactContract(skillToContract(resolved.skill)),  // provenance, sans owner wallet
     resolved_by: resolved.via,
     ...(recommended_command ? { recommended_command } : {}),
+    ...(recommended_tool ? { recommended_tool } : {}),
   };
 }
 
@@ -196,6 +220,14 @@ function liveDeps(env: Env): SkillChatDeps {
       };
       void recommendationCacheKey; // keying handled inside recommendCommandCached
       return recommendCommandCached(skill, message, proposeViaLlm(env), cache);
+    },
+    // path-A (holed): the endpoint as a PII-censored TOOL WITH HOLES. Keep the
+    // pick simple + safe — the SHAPE is the point, not a fancy ranker: take the
+    // first endpoint carrying an endpoint_id and project it via endpointToHoledTool
+    // (typed holes only, no values, no credentials).
+    recommendTool: async (skill, _message) => {
+      const ep = (skill.endpoints ?? []).find((e) => typeof e?.endpoint_id === "string" && e.endpoint_id.length > 0);
+      return ep ? endpointToHoledTool(skill, ep) : null;
     },
   };
 }
