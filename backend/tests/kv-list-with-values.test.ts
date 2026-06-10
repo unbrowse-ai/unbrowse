@@ -14,6 +14,13 @@ function createMockFetch(store: Map<string, string>) {
       return Response.json({ ok: true });
     }
 
+    if (url.pathname === "/qdkv/mget") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { keys: string[] };
+      const values: Record<string, string | null> = {};
+      for (const key of body.keys) values[key] = store.get(key) ?? null;
+      return Response.json({ values });
+    }
+
     if (url.pathname.startsWith("/qdkv/get/")) {
       const key = decodeURIComponent(url.pathname.replace("/qdkv/get/", ""));
       const value = store.get(key);

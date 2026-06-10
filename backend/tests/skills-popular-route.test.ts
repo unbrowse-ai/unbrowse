@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { publicSkillRoutes } from "../src/routes/skills.js";
-import { clearKVCacheForTests } from "../src/services/kv.js";
+import { clearKVCacheForTests, skillsKV, statsKV } from "../src/services/kv.js";
 import type { EndpointStats, Env, SkillManifest } from "../src/types.js";
 
 const BASE_ENV: Env = {
@@ -8,7 +8,7 @@ const BASE_ENV: Env = {
   EMERGENTDB_API_KEY: "test-emergent",
   NEBIUS_API_KEY: "test-nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "production",
+  ENVIRONMENT: "local-dev",
 };
 
 function skillFixture(skill_id: string, lifecycle: SkillManifest["lifecycle"] = "active"): SkillManifest {
@@ -69,41 +69,23 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe("popular skill route", () => {
   const originalFetch = globalThis.fetch;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     clearKVCacheForTests();
     const alpha = skillFixture("alpha");
     const beta = skillFixture("beta");
     const deprecated = skillFixture("legacy", "deprecated");
 
-    const stores = new Map<string, string>([
-      ["skills-v2:_idx:main", JSON.stringify([
-        { k: "skill:alpha", v: JSON.stringify(alpha) },
-        { k: "skill:beta", v: JSON.stringify(beta) },
-        { k: "skill:legacy", v: JSON.stringify(deprecated) },
-      ])],
-      ["skills-v2:_idx:large", JSON.stringify([])],
-      ["skills-v2:_idx", JSON.stringify([])],
-      ["stats:_idx:main", JSON.stringify([
-        { k: "stats:alpha--alpha-ep-a", v: JSON.stringify(statsFixture(12, 11, "2026-04-03T10:00:00.000Z")) },
-        { k: "stats:alpha--alpha-ep-b", v: JSON.stringify(statsFixture(8, 7, "2026-04-03T11:00:00.000Z")) },
-        { k: "stats:beta--beta-ep-a", v: JSON.stringify(statsFixture(5, 5, "2026-04-03T09:00:00.000Z")) },
-        { k: "stats:beta--beta-ep-b", v: JSON.stringify(statsFixture(1, 1, "2026-04-03T08:00:00.000Z")) },
-        { k: "stats:legacy--legacy-ep-a", v: JSON.stringify(statsFixture(99, 99, "2026-04-03T12:00:00.000Z")) },
-      ])],
-      ["stats:_idx:large", JSON.stringify([])],
-      ["stats:_idx", JSON.stringify([])],
-    ]);
+    const skills = skillsKV(BASE_ENV);
+    await skills.put("skill:alpha", JSON.stringify(alpha));
+    await skills.put("skill:beta", JSON.stringify(beta));
+    await skills.put("skill:legacy", JSON.stringify(deprecated));
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);
-      if (url.hostname !== "api.emergentdb.com") throw new Error(`unexpected fetch: ${url.toString()}`);
-      if (url.pathname.startsWith("/qdkv/get/")) {
-        const key = decodeURIComponent(url.pathname.replace("/qdkv/get/", ""));
-        const value = stores.get(key);
-        return jsonResponse(value == null ? { found: false, value: null } : { found: true, value });
-      }
-      throw new Error(`unexpected fetch: ${url.toString()}`);
-    }) as typeof fetch;
+    const stats = statsKV(BASE_ENV);
+    await stats.put("stats:alpha--alpha-ep-a", JSON.stringify(statsFixture(12, 11, "2026-04-03T10:00:00.000Z")));
+    await stats.put("stats:alpha--alpha-ep-b", JSON.stringify(statsFixture(8, 7, "2026-04-03T11:00:00.000Z")));
+    await stats.put("stats:beta--beta-ep-a", JSON.stringify(statsFixture(5, 5, "2026-04-03T09:00:00.000Z")));
+    await stats.put("stats:beta--beta-ep-b", JSON.stringify(statsFixture(1, 1, "2026-04-03T08:00:00.000Z")));
+    await stats.put("stats:legacy--legacy-ep-a", JSON.stringify(statsFixture(99, 99, "2026-04-03T12:00:00.000Z")));
   });
 
   afterEach(() => {

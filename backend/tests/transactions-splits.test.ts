@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { Env, SkillManifest } from "../src/types.js";
-import { skillsKV, statsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, skillsKV, statsKV } from "../src/services/kv.js";
 import { getConsumerTransactions, getCreatorTransactions, recordTransaction } from "../src/services/transactions.js";
 
 const env: Env = {
@@ -8,7 +8,7 @@ const env: Env = {
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
 };
 
 function createMockFetch(store: Map<string, string>) {
@@ -84,6 +84,8 @@ describe("transaction contributor payout routing", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("stats");
+    clearKVCacheForTests("skills-v2");
     await statsKV(env).resetSplitIndex();
     await skillsKV(env).put(`skill:${skill.skill_id}`, JSON.stringify(skill));
   });

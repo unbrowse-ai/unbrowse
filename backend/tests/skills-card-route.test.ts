@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import app from "../src/index.js";
-import { skillsKV } from "../src/services/kv.js";
+import { clearKVCacheForTests, skillsKV } from "../src/services/kv.js";
 import type { Env, SkillManifest } from "../src/types.js";
 
 const env: Env = {
@@ -8,7 +8,7 @@ const env: Env = {
   EMERGENTDB_API_KEY: "test",
   NEBIUS_API_KEY: "nebius",
   STATS_KV: {} as KVNamespace,
-  ENVIRONMENT: "production",
+  ENVIRONMENT: "local-dev",
 };
 
 function createMockFetch(store: Map<string, string>) {
@@ -88,6 +88,8 @@ describe("skills card route", () => {
   beforeEach(async () => {
     globalThis.fetch = createMockFetch(store) as typeof fetch;
     store.clear();
+    clearKVCacheForTests("skills-v2");
+    clearKVCacheForTests("stats");
     await (skillsKV(env) as any).resetSplitIndex();
   });
 
