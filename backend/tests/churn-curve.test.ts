@@ -12,7 +12,7 @@ const env: Env = {
     put: async () => {},
     get: async () => null,
   } as unknown as KVNamespace,
-  ENVIRONMENT: "staging",
+  ENVIRONMENT: "local-dev",
   RELEASE_MANIFEST_SIGNING_SECRET: "release-secret",
 };
 
@@ -105,8 +105,11 @@ describe("churn-curve endpoint", () => {
   }
 
   function authHeaders() {
+    // Admin auth is the raw API_KEY (bearerAuth's safeCompare shortcut → __admin__),
+    // which bypasses verifyKey/ensureAgentProfile. The old HMAC("__admin__") token
+    // fell through to verifyKey and 500'd on the mock KV under v7.
     return {
-      Authorization: `Bearer ${createHmac("sha256", env.API_KEY).update("__admin__").digest("hex")}`,
+      Authorization: `Bearer ${env.API_KEY}`,
       ...signedReleaseHeaders(),
     };
   }
