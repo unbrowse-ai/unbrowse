@@ -41,7 +41,7 @@ export interface HeroStep {
 }
 
 const SYSTEM_PROMPT = `You are the Unbrowse agent on unbrowse.ai. Unbrowse turns websites into reusable API routes: capture once, replay everywhere. You have REAL tools. For any question that needs data from a website:
-1. ALWAYS call search_routes first with a concise intent. A hit is the WARM path: call get_route, then execute_route on its endpoint (fill template placeholders like {query} from the user's ask).
+1. ALWAYS call search_routes first with a concise intent. A hit is the WARM path: call get_route, then execute_route on its endpoint (fill template placeholders like {query} from the user's ask, and pass the manifest's skill_id + endpoint_id so the execution feeds the route's trust score).
 2. On a marketplace MISS, take the COLD path (this is how Unbrowse captures a site on first visit): call execute_route directly on the site's own public search/listing URL for the ask — e.g. https://www.airbnb.com.sg/s/homes?query=cats for Airbnb, https://news.ycombinator.com/ for Hacker News front page, https://hn.algolia.com/api/v1/search?query=X for HN search. The executor extracts the page's embedded SSR/JSON state automatically, the same way Unbrowse's capture engine does.
 3. Answer ONLY from the REAL data the tools returned. Quote concrete items (names, prices, ratings, titles). Keep it tight: one intro line, then a markdown list of the top 5-8 results. If a price/rating is in the data, include it.
 4. If every tool path failed, say so plainly and suggest running Unbrowse locally (npx unbrowse setup --mcp) to capture the site with a real browser.
@@ -91,12 +91,46 @@ const TOOLS = [
             description: "Optional request headers from the skill manifest (no cookies)",
             additionalProperties: { type: "string" },
           },
+          skill_id: { type: "string", description: "When executing a route from a skill manifest, the manifest's skill_id (enables trust feedback)" },
+          endpoint_id: { type: "string", description: "When executing a route from a skill manifest, the endpoint's endpoint_id" },
         },
         required: ["url"],
       },
     },
   },
 ];
+
+/** Report a real execution outcome back to the marketplace trust loop (the
+ * continuous-trust model: success/failure traces from a distinct agent are
+ * what verify and rank routes). Fire-and-forget with a short cap so it never
+ * holds up the answer. */
+async function reportExecution(apiOrigin: string, skillId: string, endpointId: string, ok: boolean, statusCode: number, startedAt: string): Promise<void> {
+  const key = process.env.UNBROWSE_AGENT_KEY;
+  if (!key) return;
+  try {
+    await fetch(`${apiOrigin}/v1/stats/execution`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        skill_id: skillId,
+        endpoint_id: endpointId,
+        trace: {
+          trace_id: `hero-${Date.now()}-${endpointId.slice(0, 6)}`,
+          skill_id: skillId,
+          endpoint_id: endpointId,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: ok,
+          status_code: statusCode,
+          api_call_count: 1,
+        },
+      }),
+      signal: AbortSignal.timeout(2500),
+    });
+  } catch {
+    /* trust feedback is best-effort */
+  }
+}
 
 function truncate(s: string, n = BODY_CAP): string {
   return s.length > n ? `${s.slice(0, n)}\n…[truncated ${s.length - n} chars]` : s;
@@ -299,8 +333,16 @@ async function runTool(name: string, args: Record<string, unknown>, apiOrigin: s
     const host = new URL(url).host;
     hdrs["user-agent"] =
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    const startedAt = new Date().toISOString();
     const res = await fetch(url, { method: "GET", headers: hdrs, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), redirect: "follow" });
     const text = await res.text();
+    // Warm-path execution: feed the real outcome back into the marketplace
+    // trust loop (success traces from a distinct agent verify + rank routes).
+    const skillId = String(args.skill_id ?? "");
+    const endpointId = String(args.endpoint_id ?? "");
+    if (skillId && endpointId) {
+      await reportExecution(apiOrigin, skillId, endpointId, res.ok, res.status, startedAt);
+    }
     const ct = res.headers.get("content-type") ?? "";
     const looksHtml = ct.includes("html") || text.trimStart().startsWith("<");
     if (looksHtml) {
