@@ -149,6 +149,11 @@ export interface ObfuscateOpts {
    *  occurrence is replaced by its placeholder (wallet-bound when a wallet is
    *  given). This is what makes the obfuscation provably safe + auditable. */
   secrets?: string[];
+  /** Optional sink that collects the EXACT strings the redactor wallet-bound
+   *  (header values, body leaves, query params). The ZK pass mints a binding
+   *  over precisely these, so its sha16 keys match the `[bound:<sha16>]`
+   *  placeholders. Pass `new Set()`, then `zkBindKnownSecrets([...sink], wallet)`. */
+  boundSink?: Set<string>;
 }
 
 /** Replace every exact occurrence of a known secret value across the request's
@@ -186,7 +191,8 @@ function scrubKnownSecrets(r: RawRequest, secrets: string[], redact: Redactor): 
 }
 
 export function obfuscateRequestForReveng(r: RawRequest, opts: ObfuscateOpts = {}): RawRequest {
-  const redact = makeRedactor(opts.walletPubkey);
+  const onBind = opts.boundSink ? (v: string) => opts.boundSink!.add(v) : undefined;
+  const redact = makeRedactor(opts.walletPubkey, onBind);
   const out: RawRequest = {
     ...r,
     url: obfuscateUrl(r.url, redact),
