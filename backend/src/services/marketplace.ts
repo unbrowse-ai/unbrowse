@@ -5,6 +5,7 @@ import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { summarizeEmergentDBError } from "./emergentdb.js";
 import { skillsKV, statsKV } from "./kv.js";
+import { appendRouteAttestation, hashValue } from "./route-ledger.js";
 import { verifyReleaseManifest } from "./release-manifest.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 import { matchedReservedDomain } from "./domain-reservations.js";
@@ -356,10 +357,31 @@ export async function publishSkill(
 
   // putBatch keeps related KV writes coalesced on both storage backends.
   const kv = skillsKV(env);
+  const skillBytes = JSON.stringify(skill);
   await kv.putBatch([
-    { key: kvKey(skill.skill_id), value: JSON.stringify(skill) },
+    { key: kvKey(skill.skill_id), value: skillBytes },
     { key: domainKey(skill.domain), value: skill.skill_id },
   ]);
+
+  // Route ledger (§8 "value off-chain, root on-chain"): commit a small,
+  // content-addressed, tamper-evident leaf to this publish — value_hash binds
+  // the manifest bytes, signer/sig bind the publisher's release signature when
+  // present (else platform-attested). Non-fatal: the manifest is already durably
+  // stored above; the ledger is the auditable commitment to it, and a ledger
+  // write failure must not fail an otherwise-valid publish.
+  try {
+    const valueHash = await hashValue(skillBytes);
+    await appendRouteAttestation(kv, {
+      domain: skill.domain,
+      skill_id: skill.skill_id,
+      value_hash: valueHash,
+      signer: context?.client_release_signature ? (submitterAgentId ?? "platform") : "platform",
+      ts: Date.parse(skill.updated_at) || Date.now(),
+      sig: context?.client_release_signature ?? "",
+    });
+  } catch (err) {
+    console.error(`[route-ledger] append failed skill=${skill.skill_id}:`, (err as Error).message);
+  }
 
   const publicEndpoints = getPublicEndpoints(skill.endpoints);
   const reliabilities = publicEndpoints.map((e) => e.reliability_score);
