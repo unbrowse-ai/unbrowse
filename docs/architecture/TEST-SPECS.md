@@ -74,7 +74,7 @@
 | Client: cost ceiling refusal (`x402_cost_exceeded`) | **Exists** — `tests/x402-fetch-outcomes.test.ts` |
 | Client: no wallet → honest `x402_no_wallet` | **Exists** — `tests/x402-fetch-outcomes.test.ts` |
 | Client: second 402 after signed retry → stop, `x402_retry_blocked` | **Exists** — `tests/x402-fetch-outcomes.test.ts` (also covers signed happy path, unparseable envelope, signer error, wallet-config precedence) |
-| Client: pays frozen splits verbatim (never recomputes) | **GAP** — client unit on `src/payments/flex-pay.ts` |
+| Client: pays frozen splits verbatim (never recomputes) | **Exists (deliberately red)** — `tests/flex-settlement.test.ts` behavioral pin; cannot go green until escrow/session-key provisioning wires `getFlexWallet()` (currently a documented dormant null). The suite also pins the facilitator URL structurally and freezes `backend/src/services/flex.ts` against unreviewed drift |
 
 ## 7. Sponsor tier (AC-SPON-*)
 | Spec | Status |
@@ -145,9 +145,10 @@
 ## Priority of gaps (standard-practice risk order)
 1. ~~Stripe webhook signature verification~~ — closed by
    `backend/tests/billing-webhook-signature.test.ts`.
-2. **Client frozen-splits unit** (§6) — `flex-pay.ts` must pay server-frozen
-   splits verbatim; the other client x402 outcome states are now covered by
-   `tests/x402-fetch-outcomes.test.ts`.
+2. ~~Client frozen-splits unit~~ — already pinned by
+   `tests/flex-settlement.test.ts` (an evidence-lane falsifier that stays
+   red until wallet provisioning lands); the other client x402 outcome
+   states are covered by `tests/x402-fetch-outcomes.test.ts`.
 3. ~~Key verification/revocation direct units + kill switch~~ — closed by
    `backend/tests/keys-service.test.ts`.
 4. **Wallet resolution + OWS policy units** (§8) — payment routing
