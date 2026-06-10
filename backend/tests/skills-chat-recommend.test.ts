@@ -12,6 +12,12 @@ import { test, expect } from "bun:test";
 import { runSkillChat, type SkillChatDeps } from "../src/routes/skills-chat";
 import type { SkillManifest } from "../src/types";
 import type { ValidatedCommand } from "../src/services/recommend-command";
+// Cross-package: the holed-tool projector lives in the src skillmd package. The
+// real route (backend/src/routes/) imports it via "../../../src/skillmd.js";
+// from this test file (backend/tests/) the same package is "../../src/skillmd".
+// This witness proves the projector resolves at test runtime (the route's
+// transitive import is exercised by every runSkillChat test below).
+import { endpointToHoledTool } from "../../src/skillmd";
 
 function skill(): SkillManifest {
   return {
@@ -60,4 +66,53 @@ test("a rejected recommendation rides through honestly (not dropped)", async () 
   };
   const result = await runSkillChat(deps, { message: "x" });
   expect(result.recommended_command?.ok).toBe(false);
+});
+
+test("surfaces a PII-censored holed tool when a recommendTool dep is wired", async () => {
+  const s = skill();
+  const deps: SkillChatDeps = {
+    resolveSkill: async () => ({ skill: s, via: "semantic" }),
+    chat: async () => "Here are the rust stories…",
+    // Real projector (cross-package import) — proves both the shape AND that the
+    // import resolves at test runtime.
+    recommendTool: async (sk) => endpointToHoledTool(sk, sk.endpoints![0]),
+  };
+  const result = await runSkillChat(deps, { message: "find rust stories" });
+  expect(result.recommended_tool).toBeDefined();
+  expect(result.recommended_tool?.url_template).toBe(
+    "https://hn.algolia.com/api/v1/search?query={query}&tags={tags}",
+  );
+  const holes = result.recommended_tool!.holes;
+  const query = holes.find((h) => h.name === "query");
+  const tags = holes.find((h) => h.name === "tags");
+  expect(query).toBeDefined();
+  expect(query!.location.in).toBe("query");
+  expect(query!.kind).toBe("id");
+  expect(query!.fill).toBe("llm");
+  expect(tags).toBeDefined();
+  expect(tags!.location.in).toBe("query");
+  expect(tags!.kind).toBe("id");
+  expect(tags!.fill).toBe("llm");
+  // No values, no credentials leak into the holed tool.
+  expect(JSON.stringify(result.recommended_tool)).not.toContain("rust");
+});
+
+test("omits recommended_tool when no recommendTool dep (back-compat)", async () => {
+  const deps: SkillChatDeps = {
+    resolveSkill: async () => ({ skill: skill(), via: "semantic" }),
+    chat: async () => "prose",
+  };
+  const result = await runSkillChat(deps, { message: "x" });
+  expect(result.recommended_tool).toBeUndefined();
+  expect(result.answer).toBe("prose");
+});
+
+test("omits recommended_tool when recommendTool returns null", async () => {
+  const deps: SkillChatDeps = {
+    resolveSkill: async () => ({ skill: skill(), via: "semantic" }),
+    chat: async () => "prose",
+    recommendTool: async () => null,
+  };
+  const result = await runSkillChat(deps, { message: "x" });
+  expect(result.recommended_tool).toBeUndefined();
 });
