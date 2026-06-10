@@ -204,7 +204,10 @@ async function runPricedSearchGate<E extends { Bindings: Env }>(
 
     schedule(c, recordTransaction(c.env, {
       transaction_id: `flex-search-${Date.now()}`,
-      consumer_id: c.req.header("Authorization")?.replace("Bearer ", "") ?? "anonymous",
+      // Auth-resolved keyId, never the raw bearer: the raw header is a secret
+      // (the sanitizer redacts most shapes, but the resolved id is the correct
+      // ledger key — it is what /dashboard/me reads back, so spend reconciles).
+      consumer_id: (c as unknown as { get: (k: string) => string | undefined }).get("agent_id") ?? "anonymous",
       skill_id: skillId,
       price_usd: priceUsd,
       payment_proof: flexPaymentHeader,
