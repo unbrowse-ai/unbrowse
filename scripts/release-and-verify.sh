@@ -86,7 +86,10 @@ fi
 # ── Step 3: Wait for npm publish ──
 if [[ "$SKIP_RELEASE" != "1" ]]; then
   log "waiting for npm publish of unbrowse@$VERSION..."
-  MAX_WAIT=300
+  # CI builds all platform binaries (~40min) BEFORE the npm publish step, so the
+  # poll must outlast the full release workflow or it false-FATALs and skips the
+  # remote smoke test. Override with NPM_PUBLISH_MAX_WAIT if needed.
+  MAX_WAIT="${NPM_PUBLISH_MAX_WAIT:-3000}"
   ELAPSED=0
   while ! npm view "unbrowse@$VERSION" version >/dev/null 2>&1; do
     if [[ $ELAPSED -ge $MAX_WAIT ]]; then
