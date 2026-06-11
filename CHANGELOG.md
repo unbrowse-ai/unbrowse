@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.3...v8.3.0-preview.4) (2026-06-11)
+
+### Bug Fixes
+
+* **paper-gate:** classify 9 backend modules, drop 3 ghost rows — backend-coverage gate green ([f5ed819](https://github.com/unbrowse-ai/unbrowse-dev/commit/f5ed819a3f5515be9fc81e39e3e1caed7f82f421))
+* **release:** drop package.json from @release-it/bumper out — release-it bumps root natively ([f0bec51](https://github.com/unbrowse-ai/unbrowse-dev/commit/f0bec51f0cccad661624272171c7f6e98d4a04ff))
+
 ## v8.2.0 (2026-06-05)
 
 ### What's New
