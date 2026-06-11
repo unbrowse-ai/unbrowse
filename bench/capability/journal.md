@@ -56,3 +56,42 @@ honest, not coasting on a stale row.
 ## State after Levers 1–2
 `gate_all.sh` → exit 0 with **fresh** live evidence on all four axes
 (A refreshed, B 1.0 fresh, C fresh via the fix, D leak_clean fresh).
+
+## Lever 3 — resolve auto-preferring structured `.json` endpoints (investigated, NOT a score lever)
+A real product nicety: for "list/get data" intents, a `.json`/API endpoint
+yields cleaner structured output than HTML. But it does **not** raise any axis
+*score*: Axis A correctness@1 is already 1.0 (the HTML listing counts as serving
+the resource), and Axis B reads the `.json` endpoint directly (score 1.0). So
+it's a capability refinement, not a benchmark lever. Named, not pulled.
+
+## Verdict — legitimate levers are exhausted (ceiling reached honestly)
+
+Per-axis ceiling, measured on fresh live evidence:
+
+| Axis | Threshold (plan v1) | Current (fresh) | Headroom |
+|------|---------------------|-----------------|----------|
+| A retrieval | nDCG≥baseline; abstention≥0.90 | coverage@1=1.0, correct@1=1.0, abstention 1.0; mean_top_score≈87 | none — coverage/correct maxed; top_score is embedding noise (overfit-only) |
+| B execute no-auth | ROUGE-L≥0.828 | field-checks 1.0 | none — 4/4 |
+| C execute auth | SR≥baseline | authed=true (6 cookies, session-stateful) | logged_in needs real creds = environment, not code |
+| D security | leak 100% clean | leak_clean, 0 leaks | none — hard gate clean |
+
+**Why no further CODE lever exists:** every axis either sits at the maximum the
+gold/threshold defines (B 4/4, D 0 leaks, A coverage/correct 1.0) or is bounded
+by something that isn't product code — A's `mean_top_score` is run-to-run
+embedding noise (pushing it on a 4-intent corpus = overfitting, which the plan
+forbids), and C's `logged_in` is the source browser's account state, not
+unbrowse's capability. The only remaining ways to move numbers are (a) expand
+the corpus to Tiers H/A + negative-abstention intents — additive *coverage*
+work, effectively unbounded, a different task than maximizing THIS benchmark's
+scores — or (b) overfit, which is forbidden.
+
+**Real levers pulled this loop:**
+1. Verified all four axes with fresh live evidence (not stale rows).
+2. Diagnosed the "B 0.75" as a stale non-`.json` capture; fresh B = 1.0.
+3. Fixed the Axis C live driver (None-url crash) so C produces fresh evidence
+   every run — the gate is now honest on current code, not coasting on a stale
+   row.
+
+`gate_all.sh` exits 0 on fresh evidence across all four axes. Two-witness
+discipline held (B distinct sessions; A two deterministic passes; C/D fresh).
+No fabricated green: every row is `source=live` with real session IDs/bytes.
