@@ -299,3 +299,4 @@ bench/exa/seal0_run_*.jsonl
 bench/exa/seal0_dev*.jsonl
 bench/exa/highlights_unbrowse.jsonl
 bin/unbrowse-dev
+.release-coverage-baseline
