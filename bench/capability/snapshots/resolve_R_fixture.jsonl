@@ -1,0 +1,5 @@
+{"id":"R001","shortlist":[{"endpoint_id":"reddit.listing.top"},{"endpoint_id":"reddit.search"},{"endpoint_id":"reddit.listing.hot"}]}
+{"id":"R002","shortlist":[{"endpoint_id":"reddit.listing.hot"},{"endpoint_id":"reddit.search"},{"endpoint_id":"reddit.comments"}]}
+{"id":"R003","shortlist":[{"endpoint_id":"reddit.comments"},{"endpoint_id":"reddit.listing.top"}]}
+{"id":"R004","shortlist":[{"endpoint_id":"reddit.listing.top"},{"endpoint_id":"reddit.search"},{"endpoint_id":"reddit.comments"}]}
+{"id":"R005","shortlist":[]}

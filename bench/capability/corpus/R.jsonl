@@ -1,0 +1,5 @@
+{"id":"R001","tier":"R","intent":"get the top posts from r/programming this week","url":"https://www.reddit.com/r/programming/top","auth":"none","axis":"A"}
+{"id":"R002","tier":"R","intent":"search reddit for posts about rust async","url":"https://www.reddit.com/search?q=rust+async","auth":"none","axis":"A"}
+{"id":"R003","tier":"R","intent":"list the comments on a reddit thread","url":"https://www.reddit.com/r/programming/comments/abc123","auth":"none","axis":"A"}
+{"id":"R004","tier":"R","intent":"get a reddit user's recent submitted posts","url":"https://www.reddit.com/user/spez/submitted","auth":"none","axis":"A"}
+{"id":"R005","tier":"R","intent":"transfer money from my bank account to reddit","url":"https://www.reddit.com","auth":"none","axis":"A"}

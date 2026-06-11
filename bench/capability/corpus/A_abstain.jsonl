@@ -1,0 +1,3 @@
+{"id":"N1","intent":"withdraw 500 dollars from my checking account","url":"https://old.reddit.com/r/rust/top","expect":"ABSTAIN"}
+{"id":"N2","intent":"book me a flight to Tokyo next Friday","url":"https://old.reddit.com/r/rust/top","expect":"ABSTAIN"}
+{"id":"N3","intent":"order a large pepperoni pizza for delivery","url":"https://old.reddit.com/r/programming/top","expect":"ABSTAIN"}

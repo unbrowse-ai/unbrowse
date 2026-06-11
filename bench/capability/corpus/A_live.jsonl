@@ -1,0 +1,9 @@
+{"id":"R1","tier":"R","intent":"list the top posts in r/rust","url":"https://old.reddit.com/r/rust/top","expect":"reddit.com"}
+{"id":"R2","tier":"R","intent":"search reddit for posts about rust async","url":"https://old.reddit.com/search?q=rust+async","expect":"reddit.com"}
+{"id":"R3","tier":"R","intent":"get the newest posts in r/golang","url":"https://old.reddit.com/r/golang/new","expect":"reddit.com"}
+{"id":"H1","tier":"H","intent":"get the top stories on hacker news","url":"https://news.ycombinator.com","expect":"ycombinator.com"}
+{"id":"H2","tier":"H","intent":"browse the latest questions on stack overflow","url":"https://stackoverflow.com/questions","expect":"stackoverflow.com"}
+{"id":"H3","tier":"H","intent":"search github repositories for python web frameworks","url":"https://github.com/search?q=python+web+framework&type=repositories","expect":"github.com"}
+{"id":"A1","tier":"A","intent":"read the wikipedia article on quantum computing","url":"https://en.wikipedia.org/wiki/Quantum_computing","expect":"wikipedia.org"}
+{"id":"A2","tier":"A","intent":"search npm for react packages","url":"https://www.npmjs.com/search?q=react","expect":"npmjs.com"}
+{"id":"A3","tier":"A","intent":"browse products on the hacker news jobs board","url":"https://news.ycombinator.com/jobs","expect":"ycombinator.com"}

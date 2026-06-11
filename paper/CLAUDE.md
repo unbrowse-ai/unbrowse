@@ -184,3 +184,13 @@ settlement). The Sybil section keeps Douceur's impossibility intact — the refe
 is the bounded mitigation, not a closed solution.
 
 The outward-facing arXiv/Overleaf push remains held for the author (`paper/HANDOFF.md`).
+
+<!-- skills:pinned (managed by banger-skill-builder/pin_skill_in_agent_prompts.sh, do not hand-edit between markers) -->
+## Pinned skills
+
+Reach for these by name when the trigger phrase matches what the user asked for.
+
+| Skill | Use when |
+|---|---|
+| `/unbrowse-capability-bench` | Re-run the unbrowse four-axis capability benchmark (action-retrieval coverage over Reddit/hardest-scrape/automation tiers, execution with/without auth, security leak-scan) plus the real cloned exa-labs/benchmarks run and the self-improvement A/B, then ALWAYS write a dated markdown report analyzing how each axis performed, what works, what regressed, and why. |
+<!-- /skills:pinned -->
