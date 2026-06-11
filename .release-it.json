@@ -1,7 +1,7 @@
 {
   "plugins": {
     "@release-it/bumper": {
-      "out": ["package.json", "packages/skill/package.json", "packages/sdk/package.json", "version.json"]
+      "out": ["packages/skill/package.json", "packages/sdk/package.json", "version.json"]
     },
     "@release-it/conventional-changelog": {
       "preset": {
