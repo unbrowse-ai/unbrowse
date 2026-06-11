@@ -1,6 +1,6 @@
 ---
 name: unbrowse
-description: Capture once, replay everywhere — Unbrowse learns reusable route metadata from allowed browsing sessions and replays it as a fast, cheap, indexed route. Brings back the skill surface alongside the MCP server + SDK + CLI.
+description: Capture once, replay everywhere. Unbrowse turns websites into reusable, indexed API routes for agents. Resolve an intent + URL to a ranked endpoint shortlist, execute the chosen endpoint for real data, or open a managed browser when capture is needed. The default agent flow is exactly two calls (resolve then execute), typically 30x faster and 90x cheaper than a fresh browser session. Available as an MCP server, CLI, and SDK. Use when an agent needs live data or actions from a website, when a browser/scraper call could be replaced by a cached route, or when the user asks to capture, replay, or automate a site.
 metadata:
   type: integration
   origin: unbrowse-ai/unbrowse
@@ -8,57 +8,70 @@ metadata:
 
 # Unbrowse
 
-Unbrowse turns websites into reusable API routes for agents. Teach a route once, store sanitized metadata, replay it on later calls. Typical run is 30× faster and 90× cheaper than a fresh browser session — peer-reviewed benchmark across 94 live domains: 3.6× mean speedup, 5.4× median, 40× fewer tokens ([arXiv:2604.00694](https://arxiv.org/abs/2604.00694)).
+Unbrowse turns websites into reusable API routes for agents. Teach a route once, store
+sanitized route metadata, replay it on later calls. A typical replay is about 30x faster
+and 90x cheaper than a fresh browser session (peer-reviewed benchmark across 94 live
+domains: 3.6x mean speedup, 5.4x median, 40x fewer tokens; arXiv:2604.00694).
 
-Four surfaces, one runtime:
+## The agent contract (load-bearing): two calls, not one, not three
 
-| Surface | When to reach for it |
+Every task uses the same shape. Do not collapse it to one call, do not pad it to three.
+
+1. **resolve** answers "is there an indexed route for this intent + URL?" It returns a
+   ranked shortlist of endpoints (you, the calling model, pick one) OR a handoff telling
+   you to open a browser because nothing is indexed yet.
+2. **execute** runs the one endpoint you picked from the shortlist and returns the real
+   data.
+3. **browse-session** (go) is the escalation: when resolve hands off, open a managed
+   browser, drive it, and local capture indexes the route so the next caller skips
+   straight to resolve+execute.
+
+Read the shortlist, pick the best endpoint, execute it. When a call cannot complete, the
+response carries an honest `next_step` field (for example `open_browse_session`,
+`auth_required`, `abandon_or_authenticate`) instead of a bare error. Follow the
+`next_step`; do not retry the same call blindly.
+
+## Surfaces (pick one, same runtime underneath)
+
+| Surface | Reach for it when |
 |---|---|
-| **MCP server** | An MCP-host agent (Claude Desktop, Cursor, Codex, Claude Code). Tool calls like `unbrowse_resolve`, `unbrowse_execute`, `unbrowse_go` appear in the host. |
-| **CLI** (`unbrowse`) | A shell session or a bash-script that wants the same surface as the MCP server, without an MCP host. |
-| **SDK** (`@unbrowse/sdk`) | A TypeScript program that wants to embed Unbrowse. `npm i @unbrowse/sdk` is enough; the SDK spawns its own local binary. |
-| **Drop-in shims** | One-line replace for existing tools: `@unbrowse/playwright-shim`, `@unbrowse/firecrawl-shim`, `@unbrowse/stagehand-shim`. Cache hit → free; miss → fall through to the original library. |
+| MCP server | An MCP-host agent (Claude Code, Claude Desktop, Cursor, Codex, Windsurf). The tools below appear in the host. |
+| CLI (`unbrowse`) | A shell or script wanting the same surface without an MCP host. |
+| SDK (`@unbrowse/sdk`) | A TypeScript program embedding Unbrowse; it spawns its own local binary. |
 
-All four resolve to the same runtime workflow underneath:
-- **resolve** asks "is there an indexed route for this intent + URL?" — returns a shortlist or a hard handoff.
-- **execute** picks one endpoint from the shortlist and runs it — returns the real data.
-- **browse-session** opens a managed browser when the API is too dynamic to predict; local capture indexes route metadata.
+## MCP tools, grouped by what you are doing
 
-The two-tool flow (resolve + execute) is the agent UX north star: never one call, never three. The shortlist is structured so the calling LLM picks; execute is paid from the agent's wallet (or sponsored credit) when the route is priced.
+- **Resolve + run a route (the common path):** `unbrowse_resolve` (intent + URL -> ranked
+  shortlist), `unbrowse_execute` (run one endpoint from the shortlist), `unbrowse_run`
+  (one-shot: resolve and run in a single call when you trust the top route),
+  `unbrowse_search` (find a route or a web answer for an intent), `unbrowse_fetch` (fetch
+  one URL to clean content when you just want the page).
+- **Drive a browser when capture is needed:** `unbrowse_go` (open/reuse a tab),
+  `unbrowse_snap` (accessibility snapshot with @eN refs), `unbrowse_click` /
+  `unbrowse_fill` / `unbrowse_type` / `unbrowse_press` (act on @eN refs), `unbrowse_text`
+  / `unbrowse_markdown` / `unbrowse_eval` (read the page), `unbrowse_sync` (checkpoint and
+  index mid-flow), `unbrowse_close` (final checkpoint, index, close).
+- **Auth:** `unbrowse_auth_capture` opens a visible browser so the user signs in once;
+  cookies persist for later resolve/execute/fetch on that domain.
 
 ## Quickstart
 
-For an MCP host (Claude Desktop, Cursor, Claude Code, Codex):
+MCP host:
 
 ```json
-{
-  "mcpServers": {
-    "unbrowse": {
-      "command": "npx",
-      "args": ["-y", "unbrowse", "mcp"]
-    }
-  }
-}
+{ "mcpServers": { "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] } } }
 ```
 
-Then once:
+Then once: `npx unbrowse setup`
 
-```bash
-npx unbrowse setup
-```
-
-For a shell:
+Shell:
 
 ```bash
 unbrowse resolve --intent "search hacker news for openai" --url https://news.ycombinator.com
 unbrowse execute --skill-id <id-from-resolve> --endpoint-id <id-from-shortlist>
 ```
 
-For a Node program:
-
-```bash
-npm i @unbrowse/sdk
-```
+Node:
 
 ```typescript
 import { spawn } from '@unbrowse/sdk';
@@ -67,28 +80,43 @@ const resolved = await client.resolve({ intent: 'search hn for openai', url: 'ht
 const result = await client.execute({ skillId: resolved.skill.id, endpointId: resolved.endpoints[0].id });
 ```
 
-## /contract-shape (why three surfaces stay coherent)
+## How resolve decides (the fallback ladder)
 
-Every tool call on every surface follows the same shape:
+A resolve request carries an intent + URL. The runtime tries, in order: a cached route ->
+the shared route marketplace -> a fast first-pass fetch -> a live browser capture. Each
+step appends one row to a trace. The response carries that trace with `success`,
+`skill_id`, and `endpoint_id` as the proof of what actually ran. Unresolvable work
+surfaces as a `next_step` field, never a silent failure.
 
-1. **Declare** — the call carries an intent + URL.
-2. **Iterate** — the runtime tries cached → marketplace → first-pass browser → live capture, in that order. Each step appends one trace row.
-3. **Mark with proof** — the response carries a trace with `success`, `skill_id`, `endpoint_id`. The proof is the trace row.
+## Hard rules
 
-Honest residue surfaces as a `next_step` field (`open_browse_session`, `abandon_or_authenticate`) instead of a one-word error.
+1. Two calls for a known route (resolve then execute); never one, never three.
+2. When resolve hands off, follow the `next_step` (usually open a browse session); do not
+   loop the same resolve.
+3. Pick the endpoint from the shortlist yourself; the shortlist is structured for the
+   model to choose, not for the runtime to guess.
+4. A priced route is paid from the agent wallet or sponsored credit at execute time; a
+   `402` response means payment is required, not that the route is broken.
 
-## What lives in the public docs
+## What this skill does NOT do
 
-Every primitive Unbrowse depends on (pointer-not-payload, residential proxy fallback, interstitial shortcut, x402+Faremeter, never-leaked-fields list, domain opt-out, fair split + claim, deploy gate, dimensional bench, kuri first-principles roadmap) is documented at [`docs/public/primitives/`](../../docs/public/primitives/) in the public repo. The README index there is enforced by `scripts/check-primitives-doc-public.sh` so the folder cannot drift from the codebase.
+- It is not a general browser-automation framework; the browse tools exist to capture a
+  route, then you replay it via resolve + execute.
+- It does not scrape blindly; if no route resolves and capture is declined, it returns a
+  `next_step`, not fabricated data.
+- It does not store secrets in route metadata; captured routes are sanitized
+  (pointer-not-payload), and credential fields are never persisted in the route.
 
-## Skill / MCP / SDK / CLI sync (the precommit gate)
+## Public docs
 
-When a shipping-surface signal changes (new top-level dir, new workspace member, new binary, new wrangler.toml target, new deploy workflow), the same commit must update a canonical doc. The gate at `scripts/precommit-doc-delta.sh` surfaces the delta as evidence on every iterate; full canonical wiring at `~/.claude/skills/meta-harness/scripts/gates/doc-delta.sh`.
-
-The skill surface (this file) updates whenever the MCP tool catalog or the SDK API changes. The precommit gate flags it; the agent ships the update in the same commit.
+Every primitive Unbrowse depends on (sanitized route metadata, residential proxy
+fallback, interstitial shortcut, x402 payment, domain opt-out, fair revenue split, deploy
+gate, benchmark harness) is documented under `docs/public/primitives/` in the public repo,
+kept in sync by `scripts/check-primitives-doc-public.sh`.
 
 ## Provenance
 
-Source code: <https://github.com/unbrowse-ai/unbrowse-dev>  
-Public mirror: <https://github.com/unbrowse-ai/unbrowse>  
-MCP server, CLI, SDK published from this monorepo. Backend (`backend/`) is the Cloudflare Worker that handles marketplace + sponsor tier; frontend (`frontend/`) is the landing page; `packages/skill/` is this package (the npm-published CLI binary + the skill manifest you're reading).
+Source: <https://github.com/unbrowse-ai/unbrowse-dev>
+Public mirror: <https://github.com/unbrowse-ai/unbrowse>
+MCP server, CLI, and SDK are published from this monorepo. `packages/skill/` is this
+package: the npm-published CLI binary plus the skill manifest you are reading.
