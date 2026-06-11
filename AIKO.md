@@ -352,4 +352,5 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | `/unbrowse-bench-history-tracker` | Append every agent-judged bench-gate run to a per-run history ledger and surface deltas in release notes. |
 | `/web-app-harness` | scaffold a harness for this web app; set up the test loop; wire build test deploy debug fix |
 | `/falsifier-gated-build` | verify this build honestly; is this regression mine or pre-existing; did I actually fix it or is it a painted lamp |
+| `/unbrowse-capability-bench` | Re-run the unbrowse four-axis capability benchmark (action-retrieval coverage over Reddit/hardest-scrape/automation tiers, execution with/without auth, security leak-scan) plus the real cloned exa-labs/benchmarks run and the self-improvement A/B, then ALWAYS write a dated markdown report analyzing how each axis performed, what works, what regressed, and why. |
 <!-- /skills:pinned -->

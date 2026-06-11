@@ -1,0 +1,1 @@
+{"id":"B_rust_top","intent":"list the top posts in r/rust","field_checks":[{"path":"kind","op":"equals","value":"Listing"},{"path":"data.children","op":"min_count","value":1},{"path":"data.children[0].data.subreddit","op":"equals","value":"rust"},{"path":"data.children[].data.title","op":"all_nonempty"}]}
