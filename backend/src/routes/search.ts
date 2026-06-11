@@ -1,7 +1,7 @@
 import { Hono, type Context, type Next } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoints, type EndpointSearchHit } from "../services/discovery.js";
-import { webSearch } from "../services/web-search.js";
+import { webSearch } from "../services/web-search/index.js";
 import { getOrComputeSemantic } from "../services/semantic-cache.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
@@ -254,7 +254,8 @@ async function requireWebSearchPayment<E extends { Bindings: Env }>(c: Context<E
  *
  * Owner (admin key) requests run free; every other caller pays via x402 before
  * the search runs. Distinct from POST /v1/search, which is free local-index
- * discovery (PR #816). Keyless — runs DuckDuckGo retrieval from the Worker.
+ * discovery (PR #816). Engine comes from the provider chain (Exa primary when
+ * EXA_API_KEY is set, keyless DDG fallback — services/web-search/).
  */
 searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) => {
   const { query, k } = await c.req.json<{ query?: string; k?: number }>().catch(() => ({ query: undefined, k: undefined }));
@@ -275,7 +276,7 @@ searchRoutes.post("/search/web", optionalAuth, signedClientIfAuthed, async (c) =
       c.env,
       `web:k${topK}`,
       query.trim(),
-      () => webSearch(query.trim(), topK),
+      () => webSearch(c.env, query.trim(), topK),
       waitUntil,
     );
     return c.json({ query: query.trim(), results, cached });
