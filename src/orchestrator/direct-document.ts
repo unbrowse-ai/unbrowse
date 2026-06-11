@@ -1,4 +1,6 @@
 import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
+import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import { resolveProxyUrl } from "../execution/proxy-fetch.js";
 
 export interface DirectDocumentTable {
   caption?: string;
@@ -148,7 +150,13 @@ function extractMeaningfulTokens(intent: string): string[] {
   return out;
 }
 
-const MARKDOWN_BUDGET = 12_000;
+// Extraction budget for the direct-document markdown + text_excerpt. Default 12k
+// keeps agent responses lean (context economy); callers that need the full page
+// (e.g. a long-context RAG client doing its own in-page passage selection over a
+// large spec doc whose answer sits deep) raise it via UNBROWSE_MARKDOWN_BUDGET.
+// A 12k head-truncation silently erases deep passages in 800KB+ spec pages, so
+// the cap must be liftable without forking the extractor.
+const MARKDOWN_BUDGET = Math.max(1_000, Number(process.env.UNBROWSE_MARKDOWN_BUDGET ?? "12000") || 12_000);
 const MAX_TABLES = 10;
 const MAX_TABLE_ROWS = 50;
 
@@ -311,7 +319,7 @@ export function buildDirectDocumentResult(
     url,
     content_type: contentType,
     html_bytes: html.length,
-    text_excerpt: bodyText.slice(0, 12_000),
+    text_excerpt: bodyText.slice(0, MARKDOWN_BUDGET),
     markdown: htmlToMarkdownSafe(html, bodyText),
     tables: extractTables(html),
     extraction: {
@@ -345,6 +353,44 @@ export async function fetchDirectDocument(url: string): Promise<DirectDocumentRe
 export const fetchBloombergDirectDocument = fetchDirectDocument;
 
 async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentResult | null> {
+  // Ladder rung 1: curl-impersonate (Chrome 131 JA4) + auto residential proxy
+  // (resolveEgressProxy). Plain `curl -A unbrowse/1.0` gets 403'd by anti-bot
+  // hosts (docs.redhat.com) and throttled by IP-gated ones (gnu.org); the
+  // impersonate primitive passes the fingerprint check and can egress via proxy.
+  // This is the existing capture primitive, reused here so the direct-document
+  // fast path is not a weaker client than `unbrowse fetch`. Null -> fall to the
+  // plain-curl rung below (graceful degrade, never a hard fail).
+  // Ladder, not blanket-proxy: impersonate-DIRECT first (healthy hosts pay no
+  // proxy latency tax), escalate to impersonate-via-PROXY only on failure
+  // (anti-bot 403 / IP-throttle timeout). Blanket-proxy regressed the bench
+  // (fast hosts timed out behind the residential hop); direct-first-then-proxy
+  // recovers throttled hosts WITHOUT taxing the rest. The per-domain cache can
+  // later memoize which rung won so the walk starts there (skip dead edges).
+  const buildFrom = (imp: { html: string; status: number; final_url: string } | null) => {
+    if (!imp || !imp.html || imp.status < 200 || imp.status >= 400) return null;
+    const looksHtml = /^\s*<(?:!doctype|html|head|body|\?xml)/i.test(imp.html) || /<html[\s>]/i.test(imp.html.slice(0, 4_000));
+    const ct = looksHtml ? "text/html; charset=utf-8" : "application/octet-stream";
+    const result = buildDirectDocumentResult(imp.final_url || url, imp.html, ct);
+    return result.rejected ? null : result;
+  };
+  try {
+    // rung 1a: impersonate, direct egress (no proxy)
+    const direct = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 15_000, forceDirect: true }));
+    if (direct) return direct;
+    // rung 1b: impersonate via REAL residential proxy — only when iproyal creds
+    // are actually configured (env or ~/.identity/iproyal-creds). We pass the
+    // explicit proxy URL rather than letting resolveEgressProxy fall back to the
+    // x402-gated default, so a user WITHOUT proxy creds never eats a 45s hang on
+    // the unreachable default — they simply skip this rung. Generous timeout: an
+    // IP-throttled multi-MB manual over a variable residential exit needs headroom.
+    const realProxy = resolveProxyUrl();
+    if (realProxy) {
+      const viaProxy = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 45_000, proxy: realProxy }));
+      if (viaProxy) return viaProxy;
+    }
+  } catch {
+    // impersonate rung unavailable (no curl_cffi) — fall through to plain curl.
+  }
   try {
     const { execFile } = await import("node:child_process");
     const marker = "\n__UNBROWSE_CONTENT_TYPE__";
