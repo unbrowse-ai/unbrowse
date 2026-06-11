@@ -4706,7 +4706,21 @@ export async function resolveAndExecute(
             const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
             rescueCookies = extractBrowserCookies(host).cookies.map((c) => ({ name: c.name, value: c.value }));
           } catch { /* no cookies available — proceed cookieless */ }
-          const cffi = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 15_000, forceDirect: true, cookies: rescueCookies });
+          // Ladder: impersonate-DIRECT first (no proxy tax on healthy hosts),
+          // then escalate to impersonate-via-PROXY on failure. forceDirect:true
+          // alone left IP-throttled hosts (gnu.org) timing out — the rescue
+          // impersonated the fingerprint but never changed egress IP, so the
+          // throttle still bit. Direct-first-then-proxy recovers them without
+          // taxing the rest (resolveEgressProxy reads ~/.identity/iproyal-creds).
+          let cffi = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 12_000, forceDirect: true, cookies: rescueCookies });
+          // Escalate to the residential proxy ONLY when real iproyal creds are
+          // configured (pass the explicit URL, not the x402-gated default) so a
+          // user without creds never eats a long hang on an unreachable proxy.
+          const rescueProxy = resolveProxyUrl();
+          if (rescueProxy && (!cffi || !cffi.html || cffi.status < 200 || cffi.status >= 400)) {
+            const viaProxy = await tryCurlImpersonateFetch({ url: ctxUrl, timeoutMs: 45_000, proxy: rescueProxy, cookies: rescueCookies });
+            if (viaProxy?.html && viaProxy.status >= 200 && viaProxy.status < 400) cffi = viaProxy;
+          }
           if (cffi?.html && cffi.status >= 200 && cffi.status < 400) {
             const trimmed = cffi.html.trimStart();
             if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
