@@ -1545,6 +1545,8 @@ type SearchResolveResult = {
   skipped_global: boolean;
   actual_cost_uc?: number;
   exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>;
+  /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance from the backend's provider chain. */
+  web_search_provider?: string;
 };
 
 /**

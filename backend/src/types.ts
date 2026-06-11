@@ -16,6 +16,15 @@ export interface Env {
    */
   BIBLE_ANCHOR_ORDER?: string;
   NEBIUS_API_KEY: string;
+  /**
+   * Web-search provider chain (services/web-search/). When set, Exa is the
+   * primary engine (real relevance scores + highlights); the keyless DDG
+   * scraper remains the fail-soft fallback. Set via `wrangler secret put
+   * EXA_API_KEY`. Absent → DDG only, same behavior as before the adapter.
+   */
+  EXA_API_KEY?: string;
+  /** Pin the web-search chain: "exa" | "ddg" | "off". Unset = auto (exa when keyed, else ddg). */
+  WEB_SEARCH_PROVIDER?: string;
   /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */
   OPENROUTER_API_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
