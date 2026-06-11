@@ -16,7 +16,6 @@ routes/demos	internal-apis
 services/discovery	internal-apis
 services/descriptions	internal-apis
 services/skillmd	internal-apis
-services/exa	internal-apis
 services/neural-contract	internal-apis
 services/contract-ledger	internal-apis
 services/contract-ledger-kv	internal-apis
@@ -170,9 +169,7 @@ services/kv	out-of-scope
 services/landing	out-of-scope
 services/landing-experiments	out-of-scope
 services/metrics	out-of-scope
-services/neon	out-of-scope
 services/perf	out-of-scope
-services/pg-kv	out-of-scope
 services/runpod-pod-adapter	out-of-scope
 services/screenshot-blob	out-of-scope
 services/settings-state	out-of-scope
@@ -181,3 +178,12 @@ services/storm-safe	out-of-scope
 middleware/rate-limit	out-of-scope
 routes/telemetry	out-of-scope
 services/install-telemetry	out-of-scope
+routes/publish-error-map	maintenance
+routes/skills-chat	internal-apis
+services/bible-anchor	energy-ranking
+services/recommend-command	execute
+services/route-ledger	maintenance
+services/skill-contract	internal-apis
+services/skill-contract-cache	internal-apis
+services/skill-contract-persist	maintenance
+services/web-search	internal-apis
