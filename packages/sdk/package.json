@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/sdk",
-  "version": "8.3.0-preview.6",
+  "version": "8.3.0",
   "description": "[DEPRECATED — use the SDK folded into the unbrowse package: import { Unbrowse } from \"unbrowse/sdk\"] Thin TypeScript SDK for the canonical Unbrowse local server API.",
   "deprecated": "v6 @unbrowse/sdk is legacy (binary-spawn pattern). New code should install @unbrowse/client (v7, HTTP-first, browser-compatible, zero runtime deps): https://www.npmjs.com/package/@unbrowse/client . v6 stays supported for existing users until migration.",
   "type": "module",
