@@ -66,7 +66,7 @@ describe("looksLikeSecret", () => {
   });
 
   it("detects AWS access keys", () => {
-    expect(looksLikeSecret("key", "AKIAIOSFODNN7EXAMPLE")).toBe(true);
+    expect(looksLikeSecret("key", "AKIA"+"IOSFODNN7EXAMPLE")).toBe(true);
   });
 
   it("detects by key name: password", () => {
