@@ -7,7 +7,7 @@ import {
 	type RefreshRoute,
 } from "../src/trust/refresh-job.js";
 import { ProofChain } from "../src/trust/proof-of-indexing.js";
-import { composite } from "../src/ranking/composite.js";
+import { composite } from "../src/lib/ranking-core/composite.js";
 import type { EndpointDescriptor } from "../src/types/skill.js";
 
 async function signer() {

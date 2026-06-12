@@ -49,6 +49,7 @@ const LOCAL_ONLY_CLI = new Set([
               // MCP agents call go + close + sync instead (orchestration).
   "explain",  // CLI-only `unbrowse explain` (debug helper for ranking).
   "inspect",  // CLI-only `unbrowse inspect` (local skill cache walker).
+  "skill-package",  // CLI-only local package/export helper; no agent MCP wrapper.
   "auth",     // Hyphen-collapsed CLI `auth-capture` is exposed as MCP `auth_capture`.
 ]);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { shouldPublishAfterIndex } from "../src/indexer/index.js";
+import { shouldPublishAfterIndex } from "../src/lib/indexer-core/index.js";
 
 describe("shouldPublishAfterIndex — review-gate + opt-out", () => {
   it("blocks publish when share_pointers=false (private mode)", () => {

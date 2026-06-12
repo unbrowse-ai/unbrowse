@@ -29,8 +29,10 @@ beforeEach(() => {
   savedEnv.UNBROWSE_SKILL_CACHE_DIR = process.env.UNBROWSE_SKILL_CACHE_DIR;
   savedEnv.UNBROWSE_TRACE_STORE_DIR = process.env.UNBROWSE_TRACE_STORE_DIR;
   savedEnv.UNBROWSE_LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY;
+  savedEnv.UNBROWSE_WORKFLOW_EXPORT_DIR = process.env.UNBROWSE_WORKFLOW_EXPORT_DIR;
   process.env.UNBROWSE_SKILL_CACHE_DIR = skillDir;
   process.env.UNBROWSE_TRACE_STORE_DIR = traceDir;
+  process.env.UNBROWSE_WORKFLOW_EXPORT_DIR = join(workDir, "workflow-exports");
   process.env.UNBROWSE_LOCAL_ONLY = "1";
 });
 
@@ -130,6 +132,38 @@ describe("getPopularUnreviewedSkills — filters", () => {
     expect(found!.success_count).toBe(6);
     expect(found!.success_rate).toBe(1);
     expect(found!.most_used_endpoint).toEqual({ endpoint_id: "ep1", uses: 5 });
+  });
+
+  it("excludes already-published skills even without a reviewed_at stamp (auto_review provenance)", async () => {
+    // auto_review publishes carry NO reviewed_at — the publish artifact is
+    // the publish-state witness; published skills must not be re-suggested.
+    writeSkill({ skill_id: "skill-autopub", domain: "autopub.example", endpoint_ids: ["ep1"] });
+    for (let i = 0; i < 5; i++) {
+      appendTrace({ domain: "autopub.example", selected_endpoint_id: "ep1", success: true });
+    }
+    mkdirSync(join(workDir, "workflow-exports"), { recursive: true });
+    writeFileSync(
+      join(workDir, "workflow-exports", "skill-autopub.json"),
+      JSON.stringify({ skill_id: "skill-autopub", publish_status: "published", published_at: "2026-06-10T00:00:00Z" }),
+    );
+    const { getPopularUnreviewedSkills } = await import("../src/marketplace/popular-unreviewed.js");
+    const result = await getPopularUnreviewedSkills();
+    expect(result.find((s) => s.skill_id === "skill-autopub")).toBeUndefined();
+  });
+
+  it("still suggests skills whose publish artifact is only indexed (never shipped)", async () => {
+    writeSkill({ skill_id: "skill-indexed-only", domain: "indexedonly.example", endpoint_ids: ["ep1"] });
+    for (let i = 0; i < 5; i++) {
+      appendTrace({ domain: "indexedonly.example", selected_endpoint_id: "ep1", success: true });
+    }
+    mkdirSync(join(workDir, "workflow-exports"), { recursive: true });
+    writeFileSync(
+      join(workDir, "workflow-exports", "skill-indexed-only.json"),
+      JSON.stringify({ skill_id: "skill-indexed-only", publish_status: "indexed" }),
+    );
+    const { getPopularUnreviewedSkills } = await import("../src/marketplace/popular-unreviewed.js");
+    const result = await getPopularUnreviewedSkills();
+    expect(result.find((s) => s.skill_id === "skill-indexed-only")).toBeDefined();
   });
 
   it("excludes skills below the success-rate threshold (default 0.7)", async () => {

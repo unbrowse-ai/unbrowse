@@ -3,7 +3,7 @@ import { describe, test, expect } from "bun:test";
 import { mkdtemp, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tryAcquireWorkerSlot, touchHeartbeat } from "../src/indexer/queue-store.js";
+import { tryAcquireWorkerSlot, touchHeartbeat } from "../src/lib/indexer-core/queue-store.js";
 
 async function freshDir(): Promise<string> {
   return await mkdtemp(join(tmpdir(), "unbrowse-worker-slot-"));

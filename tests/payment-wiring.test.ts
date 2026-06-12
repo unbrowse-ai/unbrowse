@@ -75,6 +75,7 @@ describe("checkPaymentRequirement", () => {
     const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
       ...PAID_ROUTE,
       wallet_configured: false,
+      account_registered: false,
     });
     expect(result.status).toBe("wallet_not_configured");
     expect(result.requirement).toBeDefined();
@@ -336,6 +337,7 @@ describe("payment gate integration", () => {
     const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
       ...PAID_ROUTE,
       wallet_configured: walletCheck.configured,
+      account_registered: false,
     });
     expect(paymentCheck.status).toBe("wallet_not_configured");
 

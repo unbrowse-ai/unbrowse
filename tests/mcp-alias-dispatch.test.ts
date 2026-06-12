@@ -131,6 +131,7 @@ beforeAll(async () => {
 
   envShared = {
     UNBROWSE_URL: `http://127.0.0.1:${port}`,
+    UNBROWSE_BACKEND_URL: `http://127.0.0.1:${port}`,
     UNBROWSE_RUN_DIR: runDir,
     UNBROWSE_DISABLE_AUTO_UPDATE: "1",
     UNBROWSE_NON_INTERACTIVE: "1",

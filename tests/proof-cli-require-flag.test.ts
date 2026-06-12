@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/graph/index.js";
-import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
+import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/lib/graph-core/index.js";
+import { buildLocalHarnessFixtures } from "../src/lib/graph-core/local-fixtures.js";
 import type { commitmentProof } from "../src/types/proof.js";
 
 function makeProof(domain: string, verified: boolean, proofType: commitmentProof["proof_type"] = "commitment_only"): commitmentProof {

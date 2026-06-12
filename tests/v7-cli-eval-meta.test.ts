@@ -61,7 +61,7 @@ describe("v7-cli eval trace — JSONL output, redaction of pointer-shaped values
     const prevEnv = process.env.UNBROWSE_TRACE_STORE_DIR;
     process.env.UNBROWSE_TRACE_STORE_DIR = traceDir;
     try {
-      const { storeExecutionTrace } = await import("../src/graph/trace-store.js");
+      const { storeExecutionTrace } = await import("../src/lib/graph-core/trace-store.js");
       storeExecutionTrace({
         trace_id: "t-1",
         domain: HOST,

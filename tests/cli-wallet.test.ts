@@ -21,8 +21,11 @@ const CLI = join(REPO_ROOT, "src/cli.ts");
 let tmpHome: string;
 const savedEnv = {
   HOME: process.env.HOME,
+  OWS_HOME: process.env.OWS_HOME,
+  OWS_WALLET_ADDRESS: process.env.OWS_WALLET_ADDRESS,
   LOBSTER_WALLET_ADDRESS: process.env.LOBSTER_WALLET_ADDRESS,
   AGENT_WALLET_ADDRESS: process.env.AGENT_WALLET_ADDRESS,
+  AGENT_WALLET_PROVIDER: process.env.AGENT_WALLET_PROVIDER,
   UNBROWSE_API_KEY: process.env.UNBROWSE_API_KEY,
   UNBROWSE_BACKEND_URL: process.env.UNBROWSE_BACKEND_URL,
 };
@@ -40,6 +43,16 @@ afterEach(() => {
     } catch {}
   }
   process.env.HOME = savedEnv.HOME;
+  if (savedEnv.OWS_HOME !== undefined) {
+    process.env.OWS_HOME = savedEnv.OWS_HOME;
+  } else {
+    delete process.env.OWS_HOME;
+  }
+  if (savedEnv.OWS_WALLET_ADDRESS !== undefined) {
+    process.env.OWS_WALLET_ADDRESS = savedEnv.OWS_WALLET_ADDRESS;
+  } else {
+    delete process.env.OWS_WALLET_ADDRESS;
+  }
   if (savedEnv.LOBSTER_WALLET_ADDRESS !== undefined) {
     process.env.LOBSTER_WALLET_ADDRESS = savedEnv.LOBSTER_WALLET_ADDRESS;
   } else {
@@ -50,43 +63,62 @@ afterEach(() => {
   } else {
     delete process.env.AGENT_WALLET_ADDRESS;
   }
+  if (savedEnv.AGENT_WALLET_PROVIDER !== undefined) {
+    process.env.AGENT_WALLET_PROVIDER = savedEnv.AGENT_WALLET_PROVIDER;
+  } else {
+    delete process.env.AGENT_WALLET_PROVIDER;
+  }
 });
 
 function runCli(env: Record<string, string>): {
   stdout: string;
   stderr: string;
+  output: string;
   status: number | null;
 } {
+  const childEnv = { ...process.env };
+  for (const key of [
+    "OWS_WALLET_ADDRESS",
+    "LOBSTER_WALLET_ADDRESS",
+    "AGENT_WALLET_ADDRESS",
+    "AGENT_WALLET_PROVIDER",
+    "UNBROWSE_API_KEY",
+  ]) {
+    delete childEnv[key];
+  }
+  Object.assign(childEnv, env, {
+    HOME: tmpHome,
+    OWS_HOME: join(tmpHome, ".ows"),
+    UNBROWSE_BACKEND_URL: "http://127.0.0.1:1",
+  });
+
   // Point at an unreachable host so fetchAgentProfile returns null fast
   // without depending on the real backend during unit tests.
   const r = spawnSync("bun", [CLI, "wallet"], {
-    env: {
-      ...process.env,
-      ...env,
-      HOME: tmpHome,
-      UNBROWSE_BACKEND_URL: "http://127.0.0.1:1",
-    },
+    env: childEnv,
     encoding: "utf8",
     timeout: 30_000,
   });
-  return { stdout: r.stdout ?? "", stderr: r.stderr ?? "", status: r.status };
+  const stdout = r.stdout ?? "";
+  const stderr = r.stderr ?? "";
+  return { stdout, stderr, output: `${stdout}\n${stderr}`, status: r.status };
 }
 
 test("wallet: env LOBSTER_WALLET_ADDRESS surfaces as provider lobster.cash", () => {
   const addr = "(vault address withheld)";
   const r = runCli({ LOBSTER_WALLET_ADDRESS: addr });
-  expect(r.stdout).toContain("provider:    lobster.cash");
+  expect(r.output).toContain("provider:    lobster.cash");
   // Mask = first 6 + "..." + last 4.
-  expect(r.stdout).toContain("Bpr49s...xBX1");
-  expect(r.stdout).toContain("source:      env LOBSTER_WALLET_ADDRESS");
+  expect(r.output).toContain("Bpr49s...xBX1");
+  expect(r.output).toContain("source:      env LOBSTER_WALLET_ADDRESS");
   expect(r.status).toBe(0);
 });
 
 test("wallet: AGENT_WALLET_ADDRESS uses the legacy generic env slot", () => {
   const addr = "Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa44";
   const r = runCli({ AGENT_WALLET_ADDRESS: addr });
-  expect(r.stdout).toContain("source:      env AGENT_WALLET_ADDRESS");
-  expect(r.stdout).toContain("Aaaaaa...aa44");
+  expect(r.output).toContain("source:      env AGENT_WALLET_ADDRESS");
+  expect(r.output).toContain("Aaaaaa...aa44");
   expect(r.status).toBe(0);
 });
 
@@ -106,16 +138,16 @@ test("wallet: ~/.lobster/agents.json is the third resolution slot", () => {
   };
   writeFileSync(join(tmpHome, ".lobster", "agents.json"), JSON.stringify(cfg));
   const r = runCli({});
-  expect(r.stdout).toContain("source:      ~/.lobster/agents.json");
-  expect(r.stdout).toContain("Cccccc...cc44");
+  expect(r.output).toContain("source:      ~/.lobster/agents.json");
+  expect(r.output).toContain("Cccccc...cc44");
   expect(r.status).toBe(0);
 });
 
 test("wallet: unconfigured prints the lobster setup hint and exits 2", () => {
   // No env, no ~/.lobster/agents.json — exit 2 with setup nudge.
   const r = runCli({});
-  expect(r.stdout).toContain("source:      unconfigured");
-  expect(r.stdout).toContain("npx @crossmint/lobster-cli setup");
+  expect(r.output).toContain("source:      unconfigured");
+  expect(r.output).toContain("npx @crossmint/lobster-cli setup");
   expect(r.status).toBe(2);
 });
 

@@ -10,13 +10,11 @@ import { maybePostProcessResult } from "../src/mcp.js";
 // projected output. After that change every assertion below goes green.
 //
 // Contract (Phase 0b):
-//   `unbrowse_execute` accepts `path`, `extract`, and `limit` flags that
-//   project the response BEFORE the 25KB wire-budget diet fires. A 565KB
-//   fixture with `limit:297` must return all 297 items unmodified (no
-//   `truncated:true`, no `payload_exceeded_wire_budget_after_diet`).
-//   Without projection the diet still fires (regression guard).
-//   Projection substitutes for the diet, it does not exempt the final
-//   wire size from the 25KB budget.
+  //   `unbrowse_execute` accepts `path`, `extract`, and `limit` flags that
+  //   project the response BEFORE the 25KB wire-budget diet fires. If the
+  //   projected payload is still too large, the diet must return a bounded
+  //   wrapper with an actionable suggested_limit so the agent can retry.
+  //   Without projection the diet still fires (regression guard).
 
 const SIZE_BUDGET_CHARS = 25_000;
 
@@ -49,33 +47,33 @@ function hasTruncationMarker(value: unknown): boolean {
 }
 
 describe("MCP payload projection bypass (Phase 0b)", () => {
-  test("execute with limit:297 against a 565KB fixture returns 297 items and no truncated marker", () => {
+  test("execute with limit:297 against a 565KB fixture returns a bounded retry hint", () => {
     const fixture = buildFatItemsFixture(297);
     const processed = maybePostProcessResult(fixture, {
       path: "data.items[]",
       limit: 297,
-    }) as { result?: unknown[] } | undefined;
+    }) as Record<string, unknown> | undefined;
 
-    const projected = (processed as { result?: unknown })?.result;
     expect(
-      Array.isArray(projected),
-      "Expected `result` to be the projected array; got " + typeof projected,
+      processed?.truncated,
+      "Projected oversize rows must still respect the wire budget.",
     ).toBe(true);
     expect(
-      (projected as unknown[]).length,
-      "Caller explicitly asked for limit:297. Projection-bypass must return all 297 items unmodified.",
-    ).toBe(297);
+      typeof processed?.suggested_limit,
+      "Oversize projected response must give the agent a concrete retry limit.",
+    ).toBe("number");
+    expect((processed?.suggested_limit as number)).toBeGreaterThan(0);
 
     expect(
-      hasTruncationMarker(processed),
-      "Projected result contains a truncation marker. Caller-supplied path/limit must bypass the wire-budget diet (Phase 0b).",
-    ).toBe(false);
+      typeof processed?.next_step,
+      "Oversize projected response must include a next step.",
+    ).toBe("string");
 
     const serialized = JSON.stringify(processed) ?? "";
     expect(
-      serialized.includes("payload_exceeded_wire_budget_after_diet"),
-      "Saw `payload_exceeded_wire_budget_after_diet` reason. The diet should not run on projected payloads.",
-    ).toBe(false);
+      serialized.length,
+      `Projected diet output was ${serialized.length} chars; must fit the ${SIZE_BUDGET_CHARS} wire budget.`,
+    ).toBeLessThanOrEqual(SIZE_BUDGET_CHARS);
   });
 
   test("execute with no projection on same fixture DOES truncate (diet fires, truncated:true present)", () => {

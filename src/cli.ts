@@ -40,13 +40,14 @@ import { checkServerVersion, ensureLocalServer, stopServer, restartServer, stopM
 import { getInProcessApp } from "./runtime/in-process-app.js";
 import { getLastVendorBlock } from "./capture/process-vendor-signal.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
-import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingIndexJobs } from "./lib/indexer-core/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
 import { getContributionConfig, setContributionConfig } from "./config/contribution.js";
 import { getCapturePipelineSettings, updateCapturePipelineSettings } from "./settings.js";
+import { bridgeManifest } from "./architecture/bridge-manifest.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -141,7 +142,7 @@ async function _spawnDrainWorker(): Promise<void> {
   // Phase 1.1 Day 5 (Model B): gate the spawn on the global worker slot.
   // Parent holds the slot just long enough to spawn; the child re-acquires
   // on its own startup and becomes the canonical holder for its lifetime.
-  const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+  const { tryAcquireWorkerSlot } = await import("./lib/indexer-core/queue-store.js");
   const slot = await tryAcquireWorkerSlot(_getQueueDir());
   if (slot === null) return;
   try {
@@ -513,6 +514,226 @@ function isResolveSuccessResult(result: Record<string, unknown>): boolean {
   return !!result.result || Array.isArray(result.available_endpoints);
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function authHandoffDomain(url?: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+}
+
+function isAuthShapedDirectDocumentTask(intent: string, url?: string): boolean {
+  const haystack = `${intent} ${url ?? ""}`.toLowerCase();
+  return /\b(auth|authenticate|authenticated|login|logged in|sign in|signin|account|session|mail|inbox|console|dashboard|api key|credentials?)\b/.test(haystack);
+}
+
+function addDirectDocumentAgentGuidance(
+  result: Record<string, unknown>,
+  args: { intent: string; url?: string },
+): void {
+  const inner = result.result as Record<string, unknown> | undefined;
+  if (!inner || typeof inner !== "object") return;
+
+  const extraction = inner.extraction as Record<string, unknown> | undefined;
+  const impact = result.impact as Record<string, unknown> | undefined;
+  const isDirectDocument =
+    result.source === "direct-document" ||
+    impact?.source === "direct-document" ||
+    extraction?.source === "direct-document" ||
+    typeof inner.text_excerpt === "string" ||
+    typeof inner.markdown === "string" ||
+    typeof inner.data === "object";
+  if (!isDirectDocument) return;
+
+  const targetUrl =
+    typeof args.url === "string" && args.url.length > 0
+      ? args.url
+      : typeof inner.url === "string"
+        ? inner.url
+        : undefined;
+  const operationId = "direct-document-read";
+  const domain = authHandoffDomain(targetUrl);
+  const authShaped = isAuthShapedDirectDocumentTask(args.intent, targetUrl);
+  if (authShaped && domain) {
+    const loginUrl = `https://${domain}/`;
+    const authCommand = `unbrowse auth ${shellQuote(loginUrl)}`;
+    const requirements = (
+      inner.requirements && typeof inner.requirements === "object" && !Array.isArray(inner.requirements)
+        ? inner.requirements as Record<string, unknown>
+        : {}
+    );
+    requirements.auth_handoff = {
+      login_required: true,
+      domain,
+      web_login_url: loginUrl,
+      reason: "auth_likely_intent",
+      surfaces: [
+        {
+          kind: "local_browser",
+          label: "Use existing Dia/Chrome session",
+          description:
+            `If the user is already signed into ${domain} locally, retry after browser-cookie extraction can refresh the site session.`,
+        },
+        {
+          kind: "agent_browser",
+          label: "Open an unbrowse login session",
+          commands: [authCommand, "unbrowse close"],
+          description:
+            `Open ${loginUrl} in an unbrowse-managed browser, let the user sign in, then close to persist fresh cookies for the next resolve.`,
+        },
+      ],
+      next_step:
+        `The intent is auth-shaped, so the direct document is only a partial answer. Run \`${authCommand}\`, then retry this resolve.`,
+    };
+    inner.requirements = requirements;
+    if (typeof inner.status !== "string") inner.status = "needs_input";
+  }
+
+  if (!Array.isArray(inner.available_operations) || inner.available_operations.length === 0) {
+    const directDocumentOperation = {
+        operation: "read_returned_direct_document",
+        operation_id: operationId,
+        endpoint_id: operationId,
+        method: "GET",
+        ...(targetUrl ? { url_template: targetUrl } : {}),
+        requires_auth: false,
+        description:
+          "Use the returned direct-document data, markdown, or text_excerpt as the answer platform; no browser was opened.",
+    };
+    inner.available_operations = authShaped && domain
+      ? [
+          {
+            operation: "authenticate_site_then_retry",
+            operation_id: "auth-handoff",
+            endpoint_id: "auth-handoff",
+            method: "GET",
+            url_template: `https://${domain}/`,
+            requires_auth: true,
+            description:
+              "The requested task is auth-shaped. Refresh site credentials, then retry resolve for authenticated data.",
+          },
+          directDocumentOperation,
+        ]
+      : [directDocumentOperation];
+  }
+  if (typeof inner.suggested_next_operation_id !== "string") {
+    inner.suggested_next_operation_id = authShaped && domain ? "auth-handoff" : operationId;
+  }
+  if (authShaped && domain && !inner.next_action) {
+    const loginUrl = `https://${domain}/`;
+    inner.next_action = {
+      title: "Authenticate with site, then retry resolve",
+      command: `unbrowse auth ${shellQuote(loginUrl)}`,
+      why:
+        "The returned direct-document payload is browser-free, but the requested task is auth-shaped. Refresh site credentials first so the next resolve can use authenticated data instead of a public shell.",
+    };
+  } else if (!inner.next_action) {
+    const command = targetUrl
+      ? `unbrowse read resolve --intent ${shellQuote(args.intent)} --url ${shellQuote(targetUrl)} --force-capture --no-execute`
+      : `unbrowse read resolve --intent ${shellQuote(args.intent)} --force-capture --no-execute`;
+    inner.next_action = {
+      title: "Use returned direct-document data",
+      command,
+      why:
+        "Resolve already returned a browser-free document payload. Use it directly; run the command only if the agent needs a route shortlist or deeper capture.",
+    };
+  }
+  if (inner.next_action && typeof inner.next_action === "object" && !Array.isArray(inner.next_action)) {
+    const nextAction = inner.next_action as Record<string, unknown>;
+    if (typeof nextAction.command === "string" && nextAction.command.startsWith("unbrowse resolve ")) {
+      nextAction.command = nextAction.command.replace(/^unbrowse resolve\b/, "unbrowse read resolve");
+    }
+  }
+}
+
+function buildAuthHandoffResolveEnvelope(intent: string, targetUrl: string): Record<string, unknown> | null {
+  const domain = authHandoffDomain(targetUrl);
+  if (!domain) return null;
+  const loginUrl = `https://${domain}/`;
+  const authCommand = `unbrowse auth ${shellQuote(loginUrl)}`;
+  return {
+    trace: {
+      trace_id: `auth-handoff:${domain}`,
+      skill_id: "auth-handoff",
+      endpoint_id: "auth-handoff",
+      success: true,
+    },
+    source: "local_primitive",
+    impact: {
+      source: "local_primitive",
+      browser_avoided: true,
+    },
+    result: {
+      status: "needs_input",
+      url: targetUrl,
+      rejected: true,
+      extraction: {
+        source: "auth-handoff",
+        rejected: true,
+      },
+      requirements: {
+        auth_handoff: {
+          login_required: true,
+          domain,
+          web_login_url: loginUrl,
+          reason: "auth_likely_intent",
+          surfaces: [
+            {
+              kind: "local_browser",
+              label: "Use existing Dia/Chrome session",
+              description:
+                `If the user is already signed into ${domain} locally, retry after browser-cookie extraction can refresh the site session.`,
+            },
+            {
+              kind: "agent_browser",
+              label: "Open an unbrowse login session",
+              commands: [authCommand, "unbrowse close"],
+              description:
+                `Open ${loginUrl} in an unbrowse-managed browser, let the user sign in, then close to persist fresh cookies for the next resolve.`,
+            },
+          ],
+          next_step:
+            `The intent is auth-shaped. Run \`${authCommand}\`, then retry \`unbrowse read resolve --intent ${shellQuote(intent)} --url ${shellQuote(targetUrl)}\`.`,
+        },
+      },
+      available_operations: [
+        {
+          operation: "authenticate_site_then_retry",
+          operation_id: "auth-handoff",
+          endpoint_id: "auth-handoff",
+          method: "GET",
+          url_template: loginUrl,
+          requires_auth: true,
+          description:
+            "The requested task is auth-shaped. Refresh site credentials, then retry resolve for authenticated data.",
+        },
+        {
+          operation: "read_returned_direct_document",
+          operation_id: "direct-document-read",
+          endpoint_id: "direct-document-read",
+          method: "GET",
+          url_template: targetUrl,
+          requires_auth: false,
+          description:
+            "Optional public-shell read after auth handoff; authenticated data requires signing in first.",
+        },
+      ],
+      suggested_next_operation_id: "auth-handoff",
+      next_action: {
+        title: "Authenticate with site, then retry resolve",
+        command: authCommand,
+        why:
+          "The requested task is auth-shaped. Refresh site credentials first so the next resolve can use authenticated data instead of spending time on a public shell.",
+      },
+    },
+  };
+}
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -562,6 +783,7 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   if (Array.isArray(obj.decision_trace)) out.decision_trace = obj.decision_trace;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;
+  if (obj.next_action) out.next_action = obj.next_action;
   if (obj.next_actions) out.next_actions = obj.next_actions;
   if (obj.next_step) out.next_step = obj.next_step;
   if (obj.source) out.source = obj.source;
@@ -733,6 +955,14 @@ function resolveCacheSafe(flags: Record<string, string | boolean>): boolean {
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
+  const targetUrl = typeof flags.url === "string" ? flags.url : undefined;
+  if (targetUrl && flags["force-capture"] !== true && isAuthShapedDirectDocumentTask(intent, targetUrl)) {
+    const authEnvelope = buildAuthHandoffResolveEnvelope(intent, targetUrl);
+    if (authEnvelope) {
+      output(authEnvelope, !!flags.pretty);
+      return;
+    }
+  }
 
   // FAST PATH: a fresh resolution-cache hit short-circuits BEFORE the in-process
   // backend boots (~4s) and before any telemetry — warm resolve in ~module-load time.
@@ -741,9 +971,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   if (resolveCacheSafe(flags)) {
     const cachedHit = peekResolution<Record<string, unknown>>(resolveCacheKeyFor(flags, intent), resolveCacheTtlMs());
     if (cachedHit) {
+      const hostType = detectTelemetryHostType();
+      if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
+        await ensureCliInstallTracked(hostType);
+      }
+      addDirectDocumentAgentGuidance(cachedHit, {
+        intent,
+        url: typeof flags.url === "string" ? flags.url : undefined,
+      });
       void recordFunnelTelemetryEvent("resolve_completed", {
         source: "cli",
-        hostType: detectTelemetryHostType(),
+        hostType,
         properties: { command: "resolve", intent, cache_hit: true },
       }).catch(() => {});
       output(cachedHit, !!flags.pretty);
@@ -982,6 +1220,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       });
     }
 
+    addDirectDocumentAgentGuidance(result, { intent, url });
     result = slimTrace(result);
     emitImpactSummary(result);
     {
@@ -1320,14 +1559,12 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     const status = (result.result as Record<string, unknown> | undefined)?.status as string | undefined
       ?? result.status as string | undefined;
     if (error === "auth_required" || status === "auth_required") return false;
-    // payment_required is a paywall on the marketplace search itself (not on
-    // the destination site) — the agent never asked to pay for marketplace
-    // search, so fall through to capture+index just like a cache miss. Per
-    // contract b3b148b7: marketplace 402 must auto-fallthrough; without
-    // this, every bench probe whose intent didn't already cache-hit would
-    // terminate at the 402 envelope instead of trying the live capture
-    // ladder (observed at conc=8 in conductor wave-5: 13 of 35 probes
-    // stopped at marketplace 402).
+    // A direct route/payment envelope is user-visible policy and must not be
+    // bypassed by capture. Marketplace-search 402 without payment details may
+    // still fall through to capture+index like a cache miss.
+    if ((error === "payment_required" || status === "payment_required") && result.payment) {
+      return false;
+    }
     if (error) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(error);
     if (status) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(status);
     return !isResolveSuccessResult(result);
@@ -1969,7 +2206,7 @@ async function cmdConfig(args: string[], flags: Record<string, string | boolean>
         telemetry: false,
         share_pointers: false,
         auto_publish_checkpoints: false,
-        message: "Remote sharing and checkpoint auto-publish are disabled. Existing published domains must be removed by Unbrowse support.",
+        message: "Remote pointer sharing and checkpoint auto-publish are disabled.",
       }, !!flags.pretty);
       return;
     }
@@ -2261,10 +2498,10 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("Claude Code registration skipped (--no-claude-register).");
   } else {
     const { registerWithClaudeCode } = await import("./setup/claude-mcp-register.js");
-    const mcpEntrypoint = require.resolve("./mcp.js");
+    const mcpEntrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
     const claudeReg = await registerWithClaudeCode({
-      serverCommand: "bun",
-      serverArgs: ["run", mcpEntrypoint],
+      serverCommand: process.execPath,
+      serverArgs: runtimeArgsForEntrypoint(import.meta.url, mcpEntrypoint),
     });
     if (claudeReg.skipped) {
       if (claudeReg.skip_reason === "claude_cli_not_found") {
@@ -3022,8 +3259,41 @@ async function cmdFetch(args: string[], flags: Record<string, string | boolean>)
   // SIMPLE mode output: stat line on stderr, body on stdout.
   const peo = postEvalProcessed as Record<string, unknown> | string | undefined;
   let body = (peo && typeof peo === "object" && "body" in peo) ? peo.body : peo;
-  const status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
+  let status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
   const routesCount = resp.routes_observed?.length ?? 0;
+
+  // x402 / pay.sh: if the URL answered 402 Payment Required, pay it via the
+  // configured wallet adapter and retry ONCE. Default-off — only fires when a
+  // wallet adapter is configured (UNBROWSE_WALLET_ADAPTER=pay routes through the
+  // pay.sh CLI and handles MPP + x402; sandbox via UNBROWSE_PAY_SANDBOX=1).
+  // In-process (x402Fetch uses global fetch) — no daemon spawn.
+  if (!customBundle && url && Number(status) === 402) {
+    const { x402Fetch, resolveWalletConfig } = await import("./payments/x402-fetch.js");
+    const adapter = resolveWalletConfig().adapter;
+    if (adapter !== "none") {
+      const payHeaders: Record<string, string> = { Accept: "*/*" };
+      if (typeof flags.header === "string") {
+        const idx = flags.header.indexOf(":");
+        if (idx > 0) payHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
+      }
+      const payInit: RequestInit = { method: fetchMethod, headers: payHeaders };
+      if (typeof flags.data === "string") payInit.body = flags.data;
+      try {
+        const { response, trace } = await x402Fetch(url, payInit);
+        if (response.status >= 200 && response.status < 300) {
+          body = await response.text();
+          status = response.status;
+          info(`[fetch] paid 402 via ${trace.adapter ?? "wallet"} (${trace.sub_state}) → ${response.status}`);
+        } else {
+          info(`[fetch] 402 not paid (${trace.sub_state}) — see https://pay.sh for wallet setup`);
+        }
+      } catch (e) {
+        info(`[fetch] x402 retry failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else {
+      info("[fetch] 402 Payment Required — set UNBROWSE_WALLET_ADAPTER (e.g. =pay) to authorize payment");
+    }
+  }
   // --main: extract the page's MAIN CONTENT as clean markdown (drop nav, chrome,
   // sidebars, related-links, footers) rather than dumping the whole HTML page.
   // Only fires on HTML bodies; cleanDOM has a content-loss guard that falls back
@@ -3069,7 +3339,7 @@ export const CLI_REFERENCE = {
     // ── Setup & lifecycle ─────────────────────────────────────────────────
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register] [--no-mcp-host-register] [--no-contract]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), register the local /contract bin as a sibling MCP entry across detected hosts, and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
-    { name: "health", usage: "", desc: "Quick local server health check. Returns version + uptime." },
+    { name: "health", usage: "", desc: "Quick local runtime health check. Runs in-process by default; explicit `serve` is the compatibility daemon." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
 
     // ── Identity & policy ─────────────────────────────────────────────────
@@ -3080,7 +3350,7 @@ export const CLI_REFERENCE = {
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
     // ── The two primary call paths for an agent ───────────────────────────
-    { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
+    { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS through the embedded browser/sandbox primitive and prints the full envelope (cookies, post_eval, observed routes). Browser/Kuri helpers are binary-owned implementation details." },
     { name: "run", usage: '<url> "task"', desc: "One-shot agent path. Chooses direct cached/API replay first, captures+indexes on miss, retries, then opens browser only when interaction is needed. Accepts positional task text or --intent/--task/--query." },
     { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Advanced: resolve an intent against marketplace + local cache only. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
@@ -3106,10 +3376,10 @@ export const CLI_REFERENCE = {
     { name: "spec", usage: "<domain-or-url> [--budget-ms N] [--graphql]", desc: "Probe spec-publishing endpoints (openapi/swagger/sitemap/robots/graphql) for a site BEFORE browse-capture. Pointer-only metadata. Delegates to the v7 eval handler shared with MCP `unbrowse_spec`." },
     { name: "auth-inventory", usage: "[--domain host]", desc: "Per-domain inventory of what the local browser profile can already authenticate against (hostnames, cookie NAMES, counts — never values). Bias resolve toward logged-in domains. Shared with MCP `unbrowse_auth_inventory`." },
 
-    // ── Browser session (Kuri primitives) ─────────────────────────────────
+    // ── Browser session (binary-owned browser primitives) ─────────────────
     // Use these when the work needs a real DOM (form submits, click flows).
     // Sequence: go → snap → click/fill/eval → submit → sync → close.
-    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab (or reuse via --session). Step 1 of the browse workflow." },
+    { name: "go", usage: '<url> [--session id]', desc: "Acquire a binary-owned browser lease and open a fresh tab (or reuse via --session for legacy flows). Step 1 of the browse workflow." },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs. Inspect the page state — gives you the refs to click/fill." },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by @eN ref from snap." },
     { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by @eN ref with the given value." },
@@ -3167,7 +3437,7 @@ export const CLI_REFERENCE = {
     { flag: "--require-proof", desc: "Filter resolve to only endpoints with independently verified proofs." },
   ],
   envVars: [
-    { name: "UNBROWSE_URL", desc: "Local server URL (default: http://localhost:6969)" },
+    { name: "UNBROWSE_URL", desc: "Compatibility server URL. When unset, the CLI uses the in-process stateless runtime." },
     { name: "UNBROWSE_API_URL", desc: "Marketplace/backend URL (default: https://beta-api.unbrowse.ai)" },
     { name: "UNBROWSE_ZK_PROOF=1", desc: "Enable commitment metadata generation helpers" },
     { name: "UNBROWSE_NOTARY_URL=<url>", desc: "Reserved for future TLSNotary integration; current client is a stub" },
@@ -3184,7 +3454,7 @@ export const CLI_REFERENCE = {
     { flag: "--publish", desc: "Explicitly publish observed routes to the marketplace." },
     { flag: "--intent \"...\"", desc: "Label for explicit marketplace publish of observed routes." },
     { flag: "--envelope", desc: "Force full envelope output (cookies + routes_observed + post_eval) instead of body-only." },
-    { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs in Kuri sandbox." },
+    { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs through the embedded browser/sandbox primitive." },
     { flag: "--bundle-url <url>", desc: "ADVANCED: fetch JS bundle from URL." },
     { flag: "--post-eval <expr>", desc: "ADVANCED: JS expression evaluated after bundle runs (e.g. globalThis.signedUrl)." },
     { flag: "--target-origin <url>", desc: "ADVANCED: origin used for cookie scoping. Defaults to fetch URL's origin." },
@@ -3929,33 +4199,47 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
   const results: Record<string, unknown> = { site: pack.site, waves: [], _deps: { parallel_safe: true } };
   const waveResults: unknown[] = [];
 
+  // Each task resolves IN-PROCESS (client-first: local cache + local execute,
+  // server-proxy fallback underneath). The remaining work is fanned out — but
+  // BOUNDED (DEFAULT_FANOUT_CONCURRENCY, override with --concurrency N), never
+  // the old unbounded Promise.all that opened one egress per task at once.
+  const { fanOut, DEFAULT_FANOUT_CONCURRENCY } = await import("./execution/fan-out.js");
+  const concurrency =
+    typeof flags.concurrency === "string" && Number.isFinite(Number(flags.concurrency))
+      ? Math.max(1, Number(flags.concurrency))
+      : DEFAULT_FANOUT_CONCURRENCY;
+
+  async function runTask(cmd: string): Promise<{ task: string; result?: unknown; error?: string }> {
+    const parts = cmd.split(" ");
+    const task = parts[parts.length - 1];
+    const taskDef = findTask(pack, task);
+    if (!taskDef) return { task, error: "unknown task" };
+    if (task === "login") {
+      return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
+    }
+    const body: Record<string, unknown> = {
+      intent: taskDef.intent,
+      params: { url: taskDef.url },
+      context: { url: taskDef.url },
+    };
+    if (flags["force-capture"]) body.force_capture = true;
+    body.projection = { raw: true };
+    const res = (await api("POST", "/v1/intent/resolve", body)) as Record<string, unknown>;
+    return { task, result: slimTrace(res) };
+  }
+
   for (const wave of waves) {
     const waveStart = Date.now();
-    const promises = wave.commands.map(async (cmd) => {
-      const parts = cmd.split(" ");
-      const task = parts[parts.length - 1];
-      const taskDef = findTask(pack, task);
-      if (!taskDef) return { task, error: "unknown task" };
-
-      if (task === "login") {
-        return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
-      }
-      const body: Record<string, unknown> = {
-        intent: taskDef.intent,
-        params: { url: taskDef.url },
-        context: { url: taskDef.url },
-      };
-      if (flags["force-capture"]) body.force_capture = true;
-      body.projection = { raw: true };
-      const res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
-      return { task, result: slimTrace(res) };
-    });
-
-    const waveResult = await Promise.all(promises);
+    const settled = await fanOut(wave.commands, (cmd) => runTask(cmd), { concurrency });
+    // fanOut isolates failures into settled entries; surface them per task.
+    const waveResult = settled.map((r) =>
+      r.ok ? r.value : { task: "unknown", error: r.error ?? "fan-out worker failed" },
+    );
     waveResults.push({
       wave: wave.wave,
       reason: wave.reason,
       elapsed_ms: Date.now() - waveStart,
+      concurrency,
       tasks: waveResult,
     });
   }
@@ -4239,7 +4523,11 @@ async function cmdRegister(flags: Record<string, unknown>) {
   }
   await ensureRegistered({ promptForEmail: !flags["no-prompt"], exitOnFailure: false });
   if (getApiKey()) {
-    info("Registration complete. You can now publish skills and check earnings.");
+    // Honest: a key is minted, but publishing also depends on the share_pointers gate
+    // (auto-publish can be off) and earnings require an attached wallet (L1 anon has
+    // none). Don't claim "you can now publish + earn" unconditionally — point to the
+    // command that shows the real state instead of overstating capability.
+    info("Registration complete — API key saved. Run `unbrowse account` to see publish/earnings status (publishing needs sharing on; earnings need an attached wallet).");
     stopServerAfterReset();
   } else {
     info("Registration skipped or failed. Unbrowse still works locally — publish/earnings are disabled.");
@@ -4589,6 +4877,7 @@ async function cmdConnectChrome(): Promise<void> {
  * /v1/contract/* harness at beta-api.unbrowse.ai (organ ddff0c96 + a499b1f3).
  *
  * Subcommands:
+ *   surface                                     — print local holes-only bridge manifest
  *   tools                                       — list cloud routes + local capabilities
  *   declare --plan TEXT --action TEXT [--parent ID]  — POST /v1/contract/declare
  *   status ID                                   — GET  /v1/contract/status?id=ID
@@ -4628,6 +4917,10 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
   }
 
   switch (sub) {
+    case "surface": {
+      process.stdout.write(JSON.stringify(bridgeManifest(), null, 2) + "\n");
+      return;
+    }
     case undefined:
     case "tools":
     case "help": {
@@ -4673,9 +4966,27 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
     }
     default:
       console.error(`unknown subcommand: ${sub}`);
-      console.error("usage: unbrowse contract <tools|declare|status|plan-for-intent>");
+      console.error("usage: unbrowse contract <surface|tools|declare|status|plan-for-intent>");
       process.exit(2);
   }
+}
+
+async function cmdCanonicalVerb(alias: "create" | "act" | "read", args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  if (alias === "read" && args[0] === "resolve") {
+    const forwardedFlags = { ...flags };
+    if (typeof args[1] === "string" && typeof forwardedFlags.intent !== "string") {
+      forwardedFlags.intent = args.slice(1).join(" ");
+    }
+    return cmdResolve(forwardedFlags);
+  }
+  const verb = alias === "create" ? "build" : alias === "act" ? "act" : "eval";
+  const { runV7 } = await import("./cli-v7/index.js");
+  await runV7([
+    process.argv[0] ?? "bun",
+    process.argv[1] ?? "unbrowse",
+    verb,
+    ...process.argv.slice(3),
+  ]);
 }
 
 async function main(): Promise<void> {
@@ -4708,7 +5019,7 @@ async function main(): Promise<void> {
   if (command === "__drain-queue") {
     try {
       const queueDir = _getQueueDir();
-      const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+      const { tryAcquireWorkerSlot } = await import("./lib/indexer-core/queue-store.js");
       // Phase 1.1 Day 5 (Model B): child holds the slot for its lifetime.
       // If another worker already holds it, exit cleanly — the sibling drains.
       const slot = await tryAcquireWorkerSlot(queueDir);
@@ -4716,15 +5027,15 @@ async function main(): Promise<void> {
         process.exit(0);
       }
       try {
-        const { drainUntilEmpty } = await import("./indexer/worker.js");
-        const { _processIndexJobForCli } = await import("./indexer/index.js");
+        const { drainUntilEmpty } = await import("./lib/indexer-core/worker.js");
+        const { _processIndexJobForCli } = await import("./lib/indexer-core/index.js");
         // Two-lane drain, one worker slot: capture-pending FIRST so any
         // reconstructed BackgroundIndexJob lands in `pending/` and is
         // processed in the same worker lifetime (no second spawn needed).
         // Failure here never blocks the legacy pending drain.
         try {
-          const { drainCaptureSpoolOnce } = await import("./indexer/capture-spool.js");
-          const { makeCaptureSpoolProcessor } = await import("./indexer/capture-spool-bridge.js");
+          const { drainCaptureSpoolOnce } = await import("./lib/indexer-core/capture-spool.js");
+          const { makeCaptureSpoolProcessor } = await import("./lib/indexer-core/capture-spool-bridge.js");
           const captureDir = _getCaptureSpoolDir();
           let totalProcessed = 0;
           // Drain in a loop until idle so envelopes that produced new pending
@@ -4821,6 +5132,8 @@ async function main(): Promise<void> {
   if (command === "telemetry") return cmdTelemetry(args, flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
   if (command === "register") { info("[deprecated] `register` is now `account --register`"); return cmdRegister(flags); }
+  if (command === "create" || command === "act" || command === "read") return cmdCanonicalVerb(command, args, flags);
+  if (command === "contract" && args[0] === "surface") return cmdContract(args, flags);
   if (command === "account") {
     if (flags.register) return cmdRegister(flags);
     return cmdAccount(flags);
@@ -4831,6 +5144,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "run", "execute", "exec",
+    "create", "act", "read",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "payment-provider", "account", "dashboard", "capture",
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
@@ -4872,6 +5186,7 @@ async function main(): Promise<void> {
     case "health": return cmdHealth(flags);
     case "mcp": return cmdMcp(flags);
     case "contract-bridge": return cmdContractBridge(flags);
+    case "create": case "act": case "read": return cmdCanonicalVerb(command, args, flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "run": return cmdRun(args, flags);
@@ -4988,6 +5303,8 @@ async function main(): Promise<void> {
 }
 
 if (isMainModule(import.meta.url)) {
+  const manifestOnlyInvocation = process.argv[2] === "contract" && process.argv[3] === "surface";
+  const canonicalV7Invocation = process.argv[2] === "create" || process.argv[2] === "act" || process.argv[2] === "read";
   // Drains run on best-effort terms. A stalled background job MUST NOT
   // hang CLI exit — same bug class as the previously-fixed inline
   // telemetry await (project_cli_resolve_exit_hang). Both drains race
@@ -5007,10 +5324,12 @@ if (isMainModule(import.meta.url)) {
     ]);
 
   main()
-    .then(() => Promise.all([
-      drainWithTimeout("index-jobs", drainPendingIndexJobs()),
-      drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
-    ]))
+    .then(() => manifestOnlyInvocation || canonicalV7Invocation
+      ? undefined
+      : Promise.all([
+          drainWithTimeout("index-jobs", drainPendingIndexJobs()),
+          drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
+        ]))
     .then(() => {
       // Drain promises resolve when budget elapses, but underlying async
       // work (sockets, timers, kept-alive connections) can keep the event

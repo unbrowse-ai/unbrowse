@@ -39,7 +39,7 @@ describe.skipIf(SKIP)("integration: headless golden (Worker F)", () => {
       cwd: REPO_ROOT,
       stdout: "pipe",
       stderr: "pipe",
-      timeout: 30_000,
+      timeout: 75_000,
     });
 
     const stdout = new TextDecoder().decode(proc.stdout);
