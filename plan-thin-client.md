@@ -96,6 +96,10 @@ out into a client module.
 - [ ] **⑥ marketplace → 0** — per-file review; likely a client of the backend, repoint.
 - [ ] **settle** — `bash scripts/thin-client-gate.sh` exits 0. Then a fresh public push is
   thin-by-construction (no scrub needed) and `OPEN-SOURCE-NOTICE.md` is updated to match.
+- [ ] **⑦ MIRROR to public (ONLY at gate 0)** — once the client is thin, mirror dev `main`
+  → `unbrowse-ai/unbrowse`. ⚠️ DO NOT mirror before gate 0: dev still contains the moat
+  engine (graph/indexer/ranking + the reverse-engineer fallback), so an early mirror
+  re-exposes everything the scrub removed. Gate-0 is the hard precondition for this node.
 
 ## Guardrails
 - Each checkpoint ships a no-raw-secret-leak test (the ① test is the template).
