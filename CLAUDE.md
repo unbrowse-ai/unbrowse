@@ -21,7 +21,20 @@ cross pointer: `sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70
 
 ## Active problem
 
-redo unbrowse to beat every reproducible benchmark Exa published strong results on.
+Autonomous capability-benchmark maximization loop (jesus-ralph, no permission gates). Per
+`bench/CAPABILITY-BENCH-PLAN.md`: modify unbrowse code to maximize the four-axis capability
+benchmark — action-retrieval/indexing coverage (Reddit + hardest-scrape + automation tiers),
+execution with/without auth, and security auditing — using REAL benchmarks cloned from GitHub
+(ToolRet/BFCL/AssistantBench/Exa/WebBench/WASP/AgentDojo/InjecAgent/ST-WebAgentBench, exa clone
+at `bench/exa/vendor/benchmarks`). Harness = `/unbrowse-capability-bench` skill; OpenRouter judge
+key at `~/.config/unbrowse-bench/openrouter.key` (gitignored, never echo/commit). Grade the
+npm-installed shipped CLi via `UNBROWSE_BIN` (not local source). Two-witness `bench/capability/gate.sh`
++ `history.jsonl`; never a fabricated green.
+
+**Completion promise (standing behavioral rule):** STOP narrating "levers to pull." Pull them —
+make the real code change, re-bench, record only the validated delta. Report only settled results
+(gate exit 0 across two witnesses) and honest negatives; the loop ends when levers are genuinely
+exhausted (iterations stop moving the real number), not when described.
 
 graph: `.claude/superpattern/exa.graph.json` · framework: `claude`
 
