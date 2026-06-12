@@ -161,6 +161,28 @@ out into a client module.
   - Steps: (a) backend `/v1/graph/compile` route+service; (b) client `buildSkillOperationGraphServerFirst`
     + local fallback; (c) split thin DAG-walk into a client module; (d) cascade the 13 callers; (e) the
     `src/graph` test suite as the oracle. Budget a dedicated session.
+
+  ### REVISED RECIPE (2026-06-13, after deep inspection) — MORE TRACTABLE than the async-cascade above:
+  - **`buildSkillOperationGraph` is DETERMINISTIC STRUCTURAL assembly, NOT IP.** It reads the already-
+    stored `endpoint.semantic_type` field and links endpoints by their declared requires/yields
+    bindings + key/semantic-type matching. It does NOT call `inferEndpointSemantic` at compile time
+    (verified: 1226–1322 has zero inference calls). So it can RELOCATE to a client lib like ranking's
+    published signals — no server round-trip, no async-cascade for the structural compile.
+  - **The real moat = the heuristic SEMANTIC INFERENCE** (`inferEndpointSemantic` 3 callers,
+    `resolveEndpointSemantic` 2, `getEndpointDescriptionMetadata` 3, `isOperationHardExcluded`,
+    `operationSoftPenalty`) — regex/keyword classification (e.g. `/auth|csrf|token/i`), computed at
+    CAPTURE/index time and stored as `semantic_type`. These are the functions to server-first/lazy.
+  - **The untangle:** graph/index.ts = 17 exports + 64 internal helpers, 1745 lines. Two helper clusters:
+    - text/semantic helpers (tokenize, singularize, inferActionKind, inferResourceKind,
+      buildSemanticDescription, classifyDescriptionInput, …) → used by the INFERENCE exports.
+    - binding/structural helpers (sanitizeBindingName, inferPathBindingName, replaceTemplateBinding,
+      inferBindingSemanticType, ensureUniqueBindingName, …) → used by the STRUCTURAL exports.
+  - **Clean split (fresh session):** (1) move structural+walk exports + their binding/structural helpers
+    → `src/lib/graph-core/` (deterministic, client); repoint the 8 buildSkillOperationGraph callers +
+    walk-fn callers. (2) Keep inference exports + text helpers in `src/graph/`; make their few callers
+    server-first/lazy (or relocate if judged non-IP heuristics). (3) `src/graph` test suite = oracle.
+    NO async-cascade (structural compile stays sync + local). Risk = the 64-helper untangle; needs full
+    context, NOT a session tail (a half-done split breaks the load-bearing resolve/execute DAG).
 - [ ] **⑥ marketplace → 0** — per-file review; likely a client of the backend, repoint.
 - [ ] **settle** — `bash scripts/thin-client-gate.sh` exits 0. Then a fresh public push is
   thin-by-construction (no scrub needed) and `OPEN-SOURCE-NOTICE.md` is updated to match.
