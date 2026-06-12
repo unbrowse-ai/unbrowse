@@ -1,0 +1,56 @@
+# Client-boundary classification — one row per top-level public-client module (src/*/).
+# Source of truth for scripts/client-boundary-gate.sh. Lewis edits classifications here.
+# class ∈ {client-local, migrating, moat-server, infra, review}
+#   client-local : must stay client-side (local capture / credentials / wallet / execution). KEEP public.
+#   infra        : config / types / utils / wire formats. No moat, no security surface. KEEP public.
+#   migrating    : moat intelligence with a server-first path already wired + a degraded local fallback.
+#   moat-server  : shared intelligence that should run server-side; currently shipping logic in the bundle.
+#   review       : verdict pending — needs per-file review before it's safe to call client or moat.
+# Every moat-server / migrating / review module MUST have a row in CLIENT-BOUNDARY.debt.tsv.
+#
+# module	class	evidence
+api	review	local API/serve facade; embeds resolve/rank/graph calls — needs per-file split (client glue vs server-owned)
+auth	client-local	local login + cookie/session handling; credentials never leave the machine
+bridges	client-local	MCP/host bridge surface
+browser	client-local	local Chrome control
+capture	client-local	observes LOCAL browser traffic — cannot move server-side without shipping user traffic
+cdp	client-local	Chrome DevTools Protocol driver, local
+cli	client-local	CLI surface
+cli-v7	client-local	v7 CLI surface (the 37-op bridge)
+client	client-local	HTTP client to the backend
+compat	client-local	compatibility shims
+config	infra	local config
+contract-shape	infra	bridge-contract types
+env	infra	environment plumbing
+execution	client-local	local route replay / fetch-ladder
+extraction	client-local	local DOM/content extraction
+foundry	review	foundry integration — classify after review
+graph	moat-server	route-graph / DAG compilation — shared intelligence (3.3k LOC in the public bundle)
+indexer	moat-server	capture→route inference + admission heuristics (some local indexing OK; the scoring intelligence is moat)
+interop	client-local	open-standards interop (intentionally public)
+kuri	client-local	local fetch / curl-impersonate engine
+lib	infra	shared utilities
+marketplace	review	marketplace client vs intelligence — per-file review
+orchestrator	review	local glue, but invokes ranking/graph — confirm only the local glue ships
+payments	client-local	client-side wallet signing + x402/pay adapters
+proof	client-local	client-side commitment proofs (the shipped commitment_only feature is public by design)
+protobuf	infra	wire types
+publish	review	sanitization-for-publish + policy — split client sanitize vs server policy
+ranking	migrating	rankEndpointsServerFirst → /v1/search/rank exists; local rankEndpoints is the degraded fallback
+ratelimit	client-local	local rate limiting
+reverse-engineer	moat-server	RE engine: traffic→API inference — explicit moat (2.7k LOC in the public bundle)
+runtime	client-local	runtime bootstrap
+sandbox	client-local	local JS sandbox for bundle execution
+sdk	client-local	the public SDK (intended public)
+setup	client-local	install/setup
+skill	review	skill compile — split local packaging vs scoring intelligence
+state	client-local	local session/state
+superpattern	review	INTERNAL-VOCAB module name in the public tree — confirm it should ship at all (likely internal-only)
+telemetry	client-local	telemetry client
+transform	client-local	local transforms
+trust	review	trust/corroboration scoring — could be shared intelligence
+types	infra	type declarations
+values	client-local	value-pointer resolution — local secret dereference
+vault	client-local	local secret vault
+verification	review	endpoint verification — could be shared intelligence
+workflow	review	workflow compilation — could be shared intelligence
