@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { withDeadline } from "../lib/deadline.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
@@ -160,7 +160,7 @@ export function passiveIndexFromRequests(
   return (async () => {
     try {
       // 1. Extract endpoints from captured traffic
-      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      const rawEndpoints = await revengServerFirst(requests, undefined, { pageUrl, finalUrl: pageUrl });
       if (rawEndpoints.length === 0) {
         console.error(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
         return;
@@ -1034,10 +1034,10 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(Array.isArray(intercepted) ? intercepted : []),
       ...harEntriesToRawRequests(harEntries, session.url),
     ];
-    const candidateEndpoints = extractEndpoints(rawRequests as Parameters<typeof extractEndpoints>[0], undefined, {
+    const candidateEndpoints = (await revengServerFirst(rawRequests as Parameters<typeof revengServerFirst>[0], undefined, {
       pageUrl: session.url,
       finalUrl: session.url,
-    }).slice(0, 10).map((endpoint) => ({
+    })).slice(0, 10).map((endpoint) => ({
       endpoint_id: endpoint.endpoint_id,
       method: endpoint.method,
       url_template: endpoint.url_template,

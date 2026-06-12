@@ -8,7 +8,7 @@
  */
 
 import type { EndpointDescriptor, AuthTokenBinding, AuthTokenSource } from "../types/index.js";
-import { extractTokenFromHtml, extractTokenFromBundle } from "../reverse-engineer/token-sources.js";
+import { extractTokenFromHtml, extractTokenFromBundle } from "../capture/replay-tokens.js";
 
 const FETCH_TIMEOUT_MS = 8000;
 
