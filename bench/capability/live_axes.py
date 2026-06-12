@@ -144,27 +144,57 @@ ALLOWED_SESSION_KEYS = {"sessionId", "session_id", "contextId", "targetId", "chr
                         "chromePid", "createdAt", "cookies_inventory_ref", "tab_id", "url", "domain"}
 
 
+def _leak_keys_in(obj, fname, leaks):
+    """Append a leak row for every forbidden value-bearing key in a dict object.
+    A hash/pointer ref (key endswith _ref, short string) is fine; a real value
+    (non-empty list/dict, or a long raw string) is a redaction-invariant leak."""
+    if not isinstance(obj, dict):
+        return
+    for k in obj.keys():
+        kl = str(k).lower()
+        if kl in FORBIDDEN_VALUE_KEYS:
+            v = obj[k]
+            if isinstance(v, (list, dict)) and v:
+                leaks.append({"file": fname, "key": k})
+            elif isinstance(v, str) and len(v) > 16 and not str(k).endswith("_ref"):
+                leaks.append({"file": fname, "key": k})
+
+
 def axis_d(ts=""):
-    """Scan persisted session files: they must be POINTER-ONLY — no value-bearing secret keys,
-    only pointers/hashes. A leak = any forbidden value key present with a real value."""
-    paths = glob.glob(os.path.expanduser("~/.unbrowse/tmp/**/*.json"), recursive=True)
+    """Scan the REAL persisted session data: it must be POINTER-ONLY — no value-bearing
+    secret keys, only pointers/hashes. A leak = any forbidden value key present with a real
+    value. Targets the actual on-disk locations the CLI writes (session records, the session
+    index, and the capture spool queue) — not a phantom tmp/ dir that scans nothing."""
+    base = os.path.expanduser("~/.unbrowse")
+    paths = (
+        glob.glob(os.path.join(base, "sessions", "**", "*.json"), recursive=True)
+        + glob.glob(os.path.join(base, "sessions", "**", "*.jsonl"), recursive=True)
+        + glob.glob(os.path.join(base, "queue", "**", "*.json"), recursive=True)
+        + glob.glob(os.path.join(base, "queue", "**", "*.jsonl"), recursive=True)
+        + ([os.path.join(base, "sessions.jsonl")] if os.path.exists(os.path.join(base, "sessions.jsonl")) else [])
+    )
     scanned, leaks = 0, []
     for p in paths:
+        fname = os.path.basename(p)
         try:
-            obj = json.load(open(p))
-        except (json.JSONDecodeError, OSError):
+            raw = open(p, encoding="utf-8").read()
+        except OSError:
             continue
         scanned += 1
-        keys = obj.keys() if isinstance(obj, dict) else []
-        for k in keys:
-            kl = str(k).lower()
-            if kl in FORBIDDEN_VALUE_KEYS:
-                v = obj[k]
-                # a hash/pointer ref is fine; a real value (list of cookies, dict of headers) is a leak
-                if isinstance(v, (list, dict)) and v:
-                    leaks.append({"file": os.path.basename(p), "key": k})
-                elif isinstance(v, str) and len(v) > 16 and not k.endswith("_ref"):
-                    leaks.append({"file": os.path.basename(p), "key": k})
+        if p.endswith(".jsonl"):
+            for line in raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    _leak_keys_in(json.loads(line), fname, leaks)
+                except json.JSONDecodeError:
+                    continue
+        else:
+            try:
+                _leak_keys_in(json.loads(raw), fname, leaks)
+            except json.JSONDecodeError:
+                continue
     leak_clean = len(leaks) == 0
     row = {"ts": ts, "source": "live", "axis": "D_security",
            "session_files_scanned": scanned, "leaks": leaks, "leak_clean": leak_clean,
