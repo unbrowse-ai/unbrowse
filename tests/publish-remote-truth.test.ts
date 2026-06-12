@@ -1,24 +1,34 @@
-import { expect, test, mock } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
+import { _setMarketplaceClientForTests, publishSkill } from "../src/marketplace/index.js";
 
 // Witness for the marketplace_published-overclaim fix: publishSkill must report
 // whether the skill ACTUALLY reached the remote marketplace (published_remotely)
 // rather than silently returning the local cache on remote failure — the false
 // success that made the capture flag lie. (1 Cor 5:6-7.)
 
-// Mock the client module BEFORE importing marketplace so the spy is wired in.
+// Use the marketplace test seam instead of mock.module(), which leaks across
+// Bun test files in the same process.
 let shouldThrow = false;
-mock.module("../src/client/index.js", () => ({
+const fakeClient = {
+  listSkills: async () => [],
+  getSkill: async () => null,
   cachePublishedSkill: () => {},
   isLocalOnlyMode: () => false,
-  listSkills: () => [],
-  getSkill: () => null,
   publishSkill: async (draft: { domain?: string; skill_id?: string }) => {
     if (shouldThrow) throw new Error("backend 500: simulated remote failure");
     return { ...draft, skill_id: draft.skill_id ?? "remote-id", version: "1.0.1", warnings: [] };
   },
-}));
+  updateEndpointScore: async () => {},
+} as never;
 
-const { publishSkill } = await import("../src/marketplace/index.js");
+beforeEach(() => {
+  _setMarketplaceClientForTests(fakeClient);
+});
+
+afterEach(() => {
+  shouldThrow = false;
+  _setMarketplaceClientForTests(null);
+});
 
 const draft = {
   domain: "shop.example",

@@ -10,11 +10,11 @@ const ROOT_INSTALLER = path.join(ROOT, "install.sh");
 const PUBLIC_INSTALLER = path.join(ROOT, "frontend", "public", "install.sh");
 
 describe("release asset wiring", () => {
-  it("tracks the Kuri submodule against the adding-extensions branch", () => {
+  it("tracks the Kuri submodule against the Windows-port branch", () => {
     const gitmodules = readFileSync(GITMODULES, "utf8");
 
     expect(gitmodules).toContain('[submodule "submodules/kuri"]');
-    expect(gitmodules).toContain("branch = adding-extensions");
+    expect(gitmodules).toContain("branch = feat/windows-port-wave-1");
   });
 
   it("uploads compiled CLI binaries to the GitHub release", () => {
@@ -25,10 +25,12 @@ describe("release asset wiring", () => {
     expect(workflow).toContain("name: Verify CLI Release Assets");
     expect(workflow).toContain("bash scripts/build-binaries.sh --all");
     expect(workflow).toContain("TARGET_REPO=\"unbrowse-ai/unbrowse\"");
-    expect(workflow).toContain("gh release upload \"$TAG\" --repo \"$TARGET_REPO\" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber");
+    expect(workflow).toContain("ASSETS=(");
+    expect(workflow).toContain('"dist/unbrowse-v${VERSION}-win-x64.tar.gz"');
+    expect(workflow).toContain('gh release upload "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --clobber');
     expect(workflow).toContain("UNBROWSE_RELEASE_REPO: unbrowse-ai/unbrowse");
     expect(workflow).toContain("run: node scripts/verify-release-assets.mjs");
-    expect(workflow).toContain("needs: verify-release-assets");
+    expect(workflow).toContain("needs: [verify-release-assets]");
     expect(workflow).toContain("UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}");
     expect(workflow).toContain("bash scripts/ensure-submodules.sh submodules/kuri");
     expect(buildScript).toContain('VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1');

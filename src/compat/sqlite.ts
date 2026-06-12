@@ -1,10 +1,9 @@
 /**
- * Runtime-agnostic SQLite driver — the bun:sqlite surface we use, backed by
- * Node's built-in `node:sqlite` so the readable runtime runs on plain Node
- * (no Bun). Only the read-only cookie/history inventory paths touch this, and
- * they are all best-effort: if the driver is unavailable (very old Node, or
- * the experimental module is disabled) construction throws and every caller
- * already degrades to an empty result.
+ * Runtime-agnostic SQLite driver — the tiny `bun:sqlite` surface we use,
+ * backed by Bun's built-in driver when available and Node's built-in
+ * `node:sqlite` otherwise. Only the read-only cookie/history inventory paths
+ * touch this, and they are all best-effort: if no driver is available,
+ * construction throws and every caller already degrades to an empty result.
  *
  * API kept intentionally tiny — exactly what auth-inventory-sources use:
  *   new Database(uri, { readonly: true })
@@ -23,21 +22,49 @@ interface NodeDatabase {
 interface NodeSqliteModule {
   DatabaseSync: new (location: string, options?: { readOnly?: boolean }) => NodeDatabase;
 }
+interface BunDatabase {
+  query(sql: string): {
+    all(...params: unknown[]): unknown[];
+    get(...params: unknown[]): unknown;
+  };
+  close(): void;
+}
+interface BunSqliteModule {
+  Database: new (location: string, options?: { readonly?: boolean; readwrite?: boolean }) => BunDatabase;
+}
 
-let cachedModule: NodeSqliteModule | null | undefined;
-function loadDriver(): NodeSqliteModule {
-  if (cachedModule === undefined) {
+type Driver =
+  | { kind: "bun"; module: BunSqliteModule }
+  | { kind: "node"; module: NodeSqliteModule };
+
+let cachedDriver: Driver | null | undefined;
+function loadDriver(): Driver {
+  if (cachedDriver === undefined) {
     try {
-      // Lazy: never loaded unless a cookie/history read actually runs. On Bun
-      // (dev) and Node >= 22.5 this resolves; otherwise it throws and the
-      // best-effort callers swallow it.
-      cachedModule = require("node:sqlite") as NodeSqliteModule;
+      cachedDriver = {
+        kind: "bun",
+        module: require("bun:sqlite") as BunSqliteModule,
+      };
+      return cachedDriver;
     } catch {
-      cachedModule = null;
+      // Not Bun, or Bun's SQLite module is unavailable. Try Node next.
+    }
+    try {
+      // Lazy: never loaded unless a cookie/history read actually runs. On
+      // Node >= 22.5 this resolves; otherwise it throws and the best-effort
+      // callers swallow it.
+      cachedDriver = {
+        kind: "node",
+        module: require("node:sqlite") as NodeSqliteModule,
+      };
+    } catch {
+      cachedDriver = null;
     }
   }
-  if (!cachedModule) throw new Error("node:sqlite unavailable (need Node >= 22.5)");
-  return cachedModule;
+  if (!cachedDriver) {
+    throw new Error("sqlite unavailable (need bun:sqlite or Node >= 22.5 node:sqlite)");
+  }
+  return cachedDriver;
 }
 
 export interface Statement<Row = Record<string, unknown>> {
@@ -46,7 +73,8 @@ export interface Statement<Row = Record<string, unknown>> {
 }
 
 export class Database {
-  #db: NodeDatabase;
+  #db: NodeDatabase | BunDatabase;
+  #driverKind: Driver["kind"];
 
   /**
    * Accepts the bun:sqlite signature. We open the underlying file read-only;
@@ -56,12 +84,24 @@ export class Database {
    */
   constructor(uri: string, _options?: { readonly?: boolean }) {
     const path = uri.replace(/^file:/, "").replace(/\?.*$/, "");
-    const { DatabaseSync } = loadDriver();
-    this.#db = new DatabaseSync(path, { readOnly: true });
+    const driver = loadDriver();
+    this.#driverKind = driver.kind;
+    if (driver.kind === "bun") {
+      this.#db = new driver.module.Database(path, { readonly: true });
+    } else {
+      this.#db = new driver.module.DatabaseSync(path, { readOnly: true });
+    }
   }
 
   query<Row = Record<string, unknown>, _Params = unknown[]>(sql: string): Statement<Row> {
-    const stmt = this.#db.prepare(sql);
+    if (this.#driverKind === "bun") {
+      const stmt = (this.#db as BunDatabase).query(sql);
+      return {
+        all: () => stmt.all() as Row[],
+        get: () => stmt.get() as Row | undefined,
+      };
+    }
+    const stmt = (this.#db as NodeDatabase).prepare(sql);
     return {
       all: () => stmt.all() as Row[],
       get: () => stmt.get() as Row | undefined,

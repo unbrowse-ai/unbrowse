@@ -16,6 +16,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type {
   ContractEventRow,
@@ -23,15 +26,20 @@ import type {
 } from "../backend/src/services/contract-ledger";
 import {
   handleDeclare,
+  handleContractSurface,
   handleIterate,
   handlePlanForIntent,
   handleStatus,
 } from "../backend/src/routes/contract";
+import { bridgeManifest } from "../src/superpattern/bridge-manifest";
 import { createThinClient } from "../src/lib/contract-thin-client";
 import {
   LOCAL_CAPABILITIES,
   createDispatcher,
 } from "../src/lib/local-capabilities";
+
+const ROOT = join(import.meta.dir, "..");
+const AIKO_ROOT = "/Users/lekt9/Projects/unbrowse-ecosystem/aiko-engine";
 
 /** Minimal in-memory ledger — the wire shape is what's being gated;
  *  persistence is not the subject of this test. */
@@ -171,6 +179,8 @@ describe("thin-client foundation — wire surface end-to-end", () => {
         json = await handleStatus(url.searchParams.get("id") ?? "", ledger);
       } else if (url.pathname === "/v1/contract/plan-for-intent") {
         json = await handlePlanForIntent(body, ledger);
+      } else if (url.pathname === "/v1/contract/surface") {
+        json = handleContractSurface();
       } else {
         return new Response("not found", { status: 404 });
       }
@@ -198,5 +208,95 @@ describe("thin-client foundation — wire surface end-to-end", () => {
     const st = await client.status(id);
     expect(st.status).toBe("active");
     expect(st.rows.length).toBe(2);
+  });
+
+  test("paper bridge surface matches across canonical manifest, server, thin client, CLI, and Aiko inverse", async () => {
+    const canonical = bridgeManifest();
+    const server = handleContractSurface();
+
+    expect(server.paper).toBe(canonical.paper);
+    expect(server.claim).toBe(canonical.claim);
+    expect(server.node_shape).toEqual(canonical.node_shape);
+    expect(server.layers).toEqual(canonical.layers);
+    expect(server.cli_bridge.tool).toBe(canonical.cli_bridge.tool);
+    expect(server.cli_bridge.exposes).toBe(canonical.cli_bridge.exposes);
+    expect(server.cli_bridge.holes).toEqual(canonical.cli_bridge.holes);
+    expect(server.cli_bridge.holes.map((hole) => hole.name)).toEqual([
+      "intent",
+      "wallet_proof",
+      "approval",
+      "local_capability_result",
+      "typed_pointer",
+    ]);
+    expect(server.cli_bridge.holes.every((hole) => hole.exposed_to === "client" && hole.carries_secret === false)).toBe(true);
+    expect(server.roles).toEqual(canonical.roles);
+    expect(server.aiko_inverse).toEqual(canonical.aiko_inverse);
+
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? new URL(input) : new URL(input.toString());
+      if (url.pathname !== "/v1/contract/surface") return new Response("not found", { status: 404 });
+      return new Response(JSON.stringify(server), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+    const client = createThinClient({ baseUrl: "https://api.test.local", fetchImpl });
+    await expect(client.surface()).resolves.toMatchObject({
+      paper: canonical.paper,
+      claim: canonical.claim,
+      cli_bridge: { tool: "unbrowse contract surface", exposes: "holes-only" },
+      aiko_inverse: { mapping: "1:-1" },
+    });
+
+    const cli = spawnSync("bun", ["src/cli.ts", "contract", "surface"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...process.env, UNBROWSE_NO_SWEEP: "1" },
+    });
+    expect(cli.status).toBe(0);
+    const cliManifest = JSON.parse(cli.stdout);
+    expect(cliManifest.paper).toBe(canonical.paper);
+    expect(cliManifest.claim).toBe(canonical.claim);
+    expect(cliManifest.node_shape).toEqual(canonical.node_shape);
+    expect(cliManifest.layers).toEqual(canonical.layers);
+    expect(cliManifest.cli_bridge.exposes).toBe("holes-only");
+    expect(cliManifest.cli_bridge.holes).toEqual(canonical.cli_bridge.holes);
+    expect(cliManifest.cli_bridge.commands.length).toBeGreaterThan(10);
+    expect(cliManifest.cli_bridge.commands.every((cmd: Record<string, unknown>) => !("route" in cmd) && !("logic" in cmd) && !("secret" in cmd))).toBe(true);
+
+    const descriptor = readFileSync(
+      join(AIKO_ROOT, "packages/plugin-worker-runtime/src/descriptor.ts"),
+      "utf8",
+    );
+    const envelope = readFileSync(
+      join(AIKO_ROOT, "packages/plugin-worker-runtime/src/envelope.ts"),
+      "utf8",
+    );
+    const aikoReadme = readFileSync(join(AIKO_ROOT, "README.md"), "utf8");
+    expect(descriptor).toContain("descriptor is a JSON-safe copy");
+    expect(descriptor).toContain("HandlerRegistry");
+    expect(descriptor).toContain("return { rpc: true, id }");
+    expect(envelope).toContain("newline-delimited JSON");
+    expect(aikoReadme).toContain("inverse client/OS harness");
+    expect(aikoReadme).toContain("CLI is the bridge");
+    expect(aikoReadme).toContain("`{ rpc: true, id }` references");
+    expect(aikoReadme).toContain("wallet_proof");
+    expect(aikoReadme).toContain("local_capability_result");
+    expect(aikoReadme).toContain("typed_pointer");
+  });
+
+  test("public docs describe the client as a bridge boundary, not the server-owned graph/control plane", () => {
+    const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+    const notice = readFileSync(join(ROOT, "docs/OPEN-SOURCE-NOTICE.md"), "utf8");
+
+    for (const doc of [readme, notice]) {
+      expect(doc).toContain("client boundary");
+      expect(doc).toContain("unbrowse contract surface");
+      expect(doc).toContain("wallet_proof");
+      expect(doc).toContain("local_capability_result");
+      expect(doc).toContain("typed_pointer");
+      expect(doc).not.toContain("entire client runtime");
+      expect(doc).not.toContain("route inference, indexing");
+    }
   });
 });

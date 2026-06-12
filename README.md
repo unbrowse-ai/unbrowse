@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The full Unbrowse client is open and auditable.** The entire client runtime — capture, route inference, indexing, execution, the SDK, and the wallet/auth/signing layer — is MIT and readable here, so you can verify what it does on your machine rather than trust a black box. Only the backend (marketplace, settlement) and the web app stay private. The CLI ships unsigned and readable by design: trust comes from being able to read the code, not from a signature. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
@@ -37,6 +37,17 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 | `read` | **Observe** state — snapshot, resolve, read, status, earnings. | `read snap`, `read resolve`, `read text` |
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
+
+The paper bridge surface is machine-readable:
+
+```bash
+unbrowse contract surface
+```
+
+That command projects the same boundary described in `paper/crypto-was-all-you-needed.md`: server-owned graph/control, client-owned wallet and local fills, CLI as the bridge, and Aiko as the inverse client/OS harness.
+The bridge exposes five client-fillable holes: `intent`, `wallet_proof`,
+`approval`, `local_capability_result`, and `typed_pointer`. None carries a
+secret value.
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 

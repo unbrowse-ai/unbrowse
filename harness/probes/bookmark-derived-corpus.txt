@@ -1,0 +1,4 @@
+resolve the authenticated workflow surface and report the next required user action if auth is needed for x.com|https://x.com
+resolve the repository or issue data an agent would need for a code-change task for github.com|https://github.com
+resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com|https://mail.google.com
+resolve account or API console data using the safest authenticated route available for fal.ai|https://fal.ai

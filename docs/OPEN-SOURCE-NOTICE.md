@@ -1,17 +1,17 @@
 # Open Source Notice
 
-**The full Unbrowse client is open source and auditable** at [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse). The entire client runtime — local capture, route inference, indexing, execution, the SDK and drop-in adapters, and the wallet/auth/signing layer — is MIT and readable. The CLI ships **unsigned and readable by design**: an agent runs code on your machine and touches your credentials, so you should be able to read exactly what it does rather than trust an opaque binary. Trust comes from auditability, not from a signature.
+**The Unbrowse client boundary is open source and auditable** at [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse). The local runtime, CLI bridge, SDK and drop-in adapters, and wallet/auth/signing layer are MIT and readable. The CLI ships **unsigned and readable by design**: an agent runs code on your machine and touches your credentials, so you should be able to read exactly what it does rather than trust an opaque binary. Trust comes from auditability, not from a signature.
 
-Only two surfaces stay private: the **backend** (marketplace, payouts, settlement) and the **web app**. Those are server-side product surfaces, not code that runs on your machine.
+The private product surface is the **backend** plus the **web app**. The backend owns the route graph, ranking, settlement, and recursive contract compilation. The public client boundary sees only typed holes, approvals, pointer-only receipts, wallet-sealed fills, and local capability dispatch. `unbrowse contract surface` is the machine-readable bridge contract for this split; its client-fillable holes are `intent`, `wallet_proof`, `approval`, `local_capability_result`, and `typed_pointer`, none of which carries a secret value.
 
 The split:
 
 | Surface | Where it lives | License / visibility |
 |---|---|---|
-| **Full client runtime** — capture, route inference, indexing, execution, wallet/auth/signing | npm + public repo | **MIT, fully open & auditable** |
+| **Client boundary runtime** — local execution bridge, typed holes, approvals, wallet/auth/signing | npm + public repo | **MIT, fully open & auditable** |
 | **Client SDK + drop-in adapters** (`unbrowse/sdk`, every `@unbrowse/*` shim + agent-SDK adapter) | npm + public repo | **MIT, fully open** |
-| `unbrowse` CLI runtime | npm `unbrowse` | readable, unsigned bundle of this source |
-| **Backend** (marketplace, payouts, settlement) | **private repo**, Cloudflare Workers | proprietary (server-side) |
+| `unbrowse` CLI runtime | npm `unbrowse` | readable, unsigned bridge bundle of this source |
+| **Backend** (route graph, ranking, recursive contract compilation, marketplace, payouts, settlement) | **private repo**, Cloudflare Workers | proprietary (server-side) |
 | **Web app** (unbrowse.ai) | **private repo** | proprietary (product surface) |
 
 The client carries no server secret: credentials stay local, the secret bytes never
@@ -23,7 +23,7 @@ part you take on trust, and the ledger is how that trust is kept honest.
 ## What this means for you
 
 - **Building on the SDK?** New code should use `unbrowse/sdk`. Existing local-runtime integrations can keep using `unbrowse/sdk` plus a running `unbrowse` runtime (`npx unbrowse setup`). Both SDKs are MIT.
-- **Reading the repo for architecture?** It reflects the current client — `src/` is the runtime the `unbrowse` npm bundle is built from. The `docs/` and the public [whitepaper](./whitepaper/) describe the same behavior.
+- **Reading the repo for architecture?** It reflects the current client boundary — `src/` is the runtime and bridge the `unbrowse` npm bundle is built from. The `docs/` and the public [whitepaper](./whitepaper/) describe the same behavior.
 - **Filing a bug?** Use [github.com/unbrowse-ai/unbrowse/issues](https://github.com/unbrowse-ai/unbrowse/issues) for SDK/CLI issues. The published runtime tracks this source.
 - **Want source access for security review?** Email security@unbrowse.ai. Code review under NDA is available for serious enterprise integrators.
 

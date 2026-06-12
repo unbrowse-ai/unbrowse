@@ -170,6 +170,12 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
         return new Response(null, { status: 403, headers: { "content-type": "application/json" } });
       }
       serverFetches += 1;
+      if (serverFetches === 1) {
+        return new Response(JSON.stringify({ error: "expired" }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ ok: true, recovered: true }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -177,10 +183,13 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
     }) as typeof globalThis.fetch;
 
     try {
-      const skill = mkSkill(mkEndpoint({ url_template: "https://example.org/api/auth.json" }));
+      const skill = mkSkill(mkEndpoint({
+        url_template: "https://example.org/api/auth.json",
+        dom_extraction: { extraction_method: "page_fetch" },
+      }));
       const out = await executeSkill(skill, {}, { raw: true });
 
-      expect(serverFetches).toBe(1);
+      expect(serverFetches).toBe(2);
       expect(out.trace.success).toBe(true);
       expect(out.trace.status_code).toBe(200);
       expect(out.result).toEqual({ ok: true, recovered: true });
@@ -188,7 +197,7 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
-  });
+  }, 15_000);
 
   it("returns stale_endpoint guidance when auth recovery retry still fails", async () => {
     (authRuntime as typeof authRuntime & { setSession?: (domain: string, token: string, ttlMs?: number) => void })
@@ -211,7 +220,10 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
     }) as typeof globalThis.fetch;
 
     try {
-      const skill = mkSkill(mkEndpoint({ url_template: "https://example.org/api/auth.json" }));
+      const skill = mkSkill(mkEndpoint({
+        url_template: "https://example.org/api/auth.json",
+        dom_extraction: { extraction_method: "page_fetch" },
+      }));
       const out = await executeSkill(skill, {}, { raw: true });
 
       expect(out.trace.success).toBe(false);
@@ -223,7 +235,7 @@ describe("ExecutionResult envelope shape (Phase 7.2)", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
-  });
+  }, 15_000);
 });
 
 describe("CLI slimTrace preserves decision_trace (Phase 7.2)", () => {

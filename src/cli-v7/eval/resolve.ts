@@ -77,6 +77,9 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "intent", description: "Free-form intent string.", required: true },
         ],
         flags: [
+          { name: "--intent", description: "Free-form intent string. Preferred for canonical `unbrowse read resolve` calls.", value_expected: true },
+          { name: "--task", description: "Alias for --intent.", value_expected: true },
+          { name: "--query", description: "Alias for --intent.", value_expected: true },
           { name: "--url", description: "Context URL to anchor entity substitution.", value_expected: true },
           { name: "--domain", description: "Limit shortlist to this domain.", value_expected: true },
           { name: "--limit", description: "Max shortlist size (default: 10).", value_expected: true },
@@ -90,9 +93,14 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     );
   }
 
-  const intent = parsed.positional[0];
+  const flagIntent =
+    typeof parsed.flags.intent === "string" ? parsed.flags.intent
+      : typeof parsed.flags.task === "string" ? parsed.flags.task
+        : typeof parsed.flags.query === "string" ? parsed.flags.query
+          : undefined;
+  const intent = parsed.positional[0] ?? flagIntent;
   if (!intent || typeof intent !== "string" || intent.trim().length === 0) {
-    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent>"), opts);
+    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent> or unbrowse read resolve --intent <intent>"), opts);
     process.exit(EX_USAGE);
   }
 

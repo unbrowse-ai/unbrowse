@@ -2,24 +2,51 @@
  * stateless-primitive.ts — the API-native browser surface for agents.
  *
  * Each exported op is a SELF-CONTAINED browser primitive: the caller passes the full target in
- * the request (a url, and for an action a ref + value), and the op runs the whole kuri lifecycle
- * internally — start the broker, open a fresh tab, navigate, perform the act, capture the
- * resulting accessibility snapshot + the network the act produced, then tear the tab down. There
- * is no session id to open/thread/close; the agent never holds browser state.
+ * the request (a url, and for an action a ref + value), and the op runs the whole browser
+ * lifecycle internally — launch an owned Chrome/CDP lease, navigate, perform the act, capture the
+ * resulting snapshot + the network the act produced, then tear the lease down. There is no session
+ * id to open/thread/close; the agent never holds browser state.
  *
  * Continuity is carried in the RESPONSE, not on the server: every op returns the post-act
  * `snapshot` (interactive a11y tree with fresh `[eN]` refs) and the current `url`, so the agent's
- * next stateless call uses a ref straight out of the snapshot it was just handed. Cookies and the
- * profile persist in kuri's browser between calls (same origin → same logged-in state), so a
- * multi-step flow is a sequence of independent stateless calls, each one whole.
+ * next stateless call uses a ref straight out of the snapshot it was just handed. Cross-call
+ * continuity comes from explicit wallet/profile inputs, not a shared tab registry. A multi-step
+ * flow is a sequence of independent stateless calls, each one whole.
  *
- * This is the consolidation the project chose: kuri is the ONE interaction engine (no parallel
- * hand-rolled CDP path), exposed statelessly. Real browser, real timing — anti-bot resilience
- * comes from driving an actual Chrome via kuri, not from a synthetic humanizer.
+ * This is the consolidation path: Kuri's useful primitives are now direct binary-owned CDP calls.
+ * Real browser, real timing — but no separate Kuri authority, broker, or shared tab registry.
  */
-import * as kuri from "./client.js";
-import type { KuriHarEntry, KuriCookie } from "./client.js";
 import type { AuthVault } from "../values/auth-vault.js";
+import type { CapabilitySource, CapabilityStatus } from "../superpattern/bridge-manifest.js";
+import { spawnChrome } from "../cdp/chrome.js";
+import { closeTarget, createTarget } from "../cdp/target.js";
+import type { CDPConnection, Target } from "../cdp/types.js";
+
+export interface KuriCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: string;
+  expires?: number;
+}
+
+export interface KuriHarEntry {
+  request: {
+    method: string;
+    url: string;
+    headers: Array<{ name: string; value: string }>;
+    postData?: { text: string };
+  };
+  response: {
+    status: number;
+    headers: Array<{ name: string; value: string }>;
+    content?: { text?: string; mimeType?: string };
+  };
+  startedDateTime: string;
+}
 
 export type StatelessOp = "navigate" | "snapshot" | "click" | "fill" | "press" | "scroll";
 
@@ -57,6 +84,35 @@ export interface StatelessResult {
   error?: string;
 }
 
+export interface CapabilityResultEnvelope {
+  status: CapabilityStatus;
+  kind: "browser.stateless";
+  source: CapabilitySource;
+  data: {
+    op: StatelessOp;
+    url: string;
+    snapshot?: string;
+    network?: KuriHarEntry[];
+    result?: unknown;
+  };
+  requirements: Record<string, unknown>;
+  artifacts: Record<string, unknown>;
+  evidence: {
+    runtime: "stateless_binary";
+    primitive_module: "src/kuri/stateless-primitive.ts";
+    browser_lease: {
+      lease_id: string;
+      op: StatelessOp;
+      url: string;
+      acquired_at: string;
+      released_at: string;
+      helper_pid: number | null;
+    };
+    auth_applied?: { cookies: number; headers: number };
+  };
+  next_action: Record<string, unknown> | null;
+}
+
 export interface StatelessInput {
   /** Target page. Required — this is what makes the call self-contained. */
   url: string;
@@ -82,26 +138,20 @@ export interface StatelessInput {
 }
 
 /**
- * Reveal the origin's wallet-sealed cookies/headers and apply them to the tab. Cookies and
+ * Reveal the origin's wallet-sealed cookies/headers and apply them to the target. Cookies and
  * headers are each stored as ONE sealed JSON bundle under (kind, origin); a wrong wallet reveals
  * nothing and we apply nothing (fail closed). Returns what was applied for the result envelope
  * (counts only — never the values).
  */
 async function applyWalletAuth(
-  tabId: string,
+  target: Target,
   origin: string,
   auth: StatelessAuthBinding,
 ): Promise<{ cookies: number; headers: number }> {
   let cookies = 0;
   let headers = 0;
-  // Wallet ISOLATION: kuri's browser profile persists cookies across ops, so a prior wallet's
-  // cookie would leak into this op. Clear the jar first, then apply ONLY this wallet's sealed
-  // set — so a wrong wallet (which reveals nothing) ends up with a clean, unauthenticated jar.
   try {
-    const existing = await kuri.getCookies(tabId);
-    if (existing.length) {
-      await kuri.setCookies(tabId, existing.map((c) => ({ ...c, expires: 1 })));
-    }
+    await target.cdp.call("Network.clearBrowserCookies", {}, target.sessionId);
   } catch {
     /* best effort — never let a clear failure mask the op */
   }
@@ -110,7 +160,19 @@ async function applyWalletAuth(
     if (cookieJson) {
       const parsed = JSON.parse(cookieJson) as KuriCookie[];
       if (Array.isArray(parsed) && parsed.length) {
-        await kuri.setCookies(tabId, parsed);
+        await target.cdp.call("Network.setCookies", {
+          cookies: parsed.map((cookie) => ({
+            name: cookie.name,
+            value: cookie.value,
+            domain: cookie.domain,
+            path: cookie.path ?? "/",
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            sameSite: normalizeSameSite(cookie.sameSite),
+            expires: cookie.expires,
+            url: cookie.domain ? undefined : origin,
+          })),
+        }, target.sessionId);
         cookies = parsed.length;
       }
     }
@@ -123,7 +185,7 @@ async function applyWalletAuth(
       const parsed = JSON.parse(headerJson) as Record<string, string>;
       const keys = Object.keys(parsed ?? {});
       if (keys.length) {
-        await kuri.setHeaders(tabId, parsed);
+        await target.cdp.call("Network.setExtraHTTPHeaders", { headers: parsed }, target.sessionId);
         headers = keys.length;
       }
     }
@@ -143,6 +205,15 @@ function originOf(url: string): string {
 
 const DEFAULT_SETTLE_MS = 1200;
 
+function normalizeSameSite(value: string | undefined): "Strict" | "Lax" | "None" | undefined {
+  if (!value) return undefined;
+  const normalized = value.toLowerCase();
+  if (normalized === "strict") return "Strict";
+  if (normalized === "lax") return "Lax";
+  if (normalized === "none" || normalized === "no_restriction") return "None";
+  return undefined;
+}
+
 function errStr(e: unknown): string {
   if (e instanceof Error) return e.message.slice(0, 240);
   if (typeof e === "string") return e.slice(0, 240);
@@ -153,19 +224,173 @@ function errStr(e: unknown): string {
   }
 }
 
-async function currentUrl(tabId: string): Promise<string> {
+async function evaluateValue<T = unknown>(target: Target, expression: string): Promise<T | undefined> {
   try {
-    const u = await kuri.evaluate(tabId, "window.location.href");
-    return typeof u === "string" ? u : "";
+    const out = await target.cdp.call<
+      { expression: string; awaitPromise: boolean; returnByValue: boolean; userGesture?: boolean },
+      { result?: { value?: T }; exceptionDetails?: unknown }
+    >("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true }, target.sessionId);
+    if (out.exceptionDetails) return undefined;
+    return out.result?.value;
   } catch {
-    return "";
+    return undefined;
   }
+}
+
+async function currentUrl(target: Target): Promise<string> {
+  const u = await evaluateValue<string>(target, "window.location.href");
+  return typeof u === "string" ? u : "";
+}
+
+function waitForCdpEvent(conn: CDPConnection, sessionId: string, event: string, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      unsub();
+      resolve();
+    }, timeoutMs);
+    const unsub = conn.on(event, (_params, sid) => {
+      if (sid !== sessionId) return;
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    });
+  });
+}
+
+function headerPairs(headers: Record<string, unknown> | undefined): Array<{ name: string; value: string }> {
+  return Object.entries(headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
+}
+
+function captureNetwork(target: Target): { entries: KuriHarEntry[]; stop: () => void } {
+  const entries: KuriHarEntry[] = [];
+  const entriesById = new Map<string, KuriHarEntry>();
+  const offRequest = target.cdp.on("Network.requestWillBeSent", (raw, sid) => {
+    if (sid !== target.sessionId || !raw || typeof raw !== "object") return;
+    const ev = raw as {
+      requestId?: string;
+      wallTime?: number;
+      request?: { method?: string; url?: string; headers?: Record<string, unknown>; postData?: string };
+    };
+    if (!ev.requestId || !ev.request?.url) return;
+    const request = {
+      method: ev.request.method ?? "GET",
+      url: ev.request.url,
+      headers: headerPairs(ev.request.headers),
+      ...(ev.request.postData ? { postData: { text: ev.request.postData } } : {}),
+    };
+    const entry = {
+      request,
+      response: { status: 0, headers: [] },
+      startedDateTime: new Date((ev.wallTime ?? Date.now() / 1000) * 1000).toISOString(),
+    };
+    entriesById.set(ev.requestId, entry);
+    entries.push(entry);
+  });
+  const offResponse = target.cdp.on("Network.responseReceived", (raw, sid) => {
+    if (sid !== target.sessionId || !raw || typeof raw !== "object") return;
+    const ev = raw as {
+      requestId?: string;
+      response?: { status?: number; headers?: Record<string, unknown>; mimeType?: string };
+    };
+    if (!ev.requestId) return;
+    const entry = entriesById.get(ev.requestId);
+    if (!entry) return;
+    entry.response = {
+      status: ev.response?.status ?? 0,
+      headers: headerPairs(ev.response?.headers),
+      content: ev.response?.mimeType ? { mimeType: ev.response.mimeType } : undefined,
+    };
+  });
+  return {
+    entries,
+    stop: () => {
+      offRequest();
+      offResponse();
+    },
+  };
+}
+
+const SNAPSHOT_SCRIPT = String.raw`
+(() => {
+  const candidates = Array.from(document.querySelectorAll(
+    'a,button,input,textarea,select,summary,[role="button"],[role="link"],[role="menuitem"],[tabindex]:not([tabindex="-1"])'
+  ));
+  const visible = candidates.filter((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+  }).slice(0, 120);
+  globalThis.__unbrowseStatelessRefs = visible;
+  const roleOf = (el) => {
+    const role = el.getAttribute('role');
+    if (role) return role;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'a') return 'link';
+    if (tag === 'button') return 'button';
+    if (tag === 'input') return el.getAttribute('type') || 'input';
+    return tag;
+  };
+  const nameOf = (el) => (
+    el.getAttribute('aria-label') ||
+    el.getAttribute('title') ||
+    el.getAttribute('placeholder') ||
+    el.innerText ||
+    el.value ||
+    el.href ||
+    ''
+  ).replace(/\s+/g, ' ').trim().slice(0, 160);
+  return visible.map((el, i) => ('[e' + i + '] ' + roleOf(el) + ' ' + nameOf(el)).trim()).join('\n');
+})()
+`;
+
+async function snapshot(target: Target): Promise<string> {
+  return (await evaluateValue<string>(target, SNAPSHOT_SCRIPT)) ?? "";
+}
+
+function actionScript(op: StatelessOp, ref: string | undefined, value: string | undefined, direction: StatelessInput["direction"]): string {
+  return `
+(() => {
+  const ref = ${JSON.stringify(ref ?? "")};
+  const value = ${JSON.stringify(value ?? "")};
+  const direction = ${JSON.stringify(direction ?? "down")};
+  const byRef = /^e\\d+$/.test(ref) ? (globalThis.__unbrowseStatelessRefs || [])[Number(ref.slice(1))] : null;
+  const el = byRef || (ref ? document.querySelector(ref) : null);
+  const fire = (node, type) => node.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+  if (${JSON.stringify(op)} === "scroll") {
+    const delta = direction === "up" ? -600 : direction === "left" ? -600 : 600;
+    if (direction === "left" || direction === "right") window.scrollBy({ left: delta, behavior: "instant" });
+    else window.scrollBy({ top: delta, behavior: "instant" });
+    return { ok: true, action: "scroll" };
+  }
+  if (!el) return { ok: false, error: "selector_not_found" };
+  el.scrollIntoView({ block: "center", inline: "center" });
+  if (${JSON.stringify(op)} === "click") {
+    el.click();
+    return { ok: true, action: "click" };
+  }
+  if (${JSON.stringify(op)} === "fill") {
+    el.focus();
+    el.value = value;
+    fire(el, "input");
+    fire(el, "change");
+    return { ok: true, action: "fill" };
+  }
+  if (${JSON.stringify(op)} === "press") {
+    el.focus();
+    const key = value || "Enter";
+    el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    el.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true, cancelable: true }));
+    return { ok: true, action: "press", key };
+  }
+  return { ok: false, error: "unsupported_op" };
+})()
+`;
 }
 
 /**
  * Run one stateless browser op end-to-end. The single lifecycle every primitive shares:
- *   start broker → fresh tab → HAR on → navigate → settle → [act] → settle → snapshot → HAR off
- *   → close tab. Never throws: every failure path returns `{ok:false, error}` with the tab
+ *   spawn Chrome → fresh target → Network on → navigate → settle → [act] → settle → snapshot
+ *   → close target/browser. Never throws: every failure path returns `{ok:false, error}` with the tab
  *   cleaned up, so a caller can fire ops without try/finally bookkeeping.
  */
 export async function runStateless(op: StatelessOp, input: StatelessInput): Promise<StatelessResult> {
@@ -173,87 +398,111 @@ export async function runStateless(op: StatelessOp, input: StatelessInput): Prom
   const settleMs = input.settleMs ?? DEFAULT_SETTLE_MS;
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-  let tabId: string | undefined;
+  let conn: CDPConnection | undefined;
+  let target: Target | undefined;
+  let network: ReturnType<typeof captureNetwork> | undefined;
   try {
-    await kuri.start(input.port);
-    await kuri.discoverTabs();
-    // Create the tab already pointed at the target (/tab/new?url=) then re-assert via /navigate
-    // and wait for load — belt and braces so the snapshot never races an about:blank tab.
-    tabId = await kuri.newTab(input.url);
-    if (!tabId) return { ok: false, op, url: input.url, error: "no_tab" };
+    conn = await spawnChrome({});
+    target = await createTarget(conn, "about:blank");
+    await target.cdp.call("Page.enable", {}, target.sessionId);
+    await target.cdp.call("Runtime.enable", {}, target.sessionId);
+    await target.cdp.call("Network.enable", {}, target.sessionId);
+    network = captureNetwork(target);
 
-    await kuri.harStart(tabId);
-    // Wallet-bound auth: reveal + apply the origin's sealed cookies/headers BEFORE the load that
-    // should carry them (the tab was created on the url; re-navigate below applies them).
     let authApplied: { cookies: number; headers: number } | undefined;
     if (input.auth) {
-      authApplied = await applyWalletAuth(tabId, originOf(input.url), input.auth);
-      // Reload so the page re-reads the jar we just cleared+set under this wallet (a same-url
-      // navigate can be a no-op; reload forces the document to pick up the wallet's cookies).
-      await kuri.reload(tabId).catch(() => {});
-    } else {
-      await kuri.navigate(tabId, input.url);
+      authApplied = await applyWalletAuth(target, originOf(input.url), input.auth);
     }
-    await kuri.waitForLoad(tabId, 15000).catch(() => {});
+    const load = waitForCdpEvent(conn, target.sessionId, "Page.loadEventFired", 15_000);
+    await target.cdp.call("Page.navigate", { url: input.url }, target.sessionId);
+    await load;
     await sleep(settleMs);
 
-    // For an action op, the ref must address the page we just loaded. kuri assigns `[eN]` refs
-    // during a snapshot, so we MUST snapshot before acting to register the caller's ref into
-    // kuri's node map (mirrors orchestrator/browser-agent.ts: snapshot → act). This is what
-    // makes a stateless `[eN]` ref (taken from a prior stateless snapshot of this same url)
-    // resolve on this fresh load — the snapshot ordering is deterministic for the same page.
     let result: unknown;
     if (op !== "navigate" && op !== "snapshot") {
       if (!input.ref && op !== "scroll") {
-        await safeClose(tabId);
         return { ok: false, op, url: input.url, error: `missing_ref_for_${op}` };
       }
-      await kuri.snapshot(tabId, filter); // register refs before the act
-      // Snapshots DISPLAY refs as `[e0]` but kuri's action API takes the bare `e0` — normalize so
-      // the agent can pass a ref exactly as it appears in the snapshot it was handed.
+      await snapshot(target);
       const ref = (input.ref ?? "").replace(/^\[|\]$/g, "");
-      switch (op) {
-        case "click":
-          result = await kuri.click(tabId, ref);
-          break;
-        case "fill":
-          result = await kuri.fill(tabId, ref, input.value ?? "");
-          break;
-        case "press":
-          result = await kuri.press(tabId, input.value ?? "Enter", ref || undefined);
-          break;
-        case "scroll":
-          result = await kuri.scroll(tabId, input.direction ?? "down");
-          break;
+      result = await evaluateValue(target, actionScript(op, ref, input.value, input.direction));
+      if (result && typeof result === "object" && (result as { ok?: boolean }).ok === false) {
+        return { ok: false, op, url: await currentUrl(target) || input.url, error: String((result as { error?: unknown }).error ?? "action_failed") };
       }
       await sleep(settleMs);
     }
 
-    const snap = await kuri.snapshot(tabId, filter);
-    const har = await kuri.harStop(tabId);
-    const url = await currentUrl(tabId);
-    await safeClose(tabId);
+    const snap = filter === "none" ? "" : await snapshot(target);
+    const url = await currentUrl(target);
     return {
       ok: true,
       op,
       url: url || input.url,
       snapshot: snap,
-      network: har.entries,
+      network: network.entries,
       result,
       authApplied,
     };
   } catch (e) {
-    if (tabId) await safeClose(tabId);
     return { ok: false, op, url: input.url, error: errStr(e) };
+  } finally {
+    try { network?.stop(); } catch { /* ignore */ }
+    try { if (target) await closeTarget(target); } catch { /* ignore */ }
+    try { await conn?.close(); } catch { /* ignore */ }
   }
 }
 
-async function safeClose(tabId: string): Promise<void> {
-  try {
-    await kuri.closeTab(tabId);
-  } catch {
-    /* best effort — never let cleanup failure mask the result */
+function leaseId(op: StatelessOp, url: string, acquiredAt: string): string {
+  const encoded = new TextEncoder().encode(`${op}\n${url}\n${acquiredAt}\n${process.pid}`);
+  let hash = 2166136261;
+  for (const byte of encoded) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619);
   }
+  return `browser-lease-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export function statelessResultToCapabilityResult(
+  result: StatelessResult,
+  acquiredAt = new Date().toISOString(),
+  releasedAt = new Date().toISOString(),
+): CapabilityResultEnvelope {
+  const status: CapabilityStatus = result.ok ? "ok" : "unavailable";
+  return {
+    status,
+    kind: "browser.stateless",
+    source: result.ok ? "browser_capture_fallback" : "unavailable",
+    data: {
+      op: result.op,
+      url: result.url,
+      ...(result.snapshot !== undefined ? { snapshot: result.snapshot } : {}),
+      ...(result.network !== undefined ? { network: result.network } : {}),
+      ...(result.result !== undefined ? { result: result.result } : {}),
+    },
+    requirements: result.ok ? {} : {
+      unavailable: {
+        reason: result.error ?? "browser_runtime_failed",
+      },
+    },
+    artifacts: {},
+    evidence: {
+      runtime: "stateless_binary",
+      primitive_module: "src/kuri/stateless-primitive.ts",
+      browser_lease: {
+        lease_id: leaseId(result.op, result.url, acquiredAt),
+        op: result.op,
+        url: result.url,
+        acquired_at: acquiredAt,
+        released_at: releasedAt,
+        helper_pid: null,
+      },
+      ...(result.authApplied ? { auth_applied: result.authApplied } : {}),
+    },
+    next_action: result.ok ? null : {
+      title: "Browser primitive unavailable",
+      reason: result.error ?? "browser_runtime_failed",
+    },
+  };
 }
 
 // ─── Thin per-primitive wrappers (the agent-facing surface) ────────────────────

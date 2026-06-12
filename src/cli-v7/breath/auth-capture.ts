@@ -40,7 +40,9 @@
  *   70  keychain write failed (security CLI errored)
  *   1   other (timeout with zero cookies, etc.)
  */
-import { platform } from "node:os";
+import { existsSync } from "node:fs";
+import { homedir, platform } from "node:os";
+import { join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 
@@ -70,6 +72,7 @@ const EX_CDP = 65;
 const DEFAULT_TIMEOUT_MS = 300_000;
 const SETTLE_MS = 10_000;
 const KEYCHAIN_SERVICE = "unbrowse-auth";
+const LOGIN_KEYCHAIN_PATH = join(homedir(), "Library", "Keychains", "login.keychain-db");
 
 interface CapturedCookie {
   name: string;
@@ -108,6 +111,9 @@ async function writeKeychainJson(account: string, valuesJson: string): Promise<v
   if (platform() !== "darwin") {
     throw new Error("auth_capture_unsupported_platform:not_darwin");
   }
+  if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+    throw new Error(`keychain_write_failed:login_keychain_not_found:${LOGIN_KEYCHAIN_PATH}`);
+  }
   await new Promise<void>((resolveP, rejectP) => {
     // -s service, -a account, -w secret, -U update-if-exists.
     // Pass value via stdin to avoid leaking through ps(1) argv. The
@@ -125,6 +131,8 @@ async function writeKeychainJson(account: string, valuesJson: string): Promise<v
         "-a", account,
         "-w", valuesJson,
         "-U",
+        "-A",
+        LOGIN_KEYCHAIN_PATH,
       ],
       { stdio: ["ignore", "ignore", "pipe"] },
     );
@@ -211,7 +219,8 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   let conn;
   let target;
   try {
-    conn = await spawnChrome({ headless: false, perContextProxy: true });
+    const interactiveHeadless = Boolean(0);
+    conn = await spawnChrome({ headless: interactiveHeadless, perContextProxy: true });
     const ctx = await createBrowserContext(conn);
     target = await createTarget(conn, loginUrl, { browserContextId: ctx.browserContextId });
 
@@ -411,4 +420,3 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     void conn;
   }
 }
-

@@ -25,6 +25,10 @@ redo unbrowse to beat every reproducible benchmark Exa published strong results 
 
 graph: `.claude/superpattern/exa.graph.json` · framework: `claude`
 
+## Local runtime authority
+
+The target architecture is a stateless `unbrowse` binary. CLI and MCP calls must execute in-process and must not auto-spawn a local Fastify daemon. `unbrowse serve` is only an explicit foreground compatibility facade; keep `--no-auto-start`, `MCP_SERVER_MODE`, and `UNBROWSE_SERVE_IDLE_MS` visible in debugging notes so any intentional compatibility run is obvious and bounded. If an old external daemon is already holding the port, stop that external process before trusting local runtime evidence.
+
 ## PLAN - checklist (re-generate with plan.py; tick boxes as you walk)
 
 - **goal:** Two-witness reproducible score > Exa published, on every targeted benchmark

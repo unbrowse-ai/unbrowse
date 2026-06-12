@@ -78,8 +78,20 @@ import { readWorkflowArtifact, writeWorkflowArtifact } from "../workflow/artifac
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
-const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "1"));
-const BROWSE_BROKER_BASE_PORT = Number(process.env.KURI_PORT ?? "7700");
+
+function browseBrokerMax(): number {
+  const n = Number(process.env.KURI_MULTI_BROKER_MAX ?? "1");
+  return Math.max(1, Number.isFinite(n) ? n : 1);
+}
+
+function browseBrokerBasePort(): number {
+  const n = Number(process.env.KURI_PORT ?? "7700");
+  return Number.isFinite(n) ? n : 7700;
+}
+
+function perSessionBrokerBasePort(): number {
+  return browseBrokerBasePort() + 100;
+}
 
 type AnalyticsSessionResult = {
   trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
@@ -318,7 +330,8 @@ function drainInspectedHarEntries(sessionId: string): KuriHarEntry[] {
 }
 
 function browseBrokerPorts(): number[] {
-  return Array.from({ length: BROWSE_BROKER_MAX }, (_, index) => BROWSE_BROKER_BASE_PORT + index);
+  const base = browseBrokerBasePort();
+  return Array.from({ length: browseBrokerMax() }, (_, index) => base + index);
 }
 
 function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
@@ -339,7 +352,6 @@ function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
 // Allocation is synchronous: selectBrowseBrokerClient has no await before it
 // returns, so concurrent callers each take a unique cursor value atomically on
 // the single-threaded event loop.
-const PER_SESSION_BROKER_BASE_PORT = BROWSE_BROKER_BASE_PORT + 100;
 let perSessionBrokerCursor = 0;
 
 function perSessionKuriEnabled(): boolean {
@@ -359,7 +371,7 @@ function perSessionKuriEnabled(): boolean {
 }
 
 function allocatePerSessionBrokerPort(): number {
-  return PER_SESSION_BROKER_BASE_PORT + perSessionBrokerCursor++;
+  return perSessionBrokerBasePort() + perSessionBrokerCursor++;
 }
 
 export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
@@ -384,10 +396,10 @@ export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.Kuri
 
   const loads = new Map<number, number>(browseBrokerPorts().map((port) => [port, 0]));
   for (const session of browseSessions.values()) {
-    const port = session.brokerPort ?? BROWSE_BROKER_BASE_PORT;
+    const port = session.brokerPort ?? browseBrokerBasePort();
     loads.set(port, (loads.get(port) ?? 0) + 1);
   }
-  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [BROWSE_BROKER_BASE_PORT, 0];
+  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [browseBrokerBasePort(), 0];
   return kuri.getKuriClient(selectedPort);
 }
 
@@ -3834,7 +3846,7 @@ export async function registerRoutes(app: FastifyInstance) {
           const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);
           // Per-session broker shutdown. When this session was on a dedicated
-          // broker (port >= PER_SESSION_BROKER_BASE_PORT) and no other live
+          // broker (port >= perSessionBrokerBasePort()) and no other live
           // session still uses that port, tear down the kuri+chrome processes
           // so they don't leak. Pool brokers (port < base) are intentionally
           // kept; they're reused.
@@ -3851,7 +3863,7 @@ export async function registerRoutes(app: FastifyInstance) {
           let pendingBrokerStop: Promise<void> | null = null;
           if (
             typeof closedBrokerPort === "number"
-            && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
+            && closedBrokerPort >= perSessionBrokerBasePort()
             && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
           ) {
             pendingBrokerStop = traceAsync("close", session.sessionId, "broker-stop", async () => {

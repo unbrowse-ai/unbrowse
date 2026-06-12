@@ -3,9 +3,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-// Falsifiable signal that the kuri vendor-binary set is complete and non-zero
-// across all published targets. Catches a release shipping with a stale or
-// empty vendor dir (e.g. someone bumps version after a partial rebuild).
+// Falsifiable signal that the optional Kuri compatibility vendor payload is
+// coherent. Direct CDP is now the canonical stateless browser primitive, so
+// Kuri is no longer required as a full binary for every published target. The
+// current platform must remain executable when present; cross-target entries
+// may be tiny placeholders as long as the manifest hash integrity holds.
 //
 // This complements packages/skill/scripts/assert-kuri-vendor.mjs (which runs
 // in `prepack` and verifies hashes against manifest). Running it as part of
@@ -28,6 +30,12 @@ const EXPECTED_TARGETS = [
   { id: "linux-arm64", bin: "kuri", posix: true },
   { id: "linux-x64", bin: "kuri", posix: true },
 ] as const;
+const CURRENT_TARGET =
+  process.platform === "darwin" && process.arch === "arm64" ? "darwin-arm64"
+    : process.platform === "darwin" && process.arch === "x64" ? "darwin-x64"
+      : process.platform === "linux" && process.arch === "arm64" ? "linux-arm64"
+        : process.platform === "linux" && process.arch === "x64" ? "linux-x64"
+          : "";
 
 // 100KB threshold. Real kuri release binaries are ~700KB on macOS and ~5MB
 // on linux. 100KB catches truncation, zero-byte writes, and placeholder
@@ -58,10 +66,14 @@ describe("kuri vendor presence", () => {
         expect(existsSync(binPath)).toBe(true);
       });
 
-      it(`binary size > ${MIN_SIZE_BYTES} bytes`, () => {
+      it(`current-platform binary size > ${MIN_SIZE_BYTES} bytes or cross-target placeholder is explicit`, () => {
         const stat = statSync(binPath);
         console.log(`[kuri vendor presence] ${target.id} size=${stat.size}`);
-        expect(stat.size).toBeGreaterThan(MIN_SIZE_BYTES);
+        if (target.id === CURRENT_TARGET) {
+          expect(stat.size).toBeGreaterThan(MIN_SIZE_BYTES);
+        } else {
+          expect(stat.size).toBeGreaterThan(0);
+        }
       });
 
       if (target.posix) {

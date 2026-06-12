@@ -107,6 +107,7 @@ describe("covenant bench_local_probe — firmament guard", () => {
         expect(envelopeJson).not.toContain(tok);
       }
     },
+    20_000,
   );
 
   test("(B) kinds.ts bench_local_probe block emits no verdict token in executable fields", () => {

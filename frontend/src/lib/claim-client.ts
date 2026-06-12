@@ -69,7 +69,7 @@ export interface TakedownStatus {
 /**
  * Real read over on-chain settlement for a bound domain owner. Mirrors the
  * public GET /v1/claim/earnings response. Amounts are a mirror of what already
- * settled to the wallet on-chain — never a projection.
+ * settled to the wallet on-chain, never a projection.
  * Unverified (unbound) domains come back with `verified: false` and zeroes.
  */
 export interface EarningsResult {

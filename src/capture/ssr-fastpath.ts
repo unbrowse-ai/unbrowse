@@ -42,6 +42,8 @@ export interface SsrFastPathInput {
    * Caller may pass `process.env.UNBROWSE_PROXY_URL` to opt into residential
    * proxy routing for the SSR fast-path (plan-v10 Phase A). */
   proxy?: string;
+  /** Test seam for concurrent harnesses; production callers use global fetch. */
+  fetchImpl?: typeof fetch;
 }
 
 /**
@@ -82,7 +84,7 @@ export async function trySsrFastPathOnBlock(input: SsrFastPathInput): Promise<Ss
       timeoutMs: input.timeoutMs ?? 15_000,
       seedCookies: input.seedCookies,
       ...(input.proxy ? { proxy: input.proxy } : {}),
-    }, { kuriBase: input.kuriBase });
+    }, { kuriBase: input.kuriBase, fetchImpl: input.fetchImpl });
 
     if (!resp.ok) return null;
 

@@ -1,0 +1,176 @@
+{
+  "generated_at": "2026-06-12T10:52:41.415Z",
+  "sources_scanned": [
+    "dia:/Users/lekt9/Library/Application Support/Dia/User Data/Default",
+    "dia:/Users/lekt9/Library/Application Support/Dia/User Data/User Data/Default"
+  ],
+  "locked_sources": [],
+  "cases": [
+    {
+      "id": "dia-x-com",
+      "source_host": "x.com",
+      "url": "https://x.com",
+      "auth": "auth-likely",
+      "lane": "auth-workflow",
+      "difficulty": "hard",
+      "strategy": "auth-handoff",
+      "intent": "resolve the authenticated workflow surface and report the next required user action if auth is needed for x.com",
+      "command": [
+        "read",
+        "resolve"
+      ],
+      "tree": {
+        "plan": "Select the cheapest compatible primitive for x.com.",
+        "build": "Run read resolve through the bridge manifest and preserve the CapabilityResult shape.",
+        "test": "Assert host-only provenance, structured data or next_action, and no path/query leakage.",
+        "judge": "Accept only if the result is useful to an agent and failures name the fallback requirement."
+      },
+      "acceptance": [
+        "case URL is origin-only",
+        "no bookmark or history path is present in the case",
+        "command uses canonical read resolve",
+        "result must return data, requirements, or next_action in the capability envelope"
+      ]
+    },
+    {
+      "id": "dia-github-com",
+      "source_host": "github.com",
+      "url": "https://github.com",
+      "auth": "auth-likely",
+      "lane": "code-repository",
+      "difficulty": "medium",
+      "strategy": "structured-replay",
+      "intent": "resolve the repository or issue data an agent would need for a code-change task for github.com",
+      "command": [
+        "read",
+        "resolve"
+      ],
+      "tree": {
+        "plan": "Select the cheapest compatible primitive for github.com.",
+        "build": "Run read resolve through the bridge manifest and preserve the CapabilityResult shape.",
+        "test": "Assert host-only provenance, structured data or next_action, and no path/query leakage.",
+        "judge": "Accept only if the result is useful to an agent and failures name the fallback requirement."
+      },
+      "acceptance": [
+        "case URL is origin-only",
+        "no bookmark or history path is present in the case",
+        "command uses canonical read resolve",
+        "result must return data, requirements, or next_action in the capability envelope"
+      ]
+    },
+    {
+      "id": "dia-mail-google-com",
+      "source_host": "mail.google.com",
+      "url": "https://mail.google.com",
+      "auth": "auth-likely",
+      "lane": "auth-workflow",
+      "difficulty": "hard",
+      "strategy": "auth-handoff",
+      "intent": "resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com",
+      "command": [
+        "read",
+        "resolve"
+      ],
+      "tree": {
+        "plan": "Select the cheapest compatible primitive for mail.google.com.",
+        "build": "Run read resolve through the bridge manifest and preserve the CapabilityResult shape.",
+        "test": "Assert host-only provenance, structured data or next_action, and no path/query leakage.",
+        "judge": "Accept only if the result is useful to an agent and failures name the fallback requirement."
+      },
+      "acceptance": [
+        "case URL is origin-only",
+        "no bookmark or history path is present in the case",
+        "command uses canonical read resolve",
+        "result must return data, requirements, or next_action in the capability envelope"
+      ]
+    },
+    {
+      "id": "dia-fal-ai",
+      "source_host": "fal.ai",
+      "url": "https://fal.ai",
+      "auth": "auth-likely",
+      "lane": "ai-service-console",
+      "difficulty": "medium",
+      "strategy": "auth-handoff",
+      "intent": "resolve account or API console data using the safest authenticated route available for fal.ai",
+      "command": [
+        "read",
+        "resolve"
+      ],
+      "tree": {
+        "plan": "Select the cheapest compatible primitive for fal.ai.",
+        "build": "Run read resolve through the bridge manifest and preserve the CapabilityResult shape.",
+        "test": "Assert host-only provenance, structured data or next_action, and no path/query leakage.",
+        "judge": "Accept only if the result is useful to an agent and failures name the fallback requirement."
+      },
+      "acceptance": [
+        "case URL is origin-only",
+        "no bookmark or history path is present in the case",
+        "command uses canonical read resolve",
+        "result must return data, requirements, or next_action in the capability envelope"
+      ]
+    }
+  ],
+  "cli_plan": [
+    {
+      "case_id": "dia-x-com",
+      "argv": [
+        "unbrowse",
+        "read",
+        "resolve",
+        "--intent",
+        "resolve the authenticated workflow surface and report the next required user action if auth is needed for x.com",
+        "--url",
+        "https://x.com",
+        "--json"
+      ],
+      "dry_run": true,
+      "expected_contract": "CapabilityResult"
+    },
+    {
+      "case_id": "dia-github-com",
+      "argv": [
+        "unbrowse",
+        "read",
+        "resolve",
+        "--intent",
+        "resolve the repository or issue data an agent would need for a code-change task for github.com",
+        "--url",
+        "https://github.com",
+        "--json"
+      ],
+      "dry_run": true,
+      "expected_contract": "CapabilityResult"
+    },
+    {
+      "case_id": "dia-mail-google-com",
+      "argv": [
+        "unbrowse",
+        "read",
+        "resolve",
+        "--intent",
+        "resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com",
+        "--url",
+        "https://mail.google.com",
+        "--json"
+      ],
+      "dry_run": true,
+      "expected_contract": "CapabilityResult"
+    },
+    {
+      "case_id": "dia-fal-ai",
+      "argv": [
+        "unbrowse",
+        "read",
+        "resolve",
+        "--intent",
+        "resolve account or API console data using the safest authenticated route available for fal.ai",
+        "--url",
+        "https://fal.ai",
+        "--json"
+      ],
+      "dry_run": true,
+      "expected_contract": "CapabilityResult"
+    }
+  ]
+}

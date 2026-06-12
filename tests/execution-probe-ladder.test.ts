@@ -268,7 +268,8 @@ describe("executeEndpoint probe-ladder dispatch", () => {
       expect(decisionStep?.strategy).toBe("return-error");
 
       const result = out.result as Record<string, unknown>;
-      expect(result.error).toBe("http_404");
+      expect(result.error).toBe("stale_endpoint");
+      expect(result.status_code).toBe(404);
     } finally {
       globalThis.fetch = originalFetch;
     }

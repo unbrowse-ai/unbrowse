@@ -1,12 +1,8 @@
-import { describe, expect, it, mock } from "bun:test";
+import { afterAll, describe, expect, it, mock } from "bun:test";
 import type { SkillManifest } from "../src/types/index.js";
 
 mock.module("nanoid", () => ({
   nanoid: () => "test-nanoid",
-}));
-
-mock.module("cheerio", () => ({
-  load: () => (() => []),
 }));
 
 mock.module("bs58", () => ({
@@ -19,6 +15,10 @@ mock.module("bs58", () => ({
 }));
 
 const { isCachedSkillRelevantForIntent } = await import("../src/orchestrator/index.js");
+
+afterAll(() => {
+  mock.restore();
+});
 
 function makeSkill(
   endpoints: SkillManifest["endpoints"],

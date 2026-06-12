@@ -749,6 +749,47 @@ function looksLikeApiUrl(url: string): boolean {
     })());
 }
 
+export function deriveStructuredDataReplayUrl(url: string): string | null {
+  try {
+    const target = new URL(url);
+    const host = target.hostname.replace(/^www\./, "");
+    if (host === "reddit.com") {
+      if (target.pathname === "/search/" || target.pathname === "/search") {
+        target.pathname = "/search.json";
+        return target.toString();
+      }
+      if (/^\/r\/[^/]+\/?$/.test(target.pathname)) {
+        target.pathname = target.pathname.replace(/\/?$/, "/.json");
+        return target.toString();
+      }
+      if (!target.pathname.endsWith(".json")) {
+        target.pathname = target.pathname.replace(/\/?$/, ".json");
+        return target.toString();
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function deriveStructuredDataReplayCandidates(url: string): string[] {
+  const primary = deriveStructuredDataReplayUrl(url);
+  if (!primary) return [];
+  const candidates = [primary];
+  try {
+    const target = new URL(primary);
+    const host = target.hostname.replace(/^www\./, "");
+    if (host === "reddit.com") {
+      target.hostname = "old.reddit.com";
+      candidates.push(target.toString());
+    }
+  } catch {
+    // Primary URL was already validated; ignore fallback construction failure.
+  }
+  return [...new Set(candidates)];
+}
+
 export function buildPageArtifactCapture(
   url: string,
   intent: string,
@@ -4253,6 +4294,12 @@ export async function executeEndpoint(
     }
     // B3: honor Retry-After before treating 429 as stale.
     if (status === 429) {
+      const retryAfterMs = parseRetryAfter(result?.response_headers ?? {});
+      if (retryAfterMs != null) {
+        decisionTrace.push({ step: "429_retry_after_honored", retry_after_ms: retryAfterMs });
+      } else {
+        decisionTrace.push({ step: "429_retry_after_absent" });
+      }
       // Wave 3: opt-in paid residential-proxy fallback.
       // Plan: add-an-opt-in-paid-residential-proxy-fallback-fo.
       const consented = options?.paid_proxy_fallback === true;
@@ -4274,6 +4321,7 @@ export async function executeEndpoint(
           };
         }
         trace.result = offerData;
+        (trace as ExecutionTrace & { decision_trace?: Array<Record<string, unknown>> }).decision_trace = decisionTrace;
         return { trace, result: offerData };
       }
       // Consented: attempt the proxy retry.
@@ -4361,10 +4409,8 @@ export async function executeEndpoint(
         decisionTrace.push({ step: "429_server_proxy_fallback_error", reason: err instanceof Error ? err.message : String(err) });
       }
       // Fall through to existing Retry-After / staleEndpointResult below.
-      const retryAfterMs = parseRetryAfter(result?.response_headers ?? {});
       if (retryAfterMs != null) {
         const seconds = Math.ceil(retryAfterMs / 1000);
-        decisionTrace.push({ step: "429_retry_after_honored", retry_after_ms: retryAfterMs });
         data = staleEndpointResult(
           status,
           skill,
@@ -4374,7 +4420,6 @@ export async function executeEndpoint(
         );
         trace.result = data;
       } else {
-        decisionTrace.push({ step: "429_retry_after_absent" });
         data = staleEndpointResult(
           status,
           skill,
@@ -4659,7 +4704,10 @@ export async function executeEndpoint(
   // regressions from .bench-gate/20260521T010031Z probes 018/019/025/029,
   // cited in looksLikeTinyContentReadResult docstring).
   if (trace.success && effectiveIntent && data != null) {
-    const tinyCheck = looksLikeTinyContentReadResult(data, effectiveIntent);
+    const semanticAssessment = assessIntentResult(data, effectiveIntent);
+    const tinyCheck = semanticAssessment.verdict === "pass"
+      ? { tiny: false as const }
+      : looksLikeTinyContentReadResult(data, effectiveIntent);
     if (tinyCheck.tiny) {
       trace.success = false;
       trace.error = "extraction_too_thin";
@@ -6182,9 +6230,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       const ctxBare = contextHostnameForCorpus.replace(/^www\./, "");
       if (epBare === ctxBare) return true;
       const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
-      const epRestAfterFirstLabel = epBare.split(".").slice(1).join(".");
-      return /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epBare)
-        && epRestAfterFirstLabel === ctxRegistrable;
+      const epRegistrable = epBare.split(".").slice(-2).join(".");
+      const epLabels = epBare.split(".");
+      return epRegistrable === ctxRegistrable
+        && epLabels.some((label) => /^(api|apis|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)$/.test(label));
     } catch {
       return false;
     }
@@ -6388,13 +6437,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // Boost the high band so a well-earned endpoint actually wins the
     // shortlist over a freshly-captured neutral endpoint.
     //
-    //   < 0.2  → -60 (auto-deprecation gate, push to bottom)
+    //   < 0.2  → -100 (auto-deprecation gate, push to bottom)
     //   < 0.5  → -15
     //   ≈ 0.5  (neutral prior, never observed) → small COLD-START +8 so
     //         new endpoints get tried rather than starving forever
     //   ≥ 0.5  → +reliability * 40 (was ×10; max +40 for 1.0)
     if (typeof ep.reliability_score === "number") {
-      if (ep.reliability_score < 0.2) score -= 60;
+      if (ep.reliability_score < 0.2) score -= 100;
       else if (ep.reliability_score < 0.5) score -= 15;
       else if (Math.abs(ep.reliability_score - 0.5) < 0.001) score += 8; // cold-start
       else score += ep.reliability_score * 40;
@@ -6976,7 +7025,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       try { ctxLower = (contextUrl ? new URL(contextUrl).pathname : "").toLowerCase(); } catch { /* noop */ }
       // Generic noise tokens that legitimately appear in many APIs and shouldn't trigger the penalty
       const SHARED_PATH_TOKENS = new Set([
-        "api", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json", "xml",
+        "api", "apis", "site", "sports", "v1", "v2", "v3", "graphql", "rest", "rpc", "data", "json", "xml",
         "search", "list", "get", "post", "fetch", "query", "users", "user",
         "items", "item", "posts", "post", "articles", "article", "feed", "home", "hot", "top", "new", "best", "rising",
         "page", "pages", "feeds", "details", "detail", "info", "profile", "profiles",
@@ -7018,7 +7067,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         const isApiEndpoint =
           ep.verification_status === "verified" &&
           (looksLikeApiUrl(ep.url_template) ||
-            /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(hostname));
+            hostname.split(".").some((label) => /^(api|apis|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)$/i.test(label)));
         const apiSoftening = isApiEndpoint ? 0.25 : 1;
         const penaltyMultiplier = leakedLiterals >= 3 ? leakedLiterals * 2 : 1;
         score -= leakedLiterals * 200 * penaltyMultiplier * apiSoftening;
@@ -7041,7 +7090,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
           const epBare = epHost.replace(/^www\./, "");
           if (ctxBare !== epBare) {
             const epIsSharedApi =
-              /^(api|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)\./i.test(epHost);
+              epHost.split(".").some((label) => /^(api|apis|gql|graphql|rest|registry|services?|backend|query\d*|edge|cdn|static)$/i.test(label));
             const ctxRegistrable = ctxBare.split(".").slice(-2).join(".");
             const epRegistrable = epBare.split(".").slice(-2).join(".");
             if (ctxRegistrable !== epRegistrable) {

@@ -11,10 +11,10 @@ import { surfaceFor, classify, verifySurface, knownCommands } from "../src/super
 // The canonical top-level CLI commands (from `unbrowse --help`) — the surface the
 // client sees. The manifest must classify every one (superpattern-complete).
 const CANONICAL = [
-  "account", "annotate", "auth", "auth-inventory", "capture", "cleanup-stale", "click",
-  "dashboard", "execute", "explain", "feedback", "fetch", "fill", "go", "health", "index",
+  "account", "act", "annotate", "auth", "auth-inventory", "capture", "cleanup-stale", "click",
+  "contract", "dashboard", "execute", "explain", "feedback", "fetch", "fill", "go", "health", "index",
   "mcp", "mode", "note", "payment-provider", "press", "publish", "publish-bundle", "resolve",
-  "review", "run", "screenshot", "scroll", "search", "select", "settings", "setup", "skill",
+  "create", "read", "review", "run", "screenshot", "scroll", "search", "select", "settings", "setup", "skill",
   "skills", "snap", "spec", "submit", "text", "type", "upgrade",
 ];
 
@@ -52,5 +52,20 @@ describe("CLI superpattern surface", () => {
 
   it("an unknown command exposes nothing", () => {
     expect(surfaceFor("rm-rf-the-moat")).toBeNull();
+  });
+
+  it("contract is the CLI bridge command and exposes only the bridge holes", () => {
+    expect(surfaceFor("contract")).toMatchObject({
+      verb: "breath",
+      interrogative: "where",
+      auth: "wallet",
+      holes: ["intent", "wallet_proof", "approval", "local_capability_result", "typed_pointer"],
+    });
+  });
+
+  it("canonical create/act/read commands are the only new root verbs", () => {
+    expect(surfaceFor("create")).toMatchObject({ verb: "build", auth: "wallet" });
+    expect(surfaceFor("act")).toMatchObject({ verb: "breath", auth: "sealed" });
+    expect(surfaceFor("read")).toMatchObject({ verb: "eval", auth: "none" });
   });
 });
