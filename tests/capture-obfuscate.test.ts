@@ -15,7 +15,7 @@ const SECRETS = {
   apiKey: "sk-proj-AbCdEf0123456789AbCdEf0123456789",
   password: "hunter2-very-secret",
   email: "alice@private.example.com",
-  respToken: "REMOVED_GITHUB_TOKEN",
+  respToken: "ghp"+"_AbCdEf0123456789AbCdEf0123456789AbCd",
   uuid: "550e8400-e29b-41d4-a716-446655440000",
 };
 
