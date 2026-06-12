@@ -78,7 +78,7 @@ mock.module("../src/reverse-engineer/index.js", () => ({
   extractAuthHeaders: () => ({}),
 }));
 
-mock.module("../src/indexer/index.js", () => ({
+mock.module("../src/lib/indexer-core/index.js", () => ({
   queueBackgroundIndex: () => {},
 }));
 

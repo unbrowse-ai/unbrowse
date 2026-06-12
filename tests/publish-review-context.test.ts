@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildEndpointReviewContext } from "../src/publish/review-context.js";
-import { mergeAgentReview } from "../src/indexer/index.js";
+import { mergeAgentReview } from "../src/lib/indexer-core/index.js";
 import { applyWorkflowSchemaReviews } from "../src/publish/schema-review.js";
 import { writeWorkflowArtifact } from "../src/workflow/artifact.js";
 import type { EndpointDescriptor, SkillManifest, WorkflowArtifact } from "../src/types/skill.js";

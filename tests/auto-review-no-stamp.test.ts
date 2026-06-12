@@ -51,7 +51,7 @@ beforeAll(() => {
   );
 
   writeFileSync(join(dir, "driver.ts"), `
-    const { _processIndexJobForCli } = await import(${JSON.stringify(join(REPO, "src/indexer/index.ts"))});
+    const { _processIndexJobForCli } = await import(${JSON.stringify(join(REPO, "src/lib/indexer-core/index.ts"))});
     const job = {
       skill: {
         skill_id: "no-stamp-skill",

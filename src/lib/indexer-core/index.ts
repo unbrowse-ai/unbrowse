@@ -1,10 +1,10 @@
-import { buildSkillOperationGraph } from "../lib/graph-core/index.js";
-import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
-import { mergeEndpoints } from "../marketplace/index.js";
+import { buildSkillOperationGraph } from "../graph-core/index.js";
+import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../../client/index.js";
+import { mergeEndpoints } from "../../marketplace/index.js";
 import {
   selectMarketplacePublishClosure,
   formatMarketplacePublishSelection,
-} from "../publish-admission.js";
+} from "../../publish-admission.js";
 import {
   writeSkillSnapshot,
   domainSkillCache,
@@ -13,18 +13,18 @@ import {
   scopedCacheKey,
   snapshotPathForCacheKey,
   generateLocalDescription,
-} from "../orchestrator/index.js";
-import { getRegistrableDomain } from "../domain.js";
-import type { EndpointReviewPayload, SkillManifest, EndpointDescriptor } from "../types/index.js";
+} from "../../orchestrator/index.js";
+import { getRegistrableDomain } from "../../domain.js";
+import type { EndpointReviewPayload, SkillManifest, EndpointDescriptor } from "../../types/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { sanitizeForPublish } from "../publish/sanitize.js";
-import { readWorkflowArtifact } from "../workflow/artifact.js";
-import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
-import { getUnbrowseConfigPath } from "../settings.js";
-import { getEndpointDescriptionMetadata } from "../lib/graph-core/index.js";
-import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
-import { getContributionConfig } from "../config/contribution.js";
+import { sanitizeForPublish } from "../../publish/sanitize.js";
+import { readWorkflowArtifact } from "../../workflow/artifact.js";
+import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../../workflow/publish.js";
+import { getUnbrowseConfigPath } from "../../settings.js";
+import { getEndpointDescriptionMetadata } from "../graph-core/index.js";
+import { applyBindingReviews, applyResponseSchemaReviews } from "../../publish/schema-review.js";
+import { getContributionConfig } from "../../config/contribution.js";
 import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, sanitizeDomain, type JobEnvelope } from "./queue-store.js";
 
 const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR

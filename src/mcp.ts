@@ -15,7 +15,7 @@ import { getSessionLogger, getResolvedTelemetryConfig } from "./telemetry/index.
 import { shapeSnapResult, markNewSnapElements, type SnapDetailLevel } from "./api/browse-snap-detail-levels.js";
 import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js";
 import { buildGateRefusal } from "./payments/index.js";
-import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingIndexJobs } from "./lib/indexer-core/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 // Acts 2:6 — "every man heard them speak in his own language."
 // The v7 kind-map is the translation layer: one row per primitive,

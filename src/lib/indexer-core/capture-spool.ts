@@ -17,7 +17,7 @@
 import { mkdir, writeFile, rename, readdir, readFile, unlink } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { RawRequest } from "../capture/index.js";
+import type { RawRequest } from "../../capture/index.js";
 import { sanitizeDomain, acquireLock, touchHeartbeat, sweepStaleTmp } from "./queue-store.js";
 
 /** The serialisable cut of a live browse capture. NO broker-shaped fields,
