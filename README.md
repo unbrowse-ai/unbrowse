@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The full Unbrowse client is open and auditable.** The entire client runtime — capture, route inference, indexing, execution, the SDK, and the wallet/auth/signing layer — is MIT and readable here, so you can verify what it does on your machine rather than trust a black box. Only the backend (marketplace, settlement) and the web app stay private. The CLI ships unsigned and readable by design: trust comes from being able to read the code, not from a signature. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The full Unbrowse client is open and auditable.** The entire client runtime — capture, route inference, indexing, execution, the SDK, and the wallet/auth/signing layer — is MIT and readable here, so you can verify what it does on your machine rather than trust a black box. Only the backend (marketplace, settlement) and the web app stay private. The CLI ships unsigned and readable by design: trust comes from being able to read the code, not from a signature. The authorization layer is moving from a bare signature toward **privacy-preserving cryptographic proofs** behind the same pointer-only surface — prove you hold or approved a value without ever revealing it — as laid out in the forthcoming whitepaper *Crypto Was All You Needed* ([docs/whitepaper/](./docs/whitepaper/)). See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
@@ -24,7 +24,7 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
+Today each hole and receipt is **Ed25519-signed** — the client authorizes with a key it holds, and the secret bytes never cross the wire. The next step, laid out in the forthcoming whitepaper *Crypto Was All You Needed* ([docs/whitepaper/](./docs/whitepaper/)), keeps the identical pointer-only surface but swaps the bare signature for **privacy-preserving cryptographic proofs**: the client proves it holds a credential, made an approval, or owns an identity *without disclosing any of them*, and the same proof family carries authentication and fair settlement across the stack. The pointer-only invariant holds either way. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
 > The three-verb surface (`unbrowse {create,act,read}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
@@ -138,7 +138,7 @@ Payment architecture: [`docs/concepts/fare-splits.md`](./docs/concepts/fare-spli
 - Protocol: JSON-RPC 2.0 MCP over stdio
 - Handshake: `initialize`, `notifications/initialized`, `ping`
 - Capability surface: `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`
-- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
+- Runtime model: the MCP server runs the Unbrowse runtime **in-process** — stateless, with no background daemon. Hosts talk standard MCP; `unbrowse serve` is an optional foreground compatibility daemon (`:6969`) for tools that still expect a local HTTP endpoint.
 
 Core MCP tools:
 
@@ -229,7 +229,7 @@ Whitepaper companion set:
 
 Unbrowse is a monorepo with two tiers:
 
-**Local server** (`localhost:6969`) — Handles the core workflow: intent resolution, browser capture, skill execution, auth management, background indexing, payment gates. Local routes are handled directly; marketplace routes are proxied transparently.
+**Local runtime** (in-process, stateless) — Handles the core workflow: intent resolution, browser capture, skill execution, auth management, background indexing, payment gates. CLI and MCP calls run it in-process — no port, no background daemon — so each call is self-contained; `unbrowse serve` exposes the same API as an optional local HTTP daemon (`:6969`) for compatibility. Local routes are handled directly; marketplace routes are proxied transparently.
 
 **Backend API** (`beta-api.unbrowse.ai`) — Cloudflare Worker that powers the shared marketplace:
 
