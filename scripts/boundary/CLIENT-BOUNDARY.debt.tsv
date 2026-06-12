@@ -1,0 +1,20 @@
+# Moat-exposure debt ledger. One row per module classified migrating / moat-server / review
+# in CLIENT-BOUNDARY.tsv. The gate fails if any such module has NO row here (untracked exposure).
+# Remove a row only when the module is reclassified client-local/infra (with evidence) or fully
+# server-moved (status=resolved). status ∈ {migrating, exposed, review-pending, resolved}
+#
+# module	class	owner	backend_route_target	status	note
+ranking	migrating	lewis	/v1/search/rank	migrating	server-first path wired; ensure agent-facing resolve never uses local signals as primary
+graph	moat-server	lewis	/v1/graph/compile	exposed	route-graph/DAG compilation ships in the bundle; move compilation server-side, client walks the returned DAG
+indexer	moat-server	lewis	/v1/index/admit	exposed	split local indexing (keep) from admission/scoring intelligence (move)
+reverse-engineer	moat-server	lewis	/v1/capture/infer	exposed	RE heuristics over sanitized capture should run server-side; client uploads sanitized signal, gets routes
+api	review	lewis	-	review-pending	per-file: which handlers are local-serve glue vs server-owned logic
+foundry	review	lewis	-	review-pending	classify foundry integration
+marketplace	review	lewis	-	review-pending	marketplace client vs intelligence
+orchestrator	review	lewis	-	review-pending	confirm only local glue ships; ranking/graph calls go server-first
+publish	review	lewis	-	review-pending	split client sanitize vs server publish policy
+skill	review	lewis	-	review-pending	split local skill packaging vs scoring intelligence
+superpattern	review	lewis	-	review-pending	internal-vocab module in public tree — confirm it should ship at all
+trust	review	lewis	-	review-pending	trust/corroboration scoring may be shared intelligence
+verification	review	lewis	-	review-pending	endpoint verification may be shared intelligence
+workflow	review	lewis	-	review-pending	workflow compilation may be shared intelligence
