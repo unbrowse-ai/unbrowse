@@ -25,7 +25,7 @@ export function makeCaptureSpoolProcessor(): CaptureSpoolProcessor {
     // so a top-level `import { passiveIndexFromRequests } from "../../api/routes.js"`
     // would close a cycle through the indexer barrel. Lazy import keeps the
     // resolution one-directional and pays the cost only when a drain runs.
-    const { passiveIndexFromRequests } = await import("../api/routes.js");
+    const { passiveIndexFromRequests } = await import("../../api/routes.js");
     await passiveIndexFromRequests(capture.requests, capture.sessionUrl, {
       publishAfterIndex: capture.publishAfterIndex,
     });

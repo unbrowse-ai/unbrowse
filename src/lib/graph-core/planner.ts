@@ -46,7 +46,7 @@ export interface DagAdvisoryPlan {
   /** Operations in the graph that are not needed for the target. */
   skippable: string[];
   /** Auth dependencies detected from endpoint semantics. */
-  auth_dependencies: import("../auth/runtime.js").AuthDependency[];
+  auth_dependencies: import("../../auth/runtime.js").AuthDependency[];
 }
 
 // ---------------------------------------------------------------------------
