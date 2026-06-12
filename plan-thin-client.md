@@ -89,24 +89,23 @@ out into a client module.
   - [x] **trust edge** — `freshness.ts` (published paper math, not moat) relocated
     `src/ranking/` → `src/lib/freshness.ts`; trust/{proof-of-indexing,refresh-job} + the test
     repointed; `tests/composite-scoring.test.ts` 22✓. (this session)
-  - [ ] **api + orchestrator edges** — the dispatcher `ranking/index.ts` is THIN (imports only
-    `execution` rankEndpoints + `client` rankEndpointsRemote, NO weights). Move
-    `rankEndpointsServerFirst` + the `rankEndpoints` re-export to a non-`ranking` module
-    (e.g. `src/client/rank-server-first.ts`); repoint `api/routes.ts:1974` +
-    `orchestrator/index.ts:2406` (+ orchestrator's unused-looking `rankEndpoints` import).
-    SAFE — thin dispatcher, no weight code moves.
-  - [ ] **execution edge (THE risky one — do with the oracle)** — `execution/index.ts` imports
-    `../ranking/{signals/*,clamps,filters/noise-patterns}` and uses them INSIDE `rankEndpoints`
-    (defn `execution/index.ts:6156`, ~350 lines, weight uses 6165–6487). `rankEndpoints` has
-    ZERO external sync callers (api+orchestrator already use the async serverFirst); the ONLY
-    sync call is execution-internal at `execution/index.ts:7274`. Recipe: extract `rankEndpoints`
-    + its weight imports + the tokenization helpers it needs (`tokenize/expandQuery/
-    endpointToTokens` — currently execution-local) into `src/ranking/local-scorer.ts`; make
-    `execution:7274` reach it via the async serverFirst (or lazy `import()`); the serverFirst
-    wrapper's `local()` lazy-imports it (the ① pattern). **ORACLE: `tests/ranking-parity.test.ts`
-    holds a byte-identical baseline — run before/after; it proves the extraction didn't change
-    scoring.** Risk = blast radius in the 7000-line execution file; needs a focused pass, not a
-    long-session tail.
+  - [ ] **api edge** — `api/routes.ts:1974` already uses the async `rankEndpointsServerFirst`.
+    Move the thin dispatcher off `ranking/index.ts` → e.g. `src/client/rank-server-first.ts`
+    (it imports only `execution` rankEndpoints + `client` rankEndpointsRemote, no weights).
+    SAFE.
+  - [ ] **orchestrator edge (BIG — the real wall)** — ⚠️ CORRECTION: orchestrator calls the
+    **sync** local `rankEndpoints` in ~6 places (`orchestrator/index.ts:423, 801, 1105, 1136,
+    2453, 3127`), several inside sort comparators / `.some()` callbacks. (An earlier note claimed
+    "zero sync callers" — that was a BROKEN grep: `\s` is not POSIX ERE, so `rankEndpoints\s*\(`
+    matched nothing. Use `grep -nE '\brankEndpoints\b'` — no `\s`.) Evicting ranking requires
+    each of these to go async-server-first OR keep a sync local scorer reachable only lazily —
+    making a sync scorer async cascades through orchestrator's synchronous scoring/sorting. This
+    is the genuine fused-not-modular wall; a focused refactor, NOT a session tail.
+  - [ ] **execution edge** — `execution/index.ts` imports `../ranking/{signals/*,clamps,
+    filters/noise-patterns}`, used inside `rankEndpoints` (defn `execution/index.ts:6156`, ~350
+    lines, weight uses 6165–6487; internal sync call at `:7274`). Same async/lazy decision as the
+    orchestrator edge. **ORACLE: `tests/ranking-parity.test.ts` is the byte-identical baseline —
+    run before/after any extraction; it proves scoring is unchanged.**
 - [ ] **③ extraction → 0** — same pattern; `extraction` is small.
 - [ ] **④ indexer → 0** — admission/scoring server-side via `/v1/index/admit`; local queue +
   disk cache stay client but must not import the moat.
