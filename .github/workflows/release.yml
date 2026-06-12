@@ -22,17 +22,111 @@ env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
-  upload-release-assets:
-    name: Upload CLI Release Assets
+  # Build the Kuri browser-broker vendor binaries ONCE per release and share
+  # them with every downstream job via the kuri-vendor artifact. This is the
+  # ~17min cross-compile that previously ran twice (once inside
+  # build-binaries.sh in upload-release-assets, once in publish-cli). The
+  # actions/cache keyed on the Kuri submodule SHA turns it into a near-no-op
+  # whenever the submodule is unchanged (build-kuri-binaries.mjs self-skips
+  # when a target binary is already present on disk).
+  build-kuri-vendor:
+    name: Build Kuri Vendor (shared, cached)
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - name: Resolve Kuri submodule SHA
+        id: kuri
+        run: echo "sha=$(git -C submodules/kuri rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Kuri vendor binaries
+        id: kuri-cache
+        uses: actions/cache@v4
+        with:
+          path: packages/skill/vendor/kuri
+          key: kuri-vendor-${{ runner.os }}-${{ steps.kuri.outputs.sha }}-${{ hashFiles('packages/skill/scripts/build-kuri-binaries.mjs') }}
+      - uses: mlugg/setup-zig@v2
+        if: steps.kuri-cache.outputs.cache-hit != 'true'
+        with:
+          version: "0.16.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Kuri vendor binaries
+        if: steps.kuri-cache.outputs.cache-hit != 'true'
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Upload kuri-vendor artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
+          retention-days: 1
+          if-no-files-found: error
+
+  # One job per platform — the five single-file CLI binaries now compile
+  # concurrently instead of serially inside one job. Each shard reuses the
+  # shared Kuri vendor artifact (so build-binaries.sh's internal kuri build
+  # self-skips) and uploads ONLY its tarball; the signed release manifest is
+  # generated once in upload-release-assets (issued_at is build-time, so a
+  # per-shard manifest would diverge).
+  build-cli-binary:
+    name: Build CLI Binary (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: build-kuri-vendor
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64, win-x64]
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: mlugg/setup-zig@v2
         with:
           version: "0.16.0"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --no-frozen-lockfile
+      - name: Restore shared Kuri vendor binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
+      # Cache the compiled tarball for this target keyed on the source that
+      # feeds it, so re-running the same tag skips the recompile entirely.
+      - name: Cache compiled binary (${{ matrix.target }})
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: cli-bin-${{ matrix.target }}-${{ github.ref_name }}-${{ hashFiles('src/single-binary.ts', 'scripts/build-binaries.sh', 'src/version.ts') }}
+      - name: Build single-file binary for ${{ matrix.target }}
+        run: bash scripts/build-binaries.sh ${{ matrix.target }}
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+      - name: Upload binary tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-binary-${{ matrix.target }}
+          path: dist/unbrowse-*-${{ matrix.target }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  upload-release-assets:
+    name: Upload CLI Release Assets
+    runs-on: ubuntu-latest
+    needs: build-cli-binary
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Bun (use pre-installed if available)
         run: |
           if command -v bun >/dev/null 2>&1; then
@@ -68,22 +162,28 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
-      - run: bun install --no-frozen-lockfile
-      # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs from
-      # github.com/lekt9/kuri releases (prebuiltAssets URL) — no macos-latest
-      # runner needed. Linux/Windows targets cross-compile via zig (installed
-      # via mlugg/setup-zig above on github-hosted ubuntu-latest).
-      - run: bash scripts/build-binaries.sh --all
+      - name: Download all CLI binary tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cli-binary-*
+          path: dist
+          merge-multiple: true
+      # The signed release manifest is generated ONCE here (not per matrix
+      # shard) so its build-time issued_at and signature are internally
+      # consistent. release-manifest.{json,sig} land in dist/ alongside the
+      # downloaded tarballs.
+      - name: Generate signed release manifest
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: bun scripts/build-release-manifest.ts
       - name: Create or update GitHub release assets
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           TARGET_REPO="${UNBROWSE_RELEASE_REPO}"
+          ls -lh dist/
           # Upload only the version-scoped tarballs that install.mjs / verify-release-assets.mjs
-          # actually consume (4 platforms × ~25MB) plus the signed manifest. Skips raw 69MB binaries
-          # and stale tarballs from prior builds. ~4.7x smaller upload than the prior unbrowse-* glob.
+          # actually consume (5 platforms × ~25MB) plus the signed manifest.
           ASSETS=(
             "dist/unbrowse-v${VERSION}-darwin-arm64.tar.gz"
             "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
@@ -205,8 +305,17 @@ jobs:
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - run: bun install --no-frozen-lockfile
-      # darwin-arm64 kuri binary is downloaded by build-kuri-binaries.mjs
-      # from the lekt9/kuri prebuilt URL — no macos-latest artifact needed.
+      # Reuse the Kuri vendor binaries the build-kuri-vendor job already
+      # compiled this run (shared via artifact). build-kuri-binaries.mjs below
+      # then self-skips because the per-target binaries are already present,
+      # turning its former ~17min cross-compile into a hash-only no-op. If the
+      # artifact is somehow unavailable the build step still rebuilds.
+      - name: Restore shared Kuri vendor binaries
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
       - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
         run: node packages/skill/scripts/build-kuri-binaries.mjs
       - name: Sync manifest sha256 to actual artifact (zig builds are non-deterministic)
