@@ -12,9 +12,9 @@ import type {
   SkillOperationGraph,
   SkillOperationNode,
   SkillOperationEdge,
-} from "../types/index.js";
+} from "../../types/index.js";
 import { ensureSkillOperationGraph } from "./index.js";
-import { deriveAuthDependencies } from "../auth/runtime.js";
+import { deriveAuthDependencies } from "../../auth/runtime.js";
 
 // ---------------------------------------------------------------------------
 // Types

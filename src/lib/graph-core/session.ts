@@ -2,7 +2,7 @@ import type {
   SkillOperationGraph,
   SkillOperationNode,
   OperationBinding,
-} from "../types/index.js";
+} from "../../types/index.js";
 
 /** Result of matching a captured request against the operation graph. */
 export interface IndexedOperation {

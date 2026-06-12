@@ -1,5 +1,5 @@
 import { buildSkillOperationGraph } from "./index.js";
-import type { EndpointDescriptor, SkillManifest } from "../types/index.js";
+import type { EndpointDescriptor, SkillManifest } from "../../types/index.js";
 
 export interface LocalHarnessCase {
   id: string;

@@ -1,7 +1,7 @@
-import type { EndpointDescriptor, OperationBinding } from "../types/index.js";
+import type { EndpointDescriptor, OperationBinding } from "../../types/index.js";
 import { resolveEndpointSemantic } from "./index.js";
-import { readDomainNote } from "../extraction/domain-notes.js";
-import { getApiKey, buildReleaseAttestationHeaders } from "../client/index.js";
+import { readDomainNote } from "../../extraction/domain-notes.js";
+import { getApiKey, buildReleaseAttestationHeaders } from "../../client/index.js";
 import {
   CODE_HASH,
   DEFAULT_BACKEND_URL,
@@ -9,7 +9,7 @@ import {
   RELEASE_MANIFEST_BASE64,
   RELEASE_MANIFEST_SIGNATURE,
   TRACE_VERSION,
-} from "../version.js";
+} from "../../version.js";
 
 // The semantic-augmentation prompt + model orchestration moved
 // server-side (backend/src/services/semantic-augment.ts +

@@ -51,7 +51,7 @@ import { extractFromDOM, extractFromDOMWithHint, sanitizeExtractionToJson, looks
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { resolveProxyUrl, resolveEgressProxy, egressProxyArg } from "./proxy-fetch.js";
-import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, inferEndpointSemantic, resolveEndpointSemantic } from "../lib/graph-core/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";

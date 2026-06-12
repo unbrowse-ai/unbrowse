@@ -115,7 +115,7 @@ describe("W24.1 — A1 falsifier holds for eval trace under stateless + backend 
     const prevEnv = process.env.UNBROWSE_TRACE_STORE_DIR;
     process.env.UNBROWSE_TRACE_STORE_DIR = traceDir;
     try {
-      const { storeExecutionTrace } = await import("../src/graph/trace-store.js");
+      const { storeExecutionTrace } = await import("../src/lib/graph-core/trace-store.js");
       storeExecutionTrace({
         trace_id: "t-w24-1",
         domain: HOST,
@@ -232,7 +232,7 @@ describe("W24.1 — A1 falsifier holds for eval trace under stateless + backend 
     const prevEnv = process.env.UNBROWSE_TRACE_STORE_DIR;
     process.env.UNBROWSE_TRACE_STORE_DIR = traceDir;
     try {
-      const { storeExecutionTrace } = await import("../src/graph/trace-store.js");
+      const { storeExecutionTrace } = await import("../src/lib/graph-core/trace-store.js");
       storeExecutionTrace({
         trace_id: "t-w24-2",
         domain: HOST,

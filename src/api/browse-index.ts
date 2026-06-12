@@ -10,7 +10,7 @@ import { log } from "../logger.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { enrichEndpointsWithTokenSources } from "../capture/replay-tokens.js";
-import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
+import { buildSkillOperationGraph, inferEndpointSemantic } from "../lib/graph-core/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
 import type { KuriHarEntry } from "../kuri/client.js";
@@ -19,7 +19,7 @@ import type { RawRequest } from "../capture/index.js";
 import { cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { upsertDagEdgesFromOperationGraph } from "../orchestrator/dag-feedback.js";
-import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
+import { augmentEndpointsWithAgent } from "../lib/graph-core/agent-augment.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import {

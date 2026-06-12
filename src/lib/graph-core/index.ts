@@ -13,8 +13,8 @@ import type {
   SkillOperationEdge,
   SkillOperationGraph,
   SkillOperationNode,
-} from "../types/index.js";
-import { normalizeQueryBindingKey } from "../template-params.js";
+} from "../../types/index.js";
+import { normalizeQueryBindingKey } from "../../template-params.js";
 
 function normalizeTokenText(text: string): string {
   return text

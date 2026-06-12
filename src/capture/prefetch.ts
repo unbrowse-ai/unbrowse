@@ -5,7 +5,7 @@
  * GET endpoints and prefetch them so the agent gets list + detail in one call.
  */
 import type { SkillManifest, SkillOperationGraph, SkillOperationNode, SkillOperationEdge } from "../types/index.js";
-import { getOperationPrefetchTargets } from "../graph/index.js";
+import { getOperationPrefetchTargets } from "../lib/graph-core/index.js";
 import { executeSkill } from "../execution/index.js";
 
 export const PREFETCH_MAX = 3;

@@ -13,7 +13,7 @@
 import { nanoid } from "nanoid";
 import { cachePublishedSkill, getApiKey } from "../client/index.js";
 import { recordSession, recordNegative, syncEdgeConfidence, type EdgeOutcomeSignal } from "../client/graph-client.js";
-import { buildSkillOperationGraph } from "../graph/index.js";
+import { buildSkillOperationGraph } from "../lib/graph-core/index.js";
 import type { OperationBinding, SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
 import { DEFAULT_BACKEND_URL } from "../version.js";
 

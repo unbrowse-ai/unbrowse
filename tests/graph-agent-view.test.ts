@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/graph/index.js";
-import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
+import { ensureSkillOperationGraph, getSkillChunk, toAgentSkillChunkView, toAgentWorkflowDagView } from "../src/lib/graph-core/index.js";
+import { buildLocalHarnessFixtures } from "../src/lib/graph-core/local-fixtures.js";
 
 describe("agent skill chunk view", () => {
   const { skills } = buildLocalHarnessFixtures();
