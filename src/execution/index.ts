@@ -1935,6 +1935,29 @@ async function executeBrowserCapture(
     }
     // Else fall through with overridden captured.html — extractEndpoints will run on the libcurl HTML
   }
+
+  // KV fallback ladder (shared with `unbrowse go`): a SUCCESSFUL capture can
+  // still return an anti-bot block page (reddit "blocked by network security",
+  // a tiny challenge shell) without throwing — the catch-block SSR rescues only
+  // fire on no_progress_bail/auth_required. When the captured HTML looks blocked
+  // and the cheap content path (no JS XHRs needed) can serve it, descend the
+  // same impersonate ladder the direct-fetch path uses and override captured.html
+  // so direct-document/content extraction sees real bytes. Best-effort; endpoint
+  // discovery still runs on captured.requests below either way.
+  try {
+    const { looksBlocked, walkFetchLadder } = await import("../capture/fetch-ladder.js");
+    if (looksBlocked(captured.html)) {
+      const ladderCookies = (cookies ?? []).map((c) => ({ name: c.name, value: c.value }));
+      const rescued = await walkFetchLadder(captured.final_url ?? url, ladderCookies);
+      if (rescued && !looksBlocked(rescued.text)) {
+        (captured as { html?: string }).html = rescued.text;
+        log("execution", `fetch_ladder_unblocked: ${rescued.rung} ${rescued.bytes}B replaced block page`);
+      }
+    }
+  } catch (err) {
+    log("execution", `fetch_ladder_skip: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
 
