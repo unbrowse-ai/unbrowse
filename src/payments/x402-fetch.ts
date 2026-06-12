@@ -36,6 +36,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { payShFetch, payShSandboxEnabled } from "./pay-sh.js";
+
 // ---------------------------------------------------------------------------
 // x402 envelope shape (structural primitive — same across providers).
 // We only require the FIELDS we need to sign; extra fields are passed
@@ -81,7 +83,13 @@ export type X402SubState =
   | "x402_signer_error"
   | "x402_cost_exceeded"
   | "x402_retry_blocked"
-  | "x402_envelope_unparseable";
+  | "x402_envelope_unparseable"
+  // pay.sh adapter sub-states (see src/payments/pay-sh.ts). pay owns the whole
+  // MPP/x402 handshake, so it re-issues the request rather than signing an
+  // envelope — its sub-states live alongside the native ones.
+  | "pay_signed"
+  | "pay_no_binary"
+  | "pay_error";
 
 export interface X402FetchTrace {
   step: "x402_fetch";
@@ -112,7 +120,7 @@ export interface X402FetchResult {
 // (lobster CLI, privy backend endpoint, generic key-file signer) are in
 // sibling files and reused; we just dispatch.
 // ---------------------------------------------------------------------------
-export type WalletAdapterName = "lobster" | "privy" | "generic" | "none";
+export type WalletAdapterName = "lobster" | "privy" | "generic" | "pay" | "none";
 
 export interface WalletConfig {
   adapter: WalletAdapterName;
@@ -145,6 +153,12 @@ export function resolveWalletConfig(env: NodeJS.ProcessEnv = process.env): Walle
   if (explicit === "lobster" || explicit === "privy" || explicit === "generic") {
     const key_ref = env.UNBROWSE_WALLET_KEY?.trim();
     return { adapter: explicit, key_ref, max_cost_usd };
+  }
+  // pay.sh adapter is EXPLICIT-ONLY (default-off, never auto-detected) so a
+  // machine that merely has `pay` installed never silently routes payments
+  // through it. The wrapper re-issues the request via the `pay` CLI.
+  if (explicit === "pay") {
+    return { adapter: "pay", max_cost_usd };
   }
   if (explicit === "none") {
     return { adapter: "none", max_cost_usd };
@@ -392,6 +406,34 @@ export async function x402Fetch(
         first_status: firstRes.status,
       },
     };
+  }
+
+  // pay.sh adapter: pay owns the whole MPP/x402 handshake, so we DON'T parse
+  // the envelope or sign here — we re-issue the request through `pay`, which
+  // handles challenges (including MPP) the native parser cannot read. We still
+  // do a best-effort cost-ceiling check when the envelope declares an amount.
+  if (cfg.adapter === "pay") {
+    const payEnvelope = await parseEnvelope(firstRes.clone());
+    const payCost = payEnvelope ? envelopeCostUsd(payEnvelope) : NaN;
+    if (Number.isFinite(payCost) && payCost > cfg.max_cost_usd) {
+      return {
+        response: firstRes,
+        trace: {
+          step: "x402_fetch",
+          sub_state: "x402_cost_exceeded",
+          adapter: "pay",
+          envelope: payEnvelope ?? undefined,
+          max_cost_usd: cfg.max_cost_usd,
+          requested_cost_usd: payCost,
+          first_status: 402,
+        },
+      };
+    }
+    return payShFetch(url, init, {
+      sandbox: payShSandboxEnabled(),
+      max_cost_usd: cfg.max_cost_usd,
+      firstRes,
+    });
   }
 
   // 402: try to parse the envelope.

@@ -24,7 +24,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:issue-regressions
         name: Run issue regressions and eval contract tests
-      - run: bun test tests/path-params.test.ts tests/utils.test.ts tests/pr-agent.test.ts
+      - run: bun test tests/path-params.test.ts tests/utils.test.ts tests/pr-agent.test.ts tests/pay-sh.test.ts tests/pay-sh-skill.test.ts
         name: Run unit tests
 
   quality-gate:
