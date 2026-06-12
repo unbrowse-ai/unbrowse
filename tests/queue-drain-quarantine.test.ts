@@ -3,9 +3,9 @@ import { describe, test, expect, afterEach, beforeEach } from "bun:test";
 import { mkdtemp, rm, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { drainOnce, type DrainProcessor } from "../src/indexer/worker.js";
-import { writeJob, type JobEnvelope } from "../src/indexer/queue-store.js";
-import type { BackgroundIndexJob } from "../src/indexer/index.js";
+import { drainOnce, type DrainProcessor } from "../src/lib/indexer-core/worker.js";
+import { writeJob, type JobEnvelope } from "../src/lib/indexer-core/queue-store.js";
+import type { BackgroundIndexJob } from "../src/lib/indexer-core/index.js";
 
 
 function makeJob(overrides: Partial<BackgroundIndexJob> = {}): BackgroundIndexJob {

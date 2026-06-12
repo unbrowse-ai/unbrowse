@@ -22,7 +22,7 @@ export function makeCaptureSpoolProcessor(): CaptureSpoolProcessor {
   return async (capture: CaptureSpoolPayload): Promise<void> => {
     // Lazy dynamic import: capture-spool-bridge lives under src/indexer/,
     // routes.ts already imports queueBackgroundIndex from src/indexer/index.js,
-    // so a top-level `import { passiveIndexFromRequests } from "../api/routes.js"`
+    // so a top-level `import { passiveIndexFromRequests } from "../../api/routes.js"`
     // would close a cycle through the indexer barrel. Lazy import keeps the
     // resolution one-directional and pays the cost only when a drain runs.
     const { passiveIndexFromRequests } = await import("../api/routes.js");

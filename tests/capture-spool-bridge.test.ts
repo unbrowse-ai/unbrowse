@@ -15,7 +15,7 @@ import type { RawRequest } from "../src/capture/index.js";
 import {
   writeCaptureSpool,
   type CaptureSpoolEnvelope,
-} from "../src/indexer/capture-spool.js";
+} from "../src/lib/indexer-core/capture-spool.js";
 
 const REPO_ROOT = resolve(__dirname, "..");
 

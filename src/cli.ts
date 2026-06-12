@@ -40,7 +40,7 @@ import { checkServerVersion, ensureLocalServer, stopServer, restartServer, stopM
 import { getInProcessApp } from "./runtime/in-process-app.js";
 import { getLastVendorBlock } from "./capture/process-vendor-signal.js";
 import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./runtime/paths.js";
-import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingIndexJobs } from "./lib/indexer-core/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
@@ -142,7 +142,7 @@ async function _spawnDrainWorker(): Promise<void> {
   // Phase 1.1 Day 5 (Model B): gate the spawn on the global worker slot.
   // Parent holds the slot just long enough to spawn; the child re-acquires
   // on its own startup and becomes the canonical holder for its lifetime.
-  const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+  const { tryAcquireWorkerSlot } = await import("./lib/indexer-core/queue-store.js");
   const slot = await tryAcquireWorkerSlot(_getQueueDir());
   if (slot === null) return;
   try {
@@ -5019,7 +5019,7 @@ async function main(): Promise<void> {
   if (command === "__drain-queue") {
     try {
       const queueDir = _getQueueDir();
-      const { tryAcquireWorkerSlot } = await import("./indexer/queue-store.js");
+      const { tryAcquireWorkerSlot } = await import("./lib/indexer-core/queue-store.js");
       // Phase 1.1 Day 5 (Model B): child holds the slot for its lifetime.
       // If another worker already holds it, exit cleanly — the sibling drains.
       const slot = await tryAcquireWorkerSlot(queueDir);
@@ -5027,15 +5027,15 @@ async function main(): Promise<void> {
         process.exit(0);
       }
       try {
-        const { drainUntilEmpty } = await import("./indexer/worker.js");
-        const { _processIndexJobForCli } = await import("./indexer/index.js");
+        const { drainUntilEmpty } = await import("./lib/indexer-core/worker.js");
+        const { _processIndexJobForCli } = await import("./lib/indexer-core/index.js");
         // Two-lane drain, one worker slot: capture-pending FIRST so any
         // reconstructed BackgroundIndexJob lands in `pending/` and is
         // processed in the same worker lifetime (no second spawn needed).
         // Failure here never blocks the legacy pending drain.
         try {
-          const { drainCaptureSpoolOnce } = await import("./indexer/capture-spool.js");
-          const { makeCaptureSpoolProcessor } = await import("./indexer/capture-spool-bridge.js");
+          const { drainCaptureSpoolOnce } = await import("./lib/indexer-core/capture-spool.js");
+          const { makeCaptureSpoolProcessor } = await import("./lib/indexer-core/capture-spool-bridge.js");
           const captureDir = _getCaptureSpoolDir();
           let totalProcessed = 0;
           // Drain in a loop until idle so envelopes that produced new pending

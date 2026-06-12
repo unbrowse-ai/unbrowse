@@ -9,8 +9,8 @@ import {
   resetIndexQueueForTests,
   setBackgroundIndexProcessorForTests,
   type BackgroundIndexJob,
-} from "../src/indexer/index.js";
-import { listJobs } from "../src/indexer/queue-store.js";
+} from "../src/lib/indexer-core/index.js";
+import { listJobs } from "../src/lib/indexer-core/queue-store.js";
 
 function makeJob(cacheKey: string, domain = "example.com"): BackgroundIndexJob {
   return {

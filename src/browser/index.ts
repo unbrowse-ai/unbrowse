@@ -5,7 +5,7 @@ import { generateLocalDescription } from "../orchestrator/index.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import type { RawRequest } from "../capture/index.js";
-import { queueBackgroundIndex } from "../indexer/index.js";
+import { queueBackgroundIndex } from "../lib/indexer-core/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../lib/graph-core/index.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";

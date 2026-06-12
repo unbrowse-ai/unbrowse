@@ -41,7 +41,7 @@ mock.module("../src/orchestrator/index.js", () => ({
 const { writeWorkflowArtifact } = await import("../src/workflow/artifact.js");
 const { buildWorkflowPublishArtifact, readWorkflowPublishArtifact, writeWorkflowPublishArtifact } = await import("../src/workflow/publish.js");
 const { queuePassiveSkillPublish, resetPassivePublishQueueForTests } = await import("../src/orchestrator/passive-publish.js");
-const { indexSkillLocally, publishIndexedSkill } = await import("../src/indexer/index.js");
+const { indexSkillLocally, publishIndexedSkill } = await import("../src/lib/indexer-core/index.js");
 
 const tempDirs: string[] = [];
 const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;

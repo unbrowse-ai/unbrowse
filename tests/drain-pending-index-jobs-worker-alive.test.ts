@@ -60,14 +60,14 @@ describe("drainPendingIndexJobs — disk mode worker-alive fast-path", () => {
     // We can't easily reduce the 30s timeout without changing source, so this
     // test is intentionally light: it confirms the import path works and the
     // function doesn't throw when queue is empty.
-    const { drainPendingIndexJobs } = await import("../src/indexer/index.js");
+    const { drainPendingIndexJobs } = await import("../src/lib/indexer-core/index.js");
     // Empty queue → returns immediately.
     await expect(drainPendingIndexJobs()).resolves.toBeUndefined();
   });
 
   test("inline mode behavior unchanged (sanity check)", async () => {
     process.env.UNBROWSE_INLINE_INDEX = "1";
-    const { drainPendingIndexJobs } = await import("../src/indexer/index.js");
+    const { drainPendingIndexJobs } = await import("../src/lib/indexer-core/index.js");
     await expect(drainPendingIndexJobs()).resolves.toBeUndefined();
   });
 });

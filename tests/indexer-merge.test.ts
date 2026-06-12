@@ -175,7 +175,7 @@ describe("domain snapshot accumulation", () => {
 
   test("findAndMergeDomainSnapshot merges endpoints across snapshots", async () => {
     // Import the function we're about to create
-    const { findAndMergeDomainSnapshot } = await import("../src/indexer/index.js");
+    const { findAndMergeDomainSnapshot } = await import("../src/lib/indexer-core/index.js");
 
     const skill1 = makeSkill("example.com", [
       makeEndpoint({
@@ -215,7 +215,7 @@ describe("background index queue", () => {
       queueBackgroundIndex,
       resetIndexQueueForTests,
       setBackgroundIndexProcessorForTests,
-    } = await import("../src/indexer/index.js");
+    } = await import("../src/lib/indexer-core/index.js");
 
     resetIndexQueueForTests();
 

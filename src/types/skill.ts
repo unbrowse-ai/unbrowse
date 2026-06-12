@@ -577,7 +577,7 @@ export interface SkillManifest {
    * it gates public marketplace publish (unreviewed skills are held back);
    * with `auto_review=true` skills publish without it, and the manifest
    * honestly shows no review happened. See `shouldPublishAfterIndex` in
-   * src/indexer/index.ts.
+   * src/lib/indexer-core/index.ts.
    */
   reviewed_at?: string;
   /**

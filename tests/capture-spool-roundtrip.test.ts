@@ -14,7 +14,7 @@ import {
   drainCaptureSpoolOnce,
   type CaptureSpoolEnvelope,
   type CaptureSpoolPayload,
-} from "../src/indexer/capture-spool.js";
+} from "../src/lib/indexer-core/capture-spool.js";
 
 let spoolDir: string;
 

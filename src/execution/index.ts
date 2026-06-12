@@ -58,7 +58,7 @@ import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplat
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
 import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
-import { queueBackgroundIndex } from "../indexer/index.js";
+import { queueBackgroundIndex } from "../lib/indexer-core/index.js";
 import { readActiveSessions } from "../api/session-store.js";
 import {
   writeSkillSnapshot,
