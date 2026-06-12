@@ -2,7 +2,7 @@ import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
-import { webSearch, type WebResult } from "./web-search.js";
+import { webSearchWithProvider, type WebResult, type WebSearchOutcome } from "./web-search/index.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -20,7 +20,9 @@ export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
   skipped_global: boolean;
-  exa_results?: WebResult[]; // wire-compat field name; now unbrowse-native web search (no vendor)
+  exa_results?: WebResult[]; // wire-compat field name; populated by the provider chain (services/web-search/)
+  /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance for the wire. */
+  web_search_provider?: string;
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
@@ -472,11 +474,13 @@ export async function searchIntentResolve(
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
 
-  // unbrowse's own keyless web search fires in parallel with graph searches —
-  // a best-effort enrichment, never on the critical path. No vendor key needed.
-  const exaPromise: Promise<WebResult[]> = webSearch(intent, globalK).catch((err) => {
+  // Web search fires in parallel with graph searches — a best-effort
+  // enrichment, never on the critical path. The provider chain (Exa primary
+  // when keyed, keyless DDG fallback) decides the engine; the outcome carries
+  // which one actually answered.
+  const webPromise: Promise<WebSearchOutcome> = webSearchWithProvider(env, intent, globalK).catch((err) => {
     console.error("[search-resolve] web-search error:", (err as Error).message);
-    return [] as WebResult[];
+    return { provider: null, results: [] as WebResult[] };
   });
 
   if (!domain) {
@@ -485,15 +489,16 @@ export async function searchIntentResolve(
       return [] as SearchResult;
     });
     global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
-    const exa_results = await exaPromise;
+    const webOutcome = await webPromise;
+    const exa_results = webOutcome.results;
     const t2 = Date.now();
     const resolved: ResolvedSearchResult = {
       domain_results: [] as SearchResult,
       global_results,
       skipped_global: false,
-      ...(exa_results.length > 0 && { exa_results }),
+      ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
     };
-    console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} exa=${exa_results.length}`);
+    console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} web=${exa_results.length} provider=${webOutcome.provider ?? "none"}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
     if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
     return resolved;
@@ -520,18 +525,19 @@ export async function searchIntentResolve(
   const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
   let global_results = skipped_global ? [] : await globalPromise;
   if (!skipped_global) global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
-  const exa_results = await exaPromise;
+  const webOutcome = await webPromise;
+  const exa_results = webOutcome.results;
   const t3 = Date.now();
   console.log(
     `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t3 - t2}ms results=${global_results.length}`}`,
   );
-  console.log(`[perf:search-resolve] exa=${exa_results.length} TOTAL: ${t3 - t0}ms`);
+  console.log(`[perf:search-resolve] web=${exa_results.length} provider=${webOutcome.provider ?? "none"} TOTAL: ${t3 - t0}ms`);
 
   const resolved: ResolvedSearchResult = {
     domain_results,
     global_results,
     skipped_global,
-    ...(exa_results.length > 0 && { exa_results }),
+    ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
   };
   if (domain_results.length > 0 || global_results.length > 0 || exa_results.length > 0) {
     cachePut(env, ckey, JSON.stringify(resolved));

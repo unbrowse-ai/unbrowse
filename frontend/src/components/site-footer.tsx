@@ -13,7 +13,6 @@ const PRODUCT_LINKS: Array<{ href: string; label: string }> = [
   { href: "/", label: "Overview" },
   { href: "/#install", label: "Install" },
   { href: "/#demo", label: "Demo" },
-  { href: "/search", label: "Marketplace" },
 ];
 
 const DEVELOPER_LINKS: Array<{ href: string; label: string }> = [

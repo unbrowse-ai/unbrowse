@@ -114,7 +114,7 @@ knowledge the combination --- signed multi-layer descent, a content-addressed-pl
 ledgered substrate, and a contribution-weighted three-party settlement over x402 --- is
 not present in prior work as a single system.
 
-\section{The stack as a self-similar tree}
+\section{The stack is one node, instantiated at every layer}
 
 We model the stack as a layered tree in the OSI tradition~\cite{osi}, but oriented
 around \emph{who is acting} rather than \emph{which bytes move}:
@@ -122,73 +122,138 @@ around \emph{who is acting} rather than \emph{which bytes move}:
 \text{screen-clicks} \to \text{browser} \to \text{CLI} \to \text{OS} \to
 \text{kernel} \to \text{packet}.
 \]
-The end-to-end argument~\cite{e2e} supplies the rule for descent: a function lives
-at the highest layer that can do it completely and correctly, and lower layers are
-fallback, not first resort. A cached signed plan beats a CLI call beats a browser
-action beats moving a mouse across pixels like it is 2004. But when the higher
-layer simply cannot act --- no API, hostile anti-bot, a page that is 100\% JavaScript
-and 0\% mercy --- the agent descends, and at the bottom it emits packets whose
-TLS/HTTP fingerprint is indistinguishable from a real browser via
-curl-impersonate~\cite{curlimpersonate}, matching exactly the JA3/JA4 signature
-the other side is keying on~\cite{ja3,ja4}. The browser, CLI, and HTTP layers and
-the fingerprint-faithful fetch run in the product, and the uniform \emph{signed descent through every
-layer} (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet) ships
-in production: \texttt{src/values/signed-descent.ts} signs one wallet root
-once and threads a hash-chained, per-layer signature down the whole stack, with tests
-that any tampered or reordered layer fails to verify. Ownership is vertical:
-\texttt{src/values/wallet-hierarchy.ts} derives each layer's wallet from its parent's
-(HKDF) and the parent signs the child's key, and \texttt{src/values/layer-wallet-descent.ts}
-has each layer sign with its own parent-owned wallet --- so the root wallet owns the
-screen wallet owns the browser wallet, all the way down to the packet wallet. What
-remains referenced rather than shipped is emitting \emph{real} signed OS/kernel/packet
-operations across platforms; the signed descent record, the wallet hierarchy, and the
-fingerprint-faithful HTTP emission are in the product today.
+The claim is not that these are six layers held together by prose. It is that they
+are \emph{one node, instantiated six times}. We give the node once and never again;
+every section below is the same node with its fields filled in. A node has exactly
+four fields:
+\begin{itemize}[leftmargin=1.4em,itemsep=1pt]
+  \item \textbf{subject} --- who/what/when/where/why/how: the action this node performs.
+  \item \textbf{verb} --- one of \emph{observe}, \emph{act}, \emph{verify}: the kind of step.
+  \item \textbf{witness} --- a check returning settled / not (two independent
+        corroborations, or the node is not settled).
+  \item \textbf{parent} --- the hash of the node one layer up: the edge that makes
+        the tree.
+\end{itemize}
+A \textbf{tree} is a node whose children are nodes. This is a recursive sum type
+folded by one operator --- an \emph{F-algebra}, a catamorphism over a single node
+functor~\cite{e2e}; plainly, recursive descent over one node schema. Every layer of
+the descent is a node; the child of a node is the same node one altitude lower.
+There is no second type anywhere in the stack.
 
-The reason any of this composes is that the shape at every layer is identical:
-observe, decide, sign, act. That self-similarity is the whole trick --- it is what
-lets \emph{one} identity and \emph{one} cache serve the entire tree instead of six
-bespoke integrations held together with hope and retry loops.
+The end-to-end argument~\cite{e2e} supplies the rule for which node acts: a function
+lives at the highest layer that can do it completely and correctly, and lower layers
+are fallback, not first resort. A cached signed plan beats a CLI call beats a browser
+action beats moving a mouse across pixels like it is 2004. But when the higher layer
+simply cannot act --- no API, hostile anti-bot, a page that is 100\% JavaScript and
+0\% mercy --- the agent descends to the child node, and at the bottom it emits packets
+whose TLS/HTTP fingerprint is indistinguishable from a real browser via
+curl-impersonate~\cite{curlimpersonate}, matching exactly the JA3/JA4 signature the
+other side is keying on~\cite{ja3,ja4}. The browser, CLI, and HTTP layers and the
+fingerprint-faithful fetch run in the product, and the uniform \emph{signed descent through every
+layer} (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet) ships in
+production: \texttt{src/values/signed-descent.ts} signs one wallet root once and
+threads a hash-chained, per-layer signature down the whole stack, with tests that any
+tampered or reordered layer fails to verify. Ownership is vertical and rides the
+\textbf{parent} edge: \texttt{src/values/wallet-hierarchy.ts} derives each layer's
+wallet from its parent's (HKDF) and the parent signs the child's key, and
+\texttt{src/values/layer-wallet-descent.ts} has each layer sign with its own
+parent-owned wallet --- so the root wallet owns the screen wallet owns the browser
+wallet, all the way down to the packet wallet. What remains referenced rather than
+shipped is emitting \emph{real} signed OS/kernel/packet operations across platforms;
+the signed descent record, the wallet hierarchy, and the fingerprint-faithful HTTP
+emission are in the product today.
 
-This is not a metaphor we are stretching. The whole stack is one instance of a
-single structure --- the layered tree from which our internal tooling is built ---
-and every section below is one node of it, mapped to a primitive that already
-exists in the literature (Table~\ref{tab:atoms}). We did not invent these; we
-aligned them.
+The reason any of this composes is that the shape at every layer is identical ---
+observe, act, verify, under one signature --- so what earlier looked like a list of
+distinct primitives is not distinct: each is the one node viewed from one angle
+(Table~\ref{tab:atoms}). \emph{One} identity and \emph{one} cache serve the entire
+tree instead of six bespoke integrations held together with hope and retry loops. We
+did not invent these primitives; we aligned them to the node's faces.
 
 \begin{table}[h]
 \centering
 \small
 \begin{tabular}{@{}lll@{}}
 \hline
-\textbf{layer / atom} & \textbf{primitive} & \textbf{source} \\
+\textbf{viewed as} & \textbf{is really} & \textbf{primitive (cited)} \\
 \hline
-descent (walk)       & curl-impersonate / JA3, JA4   & \cite{curlimpersonate,ja3,ja4} \\
-network (economics)  & x402 split settlement / fair three-way compensation & \cite{x402} \\
-agent record (node)  & ERC-8004 trustless agent      & \cite{erc8004} \\
-the stack (tree)     & end-to-end argument / OSI     & \cite{e2e,osi} \\
-witness (no leak)    & zkLogin / Pedersen commit     & \cite{zklogin,pedersen} \\
-cache (value)        & Merkle content-addressing     & \cite{merkle} \\
-\quad $\hookrightarrow$ KV parallel & attention KV cache / PagedAttention & \cite{attention,pagedattention} \\
-seal (no unsigned)   & AEAD / object-capabilities    & \cite{rfc5116,ocap} \\
-ledger (commitment)  & Certificate Transparency / hash chain & \cite{rfc6962,bitcoin} \\
-loop (control)       & OODA / proof-of-history clock & \cite{ooda,solana} \\
-descent (walk)       & curl-impersonate / JA3, JA4   & \cite{curlimpersonate,ja3,ja4} \\
+descent      & spawn a child node one layer down      & curl-impersonate / JA3, JA4~\cite{curlimpersonate,ja3,ja4} \\
+the tree     & one node whose children are nodes      & end-to-end argument / OSI~\cite{e2e,osi} \\
+identity     & the root node's key, inherited down    & ERC-8004 trustless agent~\cite{erc8004} \\
+witness      & \texttt{node.witness} --- the settle check & zkLogin / Pedersen commit~\cite{zklogin,pedersen} \\
+cache        & a node memoising its child             & Merkle content-addressing~\cite{merkle} \\
+\quad $\hookrightarrow$ KV parallel & same node, token altitude & attention KV cache / PagedAttention~\cite{attention,pagedattention} \\
+seal         & the gate on \texttt{node.verb}         & AEAD / object-capabilities~\cite{rfc5116,ocap} \\
+ledger       & the \texttt{node.parent} edge, append-only & Certificate Transparency / hash chain~\cite{rfc6962,bitcoin} \\
+loop         & a node re-firing until its witness settles & OODA / proof-of-history clock~\cite{ooda,solana} \\
+\emph{(edge)} economics & payment on the parent$\to$child call & x402 split settlement~\cite{x402} \\
 \hline
 \end{tabular}
-\caption{Each layer of the signed stack is one node of the layered tree, mapped
-to an existing, cited primitive. A runnable reference implementation of the cache
-+ ledger core ships alongside this paper (\texttt{reference/}, with tests that
-execute each claim).}
+\caption{The six ``mechanisms'' are six faces of one node, each aligned to an
+existing, cited primitive. One element is \emph{not} a node and we name it rather
+than hide it: economics (x402) is the weight on the \textbf{parent} edge, not a node
+--- so the precise structure is one node type plus one typed edge type, a weighted
+tree, not a node-only fractal (this is the whole content of \S\ref{sec:economics}).
+A runnable reference implementation of the cache + ledger core ships alongside this
+paper (\texttt{reference/}, with tests that execute each claim).}
 \label{tab:atoms}
 \end{table}
 
-\section{Identity: one key signs every layer}
-The root of trust is a single Ed25519 keypair~\cite{rfc8032} --- and conveniently,
-the agent already has one, because a Solana account literally \emph{is} a base58
-Ed25519 public key. The wallet is the identity. Every action --- a click, a
-syscall, a packet --- is admissible only if it chains to a signature under that one
-root. No signature, no action; the stack has no anonymous side door. The
-Unbrowse signer already produces wallet signatures for resolve/execute admission.
+\subsection{Traversing the tree: descent is a cheapest-first search}
+
+A tree of nodes is inert until something walks it. The stack's operations ---
+resolve an intent, execute a route, fall back to a browser --- are not three
+subsystems but \emph{one graph traversal of the node tree, weighted by compute
+cost}. The end-to-end rule above is exactly Dijkstra's algorithm with edge weight =
+compute cost: visit nodes in increasing cost and stop at the first whose witness
+settles.
+\begin{verbatim}
+walk(intent):
+  for node in tree.nodes_by_increasing_cost(intent):   # Dijkstra over compute cost
+    if node.cached and node.witness.settled:            # RESOLVE -- cache hit, 0 descent
+      return node.replay()                              # EXECUTE -- no deeper layer touched
+    if node.can_act_completely(intent):                 # highest capable layer
+      r = node.act()
+      if r.witness.settled:
+        cache.put(node, r); ledger.append(node)         # CAPTURE the win for next time
+        return r
+  return walk_child(intent)                             # FALLBACK -- the browser is the deepest child
+\end{verbatim}
+BFS, DFS, and Dijkstra are not three different walks here but \emph{one walk with
+three priority functions} over the same tree: BFS = uniform cost, DFS = descend
+immediately on miss, Dijkstra = cost-weighted (the production default,
+cheapest-capable-first). The resolve$\to$execute$\to$fallback ladder \emph{is} that
+Dijkstra instance --- three short-circuit tiers, cheapest first: cache replay (0
+descent) $\to$ one capable-layer act $\to$ descend to the child. Each settled node
+pushes future identical intents to a cheaper tier, so the deep layers (the browser)
+are the cache-miss oracle, visited as rarely as possible.
+
+\subsection{The traversal record is the ledger}
+
+Every node the walk visits, and the verdict its witness returned, is appended to one
+append-only log keyed by the node's content hash. That single object wears three
+names and is the same primitive each time: as the \emph{route ledger} it records
+\texttt{\{signer, value-hash, timestamp, prev-hash\}} per settled node (\S8); as the
+\emph{resolution ledger} (\texttt{src/values/resolution-ledger.ts}) it is the
+content-addressed memo of the traversal, so a hit short-circuits the whole descent
+(the cache of \S6); and as a \emph{session record} it is the human-readable tail of
+the same log, where a node recorded \emph{refuted} is a pruned branch the walk never
+re-enters --- the negative result is a cache entry, not a deleted fact. Memoisation
+(do not recompute a settled node), pruning (do not re-walk a refuted node), and
+provenance (the hash-chain proves the order) are one append-only ledger seen three
+ways. \S8 is that ledger as the \textbf{parent} field.
+
+\section{Identity: the root node's key, inherited by every child}
+Identity is not a layer of its own --- it is the one \textbf{subject} field every
+node shares, and the property that the whole tree is keyed by one keypair. The root
+of trust is a single Ed25519 keypair~\cite{rfc8032} --- and conveniently, the agent
+already has one, because a Solana account literally \emph{is} a base58 Ed25519 public
+key. The wallet is the identity. Every action --- a click, a syscall, a packet --- is
+an admissible \texttt{node.verb} only if it chains to a signature under that one root.
+No signature, no action; the stack has no anonymous side door. The Unbrowse signer
+already produces wallet signatures for resolve/execute admission. The key descends the
+\textbf{parent} edge, never re-keying: each child node's key is HKDF-derived from its
+parent's and the parent signs it (\S3), so one identity threads the whole tree.
 
 For trust \emph{between} agents we adopt the ERC-8004 ``Trustless Agents''
 model~\cite{erc8004}, which defines three on-chain registries: \textbf{Identity}
@@ -225,8 +290,10 @@ used once, and zeroed before the copy ever leaves.
 
 \section{Witness without disclosure: ZK credential binding}
 
-Signing is the easy half. The hard half --- the actual research --- is proving a
-credential belongs to the identity \emph{without revealing the credential}. Your
+This section is \texttt{node.witness} made non-disclosing: the witness must settle
+``yes, bound'' without revealing what it witnessed. Signing is the easy half. The
+hard half --- the actual research --- is proving a credential belongs to the identity
+\emph{without revealing the credential}. Your
 password, your session cookie, your 1Password entry, the fact that you clicked
 ``approve'' for this domain: all of it should be provably bound to the wallet and
 leak \emph{nothing} identifiable at any layer unless you choose to open the proof
@@ -254,10 +321,13 @@ closed. The remaining integration is adopting this binding across every entry of
 live credential vault end-to-end; the primitive and its hole-level binding are shipped
 and tested, not promised.
 
-\section{Cache: content-addressed, sealed unless revealed}
+\section{Cache: a node memoising its child (content-addressed, sealed unless revealed)}
 
-Every layer's settled result --- a resolved endpoint, a rendered page, a signed
-plan --- is memoised under a content-addressed key, in the Merkle
+The cache is simply a node that memoises its child: address the result by the hash of
+its own bytes, and a later walk that reaches the same node replays the stored value
+instead of descending again (the traversal short-circuit of \S3.1). Every layer's
+settled result --- a resolved endpoint, a rendered page, a signed plan --- is memoised
+under a content-addressed key, in the Merkle
 tradition~\cite{merkle} and exactly as realised by content-addressed stores like
 IPFS~\cite{ipfs} and Git's object model~\cite{gitobjects}. Same structure
 re-walked, same key, same answer, deterministically; the cache is re-derived to
@@ -328,9 +398,11 @@ token prefix, and the entry is ZK-sealed rather than served in the clear. The mo
 caches computation it has already done; the stack caches \emph{actions} it has
 already signed. Same shape, different altitude --- a KV cache all the way down,
 where each layer's entry stays sealed until a signature opens it.
-\section{Seal: nothing ships unsigned}
+\section{Seal: the gate on \texttt{node.verb} (nothing ships unsigned)}
 
-Before any layer emits, it self-verifies through the root. At the wire that is
+The seal is not a layer either --- it is the gate every node's \texttt{verb} must pass
+before it emits, and authority descends the \textbf{parent} edge attenuated, never
+widened. Before any layer emits, it self-verifies through the root. At the wire that is
 authenticated encryption with associated data (AEAD)~\cite{rfc5116}: the receiver
 checks the tag before it trusts a single byte, and tampering fails closed rather
 than failing quietly into your logs. The same discipline generalises upward as
@@ -344,10 +416,13 @@ or tampered action is rejected and counted --- zero unsigned actions ever cross.
 AEAD itself is, obviously, ubiquitous and shipped at the transport layer; we are not
 claiming to have invented encryption.
 
-\section{Ledger: where the signatures actually land}
+\section{Ledger: the \texttt{node.parent} edge made append-only}
 
-Signing is only half the story; the obvious next question --- and the one most
-``signed'' systems wave away --- is \emph{where does the signature go}. A cache and
+Stated as a node field, the ledger is what happens when \texttt{node.parent} is
+required to be append-only and ordered (\S3.2): the \texttt{prev-hash} \emph{is} the
+parent edge, realised as a chain rather than a free pointer. Signing is only half the
+story; the obvious next question --- and the one most ``signed'' systems wave away ---
+is \emph{where does the signature go}. A cache and
 a ledger are not the same object, and conflating them is the bug. A cache is
 content-addressed: you fetch a value by the hash of its content and order does not
 matter, so the same hash resolves on any host~\cite{merkle}. A ledger is the
@@ -385,6 +460,7 @@ entry changes the root. Publishing the root on-chain is the deployment step; the
 commitment it would publish is exactly this root.
 
 \section{From security to economics: where this paper stops}
+\label{sec:economics}
 
 A signed, sealed, ledgered route graph is a security substrate; what it is
 \emph{worth} --- who maintains the routes, who pays, who earns, and how a freshness

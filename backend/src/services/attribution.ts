@@ -224,6 +224,18 @@ export async function getIndexerLedger(
   try { return JSON.parse(raw) as IndexerAttributionLedger; } catch { return null; }
 }
 
+/** List every indexer id that has an attribution ledger (for payout sweeps). */
+export async function listIndexerIds(env: Env): Promise<string[]> {
+  const raw = await statsKV(env).get(ATTRIBUTION_INDEX_KEY) as string | null;
+  if (!raw) return [];
+  try {
+    const ids = JSON.parse(raw) as string[];
+    return Array.isArray(ids) ? ids : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Aggregate attribution summary across all indexed routes. */
 export async function getAttributionSummary(env: Env): Promise<AttributionSummary> {
   const kv = statsKV(env);
