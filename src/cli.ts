@@ -3259,8 +3259,41 @@ async function cmdFetch(args: string[], flags: Record<string, string | boolean>)
   // SIMPLE mode output: stat line on stderr, body on stdout.
   const peo = postEvalProcessed as Record<string, unknown> | string | undefined;
   let body = (peo && typeof peo === "object" && "body" in peo) ? peo.body : peo;
-  const status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
+  let status = (peo && typeof peo === "object" && "status" in peo) ? peo.status : "?";
   const routesCount = resp.routes_observed?.length ?? 0;
+
+  // x402 / pay.sh: if the URL answered 402 Payment Required, pay it via the
+  // configured wallet adapter and retry ONCE. Default-off — only fires when a
+  // wallet adapter is configured (UNBROWSE_WALLET_ADAPTER=pay routes through the
+  // pay.sh CLI and handles MPP + x402; sandbox via UNBROWSE_PAY_SANDBOX=1).
+  // In-process (x402Fetch uses global fetch) — no daemon spawn.
+  if (!customBundle && url && Number(status) === 402) {
+    const { x402Fetch, resolveWalletConfig } = await import("./payments/x402-fetch.js");
+    const adapter = resolveWalletConfig().adapter;
+    if (adapter !== "none") {
+      const payHeaders: Record<string, string> = { Accept: "*/*" };
+      if (typeof flags.header === "string") {
+        const idx = flags.header.indexOf(":");
+        if (idx > 0) payHeaders[flags.header.slice(0, idx).trim()] = flags.header.slice(idx + 1).trim();
+      }
+      const payInit: RequestInit = { method: fetchMethod, headers: payHeaders };
+      if (typeof flags.data === "string") payInit.body = flags.data;
+      try {
+        const { response, trace } = await x402Fetch(url, payInit);
+        if (response.status >= 200 && response.status < 300) {
+          body = await response.text();
+          status = response.status;
+          info(`[fetch] paid 402 via ${trace.adapter ?? "wallet"} (${trace.sub_state}) → ${response.status}`);
+        } else {
+          info(`[fetch] 402 not paid (${trace.sub_state}) — see https://pay.sh for wallet setup`);
+        }
+      } catch (e) {
+        info(`[fetch] x402 retry failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else {
+      info("[fetch] 402 Payment Required — set UNBROWSE_WALLET_ADAPTER (e.g. =pay) to authorize payment");
+    }
+  }
   // --main: extract the page's MAIN CONTENT as clean markdown (drop nav, chrome,
   // sidebars, related-links, footers) rather than dumping the whole HTML page.
   // Only fires on HTML bodies; cleanDOM has a content-loss guard that falls back
