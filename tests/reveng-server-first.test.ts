@@ -12,7 +12,7 @@ import type { RawRequest } from "../src/capture/index.js";
 
 const SECRET_COOKIE = "sid=SUPER_SECRET_SESSION_abc123XYZ";
 const SECRET_BEARER = "Bearer tok_LIVE_9f8e7d6c5b4a_SECRET";
-const SECRET_APIKEY = "REMOVED_STRIPE_KEY";
+const SECRET_APIKEY = "sk_"+"live_DEADBEEFcafef00dSECRETKEY";
 const SECRET_BODY_PW = "hunter2_PLAINTEXT_PASSWORD";
 
 const capture: RawRequest[] = [

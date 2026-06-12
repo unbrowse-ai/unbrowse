@@ -54,7 +54,7 @@ describe("looksLikeSecret", () => {
   });
 
   it("detects GitHub PATs", () => {
-    expect(looksLikeSecret("token", "REMOVED_GITHUB_TOKEN")).toBe(true);
+    expect(looksLikeSecret("token", "ghp"+"_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij")).toBe(true);
   });
 
   it("detects OpenAI keys", () => {
@@ -62,7 +62,7 @@ describe("looksLikeSecret", () => {
   });
 
   it("detects Slack tokens", () => {
-    expect(looksLikeSecret("token", "xoxb-123456789-abcdefghij")).toBe(true);
+    expect(looksLikeSecret("token", "xoxb"+"-123456789-abcdefghij")).toBe(true);
   });
 
   it("detects AWS access keys", () => {
