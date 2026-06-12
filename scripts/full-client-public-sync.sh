@@ -23,7 +23,7 @@ cd "$ROOT"
 # bundles, the codedb index) and would re-leak vocab the text-scrub can't reach.
 # The public repo is source-for-audit; built artifacts belong in the npm package.
 EXCLUDES=(--exclude='node_modules/' --exclude='dist/' --exclude='dist-sm/' --exclude='dist-*/'
-  --exclude='build/' --exclude='.open-next/' --exclude='*.map'
+  --exclude='runtime-src/' --exclude='packed-src/' --exclude='.open-next/' --exclude='*.map'
   --exclude='*.snapshot' --exclude='*.min.js' --exclude='codedb*'
   --exclude='*.tsbuildinfo' --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.egg-info/'
   --exclude='.planning/' --exclude='internal/' --exclude='.claude/' --exclude='.git/'
