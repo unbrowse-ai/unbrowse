@@ -17,7 +17,11 @@ cd "$(dirname "$0")/.." || exit 2
 
 python3 - <<'PY'
 import subprocess, re, os, sys
-MOAT={'reverse-engineer','indexer','graph','ranking','marketplace','intent-match','extraction'}
+# MOAT = the agreed set (the "what moves vs stays" table): the reverse-engineerable
+# tuning/inference IP. NOT extraction (local cheerio/readability content parsing),
+# marketplace (backend API client + local bookkeeping; authoritative scoring is
+# server-side), or intent-match (local result matching) — those are client-local.
+MOAT={'reverse-engineer','indexer','graph','ranking'}
 SEEDS=['sdk','client','cli-v7']           # dirs
 SEED_FILES=['cli.ts','mcp.ts','index.ts'] # top-level entrypoints
 
