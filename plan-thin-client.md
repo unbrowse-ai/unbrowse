@@ -65,7 +65,7 @@ out into a client module.
 - ✅ **gate scope corrected** (`fix(thin-client gate)`): MOAT = the agreed 4; extraction/
   marketplace/intent-match are client-local (parsing / API client / local matching).
 - ⏳ **Remaining: graph, indexer, ranking** — each LARGE:
-  - `graph` is the worst — **16 static importers** using ~17 mixed symbols (moat compile:
+  - `graph` is the worst — a 1,745-line MONOLITH (src/graph/index.ts, 17 interleaved exports) + **16 static importers** using ~17 mixed symbols (moat compile:
     `buildSkillOperationGraph`, `inferEndpointSemantic`, `getEndpointDescriptionMetadata`;
     thin client: `toAgentWorkflowDagView`, `computeReachableEndpoints`, `getSkillChunk`).
     Needs a SPLIT (moat compile→server, DAG-walk→client) + 16-site rewire.
