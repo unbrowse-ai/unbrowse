@@ -1,5 +1,11 @@
 # Changelog
 
+## [8.3.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.5...v8.3.0-preview.6) (2026-06-12)
+
+### Bug Fixes
+
+* **paper:** classify services/disburse, drop stale services/web-search coverage row ([696b498](https://github.com/unbrowse-ai/unbrowse-dev/commit/696b498c9fecf8adad31bf5e7dea5073dbce9558)), closes [#828](https://github.com/unbrowse-ai/unbrowse-dev/issues/828)
+
 ## [8.3.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.4...v8.3.0-preview.5) (2026-06-12)
 
 ### Features
