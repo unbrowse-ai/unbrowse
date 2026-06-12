@@ -32,12 +32,12 @@
  * benchmark.
  */
 
-import type { EndpointDescriptor } from "../../types/skill.js";
-import { resolveEndpointSemantic } from "../../graph/index.js";
+import type { EndpointDescriptor } from "../../../types/skill.js";
+import { resolveEndpointSemantic } from "../../../graph/index.js";
 import {
   intentResourceKinds,
   intentActionKinds,
-} from "../../execution/index.js";
+} from "../../../execution/index.js";
 
 /** Bonus per token match when descriptionMeta.source === "agent". */
 export const AGENT_DESC_DELTA_WEIGHT = 100;

@@ -26,7 +26,7 @@ import { getSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
 import { getRecentTraces } from "../graph/trace-store.js";
 import { executeSkill, withExecuteDeadline } from "../execution/index.js";
-import { rankEndpointsServerFirst } from "../ranking/index.js";
+import { rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
   extractBrowserAuth,
   importBrowserCookiesIntoTab,

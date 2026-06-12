@@ -27,7 +27,7 @@ import {
   WEIGHT_RELIABILITY,
   WEIGHT_SIM,
   WEIGHT_VERIFICATION,
-} from "../src/ranking/composite.js";
+} from "../src/lib/ranking-core/composite.js";
 
 import {
   freshness,
@@ -127,9 +127,9 @@ describe("P2 W1: freshness decay — paper §6.3 formula 1/(1 + d/30)", () => {
 });
 
 describe("P2 W1: greppable constants invariant — paper-table greppability", () => {
-  it("src/ranking/composite.ts exposes the four numeric weights as constants in one file", () => {
+  it("src/lib/ranking-core/composite.ts exposes the four numeric weights as constants in one file", () => {
     const text = readFileSync(
-      join(REPO_ROOT, "src/ranking/composite.ts"),
+      join(REPO_ROOT, "src/lib/ranking-core/composite.ts"),
       "utf8",
     );
     expect(text).toMatch(/0\.4/);
@@ -141,7 +141,7 @@ describe("P2 W1: greppable constants invariant — paper-table greppability", ()
 
   it("composite stays a pure-function module (no runtime side effects)", () => {
     const text = readFileSync(
-      join(REPO_ROOT, "src/ranking/composite.ts"),
+      join(REPO_ROOT, "src/lib/ranking-core/composite.ts"),
       "utf8",
     );
     expect(text).not.toMatch(/import .*api\(/);

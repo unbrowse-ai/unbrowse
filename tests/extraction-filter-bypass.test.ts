@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { extractEndpoints } from "../src/reverse-engineer/index.js";
-import { rankEndpoints } from "../src/ranking/index.js";
+import { rankEndpoints } from "../src/client/rank-server-first.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 function req(overrides: Partial<RawRequest>): RawRequest {

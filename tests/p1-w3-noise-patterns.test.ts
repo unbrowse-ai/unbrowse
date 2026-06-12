@@ -17,7 +17,7 @@ import {
   SESSION_PLUMBING,
   STATIC_ASSET_PATTERNS,
   UI_ASSET_PATHS,
-} from "../src/ranking/filters/noise-patterns.js";
+} from "../src/lib/ranking-core/filters/noise-patterns.js";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 
@@ -119,7 +119,7 @@ describe("P1 W3 cleanup — extraction anti-goal anchors", () => {
 
   it("src/execution/index.ts imports the noise-patterns module", () => {
     expect(executionText).toMatch(
-      /import\s*\{[^}]*NOISE_HOSTS[^}]*\}\s*from\s*"\.\.\/ranking\/filters\/noise-patterns\.js"/,
+      /import\s*\{[^}]*NOISE_HOSTS[^}]*\}\s*from\s*"\.\.\/lib\/ranking-core\/filters\/noise-patterns\.js"/,
     );
   });
 

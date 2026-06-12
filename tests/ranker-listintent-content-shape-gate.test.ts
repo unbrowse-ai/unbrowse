@@ -24,7 +24,7 @@
 // captures a SPA shell page-artifact.
 
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index";
+import { rankEndpoints } from "../src/client/rank-server-first";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 function ep(over: Partial<EndpointDescriptor>): EndpointDescriptor {

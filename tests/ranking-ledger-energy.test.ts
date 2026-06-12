@@ -19,7 +19,7 @@ import {
   ledgerEnergyCached,
   LEDGER_NEUTRAL,
   __resetLedgerCache,
-} from "../src/ranking/signals/ledger-energy.js";
+} from "../src/lib/ranking-core/signals/ledger-energy.js";
 import { rankEndpoints } from "../src/execution/index.js";
 import type { EndpointDescriptor } from "../src/types/skill.js";
 

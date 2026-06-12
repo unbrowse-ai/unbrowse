@@ -9,7 +9,7 @@
  * **The point of this file is to break the moment Wave-3 extraction
  * drifts behavior.** Each future loop that pulls a delta out of
  * `src/execution/index.ts:3611-3815` into a named function under
- * `src/ranking/signals/*.ts` MUST re-run this test. If any score
+ * `src/lib/ranking-core/signals/*.ts` MUST re-run this test. If any score
  * changes by even one unit, the extraction is not parity-preserving and
  * the loop must investigate before proceeding.
  *
@@ -26,7 +26,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index.js";
+import { rankEndpoints } from "../src/client/rank-server-first.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 // ---------------------------------------------------------------------------

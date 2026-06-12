@@ -2,7 +2,7 @@
 // move-only-the-deterministic-credential-free-non- migration; principle
 // 20260522T031732Z-3c67f936, pointer-not-payload client architecture).
 //
-// Mirror of `rankEndpointsServerFirst` (src/ranking/index.ts): the
+// Mirror of `rankEndpointsServerFirst` (src/client/rank-server-first.ts): the
 // deterministic extraction intelligence is served from the backend
 // (POST /v1/extract/refine, @unbrowse/extraction-core); the client tries
 // the server first and falls back to the LOCAL `extractFromDOM` on any
