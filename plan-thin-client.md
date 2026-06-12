@@ -129,10 +129,38 @@ out into a client module.
     exactly ONE caller (execution) so the removal is surgical. EMBEDDED_HEAD (route-head.embedded)
     is the runtime source of truth; `bench/ebm/*.json` is an optional override.
 - [ ] **③ extraction → 0** — same pattern; `extraction` is small.
-- [ ] **④ indexer → 0** — admission/scoring server-side via `/v1/index/admit`; local queue +
-  disk cache stay client but must not import the moat.
-- [ ] **⑤ graph → 0** — learning already server-side (`/v1/graph/*` + `src/client/graph-client.ts`);
-  finish so the client primary path doesn't statically import `src/graph` (thin DAG-walk client).
+- [x] **② ranking → DONE** (gate 3→2, commit `234c956f`): trained EBM model deleted from client
+  (server keeps it via rankEndpointsServerFirst); published fallback → `src/lib/ranking-core/`;
+  dispatcher → `src/client/rank-server-first.ts`; `src/ranking/` deleted. 175 tests pass. Offline
+  fallback degraded (learned cold-cell signal now server-only) — owner-approved, 3 semantic-ranking
+  assertions updated to the degraded reality.
+- [ ] **④ indexer → 0** — VERIFIED client-local ORCHESTRATION (queue 317 / spool 187 / worker 107
+  / dispatch). Admission is in `publish-admission.js`; `mergeAgentReview` is a map-merge; its ONLY
+  moat is the `buildSkillOperationGraph`/`getEndpointDescriptionMetadata` delegation to graph.
+  → indexer DE-MOATS once graph is server-first. Do AFTER graph. (3 importers: api {indexSkillLocally,
+  mergeAgentReview, publishIndexedSkill, queueBackgroundIndex, capture-spool}; execution + orchestrator
+  {queueBackgroundIndex — fire-and-forget `void`, trivially lazy}.)
+- [ ] **⑤ graph → 0 — THE FINAL BOSS, fundamentally harder than ranking (fresh session, multi-part):**
+  - **No server-first compile exists.** `src/client/graph-client.ts` + `backend/src/services/graph.ts`
+    only do edge-confidence/chain/predictions — NOT `buildSkillOperationGraph`. Must BUILD a new
+    `/v1/graph/compile` backend route + service first.
+  - **`buildSkillOperationGraph` is LOAD-BEARING, not a degradable fallback.** Resolve/execute walks
+    the operation graph; you can't delete it (unlike ranking's trained layer). The local compile must
+    stay as a working fallback (server-first + local fallback, both functional).
+  - **Moat (→ server-first/lazy):** `buildSkillOperationGraph` (8 callers), `inferEndpointSemantic`(3),
+    `resolveEndpointSemantic`(2), `getEndpointDescriptionMetadata`(3), `isOperationHardExcluded`,
+    `operationSoftPenalty`, `applyProjectedEdgeConfidences` (semantic inference + compile + edge conf).
+  - **Thin DAG-walk (→ client module):** `computeReachableEndpoints`, `getSkillChunk`,
+    `toAgentWorkflowDagView`, `toAgentSkillChunkView`, `filterDagOperationsByRankedEndpoints`,
+    `isRunnable`, `knownBindingsFromInputs`, `getOperationPrefetchTargets`, `ensureSkillOperationGraph`,
+    `resolveEndpointPathBindings` (walk an already-built graph; client-safe).
+  - **13 `buildSkillOperationGraph` call sites, SEVERAL SYNC:** `publish/review-context.ts:11`
+    (`: Record|null`), `execution/index.ts:1468/1518/2286` (`.map`/`.filter` callbacks),
+    `dag-feedback.ts:403` (`scheduleWrite` cb), `browse-index.ts:522` (`evaluate` arrow),
+    `graph/local-fixtures.ts:27`. Async cascade through these = the ranking wall, bigger.
+  - Steps: (a) backend `/v1/graph/compile` route+service; (b) client `buildSkillOperationGraphServerFirst`
+    + local fallback; (c) split thin DAG-walk into a client module; (d) cascade the 13 callers; (e) the
+    `src/graph` test suite as the oracle. Budget a dedicated session.
 - [ ] **⑥ marketplace → 0** — per-file review; likely a client of the backend, repoint.
 - [ ] **settle** — `bash scripts/thin-client-gate.sh` exits 0. Then a fresh public push is
   thin-by-construction (no scrub needed) and `OPEN-SOURCE-NOTICE.md` is updated to match.
