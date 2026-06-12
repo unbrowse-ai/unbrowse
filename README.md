@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The full Unbrowse client is open and auditable.** The entire client runtime — capture, route inference, indexing, execution, the SDK, and the wallet/auth/signing layer — is MIT and readable here, so you can verify what it does on your machine rather than trust a black box. Only the backend (marketplace, settlement) and the web app stay private. The CLI ships unsigned and readable by design: trust comes from being able to read the code, not from a signature. The authorization layer is moving from a bare signature toward **privacy-preserving cryptographic proofs** behind the same pointer-only surface — prove you hold or approved a value without ever revealing it — as laid out in the forthcoming whitepaper *Crypto Was All You Needed* ([docs/whitepaper/](./docs/whitepaper/)). See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
 
@@ -9,6 +9,20 @@ One agent learns a site once. Every later agent gets the fast path.
 On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than driving a browser, and turns repeated browser work into reusable, payable route assets. Peer-reviewed benchmark across 94 live domains: **3.6× mean speedup, 5.4× median, 40× fewer tokens** — see [arXiv:2604.00694](https://arxiv.org/abs/2604.00694). For the release-coverage methodology (corpus shape, rubric, current numbers), see [docs/benchmarks.md](./docs/benchmarks.md).
 
 On adversarial, JavaScript-challenge-gated anti-bot content, a reproducible nine-post retrieval benchmark across three communities of a major social platform — ground-truthed against the platform's own data — recovers the real content on **9/9 posts where a naive HTTP client is blocked on every request (HTTP 403)**. The benchmark is re-runnable and reports the naive-vs-Unbrowse head-to-head directly.
+
+Exa/BrowseComp release truth is guarded separately from historical triage logs.
+Before treating any Exa or BrowseComp result as release evidence, run the
+gate-manifest handoff in [`bench/exa/HANDOFF.md`](./bench/exa/HANDOFF.md):
+
+```bash
+python3 bench/exa/validate_gate_manifest.py
+bun test tests/exa-gate-manifest.test.ts
+bash bench/exa/gate_manifest_e2e.sh
+```
+
+That handoff is intentionally **HOLD**, not a benchmark-win claim: the robust
+BrowseComp witness must still be a real `N >= 25` result above Exa's published
+`0.336` target.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
@@ -24,7 +38,18 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-Today each hole and receipt is **Ed25519-signed** — the client authorizes with a key it holds, and the secret bytes never cross the wire. The next step, laid out in the forthcoming whitepaper *Crypto Was All You Needed* ([docs/whitepaper/](./docs/whitepaper/)), keeps the identical pointer-only surface but swaps the bare signature for **privacy-preserving cryptographic proofs**: the client proves it holds a credential, made an approval, or owns an identity *without disclosing any of them*, and the same proof family carries authentication and fair settlement across the stack. The pointer-only invariant holds either way. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
+The paper bridge surface is machine-readable:
+
+```bash
+unbrowse contract surface
+```
+
+That command projects the same boundary described in `paper/crypto-was-all-you-needed.md`: server-owned graph/control, client-owned wallet and local fills, CLI as the bridge, and Aiko as the inverse client/OS harness.
+The bridge exposes five client-fillable holes: `intent`, `wallet_proof`,
+`approval`, `local_capability_result`, and `typed_pointer`. None carries a
+secret value.
+
+Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
 > The three-verb surface (`unbrowse {create,act,read}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
 
@@ -138,7 +163,7 @@ Payment architecture: [`docs/concepts/fare-splits.md`](./docs/concepts/fare-spli
 - Protocol: JSON-RPC 2.0 MCP over stdio
 - Handshake: `initialize`, `notifications/initialized`, `ping`
 - Capability surface: `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`
-- Runtime model: the MCP server runs the Unbrowse runtime **in-process** — stateless, with no background daemon. Hosts talk standard MCP; `unbrowse serve` is an optional foreground compatibility daemon (`:6969`) for tools that still expect a local HTTP endpoint.
+- Runtime model: the MCP server fronts the local Unbrowse runtime on `http://localhost:6969`; hosts talk standard MCP, and Unbrowse uses the local HTTP runtime behind the scenes.
 
 Core MCP tools:
 
@@ -229,7 +254,7 @@ Whitepaper companion set:
 
 Unbrowse is a monorepo with two tiers:
 
-**Local runtime** (in-process, stateless) — Handles the core workflow: intent resolution, browser capture, skill execution, auth management, background indexing, payment gates. CLI and MCP calls run it in-process — no port, no background daemon — so each call is self-contained; `unbrowse serve` exposes the same API as an optional local HTTP daemon (`:6969`) for compatibility. Local routes are handled directly; marketplace routes are proxied transparently.
+**Local server** (`localhost:6969`) — Handles the core workflow: intent resolution, browser capture, skill execution, auth management, background indexing, payment gates. Local routes are handled directly; marketplace routes are proxied transparently.
 
 **Backend API** (`beta-api.unbrowse.ai`) — Cloudflare Worker that powers the shared marketplace:
 

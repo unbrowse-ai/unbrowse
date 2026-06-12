@@ -44,16 +44,14 @@ describe("named-session broker isolation", () => {
     expect(p1).not.toBe(p2); // documents the pre-create allocation behavior
   });
 
-  it("anonymous (no session_id) calls still load-balance the pool, not allocate per-call", () => {
-    // Anonymous callers (CLI direct, legacy code) keep the original pool
-    // behavior — only EXPLICIT session_ids trigger fresh-port allocation.
-    // The pool ports stay in a small fixed range below the per-session base.
+  it("anonymous (no session_id) calls use per-session isolation by default", () => {
+    // The current default isolates unnamed sessions too. Legacy shared-pool
+    // behavior is opt-out via UNBROWSE_PER_SESSION_KURI=0.
     const anon1 = selectBrowseBrokerClient().getPort();
     const anon2 = selectBrowseBrokerClient().getPort();
-    // Both should be in the BROWSE_BROKER pool, not the per-session range
-    // (per-session base = BROWSE_BROKER_BASE_PORT + 100).
-    const PER_SESSION_BASE = 7700 + 100;
-    expect(anon1).toBeLessThan(PER_SESSION_BASE);
-    expect(anon2).toBeLessThan(PER_SESSION_BASE);
+    const perSessionBase = Number(process.env.KURI_PORT ?? "7700") + 100;
+    expect(anon1).toBeGreaterThanOrEqual(perSessionBase);
+    expect(anon2).toBeGreaterThanOrEqual(perSessionBase);
+    expect(anon1).not.toBe(anon2);
   });
 });

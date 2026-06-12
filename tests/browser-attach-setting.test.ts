@@ -1,6 +1,6 @@
 // Real test (no mocks, real temp config dir) for the persisted
-// browser.attach_existing_chrome opt-out. Proves: North Star default is
-// attach; an explicit false opts out; true restores; the env knob
+// browser.attach_existing_chrome opt-in. Proves: safe default is clean
+// managed Chrome; true opts into attach; false opts out again; the env knob
 // KURI_DISABLE_CDP_ATTACH still overrides regardless of the setting.
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -22,9 +22,9 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("default (no setting) = attach (North Star preserved)", () => {
-  expect(getBrowserAttachEnabled()).toBe(true);
-  expect(resolveKuriLaunchConfig({}).attachToExistingChrome).toBe(true);
+test("default (no setting) = clean managed Chrome", () => {
+  expect(getBrowserAttachEnabled()).toBe(false);
+  expect(resolveKuriLaunchConfig({}).attachToExistingChrome).toBe(false);
 });
 
 test("setBrowserAttachEnabled(false) opts out: no attach, managed Chrome", () => {
@@ -35,7 +35,7 @@ test("setBrowserAttachEnabled(false) opts out: no attach, managed Chrome", () =>
   expect(resolveKuriLaunchConfig({}).headless).toBe(true);
 });
 
-test("setBrowserAttachEnabled(true) restores attach", () => {
+test("setBrowserAttachEnabled(true) opts into attach", () => {
   setBrowserAttachEnabled(false);
   setBrowserAttachEnabled(true);
   expect(getBrowserAttachEnabled()).toBe(true);

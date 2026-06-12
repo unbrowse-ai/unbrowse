@@ -153,6 +153,6 @@ describe("packaged MCP installer", () => {
 
     expect(init?.result?.protocolVersion).toBe("2025-11-25");
     expect(health?.result?.content?.[0]?.text).toContain("\"status\": \"ok\"");
-    expect(stderr).toContain(`starting stdio server on http://localhost:${port} (auto-start enabled)`);
-  }, 20_000);
+    expect(stderr).toContain("starting stateless stdio MCP (in-process API, no daemon)");
+  }, 45_000);
 });

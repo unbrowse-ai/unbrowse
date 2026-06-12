@@ -2,7 +2,7 @@
  * tests/p1-w3-bm25.test.ts — Sermon-on-the-Mount signals over P1 W3 cluster #1.
  *
  * Falsifiable invariants over the bm25 extraction shipped in this loop:
- *   1. New module src/ranking/signals/bm25.ts exists; exports `bm25Score`,
+ *   1. New module src/lib/ranking-core/signals/bm25.ts exists; exports `bm25Score`,
  *      `BM25_K1`, `BM25_B`, `BM25_DELTA_WEIGHT`.
  *   2. Constants carry the exact paper §3.3 values (K1=1.2, B=0.75) and
  *      the previously-magic multiplier (DELTA_WEIGHT=20).
@@ -25,7 +25,7 @@ import {
   BM25_DELTA_WEIGHT,
   BM25_K1,
   bm25Score,
-} from "../src/ranking/signals/bm25.js";
+} from "../src/lib/ranking-core/signals/bm25.js";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 
@@ -114,7 +114,7 @@ describe("P1 W3 cluster #1 — extraction anti-goal anchor", () => {
       "utf8",
     );
     expect(text).toMatch(
-      /import\s*\{\s*bm25Score[^}]*\}\s*from\s*"\.\.\/ranking\/signals\/bm25\.js"/,
+      /import\s*\{\s*bm25Score[^}]*\}\s*from\s*"\.\.\/lib\/ranking-core\/signals\/bm25\.js"/,
     );
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildSkillOperationGraph, inferEndpointSemantic } from "../src/graph/index.js";
+import { buildSkillOperationGraph, inferEndpointSemantic } from "../src/lib/graph-core/index.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 describe("graph dependency inference", () => {

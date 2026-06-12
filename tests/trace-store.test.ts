@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterAll } from "bun:test";
 import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { storeExecutionTrace, getRecentTraces, findTracesByIntent, getTraceStorePath } from "../src/graph/trace-store.js";
-import type { StoredTrace } from "../src/graph/trace-store.js";
+import { storeExecutionTrace, getRecentTraces, findTracesByIntent, getTraceStorePath } from "../src/lib/graph-core/trace-store.js";
+import type { StoredTrace } from "../src/lib/graph-core/trace-store.js";
 
 const TEST_DIR = join(tmpdir(), `unbrowse-trace-test-${Date.now()}`);
 

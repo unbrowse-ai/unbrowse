@@ -7,13 +7,13 @@ import {
   drainOnce,
   drainUntilEmpty,
   type DrainProcessor,
-} from "../src/indexer/worker.js";
+} from "../src/lib/indexer-core/worker.js";
 import {
   writeJob,
   listJobs,
   type JobEnvelope,
-} from "../src/indexer/queue-store.js";
-import type { BackgroundIndexJob } from "../src/indexer/index.js";
+} from "../src/lib/indexer-core/queue-store.js";
+import type { BackgroundIndexJob } from "../src/lib/indexer-core/index.js";
 
 function makeJob(overrides: Partial<BackgroundIndexJob> = {}): BackgroundIndexJob {
   return {

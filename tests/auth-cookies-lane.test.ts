@@ -39,8 +39,10 @@ describe("corpus-gate.txt — auth-cookies lane", () => {
   });
 
   test("header lane summary lists the new lane and updated total", () => {
+    const probeCount = corpus.split("\n")
+      .filter((line) => line.trim() && !line.trim().startsWith("#")).length;
     expect(corpus).toContain("auth-cookies (8)");
-    expect(corpus).toMatch(/Total:\s*66/);
+    expect(corpus).toContain(`Total: ${probeCount}`);
   });
 });
 
@@ -69,20 +71,21 @@ describe("GATE_JUDGE.md — auth-cookies rubric bullet", () => {
   });
 });
 
-describe("collector — surfaces browser-cookie evidence in capture.meta.json", () => {
-  const src = readFileSync(join(repoRoot, "scripts", "mcp-gate-parallel-collect.ts"), "utf8");
+describe("collector — surfaces cookie-injection evidence in capture.meta.json", () => {
+  const collector = readFileSync(join(repoRoot, "scripts", "mcp-gate-parallel-collect.ts"), "utf8");
+  const helper = readFileSync(join(repoRoot, "scripts", "mcp-gate-parallel-helpers.ts"), "utf8");
 
-  test("collector imports findBestBrowserSession", () => {
-    expect(src).toContain("findBestBrowserSession");
+  test("collector passes browse/go evidence into capture metadata", () => {
+    expect(collector).toContain("buildCaptureMeta({ cb, eps, sb, evalRes, skillId, isoSelfCheck, go })");
   });
 
-  test("collector probes per-host cookies and stores the evidence object", () => {
-    expect(src).toContain("browserCookieEvidence");
-    expect(src).toContain("cookies_available");
-    expect(src).toContain("session_cookies");
+  test("helper stores the cookies_injected count from browse/go", () => {
+    expect(helper).toContain("cookies_injected");
+    expect(helper).toContain("go?.body?.cookies_injected");
   });
 
-  test("capture.meta.json carries the browser_cookies field", () => {
-    expect(src).toMatch(/browser_cookies:\s*browserCookieEvidence/);
+  test("collector writes capture.meta.json via buildCaptureMeta", () => {
+    expect(collector).toContain('w(dir, "capture.meta.json", JSON.stringify(');
+    expect(collector).toContain("buildCaptureMeta");
   });
 });
