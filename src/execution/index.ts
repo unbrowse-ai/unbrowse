@@ -2,9 +2,9 @@ import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import * as kuri from "../kuri/client.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
-import { extractEndpoints, type ExtractionContext } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
-import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
+import { scanBundlesForRoutes } from "../capture/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
 import { LEDGER_NEUTRAL } from "../ranking/signals/ledger-energy.js";
 import { routeEnergy } from "../ranking/signals/learned-energy.js";
@@ -1959,7 +1959,7 @@ async function executeBrowserCapture(
   }
 
   const extractionTrace: { rows?: Array<Record<string, unknown>> } = {};
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
+  const endpoints = await revengServerFirst(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
 
   // Compute structured capture metadata once — used on every failure-path
   // early return so the agent can judge browser-block vs product-bug from
@@ -2209,7 +2209,7 @@ async function executeBrowserCapture(
         });
         if (solved && solved.html.length > 0) {
           (captured as { html?: string }).html = solved.html;
-          const reExtracted = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent }, extractionTrace);
+          const reExtracted = await revengServerFirst(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
           if (reExtracted.length > 0) {
             cleanEndpoints = reExtracted.filter((ep) => {
               try {

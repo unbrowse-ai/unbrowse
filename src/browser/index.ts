@@ -2,7 +2,7 @@ import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { generateLocalDescription } from "../orchestrator/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import type { RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
@@ -78,7 +78,7 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
 
   void (async () => {
     try {
-      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      const rawEndpoints = await revengServerFirst(requests, undefined, { pageUrl, finalUrl: pageUrl });
       if (rawEndpoints.length === 0) return;
 
       // Store auth credentials

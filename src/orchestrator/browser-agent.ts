@@ -10,7 +10,7 @@
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
@@ -264,7 +264,7 @@ export async function agenticBrowserResolve(
 
       if (newRequests.length > 0) {
         allRequests.push(...newRequests);
-        const newEndpoints = extractEndpoints(newRequests, undefined, { pageUrl: url, finalUrl: url });
+        const newEndpoints = await revengServerFirst(newRequests, undefined, { pageUrl: url, finalUrl: url });
         if (newEndpoints.length > 0) {
           allEndpoints.push(...newEndpoints);
           console.log(`[agentic-browse] step ${step}: found ${newEndpoints.length} new endpoints`);
@@ -303,7 +303,7 @@ export async function agenticBrowserResolve(
 
   // Merge all captured endpoints
   if (allEndpoints.length === 0 && allRequests.length > 0) {
-    allEndpoints = extractEndpoints(allRequests, undefined, { pageUrl: url, finalUrl: url });
+    allEndpoints = await revengServerFirst(allRequests, undefined, { pageUrl: url, finalUrl: url });
   }
 
   // ── Full passive indexing pipeline (same as passiveIndexFromRequests) ──

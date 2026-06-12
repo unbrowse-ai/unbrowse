@@ -54,13 +54,14 @@ export async function revengServerFirst(
   if (!Array.isArray(requests) || requests.length === 0) {
     return localExtract(requests ?? [], wsMessages, context);
   }
-  // Offline / local-only mode never egresses — pure local path.
-  if (isLocalOnlyMode()) return localExtract(requests, wsMessages, context);
+  // Offline / local-only / unauthenticated never egresses — pure local path.
+  // (No API key ⇒ the backend would reject us anyway, and tests stay fast.)
+  const key = getApiKey();
+  if (isLocalOnlyMode() || !key) return localExtract(requests, wsMessages, context);
 
   try {
     // Strip secret values BEFORE the request leaves the machine.
     const sanitized = obfuscateCaptureForReveng(requests);
-    const key = getApiKey();
     const res = await fetch(`${getApiBaseUrl()}/v1/reveng`, {
       method: "POST",
       headers: {

@@ -7,9 +7,9 @@ function stableEndpointId(method: string, urlTemplate: string): string {
 }
 import { readFileSync } from "node:fs";
 import { log } from "../logger.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
-import { enrichEndpointsWithTokenSources } from "../reverse-engineer/token-sources.js";
+import { enrichEndpointsWithTokenSources } from "../capture/replay-tokens.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
@@ -201,7 +201,7 @@ export async function cacheBrowseRequests(params: {
   try { domain = new URL(sessionUrl).hostname; } catch { domain = sessionDomain; }
   const intent = params.intent ?? `browse ${domain}`;
 
-  const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
+  const rawEndpoints = await revengServerFirst(requests, undefined, { pageUrl: sessionUrl, finalUrl: sessionUrl });
 
   // Mutable diagnostic accumulator. Populated as the pipeline runs; spread
   // into every return so close-body always carries the per-stage signals.
