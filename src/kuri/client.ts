@@ -381,6 +381,14 @@ export function getKuriBinaryCandidates(): string[] {
 
   if (target) addCandidate(candidates, path.join(packageRoot, "vendor", "kuri", target, binaryName));
   if (target) addCandidate(candidates, path.join(packageRoot, "packages", "skill", "vendor", "kuri", target, binaryName));
+  // The bundled runtime ships under `<pkg>/runtime/` with its own package.json,
+  // so getPackageRoot() resolves to the runtime dir while the vendored kuri tree
+  // lives one level up at `<pkg>/vendor/kuri/<target>/` (true in both the dev
+  // checkout — packages/skill/runtime + packages/skill/vendor/kuri — and the
+  // published package — <pkg>/runtime + <pkg>/vendor/kuri). Probe the parent so
+  // this broker resolver agrees with the cli auto-spawn and kuriVendorCandidatePaths.
+  if (target) addCandidate(candidates, path.join(packageRoot, "..", "vendor", "kuri", target, binaryName));
+  if (target) addCandidate(candidates, path.join(packageRoot, "..", "packages", "skill", "vendor", "kuri", target, binaryName));
   for (const sourceDir of getKuriSourceCandidates()) {
     addCandidate(candidates, path.join(sourceDir, "zig-out", "bin", binaryName));
   }

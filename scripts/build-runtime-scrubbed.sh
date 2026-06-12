@@ -17,9 +17,11 @@ trap cleanup EXIT
 echo "[runtime] scrubbing the runtime source copy..."
 bash "$ROOT/scripts/scrub-vocab.sh" "$TMP"
 
-echo "[runtime] bundling scrubbed cli.ts -> $OUTDIR (target=node, so the readable runtime runs on plain Node — no Bun required at the user's runtime) ..."
+echo "[runtime] bundling scrubbed runtime entrypoints -> $OUTDIR (target=node, so the readable runtime runs on plain Node — no Bun required at the user's runtime) ..."
 rm -rf "$ROOT/$OUTDIR"; mkdir -p "$ROOT/$OUTDIR"
 bun build "$TMP/cli.ts" --target=node --outdir "$ROOT/$OUTDIR" >/dev/null
+bun build "$TMP/mcp.ts" --target=node --outdir "$ROOT/$OUTDIR" >/dev/null
+bun build "$TMP/contract-bridge.ts" --target=node --outdir "$ROOT/$OUTDIR" >/dev/null
 # The bundle is ESM; mark the runtime dir so Node loads it as a module (no TYPELESS warning).
 printf '{\n  "type": "module"\n}\n' > "$ROOT/$OUTDIR/package.json"
 

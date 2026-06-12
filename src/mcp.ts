@@ -32,6 +32,31 @@ loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
 // Phase 0d: no MCP_SERVER_MODE. The stdio MCP runs the API in-process; there is no daemon.
 
+// MCP stdio stdout is reserved for JSON-RPC frames. The in-process API and
+// lower layers still use console.log for human diagnostics, so route those
+// messages to stderr in this process before any app construction can emit.
+function redirectConsoleDiagnosticsToStderr(): void {
+  const render = (values: unknown[]) => values.map((value) => {
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }).join(" ");
+  console.log = (...values: unknown[]) => {
+    process.stderr.write(`${render(values)}\n`);
+  };
+  console.info = (...values: unknown[]) => {
+    process.stderr.write(`${render(values)}\n`);
+  };
+  console.warn = (...values: unknown[]) => {
+    process.stderr.write(`${render(values)}\n`);
+  };
+}
+
+redirectConsoleDiagnosticsToStderr();
+
 const CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `mcp-${process.pid}`;
 const LATEST_PROTOCOL_VERSION = "2025-11-25";
 const SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05"] as const;
@@ -1220,6 +1245,7 @@ function listPrompt(prompt: PromptDefinition): ListedPrompt {
 // built (route surface + browse-session rehydrate from disk). There is no
 // daemon to spawn, no :6969 to wait on, nothing to respawn.
 async function ensureServerReady(): Promise<void> {
+  if (process.env.UNBROWSE_MCP_HTTP_BACKEND === "1") return;
   await getInProcessApp();
 }
 
@@ -1507,12 +1533,36 @@ export function maybePostProcessResult(result: Record<string, unknown>, args: Re
   }
 
   if (callerProjected) {
-    return {
+    const projectedEnvelope = {
       ...(result.trace ? { trace: result.trace } : {}),
       result: projected,
       ...(pathDiagnostic ? { path_diagnostic: pathDiagnostic } : {}),
       ...(extractDiagnostic ? { extract_diagnostic: extractDiagnostic } : {}),
     };
+    const dieted = dietIfOversize(projectedEnvelope);
+    if (Array.isArray(projected) && isPlainObject(dieted) && dieted.truncated === true) {
+      const baseEnvelope = (rows: unknown[]) => ({
+        ...(result.trace ? { trace: result.trace } : {}),
+        result: rows,
+        ...(pathDiagnostic ? { path_diagnostic: pathDiagnostic } : {}),
+        ...(extractDiagnostic ? { extract_diagnostic: extractDiagnostic } : {}),
+      });
+      const projectedBudget = WIRE_BUDGET_CHARS - 2048;
+      let lo = 0;
+      let hi = projected.length;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi + 1) / 2);
+        if (JSON.stringify(baseEnvelope(projected.slice(0, mid))).length <= projectedBudget) lo = mid;
+        else hi = mid - 1;
+      }
+      const suggestedLimit = Math.max(1, lo);
+      return {
+        ...dieted,
+        suggested_limit: suggestedLimit,
+        next_step: `Projected response exceeded the MCP wire budget. Retry this same call with limit:${suggestedLimit} (or smaller).`,
+      };
+    }
+    return dieted;
   }
 
   // Surface the declared agent decision surface, not internal state.
@@ -1694,6 +1744,29 @@ async function api(method: string, route: string, body?: unknown): Promise<unkno
     const query = params.toString();
     if (query) url += `${url.includes("?") ? "&" : "?"}${query}`;
     payload = undefined;
+  }
+
+  if (process.env.UNBROWSE_MCP_HTTP_BACKEND === "1") {
+    const base = (
+      process.env.UNBROWSE_API_URL ??
+      process.env.UNBROWSE_BACKEND_URL ??
+      process.env.UNBROWSE_URL ??
+      ""
+    ).replace(/\/+$/, "");
+    if (!base) throw new Error("UNBROWSE_MCP_HTTP_BACKEND=1 requires UNBROWSE_API_URL, UNBROWSE_BACKEND_URL, or UNBROWSE_URL");
+    const res = await fetch(`${base}${url}`, {
+      method,
+      headers: {
+        ...(payload ? { "content-type": "application/json" } : {}),
+        "x-unbrowse-client-id": CLIENT_ID,
+      },
+      body: payload !== undefined ? JSON.stringify(payload) : undefined,
+    });
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) return res.json();
+    const text = await res.text();
+    if (res.ok) return { ok: true, text };
+    return { error: `HTTP ${res.status}`, status: res.status, body: text };
   }
 
   // Phase 0d: no HTTP, no :6969 daemon. Dispatch in-process via Fastify
@@ -1879,6 +1952,40 @@ export function addResolveMissGuidance(
         why: "No cached route yet; live capture is the next step.",
       },
     } : {}),
+  };
+}
+
+export function addResolveHitGuidance(
+  result: Record<string, unknown>,
+  _args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (isPlainObject(result.next_action)) return result;
+  const nested = isPlainObject(result.result) ? result.result : result;
+  const endpoints = Array.isArray(nested.available_endpoints)
+    ? nested.available_endpoints
+    : undefined;
+  const top = endpoints?.[0];
+  if (!isPlainObject(top) || typeof top.endpoint_id !== "string") return result;
+
+  const skill = nested.skill;
+  const skillId = isPlainObject(skill) && typeof skill.skill_id === "string"
+    ? skill.skill_id
+    : resolveSkillId(nested);
+  if (!skillId) return result;
+
+  const desc = typeof top.description === "string" ? top.description : "";
+  const why = desc.length > 120 ? `${desc.slice(0, 117)}...` : desc;
+  return {
+    ...result,
+    next_action: {
+      title: "Execute the top resolved endpoint",
+      command: "unbrowse_execute",
+      command_args: {
+        skill: skillId,
+        endpoint: top.endpoint_id,
+      },
+      why: why || "A cached route matched the intent; execute the top ranked endpoint.",
+    },
   };
 }
 
@@ -2742,7 +2849,7 @@ const tools: ToolDefinition[] = [
         },
         attach_existing_chrome: {
           type: "boolean",
-          description: "Browser launch policy. true (default, North Star) = attach to your already-running Chrome on the CDP port whenever possible, so one pipeline captures every tab any agent opens. false = never touch your real Chrome; always launch a clean managed headless Chrome (no visible window, no tabs in your browser). Set false on shared machines, automated/CI gate runs, or for privacy. Persisted to config.json; the env knob KURI_DISABLE_CDP_ATTACH=1 is the per-process override and still wins.",
+          description: "Browser launch policy. false (default) = never touch your real Chrome; launch a clean managed headless Chrome instead. true = explicitly opt into attaching to your already-running Chrome on the CDP port when possible, so one pipeline can capture tabs any agent opens. Keep false on shared machines, automated/CI gate runs, or privacy-sensitive work. Persisted to config.json; KURI_DISABLE_CDP_ATTACH=1, KURI_CLEAN_ROOM=1, and UNBROWSE_LOCAL_ONLY=1 are per-process overrides that still win.",
         },
         publish_blacklist: {
           type: "array",
@@ -3821,7 +3928,7 @@ export async function handleRequest(message: JsonRpcRequest): Promise<void> {
     // session would block the handler waiting on a browser that does not
     // exist, so surface the truth: a fast structured error pointing at
     // unbrowse_go, instead of hiding the tool or hanging.
-    if (SESSION_TOOL_NAMES.has(name) && !browseSessionOpen) {
+    if (SESSION_TOOL_NAMES.has(name) && !getBrowseSessionOpen()) {
       jsonRpcResult(
         id,
         errorResult(

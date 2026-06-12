@@ -46,7 +46,8 @@ import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js"
 import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
 import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
 import { getContributionConfig, setContributionConfig } from "./config/contribution.js";
-import { getCapturePipelineSettings } from "./settings.js";
+import { getCapturePipelineSettings, updateCapturePipelineSettings } from "./settings.js";
+import { bridgeManifest } from "./superpattern/bridge-manifest.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -513,6 +514,226 @@ function isResolveSuccessResult(result: Record<string, unknown>): boolean {
   return !!result.result || Array.isArray(result.available_endpoints);
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function authHandoffDomain(url?: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+}
+
+function isAuthShapedDirectDocumentTask(intent: string, url?: string): boolean {
+  const haystack = `${intent} ${url ?? ""}`.toLowerCase();
+  return /\b(auth|authenticate|authenticated|login|logged in|sign in|signin|account|session|mail|inbox|console|dashboard|api key|credentials?)\b/.test(haystack);
+}
+
+function addDirectDocumentAgentGuidance(
+  result: Record<string, unknown>,
+  args: { intent: string; url?: string },
+): void {
+  const inner = result.result as Record<string, unknown> | undefined;
+  if (!inner || typeof inner !== "object") return;
+
+  const extraction = inner.extraction as Record<string, unknown> | undefined;
+  const impact = result.impact as Record<string, unknown> | undefined;
+  const isDirectDocument =
+    result.source === "direct-document" ||
+    impact?.source === "direct-document" ||
+    extraction?.source === "direct-document" ||
+    typeof inner.text_excerpt === "string" ||
+    typeof inner.markdown === "string" ||
+    typeof inner.data === "object";
+  if (!isDirectDocument) return;
+
+  const targetUrl =
+    typeof args.url === "string" && args.url.length > 0
+      ? args.url
+      : typeof inner.url === "string"
+        ? inner.url
+        : undefined;
+  const operationId = "direct-document-read";
+  const domain = authHandoffDomain(targetUrl);
+  const authShaped = isAuthShapedDirectDocumentTask(args.intent, targetUrl);
+  if (authShaped && domain) {
+    const loginUrl = `https://${domain}/`;
+    const authCommand = `unbrowse auth ${shellQuote(loginUrl)}`;
+    const requirements = (
+      inner.requirements && typeof inner.requirements === "object" && !Array.isArray(inner.requirements)
+        ? inner.requirements as Record<string, unknown>
+        : {}
+    );
+    requirements.auth_handoff = {
+      login_required: true,
+      domain,
+      web_login_url: loginUrl,
+      reason: "auth_likely_intent",
+      surfaces: [
+        {
+          kind: "local_browser",
+          label: "Use existing Dia/Chrome session",
+          description:
+            `If the user is already signed into ${domain} locally, retry after browser-cookie extraction can refresh the site session.`,
+        },
+        {
+          kind: "agent_browser",
+          label: "Open an unbrowse login session",
+          commands: [authCommand, "unbrowse close"],
+          description:
+            `Open ${loginUrl} in an unbrowse-managed browser, let the user sign in, then close to persist fresh cookies for the next resolve.`,
+        },
+      ],
+      next_step:
+        `The intent is auth-shaped, so the direct document is only a partial answer. Run \`${authCommand}\`, then retry this resolve.`,
+    };
+    inner.requirements = requirements;
+    if (typeof inner.status !== "string") inner.status = "needs_input";
+  }
+
+  if (!Array.isArray(inner.available_operations) || inner.available_operations.length === 0) {
+    const directDocumentOperation = {
+        operation: "read_returned_direct_document",
+        operation_id: operationId,
+        endpoint_id: operationId,
+        method: "GET",
+        ...(targetUrl ? { url_template: targetUrl } : {}),
+        requires_auth: false,
+        description:
+          "Use the returned direct-document data, markdown, or text_excerpt as the answer substrate; no browser was opened.",
+    };
+    inner.available_operations = authShaped && domain
+      ? [
+          {
+            operation: "authenticate_site_then_retry",
+            operation_id: "auth-handoff",
+            endpoint_id: "auth-handoff",
+            method: "GET",
+            url_template: `https://${domain}/`,
+            requires_auth: true,
+            description:
+              "The requested task is auth-shaped. Refresh site credentials, then retry resolve for authenticated data.",
+          },
+          directDocumentOperation,
+        ]
+      : [directDocumentOperation];
+  }
+  if (typeof inner.suggested_next_operation_id !== "string") {
+    inner.suggested_next_operation_id = authShaped && domain ? "auth-handoff" : operationId;
+  }
+  if (authShaped && domain && !inner.next_action) {
+    const loginUrl = `https://${domain}/`;
+    inner.next_action = {
+      title: "Authenticate with site, then retry resolve",
+      command: `unbrowse auth ${shellQuote(loginUrl)}`,
+      why:
+        "The returned direct-document payload is browser-free, but the requested task is auth-shaped. Refresh site credentials first so the next resolve can use authenticated data instead of a public shell.",
+    };
+  } else if (!inner.next_action) {
+    const command = targetUrl
+      ? `unbrowse read resolve --intent ${shellQuote(args.intent)} --url ${shellQuote(targetUrl)} --force-capture --no-execute`
+      : `unbrowse read resolve --intent ${shellQuote(args.intent)} --force-capture --no-execute`;
+    inner.next_action = {
+      title: "Use returned direct-document data",
+      command,
+      why:
+        "Resolve already returned a browser-free document payload. Use it directly; run the command only if the agent needs a route shortlist or deeper capture.",
+    };
+  }
+  if (inner.next_action && typeof inner.next_action === "object" && !Array.isArray(inner.next_action)) {
+    const nextAction = inner.next_action as Record<string, unknown>;
+    if (typeof nextAction.command === "string" && nextAction.command.startsWith("unbrowse resolve ")) {
+      nextAction.command = nextAction.command.replace(/^unbrowse resolve\b/, "unbrowse read resolve");
+    }
+  }
+}
+
+function buildAuthHandoffResolveEnvelope(intent: string, targetUrl: string): Record<string, unknown> | null {
+  const domain = authHandoffDomain(targetUrl);
+  if (!domain) return null;
+  const loginUrl = `https://${domain}/`;
+  const authCommand = `unbrowse auth ${shellQuote(loginUrl)}`;
+  return {
+    trace: {
+      trace_id: `auth-handoff:${domain}`,
+      skill_id: "auth-handoff",
+      endpoint_id: "auth-handoff",
+      success: true,
+    },
+    source: "local_primitive",
+    impact: {
+      source: "local_primitive",
+      browser_avoided: true,
+    },
+    result: {
+      status: "needs_input",
+      url: targetUrl,
+      rejected: true,
+      extraction: {
+        source: "auth-handoff",
+        rejected: true,
+      },
+      requirements: {
+        auth_handoff: {
+          login_required: true,
+          domain,
+          web_login_url: loginUrl,
+          reason: "auth_likely_intent",
+          surfaces: [
+            {
+              kind: "local_browser",
+              label: "Use existing Dia/Chrome session",
+              description:
+                `If the user is already signed into ${domain} locally, retry after browser-cookie extraction can refresh the site session.`,
+            },
+            {
+              kind: "agent_browser",
+              label: "Open an unbrowse login session",
+              commands: [authCommand, "unbrowse close"],
+              description:
+                `Open ${loginUrl} in an unbrowse-managed browser, let the user sign in, then close to persist fresh cookies for the next resolve.`,
+            },
+          ],
+          next_step:
+            `The intent is auth-shaped. Run \`${authCommand}\`, then retry \`unbrowse read resolve --intent ${shellQuote(intent)} --url ${shellQuote(targetUrl)}\`.`,
+        },
+      },
+      available_operations: [
+        {
+          operation: "authenticate_site_then_retry",
+          operation_id: "auth-handoff",
+          endpoint_id: "auth-handoff",
+          method: "GET",
+          url_template: loginUrl,
+          requires_auth: true,
+          description:
+            "The requested task is auth-shaped. Refresh site credentials, then retry resolve for authenticated data.",
+        },
+        {
+          operation: "read_returned_direct_document",
+          operation_id: "direct-document-read",
+          endpoint_id: "direct-document-read",
+          method: "GET",
+          url_template: targetUrl,
+          requires_auth: false,
+          description:
+            "Optional public-shell read after auth handoff; authenticated data requires signing in first.",
+        },
+      ],
+      suggested_next_operation_id: "auth-handoff",
+      next_action: {
+        title: "Authenticate with site, then retry resolve",
+        command: authCommand,
+        why:
+          "The requested task is auth-shaped. Refresh site credentials first so the next resolve can use authenticated data instead of spending time on a public shell.",
+      },
+    },
+  };
+}
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -562,6 +783,7 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   if (Array.isArray(obj.decision_trace)) out.decision_trace = obj.decision_trace;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
   if (obj.impact) out.impact = obj.impact;
+  if (obj.next_action) out.next_action = obj.next_action;
   if (obj.next_actions) out.next_actions = obj.next_actions;
   if (obj.next_step) out.next_step = obj.next_step;
   if (obj.source) out.source = obj.source;
@@ -733,6 +955,14 @@ function resolveCacheSafe(flags: Record<string, string | boolean>): boolean {
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
+  const targetUrl = typeof flags.url === "string" ? flags.url : undefined;
+  if (targetUrl && flags["force-capture"] !== true && isAuthShapedDirectDocumentTask(intent, targetUrl)) {
+    const authEnvelope = buildAuthHandoffResolveEnvelope(intent, targetUrl);
+    if (authEnvelope) {
+      output(authEnvelope, !!flags.pretty);
+      return;
+    }
+  }
 
   // FAST PATH: a fresh resolution-cache hit short-circuits BEFORE the in-process
   // backend boots (~4s) and before any telemetry — warm resolve in ~module-load time.
@@ -741,9 +971,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   if (resolveCacheSafe(flags)) {
     const cachedHit = peekResolution<Record<string, unknown>>(resolveCacheKeyFor(flags, intent), resolveCacheTtlMs());
     if (cachedHit) {
+      const hostType = detectTelemetryHostType();
+      if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
+        await ensureCliInstallTracked(hostType);
+      }
+      addDirectDocumentAgentGuidance(cachedHit, {
+        intent,
+        url: typeof flags.url === "string" ? flags.url : undefined,
+      });
       void recordFunnelTelemetryEvent("resolve_completed", {
         source: "cli",
-        hostType: detectTelemetryHostType(),
+        hostType,
         properties: { command: "resolve", intent, cache_hit: true },
       }).catch(() => {});
       output(cachedHit, !!flags.pretty);
@@ -982,6 +1220,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       });
     }
 
+    addDirectDocumentAgentGuidance(result, { intent, url });
     result = slimTrace(result);
     emitImpactSummary(result);
     {
@@ -1320,14 +1559,12 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
     const status = (result.result as Record<string, unknown> | undefined)?.status as string | undefined
       ?? result.status as string | undefined;
     if (error === "auth_required" || status === "auth_required") return false;
-    // payment_required is a paywall on the marketplace search itself (not on
-    // the destination site) — the agent never asked to pay for marketplace
-    // search, so fall through to capture+index just like a cache miss. Per
-    // contract b3b148b7: marketplace 402 must auto-fallthrough; without
-    // this, every bench probe whose intent didn't already cache-hit would
-    // terminate at the 402 envelope instead of trying the live capture
-    // ladder (observed at conc=8 in conductor wave-5: 13 of 35 probes
-    // stopped at marketplace 402).
+    // A direct route/payment envelope is user-visible policy and must not be
+    // bypassed by capture. Marketplace-search 402 without payment details may
+    // still fall through to capture+index like a cache miss.
+    if ((error === "payment_required" || status === "payment_required") && result.payment) {
+      return false;
+    }
     if (error) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(error);
     if (status) return ["no_match", "no_cached_match", "not_found", "payment_required"].includes(status);
     return !isResolveSuccessResult(result);
@@ -1963,15 +2200,13 @@ async function cmdConfig(args: string[], flags: Record<string, string | boolean>
         contribution: { share_pointers: false, set_via: "mode-command" },
         notice_shown_count: 0,
       });
-      // Telemetry (pointer sharing) is decoupled from checkpoint auto-publish.
-      // auto_publish_checkpoints keeps its own default (true) — disabling telemetry
-      // must not silently persist a `false` that overrides that default. Turn
-      // auto-publish off explicitly via the capture-pipeline setting if desired.
+      updateCapturePipelineSettings({ auto_publish_checkpoints: false });
       output({
         ok: true,
         telemetry: false,
         share_pointers: false,
-        message: "Remote pointer sharing is disabled. Checkpoint auto-publish is unchanged (set it separately via capture-pipeline settings).",
+        auto_publish_checkpoints: false,
+        message: "Remote pointer sharing and checkpoint auto-publish are disabled.",
       }, !!flags.pretty);
       return;
     }
@@ -2263,10 +2498,10 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     info("Claude Code registration skipped (--no-claude-register).");
   } else {
     const { registerWithClaudeCode } = await import("./setup/claude-mcp-register.js");
-    const mcpEntrypoint = require.resolve("./mcp.js");
+    const mcpEntrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
     const claudeReg = await registerWithClaudeCode({
-      serverCommand: "bun",
-      serverArgs: ["run", mcpEntrypoint],
+      serverCommand: process.execPath,
+      serverArgs: runtimeArgsForEntrypoint(import.meta.url, mcpEntrypoint),
     });
     if (claudeReg.skipped) {
       if (claudeReg.skip_reason === "claude_cli_not_found") {
@@ -3071,7 +3306,7 @@ export const CLI_REFERENCE = {
     // ── Setup & lifecycle ─────────────────────────────────────────────────
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register] [--no-mcp-host-register] [--no-contract]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), register the local /contract bin as a sibling MCP entry across detected hosts, and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
-    { name: "health", usage: "", desc: "Quick local server health check. Returns version + uptime." },
+    { name: "health", usage: "", desc: "Quick local runtime health check. Runs in-process by default; explicit `serve` is the compatibility daemon." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
 
     // ── Identity & policy ─────────────────────────────────────────────────
@@ -3082,7 +3317,7 @@ export const CLI_REFERENCE = {
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
     // ── The two primary call paths for an agent ───────────────────────────
-    { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS in a Kuri sandbox and prints the full envelope (cookies, post_eval, observed routes). All requests go through libcurl-impersonate (Chrome 131 JA4) and auto-pull cookies from your real browser." },
+    { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS through the embedded browser/sandbox primitive and prints the full envelope (cookies, post_eval, observed routes). Browser/Kuri helpers are binary-owned implementation details." },
     { name: "run", usage: '<url> "task"', desc: "One-shot agent path. Chooses direct cached/API replay first, captures+indexes on miss, retries, then opens browser only when interaction is needed. Accepts positional task text or --intent/--task/--query." },
     { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Advanced: resolve an intent against marketplace + local cache only. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
@@ -3108,10 +3343,10 @@ export const CLI_REFERENCE = {
     { name: "spec", usage: "<domain-or-url> [--budget-ms N] [--graphql]", desc: "Probe spec-publishing endpoints (openapi/swagger/sitemap/robots/graphql) for a site BEFORE browse-capture. Pointer-only metadata. Delegates to the v7 eval handler shared with MCP `unbrowse_spec`." },
     { name: "auth-inventory", usage: "[--domain host]", desc: "Per-domain inventory of what the local browser profile can already authenticate against (hostnames, cookie NAMES, counts — never values). Bias resolve toward logged-in domains. Shared with MCP `unbrowse_auth_inventory`." },
 
-    // ── Browser session (Kuri primitives) ─────────────────────────────────
+    // ── Browser session (binary-owned browser primitives) ─────────────────
     // Use these when the work needs a real DOM (form submits, click flows).
     // Sequence: go → snap → click/fill/eval → submit → sync → close.
-    { name: "go", usage: '<url> [--session id]', desc: "Open a fresh Kuri browser tab (or reuse via --session). Step 1 of the browse workflow." },
+    { name: "go", usage: '<url> [--session id]', desc: "Acquire a binary-owned browser lease and open a fresh tab (or reuse via --session for legacy flows). Step 1 of the browse workflow." },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs. Inspect the page state — gives you the refs to click/fill." },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by @eN ref from snap." },
     { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by @eN ref with the given value." },
@@ -3169,7 +3404,7 @@ export const CLI_REFERENCE = {
     { flag: "--require-proof", desc: "Filter resolve to only endpoints with independently verified proofs." },
   ],
   envVars: [
-    { name: "UNBROWSE_URL", desc: "Local server URL (default: http://localhost:6969)" },
+    { name: "UNBROWSE_URL", desc: "Compatibility server URL. When unset, the CLI uses the in-process stateless runtime." },
     { name: "UNBROWSE_API_URL", desc: "Marketplace/backend URL (default: https://beta-api.unbrowse.ai)" },
     { name: "UNBROWSE_ZK_PROOF=1", desc: "Enable commitment metadata generation helpers" },
     { name: "UNBROWSE_NOTARY_URL=<url>", desc: "Reserved for future TLSNotary integration; current client is a stub" },
@@ -3186,7 +3421,7 @@ export const CLI_REFERENCE = {
     { flag: "--publish", desc: "Explicitly publish observed routes to the marketplace." },
     { flag: "--intent \"...\"", desc: "Label for explicit marketplace publish of observed routes." },
     { flag: "--envelope", desc: "Force full envelope output (cookies + routes_observed + post_eval) instead of body-only." },
-    { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs in Kuri sandbox." },
+    { flag: "--bundle-source <js|->", desc: "ADVANCED: inline JS or '-' for stdin. Runs through the embedded browser/sandbox primitive." },
     { flag: "--bundle-url <url>", desc: "ADVANCED: fetch JS bundle from URL." },
     { flag: "--post-eval <expr>", desc: "ADVANCED: JS expression evaluated after bundle runs (e.g. globalThis.signedUrl)." },
     { flag: "--target-origin <url>", desc: "ADVANCED: origin used for cookie scoping. Defaults to fetch URL's origin." },
@@ -4609,6 +4844,7 @@ async function cmdConnectChrome(): Promise<void> {
  * /v1/contract/* harness at beta-api.unbrowse.ai (organ ddff0c96 + a499b1f3).
  *
  * Subcommands:
+ *   surface                                     — print local holes-only bridge manifest
  *   tools                                       — list cloud routes + local capabilities
  *   declare --plan TEXT --action TEXT [--parent ID]  — POST /v1/contract/declare
  *   status ID                                   — GET  /v1/contract/status?id=ID
@@ -4648,6 +4884,10 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
   }
 
   switch (sub) {
+    case "surface": {
+      process.stdout.write(JSON.stringify(bridgeManifest(), null, 2) + "\n");
+      return;
+    }
     case undefined:
     case "tools":
     case "help": {
@@ -4693,9 +4933,27 @@ async function cmdContract(args: string[], flags: Record<string, string | boolea
     }
     default:
       console.error(`unknown subcommand: ${sub}`);
-      console.error("usage: unbrowse contract <tools|declare|status|plan-for-intent>");
+      console.error("usage: unbrowse contract <surface|tools|declare|status|plan-for-intent>");
       process.exit(2);
   }
+}
+
+async function cmdCanonicalVerb(alias: "create" | "act" | "read", args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  if (alias === "read" && args[0] === "resolve") {
+    const forwardedFlags = { ...flags };
+    if (typeof args[1] === "string" && typeof forwardedFlags.intent !== "string") {
+      forwardedFlags.intent = args.slice(1).join(" ");
+    }
+    return cmdResolve(forwardedFlags);
+  }
+  const verb = alias === "create" ? "build" : alias === "act" ? "breath" : "eval";
+  const { runV7 } = await import("./cli-v7/index.js");
+  await runV7([
+    process.argv[0] ?? "bun",
+    process.argv[1] ?? "unbrowse",
+    verb,
+    ...process.argv.slice(3),
+  ]);
 }
 
 async function main(): Promise<void> {
@@ -4841,6 +5099,8 @@ async function main(): Promise<void> {
   if (command === "telemetry") return cmdTelemetry(args, flags);
   if (command === "sessions-scan") return cmdSessionsScan(flags);
   if (command === "register") { info("[deprecated] `register` is now `account --register`"); return cmdRegister(flags); }
+  if (command === "create" || command === "act" || command === "read") return cmdCanonicalVerb(command, args, flags);
+  if (command === "contract" && args[0] === "surface") return cmdContract(args, flags);
   if (command === "account") {
     if (flags.register) return cmdRegister(flags);
     return cmdAccount(flags);
@@ -4851,6 +5111,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "mcp", "setup", "resolve", "run", "execute", "exec",
+    "create", "act", "read",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "payment-provider", "account", "dashboard", "capture",
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
     "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
@@ -4892,6 +5153,7 @@ async function main(): Promise<void> {
     case "health": return cmdHealth(flags);
     case "mcp": return cmdMcp(flags);
     case "contract-bridge": return cmdContractBridge(flags);
+    case "create": case "act": case "read": return cmdCanonicalVerb(command, args, flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "run": return cmdRun(args, flags);
@@ -5008,6 +5270,8 @@ async function main(): Promise<void> {
 }
 
 if (isMainModule(import.meta.url)) {
+  const manifestOnlyInvocation = process.argv[2] === "contract" && process.argv[3] === "surface";
+  const canonicalV7Invocation = process.argv[2] === "create" || process.argv[2] === "act" || process.argv[2] === "read";
   // Drains run on best-effort terms. A stalled background job MUST NOT
   // hang CLI exit — same bug class as the previously-fixed inline
   // telemetry await (project_cli_resolve_exit_hang). Both drains race
@@ -5027,10 +5291,12 @@ if (isMainModule(import.meta.url)) {
     ]);
 
   main()
-    .then(() => Promise.all([
-      drainWithTimeout("index-jobs", drainPendingIndexJobs()),
-      drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
-    ]))
+    .then(() => manifestOnlyInvocation || canonicalV7Invocation
+      ? undefined
+      : Promise.all([
+          drainWithTimeout("index-jobs", drainPendingIndexJobs()),
+          drainWithTimeout("passive-publishes", drainPendingPassivePublishes()),
+        ]))
     .then(() => {
       // Drain promises resolve when budget elapses, but underlying async
       // work (sockets, timers, kept-alive connections) can keep the event

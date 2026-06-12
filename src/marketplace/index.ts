@@ -3,12 +3,23 @@ import * as client from "../client/index.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
 import { sanitizeForPublish } from "../publish/sanitize.js";
 
+type MarketplaceClient = Pick<
+  typeof client,
+  "listSkills" | "getSkill" | "cachePublishedSkill" | "isLocalOnlyMode" | "publishSkill" | "updateEndpointScore"
+>;
+
+let clientAdapter: MarketplaceClient = client;
+
+export function _setMarketplaceClientForTests(adapter: MarketplaceClient | null): void {
+  clientAdapter = adapter ?? client;
+}
+
 export async function listSkills(): Promise<SkillManifest[]> {
-  return client.listSkills();
+  return clientAdapter.listSkills();
 }
 
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
-  return client.getSkill(skillId, scopeId);
+  return clientAdapter.getSkill(skillId, scopeId);
 }
 // ---------------------------------------------------------------------------
 // Phase 8.1 — In-process marketplace TTL cache.
@@ -56,7 +67,7 @@ export async function getSkillCached(skillId: string, scopeId?: string): Promise
   // visible immediately. Local caches were masking real backend gaps.
   // Set UNBROWSE_LOCAL_CACHES=1 to re-enable for offline benchmarks.
   if (process.env.UNBROWSE_LOCAL_CACHES !== "1") {
-    return await client.getSkill(skillId, scopeId);
+    return await clientAdapter.getSkill(skillId, scopeId);
   }
   const key = cacheKey(skillId, scopeId);
   const cached = marketplaceCache.get(key);
@@ -65,7 +76,7 @@ export async function getSkillCached(skillId: string, scopeId?: string): Promise
     marketplaceCache.set(key, cached);
     return cached.skill;
   }
-  const fresh = await client.getSkill(skillId, scopeId);
+  const fresh = await clientAdapter.getSkill(skillId, scopeId);
   if (fresh) {
     marketplaceCache.set(key, { skill: fresh, expires: Date.now() + TTL_MS });
     evictExpiredAndOverflow();
@@ -125,9 +136,9 @@ export async function publishSkill(
     updated_at: now,
     version: draft.version ?? "1.0.0",
   } as SkillManifest;
-  client.cachePublishedSkill(preCache);
+  clientAdapter.cachePublishedSkill(preCache);
 
-  if (client.isLocalOnlyMode()) {
+  if (clientAdapter.isLocalOnlyMode()) {
     return { ...preCache, published_remotely: false };
   }
 
@@ -140,10 +151,10 @@ export async function publishSkill(
     : draft;
 
   try {
-    const { warnings: _, ...backendFields } = await client.publishSkill(sanitizedDraft);
+    const { warnings: _, ...backendFields } = await clientAdapter.publishSkill(sanitizedDraft);
     // Merge draft with backend response — avoids read-after-write race
     const skill = { ...draft, ...backendFields } as SkillManifest;
-    client.cachePublishedSkill(skill);
+    clientAdapter.cachePublishedSkill(skill);
     // Phase 8.1 — invalidate TTL cache so other agents see the new skill
     invalidateMarketplaceCache(skill.skill_id);
     if (skill.domain) invalidateMarketplaceCache(skill.domain);
@@ -160,7 +171,7 @@ export async function updateEndpointScore(
   score: number,
   status?: VerificationStatus
 ): Promise<void> {
-  await client.updateEndpointScore(skillId, endpointId, score, status);
+  await clientAdapter.updateEndpointScore(skillId, endpointId, score, status);
 }
 
 // --- Pure local helpers (no backend call) ---

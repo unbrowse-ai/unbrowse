@@ -7,8 +7,11 @@ set -euo pipefail
 #   dist/unbrowse-vX.Y.Z-{platform}-{arch}.tar.gz
 #
 # Usage:
-#   ./scripts/build-binaries.sh          # build for current platform
-#   ./scripts/build-binaries.sh --all    # cross-compile all 4 platforms
+#   ./scripts/build-binaries.sh                # build for current platform
+#   ./scripts/build-binaries.sh --all          # cross-compile all 5 platforms
+#   ./scripts/build-binaries.sh linux-x64      # cross-compile one named target
+#                                              # (darwin-arm64|darwin-x64|linux-arm64|linux-x64|win-x64)
+#                                              # used by the per-platform CI matrix
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -76,6 +79,13 @@ if [ "${1:-}" = "--all" ]; then
   build_target "win-x64"
   echo "[build] all platforms built:"
   ls -lh "$DIST_DIR"/unbrowse-*
+elif [[ "${1:-}" =~ ^(darwin-arm64|darwin-x64|linux-arm64|linux-x64|win-x64)$ ]]; then
+  # Single named target (CI per-platform matrix). Builds exactly one tarball
+  # plus the signed manifest (manifest is build-info derived, not per-binary,
+  # so each matrix shard produces an identical manifest the assemble job dedups).
+  build_target "$1"
+  echo "[build] target $1 built:"
+  ls -lh "$DIST_DIR"/unbrowse-*"$1"*
 else
   # Current platform only
   PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"

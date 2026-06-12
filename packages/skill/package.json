@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "8.3.0-preview.4",
+  "version": "8.3.0-preview.6",
   "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
   "mcpName": "io.github.unbrowse-ai/unbrowse",
   "type": "module",

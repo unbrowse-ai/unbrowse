@@ -100,8 +100,10 @@ describe("Cascade split provisioning", () => {
     });
   });
 
-  it("patches split_config after publish when an explicit split address is configured", async () => {
+  it("publishes without client-side split patching because Flex splits are server-side", async () => {
     process.env.UNBROWSE_API_KEY = "test-key";
+    process.env.UNBROWSE_LOCAL_ONLY = "0";
+    process.env.UNBROWSE_BACKEND_OFFLINE = "0";
     process.env.UNBROWSE_CASCADE_SPLIT_ADDRESS = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq";
     process.env.LOBSTER_WALLET_ADDRESS = "wallet-live";
 
@@ -166,15 +168,11 @@ describe("Cascade split provisioning", () => {
       lifecycle: "active",
     } as any);
 
-    expect(published.split_config).toBe("7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq");
+    expect(published.split_config).toBeUndefined();
     const postCall = calls.find((call) => call.method === "POST");
-    expect(postCall?.body).toEqual(expect.objectContaining({
-      wallet_address: "wallet-live",
-      wallet_provider: "lobster.cash",
-    }));
-    const patchCall = calls.find((call) => call.method === "PATCH");
-    expect(patchCall?.body).toEqual({
-      split_config: "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq",
-    });
+    expect(typeof postCall?.body?.wallet_address).toBe("string");
+    expect(typeof postCall?.body?.wallet_provider).toBe("string");
+    expect(postCall?.body?.split_config).toBeUndefined();
+    expect(calls.find((call) => call.method === "PATCH")).toBeUndefined();
   });
 });

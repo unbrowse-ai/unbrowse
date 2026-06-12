@@ -1,7 +1,7 @@
 /**
  * `unbrowse eval auth-inventory` — per-domain AST of what the user can
  * already authenticate against, sourced from local browser profile
- * metadata (Chrome + Firefox cookies, history, bookmarks).
+ * metadata (Chrome/Dia Chromium + Firefox cookies, history, bookmarks).
  *
  * 1:1 mapping (kind-map.ts row "eval auth-inventory"):
  *   CLI subcommand  : eval auth-inventory
@@ -54,7 +54,7 @@
  *     "op_kind": "eval:auth_inventory",
  *     "platform": "darwin" | "linux" | "win32",
  *     "supported": true | false,
- *     "sources_scanned": ["chrome:/path", "firefox:/path", ...],
+ *     "sources_scanned": ["chrome:/path", "dia:/path", "firefox:/path", ...],
  *     "locked_sources": ["chrome:/path/Cookies", ...],
  *     "domain_count": number,
  *     "inventory": {
@@ -92,6 +92,7 @@ import { lookupKindMap } from "../kind-map.js";
 import { postStateless, type PostStatelessResult } from "../_stateless.js";
 import {
   defaultChromeRoot,
+  defaultDiaRoots,
   listChromeProfiles,
   readChromeProfile,
   type ChromeProfileResult,
@@ -288,7 +289,11 @@ interface InventoryRunResult {
  */
 export async function runInventory(opts?: {
   chromeProfileOverride?: string;
+  diaProfileOverride?: string;
   firefoxProfileOverride?: string;
+  scanDefaultDia?: boolean;
+  skipChrome?: boolean;
+  skipFirefox?: boolean;
   nowUnix?: number;
 }): Promise<InventoryRunResult> {
   const nowUnix = opts?.nowUnix ?? Math.floor(Date.now() / 1000);
@@ -308,13 +313,15 @@ export async function runInventory(opts?: {
 
   // Chrome.
   let chromeProfiles: string[] = [];
-  if (opts?.chromeProfileOverride) {
-    if (existsSync(opts.chromeProfileOverride)) {
-      chromeProfiles = [opts.chromeProfileOverride];
+  if (!opts?.skipChrome) {
+    if (opts?.chromeProfileOverride) {
+      if (existsSync(opts.chromeProfileOverride)) {
+        chromeProfiles = [opts.chromeProfileOverride];
+      }
+    } else {
+      const root = defaultChromeRoot();
+      if (root) chromeProfiles = await listChromeProfiles(root);
     }
-  } else {
-    const root = defaultChromeRoot();
-    if (root) chromeProfiles = await listChromeProfiles(root);
   }
   for (const profile of chromeProfiles) {
     const result: ChromeProfileResult = await readChromeProfile(profile);
@@ -336,15 +343,58 @@ export async function runInventory(opts?: {
     }
   }
 
+  // Dia is Chromium-compatible. Keep a distinct source prefix so callers can
+  // explain provenance while preserving the same host-only privacy boundary.
+  let diaProfiles: string[] = [];
+  if (opts?.diaProfileOverride) {
+    if (existsSync(opts.diaProfileOverride)) {
+      diaProfiles = [opts.diaProfileOverride];
+    }
+  } else if (
+    opts?.scanDefaultDia ||
+    (!opts?.chromeProfileOverride && !opts?.firefoxProfileOverride)
+  ) {
+    const seenRoots = new Set<string>();
+    for (const root of defaultDiaRoots()) {
+      if (seenRoots.has(root)) continue;
+      seenRoots.add(root);
+      const found = await listChromeProfiles(root);
+      for (const profile of found) {
+        if (!diaProfiles.includes(profile)) diaProfiles.push(profile);
+      }
+    }
+  }
+  for (const profile of diaProfiles) {
+    const result: ChromeProfileResult = await readChromeProfile(profile);
+    sources_scanned.push(`dia:${profile}`);
+    for (const c of result.cookies) {
+      cookies.push({
+        host_key: c.host_key,
+        name: c.name,
+        expires_utc_unix: c.expires_utc_unix,
+      });
+    }
+    for (const h of result.history) history.push(h);
+    for (const b of result.bookmarks) bookmarks.push(b);
+    if (result.locks.cookies === "locked") {
+      locked_sources.push(`dia:${profile}/Cookies`);
+    }
+    if (result.locks.history === "locked") {
+      locked_sources.push(`dia:${profile}/History`);
+    }
+  }
+
   // Firefox.
   let firefoxProfiles: string[] = [];
-  if (opts?.firefoxProfileOverride) {
-    if (existsSync(opts.firefoxProfileOverride)) {
-      firefoxProfiles = [opts.firefoxProfileOverride];
+  if (!opts?.skipFirefox) {
+    if (opts?.firefoxProfileOverride) {
+      if (existsSync(opts.firefoxProfileOverride)) {
+        firefoxProfiles = [opts.firefoxProfileOverride];
+      }
+    } else {
+      const root = defaultFirefoxRoot();
+      if (root) firefoxProfiles = await listFirefoxProfiles(root);
     }
-  } else {
-    const root = defaultFirefoxRoot();
-    if (root) firefoxProfiles = await listFirefoxProfiles(root);
   }
   for (const profile of firefoxProfiles) {
     const result: FirefoxProfileResult = await readFirefoxProfile(profile);
@@ -403,7 +453,7 @@ export async function handler(
         summary:
           "Per-domain AST of what the user can already authenticate against — from local browser cookies (metadata only), history (hostnames only), bookmarks (hostnames only).",
         usage:
-          "unbrowse eval auth-inventory [--limit N] [--json] [--chrome-profile <path>] [--firefox-profile <path>]",
+          "unbrowse eval auth-inventory [--limit N] [--json] [--dia-only] [--chrome-profile <path>] [--dia-profile <path>] [--firefox-profile <path>]",
         flags: [
           {
             name: "--limit",
@@ -414,6 +464,15 @@ export async function handler(
             name: "--chrome-profile",
             description: "Test override: scan exactly this Chrome profile directory.",
             value_expected: true,
+          },
+          {
+            name: "--dia-profile",
+            description: "Test override: scan exactly this Dia Chromium profile directory.",
+            value_expected: true,
+          },
+          {
+            name: "--dia-only",
+            description: "Scan default Dia profiles and skip Chrome/Firefox defaults.",
           },
           {
             name: "--firefox-profile",
@@ -461,16 +520,25 @@ export async function handler(
     typeof parsed.flags["chrome-profile"] === "string"
       ? (parsed.flags["chrome-profile"] as string)
       : undefined;
+  const diaProfileOverride =
+    typeof parsed.flags["dia-profile"] === "string"
+      ? (parsed.flags["dia-profile"] as string)
+      : undefined;
   const firefoxProfileOverride =
     typeof parsed.flags["firefox-profile"] === "string"
       ? (parsed.flags["firefox-profile"] as string)
       : undefined;
+  const diaOnly = parsed.flags["dia-only"] === true;
   const noJson = parsed.flags["no-json"] === true;
 
   try {
     const result = await runInventory({
       chromeProfileOverride,
+      diaProfileOverride,
       firefoxProfileOverride,
+      scanDefaultDia: diaOnly,
+      skipChrome: diaOnly,
+      skipFirefox: diaOnly,
     });
     const trimmed = topN(result.inventory, safeLimit);
     const domainCount = Object.keys(result.inventory).length;

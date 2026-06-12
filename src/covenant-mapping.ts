@@ -261,6 +261,13 @@ export const COVENANT_MAP: Record<string, CovenantShape> = {
 		witness: "Proverbs 2:4",
 		essence: "search for it as hidden treasure — query the marketplace",
 	},
+	unbrowse_search: {
+		name: "unbrowse_search",
+		verb: "breath",
+		day: 6,
+		witness: "Proverbs 2:4",
+		essence: "search for it as hidden treasure — query the capability graph",
+	},
 	unbrowse_auth_capture: {
 		name: "unbrowse_auth_capture",
 		verb: "breath",

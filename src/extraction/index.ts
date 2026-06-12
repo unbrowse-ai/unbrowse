@@ -617,23 +617,64 @@ function countDataElements(obj: unknown, depth = 0): number {
  *  on such pages). Returns null when no block is a confident win (the caller then
  *  keeps the whole body; the readable-markdown content-loss guard is a 2nd net). */
 function pickDenseMain($: ReturnType<typeof cheerio.load>): string | null {
-  const bodyText = $("body").text().replace(/\s+/g, " ").trim();
+  const eachSelection = (selection: unknown, visit: (el: CheerioEl) => void): void => {
+    const selected = selection as {
+      length?: number;
+      [index: number]: CheerioEl | undefined;
+      toArray?: () => CheerioEl[];
+      each?: (fn: (idx: number, el: CheerioEl) => void) => void;
+    };
+    if (typeof selected.each === "function") {
+      selected.each((_, el) => visit(el));
+      return;
+    }
+    if (typeof selected.toArray === "function") {
+      for (const el of selected.toArray()) visit(el);
+      return;
+    }
+    const len = typeof selected.length === "number" ? selected.length : 0;
+    for (let i = 0; i < len; i++) {
+      const el = selected[i];
+      if (el) visit(el);
+    }
+  };
+  const selectedText = (target: string | CheerioEl | unknown): string => {
+    const selected = $(target as never) as unknown as { text?: () => string };
+    if (typeof selected.text === "function") return selected.text();
+    const textFn = ($ as unknown as { text?: (value: unknown) => string }).text;
+    if (typeof textFn === "function") return textFn(selected);
+    return "";
+  };
+  const selectedHtml = (target: CheerioEl): string => {
+    const selected = $(target) as unknown as { html?: () => string | null };
+    if (typeof selected.html === "function") return selected.html() ?? "";
+    const htmlFn = ($ as unknown as { html?: (value: unknown) => string | null }).html;
+    if (typeof htmlFn === "function") return htmlFn(target) ?? "";
+    return "";
+  };
+
+  const bodyText = selectedText("body").replace(/\s+/g, " ").trim();
   const bodyLen = bodyText.length;
   if (bodyLen < 400) return null; // short pages: nothing to isolate
   let best: { html: string; score: number; textLen: number } | null = null;
-  $("article, main, section, div, td").each((_, el) => {
+  eachSelection($("article, main, section, div, td"), (el) => {
     const $el = $(el);
-    const text = $el.text().replace(/\s+/g, " ").trim();
+    const text = selectedText(el).replace(/\s+/g, " ").trim();
     const textLen = text.length;
     if (textLen < 200) return;
     let linkLen = 0;
-    $el.find("a").each((_, a) => { linkLen += $(a).text().length; });
+    const links = ($el as unknown as { find?: (selector: string) => unknown }).find?.("a");
+    eachSelection(links, (a) => { linkLen += selectedText(a).length; });
     const linkDensity = linkLen / textLen;
     if (linkDensity > 0.5) return; // nav / sidebar / related-link lists
-    const pCount = $el.find("p").filter((_, p) => $(p).text().trim().length > 40).length;
+    let pCount = 0;
+    const paragraphs = ($el as unknown as { find?: (selector: string) => unknown }).find?.("p");
+    eachSelection(paragraphs, (p) => {
+      if (selectedText(p).trim().length > 40) pCount++;
+    });
     // prose score: text mass, paragraph-boosted, link-penalised.
     const score = textLen * (1 - linkDensity) * (1 + Math.min(pCount, 20) * 0.05);
-    if (!best || score > best.score) best = { html: $el.html() ?? "", score, textLen };
+    if (!best || score > best.score) best = { html: selectedHtml(el), score, textLen };
   });
   if (!best) return null;
   const winner = best as { html: string; score: number; textLen: number };
@@ -645,6 +686,50 @@ function pickDenseMain($: ReturnType<typeof cheerio.load>): string | null {
 
 export function cleanDOM(html: string): string {
   const $ = cheerio.load(html);
+  const eachSelected = (
+    selector: string,
+    visit: (el: CheerioEl) => void,
+  ): void => {
+    const selected = $(selector) as unknown as {
+      length?: number;
+      [index: number]: CheerioEl | undefined;
+      toArray?: () => CheerioEl[];
+      each?: (fn: (idx: number, el: CheerioEl) => void) => void;
+    };
+    if (typeof selected.each === "function") {
+      selected.each((_, el) => visit(el));
+      return;
+    }
+    if (typeof selected.toArray === "function") {
+      for (const el of selected.toArray()) visit(el);
+      return;
+    }
+    const len = typeof selected.length === "number" ? selected.length : 0;
+    for (let i = 0; i < len; i++) {
+      const el = selected[i];
+      if (el) visit(el);
+    }
+  };
+  const removeSelected = (selector: string): void => {
+    eachSelected(selector, (el) => {
+      const selected = $(el) as unknown as { remove?: () => void };
+      if (typeof selected.remove === "function") selected.remove();
+    });
+  };
+  const selectedText = (selector: string): string => {
+    const selected = $(selector) as unknown as { text?: () => string };
+    if (typeof selected.text === "function") return selected.text();
+    const textFn = ($ as unknown as { text?: (value: unknown) => string }).text;
+    if (typeof textFn === "function") return textFn(selected);
+    return "";
+  };
+  const selectedHtml = (selector: string): string => {
+    const selected = $(selector) as unknown as { html?: () => string | null };
+    if (typeof selected.html === "function") return selected.html() ?? "";
+    const htmlFn = ($ as unknown as { html?: (value?: unknown) => string | null }).html;
+    if (typeof htmlFn === "function") return htmlFn(selected) ?? "";
+    return "";
+  };
 
   // 1. Remove script/style/svg/iframe/noscript tags entirely
   //    Preserve JSON-LD scripts — they contain structured data.
@@ -653,24 +738,24 @@ export function cleanDOM(html: string): string {
   //    (test isolation issue seen under bun's parallel test runner).
   for (const tag of STRIP_TAGS) {
     if (tag === "script") {
-      $("script").each((_, el) => {
+      eachSelected("script", (el) => {
         const type = $(el).attr("type") ?? "";
         if (type !== "application/ld+json") {
           $(el).remove();
         }
       });
     } else {
-      $(tag).remove();
+      removeSelected(tag);
     }
   }
 
   // 2. Remove navigation chrome
   for (const tag of CHROME_TAGS) {
-    $(tag).remove();
+    removeSelected(tag);
   }
 
   // 3. Remove ad/tracking elements by class/id
-  $("*").each((_, el) => {
+  eachSelected("*", (el) => {
     const $el = $(el);
     const cls = $el.attr("class") ?? "";
     const id = $el.attr("id") ?? "";
@@ -680,7 +765,7 @@ export function cleanDOM(html: string): string {
   });
 
   // 4. Remove hidden elements
-  $("[style]").each((_, el) => {
+  eachSelected("[style]", (el) => {
     const $el = $(el);
     const style = ($el.attr("style") ?? "").replace(/\s/g, "");
     if (style.includes("display:none") || style.includes("visibility:hidden")) {
@@ -689,15 +774,15 @@ export function cleanDOM(html: string): string {
   });
   for (const { attr, value } of HIDDEN_ATTRS) {
     const selector = value ? `[${attr}="${value}"]` : `[${attr}]`;
-    $(selector).remove();
+    removeSelected(selector);
   }
 
   // 5. Prefer content region if available (but only if it's a single container,
   //    not multiple repeating elements like <article> per product)
   for (const sel of CONTENT_SELECTORS) {
     const region = $(sel);
-    if (region.length === 1 && region.text().trim().length > 100) {
-      return region.html() ?? $.html();
+    if (region.length === 1 && selectedText(sel).trim().length > 100) {
+      return selectedHtml(sel) || html;
     }
   }
 
@@ -706,7 +791,7 @@ export function cleanDOM(html: string): string {
   const dense = pickDenseMain($);
   if (dense && dense.trim().length > 200) return dense;
 
-  return $("body").html() ?? $.html();
+  return selectedHtml("body") || html;
 }
 
 // ---------------------------------------------------------------------------

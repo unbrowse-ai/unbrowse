@@ -9,6 +9,7 @@ const calls = {
   navigate: 0,
   getCurrentUrl: 0,
   getPageHtml: 0,
+  hasCloudflareChallenge: 0,
   closeTab: 0,
 };
 
@@ -44,6 +45,10 @@ mock.module("../src/kuri/client.js", () => ({
     calls.getPageHtml += 1;
     return "<html><body>live</body></html>";
   },
+  hasCloudflareChallenge: async () => {
+    calls.hasCloudflareChallenge += 1;
+    return false;
+  },
   closeTab: async () => {
     calls.closeTab += 1;
   },
@@ -75,10 +80,6 @@ mock.module("../src/reverse-engineer/index.js", () => ({
 
 mock.module("../src/indexer/index.js", () => ({
   queueBackgroundIndex: () => {},
-}));
-
-mock.module("../src/marketplace/index.js", () => ({
-  mergeEndpoints: (_existing: unknown, incoming: unknown) => incoming,
 }));
 
 mock.module("../src/graph/index.js", () => ({
