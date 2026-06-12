@@ -1,5 +1,17 @@
 # Changelog
 
+## [8.3.0-preview.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.4...v8.3.0-preview.5) (2026-06-12)
+
+### Features
+
+* **payouts:** custodial indexer disbursement + ops payouts dashboard ([4e7a515](https://github.com/unbrowse-ai/unbrowse-dev/commit/4e7a5155c78c6dfe56daa508c86d98a4679d7eb9))
+* **search:** web-search provider adapter — Exa primary when keyed, DDG fallback, honest provenance ([704bf8e](https://github.com/unbrowse-ai/unbrowse-dev/commit/704bf8ed3169cc440c66e0ef237debd2e402f0a5))
+
+### Bug Fixes
+
+* **kuri:** resolve vendored broker binary from the parent of the bundled runtime dir ([50feaf3](https://github.com/unbrowse-ai/unbrowse-dev/commit/50feaf395e2168beb7a44d2c42864a52738d5aca))
+* **release:** npm-publish poll waits for the full CI build (300s -> 3000s) ([1b9aa46](https://github.com/unbrowse-ai/unbrowse-dev/commit/1b9aa46726e7c2be1017ed6af342ac663c35140a))
+
 ## [8.3.0-preview.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.3...v8.3.0-preview.4) (2026-06-11)
 
 ### Bug Fixes
