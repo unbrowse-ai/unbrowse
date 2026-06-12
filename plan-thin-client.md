@@ -106,6 +106,28 @@ out into a client module.
     lines, weight uses 6165–6487; internal sync call at `:7274`). Same async/lazy decision as the
     orchestrator edge. **ORACLE: `tests/ranking-parity.test.ts` is the byte-identical baseline —
     run before/after any extraction; it proves scoring is unchanged.**
+
+  ### CRUX FORK (2026-06-13, fully mapped) — clearing the `ranking` dir name has only 3 routes:
+  - **(1) rename/relocate the whole dir** → trained weights ship byte-identical, renamed =
+    FAKE-GREEN, barred by CLAUDE.md + the gate's own comment. DO NOT.
+  - **(2) async-cascade orchestrator** → make the local scorer a lazy fallback (full offline
+    quality kept). Blocked by 3 SYNC helpers returning boolean/number used as predicates/
+    comparators: `orchestrator/index.ts:801` (predicate), `:1105` (`: boolean` → `.some()`),
+    `:1136` (`: number`). (The other 3 — `:423` for-loop, `:2453` already near a server-move,
+    `:3127` in `async tryAutoExecute` — are easy.) Going async on the 3 sync helpers cascades
+    through orchestrator's synchronous scoring. LARGE focused refactor.
+  - **(3) DELETE the trained model from the client** (server keeps it via `rankEndpointsServerFirst`):
+    drop `routeEnergy` import (`execution/index.ts:10`) + its term (`:6487`); delete
+    `signals/learned-energy.ts` + `signals/route-head.embedded.ts`; relocate the remaining
+    published fallback (bm25/ledger-energy/intent-yield/clamps/noise-patterns/composite) →
+    `src/lib/ranking-core/` (ledger-energy loads no files → depth-safe; learned-energy's
+    `../../../` repo-root walk is moot once deleted); move the dispatcher → `src/client/`;
+    delete `src/ranking/`; repoint api/orchestrator/execution/reverse-engineer + ~10 tests;
+    UPDATE the `ranking-parity` baseline (routeEnergy gone → scores change) + delete
+    `tests/learned-energy.test.ts`. Honest + moves the gate; cost = offline local ranking loses
+    the learned signal (sanctioned by the north star's "degraded fallback"). `routeEnergy` has
+    exactly ONE caller (execution) so the removal is surgical. EMBEDDED_HEAD (route-head.embedded)
+    is the runtime source of truth; `bench/ebm/*.json` is an optional override.
 - [ ] **③ extraction → 0** — same pattern; `extraction` is small.
 - [ ] **④ indexer → 0** — admission/scoring server-side via `/v1/index/admit`; local queue +
   disk cache stay client but must not import the moat.
