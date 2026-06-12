@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const HOME = join(tmpdir(), `unbrowse-vault-test-${process.pid}`);
+const ORIGINAL_HOME = process.env.HOME;
 process.env.HOME = HOME;
 // Force the encrypted-file backend (no real keychain writes).
 mock.module("keytar", () => ({ default: {} }));
@@ -26,6 +27,8 @@ const vault = await import("../src/vault/index.js");
 
 afterAll(() => {
 	delete process.env.UNBROWSE_WALLET_SECRET;
+	if (ORIGINAL_HOME === undefined) delete process.env.HOME;
+	else process.env.HOME = ORIGINAL_HOME;
 	rmSync(HOME, { recursive: true, force: true });
 });
 

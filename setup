@@ -223,7 +223,7 @@ log "installing repo dependencies"
 (cd "$ROOT_DIR" && bun install --frozen-lockfile >/dev/null 2>&1 || bun install >/dev/null)
 
 log "building packaged CLI runtime"
-(cd "$ROOT_DIR" && node packages/skill/scripts/prepare-pack.mjs >/dev/null)
+(cd "$ROOT_DIR" && bash scripts/build-runtime-scrubbed.sh packages/skill/runtime >/dev/null && node packages/skill/scripts/prepare-pack.mjs >/dev/null)
 
 if [[ -n "$TARGET_SKILL_DIR" ]]; then
   mkdir -p "$(dirname "$TARGET_SKILL_DIR")"

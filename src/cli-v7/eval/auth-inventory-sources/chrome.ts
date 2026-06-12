@@ -1,13 +1,13 @@
 /**
- * Chrome browser-profile metadata reader.
+ * Chromium-compatible browser-profile metadata reader.
  *
- * Reads {Cookies, History, Bookmarks} from a Chrome profile directory
+ * Reads {Cookies, History, Bookmarks} from a Chromium profile directory
  * in READ-ONLY mode and returns per-domain metadata. Cookie VALUES
  * are NEVER read (encrypted_value column is never selected). History
  * URL paths are NEVER returned (only hostnames). Bookmark URL paths
  * are NEVER returned (only hostnames).
  *
- * Lock handling (load-bearing): Chrome holds an exclusive write-lock
+ * Lock handling (load-bearing): Chromium browsers hold an exclusive write-lock
  * on Cookies/History when running. Strategy:
  *   1. First try `?mode=ro&immutable=1` — passes the lock by promising
  *      we won't observe concurrent writes; safe for metadata sampling.
@@ -71,7 +71,23 @@ export function defaultChromeRoot(): string | null {
   return null;
 }
 
-/** Enumerate "Default" + "Profile *" directories under a Chrome root. */
+/** Default Dia profile roots for the host platform. */
+export function defaultDiaRoots(): string[] {
+  const home = homedir();
+  if (process.platform === "darwin") {
+    return [
+      join(home, "Library", "Application Support", "Dia", "User Data"),
+      // Some Dia builds have written a nested user-data root during migration.
+      join(home, "Library", "Application Support", "Dia", "User Data", "User Data"),
+    ];
+  }
+  if (process.platform === "linux") {
+    return [join(home, ".config", "Dia"), join(home, ".config", "dia")];
+  }
+  return [];
+}
+
+/** Enumerate "Default" + "Profile *" directories under a Chromium root. */
 export async function listChromeProfiles(root: string): Promise<string[]> {
   if (!existsSync(root)) return [];
   let names: string[];

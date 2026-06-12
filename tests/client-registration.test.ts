@@ -9,6 +9,18 @@ const ORIGINAL_FETCH = globalThis.fetch;
 const ORIGINAL_WARN = console.warn;
 const ORIGINAL_LOG = console.log;
 const tempDirs: string[] = [];
+const REGISTRATION_ENV_KEYS = [
+  "UNBROWSE_API_KEY",
+  "UNBROWSE_CONFIG_DIR",
+  "UNBROWSE_NON_INTERACTIVE",
+  "UNBROWSE_TOS_ACCEPTED",
+  "UNBROWSE_AGENT_EMAIL",
+  "LOBSTER_WALLET_ADDRESS",
+  "AGENT_WALLET_ADDRESS",
+  "UNBROWSE_DISABLE_LOCAL_WALLET",
+  "UNBROWSE_SKIP_TOS_CHECK",
+  "UNBROWSE_LOCAL_ONLY",
+];
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -31,6 +43,7 @@ async function loadClientModule() {
 }
 
 beforeEach(() => {
+  for (const key of REGISTRATION_ENV_KEYS) delete process.env[key];
   // Assert a PRISTINE machine. getWalletContext() (src/payments/wallet.ts)
   // probes the developer's real ~/.ows vault and ~/.lobster config — on a dev
   // box that resolves to an actual OWS wallet and shadows the LOBSTER_WALLET_ADDRESS

@@ -1,79 +1,121 @@
-// Phase 2 Day-5 creature — daemon self-reaps via MCP-mode 15s idle window
-// when MCP is killed ungracefully (no stdin-EOF watcher firing).
-import { describe, test, expect } from "bun:test";
-import { spawn } from "node:child_process";
+// Stateless MCP crash cascade.
+//
+// Pre-stateless MCP spawned a daemon and relied on a 15s idle reaper if the
+// MCP process was killed. The current architecture removes that daemon. This
+// test preserves the crash-path coverage by proving an ungraceful MCP SIGKILL
+// leaves no listening local server and no managed pidfile.
+
+import { describe, expect, test } from "bun:test";
+import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 
+function pickPort(): number {
+  return 17500 + Math.floor(Math.random() * 400);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function portRefused(port: number): Promise<boolean> {
+  return new Promise((resolveP) => {
+    const sock = net.connect({ port, host: "127.0.0.1" });
+    const done = (refused: boolean) => {
+      sock.removeAllListeners();
+      sock.destroy();
+      resolveP(refused);
+    };
+    sock.once("connect", () => done(false));
+    sock.once("error", () => done(true));
+    setTimeout(() => done(true), 800);
+  });
+}
+
+function send(child: ChildProcess, msg: unknown): void {
+  child.stdin!.write(JSON.stringify(msg) + "\n");
+}
+
 describe("MCP-spawned daemon idle cascade", () => {
-  test("daemon self-reaps via 15s MCP-mode idle window after SIGKILL", async () => {
+  test("MCP SIGKILL leaves no daemon because stdio MCP is stateless", async () => {
     const home = await mkdtemp(join(tmpdir(), "p2-cascade-"));
-    const port = 17500 + Math.floor(Math.random() * 400);
+    const port = pickPort();
     const baseUrl = `http://127.0.0.1:${port}`;
+    const pidFile = join(home, "pidfile");
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       HOME: home,
       PORT: String(port),
       UNBROWSE_URL: baseUrl,
-      UNBROWSE_PID_FILE: join(home, "pidfile"),
-      // Tighten the reaper check interval so we don't wait the default 10s
-      // for the first check after the idle window opens.
-      UNBROWSE_SERVE_IDLE_CHECK_MS: "1000",
+      UNBROWSE_PID_FILE: pidFile,
+      UNBROWSE_NON_INTERACTIVE: "1",
+      UNBROWSE_TOS_ACCEPTED: "1",
     };
-    // Let the MCP_SERVER_MODE=1 default (15_000) win.
-    delete env.UNBROWSE_SERVE_IDLE_MS;
+
+    expect(await portRefused(port)).toBe(true);
 
     const mcp = spawn("bun", ["src/mcp.ts"], {
-      cwd: REPO_ROOT, env, stdio: ["pipe", "pipe", "pipe"],
+      cwd: REPO_ROOT,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
     });
+    const responses: Array<{ id?: unknown; result?: unknown; error?: unknown }> = [];
     let stderr = "";
     mcp.stderr!.on("data", (b) => { stderr += b.toString(); });
+    let buf = "";
+    mcp.stdout!.on("data", (b) => {
+      buf += b.toString();
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        try {
+          responses.push(JSON.parse(line));
+        } catch {}
+      }
+    });
 
     try {
-      // Drive ensureServerReady. initialize alone won't trigger spawn; tools/list does.
-      mcp.stdin!.write(JSON.stringify({
-        jsonrpc: "2.0", id: 1, method: "initialize",
-        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "p2-cascade", version: "0" } },
-      }) + "\n");
-      mcp.stdin!.write(JSON.stringify({
-        jsonrpc: "2.0", id: 2, method: "tools/list", params: {},
-      }) + "\n");
+      send(mcp, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "p2-cascade", version: "0" },
+        },
+      });
+      send(mcp, { jsonrpc: "2.0", method: "notifications/initialized" });
+      send(mcp, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "unbrowse_health", arguments: {} },
+      });
 
       const start = Date.now();
-      let up = false;
-      while (Date.now() - start < 15_000) {
-        const res = await fetch(`${baseUrl}/health`).catch(() => null);
-        if (res && res.ok) { up = true; break; }
-        await new Promise((r) => setTimeout(r, 200));
+      while (Date.now() - start < 30_000 && !responses.find((r) => r.id === 2)) {
+        await sleep(100);
       }
-      expect(up, `daemon never came up. stderr=${stderr.slice(-1500)}`).toBe(true);
+      const health = responses.find((r) => r.id === 2);
+      expect(health, `health response missing. stderr=${stderr.slice(-1500)}`).toBeDefined();
+      expect(health!.error).toBeUndefined();
+      expect(stderr).toContain("starting stateless stdio MCP");
+      expect(await portRefused(port)).toBe(true);
+      expect(existsSync(pidFile)).toBe(false);
 
-      // Ungraceful kill — skips the stdin-EOF watcher entirely. From this
-      // moment, the daemon has no incoming traffic; lastActivityTs is frozen.
-      const killTs = Date.now();
       mcp.kill("SIGKILL");
-      await new Promise<void>((resolve) => mcp.on("exit", () => resolve()));
+      await new Promise<void>((resolveP) => mcp.on("exit", () => resolveP()));
 
-      // Wait quietly without polling /health — every /health touches
-      // lastActivityTs in the daemon and would defer the reaper forever.
-      // Sleep 17s (15s idle window + ~2s for first 1s-interval check),
-      // then probe once.
-      await new Promise((r) => setTimeout(r, 17_000));
-
-      const res = await fetch(`${baseUrl}/health`).catch(() => null);
-      const elapsed = Date.now() - killTs;
-      const dead = res === null;
-      console.log(`[p2-cascade] elapsed=${elapsed}ms dead=${dead} status=${res?.status ?? "no-response"}`);
-
-      expect(dead, `daemon still alive ${elapsed}ms after MCP SIGKILL; reaper did not fire (MCP_SERVER_MODE idle window not in effect?)`).toBe(true);
-      // Sanity bounds on elapsed: must be in the 15-20s window the test sleep
-      // dictates. Anything outside means the test plumbing is off, not the
-      // reaper.
-      expect(elapsed).toBeGreaterThan(15_000);
-      expect(elapsed).toBeLessThan(22_000);
+      expect(await portRefused(port)).toBe(true);
+      expect(existsSync(pidFile)).toBe(false);
     } finally {
       try { mcp.kill("SIGKILL"); } catch {}
       await rm(home, { recursive: true, force: true });

@@ -60,12 +60,16 @@ describe("@unbrowse/client fetch drop-in", () => {
 	it("hits a real URL with zero config (network)", async () => {
 		// Network-gated: proves the default really is native fetch. Tolerant of
 		// offline CI — only asserts shape when the call resolves.
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 1_500);
 		try {
-			const res = await unfetch("https://example.com");
+			const res = await unfetch("https://example.com", { signal: controller.signal });
 			expect(res.status).toBe(200);
 			expect(await res.text()).toContain("Example Domain");
 		} catch {
 			// offline — the prior pure tests already prove the wrapper contract.
+		} finally {
+			clearTimeout(timeout);
 		}
 	});
 });

@@ -41,6 +41,7 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
       UNBROWSE_URL: baseUrl,
       UNBROWSE_DISABLE_AUTO_UPDATE: "1",
       UNBROWSE_LOCAL_ONLY: "1",
+      UNBROWSE_RESOLVE_CACHE_TTL_MS: "0",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -109,6 +110,79 @@ describe("cli agent experience", () => {
     });
   });
 
+  it("accepts --intent on canonical read resolve and returns the agent-facing resolve envelope", async () => {
+    await withStubServer(async (req, requests) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        expect(requests.at(-1)?.body).toMatchObject({
+          intent: "resolve repository data for github.com",
+          params: { url: "https://github.com" },
+          context: { url: "https://github.com" },
+        });
+        return Response.json({
+          trace: {
+            success: true,
+            skill_id: "direct-document",
+            endpoint_id: "direct-document",
+          },
+          source: "direct-document",
+          impact: { source: "direct-document", browser_avoided: true },
+          result: {
+            title: "GitHub",
+            url: "https://github.com",
+            text_excerpt: "GitHub page content",
+            extraction: { source: "direct-document", rejected: false },
+          },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const proc = Bun.spawn([
+        process.execPath,
+        "src/cli.ts",
+        "read",
+        "resolve",
+        "--intent", "resolve repository data for github.com",
+        "--url", "https://github.com",
+        "--json",
+        "--no-auto-start",
+      ], {
+        cwd: ROOT,
+        env: {
+          ...process.env,
+          UNBROWSE_URL: baseUrl,
+          UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+          UNBROWSE_LOCAL_ONLY: "1",
+          UNBROWSE_NO_SWEEP: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+
+      const [code, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+
+      expect(code).toBe(0);
+      expect(stderr).not.toContain("intent_required");
+      const body = JSON.parse(stdout.trim()) as Record<string, unknown>;
+      expect(body.source).toBe("direct-document");
+      const result = body.result as Record<string, unknown>;
+      expect(result.available_operations).toEqual([
+        expect.objectContaining({
+          endpoint_id: "direct-document-read",
+          url_template: "https://github.com",
+        }),
+      ]);
+      expect(result.suggested_next_operation_id).toBe("direct-document-read");
+      expect(result.next_action).toMatchObject({ title: "Use returned direct-document data" });
+      expect(JSON.stringify(result.next_action)).toContain("unbrowse read resolve");
+    });
+  });
+
   it("runs a URL and positional task through resolve without requiring flag juggling", async () => {
     await withStubServer(async (req, requests) => {
       const path = new URL(req.url).pathname;
@@ -134,6 +208,116 @@ describe("cli agent experience", () => {
 
       expect(out.code).toBe(0);
       expect(out.body.result).toEqual({ status: "ok", items: [{ title: "beige shirt" }] });
+    });
+  });
+
+  it("adds agent-facing operation guidance to direct-document resolve results", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          trace: {
+            success: true,
+            skill_id: "direct-document",
+            endpoint_id: "direct-document",
+          },
+          source: "direct-document",
+          impact: { source: "direct-document", browser_avoided: true },
+          result: {
+            title: "GitHub",
+            url: "https://github.com",
+            text_excerpt: "GitHub page content",
+            extraction: { source: "direct-document", rejected: false },
+          },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://github.com",
+        "--intent", "resolve repository data for github.com",
+      ]);
+
+      expect(out.code).toBe(0);
+      const result = out.body.result as Record<string, unknown>;
+      expect(result.available_operations).toEqual([
+        expect.objectContaining({
+          operation: "read_returned_direct_document",
+          endpoint_id: "direct-document-read",
+          method: "GET",
+          url_template: "https://github.com",
+        }),
+      ]);
+      expect(result.suggested_next_operation_id).toBe("direct-document-read");
+      expect(result.next_action).toMatchObject({
+        title: "Use returned direct-document data",
+      });
+      expect(JSON.stringify(result.next_action)).toContain("unbrowse read resolve");
+      expect(JSON.stringify(result.next_action)).toContain("--force-capture");
+      expect(out.body.source).toBe("direct-document");
+    });
+  });
+
+  it("adds auth handoff requirements to auth-shaped direct-document resolve results", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          trace: {
+            success: true,
+            skill_id: "direct-document",
+            endpoint_id: "direct-document",
+          },
+          source: "direct-document",
+          impact: { source: "direct-document", browser_avoided: true },
+          result: {
+            url: "https://mail.google.com",
+            data: {},
+            extraction: { source: "direct-document", rejected: false },
+          },
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--url", "https://mail.google.com",
+        "--intent", "resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com",
+      ]);
+
+      expect(out.code).toBe(0);
+      const result = out.body.result as Record<string, unknown>;
+      const requirements = result.requirements as Record<string, unknown>;
+      const auth = requirements.auth_handoff as Record<string, unknown>;
+      expect(result.status).toBe("needs_input");
+      expect(auth).toMatchObject({
+        login_required: true,
+        domain: "mail.google.com",
+        web_login_url: "https://mail.google.com/",
+        reason: "auth_likely_intent",
+      });
+      expect(JSON.stringify(auth)).toContain("unbrowse auth");
+      expect(result.next_action).toMatchObject({
+        title: "Authenticate with site, then retry resolve",
+        command: "unbrowse auth 'https://mail.google.com/'",
+      });
+      expect(result.suggested_next_operation_id).toBe("auth-handoff");
+      expect(result.available_operations).toEqual([
+        expect.objectContaining({
+          operation: "authenticate_site_then_retry",
+          endpoint_id: "auth-handoff",
+          url_template: "https://mail.google.com/",
+          requires_auth: true,
+        }),
+        expect.objectContaining({
+          operation: "read_returned_direct_document",
+          endpoint_id: "direct-document-read",
+          url_template: "https://mail.google.com",
+        }),
+      ]);
     });
   });
 

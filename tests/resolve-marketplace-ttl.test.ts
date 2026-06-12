@@ -1,8 +1,9 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { SkillManifest } from "../src/types/index.js";
 
 // In-memory backing store for the mocked client.getSkill — tests adjust it.
 let calls = 0;
-let backendImpl: (skillId: string, scope?: string) => Promise<unknown | null> = async (skillId: string) => ({
+let backendImpl: (skillId: string, scope?: string) => Promise<SkillManifest | null> = async (skillId: string) => ({
   skill_id: skillId,
   name: skillId,
   domain: "example.com",
@@ -15,28 +16,30 @@ let backendImpl: (skillId: string, scope?: string) => Promise<unknown | null> = 
   version: "1.0.0",
 });
 
-mock.module("../src/client/index.js", () => ({
-  getSkill: async (skillId: string, scope?: string) => {
-    calls++;
-    return backendImpl(skillId, scope);
-  },
-  cachePublishedSkill: () => {},
-  publishSkill: async () => ({}),
-  isLocalOnlyMode: () => true,
-  listSkills: async () => [],
-  updateEndpointScore: async () => {},
-}));
-
-// Late import so the mocked module is captured
 const {
   getSkillCached,
   invalidateMarketplaceCache,
   _clearMarketplaceCacheForTests,
   _marketplaceCacheSizeForTests,
+  _setMarketplaceClientForTests,
 } = await import("../src/marketplace/index.js");
+
+const originalLocalCaches = process.env.UNBROWSE_LOCAL_CACHES;
 
 beforeEach(() => {
   calls = 0;
+  process.env.UNBROWSE_LOCAL_CACHES = "1";
+  _setMarketplaceClientForTests({
+    getSkill: async (skillId: string, scope?: string) => {
+      calls++;
+      return backendImpl(skillId, scope);
+    },
+    cachePublishedSkill: () => {},
+    publishSkill: async (draft: any) => draft,
+    isLocalOnlyMode: () => false,
+    listSkills: async () => [],
+    updateEndpointScore: async () => {},
+  });
   _clearMarketplaceCacheForTests();
   backendImpl = async (skillId: string) => ({
     skill_id: skillId,
@@ -54,6 +57,9 @@ beforeEach(() => {
 
 afterEach(() => {
   _clearMarketplaceCacheForTests();
+  _setMarketplaceClientForTests(null);
+  if (originalLocalCaches === undefined) delete process.env.UNBROWSE_LOCAL_CACHES;
+  else process.env.UNBROWSE_LOCAL_CACHES = originalLocalCaches;
 });
 
 describe("marketplace TTL cache", () => {

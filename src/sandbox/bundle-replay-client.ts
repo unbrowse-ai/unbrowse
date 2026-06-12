@@ -114,9 +114,10 @@ export class BundleReplayError extends Error {
 
 export async function runBundleReplay(
   req: SandboxReplayRequest,
-  opts: { kuriBase?: string; signal?: AbortSignal } = {},
+  opts: { kuriBase?: string; signal?: AbortSignal; fetchImpl?: typeof fetch } = {},
 ): Promise<SandboxReplayResponse> {
   const base = opts.kuriBase ?? DEFAULT_KURI_BASE;
+  const fetchImpl = opts.fetchImpl ?? fetch;
   const body = JSON.stringify({
     target_origin: req.targetOrigin,
     target_href: req.targetHref,
@@ -139,7 +140,7 @@ export async function runBundleReplay(
     ...(req.proxy ? { proxy: req.proxy } : {}),
   });
 
-  const resp = await fetch(`${base}/v1/sandbox/replay`, {
+  const resp = await fetchImpl(`${base}/v1/sandbox/replay`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body,

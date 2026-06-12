@@ -692,7 +692,12 @@ client's \texttt{src/reverse-engineer/}) is in progress. The stateless binary wr
 local state (only pointers and signatures cross the wire).
 \item The runnable reference suite in \texttt{reference/} remains the
 cited foundation for each primitive above and for the parts not yet in the product:
-Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}). The
+Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}) and the
+inverse client/OS harness as a capability-gated, content-addressed pipe
+(\texttt{pipes/pipe\_contract.py}). The companion Aiko engine mirrors this boundary:
+the server owns recursive contract compilation, the CLI is the bridge, and the
+client sees only holes, approvals, and typed pointers rather than graph-control
+verbs. The
 on-chain deployment of the checkpoint root, the ERC-8004 registry binding, and a
 real signed OS/kernel/packet descent across platforms remain integration work,
 honestly labelled.

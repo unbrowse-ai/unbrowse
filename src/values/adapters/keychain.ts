@@ -16,7 +16,9 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { platform } from "node:os";
+import { existsSync } from "node:fs";
+import { homedir, platform } from "node:os";
+import { join } from "node:path";
 import { safeZero } from "../memzero.js";
 import { sign } from "../signer.js";
 import { filterAdapterStderr } from "../stderr-filter.js";
@@ -32,6 +34,10 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const SECURITY_BIN = "/usr/bin/security";
+// Match src/values/signer.ts: MCP/launchd-launched processes may not have a
+// default keychain bound. Passing the login keychain explicitly prevents the
+// macOS "Keychain Not Found" dialog and keeps misses as ordinary errors.
+const LOGIN_KEYCHAIN_PATH = join(homedir(), "Library", "Keychains", "login.keychain-db");
 
 /**
  * Known unbrowse keychain service prefixes to probe for candidates. We do NOT
@@ -169,6 +175,13 @@ export class KeychainAdapter implements ValueAdapter {
         "use op:// or bw:// instead",
       );
     }
+    if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+      throw new AdapterError(
+        "adapter_unavailable",
+        `macOS login keychain not found at ${LOGIN_KEYCHAIN_PATH}`,
+        "open Keychain Access or use op://, bw://, or arg:// instead",
+      );
+    }
     this.readyChecked = true;
   }
 
@@ -197,7 +210,7 @@ export class KeychainAdapter implements ValueAdapter {
       try {
         // NO -w, NO -g: only attribute metadata is printed (no secret).
         result = await spawnSecurity(
-          ["find-generic-password", "-s", service],
+          ["find-generic-password", "-s", service, LOGIN_KEYCHAIN_PATH],
           timeout,
         );
       } catch {
@@ -231,7 +244,7 @@ export class KeychainAdapter implements ValueAdapter {
     const timeout = ctx.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
     const result = await spawnSecurity(
-      ["find-generic-password", "-s", service, "-a", account, "-w"],
+      ["find-generic-password", "-s", service, "-a", account, "-w", LOGIN_KEYCHAIN_PATH],
       timeout,
     );
     if (result.exit !== 0) {

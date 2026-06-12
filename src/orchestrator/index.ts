@@ -3963,6 +3963,30 @@ export async function resolveAndExecute(
             timing: finalize("direct-document", directDoc, "direct-document", undefined as any, trace),
           };
         }
+        if (directDoc?.rejected && directDoc.reason === "interstitial_detected" && /\b(auth|authenticate|authenticated|login|logged in|sign in|signin|account|session|mail|inbox|console|dashboard|api key|credentials?)\b/i.test(queryIntent)) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(),
+            skill_id: "direct-document",
+            endpoint_id: "auth-handoff",
+            started_at: new Date(t0).toISOString(),
+            completed_at: new Date().toISOString(),
+            success: true,
+          };
+          console.log(`[direct-document] ${raceContextUrl} auth-shaped interstitial — returning auth handoff before exa/browser fallback`);
+          return {
+            result: {
+              status: "needs_input",
+              url: raceContextUrl,
+              rejected: true,
+              extraction: { source: "direct-document", rejected: true },
+              diagnostic: { reason: directDoc.reason, evidence: (directDoc as any).evidence },
+            },
+            trace,
+            source: "direct-document" as const,
+            skill: undefined as any,
+            timing: finalize("direct-document", null, "direct-document", undefined as any, trace),
+          };
+        }
         // Probe said HTML but the document was rejected/thin (likely an SPA
         // shell) — fall through to Exa / the serial ladder as the genuine fallback.
         console.log(`[direct-document] ${raceContextUrl} probe said HTML but direct-document rejected — falling through to exa`);
@@ -4824,6 +4848,26 @@ export async function resolveAndExecute(
               // per CF-blocked probe when curl_cffi is the answer (TLS-fingerprint
               // class). When curl_cffi also fails (JS-challenge class), the
               // existing browser ladder still runs as the final fallback.
+              if (directDocument.reason === "interstitial_detected" && /\b(auth|authenticate|authenticated|login|logged in|sign in|signin|account|session|mail|inbox|console|dashboard|api key|credentials?)\b/i.test(queryIntent)) {
+                const trace: ExecutionTrace = {
+                  trace_id: nanoid(),
+                  skill_id: "direct-document",
+                  endpoint_id: "auth-handoff",
+                  started_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                  success: true,
+                };
+                const result = {
+                  status: "needs_input",
+                  url: context.url,
+                  rejected: true,
+                  extraction: { source: "direct-document", rejected: true },
+                  diagnostic: { reason: directDocument.reason, evidence: (directDocument as any).evidence },
+                };
+                const t = finalize("direct-document", result, "direct-document", undefined as any, trace);
+                console.log(`[direct-document] ${context.url} auth-shaped interstitial — returning auth handoff before curl/browser fallback`);
+                return { result, trace, source: "direct-document" as any, skill: undefined as any, timing: t };
+              }
               if (directDocument.reason === "interstitial_detected") {
                 try {
                   // tryCurlImpersonateFetch hoisted to module-top static import.
