@@ -415,6 +415,17 @@ export interface Env {
    */
   FLEX_PLATFORM_FACILITATOR_KEY?: string;     // secret (set via wrangler secret put)
   FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string;  // public binding
+
+  /**
+   * Custodial indexer payout (services/disburse.ts). The platform pays each
+   * indexer their attribution-credited cut via a direct USDC SPL transfer from
+   * the funded platform wallet (CASCADE_SIGNER_SECRET_KEY). DISBURSE_ENABLED is
+   * a hard gate: when unset/"0", executePayouts() refuses to move funds and
+   * only the dry-run plan is available. DISBURSE_MIN_USD skips dust below the
+   * threshold (default $0.10) so the SPL fee never exceeds the payout.
+   */
+  DISBURSE_ENABLED?: string;                  // secret/binding: "1" to allow real transfers
+  DISBURSE_MIN_USD?: string;                  // public binding, defaults to "0.1"
   FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
   FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
   /**

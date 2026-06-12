@@ -32,6 +32,7 @@ import {
   persistBatch,
   readBatch,
 } from "../services/settlement.js";
+import { computePayoutPlan, executePayouts } from "../services/disburse.js";
 
 type AdminEnv = { Bindings: Env; Variables: Record<string, never> };
 
@@ -390,4 +391,42 @@ adminRoutes.get("/admin/settlement/:batch_id", async (c) => {
     return c.json({ error: "batch_not_found", batch_id: batchId }, 404);
   }
   return c.json({ batch });
+});
+
+/**
+ * GET /v1/admin/disburse/plan — DRY RUN. Computes the custodial indexer payout
+ * plan (who is owed how much) WITHOUT moving any funds. Always safe to call.
+ */
+adminRoutes.get("/admin/disburse/plan", async (c) => {
+  if (!isAdmin(c)) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const plan = await computePayoutPlan(c.env);
+  return c.json({ dry_run: true, ...plan });
+});
+
+/**
+ * POST /v1/admin/disburse — execute the custodial payout sweep. Defaults to a
+ * DRY RUN; only moves funds when the body carries `{"execute": true}` AND the
+ * DISBURSE_ENABLED gate is on AND the platform signer is configured. The
+ * service refuses (executed:false + reason) otherwise, so an accidental call
+ * can never disburse.
+ */
+adminRoutes.post("/admin/disburse", async (c) => {
+  if (!isAdmin(c)) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as { execute?: boolean };
+  if (body.execute !== true) {
+    const plan = await computePayoutPlan(c.env);
+    return c.json({
+      executed: false,
+      reason: "dry_run_default",
+      hint: 'POST { "execute": true } to disburse (requires DISBURSE_ENABLED=1)',
+      plan,
+    });
+  }
+  const result = await executePayouts(c.env);
+  const status = result.executed ? 200 : 409;
+  return c.json(result, status);
 });
