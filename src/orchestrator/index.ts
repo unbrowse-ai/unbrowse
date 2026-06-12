@@ -3973,9 +3973,12 @@ export async function resolveAndExecute(
       const exaBudgetMs = Math.max(1000, budgetMs - raceOutcome.ms);
       type ExaHit = { url: string; title?: string; score: number; highlights?: string[] };
       let exaHits: ExaHit[] = [];
+      // Honest provenance: the backend's provider chain reports which engine
+      // ("exa" | "ddg") actually produced the hits; thread it to the agent.
+      let webProvider: string | undefined;
       try {
         const exaSearch = await Promise.race<
-          | { exa_results?: ExaHit[] }
+          | { exa_results?: ExaHit[]; web_search_provider?: string }
           | null
         >([
           (options?.exaSearchOverride ?? searchIntentResolve)(
@@ -3987,8 +3990,9 @@ export async function resolveAndExecute(
           new Promise((res) => setTimeout(() => res(null), exaBudgetMs)),
         ]);
         exaHits = exaSearch?.exa_results ?? [];
+        webProvider = exaSearch?.web_search_provider;
       } catch {
-        // Exa fallback is best-effort. X402 / network errors fall through.
+        // Web-search fallback is best-effort. X402 / network errors fall through.
       }
       // Quality-gate exa hits (bench-honesty fix, contract:82b55200): zero-score
       // candidates whose highlights don't contain intent tokens are useless to
@@ -4070,6 +4074,7 @@ export async function resolveAndExecute(
                 }
               : { exa_answer: false }),
             exa_candidates: candidates,
+            ...(webProvider && { web_search_provider: webProvider }),
             probe_evidence: { status: w.status, content_type: w.content_type, byte_length: w.byte_length, ...(w.method_used ? { method_used: w.method_used } : {}) },
             // Day-6 W1: the synthesized `exa-web-search` skill is preview-only.
             // It is NOT round-trippable via `unbrowse execute --skill exa-web-search`
@@ -4499,7 +4504,7 @@ export async function resolveAndExecute(
     if (typeof searchResponse.actual_cost_uc === "number" && searchResponse.actual_cost_uc > 0) {
       timing.paid_search_uc = searchResponse.actual_cost_uc;
     }
-    const { domain_results: domainResults, global_results: globalResults, exa_results: exaResults } = searchResponse as typeof searchResponse & { exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }> };
+    const { domain_results: domainResults, global_results: globalResults, exa_results: exaResults, web_search_provider: serialWebProvider } = searchResponse as typeof searchResponse & { exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>; web_search_provider?: string };
     timing.search_ms = Date.now() - ts0;
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
@@ -5011,6 +5016,7 @@ export async function resolveAndExecute(
             source_title: richHit.title,
             exa_answer: true,
             exa_candidates: candidates,
+            ...(serialWebProvider && { web_search_provider: serialWebProvider }),
             // Day-6 W1: same round-trippability hint as the probe-fallback
             // path. exa-web-search is preview-only; execute will fail with
             // "Skill not found". Agents should call unbrowse_fetch on

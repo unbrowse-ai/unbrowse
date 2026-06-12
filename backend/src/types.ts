@@ -16,6 +16,15 @@ export interface Env {
    */
   BIBLE_ANCHOR_ORDER?: string;
   NEBIUS_API_KEY: string;
+  /**
+   * Web-search provider chain (services/web-search/). When set, Exa is the
+   * primary engine (real relevance scores + highlights); the keyless DDG
+   * scraper remains the fail-soft fallback. Set via `wrangler secret put
+   * EXA_API_KEY`. Absent → DDG only, same behavior as before the adapter.
+   */
+  EXA_API_KEY?: string;
+  /** Pin the web-search chain: "exa" | "ddg" | "off". Unset = auto (exa when keyed, else ddg). */
+  WEB_SEARCH_PROVIDER?: string;
   /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */
   OPENROUTER_API_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
@@ -406,6 +415,17 @@ export interface Env {
    */
   FLEX_PLATFORM_FACILITATOR_KEY?: string;     // secret (set via wrangler secret put)
   FLEX_PLATFORM_RECIPIENT_USDC_ATA?: string;  // public binding
+
+  /**
+   * Custodial indexer payout (services/disburse.ts). The platform pays each
+   * indexer their attribution-credited cut via a direct USDC SPL transfer from
+   * the funded platform wallet (CASCADE_SIGNER_SECRET_KEY). DISBURSE_ENABLED is
+   * a hard gate: when unset/"0", executePayouts() refuses to move funds and
+   * only the dry-run plan is available. DISBURSE_MIN_USD skips dust below the
+   * threshold (default $0.10) so the SPL fee never exceeds the payout.
+   */
+  DISBURSE_ENABLED?: string;                  // secret/binding: "1" to allow real transfers
+  DISBURSE_MIN_USD?: string;                  // public binding, defaults to "0.1"
   FLEX_REFUND_TIMEOUT_SLOTS?: string;         // public binding, defaults to "150"
   FLEX_DEADMAN_TIMEOUT_SLOTS?: string;        // public binding, defaults to "1000"
   /**

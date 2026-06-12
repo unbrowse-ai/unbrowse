@@ -26,7 +26,6 @@ export function Navbar() {
   const { theme, toggle } = useTheme();
   const { isAuthenticated } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [marketOpen, setMarketOpen] = useState(false);
 
   return (
     <nav
@@ -58,61 +57,7 @@ export function Navbar() {
 
         {/* Desktop nav links — 5 primary items */}
         <div className="hidden md:flex items-center gap-1">
-          {/* Marketplace — hover-dropdown mega menu */}
-          <div
-            className="relative"
-            onMouseEnter={() => setMarketOpen(true)}
-            onMouseLeave={() => setMarketOpen(false)}
-          >
-            <Link
-              href="/search"
-              className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors inline-flex items-center gap-1"
-              onFocus={() => setMarketOpen(true)}
-              onBlur={() => setMarketOpen(false)}
-              aria-haspopup="menu"
-              aria-expanded={marketOpen}
-            >
-              Marketplace
-              <svg
-                className="w-3 h-3 opacity-60"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </Link>
-            {marketOpen && (
-              <div
-                role="menu"
-                aria-label="Marketplace submenu"
-                className="absolute left-0 top-full pt-2"
-              >
-                <div className="min-w-[200px] bg-[#060402]/95 backdrop-blur-md border border-[rgba(255,122,32,0.25)] rounded-sm shadow-xl shadow-black/40 py-1.5">
-                  <Link
-                    href="/search"
-                    className="block px-4 py-2 text-sm font-mono text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.08)] hover:text-[rgba(255,176,96,1)] transition-colors"
-                  >
-                    Registry
-                    <span className="block text-[10px] text-text-muted mt-0.5">
-                      All captured routes
-                    </span>
-                  </Link>
-                  <Link
-                    href="/how-unbrowse-pays"
-                    className="block px-4 py-2 text-sm font-mono text-[rgba(255,176,96,0.85)] hover:bg-[rgba(255,122,32,0.08)] hover:text-[rgba(255,176,96,1)] transition-colors"
-                  >
-                    How Unbrowse pays
-                    <span className="block text-[10px] text-text-muted mt-0.5">
-                      Free discovery, fair payouts
-                    </span>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
+          <NavLink href="/how-unbrowse-pays">How Unbrowse pays</NavLink>
 
           <a
             href="https://docs.unbrowse.ai"
@@ -291,9 +236,6 @@ export function Navbar() {
           className="md:hidden border-t border-white/8 bg-black/40 backdrop-blur-md"
         >
           <div className="px-6 py-4 space-y-0.5">
-            <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>
-              Marketplace
-            </MobileNavLink>
             <MobileNavLink href="/how-unbrowse-pays" onClick={() => setMobileOpen(false)}>
               How Unbrowse pays
             </MobileNavLink>

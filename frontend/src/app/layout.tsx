@@ -5,7 +5,6 @@ import { AuthProvider } from "@/lib/auth-context";
 import { PrivyOptionalProvider } from "@/lib/privy-provider";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
-import { LiveTicker } from "@/components/live-ticker";
 import { DocsEmbed } from "@/components/docs-embed";
 import { ContentPageTracker } from "@/components/content-page-tracker";
 import "./globals.css";
@@ -200,7 +199,6 @@ export default function RootLayout({
               <main className="min-h-screen">
                 {children}
               </main>
-              <LiveTicker />
               <SiteFooter />
               <DocsEmbed />
             </AuthProvider>

@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "target_source": "bench/exa/TARGETS.md",
+  "entries": [
+    {
+      "id": "browsecomp-fast-historical",
+      "path": "bench/browsecomp/beat-exa-gate.sh",
+      "lane": "browsecomp",
+      "evidence_class": "historical-fast",
+      "target": 0.336,
+      "minimum_n": null,
+      "release_eligible": false,
+      "reason": "Reads best historical log and can pass on a refuted noisy N=10 sample; triage only.",
+      "replacement": "bench/browsecomp/beat-exa-robust-gate.sh"
+    },
+    {
+      "id": "browsecomp-robust-historical",
+      "path": "bench/browsecomp/beat-exa-robust-gate.sh",
+      "lane": "browsecomp",
+      "evidence_class": "robust-historical",
+      "target": 0.336,
+      "minimum_n": 25,
+      "release_eligible": true,
+      "reason": "Reads only completed BrowseComp logs with N above the robust floor before comparing to Exa 0.336."
+    },
+    {
+      "id": "browsecomp-live-rerun",
+      "path": "bench/browsecomp/browsecomp-gate.sh",
+      "lane": "browsecomp",
+      "evidence_class": "live-rerun",
+      "target": 0.336,
+      "minimum_n": 10,
+      "release_eligible": false,
+      "reason": "Reruns the real eval, but default N=10 is bounded-cost and noisy; release use must raise BROWSECOMP_GATE_N."
+    },
+    {
+      "id": "seal0-invariants",
+      "path": "bench/exa/test_seal0_invariants.py",
+      "lane": "exa",
+      "evidence_class": "invariant",
+      "target": null,
+      "minimum_n": null,
+      "release_eligible": true,
+      "reason": "Foundation check: silent empty predictions and answer-key leakage fail before any SEAL-0 win claim."
+    },
+    {
+      "id": "exa-live-head-to-head",
+      "path": "bench/exa/head-to-head.sh",
+      "lane": "exa",
+      "evidence_class": "live-comparison",
+      "target": null,
+      "minimum_n": null,
+      "release_eligible": false,
+      "reason": "Useful live comparison of cached unbrowse against Exa, but not one of the pinned suite metrics in TARGETS.md."
+    },
+    {
+      "id": "paper-reflects-code",
+      "path": "scripts/paper-gate.sh",
+      "lane": "paper",
+      "evidence_class": "artifact-gate",
+      "target": null,
+      "minimum_n": null,
+      "release_eligible": true,
+      "reason": "Public artifact gate: shipped claims must anchor to code and the paper must not leak moat terms."
+    },
+    {
+      "id": "public-moat-leak-guard",
+      "path": "scripts/leak-guard.sh",
+      "lane": "release",
+      "evidence_class": "artifact-gate",
+      "target": null,
+      "minimum_n": null,
+      "release_eligible": true,
+      "reason": "Release/public-surface gate: prevents private harness, moat, vocab, and unreleased privacy terms from shipping."
+    }
+  ]
+}
