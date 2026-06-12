@@ -84,10 +84,29 @@ out into a client module.
   3. PORT `backend/src/routes/reveng.ts` off the `../../../src` import → a private
      `backend/src/services/reveng.ts` (so the inference isn't in the public bundle).
   4. Verify: gate shows reverse-engineer gone; `bun test tests/reveng-server-first.test.ts`.
-- [ ] **② ranking → 0 (gate →4)** — decouple `execution` from `ranking/signals`: move the
-  weighted scorer to the backend port (already exists for the authoritative path); leave a
-  basic local fallback that does NOT import `ranking/signals`. Repoint `trust/*` freshness +
-  `reverse-engineer` noise-pattern import.
+- [ ] **② ranking → 0 (gate 3→2)** — FULLY MAPPED (2026-06-13). Owner chose LITERAL gate-0.
+  4 edges, 3 safe + 1 risky:
+  - [x] **trust edge** — `freshness.ts` (published paper math, not moat) relocated
+    `src/ranking/` → `src/lib/freshness.ts`; trust/{proof-of-indexing,refresh-job} + the test
+    repointed; `tests/composite-scoring.test.ts` 22✓. (this session)
+  - [ ] **api + orchestrator edges** — the dispatcher `ranking/index.ts` is THIN (imports only
+    `execution` rankEndpoints + `client` rankEndpointsRemote, NO weights). Move
+    `rankEndpointsServerFirst` + the `rankEndpoints` re-export to a non-`ranking` module
+    (e.g. `src/client/rank-server-first.ts`); repoint `api/routes.ts:1974` +
+    `orchestrator/index.ts:2406` (+ orchestrator's unused-looking `rankEndpoints` import).
+    SAFE — thin dispatcher, no weight code moves.
+  - [ ] **execution edge (THE risky one — do with the oracle)** — `execution/index.ts` imports
+    `../ranking/{signals/*,clamps,filters/noise-patterns}` and uses them INSIDE `rankEndpoints`
+    (defn `execution/index.ts:6156`, ~350 lines, weight uses 6165–6487). `rankEndpoints` has
+    ZERO external sync callers (api+orchestrator already use the async serverFirst); the ONLY
+    sync call is execution-internal at `execution/index.ts:7274`. Recipe: extract `rankEndpoints`
+    + its weight imports + the tokenization helpers it needs (`tokenize/expandQuery/
+    endpointToTokens` — currently execution-local) into `src/ranking/local-scorer.ts`; make
+    `execution:7274` reach it via the async serverFirst (or lazy `import()`); the serverFirst
+    wrapper's `local()` lazy-imports it (the ① pattern). **ORACLE: `tests/ranking-parity.test.ts`
+    holds a byte-identical baseline — run before/after; it proves the extraction didn't change
+    scoring.** Risk = blast radius in the 7000-line execution file; needs a focused pass, not a
+    long-session tail.
 - [ ] **③ extraction → 0** — same pattern; `extraction` is small.
 - [ ] **④ indexer → 0** — admission/scoring server-side via `/v1/index/admit`; local queue +
   disk cache stay client but must not import the moat.
@@ -100,6 +119,40 @@ out into a client module.
   → `unbrowse-ai/unbrowse`. ⚠️ DO NOT mirror before gate 0: dev still contains the moat
   engine (graph/indexer/ranking + the reverse-engineer fallback), so an early mirror
   re-exposes everything the scrub removed. Gate-0 is the hard precondition for this node.
+
+## FORENSIC MAP — ranking is a MIX, not uniform moat (session 2026-06-13)
+Exact closure edges (symbols) keeping each moat dir reachable:
+- **ranking ← {api, execution, orchestrator, trust}**
+  - `api/routes.ts` → `rankEndpointsServerFirst` (the server-first entry — already exists)
+  - `orchestrator/index.ts` → `rankEndpoints, rankEndpointsServerFirst`
+  - `trust/{proof-of-indexing,refresh-job}.ts` → `freshness, freshnessFromDate`
+  - `execution/index.ts` → `ranking/signals/{ledger-energy,learned-energy,bm25,intent-yield}`,
+    `ranking/filters/noise-patterns`, `ranking/clamps`  ← THE crux edge (the weights)
+  - **Surprise:** `rankEndpoints` (the scorer) physically lives in `execution/index.ts`;
+    `ranking/index.ts` only RE-EXPORTS it (circular). So the dir holds WEIGHTS, not the scorer.
+- **Moat-value triage of `ranking/`:**
+  - NOT moat (published/standard): `bm25.ts` (textbook BM25 `K1=1.2,B=0.75`), `freshness.ts`
+    (formula from the public paper `1/(1+d/30)`), `clamps.ts`.
+  - REAL moat: `signals/route-head.embedded.ts` (512 trained EBM weights compiled into SOURCE),
+    `signals/learned-energy.ts` (the featurizer + loader), `bench/ebm/energy-head*.json`
+    (trained head data files). THIS is the reverse-engineerable trained-model IP.
+- **graph ← 9 dirs** (api, capture, cli-v7, execution, indexer, marketplace, orchestrator,
+  publish, ranking) — the worst; 1745-line monolith. **indexer ← 3** (api, execution,
+  orchestrator); delegates to graph.
+- **Live public repo (d21d67d):** reverse-engineer/graph/ranking/indexer/**execution**/extraction
+  ALL already scrubbed (more than the 4 moat dirs). Surviving public dirs (api/cli/client/
+  browser/orchestrator/…) still import the deleted dirs → broken build (the accepted state).
+- **There is NO safe gate-moving change for ranking without the product decision below** —
+  every importer either pulls the weights (execution) or the server-first entry. Cutting the
+  weights requires deciding the offline scorer.
+
+## OPEN DECISION (blocks ranking; owner's call — see this turn's question)
+What is the offline/degraded ranking when the trained weights leave the public client?
+- **(A) surgical:** keep published signals (bm25/freshness/clamps) client as the trivial
+  fallback; move ONLY the trained head (route-head.embedded + learned-energy + bench/ebm)
+  server-only. Narrow the MOAT set to the trained-IP files, not the whole `ranking` dir.
+- **(B) literal:** drive the binary gate to 0 — move ALL of ranking/graph/indexer server-side,
+  including textbook BM25 + the published freshness formula. More work, no extra IP protection.
 
 ## Guardrails
 - Each checkpoint ships a no-raw-secret-leak test (the ① test is the template).
