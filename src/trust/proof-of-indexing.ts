@@ -21,7 +21,7 @@
  * `sha256:` pointer (NOT sorted-key — byte-compat with covenant-binary).
  */
 // cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
-import { freshnessFromDate } from "../ranking/freshness.js";
+import { freshnessFromDate } from "../lib/freshness.js";
 import type { Signer } from "../covenant-seed.js";
 
 // ─── schema fingerprint: the checkable "what was observed" ───────────────────

@@ -32,7 +32,7 @@ import {
 import {
   freshness,
   freshnessFromDate,
-} from "../src/ranking/freshness.js";
+} from "../src/lib/freshness.js";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 

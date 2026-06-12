@@ -1,5 +1,6 @@
 /**
- * src/ranking/freshness.ts — P2 Wave-1 (freshness decay).
+ * src/lib/freshness.ts — freshness decay (relocated from src/ranking/; published
+ * paper math, not moat — a neutral util kept off the moat boundary).
  *
  * Implements the paper's freshness function from arXiv:2604.00694v1 §6.3:
  *
