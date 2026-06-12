@@ -1,5 +1,7 @@
 # Changelog
 
+## [8.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.6...v8.3.0) (2026-06-12)
+
 ## [8.3.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.5...v8.3.0-preview.6) (2026-06-12)
 
 ### Bug Fixes
