@@ -1,4 +1,4 @@
-import { buildSkillOperationGraph } from "../graph/index.js";
+import { buildSkillOperationGraph } from "../lib/graph-core/index.js";
 import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import {
@@ -22,7 +22,7 @@ import { sanitizeForPublish } from "../publish/sanitize.js";
 import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 import { getUnbrowseConfigPath } from "../settings.js";
-import { getEndpointDescriptionMetadata } from "../graph/index.js";
+import { getEndpointDescriptionMetadata } from "../lib/graph-core/index.js";
 import { applyBindingReviews, applyResponseSchemaReviews } from "../publish/schema-review.js";
 import { getContributionConfig } from "../config/contribution.js";
 import { writeJob, listJobs, heartbeatAgeMs, tryAcquireWorkerSlot, sanitizeDomain, type JobEnvelope } from "./queue-store.js";

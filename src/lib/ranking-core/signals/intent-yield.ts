@@ -33,7 +33,7 @@
  */
 
 import type { EndpointDescriptor } from "../../../types/skill.js";
-import { resolveEndpointSemantic } from "../../../graph/index.js";
+import { resolveEndpointSemantic } from "../../../lib/graph-core/index.js";
 import {
   intentResourceKinds,
   intentActionKinds,

@@ -82,11 +82,11 @@ mock.module("../src/indexer/index.js", () => ({
   queueBackgroundIndex: () => {},
 }));
 
-mock.module("../src/graph/index.js", () => ({
+mock.module("../src/lib/graph-core/index.js", () => ({
   buildSkillOperationGraph: () => ({ nodes: [], edges: [] }),
 }));
 
-mock.module("../src/graph/agent-augment.js", () => ({
+mock.module("../src/lib/graph-core/agent-augment.js", () => ({
   augmentEndpointsWithAgent: async (endpoints: unknown) => endpoints,
 }));
 

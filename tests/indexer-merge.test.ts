@@ -6,7 +6,7 @@ import type { SkillManifest, EndpointDescriptor } from "../src/types/skill.js";
 
 // We test the merge logic directly — no mocks, real filesystem, real functions
 import { mergeEndpoints } from "../src/marketplace/index.js";
-import { buildSkillOperationGraph } from "../src/graph/index.js";
+import { buildSkillOperationGraph } from "../src/lib/graph-core/index.js";
 
 function makeEndpoint(overrides: Partial<EndpointDescriptor> & { endpoint_id: string; url_template: string }): EndpointDescriptor {
   return {

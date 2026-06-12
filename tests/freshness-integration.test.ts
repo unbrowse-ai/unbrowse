@@ -39,7 +39,7 @@
  * `csrf_token` binding under `semantic.requires` (URL query param) with
  * ttl_ms=2000, but `inferProvidesFromFields` does NOT auto-emit
  * `provides[csrf_token]` for a body field of that name (it only emits
- * IDs/URLs/names — see `src/graph/index.ts:inferProvidesFromFields`).
+ * IDs/URLs/names — see `src/lib/graph-core/index.ts:inferProvidesFromFields`).
  * In production the indexer or agent enriches `provides` after capture;
  * here the tests construct the producer endpoint by reusing the
  * captured binding's metadata (ttl_ms / observed_at / single_use)

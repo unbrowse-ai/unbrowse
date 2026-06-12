@@ -13,7 +13,7 @@ import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
-import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../lib/graph-core/index.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
@@ -24,7 +24,7 @@ import { getContributionConfig, setContributionConfig, type ContributionConfig }
 import { isPassiveIndexEnabled } from "../capture/passive-index.js";
 import { getSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
-import { getRecentTraces } from "../graph/trace-store.js";
+import { getRecentTraces } from "../lib/graph-core/trace-store.js";
 import { executeSkill, withExecuteDeadline } from "../execution/index.js";
 import { rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {

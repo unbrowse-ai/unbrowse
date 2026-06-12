@@ -11,8 +11,8 @@ import type { SkillManifest } from "../types/index.js";
 import {
   fetchDagAdvisoryPlan as localFetchDagAdvisoryPlan,
   applyDagAdvisoryBoosts,
-} from "../graph/planner.js";
-import type { DagAdvisoryPlan } from "../graph/planner.js";
+} from "../lib/graph-core/planner.js";
+import type { DagAdvisoryPlan } from "../lib/graph-core/planner.js";
 import { fetchChain } from "../client/graph-client.js";
 
 export { applyDagAdvisoryBoosts };

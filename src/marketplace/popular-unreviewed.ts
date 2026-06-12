@@ -25,7 +25,7 @@
  */
 
 import * as client from "../client/index.js";
-import { getRecentTraces, type StoredTrace } from "../graph/trace-store.js";
+import { getRecentTraces, type StoredTrace } from "../lib/graph-core/trace-store.js";
 import { readWorkflowPublishArtifact } from "../workflow/publish.js";
 import type { SkillManifest } from "../types/skill.js";
 

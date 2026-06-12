@@ -17,7 +17,7 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   const hash = createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url");
   return hash.slice(0, 21); // same length as nanoid
 }
-import { inferEndpointSemantic, resolveEndpointPathBindings } from "../graph/index.js";
+import { inferEndpointSemantic, resolveEndpointPathBindings } from "../lib/graph-core/index.js";
 import { parseMaxAge, parseExpiresIn, isCsrfShapedKey } from "../orchestrator/dag-feedback.js";
 import type { OperationBinding } from "../types/index.js";
 import { writeDebugTrace } from "../debug-trace.js";

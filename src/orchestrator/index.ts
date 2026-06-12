@@ -26,7 +26,7 @@ import {
   toAgentWorkflowDagView,
   applyProjectedEdgeConfidences,
   filterDagOperationsByRankedEndpoints,
-} from "../graph/index.js";
+} from "../lib/graph-core/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain, isSameBrandDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams, normalizeQueryBindingKey } from "../template-params.js";
@@ -35,7 +35,7 @@ import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationG
 import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client/graph-client.js";
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
-import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
+import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";

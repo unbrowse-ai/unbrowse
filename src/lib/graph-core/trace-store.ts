@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { isStateless } from "../state/stateless.js";
+import { isStateless } from "../../state/stateless.js";
 
 export interface StoredTrace {
   trace_id: string;
