@@ -82,6 +82,39 @@ describe("kuri client", () => {
     expect(kuri.findKuriBinary()).toBe(binaryPath);
   });
 
+  it("finds the vendored Kuri binary one level up when packageRoot is the bundled runtime dir", () => {
+    // Regression: the published/dev layout ships the runtime under
+    // `<pkg>/runtime/` (its own package.json), so getPackageRoot() lands on the
+    // runtime dir while vendor/kuri lives at `<pkg>/vendor/kuri/`. The broker
+    // resolver must probe the parent, not only packageRoot itself.
+    delete process.env.KURI_BIN;
+    const pkg = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-runtime-"));
+    tmpDirs.push(pkg);
+    const runtimeRoot = path.join(pkg, "runtime");
+    mkdirSync(runtimeRoot, { recursive: true });
+    process.env.UNBROWSE_PACKAGE_ROOT = runtimeRoot;
+
+    const target = process.platform === "darwin" && process.arch === "arm64"
+      ? "darwin-arm64"
+      : process.platform === "darwin" && process.arch === "x64"
+        ? "darwin-x64"
+        : process.platform === "linux" && process.arch === "arm64"
+          ? "linux-arm64"
+          : process.platform === "linux" && process.arch === "x64"
+            ? "linux-x64"
+            : null;
+    if (!target) return;
+
+    // Binary lives at the PARENT of the runtime dir (where getPackageRoot stops).
+    const binaryPath = path.join(pkg, "vendor", "kuri", target, process.platform === "win32" ? "kuri.exe" : "kuri");
+    mkdirSync(path.dirname(binaryPath), { recursive: true });
+    writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(binaryPath, 0o755);
+
+    expect(kuri.getKuriBinaryCandidates()).toContain(binaryPath);
+    expect(kuri.findKuriBinary()).toBe(binaryPath);
+  });
+
   it("retries spawn when kuri exits immediately and fails after max attempts", async () => {
     // A binary that exits with code 1 immediately simulates the LinkedIn spawn failure
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-retry-"));
@@ -198,7 +231,7 @@ exit 1
   it("unwraps broker Runtime.evaluate envelopes for text and markdown helpers", async () => {
     globalThis.fetch = (async (input) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.startsWith("http://127.0.0.1:7700/text")) {
+      if (url.includes("/text")) {
         return jsonResponse({
           id: 1,
           result: {
@@ -209,7 +242,7 @@ exit 1
           },
         });
       }
-      if (url.startsWith("http://127.0.0.1:7700/markdown")) {
+      if (url.includes("/markdown")) {
         return jsonResponse({
           id: 2,
           result: {
@@ -289,14 +322,14 @@ exit 1
       attachToExistingChrome: false,
     });
 
-    // Attach paths now require explicit HEADLESS=false alongside the attach intent.
-    // TODO: revisit whether KURI_ATTACH_EXISTING_CHROME=1 should imply HEADLESS=false.
+    // HEADLESS=false alone makes managed Chrome visible, but does not attach
+    // to an existing user browser without an explicit attach intent.
     expect(kuri.resolveKuriLaunchConfig({
       HEADLESS: "false",
       UNBROWSE_IMPORT_BROWSER_COOKIES: "0",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,
-      attachToExistingChrome: true,
+      attachToExistingChrome: false,
     });
 
     expect(kuri.resolveKuriLaunchConfig({
@@ -556,20 +589,23 @@ exit 1
     }) as typeof fetch;
 
     try {
-      await kuri.setCookie("tab-1", {
+      await expect(kuri.setCookie("tab-1", {
         name: "li_at",
         value: "secret",
         domain: ".linkedin.com",
         secure: true,
         httpOnly: true,
-      });
+      })).rejects.toThrow(/no CDP websocket/);
     } finally {
       globalThis.fetch = originalFetch;
       kuri.setCdpPortForTests(null);
     }
 
     expect(seenUrls[0]).toBe("http://127.0.0.1:9333/json");
-    expect(seenUrls).toContain(`http://127.0.0.1:${kuri.getPort()}/cookies?tab_id=tab-1&name=li_at&value=secret&domain=.linkedin.com`);
+    expect(
+      seenUrls.some((url) => url.includes("/cookies?")),
+      "secure/httpOnly cookies must not fall back to /cookies because that strips flags",
+    ).toBe(false);
   });
 
   it("reuses an idle tab before opening a raw CDP fallback tab", async () => {
@@ -578,7 +614,8 @@ exit 1
       const url = String(input);
       if (url.includes("/tab/new")) return new Response(JSON.stringify({ error: "Target.createTarget failed" }));
       if (url.includes("/discover")) return new Response(JSON.stringify({ error: "Cannot connect to Chrome" }));
-      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "idle-tab", url: "chrome://newtab/" }]));
+      if (url.includes("/tabs")) return new Response(JSON.stringify([{ id: "idle-tab", url: "about:blank" }]));
+      if (url.includes("/evaluate")) return new Response(JSON.stringify({ result: 1 }));
       if (url.includes("/json/new?")) {
         if (init?.method !== "PUT") throw new Error("expected PUT");
         throw new Error("should not create a raw CDP tab when an idle tab exists");

@@ -14,7 +14,8 @@
 // auth_required envelope so the agent can call unbrowse_auth_capture
 // before retrying.
 //
-// 1. Personal pronoun in the intent (case-insensitive, word boundary).
+// 1. Personal pronoun or explicit auth-shaped task in the intent
+//    (case-insensitive, word boundary).
 // 2. Host is in the known-auth-gated set (data-driven const array,
 //    NOT switch-cased, easy to extend, audit grep
 //    `host === "<lit>"` MUST stay empty).
@@ -52,10 +53,16 @@ export const AUTH_GATED_HOSTS: ReadonlyArray<string> = [
 ];
 
 const PERSONAL_PRONOUN_RE = /\b(my|me|mine|our|ours|i)\b/i;
+const AUTH_SHAPED_INTENT_RE = /\b(auth|authenticate|authenticated|login|logged in|sign in|signin|account|session|mail|inbox|console|dashboard|api key|credentials?)\b/i;
 
 export function hasPersonalPronoun(intent: string | null | undefined): boolean {
   if (!intent) return false;
   return PERSONAL_PRONOUN_RE.test(intent);
+}
+
+export function hasAuthShapedIntent(intent: string | null | undefined): boolean {
+  if (!intent) return false;
+  return AUTH_SHAPED_INTENT_RE.test(intent);
 }
 
 export function isAuthGatedHost(host: string | null | undefined): boolean {
@@ -171,7 +178,7 @@ export function decidePreResolveAuthGate(
     cookie_probe?: (host: string) => CookieFreshness;
   },
 ): PreResolveAuthGateDecision {
-  if (!hasPersonalPronoun(intent)) return { gate: "pass" };
+  if (!hasPersonalPronoun(intent) && !hasAuthShapedIntent(intent)) return { gate: "pass" };
   const host = hostFromUrl(url);
   if (!host) return { gate: "pass" };
   if (!isAuthGatedHost(host)) return { gate: "pass" };
@@ -186,7 +193,7 @@ export function decidePreResolveAuthGate(
   return {
     gate: "auth_required",
     host,
-    reason: `personal-intent + auth-gated host + no fresh cookie (source=${freshness.source})`,
+    reason: `auth-shaped intent + auth-gated host + no fresh cookie (source=${freshness.source})`,
     cookie_source: freshness.source,
   };
 }

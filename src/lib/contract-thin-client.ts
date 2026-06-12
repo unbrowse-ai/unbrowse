@@ -72,6 +72,71 @@ export interface ThinClientPlanMatch {
   why: string;
 }
 
+export interface ThinClientContractSurface {
+  paper: string;
+  claim: string;
+  node_shape: {
+    subject: string;
+    verb: "act";
+    witness: string;
+    parent: string;
+  };
+  layers: string[];
+  cli_bridge: {
+    tool: "unbrowse contract surface";
+    exposes: "holes-only";
+    canonical_verbs: Array<"create" | "act" | "read">;
+    holes: Array<{
+      name: string;
+      kind: "intent" | "auth" | "approval" | "capability" | "pointer";
+      fill: "llm" | "wallet" | "human" | "local-dispatcher" | "server-pointer";
+      exposed_to: "client";
+      carries_secret: false;
+    }>;
+    legacy_aliases?: Array<{
+      legacy: string;
+      canonical: string;
+      reason: "backward-compatibility";
+    }>;
+    commands_source?: string;
+  };
+  compatibility: {
+    result_contract: {
+      name: "CapabilityResult";
+      minimum_fields: string[];
+      optional_extensions: string[];
+      statuses: string[];
+      sources: string[];
+      invariant: "backward-compatible-minimum-shape";
+    };
+    fallback_hierarchy: Array<{
+      rank: number;
+      source: string;
+      returns: "CapabilityResult";
+      fallback_on: string[];
+    }>;
+    standards: string[];
+    indexer_contribution: {
+      format: "capability-knowledge-row";
+      candidate_fields: string[];
+      promotion_targets: string[];
+      compiles_to: "CapabilityResult";
+    };
+  };
+  roles: Array<{
+    role: "server" | "client" | "cli" | "aiko";
+    owns: string[];
+    exposes: string[];
+    hides: string[];
+  }>;
+  aiko_inverse: {
+    repo: string;
+    mapping: "1:-1";
+    public_descriptor: string;
+    private_runtime: string;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory + dumb I/O surface.
 // ---------------------------------------------------------------------------
@@ -95,6 +160,7 @@ export interface ThinClient {
   iterate(req: ThinClientIterateRequest): Promise<ThinClientIterateResponse>;
   status(id: string): Promise<ThinClientStatusResponse>;
   planForIntent(intent: string, limit?: number): Promise<ThinClientPlanMatch[]>;
+  surface(): Promise<ThinClientContractSurface>;
 }
 
 /**
@@ -195,6 +261,13 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
         { intent, ...(limit !== undefined ? { limit } : {}) },
       );
       return result.matches;
+    },
+
+    async surface() {
+      return call<never, ThinClientContractSurface>(
+        "/v1/contract/surface",
+        "GET",
+      );
     },
   };
 }

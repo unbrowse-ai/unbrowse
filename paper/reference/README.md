@@ -28,6 +28,9 @@ never a faked signature).
 - `network/sybil.py` — stake-weighted, split-invariant attribution (the Sybil mitigation).
 - `network/erc8004.py` — ERC-8004 Identity / Reputation / Validation records, wallet-signed.
 - `network/vault_cycle.py` — the fee-return cycle: staking by abiding, pro rata to balance×duration.
+- `pipes/pipe_contract.py` — the inverse harness: a capability-gated,
+  content-addressed pipe where downstream release requires approval and identical
+  producer input hits the cache.
 
 ## The cache + ledger core (original two halves, kept separate on purpose)
 

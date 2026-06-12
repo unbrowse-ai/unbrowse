@@ -15,8 +15,12 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 CORPUS="${REPO}/harness/probes/corpus.txt"
 TIMEOUT=60
+UNBROWSE_CMD="${UNBROWSE_HARNESS_BIN:-${UNBROWSE_BIN:-unbrowse}}"
+RESOLVE_CMD="${UNBROWSE_HARNESS_RESOLVE_CMD:-read resolve}"
 RUN_ID="$(date -u +%Y-%m-%dT%H-%M-%SZ)-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 OUT_DIR="${REPO}/harness/runs/${RUN_ID}"
+MANAGED_BROWSER_PATTERN='kuri|headless=new|remote-debugging-port=9222|--user-data-dir=.*\.kuri'
+KURI_PROCESS_PATTERN='packages/skill/vendor/kuri|/kuri([[:space:]]|$)'
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -31,6 +35,8 @@ echo "[harness] run_id=$RUN_ID"
 echo "[harness] corpus=$CORPUS"
 echo "[harness] out=$OUT_DIR"
 echo "[harness] timeout=${TIMEOUT}s per probe"
+echo "[harness] cli=${UNBROWSE_CMD}"
+echo "[harness] resolve_cmd=${RESOLVE_CMD}"
 echo
 
 i=0
@@ -44,18 +50,22 @@ while IFS= read -r line; do
   artifact="${OUT_DIR}/${slot}.json"
   log="${OUT_DIR}/${slot}.log"
 
-  pkill -9 -f 'kuri|chrome' 2>/dev/null; sleep 1
+  pkill -9 -f "$MANAGED_BROWSER_PATTERN" 2>/dev/null; sleep 1
 
   start_ms=$(python3 -c 'import time; print(int(time.time()*1000))')
-  timeout "$TIMEOUT" bun "$REPO/src/cli.ts" resolve --intent "$intent" --url "$url" >"$log" 2>&1
+  api_timeout_ms=$(( TIMEOUT * 1000 - 5000 ))
+  [ "$api_timeout_ms" -lt 1000 ] && api_timeout_ms=1000
+  read -r -a cli_parts <<< "$UNBROWSE_CMD"
+  read -r -a resolve_parts <<< "$RESOLVE_CMD"
+  UNBROWSE_RESOLVE_CACHE_TTL_MS=0 UNBROWSE_API_TIMEOUT_MS="$api_timeout_ms" timeout "$TIMEOUT" "${cli_parts[@]}" "${resolve_parts[@]}" --intent "$intent" --url "$url" >"$log" 2>&1
   rc=$?
   end_ms=$(python3 -c 'import time; print(int(time.time()*1000))')
 
   # Snapshot live processes BEFORE cleanup (load-bearing for screen-flood judgment)
-  kuri_pids="$(pgrep -f 'kuri' 2>/dev/null | tr '\n' ' ')"
+  kuri_pids="$(pgrep -f "$KURI_PROCESS_PATTERN" 2>/dev/null | tr '\n' ' ')"
   visible_chrome="$(pgrep -af 'Chrome' 2>/dev/null | grep -v 'headless=new' | grep -v 'pgrep' | head -3)"
 
-  pkill -9 -f 'kuri|chrome' 2>/dev/null
+  pkill -9 -f "$MANAGED_BROWSER_PATTERN" 2>/dev/null
 
   python3 - "$intent" "$url" "$rc" "$log" "$start_ms" "$end_ms" "$kuri_pids" "$visible_chrome" "$artifact" <<'PY'
 import sys, json, re, os
@@ -65,33 +75,36 @@ log = open(log_path, 'r', errors='replace').read()
 # Find the last JSON object in the output (resolve response)
 # Strict=False handles control chars in description fields.
 parsed = None
-# Find the resolve response: it's the last balanced top-level JSON object.
-# CLI prints `[domain-cache] loaded N entries` lines first, then one big JSON.
-# Strip leading non-JSON noise then attempt parse from the first '{' we find
-# whose closing '}' completes the buffer.
-candidate_starts = [m.start() for m in re.finditer(r'^\{', log, re.MULTILINE)]
-if not candidate_starts:
-    # Fallback: any '{' is a starting candidate, oldest-first
-    candidate_starts = [m.start() for m in re.finditer(r'\{', log)]
-for start in candidate_starts:
-    chunk = log[start:].rstrip()
-    # Walk back from end of buffer to find a balanced parse
-    while chunk:
+# Fast path: CLI responses are usually the final single-line JSON object.
+# Large auth interstitial logs can contain many braces; parse newest JSON-looking
+# lines first so the harness does not spend minutes trimming HTML bodies.
+for line in reversed(log.splitlines()):
+    candidate = line.strip()
+    if not (candidate.startswith("{") and candidate.endswith("}")):
+        continue
+    try:
+        parsed = json.loads(candidate, strict=False)
+        if isinstance(parsed, dict) and any(k in parsed for k in ('result','available_operations','available_endpoints','trace','source','error')):
+            break
+        parsed = None
+    except Exception:
+        parsed = None
+if parsed is None:
+    # Fallback: newest brace candidates only, capped to avoid pathological scans.
+    candidate_starts = [m.start() for m in re.finditer(r'^\{', log, re.MULTILINE)]
+    if not candidate_starts:
+        candidate_starts = [m.start() for m in re.finditer(r'\{', log)][-50:]
+    for start in reversed(candidate_starts):
+        chunk = log[start:].rstrip()
         try:
             parsed = json.loads(chunk, strict=False)
-            # Want the object that has 'result' or 'available_operations' or 'trace'
-            if isinstance(parsed, dict) and any(k in parsed for k in ('result','available_operations','available_endpoints','trace','source')):
+            if isinstance(parsed, dict) and any(k in parsed for k in ('result','available_operations','available_endpoints','trace','source','error')):
                 break
             parsed = None
         except Exception:
-            pass
-        # Trim trailing chars and try again — handles trailing whitespace/newlines
-        last_brace = chunk.rfind('}')
-        if last_brace <= 0:
+            parsed = None
+        if parsed:
             break
-        chunk = chunk[:last_brace+1]
-    if parsed:
-        break
 artifact_obj = {
     "intent": intent,
     "url": url,
@@ -104,17 +117,40 @@ artifact_obj = {
 }
 if parsed:
     r = parsed.get('result', parsed)
+    impact = parsed.get("impact") if isinstance(parsed.get("impact"), dict) else {}
     diag = r.get("diagnostic") or {}
     artifact_obj["source"] = (
         r.get("source")
+        or parsed.get("source")
+        or impact.get("source")
         or r.get("cache_source")
         or diag.get("cache_source")
     )
-    artifact_obj["browser_avoided"] = r.get("browser_avoided") or diag.get("browser_avoided")
+    artifact_obj["browser_avoided"] = (
+        r.get("browser_avoided")
+        if r.get("browser_avoided") is not None
+        else impact.get("browser_avoided", diag.get("browser_avoided"))
+    )
     artifact_obj["top_reasoning"] = diag.get("top_reasoning")
     artifact_obj["confidence"] = diag.get("confidence")
     artifact_obj["endpoint_count_in_skill"] = diag.get("endpoint_count")
     artifact_obj["error"] = r.get("error")
+    artifact_obj["next_action"] = r.get("next_action")
+    req = r.get("requirements")
+    if isinstance(req, dict):
+        artifact_obj["requirements"] = req
+    artifact_obj["trace_success"] = (parsed.get("trace") or {}).get("success") if isinstance(parsed.get("trace"), dict) else None
+    artifact_obj["result_shape"] = sorted([str(k) for k in r.keys()])[:30] if isinstance(r, dict) else []
+    data = r.get("data") if isinstance(r, dict) else None
+    artifact_obj["data_shape"] = sorted([str(k) for k in data.keys()])[:30] if isinstance(data, dict) else []
+    excerpt = r.get("text_excerpt") or r.get("markdown") or ""
+    if isinstance(excerpt, str) and excerpt:
+        artifact_obj["content_excerpt"] = excerpt[:500]
+    if isinstance(r.get("title"), str):
+        artifact_obj["title"] = r.get("title")
+    extraction = r.get("extraction") if isinstance(r.get("extraction"), dict) else {}
+    artifact_obj["extraction_source"] = extraction.get("source")
+    artifact_obj["extraction_rejected"] = r.get("rejected")
     ao = r.get("available_operations", [])
     ae = r.get("available_endpoints", [])
     artifact_obj["available_operations"] = [
@@ -154,6 +190,8 @@ artifacts = sorted(glob.glob(f"{out_dir}/*.json"))
 manifest = {
     "run_id": out_dir.rsplit('/',1)[-1],
     "probe_count": len(artifacts),
+    "cli": os.environ.get("UNBROWSE_HARNESS_BIN") or os.environ.get("UNBROWSE_BIN") or "unbrowse",
+    "resolve_cmd": os.environ.get("UNBROWSE_HARNESS_RESOLVE_CMD") or "read resolve",
     "probes": [json.load(open(a)) for a in artifacts],
 }
 open(f"{out_dir}/manifest.json", 'w').write(json.dumps(manifest, indent=2))

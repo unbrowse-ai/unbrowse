@@ -70,6 +70,7 @@ async function spawnAndCallTwice(
     ...process.env,
     UNBROWSE_URL: `http://127.0.0.1:${port}`,
     UNBROWSE_API_URL: `http://127.0.0.1:${port}`,
+    UNBROWSE_MCP_HTTP_BACKEND: "1",
     UNBROWSE_NO_AUTO_START: "1",
     UNBROWSE_TEST_FAIL_FAST: "0",
   };

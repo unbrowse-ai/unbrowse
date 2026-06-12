@@ -2,16 +2,17 @@
 // MCP-surface gate). No mocks: spawns the real script against the real
 // git repo with crafted pre-push stdin (`<local ref> <local sha>
 // <remote ref> <remote sha>`) and asserts exit codes. Mirrors how git
-// invokes the hook. .bench-gate is gitignored, so the stamp fixture is
-// created/removed in-place and never leaks into git.
+// invokes the hook. The real meta-harness ledger is backed up and restored
+// around each fixture.
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 
 const REPO = process.cwd();
 const SCRIPT = "scripts/mcp-gate-prepush.sh";
-const STAMP = ".bench-gate/stamp.mcp.json";
-const STAMP_BAK = ".bench-gate/stamp.mcp.json.testbak";
+const LEDGER_DIR = ".claude/use-unbrowse-mcp-against-the-1000-probe-bench-co/ledgers";
+const LEDGER = `${LEDGER_DIR}/iterations.jsonl`;
+const LEDGER_BAK = `${LEDGER_DIR}/iterations.jsonl.testbak`;
 
 const HEAD = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO, encoding: "utf8" }).trim();
 // origin/main lacks this branch's src fixes -> a real gate-affecting delta.
@@ -31,12 +32,13 @@ function runHook(refLine: string, env: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  mkdirSync(".bench-gate", { recursive: true });
-  if (existsSync(STAMP)) renameSync(STAMP, STAMP_BAK);
+  mkdirSync(LEDGER_DIR, { recursive: true });
+  if (existsSync(LEDGER_BAK)) rmSync(LEDGER_BAK);
+  if (existsSync(LEDGER)) renameSync(LEDGER, LEDGER_BAK);
 });
 afterEach(() => {
-  if (existsSync(STAMP)) rmSync(STAMP);
-  if (existsSync(STAMP_BAK)) renameSync(STAMP_BAK, STAMP);
+  if (existsSync(LEDGER)) rmSync(LEDGER);
+  if (existsSync(LEDGER_BAK)) renameSync(LEDGER_BAK, LEDGER);
 });
 
 describe("mcp-gate-prepush.sh", () => {
@@ -52,39 +54,42 @@ describe("mcp-gate-prepush.sh", () => {
     expect(out).toContain("no gate-affecting paths changed");
   });
 
-  it("BLOCKS a push to main that changes gate-affecting code with no MCP stamp", () => {
+  it("BLOCKS a push to main that changes gate-affecting code with no harness ledger", () => {
     if (!ORIGIN_MAIN) return; // requires origin/main; skip if absent
     const { code, out } = runHook(`refs/heads/main ${HEAD} refs/heads/main ${ORIGIN_MAIN}`);
     expect(code).toBe(1);
-    expect(out).toContain("no MCP-surface stamp");
-    expect(out).toContain("/unbrowse-mcp-gate");
+    expect(out).toContain("no harness ledger");
+    expect(out).toContain("harness iterate");
   });
 
-  it("allows the same push when a fresh matching MCP stamp exists", () => {
+  it("allows the same push when a fresh passing harness ledger row exists", () => {
     if (!ORIGIN_MAIN) return;
     writeFileSync(
-      STAMP,
+      LEDGER,
       JSON.stringify({
-        schema_version: 1,
-        commit_sha: HEAD,
-        run_id: "test-run",
-        gate_passed: true,
-        surface: "mcp",
-        index_coverage: 0.9,
-        retrieve_coverage: 0.8,
+        iter: 999,
+        ts: new Date().toISOString(),
+        status: "verified",
+        exit_code: 0,
+        note: "test harness row",
       }) + "\n",
     );
     const { code, out } = runHook(`refs/heads/main ${HEAD} refs/heads/main ${ORIGIN_MAIN}`);
     expect(code).toBe(0);
-    expect(out).toContain("MCP stamp matches pushed HEAD");
+    expect(out).toContain("harness ledger row post-dates capability code");
   });
 
-  it("BLOCKS when the stamp exists but gate_passed is not true", () => {
+  it("BLOCKS when the ledger exists but latest status is not passing", () => {
     if (!ORIGIN_MAIN) return;
-    writeFileSync(STAMP, JSON.stringify({ commit_sha: HEAD, gate_passed: false }) + "\n");
+    writeFileSync(LEDGER, JSON.stringify({
+      iter: 999,
+      ts: new Date().toISOString(),
+      status: "failed",
+      exit_code: 1,
+    }) + "\n");
     const { code, out } = runHook(`refs/heads/main ${HEAD} refs/heads/main ${ORIGIN_MAIN}`);
     expect(code).toBe(1);
-    expect(out).toContain("gate_passed=false");
+    expect(out).toContain("latest harness row status is 'failed'");
   });
 
   it("MCP_GATE_BYPASS=1 allows the push but logs loudly", () => {

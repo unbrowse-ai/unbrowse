@@ -124,7 +124,7 @@ describe("v7 dispatch — dispatchByKind structural contract", () => {
   it("unknown kind returns a structured envelope, not a throw", async () => {
     const r = await dispatchByKind("not_a_real_kind", {}, {});
     expect(r.ok).toBe(false);
-    expect(r.dispatch_error).toContain("unknown_kind");
+    expect(r.dispatch_error).toBe("unknown_op");
     expect(r.exitCode).toBe(70);
   });
 });

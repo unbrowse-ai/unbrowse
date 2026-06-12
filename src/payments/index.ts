@@ -386,6 +386,7 @@ export async function checkPaymentRequirement(
     price_usd?: string;
     skip_payment?: boolean;
     wallet_configured?: boolean;
+    account_registered?: boolean;
   },
 ): Promise<PaymentGateResult> {
   if (options?.skip_payment || process.env.UNBROWSE_SKIP_PAYMENT === "1") {
@@ -432,7 +433,7 @@ export async function checkPaymentRequirement(
   // Lewis directive: hard gate login, but x402 payment substitutes for login.
   // A registered account API key is itself a satisfying use-credential, so a
   // keyed caller is never the anonymous case (payment may still apply).
-  const accountRegistered = (() => {
+  const accountRegistered = typeof options?.account_registered === "boolean" ? options.account_registered : (() => {
     try {
       return getApiKey() !== "";
     } catch {

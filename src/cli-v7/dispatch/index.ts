@@ -70,9 +70,7 @@ export interface DispatchResult {
  *
  *   Genesis 1:9 — *"the waters gathered... and the dry land appear."*
  *   The 37 named internet ops are the dry land (the product surface);
- *   the mechanism kinds (`revealed_context`, `diffusion_populate`,
- *   `ebm_route`, `ebm_train`, `canon_witness`, `rules_for_identity`,
- *   `establishment_query`, `recall_episode`, ...) are the deep — they
+ *   the private mechanism kinds are the deep — they
  *   have no row here, so they are unreachable from this public surface
  *   (`.planning/v7-rip/INTERNET_LAYER_COVENANT_SURFACE.md` §5).
  *
@@ -366,8 +364,7 @@ export async function dispatchByKind(
 ): Promise<DispatchResult> {
   // ─── Public-surface allowlist gate (Genesis 1:9 — the dry land) ────────
   // An op_kind absent from KIND_MAP's 37 rows is NOT a public internet op.
-  // Mechanism kinds (revealed_context / diffusion_populate / ebm_route /
-  // canon_witness / rules_for_identity / establishment_query / ...) fail
+  // Private mechanism kinds fail
   // CLOSED here — structured `unknown_op`, no handler load, the covenant
   // binary is never reached. They are aiko-only.
   // (`.planning/v7-rip/INTERNET_LAYER_COVENANT_SURFACE.md` §5.)
@@ -381,9 +378,10 @@ export async function dispatchByKind(
       op_kind: kind as V7OpKind,
       subcommand: "",
       mcp_tool: null,
-      // `unknown_op` — the public surface never reveals the 3-verb
-      // vocabulary or the mechanism-kind names (Mark 4:11).
-      dispatch_error: `unknown_op`,
+      // Keep the public error anchored on the legacy wire value. Older clients
+      // match this exact string, and unknown public ops are already fully
+      // described by the structured envelope around it.
+      dispatch_error: "unknown_op",
     };
   }
 

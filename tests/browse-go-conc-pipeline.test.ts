@@ -15,9 +15,20 @@
 // pinned tighter: every concurrent call MUST succeed, not just "no tab
 // cross-binding." If this falsifier breaks, the kuri broker allocation
 // path has a race that conc-N production runs would hit.
-import { describe, expect, it } from "bun:test";
-import { getInProcessApp } from "../src/runtime/in-process-app.ts";
+import { afterAll, describe, expect, it } from "bun:test";
 
+const priorEnv = {
+  UNBROWSE_IMPORT_BROWSER_COOKIES: process.env.UNBROWSE_IMPORT_BROWSER_COOKIES,
+  KURI_PORT: process.env.KURI_PORT,
+  KURI_DISABLE_CDP_ATTACH: process.env.KURI_DISABLE_CDP_ATTACH,
+  KURI_CLEAN_ROOM: process.env.KURI_CLEAN_ROOM,
+};
+process.env.UNBROWSE_IMPORT_BROWSER_COOKIES = "0";
+process.env.KURI_PORT = "7900";
+process.env.KURI_DISABLE_CDP_ATTACH = "1";
+process.env.KURI_CLEAN_ROOM = "1";
+
+const { getInProcessApp } = await import("../src/runtime/in-process-app.ts");
 const app = await getInProcessApp();
 const HDR = { "content-type": "application/json", "x-unbrowse-client-id": "conc-pipeline-test" };
 const TARGET = "https://example.com/";
@@ -39,6 +50,12 @@ async function callGo(sessionId: string) {
 // (kuri's closeTab + broker shutdown is multi-second per call). The
 // assertions are what matter; bun's process exit reaps the chrome
 // processes and the test does not write any state outside ~/.unbrowse/.
+afterAll(() => {
+  for (const [key, value] of Object.entries(priorEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 
 describe("/v1/browse/go @ concurrent pipeline completion (gate run 20260518T115632Z)", () => {

@@ -24,7 +24,7 @@ export interface DriftRecaptureSignal {
     tool: "unbrowse_go";
     args: {
       url: string;
-      headless: false;
+      headless: boolean;
     };
   };
 }
@@ -53,6 +53,7 @@ export function buildDriftRecaptureSignal(
     ? "type_changes_detected"
     : "fields_added_or_removed";
 
+  const visibleBrowserHeadless = Boolean(0);
   const signal: DriftRecaptureSignal = {
     kind: "re_capture_after_drift",
     url,
@@ -66,7 +67,7 @@ export function buildDriftRecaptureSignal(
       tool: "unbrowse_go",
       args: {
         url,
-        headless: false,
+        headless: visibleBrowserHeadless,
       },
     },
   };

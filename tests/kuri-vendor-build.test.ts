@@ -46,7 +46,7 @@ function makeVendoredBinaries(vendorRoot: string) {
   for (const target of supportedTargets) {
     const targetDir = path.join(vendorRoot, target.id);
     mkdirSync(targetDir, { recursive: true });
-    writeFileSync(path.join(targetDir, binaryName), "fake-kuri");
+    writeFileSync(path.join(targetDir, target.bin), "fake-kuri");
   }
 }
 

@@ -240,6 +240,86 @@ export interface PlanForIntentResponse {
   matches: SatisfiedCellMatch[];
 }
 
+export interface ContractSurfaceResponse {
+  paper: "paper/crypto-was-all-you-needed.md";
+  claim: "one-node-layered-stack";
+  node_shape: {
+    subject: string;
+    verb: "act";
+    witness: string;
+    parent: string;
+  };
+  layers: string[];
+  cli_bridge: {
+    tool: "unbrowse contract surface";
+    exposes: "holes-only";
+    canonical_verbs: Array<"create" | "act" | "read">;
+    holes: Array<{
+      name: string;
+      kind: "intent" | "auth" | "approval" | "capability" | "pointer";
+      fill: "llm" | "wallet" | "human" | "local-dispatcher" | "server-pointer";
+      exposed_to: "client";
+      carries_secret: false;
+    }>;
+    legacy_aliases: Array<{
+      legacy: string;
+      canonical: string;
+      reason: "backward-compatibility";
+    }>;
+    commands_source: "src/superpattern/cli-surface.ts";
+  };
+  compatibility: {
+    result_contract: {
+      name: "CapabilityResult";
+      minimum_fields: string[];
+      optional_extensions: string[];
+      statuses: string[];
+      sources: string[];
+      invariant: "backward-compatible-minimum-shape";
+    };
+    fallback_hierarchy: Array<{
+      rank: number;
+      source: string;
+      returns: "CapabilityResult";
+      fallback_on: string[];
+    }>;
+    standards: string[];
+    indexer_contribution: {
+      format: "capability-knowledge-row";
+      candidate_fields: string[];
+      promotion_targets: string[];
+      compiles_to: "CapabilityResult";
+    };
+  };
+  runtime_authority: {
+    local_substrate: "stateless_binary";
+    invocation: "unbrowse <verb> <capability> --json";
+    process_model: "single_shot";
+    durable_state: string[];
+    compatibility_facades: string[];
+    forbidden_authorities: string[];
+    browser_primitives: {
+      owner: "binary_owned_lease";
+      module: "src/kuri/stateless-primitive.ts";
+      operations: string[];
+      returns: "CapabilityResult";
+      lease_witness_fields: string[];
+    };
+  };
+  roles: Array<{
+    role: "server" | "client" | "cli" | "aiko";
+    owns: string[];
+    exposes: string[];
+    hides: string[];
+  }>;
+  aiko_inverse: {
+    repo: "/Users/lekt9/Projects/unbrowse-ecosystem/aiko-engine";
+    mapping: "1:-1";
+    public_descriptor: "JSON descriptor plus rpc refs";
+    private_runtime: "live plugin functions stay in worker registry";
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Route handlers — pure projection over a ContractLedger implementation.
 // The actual binding to a Worker env (DurableObject, KV, EmergentDB) lands
@@ -717,6 +797,187 @@ export async function handlePlanForIntent(
   return { matches };
 }
 
+export function handleContractSurface(): ContractSurfaceResponse {
+  return {
+    paper: "paper/crypto-was-all-you-needed.md",
+    claim: "one-node-layered-stack",
+    node_shape: {
+      subject: "who/what/when/where/why/how action descriptor",
+      verb: "act",
+      witness: "settled/not-settled check with independent corroboration",
+      parent: "content hash of the node one layer up",
+    },
+    layers: ["screen", "browser", "cli", "os", "kernel", "packet"],
+    cli_bridge: {
+      tool: "unbrowse contract surface",
+      exposes: "holes-only",
+      canonical_verbs: ["create", "act", "read"],
+      holes: [
+        {
+          name: "intent",
+          kind: "intent",
+          fill: "llm",
+          exposed_to: "client",
+          carries_secret: false,
+        },
+        {
+          name: "wallet_proof",
+          kind: "auth",
+          fill: "wallet",
+          exposed_to: "client",
+          carries_secret: false,
+        },
+        {
+          name: "approval",
+          kind: "approval",
+          fill: "human",
+          exposed_to: "client",
+          carries_secret: false,
+        },
+        {
+          name: "local_capability_result",
+          kind: "capability",
+          fill: "local-dispatcher",
+          exposed_to: "client",
+          carries_secret: false,
+        },
+        {
+          name: "typed_pointer",
+          kind: "pointer",
+          fill: "server-pointer",
+          exposed_to: "client",
+          carries_secret: false,
+        },
+      ],
+      legacy_aliases: [
+        { legacy: "resolve", canonical: "read resolve", reason: "backward-compatibility" },
+        { legacy: "search", canonical: "read resolve", reason: "backward-compatibility" },
+        { legacy: "skills", canonical: "read skills", reason: "backward-compatibility" },
+        { legacy: "skill", canonical: "read skill", reason: "backward-compatibility" },
+        { legacy: "snap", canonical: "read snap", reason: "backward-compatibility" },
+        { legacy: "text", canonical: "read text", reason: "backward-compatibility" },
+        { legacy: "execute", canonical: "act execute", reason: "backward-compatibility" },
+        { legacy: "go", canonical: "act go", reason: "backward-compatibility" },
+        { legacy: "click", canonical: "act click", reason: "backward-compatibility" },
+        { legacy: "fill", canonical: "act fill", reason: "backward-compatibility" },
+        { legacy: "submit", canonical: "act submit", reason: "backward-compatibility" },
+        { legacy: "publish", canonical: "create publish", reason: "backward-compatibility" },
+        { legacy: "index", canonical: "create index", reason: "backward-compatibility" },
+      ],
+      commands_source: "src/superpattern/cli-surface.ts",
+    },
+    compatibility: {
+      result_contract: {
+        name: "CapabilityResult",
+        minimum_fields: ["status", "kind", "source", "data", "requirements", "artifacts", "evidence", "next_action"],
+        optional_extensions: ["view_spec", "trace_ref", "payment", "lineage", "confidence", "warnings", "compatibility"],
+        statuses: ["ok", "needs_input", "payment_required", "auth_required", "unavailable", "error"],
+        sources: [
+          "native_route",
+          "installed_skill",
+          "mcp_tool",
+          "local_primitive",
+          "standard_adapter",
+          "marketplace_endpoint",
+          "browser_capture_fallback",
+          "indexer_contribution",
+          "unavailable",
+        ],
+        invariant: "backward-compatible-minimum-shape",
+      },
+      fallback_hierarchy: [
+        { rank: 1, source: "native_route", returns: "CapabilityResult", fallback_on: ["miss", "stale", "auth_required"] },
+        { rank: 2, source: "installed_skill", returns: "CapabilityResult", fallback_on: ["missing_skill", "schema_incompatible"] },
+        { rank: 3, source: "mcp_tool", returns: "CapabilityResult", fallback_on: ["tool_missing", "tool_unavailable"] },
+        { rank: 4, source: "local_primitive", returns: "CapabilityResult", fallback_on: ["capability_unavailable"] },
+        { rank: 5, source: "standard_adapter", returns: "CapabilityResult", fallback_on: ["registry_miss", "adapter_error"] },
+        { rank: 6, source: "marketplace_endpoint", returns: "CapabilityResult", fallback_on: ["payment_required", "no_match"] },
+        { rank: 7, source: "indexer_contribution", returns: "CapabilityResult", fallback_on: ["not_promoted", "needs_verification"] },
+        { rank: 8, source: "browser_capture_fallback", returns: "CapabilityResult", fallback_on: ["capture_failed", "manual_interaction_required"] },
+        { rank: 9, source: "unavailable", returns: "CapabilityResult", fallback_on: [] },
+      ],
+      standards: ["mcp", "mcp-registry", "acp", "a2a", "openai-tools", "anthropic-tools", "skills.sh", "agentskills.dev", "pay.sh", "x402-bazaar"],
+      indexer_contribution: {
+        format: "capability-knowledge-row",
+        candidate_fields: ["kind", "target", "recipe", "schema_hint", "auth_note", "failure_pattern", "evidence", "savings", "redactions"],
+        promotion_targets: ["executable_endpoint", "discovery_backend", "avoid_path_policy", "verifier_fixture", "skill_instruction", "docs_projection"],
+        compiles_to: "CapabilityResult",
+      },
+    },
+    runtime_authority: {
+      local_substrate: "stateless_binary",
+      invocation: "unbrowse <verb> <capability> --json",
+      process_model: "single_shot",
+      durable_state: [
+        "route_graph",
+        "content_addressed_cache",
+        "ledger_rows",
+        "credential_vault",
+        "browser_profile_authority",
+      ],
+      compatibility_facades: [
+        "unbrowse serve",
+        "stdio_mcp_server",
+        "http_contract_surface",
+        "sdk_client",
+      ],
+      forbidden_authorities: [
+        "long_lived_local_unbrowse_server",
+        "shared_kuri_tab_registry",
+        "kuri_broker_http_api",
+        "background_browser_worker_without_lease",
+      ],
+      browser_primitives: {
+        owner: "binary_owned_lease",
+        module: "src/kuri/stateless-primitive.ts",
+        operations: [
+          "direct_cdp.spawn_chrome",
+          "direct_cdp.create_target",
+          "direct_cdp.navigate",
+          "direct_cdp.capture_network",
+          "direct_cdp.read_dom",
+          "direct_cdp.solve_or_report_interstitial",
+          "direct_cdp.release",
+        ],
+        returns: "CapabilityResult",
+        lease_witness_fields: ["lease_id", "op", "url", "acquired_at", "released_at", "helper_pid"],
+      },
+    },
+    roles: [
+      {
+        role: "server",
+        owns: ["route graph", "capture/reverse-engineering engine", "ranking", "ledger", "settlement"],
+        exposes: ["skeleton", "holes", "attestation verdict", "pointer ids"],
+        hides: ["secret values", "engine internals", "economic constants", "private keys"],
+      },
+      {
+        role: "client",
+        owns: ["wallet", "vault fills", "browser/session state", "local capability dispatcher"],
+        exposes: ["hole fills", "wallet-bound proofs", "local capability results"],
+        hides: ["raw secrets", "private wallet material"],
+      },
+      {
+        role: "cli",
+        owns: ["stdio/argv bridge", "local capability invocation", "machine-readable surface projection"],
+        exposes: ["contract surface manifest", "command holes", "dispatch results"],
+        hides: ["server decision trace", "capture internals"],
+      },
+      {
+        role: "aiko",
+        owns: ["agent planning", "worker handler registry", "runtime-private functions"],
+        exposes: ["JSON plugin descriptor", "rpc refs", "agent-callable tool affordances"],
+        hides: ["live function bodies", "runtime process state"],
+      },
+    ],
+    aiko_inverse: {
+      repo: "/Users/lekt9/Projects/unbrowse-ecosystem/aiko-engine",
+      mapping: "1:-1",
+      public_descriptor: "JSON descriptor plus rpc refs",
+      private_runtime: "live plugin functions stay in worker registry",
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Local helpers — no I/O.
 // ---------------------------------------------------------------------------
@@ -1164,6 +1425,10 @@ contractRoutes.post("/contract/plan-for-intent", async (c) => {
   }
 });
 
+contractRoutes.get("/contract/surface", (c) => {
+  return c.json(handleContractSurface());
+});
+
 /**
  * Module-scoped ledgers — DEFERRED-contracts-mirror-storage.
  *
@@ -1281,6 +1546,7 @@ contractRoutes.get("/contract/tools", (c) => {
       { method: "GET", path: "/v1/contract/status", purpose: "projection over all events for an id" },
       { method: "POST", path: "/v1/contract/plan-for-intent", purpose: "ranked shortlist over satisfied cells" },
       { method: "POST", path: "/v1/contract/mirror", purpose: "Π4 doctrine mirror — accepts raw ContractEventRow (alias /v1/contracts/mirror)" },
+      { method: "GET", path: "/v1/contract/surface", purpose: "paper-shaped bridge manifest: server/client/CLI/Aiko holes-only surface" },
       { method: "GET", path: "/v1/contract/tools", purpose: "self-introspect (this endpoint)" },
     ],
     local_capabilities: ["kuri", "cookies", "vault", "browser", "fs"],
