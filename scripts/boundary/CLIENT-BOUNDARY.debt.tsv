@@ -4,10 +4,10 @@
 # server-moved (status=resolved). status ∈ {migrating, exposed, review-pending, resolved}
 #
 # module	class	owner	backend_route_target	status	note
-ranking	migrating	lewis	/v1/search/rank	migrating	server-first path wired; ensure agent-facing resolve never uses local signals as primary
-graph	moat-server	lewis	/v1/graph/compile	exposed	route-graph/DAG compilation ships in the bundle; move compilation server-side, client walks the returned DAG
-indexer	moat-server	lewis	/v1/index/admit	exposed	split local indexing (keep) from admission/scoring intelligence (move)
-reverse-engineer	moat-server	lewis	/v1/capture/infer	exposed	RE heuristics over sanitized capture should run server-side; client uploads sanitized signal, gets routes
+ranking	migrating	lewis	/v1/search/rank	resolved	VERIFIED server-first: rankEndpointsServerFirst -> rankEndpointsRemote -> /v1/search/rank; local rankEndpoints is the degraded fallback. Backend ranker is a private PORT (backend/src/services/rank.ts), not a src import — moat protected.
+graph	moat-server	lewis	/v1/graph/*	mostly-resolved	VERIFIED: learned intelligence (edges/confidence/chain/predict/co-occurrence) is server-side (backend/src/services/graph.js) + client calls it (src/client/graph-client.ts -> /v1/graph/*). Local buildSkillOperationGraph = structural DAG assembly over sanitized EndpointDescriptor[]. OPEN: confirm backend graph service ports vs imports src/graph; port if it imports (else still public).
+indexer	moat-server	lewis	-	local-by-design	orchestrates local capture->RE->index on the user's own machine. Moat = the RE step (see reverse-engineer) + the graph build (see graph); no separate move beyond those.
+reverse-engineer	moat-server	lewis	/v1/reveng	DECISION-NEEDED	runs LOCALLY (src/api/routes.ts, browse-index.ts) on the user's own traffic — credential-safe (nothing leaves). Heuristics ship in the public bundle = IP exposure. Backend /reveng route + client obfuscateCaptureForReveng EXIST as an option, unused by default. Server-first protects IP but starts sending obfuscated traffic to the server = a PRIVACY<->IP product tradeoff, NOT an autonomous build.
 api	review	lewis	-	review-pending	per-file: which handlers are local-serve glue vs server-owned logic
 foundry	review	lewis	-	review-pending	classify foundry integration
 marketplace	review	lewis	-	review-pending	marketplace client vs intelligence
