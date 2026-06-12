@@ -290,7 +290,34 @@ export interface EndpointDescriptor {
    * synced with `backend/src/types.ts` and `frontend/src/lib/api.ts`.
    */
   owner_submitted?: boolean;
+  /**
+   * pay.sh provider metadata. Present when this endpoint is gated by a pay.sh
+   * gateway (MPP or x402 challenge). Lets resolve label the route as paid (with
+   * a price, before the agent pays) and lets the client layer route the
+   * payment through the `pay` adapter (UNBROWSE_WALLET_ADAPTER=pay). Additive —
+   * absent on every non-pay.sh route. See src/payments/pay-sh.ts.
+   */
+  pay_provider?: PayProviderDescriptor;
 }
+
+/**
+ * pay.sh provider metadata attached to a pay.sh-gated endpoint. Mirrors the
+ * fields pay.sh's catalog / 402 challenge expose; all optional so a route can
+ * carry as little as "this is pay.sh-gated".
+ */
+export interface PayProviderDescriptor {
+  /** Provider subdomain / catalog slug (pay.sh stable identifier). */
+  subdomain?: string;
+  /** Gateway base URL that issues the 402 challenge. */
+  gateway_url?: string;
+  /** Per-call price in USD, as advertised by the challenge/catalog. */
+  price_usd?: number;
+  /** Challenge protocol the gateway speaks. */
+  protocol?: "mpp" | "x402";
+  /** Source of this metadata: observed at execute time vs discovered in catalog. */
+  source?: "observed" | "catalog";
+}
+
 export interface EndpointConstraint {
   /** The parameter or field this constraint applies to */
   param: string;
