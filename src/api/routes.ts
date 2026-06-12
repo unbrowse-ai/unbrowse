@@ -3316,6 +3316,37 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* getText best-effort: never break go */ }
 
+      // KV fallback ladder: a real browser navigation can be anti-bot-blocked
+      // (reddit/cloudflare/PerimeterX fingerprint headless Chrome specifically)
+      // and return a tiny block page where the resolve direct-fetch path's
+      // JA4-spoofed curl-impersonate returns the real content. When the captured
+      // page text looks blocked/empty, descend the shared fetch-ladder so `go`
+      // gets the same escalation the direct-fetch path already has. Best-effort:
+      // never breaks go; only ever REPLACES a block page with real content.
+      try {
+        const ladder = await import("../capture/fetch-ladder.js");
+        if (!page || ladder.looksBlocked(page.text)) {
+          let rescueCookies: Array<{ name: string; value: string }> = [];
+          try {
+            const host = new URL(session.url).host;
+            const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+            rescueCookies = extractBrowserCookies(host).cookies.map((c) => ({ name: c.name, value: c.value }));
+          } catch { /* cookies are optional — public data resolves without them */ }
+          const rescued = await ladder.walkFetchLadder(session.url, rescueCookies);
+          if (rescued) {
+            let structured: string | null = null;
+            try {
+              if (rescued.text.startsWith("<")) structured = buildStructuredDataHeader(rescued.text);
+            } catch { /* structured header best-effort */ }
+            const augmented = structured ? `${structured}\n\n---\n\n${rescued.text}` : rescued.text;
+            page = { text: augmented, structured_data: structured };
+            console.log(`[browse/go] anti-bot block bypassed via fetch-ladder ${rescued.rung} (${rescued.bytes}B)`);
+          }
+        }
+      } catch (err) {
+        console.error(`[browse/go] fetch-ladder rescue failed (non-fatal): ${(err as Error).message}`);
+      }
+
       // Durable capture spool: write the cheap raw cut to disk BEFORE
       // reply.send so the captured route survives a one-shot CLI exit.
       // Awaited (a fast disk write, not the ~40s enrich) so the bytes are
