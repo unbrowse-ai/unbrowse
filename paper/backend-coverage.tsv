@@ -63,6 +63,7 @@ services/sponsor-pay	crypto
 services/sponsor-pool	crypto
 services/sponsor-session-key	crypto
 services/settlement	crypto
+services/disburse	crypto
 services/splits	crypto
 services/crypto-sub	crypto
 services/declare-signature	crypto
@@ -186,4 +187,3 @@ services/route-ledger	maintenance
 services/skill-contract	internal-apis
 services/skill-contract-cache	internal-apis
 services/skill-contract-persist	maintenance
-services/web-search	internal-apis
