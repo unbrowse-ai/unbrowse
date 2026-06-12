@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0...v8.3.1) (2026-06-12)
+
+### Features
+
+* **bench+capture:** real Axis-D security scan; uniform fetch-ladder on the execute capture path ([ee75981](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee7598112bb14dce1c297597a859544b763c8d7f))
+* **capture:** shared KV fetch-ladder — descend to impersonate when a browser nav is anti-bot-blocked ([158eda5](https://github.com/unbrowse-ai/unbrowse-dev/commit/158eda59d4867886a004e9950ab66feaf88302aa))
+
 ## [8.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.6...v8.3.0) (2026-06-12)
 
 ## [8.3.0-preview.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0-preview.5...v8.3.0-preview.6) (2026-06-12)
