@@ -25,7 +25,7 @@ import {
 	sealProofOfIndexing,
 	ProofChain,
 } from "./proof-of-indexing.js";
-import { freshness } from "../ranking/freshness.js";
+import { freshness } from "../lib/freshness.js";
 
 /** Scheduler cadence — the paper's 6h background-verification interval. */
 export const TRUST_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;

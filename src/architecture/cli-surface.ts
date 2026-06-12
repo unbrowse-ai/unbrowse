@@ -32,6 +32,10 @@ export interface Surface {
 /** The canonical CLI surface: every top-level command → its atom + exposed holes.
  *  (Single source of truth for the shape; the gate checks completeness + minimality.) */
 const SURFACE: Record<string, Omit<Surface, "command">> = {
+  // canonical client verbs — old command names remain aliases below.
+  create:          { verb: "build",  interrogative: "what",  holes: ["kind", "schema"],   auth: "wallet" },
+  act:             { verb: "act", interrogative: "how",   holes: ["kind", "params"],   auth: "sealed" },
+  read:            { verb: "eval",   interrogative: "what",  holes: ["kind", "intent"],   auth: "none" },
   // who — identity / auth (act carries identity; eval reads it)
   auth:            { verb: "act", interrogative: "who",   holes: ["domain"],            auth: "sealed" },
   "auth-inventory":{ verb: "eval",   interrogative: "who",   holes: [],                    auth: "none" },
@@ -68,6 +72,7 @@ const SURFACE: Record<string, Omit<Surface, "command">> = {
   mcp:             { verb: "act", interrogative: "where", holes: [],                    auth: "none" },
   "payment-provider":{ verb: "act", interrogative: "where", holes: ["provider"],        auth: "wallet" },
   dashboard:       { verb: "act", interrogative: "where", holes: [],                    auth: "wallet" },
+  contract:        { verb: "act", interrogative: "where", holes: ["intent", "wallet_proof", "approval", "local_capability_result", "typed_pointer"], auth: "wallet" },
   // when — lifecycle / timing (act carries the state transition)
   upgrade:         { verb: "act", interrogative: "when",  holes: [],                    auth: "none" },
   "cleanup-stale": { verb: "act", interrogative: "when",  holes: ["domain"],            auth: "none" },

@@ -4,8 +4,8 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { writeJob, type JobEnvelope } from "../src/indexer/queue-store.js";
-import type { BackgroundIndexJob } from "../src/indexer/index.js";
+import { writeJob, type JobEnvelope } from "../src/lib/indexer-core/queue-store.js";
+import type { BackgroundIndexJob } from "../src/lib/indexer-core/index.js";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 

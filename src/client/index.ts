@@ -35,10 +35,16 @@ import {
   type TelemetryAttribution,
 } from "../telemetry-attribution.js";
 
-const API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? DEFAULT_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
-const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
+
+export function getApiBaseUrl(): string {
+  return process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
+}
+
+function isLocalOnly(): boolean {
+  return process.env.UNBROWSE_LOCAL_ONLY === "1";
+}
 
 export function buildReleaseAttestationHeaders(
   manifestBase64: string,
@@ -136,7 +142,7 @@ export function getActiveProfile(): string {
 }
 
 export function isLocalOnlyMode(): boolean {
-  return LOCAL_ONLY;
+  return isLocalOnly();
 }
 
 export interface UnbrowseConfig {
@@ -325,11 +331,11 @@ export function detectTelemetryHostType(): TelemetryHostType {
 }
 
 async function postTelemetry(path: string, body: Record<string, unknown>): Promise<boolean> {
-  if (LOCAL_ONLY) return false;
+  if (isLocalOnly()) return false;
 
   try {
     const key = getApiKey();
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${getApiBaseUrl()}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -460,7 +466,7 @@ export function getLocalWalletContext(): { wallet_address?: string; wallet_provi
 }
 
 export function getApiKey(): string {
-  if (LOCAL_ONLY) return "local-only";
+  if (isLocalOnly()) return "local-only";
   const config = loadConfig();
   if (config?.ignore_env_api_key && config.api_key) {
     process.env.UNBROWSE_API_KEY = config.api_key;
@@ -501,7 +507,7 @@ async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
-    const res = await fetch(`${API_URL}/v1/agents/me`, {
+    const res = await fetch(`${getApiBaseUrl()}/v1/agents/me`, {
       method: "GET",
       headers: {
         "Accept-Encoding": "gzip, deflate",
@@ -573,7 +579,7 @@ async function apiRequest<T = unknown>(
   const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
+    res = await fetch(`${getApiBaseUrl()}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -646,7 +652,7 @@ async function apiRequest<T = unknown>(
     // Try Faremeter Flex escrow settlement before lobster/throw (one shared seam).
     try {
       const { settleViaFlex } = await import("../payments/flex-pay.js");
-      const flexResult = await settleViaFlex<T>(`${API_URL}${path}`, terms, {
+      const flexResult = await settleViaFlex<T>(`${getApiBaseUrl()}${path}`, terms, {
         body,
         headers: {
           "Content-Type": "application/json",
@@ -673,7 +679,7 @@ async function apiRequest<T = unknown>(
       if (provider === "pay_sh") {
         const { isPayShAvailable, payAndRetryPaySh } = await import("../payments/paysh-pay.js");
         if (isPayShAvailable()) {
-          const fullUrl = `${API_URL}${path}`;
+          const fullUrl = `${getApiBaseUrl()}${path}`;
           const paidResult = await payAndRetryPaySh<T>(fullUrl, {
             body,
             headers: {
@@ -691,7 +697,7 @@ async function apiRequest<T = unknown>(
         // Per contract fc998ae9 (PRIVY-SECOND-FOR-EMBEDDED-WALLET-AGENTS):
         const { isPrivyAvailable, payAndRetryPrivy } = await import("../payments/privy-pay.js");
         if (isPrivyAvailable()) {
-          const fullUrl = `${API_URL}${path}`;
+          const fullUrl = `${getApiBaseUrl()}${path}`;
           const paidResult = await payAndRetryPrivy<T>(fullUrl, {
             body,
             headers: {
@@ -726,7 +732,7 @@ async function apiRequest<T = unknown>(
         const { adapterByName } = await import("../payments/generic-x402-adapter.js");
         const adapter = adapterByName(provider);
         if (adapter && adapter.isAvailable()) {
-          const fullUrl = `${API_URL}${path}`;
+          const fullUrl = `${getApiBaseUrl()}${path}`;
           const paidResult = await adapter.payAndRetry<T>(fullUrl, {
             body,
             headers: {
@@ -748,7 +754,7 @@ async function apiRequest<T = unknown>(
     try {
       const { isLobsterAvailable, payAndRetry } = await import("../payments/lobster-pay.js");
       if (isLobsterAvailable()) {
-        const fullUrl = `${API_URL}${path}`;
+        const fullUrl = `${getApiBaseUrl()}${path}`;
         const paidResult = await payAndRetry<T>(fullUrl, {
           body,
           headers: {
@@ -900,7 +906,7 @@ async function checkTosStatus(options?: { exitOnFailure?: boolean }): Promise<bo
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean; exitOnFailure?: boolean }): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   // Harness/server mode: skip ToS prompts entirely
   if (process.env.UNBROWSE_SKIP_TOS_CHECK === "1") {
     console.log("[unbrowse] ToS check skipped (non-interactive/server mode)");
@@ -973,12 +979,26 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
       );
     } catch (err) {
       const msg = (err as Error).message ?? "";
-      if (!wallet.wallet_address || !msg.includes("wallet_already_claimed")) throw err;
-      console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
-      registeredWallet = {};
-      registration = await api<{ agent_id: string; api_key: string }>(
-        "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
-      );
+      if (wallet.wallet_address && msg.includes("wallet_already_claimed")) {
+        console.warn("[unbrowse] Wallet is already claimed by another agent. Registering this CLI without a payout wallet; sign in by email or run `unbrowse register --email ... --reset` to recover that account.");
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else if (msg.includes("flex_onboarding_incomplete")) {
+        // Fresh install with no wallet/Flex onboarding (the default). The full
+        // register is Flex-gated, but publishing must not wait on a wallet: fall
+        // back to the L1 anonymous endpoint, which mints a usable api_key in one
+        // call so captures publish to the official cloud by default. Identity is
+        // wallet-first — the wallet attaches later (L2) to WRAP this key for
+        // earnings (POST /v1/agents/wallet). See backend /v1/agents/register-anon.
+        registeredWallet = {};
+        registration = await api<{ agent_id: string; api_key: string }>(
+          "POST", "/v1/agents/register-anon", { name, tos_version: tosInfo.version, ...attribution }
+        );
+      } else {
+        throw err;
+      }
     }
     const { agent_id, api_key } = registration;
 
@@ -1037,7 +1057,7 @@ export async function magicRegister(opts: {
   const pollMs = opts.pollMs ?? 1_500;
 
   // 1. Start: mint a magic token, send the email.
-  const startRes = await fetch(`${API_URL}/v1/auth/email/start`, {
+  const startRes = await fetch(`${getApiBaseUrl()}/v1/auth/email/start`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1066,7 +1086,7 @@ export async function magicRegister(opts: {
   const token = startData.token;
 
   // 2. Open the verify URL in the user's browser (best-effort).
-  const verifyUrl = `${API_URL}/v1/auth/email/verify?cli=1&token=${encodeURIComponent(token)}`;
+  const verifyUrl = `${getApiBaseUrl()}/v1/auth/email/verify?cli=1&token=${encodeURIComponent(token)}`;
   if (opts.openBrowser) {
     try { await opts.openBrowser(verifyUrl); } catch { /* best-effort */ }
   } else {
@@ -1085,7 +1105,7 @@ export async function magicRegister(opts: {
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, pollMs));
     const pollRes = await fetch(
-      `${API_URL}/v1/auth/email/poll?token=${encodeURIComponent(token)}`,
+      `${getApiBaseUrl()}/v1/auth/email/poll?token=${encodeURIComponent(token)}`,
       {
         method: "GET",
         headers: { "Accept-Encoding": "gzip, deflate" },
@@ -1128,7 +1148,7 @@ export async function magicRegister(opts: {
 let backgroundRegistrationPromise: Promise<void> | null = null;
 
 export function startBackgroundRegistration(options?: { promptForEmail?: boolean }): Promise<void> {
-  if (LOCAL_ONLY) return Promise.resolve();
+  if (isLocalOnly()) return Promise.resolve();
   if (backgroundRegistrationPromise) return backgroundRegistrationPromise;
   backgroundRegistrationPromise = ensureRegistered({
     promptForEmail: options?.promptForEmail,
@@ -1346,7 +1366,7 @@ export function looksLikeSkillId(input: unknown): boolean {
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
   if (recent) return recent;
-  if (LOCAL_ONLY) {
+  if (isLocalOnly()) {
     return readSkillCache(skillId);
   }
   try {
@@ -1382,12 +1402,12 @@ export async function getSkillChunk(
     max_operations?: number;
   }
 ): Promise<AgentSkillChunkView> {
-  if (LOCAL_ONLY) throw new Error("local-only mode does not support remote chunk fetch");
+  if (isLocalOnly()) throw new Error("local-only mode does not support remote chunk fetch");
   return api("POST", `/v1/skills/${skillId}/chunk`, opts ?? {});
 }
 
 export async function listSkills(): Promise<SkillManifest[]> {
-  if (LOCAL_ONLY) {
+  if (isLocalOnly()) {
     try {
       const cacheDir = getSkillCacheDir();
       if (!existsSync(cacheDir)) return [];
@@ -1404,6 +1424,24 @@ export async function listSkills(): Promise<SkillManifest[]> {
   }
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
   return data.skills;
+}
+
+/**
+ * Normalize a skill's auth_profile_ref to the backend's required self-scoped form
+ * (`auth:<domain>`). The CLI's internal credential form is `<domain>-session`; the
+ * security validator rejects anything that isn't `auth:<skill.domain>`, so an
+ * un-normalized publish 400s and silently falls back to local cache. This maps any
+ * non-`auth:` ref to `auth:<domain>` — which also FORCES self-scoping, so a malicious
+ * `victim-bank.com-session` ref on a shop.example skill becomes `auth:shop.example`,
+ * never loading another domain's cookies. Refs already in `auth:` form pass through
+ * unchanged (idempotent); a missing ref or missing domain is left as-is.
+ */
+export function normalizePublishedAuthRef(
+  authRef: string | undefined,
+  domain: string | undefined,
+): string | undefined {
+  if (authRef && domain && !authRef.startsWith("auth:")) return `auth:${domain}`;
+  return authRef;
 }
 
 export async function publishSkill(
@@ -1423,15 +1461,21 @@ export async function publishSkill(
       warnings: ["skipped_publish_empty_endpoints"],
     } as SkillManifest & { warnings: string[] };
   }
-  if (LOCAL_ONLY) throw new Error("local-only mode");
+  if (isLocalOnly()) throw new Error("local-only mode");
   const wallet = getLocalWalletContext();
   const proofCount = (draft.endpoints ?? []).filter(e => e.zk_proof).length;
   const proofHeaders: Record<string, string> = {};
   if (proofCount > 0) {
     proofHeaders["X-Unbrowse-commitmentProof-Count"] = String(proofCount);
   }
+  // Normalize the OUTGOING auth_profile_ref to the backend's self-scoped form so the
+  // publish isn't rejected (see normalizePublishedAuthRef). Local storage/lookup are
+  // untouched — execution lookup already tries `auth:<domain>` first — so no re-auth.
+  const normalizedRef = normalizePublishedAuthRef(draft.auth_profile_ref, draft.domain);
+  const publishDraft =
+    normalizedRef === draft.auth_profile_ref ? draft : { ...draft, auth_profile_ref: normalizedRef };
   const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
-    ...draft,
+    ...publishDraft,
     ...(wallet.wallet_address ? wallet : {}),
   }, { timeoutMs: PUBLISH_TIMEOUT_MS, extraHeaders: proofHeaders });
 
@@ -1441,7 +1485,7 @@ export async function publishSkill(
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("DELETE", `/v1/skills/${skillId}`, undefined);
 }
 
@@ -1451,7 +1495,7 @@ export async function updateEndpointScore(
   score: number,
   status?: string
 ): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
 }
 
@@ -1460,7 +1504,7 @@ export async function updateEndpointSchema(
   endpointId: string,
   schema: import("../types/index.js").ResponseSchema
 ): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { response_schema: schema });
 }
 
@@ -1468,7 +1512,7 @@ export async function getEndpointSchema(
   skillId: string,
   endpointId: string
 ): Promise<unknown | null> {
-  if (LOCAL_ONLY) return null;
+  if (isLocalOnly()) return null;
   try {
     return await api("GET", `/v1/skills/${skillId}/endpoints/${endpointId}/schema`);
   } catch {
@@ -1482,7 +1526,7 @@ export async function searchIntent(
   intent: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
-  if (LOCAL_ONLY) return [];
+  if (isLocalOnly()) return [];
   const data = await api<{ results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> }>(
     "POST", "/v1/search", { intent, k }
   );
@@ -1494,7 +1538,7 @@ export async function searchIntentInDomain(
   domain: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
-  if (LOCAL_ONLY) return [];
+  if (isLocalOnly()) return [];
   const data = await api<{ results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> }>(
     "POST", "/v1/search/domain", { intent, domain, k }
   );
@@ -1507,6 +1551,8 @@ type SearchResolveResult = {
   skipped_global: boolean;
   actual_cost_uc?: number;
   exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>;
+  /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance from the backend's provider chain. */
+  web_search_provider?: string;
 };
 
 /**
@@ -1538,7 +1584,7 @@ export async function searchIntentResolve(
   domainK = 5,
   globalK = 10,
 ): Promise<SearchResolveResult> {
-  if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
+  if (isLocalOnly()) return { domain_results: [], global_results: [], skipped_global: false };
   const { value } = await cachedResolution<SearchResolveResult>({
     key: `search-resolve ${intent} | ${domain ?? ""} | ${domainK} | ${globalK}`,
     ttlMs: searchResolveCacheTtlMs(),
@@ -1554,7 +1600,7 @@ async function searchIntentResolveUncached(
   domainK = 5,
   globalK = 10,
 ): Promise<SearchResolveResult> {
-  if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
+  if (isLocalOnly()) return { domain_results: [], global_results: [], skipped_global: false };
   try {
     const { data, headers } = await apiRequest<{
       domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
@@ -1624,7 +1670,7 @@ export async function rankEndpointsRemote(
   skillDomain?: string,
   contextUrl?: string,
 ): Promise<RemoteRankedEndpoint[] | null> {
-  if (LOCAL_ONLY) return null;
+  if (isLocalOnly()) return null;
   if (!Array.isArray(endpoints) || endpoints.length === 0) return null;
   try {
     const data = await api<{ ranked?: RemoteRankedEndpoint[]; degraded?: boolean }>(
@@ -1700,13 +1746,13 @@ export async function recordExecution(
   trace: ExecutionTrace,
   skill?: Pick<SkillManifest, "indexer_id"> | null,
 ): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   const payload = buildExecutionPayload(skillId, endpointId, trace, skill);
   await api("POST", "/v1/stats/execution", payload);
 }
 
 export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("POST", "/v1/analytics/sessions", {
     ...getTelemetryAttribution(),
     ...payload,
@@ -1714,7 +1760,7 @@ export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): 
 }
 
 export async function recordRoutingTelemetry(events: RoutingTelemetryEvent[]): Promise<void> {
-  if (LOCAL_ONLY || events.length === 0) return;
+  if (isLocalOnly() || events.length === 0) return;
   await postTelemetry("/v1/telemetry/routing", { events });
 }
 
@@ -1728,7 +1774,7 @@ export async function recordTransaction(params: {
   price_usd: number;
   payment_proof?: string;
 }): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("POST", "/v1/transactions", params);
 }
 export async function recordFeedback(
@@ -1736,7 +1782,7 @@ export async function recordFeedback(
   endpointId: string,
   rating: number
 ): Promise<number> {
-  if (LOCAL_ONLY) return rating;
+  if (isLocalOnly()) return rating;
   const data = await api<{ avg_rating: number }>("POST", "/v1/stats/feedback", {
     skill_id: skillId,
     endpoint_id: endpointId,
@@ -1763,7 +1809,7 @@ export interface ServerReliabilitySnapshot {
  * Send one agent reflect outcome UP and adopt the server-authoritative
  * reliability the marketplace recomputed. The Bayesian-smoothed aggregate
  * runs server-side over cross-user EndpointStats; the client must not derive
- * its own. Returns null when the marketplace is unreachable / LOCAL_ONLY so
+ * its own. Returns null when the marketplace is unreachable / isLocalOnly() so
  * the caller can fall back to its last-known local value (degraded, never a
  * hard-fail).
  */
@@ -1772,7 +1818,7 @@ export async function recordReflectionOutcome(
   endpointId: string,
   intentStatus: "achieved" | "partial" | "failed"
 ): Promise<ServerReliabilitySnapshot | null> {
-  if (LOCAL_ONLY) return null;
+  if (isLocalOnly()) return null;
   try {
     const data = await api<{ ok?: boolean; reliability?: ServerReliabilitySnapshot | null }>(
       "POST",
@@ -1792,7 +1838,7 @@ export async function recordDiagnostics(
   endpointId: string,
   diagnostics: Record<string, unknown>
 ): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   await api("POST", "/v1/stats/diagnostics", {
     skill_id: skillId,
     endpoint_id: endpointId,
@@ -1803,7 +1849,7 @@ export async function recordDiagnostics(
 // --- Orchestration Perf ---
 
 export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   const lifecycleSource: LifecycleEvent["source"] =
     timing.source === "marketplace" ? "marketplace"
     : timing.source === "live-capture" ? "live-capture"
@@ -1826,14 +1872,14 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
 // --- Validation ---
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
-  if (LOCAL_ONLY) return { valid: true, hardErrors: [], softWarnings: [] };
+  if (isLocalOnly()) return { valid: true, hardErrors: [], softWarnings: [] };
   try {
     return await api<ValidationResult>("POST", "/v1/validate", manifest);
   } catch (err) {
     // The remote validation endpoint is best-effort. A transport failure or a
     // missing route (404) must never abort a resolve/capture — validation is a
     // publish-quality enhancement, not a resolve gate. Degrade to the same
-    // optimistic shape LOCAL_ONLY returns; publishSkill is independently
+    // optimistic shape isLocalOnly() returns; publishSkill is independently
     // try/catch-guarded at every call site, so an unvalidated publish that
     // would fail just falls back to the local draft.
     console.warn(
@@ -1854,7 +1900,7 @@ export async function publishGraphEdges(
   node: { endpoint_id: string; method: string; url_template: string },
   edges: Array<{ target_endpoint_id: string; kind: string; confidence: number }>
 ): Promise<void> {
-  if (LOCAL_ONLY) return;
+  if (isLocalOnly()) return;
   try {
     await api("POST", "/v1/graph/edges", { domain, node, edges });
   } catch (err) {

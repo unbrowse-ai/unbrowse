@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { buildSkillOperationGraph } from "../src/graph/index.js";
+import { buildSkillOperationGraph } from "../src/lib/graph-core/index.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
-import { GraphSession } from "../src/graph/session.js";
+import { GraphSession } from "../src/lib/graph-core/session.js";
 
 /** Helper to create a minimal EndpointDescriptor for tests. */
 function endpoint(

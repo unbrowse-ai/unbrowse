@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index.js";
+import { rankEndpoints } from "../src/client/rank-server-first.js";
 
 // Fix 2 (contract ebc82be0 / parent bf5b9b1e): the usgs probe captured both
 // a page-artifact (dom_extraction synthesised from the earthquakes summary

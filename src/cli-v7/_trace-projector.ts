@@ -41,7 +41,7 @@
  * the destination. The destination is the wallet-signed KV row.
  */
 
-import type { StoredTrace } from "../graph/trace-store.js";
+import type { StoredTrace } from "../lib/graph-core/trace-store.js";
 
 // ─── v7 step shape ─────────────────────────────────────────────────────────
 

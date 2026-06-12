@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index";
-import { EMPTY_ENTITY_BAG_FLOOR } from "../src/ranking/clamps";
+import { rankEndpoints } from "../src/client/rank-server-first";
+import { EMPTY_ENTITY_BAG_FLOOR } from "../src/lib/ranking-core/clamps";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 function ep(over: Partial<EndpointDescriptor>): EndpointDescriptor {

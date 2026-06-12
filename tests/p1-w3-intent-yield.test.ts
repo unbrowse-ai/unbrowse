@@ -18,7 +18,7 @@ import {
   COMMS_PATH_DELTA_WEIGHT,
   CURRENCY_TIME_DELTA_WEIGHT,
   semanticIntentAdjustment,
-} from "../src/ranking/signals/intent-yield.js";
+} from "../src/lib/ranking-core/signals/intent-yield.js";
 import {
   intentActionKinds,
   intentResourceKinds,
@@ -88,7 +88,7 @@ describe("P1 W3 cluster #2 — extraction anti-goal anchors", () => {
 
   it("src/execution/index.ts imports intent-yield symbols from the new path", () => {
     expect(executionText).toMatch(
-      /import\s*\{[^}]*semanticIntentAdjustment[^}]*\}\s*from\s*"\.\.\/ranking\/signals\/intent-yield\.js"/,
+      /import\s*\{[^}]*semanticIntentAdjustment[^}]*\}\s*from\s*"\.\.\/lib\/ranking-core\/signals\/intent-yield\.js"/,
     );
   });
 

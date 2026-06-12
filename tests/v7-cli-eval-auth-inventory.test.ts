@@ -425,6 +425,67 @@ describe("v7-cli eval auth-inventory — bookmark URL paths never leak", () => {
   });
 });
 
+// ─── 6b. Dia Chromium-compatible profile path ─────────────────────────────
+
+describe("v7-cli eval auth-inventory — Dia source", () => {
+  let profileDir: string;
+  const DIA_PATH_SECRET = "DIA-HISTORY-PATH-SECRET-789";
+  const DIA_BM_SECRET = "DIA-BOOKMARK-QUERY-SECRET-987";
+
+  beforeAll(() => {
+    profileDir = mkdtempSync(join(tmpdir(), "unb7-test-dia-"));
+    buildChromeHistoryDb(join(profileDir, "History"), [
+      {
+        url: `https://github.com/lekt9/private?token=${DIA_PATH_SECRET}`,
+        visit_count: 77,
+        last_visit_unix: Math.floor(Date.now() / 1000),
+      },
+    ]);
+    buildChromeBookmarksJson(join(profileDir, "Bookmarks"), [
+      `https://transitive-bs.notion.site/private?secret=${DIA_BM_SECRET}`,
+    ]);
+  });
+
+  afterAll(() => {
+    rmSync(profileDir, { recursive: true, force: true });
+  });
+
+  it("programmatic Dia override reads host-only history and bookmarks", async () => {
+    const result = await runInventory({
+      chromeProfileOverride: "/nonexistent",
+      diaProfileOverride: profileDir,
+      firefoxProfileOverride: "/nonexistent",
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(DIA_PATH_SECRET);
+    expect(serialized).not.toContain(DIA_BM_SECRET);
+    expect(serialized).not.toContain("/lekt9/private");
+    expect(serialized).not.toContain("/private");
+    expect(result.sources_scanned).toEqual([`dia:${profileDir}`]);
+    expect(result.inventory["github.com"]?.visit_count).toBe(77);
+    expect(result.inventory["transitive-bs.notion.site"]?.bookmarked).toBe(true);
+  });
+
+  it("CLI --dia-profile contributes Dia with a distinct source prefix", async () => {
+    const res = await runCli([
+      "eval",
+      "auth-inventory",
+      "--chrome-profile",
+      "/nonexistent",
+      "--dia-profile",
+      profileDir,
+      "--firefox-profile",
+      "/nonexistent",
+    ]);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain(`"dia:${profileDir}"`);
+    expect(res.stdout).toContain("github.com");
+    expect(res.stdout).toContain("transitive-bs.notion.site");
+    expect(res.stdout).not.toContain(DIA_PATH_SECRET);
+    expect(res.stdout).not.toContain(DIA_BM_SECRET);
+  });
+});
+
 // ─── 7. Platform skip on windows ───────────────────────────────────────────
 
 describe("v7-cli eval auth-inventory — platform skip", () => {

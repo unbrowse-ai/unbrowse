@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getSkillChunk } from "../src/graph/index";
+import { getSkillChunk } from "../src/lib/graph-core/index";
 import type { SkillManifest, SkillOperationNode } from "../src/types/index.js";
 
 // D4 — dedupe operations by (method, url_template) at chunk-build time.

@@ -1,7 +1,7 @@
 /**
  * P1 W3 — hard-clamp cluster relocation guard.
  *
- * Companion to src/ranking/clamps.ts. Holds the byte-identical numeric
+ * Companion to src/lib/ranking-core/clamps.ts. Holds the byte-identical numeric
  * baseline against pre-extraction Math.min arithmetic AND the anti-goal
  * anchors that fail if the extraction is reverted.
  */
@@ -15,11 +15,11 @@ import {
   WEAK_NEGATIVE_FLOOR,
   PAGE_ARTIFACT_DEMOTION,
   clampToFloor,
-} from "../src/ranking/clamps.js";
+} from "../src/lib/ranking-core/clamps.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const EXEC_PATH = join(REPO_ROOT, "src/execution/index.ts");
-const CLAMPS_PATH = join(REPO_ROOT, "src/ranking/clamps.ts");
+const CLAMPS_PATH = join(REPO_ROOT, "src/lib/ranking-core/clamps.ts");
 
 describe("clamps module surface", () => {
   it("exports numeric constants with paper-anchored values", () => {

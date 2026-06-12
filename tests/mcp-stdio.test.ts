@@ -274,7 +274,7 @@ describe("MCP stdio", () => {
       // L273 above asserts "Always use the CLI" (free-text policy line).
       // This line asserts the structural rules section that follows — two
       // independent anchors so a cosmetic edit to one doesn't rot the test.
-      expect(init.result.instructions).toContain("ALWAYS resolve first");
+      expect(init.result.instructions).toContain("Always try `resolve` first");
 
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);

@@ -15,22 +15,20 @@ mock.module("../src/client/index.js", () => ({
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     version: draft.version ?? "1.0.0",
+    warnings: draft.endpoints?.length ? [] : ["skipped_publish_empty_endpoints"],
   }),
   cachePublishedSkill: () => {},
+  findExistingSkillForDomain: () => null,
   publishGraphEdges: async () => {},
 }));
 
-mock.module("../src/marketplace/index.js", () => ({
-  mergeEndpoints: (_existing: unknown, incoming: unknown) => incoming,
-  publishSkill: async (draft: SkillManifest) => ({
-    ...draft,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    version: draft.version ?? "1.0.0",
-  }),
-}));
-
 mock.module("../src/orchestrator/index.js", () => ({
+  resolveAndExecute: async () => ({
+    result: { ok: true },
+    trace: { success: true },
+    source: "marketplace",
+    skill: undefined,
+  }),
   writeSkillSnapshot: () => {},
   domainSkillCache: new Map(),
   persistDomainCache: () => {},
@@ -43,7 +41,7 @@ mock.module("../src/orchestrator/index.js", () => ({
 const { writeWorkflowArtifact } = await import("../src/workflow/artifact.js");
 const { buildWorkflowPublishArtifact, readWorkflowPublishArtifact, writeWorkflowPublishArtifact } = await import("../src/workflow/publish.js");
 const { queuePassiveSkillPublish, resetPassivePublishQueueForTests } = await import("../src/orchestrator/passive-publish.js");
-const { indexSkillLocally, publishIndexedSkill } = await import("../src/indexer/index.js");
+const { indexSkillLocally, publishIndexedSkill } = await import("../src/lib/indexer-core/index.js");
 
 const tempDirs: string[] = [];
 const originalConfigDir = process.env.UNBROWSE_CONFIG_DIR;
@@ -88,6 +86,13 @@ function makeSkill(): SkillManifest {
             ok: { type: "boolean", inferred_from_samples: 1 },
           },
           inferred_from_samples: 1,
+        },
+        semantic: {
+          action_kind: "create",
+          resource_kind: "checkout",
+          description_out: "Submit checkout",
+          description_source: "agent",
+          description_needs_review: false,
         },
       },
     ],
@@ -232,7 +237,7 @@ describe("workflow publish export", () => {
     });
 
     expect(artifact.publish_status).toBe("captured");
-    expect(artifact.sanitized_endpoints[0]?.headers_template?.["x-csrf-token"]).toBe("");
+    expect(artifact.sanitized_endpoints[0]?.headers_template?.["x-csrf-token"] ?? "").toBe("");
     expect((artifact.sanitized_endpoints[0]?.body as Record<string, unknown>)?.authenticity_token).toBe("example-value");
     expect(artifact.recipes[0]?.token_bindings[0]?.candidates[0]?.source_name).toBe("csrftoken");
     expect(artifact.recipes[0]?.replay_contract.parameter_specs[0]?.name).toBe("item_id");
@@ -269,6 +274,13 @@ describe("workflow publish export", () => {
         type: "object",
         properties: { ok: { type: "boolean", inferred_from_samples: 1 } },
         inferred_from_samples: 1,
+      },
+      semantic: {
+        action_kind: "detail",
+        resource_kind: "checkout",
+        description_out: "Get checkout status",
+        description_source: "agent",
+        description_needs_review: false,
       },
     } as SkillManifest["endpoints"][number]);
     skill.operation_graph = {
@@ -377,7 +389,8 @@ describe("workflow publish export", () => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           version: "1.0.0",
-        }),
+          published_remotely: true,
+        } as SkillManifest & { published_remotely: boolean }),
         cachePublishedSkill: () => {},
         validateManifest: async () => ({ valid: true, hardErrors: [], softWarnings: [] }),
       },
@@ -410,6 +423,13 @@ describe("workflow publish export", () => {
         type: "object",
         properties: { ok: { type: "boolean", inferred_from_samples: 1 } },
         inferred_from_samples: 1,
+      },
+      semantic: {
+        action_kind: "detail",
+        resource_kind: "checkout",
+        description_out: "Get checkout status",
+        description_source: "agent",
+        description_needs_review: false,
       },
     } as SkillManifest["endpoints"][number]);
     skill.operation_graph = {

@@ -58,6 +58,7 @@ async function runCli(
       UNBROWSE_API_KEY: "test-key",
       UNBROWSE_CONFIG_DIR: configDir,
       UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+      UNBROWSE_RESOLVE_CACHE_TTL_MS: "0",
       ...envOverrides,
     },
     stdout: "pipe",

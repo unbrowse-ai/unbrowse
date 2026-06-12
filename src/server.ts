@@ -3,7 +3,7 @@ import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
-import { registerRoutes } from "./api/routes.js";
+import { getBrowseSessionCount, registerRoutes } from "./api/routes.js";
 import { registerRateLimiter } from "./ratelimit/index.js";
 import { schedulePeriodicVerification } from "./verification/index.js";
 import { startBackgroundRegistration } from "./client/index.js";
@@ -34,6 +34,7 @@ type StartServerOptions = {
   logger?: boolean;
   pidFile?: string;
   scheduleVerification?: boolean;
+  onIdleExit?: () => void;
 };
 
 export type RunningUnbrowseServer = {
@@ -66,6 +67,12 @@ function clearPidFile(pidFile?: string): void {
   } catch {
     // ignore pid-file failures
   }
+}
+
+let inflightMcpBridgedCount = 0;
+
+export function getInflightMcpBridgedCount(): number {
+  return inflightMcpBridgedCount;
 }
 
 export async function startUnbrowseServer(options: StartServerOptions = {}): Promise<RunningUnbrowseServer> {
@@ -118,6 +125,25 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
   await app.register(cors, { origin: true });
   await registerRateLimiter(app);
 
+  let lastActivityTs = Date.now();
+  app.addHook("onRequest", async (req, _reply) => {
+    lastActivityTs = Date.now();
+    if (String(req.headers["x-unbrowse-mcp-bridged"] ?? "") === "1") {
+      inflightMcpBridgedCount++;
+    }
+  });
+  const decrementMcpInflight = (req: { headers: Record<string, unknown> }) => {
+    if (String(req.headers["x-unbrowse-mcp-bridged"] ?? "") === "1") {
+      inflightMcpBridgedCount = Math.max(0, inflightMcpBridgedCount - 1);
+    }
+  };
+  app.addHook("onResponse", async (req, _reply) => {
+    decrementMcpInflight(req);
+  });
+  app.addHook("onError", async (req, _reply, _error) => {
+    decrementMcpInflight(req);
+  });
+
   await registerRoutes(app);
 
   // Rehydrate browse sessions from ~/.unbrowse/sessions.jsonl so active
@@ -145,6 +171,22 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
       .catch((err) => app.log.warn({ err }, "[trust-refresh] start failed"));
   }
 
+  const idleMs = Number(process.env.UNBROWSE_SERVE_IDLE_MS ?? 0);
+  const idleCheckMs = Number(process.env.UNBROWSE_SERVE_IDLE_CHECK_MS ?? 1000);
+  let idleTimer: ReturnType<typeof setInterval> | undefined;
+  if (Number.isFinite(idleMs) && idleMs > 0) {
+    idleTimer = setInterval(() => {
+      const idleFor = Date.now() - lastActivityTs;
+      if (idleFor < idleMs) return;
+      if (getBrowseSessionCount() > 0) return;
+      if (getInflightMcpBridgedCount() > 0) return;
+      app.log.info("[reaper] idle, exiting");
+      options.onIdleExit?.();
+      void app.close().catch((err) => app.log.warn({ err }, "[reaper] close failed"));
+    }, Number.isFinite(idleCheckMs) && idleCheckMs > 0 ? idleCheckMs : 1000);
+    idleTimer.unref?.();
+  }
+
   return {
     app,
     host,
@@ -153,6 +195,7 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
       if (options?.shutdownBrowsers ?? true) {
         await shutdownAllBrowsers();
       }
+      if (idleTimer) clearInterval(idleTimer);
       await app.close();
       clearPidFile(pidFile);
     },

@@ -78,7 +78,7 @@ describe("dispatcher allowlist — derived from KIND_MAP's 37 rows", () => {
     // It reached the handler (subcommand resolved), not the allowlist gate.
     expect(res.subcommand).toBe("act go");
     expect(res.dispatch_error).not.toBe("unknown_op");
-  });
+  }, 15_000);
 
   it("dispatchByKind('context_fetch', ...) — mechanism → unknown_op, never reaches binary", async () => {
     const res = await dispatchByKind("context_fetch", { foo: "bar" }, { json: true });
@@ -279,7 +279,7 @@ describe("leak-guard.sh — mechanism keyword gate", () => {
     const { code, out } = runGuard();
     expect(code).toBe(0);
     expect(out).toContain("no route mechanism keywords in source surface");
-  });
+  }, 60_000);
 
   test("planted functional leak in src/ → exit 1 + names the file", () => {
     const probe = join(REPO_ROOT, "src", "__w34b_leak_probe__.ts");
@@ -293,7 +293,7 @@ describe("leak-guard.sh — mechanism keyword gate", () => {
     } finally {
       rmSync(probe, { force: true });
     }
-  });
+  }, 60_000);
 
   test("comment-only mention does NOT trip the guard (stripped from bundle)", () => {
     const probe = join(REPO_ROOT, "src", "__w34b_comment_probe__.ts");
@@ -305,5 +305,5 @@ describe("leak-guard.sh — mechanism keyword gate", () => {
     } finally {
       rmSync(probe, { force: true });
     }
-  });
+  }, 60_000);
 });

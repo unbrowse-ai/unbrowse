@@ -22,6 +22,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import {
   AUTH_GATED_HOSTS,
   decidePreResolveAuthGate,
+  hasAuthShapedIntent,
   hasPersonalPronoun,
   hostFromUrl,
   isAuthGatedHost,
@@ -50,6 +51,19 @@ describe("hasPersonalPronoun — boundary-aware", () => {
     expect(hasPersonalPronoun(null)).toBe(false);
     expect(hasPersonalPronoun(undefined)).toBe(false);
     expect(hasPersonalPronoun("")).toBe(false);
+  });
+});
+
+describe("hasAuthShapedIntent — explicit auth task wording", () => {
+  test("matches authenticated workflow terms without requiring a personal pronoun", () => {
+    expect(hasAuthShapedIntent("resolve the authenticated workflow surface")).toBe(true);
+    expect(hasAuthShapedIntent("report the next action if auth is needed for mail.google.com")).toBe(true);
+    expect(hasAuthShapedIntent("open the account dashboard")).toBe(true);
+  });
+
+  test("does NOT match ordinary public-document tasks", () => {
+    expect(hasAuthShapedIntent("get github profile for user octocat")).toBe(false);
+    expect(hasAuthShapedIntent("read the public docs")).toBe(false);
   });
 });
 
@@ -96,6 +110,19 @@ describe("decidePreResolveAuthGate — composite", () => {
       { cookie_probe: () => ({ fresh: false, source: "none", reason: "" }) },
     );
     expect(decision.gate).toBe("pass");
+  });
+
+  test("auth-shaped intent + mail.google.com + no fresh cookie → auth_required", () => {
+    const decision = decidePreResolveAuthGate(
+      "resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com",
+      "https://mail.google.com",
+      { cookie_probe: () => ({ fresh: false, source: "none", reason: "no cookie" }) },
+    );
+    expect(decision.gate).toBe("auth_required");
+    if (decision.gate === "auth_required") {
+      expect(decision.host).toBe("mail.google.com");
+      expect(decision.reason).toContain("auth-shaped intent");
+    }
   });
 
   test("personal + non-gated host → pass", () => {
