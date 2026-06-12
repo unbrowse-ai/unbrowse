@@ -38,7 +38,7 @@ import {
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? DEFAULT_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   return process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 }
 
