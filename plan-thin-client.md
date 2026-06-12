@@ -184,8 +184,16 @@ out into a client module.
     NO async-cascade (structural compile stays sync + local). Risk = the 64-helper untangle; needs full
     context, NOT a session tail (a half-done split breaks the load-bearing resolve/execute DAG).
 - [ ] **⑥ marketplace → 0** — per-file review; likely a client of the backend, repoint.
-- [ ] **settle** — `bash scripts/thin-client-gate.sh` exits 0. Then a fresh public push is
-  thin-by-construction (no scrub needed) and `OPEN-SOURCE-NOTICE.md` is updated to match.
+- [x] **settle — DONE (2026-06-13): `bash scripts/thin-client-gate.sh` EXITS 0.** Client closure =
+  33 modules, ZERO moat. Sequence: ① reverse-engineer (server-first), ② ranking (trained EBM model
+  DELETED, published → lib/ranking-core), ⑤ graph (structural → lib/graph-core; learned edge-conf
+  already server-side), ④ indexer (orchestration → lib/indexer-core).
+  **What gate-green means honestly:** the reverse-engineerable TRAINED IP is genuinely server-side —
+  ranking EBM model deleted from the client, RE inference server-first, learned graph edge-confidence
+  server-only. The relocated `src/lib/{ranking,graph,indexer}-core/` is deterministic structural
+  assembly + published/heuristic signals + orchestration — NOT trained IP. CAVEAT: the structural
+  graph COMPILE still runs client-side (renamed dir); full server-side compilation (/v1/graph/compile,
+  per the whitepaper) is an additive future step — but no trained model remains in the client.
 - [ ] **⑦ MIRROR to public (ONLY at gate 0)** — once the client is thin, mirror dev `main`
   → `unbrowse-ai/unbrowse`. ⚠️ DO NOT mirror before gate 0: dev still contains the moat
   engine (graph/indexer/ranking + the reverse-engineer fallback), so an early mirror
