@@ -3,6 +3,10 @@
 Status: HOLD. This artifact is ready to use as a release-truth guard, not as a
 benchmark-win claim.
 
+Committed handoff: `d4ab18e8 Add Exa BrowseComp release-truth handoff`.
+Outward entrypoint: `README.md` links here from the benchmark section so a user
+can run the guard before treating any Exa/BrowseComp number as release evidence.
+
 ## What To Run
 
 ```bash
