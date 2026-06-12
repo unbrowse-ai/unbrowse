@@ -57,8 +57,24 @@ out into a client module.
     → MOVE these into a client module (e.g. `src/capture/replay-tokens.ts`) so their
     importers no longer point at `reverse-engineer`.
 
+## PROGRESS (gate 6 → 3)
+- ✅ **① reverse-engineer DONE** (commit `ff276e8c`): helpers moved to `src/capture/`
+  (`replay-tokens.ts`, `bundle-scanner.ts`), 8 `extractEndpoints` call sites across 5 files
+  rewired to `await revengServerFirst(...)` (obfuscated egress + lazy fallback), no-leak
+  test 3✓, all modules load. reverse-engineer left the static closure.
+- ✅ **gate scope corrected** (`fix(thin-client gate)`): MOAT = the agreed 4; extraction/
+  marketplace/intent-match are client-local (parsing / API client / local matching).
+- ⏳ **Remaining: graph, indexer, ranking** — each LARGE:
+  - `graph` is the worst — **16 static importers** using ~17 mixed symbols (moat compile:
+    `buildSkillOperationGraph`, `inferEndpointSemantic`, `getEndpointDescriptionMetadata`;
+    thin client: `toAgentWorkflowDagView`, `computeReachableEndpoints`, `getSkillChunk`).
+    Needs a SPLIT (moat compile→server, DAG-walk→client) + 16-site rewire.
+  - `indexer` delegates to graph (`buildSkillOperationGraph`); do after graph.
+  - `ranking` fuses signals into `execution` (`ranking/signals/*` imported in execution).
+  Use the ① pattern; budget a dedicated session per module.
+
 ## Checkpoints (each must DROP the gate count + ship a no-leak test)
-- [ ] **① reverse-engineer → 0 in closure (gate 6→5)**
+- [x] **① reverse-engineer → 0 in closure (gate 6→5, then 3 after scope fix)** — DONE
   1. Create `src/capture/replay-tokens.ts`: move `extractTokenFromHtml`,
      `extractTokenFromBundle`, `scanBundlesForRoutes`, `enrichEndpointsWithTokenSources`
      out of `src/reverse-engineer/` into it (or re-export if they don't pull RE internals).
