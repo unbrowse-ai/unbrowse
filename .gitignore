@@ -300,3 +300,4 @@ bench/exa/seal0_dev*.jsonl
 bench/exa/highlights_unbrowse.jsonl
 bin/unbrowse-dev
 .release-coverage-baseline
+.bench-secrets/
