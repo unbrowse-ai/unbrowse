@@ -1,7 +1,7 @@
 /**
  * tests/ranking-seed.test.ts — Wave-1 seed for PAPER_PLAN.md §P1.
  *
- * Asserts only that `src/ranking/index.ts` exists, re-exports
+ * Asserts only that `src/client/rank-server-first.ts` exists, re-exports
  * `rankEndpoints` and the `RankedEndpoint` type, and that the function is
  * callable on empty input. Behavior is unchanged from `src/execution`.
  *
@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "bun:test";
 
-import { rankEndpoints, type RankedEndpoint } from "../src/ranking/index.js";
+import { rankEndpoints, type RankedEndpoint } from "../src/client/rank-server-first.js";
 
 describe("src/ranking/ — P1 seed re-export", () => {
   it("rankEndpoints is importable from the new path", () => {

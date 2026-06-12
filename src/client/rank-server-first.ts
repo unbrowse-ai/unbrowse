@@ -32,7 +32,7 @@
 
 import { rankEndpoints, type RankedEndpoint } from "../execution/index.js";
 import type { EndpointDescriptor } from "../types/skill.js";
-import { rankEndpointsRemote } from "../client/index.js";
+import { rankEndpointsRemote } from "./index.js";
 
 export { rankEndpoints } from "../execution/index.js";
 export type { RankedEndpoint } from "../execution/index.js";

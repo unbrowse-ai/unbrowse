@@ -16,7 +16,7 @@ import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { resolveProxyUrl, resolveEgressProxy } from "../execution/proxy-fetch.js";
 
-import { rankEndpoints, rankEndpointsServerFirst } from "../ranking/index.js";
+import { rankEndpoints, rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
   getSkillChunk,
   getEndpointDescriptionMetadata,

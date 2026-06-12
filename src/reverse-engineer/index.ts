@@ -25,7 +25,7 @@ import { buildQueryBindingMap } from "../template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
 import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
 import { decodeProtobufBody, isProtobufLikeEndpoint } from "../protobuf/wire.js";
-import { I18N_CONFIG_PATHS } from "../ranking/filters/noise-patterns.js";
+import { I18N_CONFIG_PATHS } from "../lib/ranking-core/filters/noise-patterns.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;

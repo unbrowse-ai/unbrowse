@@ -6,8 +6,7 @@ import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { scanBundlesForRoutes } from "../capture/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
-import { LEDGER_NEUTRAL } from "../ranking/signals/ledger-energy.js";
-import { routeEnergy } from "../ranking/signals/learned-energy.js";
+import { LEDGER_NEUTRAL, ledgerEnergyCached } from "../lib/ranking-core/signals/ledger-energy.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
@@ -31,9 +30,9 @@ import type { ChainWalkContext, DecisionTraceStep, EndpointDescriptor, Execution
 import { isBindingStale } from "../orchestrator/dag-feedback.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
-import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../ranking/signals/bm25.js";
-import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../ranking/signals/intent-yield.js";
-import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../ranking/filters/noise-patterns.js";
+import { bm25Score, BM25_K1, BM25_B, BM25_DELTA_WEIGHT } from "../lib/ranking-core/signals/bm25.js";
+import { semanticIntentAdjustment, AGENT_DESC_DELTA_WEIGHT, CURRENCY_TIME_DELTA_WEIGHT, COMMS_PATH_DELTA_WEIGHT, CHART_PRICING_DELTA_WEIGHT } from "../lib/ranking-core/signals/intent-yield.js";
+import { NOISE_HOSTS, NOISE_PATHS, I18N_CONFIG_PATHS, AUTH_CONFIG_PATHS, SESSION_PLUMBING, STATIC_ASSET_PATTERNS, UI_ASSET_PATHS } from "../lib/ranking-core/filters/noise-patterns.js";
 import {
   EMPTY_ENTITY_BAG_DEMOTION,
   EMPTY_ENTITY_BAG_FLOOR,
@@ -41,7 +40,7 @@ import {
   WEAK_NEGATIVE_FLOOR,
   PAGE_ARTIFACT_DEMOTION,
   clampToFloor,
-} from "../ranking/clamps.js";
+} from "../lib/ranking-core/clamps.js";
 
 function stableEndpointId(method: string, urlTemplate: string): string {
   if (!method || !urlTemplate) return nanoid();
@@ -6154,7 +6153,7 @@ function schemaContainsArrayAtAnyDepth(
 }
 
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string, params?: Record<string, unknown>): RankedEndpoint[] {
-  // Noise filter patterns moved to src/ranking/filters/noise-patterns.ts (P1 W3 cleanup)
+  // Noise filter patterns moved to src/lib/ranking-core/filters/noise-patterns.ts (P1 W3 cleanup)
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
@@ -6476,15 +6475,14 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     else if (ep.verification_status === "pending") score -= 10;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
-    // === Ledger energy: the learned "what-worked" signal (EBM layers 1+3) ===
-    // P(success | domain, endpoint, source), blended from the layer-1 back-off statistic
-    // folded from the agent's own ledger (~/.unbrowse/traces) AND the layer-3 learned
-    // contrastive head shipped by scripts/ebm/layer3_train.py (bench/ebm/energy-head.latest.json).
-    // The learned head generalises to COLD cells the back-off statistic is blind to (proven
-    // to beat it on held-out + cold cells: scripts/ebm-layers-gate.py). Centered on neutral so
-    // a route with no signal gets ZERO net effect. Magnitude matches reliability (±40). Fails
-    // neutral; disable layer 1 with UNBROWSE_LEDGER_ENERGY=0, layer 3 with UNBROWSE_LEARNED_ENERGY=0.
-    score += (routeEnergy(skillDomain, ep.endpoint_id, ep.source, intent) - LEDGER_NEUTRAL) * 80;
+    // === Ledger energy: the train-free "what-worked" back-off signal (EBM layer 1) ===
+    // P(success | domain, endpoint, source) from the layer-1 back-off statistic folded from
+    // the agent's own ledger (~/.unbrowse/traces). The layer-3 LEARNED contrastive head is
+    // moat IP and runs SERVER-SIDE only (rankEndpointsServerFirst → /v1/search/rank); the local
+    // client uses the train-free back-off alone as the degraded fallback (thin-client boundary).
+    // Centered on neutral so a route with no signal gets ZERO net effect. Disable with
+    // UNBROWSE_LEDGER_ENERGY=0.
+    score += (ledgerEnergyCached(skillDomain, ep.endpoint_id, ep.source) - LEDGER_NEUTRAL) * 80;
 
     // === Domain affinity ===
     if (skillDomain) {

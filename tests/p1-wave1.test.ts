@@ -3,7 +3,7 @@
  *
  * Falsifiable invariants over the 4 seeds shipped in Step 3:
  *
- *   1. src/ranking/index.ts re-exports the IDENTICAL function reference
+ *   1. src/client/rank-server-first.ts re-exports the IDENTICAL function reference
  *      (not a copy) as src/execution/index.ts.
  *   2. .planning/phases/01-unified-ranking/01-01-PLAN.md exists with
  *      complete GSD frontmatter (phase, plan, title, wave, depends_on,
@@ -24,7 +24,7 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { rankEndpoints as rankFromRanking } from "../src/ranking/index.js";
+import { rankEndpoints as rankFromRanking } from "../src/client/rank-server-first.js";
 import { rankEndpoints as rankFromExecution } from "../src/execution/index.js";
 
 const REPO_ROOT = join(import.meta.dir, "..");
@@ -104,7 +104,7 @@ describe("P1 Wave-1: CHANGELOG carries the seed entry", () => {
   it("unreleased history mentions ranking seed", () => {
     expect(changelog).toContain("## [Unreleased]");
     expect(changelog).toContain("**ranking:**");
-    expect(changelog).toContain("src/ranking/index.ts");
+    expect(changelog).toContain("src/client/rank-server-first.ts");
   });
 });
 
@@ -206,8 +206,8 @@ describe("P1 Wave-1 ministry: adversarial — anti-goal anchor (no migration yet
     expect(matches.length).toBeGreaterThanOrEqual(30);
   });
 
-  it("src/ranking/index.ts contains NO inline scoring logic (it is a re-export only)", () => {
-    const text = readFileSync(join(REPO_ROOT, "src/ranking/index.ts"), "utf8");
+  it("src/client/rank-server-first.ts contains NO inline scoring logic (it is a re-export only)", () => {
+    const text = readFileSync(join(REPO_ROOT, "src/client/rank-server-first.ts"), "utf8");
     expect(text).not.toMatch(/score \+= /);
     expect(text).not.toMatch(/score -= /);
     expect(text).toContain('export { rankEndpoints }');

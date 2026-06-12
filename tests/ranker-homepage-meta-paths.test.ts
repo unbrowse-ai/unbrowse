@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index.js";
+import { rankEndpoints } from "../src/client/rank-server-first.js";
 
 // Fix 1 (contract e6dc4aa8): axios.com homepage intent should rank
 // /articles and /stories (editorial content) ABOVE /audiences/newsletters
