@@ -6,8 +6,8 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, mkdir, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { writeJob, type JobEnvelope } from "../src/indexer/queue-store.js";
-import type { BackgroundIndexJob } from "../src/indexer/index.js";
+import { writeJob, type JobEnvelope } from "../src/lib/indexer-core/queue-store.js";
+import type { BackgroundIndexJob } from "../src/lib/indexer-core/index.js";
 
 const REPO_ROOT = resolve(__dirname, "..");
 
@@ -117,7 +117,7 @@ describe("disk-queue end-to-end", () => {
   test(
     "drainOnce on empty queue is idempotent",
     async () => {
-      const { drainOnce } = await import("../src/indexer/worker.js");
+      const { drainOnce } = await import("../src/lib/indexer-core/worker.js");
       const res = await drainOnce(queueDir, async () => {
         /* no-op */
       });

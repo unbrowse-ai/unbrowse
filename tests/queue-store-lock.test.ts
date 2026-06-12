@@ -3,7 +3,7 @@ import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, writeFile, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { acquireLock, touchHeartbeat, heartbeatAgeMs } from "../src/indexer/queue-store.js";
+import { acquireLock, touchHeartbeat, heartbeatAgeMs } from "../src/lib/indexer-core/queue-store.js";
 
 function pickDeadPid(): number {
   for (const candidate of [2_000_000, 99_999_999, 1_999_999]) {

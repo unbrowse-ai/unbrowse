@@ -4,7 +4,7 @@ import { describe, test, expect } from "bun:test";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tryAcquireWorkerSlot } from "../src/indexer/queue-store.js";
+import { tryAcquireWorkerSlot } from "../src/lib/indexer-core/queue-store.js";
 
 async function freshDir(): Promise<string> {
   return await mkdtemp(join(tmpdir(), "unbrowse-worker-slot-conc-"));

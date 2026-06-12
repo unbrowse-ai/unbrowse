@@ -14,7 +14,7 @@
 //      the authoritative semantic marker.
 
 import { describe, expect, test } from "bun:test";
-import { getEndpointDescriptionMetadata } from "../src/graph/index";
+import { getEndpointDescriptionMetadata } from "../src/lib/graph-core/index";
 import type { EndpointDescriptor } from "../src/types/skill";
 
 const baseEndpoint: EndpointDescriptor = {
@@ -92,7 +92,7 @@ describe("agent-augment sets the authoritative marker on the semantic descriptor
   test("augment-augment.ts contains description_source: 'agent' as const", () => {
     const { readFileSync } = require("node:fs");
     const { join } = require("node:path");
-    const src = readFileSync(join(import.meta.dir, "..", "src", "graph", "agent-augment.ts"), "utf8");
+    const src = readFileSync(join(import.meta.dir, "..", "src", "lib", "graph-core", "agent-augment.ts"), "utf8");
     // The sanitizeSemanticUpdate function MUST stamp the marker so the
     // renderer can trust it.
     expect(src).toMatch(/description_source:\s*"agent"\s+as\s+const/);

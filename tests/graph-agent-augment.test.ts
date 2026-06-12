@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { augmentEndpointsWithAgent } from "../src/graph/agent-augment.js";
+import { augmentEndpointsWithAgent } from "../src/lib/graph-core/agent-augment.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 // The semantic-augmentation prompt + model orchestration moved

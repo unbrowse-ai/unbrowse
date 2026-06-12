@@ -9,6 +9,7 @@ const calls = {
   navigate: 0,
   getCurrentUrl: 0,
   getPageHtml: 0,
+  hasCloudflareChallenge: 0,
   closeTab: 0,
 };
 
@@ -44,6 +45,10 @@ mock.module("../src/kuri/client.js", () => ({
     calls.getPageHtml += 1;
     return "<html><body>live</body></html>";
   },
+  hasCloudflareChallenge: async () => {
+    calls.hasCloudflareChallenge += 1;
+    return false;
+  },
   closeTab: async () => {
     calls.closeTab += 1;
   },
@@ -73,19 +78,15 @@ mock.module("../src/reverse-engineer/index.js", () => ({
   extractAuthHeaders: () => ({}),
 }));
 
-mock.module("../src/indexer/index.js", () => ({
+mock.module("../src/lib/indexer-core/index.js", () => ({
   queueBackgroundIndex: () => {},
 }));
 
-mock.module("../src/marketplace/index.js", () => ({
-  mergeEndpoints: (_existing: unknown, incoming: unknown) => incoming,
-}));
-
-mock.module("../src/graph/index.js", () => ({
+mock.module("../src/lib/graph-core/index.js", () => ({
   buildSkillOperationGraph: () => ({ nodes: [], edges: [] }),
 }));
 
-mock.module("../src/graph/agent-augment.js", () => ({
+mock.module("../src/lib/graph-core/agent-augment.js", () => ({
   augmentEndpointsWithAgent: async (endpoints: unknown) => endpoints,
 }));
 

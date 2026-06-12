@@ -1,6 +1,6 @@
 // Sanitizer edge tests — Phase 1.1 Day-5 creature (LOW-1 fix).
 import { describe, test, expect } from "bun:test";
-import { sanitizeDomain } from "../src/indexer/queue-store.js";
+import { sanitizeDomain } from "../src/lib/indexer-core/queue-store.js";
 
 describe("sanitizeDomain edges", () => {
   test("NFC and NFD collapse to same output", () => {

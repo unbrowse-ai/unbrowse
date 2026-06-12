@@ -1,4 +1,4 @@
-import { buildSkillOperationGraph } from "../graph/index.js";
+import { buildSkillOperationGraph } from "../lib/graph-core/index.js";
 import type { SkillManifest } from "../types/index.js";
 import { readWorkflowArtifact } from "../workflow/artifact.js";
 import { buildSafeParameterSpecView, flattenResponseSchemaFields } from "./schema-review.js";

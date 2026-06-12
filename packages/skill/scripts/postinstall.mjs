@@ -95,3 +95,16 @@ try {
 } catch {
   /* Telemetry must never break install. */
 }
+
+// konmari: keep only THIS host's vendored native binaries — deletes the other platforms'
+// (~40 MB lighter per install). Fail-safe + idempotent in the script; never blocks/breaks
+// install. Opt out with UNBROWSE_NO_PRUNE=1.
+try {
+  const { spawnSync } = await import("node:child_process");
+  spawnSync(process.execPath, [join(__dirname, "prune-foreign-binaries.mjs")], {
+    stdio: "inherit",
+    env: process.env,
+  });
+} catch {
+  /* The prune is best-effort; install must never break on it. */
+}

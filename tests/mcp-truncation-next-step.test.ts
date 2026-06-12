@@ -70,6 +70,7 @@ async function callMcp(port: number, args: Record<string, unknown>): Promise<{ r
     ...process.env,
     UNBROWSE_URL: `http://127.0.0.1:${port}`,
     UNBROWSE_API_URL: `http://127.0.0.1:${port}`,
+    UNBROWSE_MCP_HTTP_BACKEND: "1",
     UNBROWSE_NO_AUTO_START: "1",
     UNBROWSE_TEST_FAIL_FAST: "0",
   };
@@ -322,11 +323,10 @@ describe("AC3 — body_excerpt wrapper surfaces actionable next_step when projec
     }
   }, 30_000);
 
-  test("no-projection diet-fallback case does NOT add next_step (out-of-scope)", async () => {
+  test("no-projection diet-fallback case surfaces generic recovery hints", async () => {
     // When caller did NOT supply path/extract/limit, the diet fallback is
-    // the generic safety net and should keep its existing shape — no
-    // projection-aware hints. This pins NON-GOAL #3 from the plan
-    // (resolve / generic responses untouched).
+    // still the generic safety net, but it should surface enough recovery
+    // information for an agent to make the next call deliberately.
     const port = nextPort();
     const stub = await startStub(port, () => fewLargeItemsBody(200, 1000));
     try {
@@ -339,17 +339,19 @@ describe("AC3 — body_excerpt wrapper surfaces actionable next_step when projec
       const result = rpc.result as { structuredContent?: Record<string, unknown> };
       const structured = result?.structuredContent ?? {};
 
-      // Wrapper may or may not fire here depending on raw body shape — what we
-      // pin is: IF it fires, no projection-aware hints are present.
+      // Generic diet fallback now also carries recovery hints. Projection
+      // supplied cases above prove the agent can turn suggested_limit into a
+      // clean second call; this branch asserts the no-projection fallback stays
+      // honest and bounded.
       if (structured.truncated === true && typeof structured.body_excerpt === "string") {
         expect(
           structured.suggested_limit,
-          "no-projection branch must NOT inject suggested_limit",
-        ).toBeUndefined();
+          "generic diet fallback should surface a concrete retry limit when it can",
+        ).toBeDefined();
         expect(
           structured.next_step,
-          "no-projection branch must NOT inject next_step",
-        ).toBeUndefined();
+          "generic diet fallback should surface an actionable next step",
+        ).toBeDefined();
       }
     } finally {
       stub.close();

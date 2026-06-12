@@ -134,6 +134,8 @@ async function callMcp(stubPort: number, args: Record<string, unknown>): Promise
     ...process.env,
     UNBROWSE_URL: `http://127.0.0.1:${stubPort}`,
     UNBROWSE_API_URL: `http://127.0.0.1:${stubPort}`,
+    UNBROWSE_BACKEND_URL: `http://127.0.0.1:${stubPort}`,
+    UNBROWSE_MCP_HTTP_BACKEND: "1",
     UNBROWSE_NO_AUTO_START: "1",
     UNBROWSE_TEST_FAIL_FAST: "0",
   };

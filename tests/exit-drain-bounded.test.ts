@@ -5,7 +5,7 @@
 // publishes), this test fails.
 //
 // The fix lives in:
-//   - src/indexer/index.ts          drainPendingIndexJobs (disk-mode hard cap + unref)
+//   - src/lib/indexer-core/index.ts          drainPendingIndexJobs (disk-mode hard cap + unref)
 //   - src/orchestrator/passive-publish.ts  drainPendingPassivePublishes (unref'd cap timer)
 //
 // Both honor UNBROWSE_DRAIN_HARD_MS (default 200ms) and unref their internal
@@ -28,7 +28,7 @@ describe("exit drain — bounded by hard cap (D5 speed)", () => {
     process.env.HOME = join(tmpdir(), `drain-fast-${Date.now()}-${process.pid}`);
     process.env.UNBROWSE_INLINE_INDEX = "";
     await mkdir(join(process.env.HOME, ".unbrowse", "queue", "pending"), { recursive: true });
-    const { drainPendingIndexJobs } = await import("../src/indexer/index.js");
+    const { drainPendingIndexJobs } = await import("../src/lib/indexer-core/index.js");
     const t0 = Date.now();
     await drainPendingIndexJobs();
     const elapsed = Date.now() - t0;
@@ -79,7 +79,7 @@ describe("exit drain — bounded by hard cap (D5 speed)", () => {
       },
     };
     await writeFile(join(queueDir, "phantom.test.1.json"), JSON.stringify(envelope));
-    const { drainPendingIndexJobs } = await import("../src/indexer/index.js");
+    const { drainPendingIndexJobs } = await import("../src/lib/indexer-core/index.js");
     const t0 = Date.now();
     await drainPendingIndexJobs();
     const elapsed = Date.now() - t0;

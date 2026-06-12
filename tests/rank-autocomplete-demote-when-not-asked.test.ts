@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { rankEndpoints } from "../src/ranking/index";
+import { rankEndpoints } from "../src/client/rank-server-first";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 // W-RANKER-DEMOTE-AUTOCOMPLETE: when the user's intent is a real LIST

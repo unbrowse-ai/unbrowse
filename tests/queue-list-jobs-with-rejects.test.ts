@@ -7,7 +7,7 @@ import {
   listJobsWithRejects,
   writeJob,
   type JobEnvelope,
-} from "../src/indexer/queue-store.js";
+} from "../src/lib/indexer-core/queue-store.js";
 
 function envelope(overrides: Partial<JobEnvelope> = {}): JobEnvelope {
   return {

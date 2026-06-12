@@ -105,9 +105,13 @@ describe("deps-present", () => {
 });
 
 // LANE splits-from-frozen — flex.ts zero-diff guard. GREEN now, MUST stay.
+// Re-frozen 959ec8cb → febc1918 (2026-06-10): the deliberate markup-override
+// (10ebbe63), 5-role partition (93201c26), and v8.2.0 (febc1918) commits
+// outgrew the old baseline. Same convention as the 94f476f0 re-freeze. Any
+// UNREVIEWED drift after febc1918 turns this RED again.
 describe("computeFlexSplits frozen (zero-diff guard)", () => {
-  test("backend/src/services/flex.ts has zero diff vs evidence baseline 959ec8cb", () => {
-    const out = execSync("git diff --stat 959ec8cb -- backend/src/services/flex.ts", { encoding: "utf8", cwd: new URL("..", import.meta.url).pathname }).trim();
+  test("backend/src/services/flex.ts has zero diff vs evidence baseline febc1918", () => {
+    const out = execSync("git diff --stat febc1918 -- backend/src/services/flex.ts", { encoding: "utf8", cwd: new URL("..", import.meta.url).pathname }).trim();
     expect(out).toBe("");
   });
 });

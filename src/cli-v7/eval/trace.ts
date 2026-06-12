@@ -43,7 +43,7 @@ import {
   findTracesByIntent,
   getTraceStorePath,
   type StoredTrace,
-} from "../../graph/trace-store.js";
+} from "../../lib/graph-core/trace-store.js";
 import { readSessionRecord } from "../_session.js";
 import { postStateless, type PostStatelessResult } from "../_stateless.js";
 import { traceV6ToV7Steps, type V7TraceStep } from "../_trace-projector.js";

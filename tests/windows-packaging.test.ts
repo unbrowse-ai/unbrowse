@@ -88,9 +88,10 @@ describe("kuri binary naming (win .exe)", () => {
 });
 
 describe("source-structure regressions", () => {
-  test("postinstall extracts the target-appropriate member, not a hardcoded ./unbrowse", () => {
+  test("postinstall wires the platform-appropriate explicit binary override, not a hardcoded ./unbrowse", () => {
     const src = readFileSync(join(repoRoot, "packages/skill/scripts/postinstall.mjs"), "utf8");
-    expect(src).toContain("unbrowseBinaryName(target)");
+    expect(src).toContain("unbrowseBinaryName(process.platform)");
+    expect(src).toContain("UNBROWSE_INSTALL_BINARY_PATH");
     // the old failure string keyed on a hardcoded ./unbrowse must be gone
     expect(src).not.toContain('did not contain ./unbrowse');
   });

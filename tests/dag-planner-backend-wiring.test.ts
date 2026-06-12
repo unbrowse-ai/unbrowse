@@ -335,7 +335,7 @@ describe("backend graph client integration", () => {
 describe("planner.ts stub removal", () => {
   it("planner.ts upsertDagEdgesFromOperationGraph is not a no-op stub", () => {
     const src = readFileSync(
-      join(__dirname, "..", "src", "graph", "planner.ts"),
+      join(__dirname, "..", "src", "lib", "graph-core", "planner.ts"),
       "utf-8",
     );
     // The stub that says "no-op -- advisory planner does not persist edges" should be gone

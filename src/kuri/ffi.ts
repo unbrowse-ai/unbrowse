@@ -1,11 +1,15 @@
 /**
- * src/kuri/ffi.ts — in-process stateless kuri fetch via Bun FFI.
+ * src/kuri/ffi.ts — in-process stateless kuri fetch via C-ABI FFI.
  *
  * Loads `libkuri_ffi` (built from kuri's `zig build ffi`) and calls its C-ABI
  * `kuri_fetch(url, mode)` directly — no kuri server, no :8080 daemon, no Bridge,
  * no subprocess. This is the embedded, stateless fetch path: one call in, rendered
  * markdown/html out. Self-first primary; callers fall back to their existing path
  * when the lib isn't present for the platform (graceful: `kuriFfiAvailable()`).
+ *
+ * Runtime-agnostic: under Bun it uses the built-in `bun:ffi`; under plain Node it
+ * uses `koffi` (a prebuilt N-API FFI — no node-gyp). Either way every failure path
+ * returns null/false, so the runtime never depends on a particular engine.
  *
  * The shared lib is vendored per-platform at vendor/kuri/<target>/ by CI (same
  * cross-sysroot constraint as the kuri binary); locally it resolves from the
@@ -16,8 +20,23 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
+const isBun = typeof process !== "undefined" && !!(process as { versions?: { bun?: string } }).versions?.bun;
 
 export type FetchMode = "markdown" | "html";
+
+/** Platform dylib extension, without depending on bun:ffi's `suffix`. */
+function libSuffix(): string {
+	if (isBun) {
+		try {
+			return (require("bun:ffi") as { suffix: string }).suffix;
+		} catch {
+			/* fall through to platform map */
+		}
+	}
+	if (process.platform === "darwin") return "dylib";
+	if (process.platform === "win32") return "dll";
+	return "so";
+}
 
 function platformTarget(): string | null {
 	const p = process.platform;
@@ -31,16 +50,8 @@ function platformTarget(): string | null {
 }
 
 function resolveLibPath(): string | null {
-	// bun:ffi `suffix` is the platform dylib extension (dylib/so/dll).
-	let suffix = "dylib";
-	try {
-		// lazy require so this module is importable even off-Bun (returns null below).
-		suffix = (require("bun:ffi") as { suffix: string }).suffix;
-	} catch {
-		return null;
-	}
 	const target = platformTarget();
-	const libName = `libkuri_ffi.${suffix}`;
+	const libName = `libkuri_ffi.${libSuffix()}`;
 	const candidates = [
 		process.env.UNBROWSE_KURI_FFI_LIB,
 		join(process.cwd(), "submodules/kuri/zig-out/lib", libName),
@@ -56,14 +67,16 @@ interface KuriFfi {
 	kuri_ffi_abi_version: () => number;
 }
 
-let _loaded = false;
-let _ffi: { symbols: KuriFfi; ptr: (b: Uint8Array) => unknown; CString: new (p: unknown) => { toString(): string } } | null = null;
+// Engine-neutral handle: call kuri_fetch with a NUL-terminated url buffer + mode,
+// read the returned C string, then free it. Implemented over bun:ffi or koffi.
+interface KuriHandle {
+	fetch: (url: string, mode: number) => string | null;
+}
 
-function load() {
-	if (_loaded) return _ffi;
-	_loaded = true;
-	const libPath = resolveLibPath();
-	if (!libPath) return null;
+let _loaded = false;
+let _handle: KuriHandle | null = null;
+
+function loadViaBunFfi(libPath: string): KuriHandle | null {
 	try {
 		const { dlopen, FFIType, ptr, CString } = require("bun:ffi");
 		const lib = dlopen(libPath, {
@@ -71,12 +84,61 @@ function load() {
 			kuri_free: { args: [FFIType.ptr], returns: FFIType.void },
 			kuri_ffi_abi_version: { args: [], returns: FFIType.i32 },
 		});
-		if (lib.symbols.kuri_ffi_abi_version() !== 1) return null; // ABI mismatch — refuse
-		_ffi = { symbols: lib.symbols as KuriFfi, ptr, CString };
+		const symbols = lib.symbols as KuriFfi;
+		if (symbols.kuri_ffi_abi_version() !== 1) return null; // ABI mismatch — refuse
+		return {
+			fetch: (url, mode) => {
+				const urlBuf = Buffer.from(`${url}\0`, "utf8");
+				const resPtr = symbols.kuri_fetch(ptr(urlBuf), mode);
+				if (!resPtr) return null;
+				try {
+					return new CString(resPtr).toString();
+				} finally {
+					symbols.kuri_free(resPtr);
+				}
+			},
+		};
 	} catch {
-		_ffi = null;
+		return null;
 	}
-	return _ffi;
+}
+
+function loadViaKoffi(libPath: string): KuriHandle | null {
+	try {
+		// Prebuilt N-API FFI (no node-gyp). Absent → graceful null, caller falls back.
+		const koffi = require("koffi") as {
+			load: (p: string) => { func: (sig: string) => (...a: unknown[]) => unknown };
+			decode: (ptr: unknown, type: string) => string;
+		};
+		const lib = koffi.load(libPath);
+		const kuriFetchFn = lib.func("void *kuri_fetch(void *, int)") as (b: Buffer, m: number) => unknown;
+		const kuriFreeFn = lib.func("void kuri_free(void *)") as (p: unknown) => void;
+		const kuriAbiFn = lib.func("int kuri_ffi_abi_version()") as () => number;
+		if (kuriAbiFn() !== 1) return null; // ABI mismatch — refuse
+		return {
+			fetch: (url, mode) => {
+				const urlBuf = Buffer.from(`${url}\0`, "utf8");
+				const resPtr = kuriFetchFn(urlBuf, mode);
+				if (!resPtr) return null;
+				try {
+					return koffi.decode(resPtr, "char *");
+				} finally {
+					kuriFreeFn(resPtr);
+				}
+			},
+		};
+	} catch {
+		return null;
+	}
+}
+
+function load(): KuriHandle | null {
+	if (_loaded) return _handle;
+	_loaded = true;
+	const libPath = resolveLibPath();
+	if (!libPath) return null;
+	_handle = isBun ? loadViaBunFfi(libPath) : loadViaKoffi(libPath);
+	return _handle;
 }
 
 /** Whether the embedded stateless fetch lib is loaded for this platform. */
@@ -90,14 +152,7 @@ export function kuriFfiAvailable(): boolean {
  * Stateless: no daemon, no shared state.
  */
 export function kuriFetch(url: string, mode: FetchMode = "markdown"): string | null {
-	const ffi = load();
-	if (!ffi) return null;
-	const urlBuf = Buffer.from(`${url}\0`, "utf8");
-	const resPtr = ffi.symbols.kuri_fetch(ffi.ptr(urlBuf), mode === "markdown" ? 0 : 1);
-	if (!resPtr) return null;
-	try {
-		return new ffi.CString(resPtr).toString();
-	} finally {
-		ffi.symbols.kuri_free(resPtr);
-	}
+	const handle = load();
+	if (!handle) return null;
+	return handle.fetch(url, mode === "markdown" ? 0 : 1);
 }

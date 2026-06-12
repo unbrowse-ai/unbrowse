@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tryAcquireWorkerSlot } from "../src/indexer/queue-store.js";
+import { tryAcquireWorkerSlot } from "../src/lib/indexer-core/queue-store.js";
 
 describe("tryAcquireWorkerSlot cold-start (Day-8 audit #3)", () => {
   let parentDir: string;

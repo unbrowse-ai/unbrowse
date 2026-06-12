@@ -261,6 +261,13 @@ export const ROUTE_MAP: Record<string, RouteShape> = {
 		witness: "",
 		essence: "search for it as hidden treasure — query the marketplace",
 	},
+	unbrowse_search: {
+		name: "unbrowse_search",
+		verb: "act",
+		day: 6,
+		witness: "",
+		essence: "search for it as hidden treasure — query the capability graph",
+	},
 	unbrowse_auth_capture: {
 		name: "unbrowse_auth_capture",
 		verb: "act",

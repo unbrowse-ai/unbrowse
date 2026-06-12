@@ -33,7 +33,7 @@ import {
   __internal as projInternal,
 } from "../src/cli-v7/_trace-projector.js";
 
-import type { StoredTrace } from "../src/graph/trace-store.js";
+import type { StoredTrace } from "../src/lib/graph-core/trace-store.js";
 import { postStateless } from "../src/cli-v7/_stateless.js";
 import { validateTraceAppendBody } from "../backend/src/services/trace-state.js";
 

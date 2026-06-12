@@ -34,6 +34,8 @@ const VALUE_EXPECTED_FLAGS = new Set([
   "selector",
   "url",
   "intent",
+  "task",
+  "query",
   "domain",
   "session",
   "session-id",

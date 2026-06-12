@@ -3,7 +3,7 @@ import {
   LocalAuthRuntime, authRuntime, resolveAuthPrerequisites, deriveAuthDependencies,
   type AuthDependency,
 } from "../src/auth/runtime.js";
-import { fetchDagAdvisoryPlan } from "../src/graph/planner.js";
+import { fetchDagAdvisoryPlan } from "../src/lib/graph-core/planner.js";
 import type { SkillManifest } from "../src/types/index.js";
 
 function makeAuthGatedSkill(domain: string): SkillManifest {

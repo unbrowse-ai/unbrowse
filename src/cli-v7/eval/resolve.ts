@@ -39,6 +39,7 @@ import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
 import { safeZero } from "../../values/memzero.js";
+import { escalationDirective } from "../../capture/escalate-on-miss.js";
 import {
   STATELESS_SIGNATURE_SCHEME,
   canonicalizeSignedFragment,
@@ -76,6 +77,9 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "intent", description: "Free-form intent string.", required: true },
         ],
         flags: [
+          { name: "--intent", description: "Free-form intent string. Preferred for canonical `unbrowse read resolve` calls.", value_expected: true },
+          { name: "--task", description: "Alias for --intent.", value_expected: true },
+          { name: "--query", description: "Alias for --intent.", value_expected: true },
           { name: "--url", description: "Context URL to anchor entity substitution.", value_expected: true },
           { name: "--domain", description: "Limit shortlist to this domain.", value_expected: true },
           { name: "--limit", description: "Max shortlist size (default: 10).", value_expected: true },
@@ -89,9 +93,14 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     );
   }
 
-  const intent = parsed.positional[0];
+  const flagIntent =
+    typeof parsed.flags.intent === "string" ? parsed.flags.intent
+      : typeof parsed.flags.task === "string" ? parsed.flags.task
+        : typeof parsed.flags.query === "string" ? parsed.flags.query
+          : undefined;
+  const intent = parsed.positional[0] ?? flagIntent;
   if (!intent || typeof intent !== "string" || intent.trim().length === 0) {
-    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent>"), opts);
+    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent> or unbrowse read resolve --intent <intent>"), opts);
     process.exit(EX_USAGE);
   }
 
@@ -243,6 +252,14 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         audit_emit: auditEmit,
         count: shortlist.length,
         shortlist,
+        // Layer 3 — auto-descend signal: on a real MISS (ok but empty shortlist)
+        // with a URL to descend into, emit a live directive so the agent opens
+        // the browser, captures down to the packet layer, and the captured route
+        // auto-indexes back — instead of stopping at a dead empty list.
+        ...(() => {
+          const esc = ok ? escalationDirective(shortlist, urlFlag, intent) : null;
+          return esc ? { escalation: esc } : {};
+        })(),
         ...(ok
           ? {}
           : {

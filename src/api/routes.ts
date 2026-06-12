@@ -5,15 +5,15 @@ import { readdirSync, readFileSync } from "fs";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { withDeadline } from "../lib/deadline.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
-import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../indexer/index.js";
-import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from "../indexer/capture-spool.js";
+import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../lib/indexer-core/index.js";
+import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from "../lib/indexer-core/capture-spool.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
-import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, toAgentSkillChunkView } from "../lib/graph-core/index.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
 import { getRegistrableDomain } from "../domain.js";
@@ -24,9 +24,9 @@ import { getContributionConfig, setContributionConfig, type ContributionConfig }
 import { isPassiveIndexEnabled } from "../capture/passive-index.js";
 import { getSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
-import { getRecentTraces } from "../graph/trace-store.js";
+import { getRecentTraces } from "../lib/graph-core/trace-store.js";
 import { executeSkill, withExecuteDeadline } from "../execution/index.js";
-import { rankEndpointsServerFirst } from "../ranking/index.js";
+import { rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
   extractBrowserAuth,
   importBrowserCookiesIntoTab,
@@ -78,8 +78,20 @@ import { readWorkflowArtifact, writeWorkflowArtifact } from "../workflow/artifac
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
-const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "1"));
-const BROWSE_BROKER_BASE_PORT = Number(process.env.KURI_PORT ?? "7700");
+
+function browseBrokerMax(): number {
+  const n = Number(process.env.KURI_MULTI_BROKER_MAX ?? "1");
+  return Math.max(1, Number.isFinite(n) ? n : 1);
+}
+
+function browseBrokerBasePort(): number {
+  const n = Number(process.env.KURI_PORT ?? "7700");
+  return Number.isFinite(n) ? n : 7700;
+}
+
+function perSessionBrokerBasePort(): number {
+  return browseBrokerBasePort() + 100;
+}
 
 type AnalyticsSessionResult = {
   trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
@@ -148,7 +160,7 @@ export function passiveIndexFromRequests(
   return (async () => {
     try {
       // 1. Extract endpoints from captured traffic
-      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      const rawEndpoints = await revengServerFirst(requests, undefined, { pageUrl, finalUrl: pageUrl });
       if (rawEndpoints.length === 0) {
         console.error(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
         return;
@@ -318,7 +330,8 @@ function drainInspectedHarEntries(sessionId: string): KuriHarEntry[] {
 }
 
 function browseBrokerPorts(): number[] {
-  return Array.from({ length: BROWSE_BROKER_MAX }, (_, index) => BROWSE_BROKER_BASE_PORT + index);
+  const base = browseBrokerBasePort();
+  return Array.from({ length: browseBrokerMax() }, (_, index) => base + index);
 }
 
 function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
@@ -339,7 +352,6 @@ function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
 // Allocation is synchronous: selectBrowseBrokerClient has no await before it
 // returns, so concurrent callers each take a unique cursor value atomically on
 // the single-threaded event loop.
-const PER_SESSION_BROKER_BASE_PORT = BROWSE_BROKER_BASE_PORT + 100;
 let perSessionBrokerCursor = 0;
 
 function perSessionKuriEnabled(): boolean {
@@ -359,7 +371,7 @@ function perSessionKuriEnabled(): boolean {
 }
 
 function allocatePerSessionBrokerPort(): number {
-  return PER_SESSION_BROKER_BASE_PORT + perSessionBrokerCursor++;
+  return perSessionBrokerBasePort() + perSessionBrokerCursor++;
 }
 
 export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
@@ -384,10 +396,10 @@ export function selectBrowseBrokerClient(requestedSessionId?: string): kuri.Kuri
 
   const loads = new Map<number, number>(browseBrokerPorts().map((port) => [port, 0]));
   for (const session of browseSessions.values()) {
-    const port = session.brokerPort ?? BROWSE_BROKER_BASE_PORT;
+    const port = session.brokerPort ?? browseBrokerBasePort();
     loads.set(port, (loads.get(port) ?? 0) + 1);
   }
-  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [BROWSE_BROKER_BASE_PORT, 0];
+  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [browseBrokerBasePort(), 0];
   return kuri.getKuriClient(selectedPort);
 }
 
@@ -929,7 +941,7 @@ export async function registerRoutes(app: FastifyInstance) {
     } else if (!settings.auto_publish_checkpoints) {
       next_step = "share_pointers=true but auto_publish_checkpoints=false: reviewed skills will not auto-publish on close/sync. Use unbrowse_publish explicitly, or re-enable auto_publish.";
     } else if (autoReview) {
-      next_step = "share_pointers=true + auto_review=true (you are fully opted in). Every capture auto-stamps reviewed_at on close/sync and publishes publicly with heuristic + LLM-augmented descriptions. Flip auto_review=false to require explicit unbrowse_review before publish.";
+      next_step = "share_pointers=true + auto_review=true (you are fully opted in). Every capture publishes publicly on close/sync with heuristic + LLM-augmented descriptions — without a reviewed_at stamp; only explicit unbrowse_review sets that. Flip auto_review=false to require review before publish.";
     } else {
       next_step = "share_pointers=true, auto_review=false: only skills the agent reviews via unbrowse_review publish to the marketplace. Unreviewed captures stay local. Set auto_review=true to skip the review step.";
     }
@@ -1022,10 +1034,10 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(Array.isArray(intercepted) ? intercepted : []),
       ...harEntriesToRawRequests(harEntries, session.url),
     ];
-    const candidateEndpoints = extractEndpoints(rawRequests as Parameters<typeof extractEndpoints>[0], undefined, {
+    const candidateEndpoints = (await revengServerFirst(rawRequests as Parameters<typeof revengServerFirst>[0], undefined, {
       pageUrl: session.url,
       finalUrl: session.url,
-    }).slice(0, 10).map((endpoint) => ({
+    })).slice(0, 10).map((endpoint) => ({
       endpoint_id: endpoint.endpoint_id,
       method: endpoint.method,
       url_template: endpoint.url_template,
@@ -1283,9 +1295,16 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
 
-      // Mirror the share_pointers gate so the agent sees what actually happened.
+      // marketplace_published must report what ACTUALLY happened, not merely that the
+      // share_pointers gate was open. The real remote-publish outcome rides on the
+      // learned skill as `published_remotely` (set by marketplace publishSkill): true
+      // only when the skill reached the cloud, false on a silent local-cache fallback.
+      // ANDing it in means the flag never claims a publish that did not land — the
+      // false-success that misled debugging all session. If the publish path didn't
+      // run, the marker is absent → false (honest: we did not publish remotely).
       const sharePointers = getContributionConfig().contribution.share_pointers;
-      const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true;
+      const publishedRemotely = (learned as { published_remotely?: boolean } | null)?.published_remotely === true;
+      const marketplacePublished = sharePointers && endpoints.length > 0 && exec.trace.success === true && publishedRemotely;
 
       // Per-domain extraction notes (LLM-prose memory). Fire-and-forget — never
       // blocks the response. Notes are injected back into the LLM augment pass
@@ -1588,14 +1607,14 @@ export async function registerRoutes(app: FastifyInstance) {
       share_pointers: contribution.share_pointers,
       next_step: suggestions.length === 0
         ? "No popular unreviewed skills found locally."
-        : `Found ${suggestions.length} popular skill(s) used locally but never published. POST /v1/skills/publish-suggestions/apply with skill_ids[] to stamp reviewed_at and publish, or set auto_review=true for future captures.`,
+        : `Found ${suggestions.length} popular skill(s) used locally but never published. POST /v1/skills/publish-suggestions/apply with skill_ids[] to publish them, or set auto_review=true for future captures.`,
     });
   });
 
-  // POST /v1/skills/publish-suggestions/apply — accept the suggestion: stamp
-  // reviewed_at on each named skill, re-index, and publish. Equivalent to
-  // calling /review with no endpoint edits — heuristic + LLM-augmented
-  // descriptions are accepted as-is.
+  // POST /v1/skills/publish-suggestions/apply — accept the suggestion:
+  // re-index and publish each named skill. Heuristic + LLM-augmented
+  // descriptions are accepted as-is, and reviewed_at is NOT stamped — that
+  // field records an actual unbrowse_review, which this path skips.
   app.post("/v1/skills/publish-suggestions/apply", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const body = (req.body ?? {}) as { skill_ids?: string[] };
@@ -1619,9 +1638,8 @@ export async function registerRoutes(app: FastifyInstance) {
           results.push({ skill_id, ok: false, error: "not_found" });
           continue;
         }
-        const reviewedAt = new Date().toISOString();
-        skill.reviewed_at = reviewedAt;
-        skill.updated_at = reviewedAt;
+        // No reviewed_at stamp: this is a publish decision, not a review.
+        skill.updated_at = new Date().toISOString();
 
         const indexed = await indexSkillLocally(buildSkillIndexJob(skill, clientScope));
         const checkpointDecision = decideCheckpointPublish(indexed.domain);
@@ -3298,6 +3316,37 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* getText best-effort: never break go */ }
 
+      // KV fallback ladder: a real browser navigation can be anti-bot-blocked
+      // (reddit/cloudflare/PerimeterX fingerprint headless Chrome specifically)
+      // and return a tiny block page where the resolve direct-fetch path's
+      // JA4-spoofed curl-impersonate returns the real content. When the captured
+      // page text looks blocked/empty, descend the shared fetch-ladder so `go`
+      // gets the same escalation the direct-fetch path already has. Best-effort:
+      // never breaks go; only ever REPLACES a block page with real content.
+      try {
+        const ladder = await import("../capture/fetch-ladder.js");
+        if (!page || ladder.looksBlocked(page.text)) {
+          let rescueCookies: Array<{ name: string; value: string }> = [];
+          try {
+            const host = new URL(session.url).host;
+            const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+            rescueCookies = extractBrowserCookies(host).cookies.map((c) => ({ name: c.name, value: c.value }));
+          } catch { /* cookies are optional — public data resolves without them */ }
+          const rescued = await ladder.walkFetchLadder(session.url, rescueCookies);
+          if (rescued) {
+            let structured: string | null = null;
+            try {
+              if (rescued.text.startsWith("<")) structured = buildStructuredDataHeader(rescued.text);
+            } catch { /* structured header best-effort */ }
+            const augmented = structured ? `${structured}\n\n---\n\n${rescued.text}` : rescued.text;
+            page = { text: augmented, structured_data: structured };
+            console.log(`[browse/go] anti-bot block bypassed via fetch-ladder ${rescued.rung} (${rescued.bytes}B)`);
+          }
+        }
+      } catch (err) {
+        console.error(`[browse/go] fetch-ladder rescue failed (non-fatal): ${(err as Error).message}`);
+      }
+
       // Durable capture spool: write the cheap raw cut to disk BEFORE
       // reply.send so the captured route survives a one-shot CLI exit.
       // Awaited (a fast disk write, not the ~40s enrich) so the bytes are
@@ -3828,7 +3877,7 @@ export async function registerRoutes(app: FastifyInstance) {
           const closedBrokerPort = session.brokerPort;
           removeBrowseSession(browseSessions, session.sessionId);
           // Per-session broker shutdown. When this session was on a dedicated
-          // broker (port >= PER_SESSION_BROKER_BASE_PORT) and no other live
+          // broker (port >= perSessionBrokerBasePort()) and no other live
           // session still uses that port, tear down the kuri+chrome processes
           // so they don't leak. Pool brokers (port < base) are intentionally
           // kept; they're reused.
@@ -3845,7 +3894,7 @@ export async function registerRoutes(app: FastifyInstance) {
           let pendingBrokerStop: Promise<void> | null = null;
           if (
             typeof closedBrokerPort === "number"
-            && closedBrokerPort >= PER_SESSION_BROKER_BASE_PORT
+            && closedBrokerPort >= perSessionBrokerBasePort()
             && ![...browseSessions.values()].some((s) => s.brokerPort === closedBrokerPort)
           ) {
             pendingBrokerStop = traceAsync("close", session.sessionId, "broker-stop", async () => {

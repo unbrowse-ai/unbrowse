@@ -10,7 +10,7 @@ import { existsSync, rmSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { isStateless } from "../src/state/stateless.js";
-import { storeExecutionTrace, type StoredTrace } from "../src/graph/trace-store.js";
+import { storeExecutionTrace, type StoredTrace } from "../src/lib/graph-core/trace-store.js";
 import { recordSessionCreate, readActiveSessions, type PersistedSession } from "../src/api/session-store.js";
 
 const TMP = join(tmpdir(), `unbrowse-stateless-test-${process.pid}`);

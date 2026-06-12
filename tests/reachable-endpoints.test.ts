@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildSkillOperationGraph, computeReachableEndpoints, isRunnable } from "../src/graph/index.js";
+import { buildSkillOperationGraph, computeReachableEndpoints, isRunnable } from "../src/lib/graph-core/index.js";
 import type { EndpointDescriptor, SkillOperationGraph } from "../src/types/index.js";
 
 /**

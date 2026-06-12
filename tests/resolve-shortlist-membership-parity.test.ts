@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   filterDagOperationsByRankedEndpoints,
-} from "../src/graph/index";
+} from "../src/lib/graph-core/index";
 import type { AgentWorkflowDagOperation } from "../src/types/index.js";
 
 // Regression — huggingface.co/models, 2026-05-15. Resolve on a list intent

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 const TESTS_DIR = dirname(new URL(import.meta.url).pathname);
@@ -63,6 +65,9 @@ async function startFallbackServer(): Promise<{ baseUrl: string }> {
 describe("client getSkill fallback", () => {
   it("falls back to the list endpoint when direct skill lookup 404s", async () => {
     const server = await startFallbackServer();
+    const home = mkdtempSync(join(tmpdir(), "unbrowse-getskill-home-"));
+    const configDir = mkdtempSync(join(tmpdir(), "unbrowse-getskill-config-"));
+    const skillCacheDir = mkdtempSync(join(tmpdir(), "unbrowse-getskill-cache-"));
     const proc = Bun.spawn([
       process.execPath,
       "-e",
@@ -73,7 +78,13 @@ console.log(JSON.stringify({ skill_id: skill?.skill_id ?? null }));`,
       cwd: ROOT,
       env: {
         ...process.env,
+        HOME: home,
+        UNBROWSE_CONFIG_DIR: configDir,
+        UNBROWSE_SKILL_CACHE_DIR: skillCacheDir,
         UNBROWSE_BACKEND_URL: server.baseUrl,
+        UNBROWSE_LOCAL_ONLY: "0",
+        UNBROWSE_BACKEND_OFFLINE: "0",
+        UNBROWSE_LOCAL_CACHES: "0",
       },
       stdout: "pipe",
       stderr: "pipe",

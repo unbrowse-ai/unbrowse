@@ -99,7 +99,7 @@ describe("forceVisibleKuriEnv", () => {
       process.env.HEADLESS = "true";
       process.env.KURI_HEADLESS = "true";
 
-      const restore = forceVisible(process.env);
+      const restore = forceVisible(process.env, { allow: true });
       try {
         expect(process.env.HEADLESS).toBe("false");
         expect(process.env.KURI_HEADLESS).toBe("false");

@@ -9,7 +9,7 @@ import {
   deleteJob,
   isJobEnvelope,
   type JobEnvelope,
-} from "../src/indexer/queue-store.js";
+} from "../src/lib/indexer-core/queue-store.js";
 
 function makeEnvelope(overrides: Partial<JobEnvelope> = {}): JobEnvelope {
   return {

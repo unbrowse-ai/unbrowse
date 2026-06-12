@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { toAgentWorkflowDagView } from "../src/graph/index";
+import { toAgentWorkflowDagView } from "../src/lib/graph-core/index";
 import type { SkillChunk, SkillOperationGraph, SkillOperationNode } from "../src/types/index.js";
 
 // C7 fix — operations with no required bindings AND a fully-resolved

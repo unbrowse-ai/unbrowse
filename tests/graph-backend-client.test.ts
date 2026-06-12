@@ -163,9 +163,16 @@ describe("fetchPredictions (live)", () => {
 
 describe("backend URL configuration", () => {
   it("defaults to beta-api.unbrowse.ai when UNBROWSE_BACKEND_URL is unset", () => {
-    expect(
-      process.env.UNBROWSE_BACKEND_URL ?? "https://beta-api.unbrowse.ai",
-    ).toContain("unbrowse.ai");
+    const prior = process.env.UNBROWSE_BACKEND_URL;
+    delete process.env.UNBROWSE_BACKEND_URL;
+    try {
+      expect(
+        process.env.UNBROWSE_BACKEND_URL ?? "https://beta-api.unbrowse.ai",
+      ).toContain("unbrowse.ai");
+    } finally {
+      if (prior === undefined) delete process.env.UNBROWSE_BACKEND_URL;
+      else process.env.UNBROWSE_BACKEND_URL = prior;
+    }
   });
 });
 

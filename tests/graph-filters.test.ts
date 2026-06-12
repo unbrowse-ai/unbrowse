@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, inferEndpointSemantic, isOperationHardExcluded, operationSoftPenalty } from "../src/graph/index.js";
+import { buildSkillOperationGraph, getEndpointDescriptionMetadata, getSkillChunk, inferEndpointSemantic, isOperationHardExcluded, operationSoftPenalty } from "../src/lib/graph-core/index.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";
 
 function endpoint(
