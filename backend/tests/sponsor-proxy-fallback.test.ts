@@ -20,6 +20,8 @@ import type { Env } from "../src/types.js";
 import {
   recordProxySurcharge,
   readProxySurchargeTodayUsd,
+  readBrokeredCompensationTotalUsd,
+  BROKERED_COMPENSATION_TOTAL_KEY,
   getProxyConsent,
   putProxyConsent,
   type ProxySurchargeArgs,
@@ -42,8 +44,8 @@ beforeEach(() => {
   clearKVCacheForTests();
 });
 
-describe("recordProxySurcharge — Wave 4 surface (currently failing)", () => {
-  it("writes a sponsor ledger row with surcharge_reason=proxy_429_fallback", async () => {
+describe("recordProxySurcharge — fair-compensation surcharge lane", () => {
+  it("writes a sponsor ledger row priced at upstream cost + the 20% fair-comp markup", async () => {
     const env = makeEnv();
     const ledgerId = "ledger_p_001";
     const args: ProxySurchargeArgs = {
@@ -59,7 +61,10 @@ describe("recordProxySurcharge — Wave 4 surface (currently failing)", () => {
     const row = JSON.parse(raw!);
     expect(row.kind).toBe("sponsor");
     expect(row.surcharge_reason).toBe("proxy_429_fallback");
-    expect(row.amount_uc).toBe(10000); // 1¢ in µ¢
+    // amount = upstream (1¢) + 20% fair-comp markup = 1.2¢ in µ¢.
+    expect(row.amount_uc).toBe(12000);
+    expect(row.upstream_cost_uc).toBe(10000); // passthrough to the provider
+    expect(row.compensation_uc).toBe(2000); // platform's take
     expect(row.payment_method).toBe("surcharge");
     expect(row.agent_id).toBe(AGENT_ID);
     expect(row.endpoint_id).toBe(ENDPOINT_ID);
@@ -78,9 +83,9 @@ describe("recordProxySurcharge — Wave 4 surface (currently failing)", () => {
       });
     }
     const raw = await env.STATS_KV.get(`sponsor:proxy-surcharge:${AGENT_ID}:${today}`);
-    expect(Number(raw)).toBe(30000); // 3 × 10000 µ¢
+    expect(Number(raw)).toBe(36000); // 3 × 12000 µ¢ (cost + 20%)
     const usd = await readProxySurchargeTodayUsd(env, AGENT_ID);
-    expect(usd).toBeCloseTo(0.03, 4);
+    expect(usd).toBeCloseTo(0.036, 4);
   });
 
   it("is idempotent on ledger_id (re-call writes once, counter increments once)", async () => {
@@ -95,7 +100,7 @@ describe("recordProxySurcharge — Wave 4 surface (currently failing)", () => {
     await recordProxySurcharge(env, args);
     await recordProxySurcharge(env, args);
     const usd = await readProxySurchargeTodayUsd(env, AGENT_ID);
-    expect(usd).toBeCloseTo(0.01, 4); // not 0.02
+    expect(usd).toBeCloseTo(0.012, 4); // counted once (cost + 20%), not twice
   });
 
   it("does NOT touch sponsor:agent:<id>:<today> (base cap math untouched)", async () => {
@@ -111,9 +116,27 @@ describe("recordProxySurcharge — Wave 4 surface (currently failing)", () => {
     const baseRaw = await env.STATS_KV.get(`sponsor:agent:${AGENT_ID}:${today}`);
     expect(baseRaw).toBeNull(); // base counter untouched
   });
+
+  it("accrues lifetime brokerage compensation (markup only, not passthrough)", async () => {
+    const env = makeEnv();
+    for (let i = 0; i < 3; i++) {
+      await recordProxySurcharge(env, {
+        agent_id: AGENT_ID,
+        skill_id: SKILL_ID,
+        endpoint_id: ENDPOINT_ID,
+        ledger_id: `ledger_comp_${i}`,
+        cost_usd: 0.01,
+      });
+    }
+    // 3 × 2000 µ¢ compensation (the 20% markup), passthrough excluded.
+    const total = await readBrokeredCompensationTotalUsd(env);
+    expect(total).toBeCloseTo(0.006, 4);
+    const raw = await env.STATS_KV.get(BROKERED_COMPENSATION_TOTAL_KEY);
+    expect(Number(raw)).toBe(6000);
+  });
 });
 
-describe("proxy-consent surface — Wave 4 (currently failing)", () => {
+describe("proxy-consent surface", () => {
   it("getProxyConsent defaults to 'no' when never set", async () => {
     const env = makeEnv();
     expect(await getProxyConsent(env, AGENT_ID)).toBe("no");

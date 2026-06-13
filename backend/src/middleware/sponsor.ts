@@ -612,7 +612,25 @@ export async function recordProxySurcharge(
   const counterKey = proxySurchargeKey(args.agent_id, dateStr);
   const current = await readSpend(env, counterKey);
   await writeSpend(env, counterKey, current + amountUc);
+
+  // Bump the lifetime brokerage-compensation counter (PLATFORM revenue — the markup only,
+  // not the passthrough). One cheap key so unit-economics can read total brokered revenue
+  // without scanning the ledger. compensation_uc is the platform's take per the fair-comp engine.
+  const compUc = Number(row.compensation_uc ?? 0);
+  if (compUc > 0) {
+    const totalComp = await readSpend(env, BROKERED_COMPENSATION_TOTAL_KEY);
+    await writeSpend(env, BROKERED_COMPENSATION_TOTAL_KEY, totalComp + compUc);
+  }
   return row;
+}
+
+/** Lifetime brokerage compensation (the fair-comp markup unbrowse has earned fronting upstreams). */
+export const BROKERED_COMPENSATION_TOTAL_KEY = "sponsor:compensation:total";
+
+/** Read lifetime brokerage compensation (PLATFORM revenue) as USD. One KV read. */
+export async function readBrokeredCompensationTotalUsd(env: Env): Promise<number> {
+  const uc = await readSpend(env, BROKERED_COMPENSATION_TOTAL_KEY);
+  return uc / 1_000_000;
 }
 
 /** Read today's paid-proxy spend for one agent as USD. */

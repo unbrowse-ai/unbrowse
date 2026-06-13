@@ -13,6 +13,7 @@ import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { optionalAuth } from "../middleware/auth.js";
 import { getProxyConsent, recordProxySurcharge } from "../middleware/sponsor.js";
+import { compensateTxCost } from "../services/fair-compensation.js";
 
 // cloudflare:sockets is a Workers-runtime virtual module. It does not exist in
 // Bun (which loads this file during backend tests via the Hono app import
@@ -91,7 +92,9 @@ export async function maybeProxyFallback(
     cost_usd: surchargeUsd,
   });
   resi.fallback_used = true;
-  resi.surcharge_usd = surchargeUsd;
+  // Report what the agent is actually charged (toll + fair-comp markup), matching the ledger
+  // row recordProxySurcharge just wrote — not the bare passthrough toll.
+  resi.surcharge_usd = compensateTxCost(surchargeUsd, env).totalUsd;
   return resi;
 }
 
