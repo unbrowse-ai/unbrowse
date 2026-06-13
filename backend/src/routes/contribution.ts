@@ -97,3 +97,53 @@ export function settleContributorShare(
     amountUsd: (amountUsd * contributorBps) / 10_000,
   };
 }
+
+/** The four-way fare split (basis points; must sum to 10000). */
+export interface SplitConfig {
+  platformBps: number;
+  ownerBps: number;
+  contributorBps: number;
+  discovererBps: number;
+}
+
+/** Default split — platform 15% / site owner 50% / contributor 15% / first discoverer 20%. */
+export const DEFAULT_SPLIT: SplitConfig = { platformBps: 1500, ownerBps: 5000, contributorBps: 1500, discovererBps: 2000 };
+
+/** The settled four-way payout for one paid execution. Amounts sum to `amountUsd`. */
+export interface ExecutionSettlement {
+  endpoint: string;
+  amountUsd: number;
+  platform: number;
+  owner: number;
+  contributor: { recipient: string | null; amountUsd: number };
+  discoverer: number;
+}
+
+/**
+ * Settle a paid execution on `endpoint` across the four-way split. The contributor leg is
+ * paid to the VERIFIED graph winner (the freshest admitted, proof-gated delta) — never to a
+ * contribution that failed the gate. When no verified contributor exists, that leg is 0 and
+ * its share is absorbed by the platform, so the legs always sum to `amountUsd`. Moving the
+ * USDC over x402 is the existing payment rail (the deploy step); this decides WHO is paid.
+ */
+export function settleExecution(
+  g: SharedGraph,
+  endpoint: string,
+  amountUsd: number,
+  split: SplitConfig = DEFAULT_SPLIT,
+): ExecutionSettlement {
+  const sum = split.platformBps + split.ownerBps + split.contributorBps + split.discovererBps;
+  if (sum !== 10_000) throw new Error(`split must sum to 10000 bps, got ${sum}`);
+  const part = (bps: number) => (amountUsd * bps) / 10_000;
+  const winner = g.winners.get(endpoint) ?? null;
+  const contributorAmt = winner ? part(split.contributorBps) : 0;
+  return {
+    endpoint,
+    amountUsd,
+    // platform absorbs the contributor leg when no verified contributor earns it
+    platform: part(split.platformBps) + (winner ? 0 : part(split.contributorBps)),
+    owner: part(split.ownerBps),
+    contributor: { recipient: winner ? winner.walletRoot : null, amountUsd: contributorAmt },
+    discoverer: part(split.discovererBps),
+  };
+}
