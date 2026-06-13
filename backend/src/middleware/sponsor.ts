@@ -47,6 +47,7 @@ import {
 } from "../services/sponsor-flex.js";
 import type { FlexSplit } from "../services/flex.js";
 import { statsKV } from "../services/kv.js";
+import { compensateTxCostUc } from "../services/fair-compensation.js";
 
 export type SponsorDecision =
   | {
@@ -151,6 +152,12 @@ export interface SponsorLedgerRow {
    *  bill, not a sponsored route payment. The `amount_uc` field carries
    *  the surcharge in µ¢ (10_000 = 1¢). Plan: paid-proxy 429 fallback. */
   surcharge_reason?: "proxy_429_fallback";
+  /** Raw upstream tx cost in µUSDC (before the fair-compensation markup). On a surcharge row,
+   *  `amount_uc` = `upstream_cost_uc` + `compensation_uc`. Absent on non-brokered rows. */
+  upstream_cost_uc?: number;
+  /** The platform's fair-compensation cut on this brokered tx, µUSDC (the 20% on top of the
+   *  upstream cost — see services/fair-compensation.ts). */
+  compensation_uc?: number;
   /** Endpoint-id on rows where one is available (kept optional; existing
    *  sponsor rows do not carry it). */
   endpoint_id?: string;
@@ -577,7 +584,12 @@ export async function recordProxySurcharge(
     }
   }
 
-  const amountUc = Math.round(args.cost_usd * 1_000_000);
+  // Fair-compensation engine: the agent pays the raw upstream proxy cost PLUS unbrowse's 20%
+  // take for fronting it. The markup is the platform's compensation; the upstream cost passes
+  // through to the proxy provider. Single source of truth in services/fair-compensation.ts.
+  const upstreamUc = BigInt(Math.max(0, Math.round(args.cost_usd * 1_000_000)));
+  const comp = compensateTxCostUc(upstreamUc, env);
+  const amountUc = Number(comp.totalUc);
   const row: SponsorLedgerRow = {
     ledger_id: args.ledger_id,
     kind: "sponsor",
@@ -585,6 +597,8 @@ export async function recordProxySurcharge(
     skill_id: args.skill_id,
     endpoint_id: args.endpoint_id,
     amount_uc: amountUc,
+    upstream_cost_uc: Number(comp.upstreamUc),
+    compensation_uc: Number(comp.compensationUc),
     creator_wallet: "",
     settled_tx: "",
     settled_at: now.toISOString(),
