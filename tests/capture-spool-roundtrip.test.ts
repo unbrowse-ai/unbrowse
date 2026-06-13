@@ -1,4 +1,4 @@
-// Real-fs proof that the durable capture spool germinates (Genesis Day 3).
+// Real-fs proof that the durable capture spool germinates (phase 3).
 // No mocks, no stubs — real tmp dirs, real functions (CLAUDE.md law).
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, readdir, writeFile } from "node:fs/promises";

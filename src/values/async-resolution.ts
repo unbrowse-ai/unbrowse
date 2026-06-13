@@ -17,7 +17,7 @@
  * store + ledger, so both adapters are fully testable with stub clients (no network).
  */
 import type { Pointer, Resolution } from "./resolution-ledger.js";
-// One source of truth (commandment #1/#6): the content-addressing + hash-chain core,
+// One source of truth (invariant #1/#6): the content-addressing + hash-chain core,
 // imported for local use AND re-exported so existing importers (iq-ledger, standards,
 // tier, tests) keep working unchanged.
 import { GENESIS, sha256hex, contentPointer, intentKey, recordHash } from "./content-address.js";

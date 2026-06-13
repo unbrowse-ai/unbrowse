@@ -107,7 +107,7 @@ export class BondLedger {
  * Resolve a challenge: re-index the live source, compare to the challenged
  * proof, and (if diverged) slash the maintainer's bond. The divergence test is
  * the SAME falsifiable fact `proof-of-indexing` exposes — the two modules
- * corroborate (two witnesses, ): one builds the claim, the other
+ * corroborate (two corroborations, ): one builds the claim, the other
  * adjudicates it.
  *
  * Slashed collateral splits per injected policy: `challengerRewardBps` to the

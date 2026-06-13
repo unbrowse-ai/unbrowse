@@ -1,6 +1,6 @@
 /**
  * content-address — the ONE source of truth for the content-addressing + hash-chain
- * core (commandment #1 "one root", #6 "thou shalt not steal/DRY"). GENESIS, the sha256
+ * core (invariant #1 "one root", #6 "no-duplication/DRY"). GENESIS, the sha256
  * primitive, the `sha256:<hex>` pointer shape, and the canonical record hash were
  * re-implemented across resolution-ledger / async-resolution / sealed-ledger /
  * signed-descent / layer-wallet-descent. They live here once; everyone imports.
