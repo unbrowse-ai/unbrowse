@@ -159,3 +159,4 @@
 {"ts": "2026-06-13T11:13:59Z", "cli_version": "unknown", "source": "fixture", "axis": "A_retrieval", "k": 10, "ndcg": 0.6577, "abstention": 1.0, "thresholds": {"ndcg": 0.5, "abstention": 0.9}, "witnesses": [{"ndcg": 0.6577, "abstention": 1.0}, {"ndcg": 0.6577, "abstention": 1.0}], "gate": "true"}
 {"ts": "2026-06-13T233000Z", "source": "live", "axis": "D_security", "session_files_scanned": 425, "leaks": [], "leak_clean": true, "gate": "true"}
 {"ts": "2026-06-13T234500Z", "source": "live", "axis": "D_security", "session_files_scanned": 425, "leaks": [], "leak_clean": true, "gate": "true"}
+{"ts": "2026-06-13T235500Z", "source": "live", "axis": "D_security", "session_files_scanned": 425, "leaks": [], "leak_clean": true, "gate": "true"}
