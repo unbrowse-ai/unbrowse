@@ -42,9 +42,34 @@
  * existing graceful-degrade (direct egress, proxy_used:false). No fake
  * Proxy-Authorization, no silent retry loop.
  */
+import { randomBytes } from "node:crypto";
 import { x402Fetch, type X402SubState } from "../payments/x402-fetch.js";
 import { peekFailure, recordFailure, recordOutcome } from "../values/failure-cache.js";
 import { loadCredsFileSync } from "../cdp/proxy/iproyal.js";
+
+// Module-stable IProyal sticky-session id: one sticky exit IP per process run, so a
+// capture → (paid solve) → re-fetch chain all exit from the SAME residential IP (required
+// when a cookie/cf_clearance is IP-bound). Override per-call via UNBROWSE_IPROYAL_SESSION.
+const STICKY_SESSION_ID = randomBytes(4).toString("hex");
+
+/**
+ * Append IProyal sticky-session params to the PASSWORD segment (the documented IProyal grammar
+ * — keys live in the password, NOT the username: `pass_country-my,sg_session-<id>_lifetime-30m`).
+ * OFF unless UNBROWSE_IPROYAL_STICKY=1 (the default egress stays ROTATING — fresh IP per request,
+ * which avoids per-IP rate limits for general scraping). When on:
+ *   UNBROWSE_IPROYAL_COUNTRY   e.g. "my,sg" (comma-joined, kept literal — never URL-encoded)
+ *   UNBROWSE_IPROYAL_SESSION   stable id (default: per-process STICKY_SESSION_ID)
+ *   UNBROWSE_IPROYAL_LIFETIME  session lifetime, default "30m" (IProyal min 1s, max 7d)
+ * Returns the raw suffix to append AFTER the URL-encoded base password (so the comma survives).
+ */
+export function iproyalStickySuffix(env: NodeJS.ProcessEnv = process.env): string {
+  const on = (env.UNBROWSE_IPROYAL_STICKY ?? "").trim().toLowerCase();
+  if (on !== "1" && on !== "true" && on !== "yes") return "";
+  const country = env.UNBROWSE_IPROYAL_COUNTRY?.trim();
+  const session = env.UNBROWSE_IPROYAL_SESSION?.trim() || STICKY_SESSION_ID;
+  const lifetime = env.UNBROWSE_IPROYAL_LIFETIME?.trim() || "30m";
+  return `${country ? `_country-${country}` : ""}_session-${session}_lifetime-${lifetime}`;
+}
 
 export interface ProxyFetchEnv {
   /** IProyal username, often includes country/session params:
@@ -88,8 +113,9 @@ export function resolveProxyUrl(env: NodeJS.ProcessEnv = process.env): string | 
   if (!user || !pass) return undefined;
   host = host || "geo.iproyal.com";
   port = port || "12321";
-  // URL-encode creds so country-lock params like `_country-my` survive intact.
-  return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+  // Encode the base creds; append the sticky suffix RAW (its comma/underscore are IProyal
+  // routing grammar, not data — URL-encoding the comma to %2C breaks the country list).
+  return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}${iproyalStickySuffix(env)}@${host}:${port}`;
 }
 
 /**
