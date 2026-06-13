@@ -30,6 +30,40 @@ the platform that runs the infrastructure, just over a third to the indexers who
 discovered the route, and the rest to the website owner. When no owner wallet is
 bound, the owner share folds back into the contributor pool.
 
+## Brokered costs (fair compensation)
+
+The split above taxes a route's **own price**. Separately, when unbrowse fronts a paid
+upstream on your behalf — a web-unblocker for a hard-protected site, an LLM proxy, a paid
+third-party API, a facilitator or gas fee — it charges the raw upstream cost **plus a fair
+compensation markup** for fronting it. The upstream cost passes through to the provider; the
+markup is the platform's compensation for the infrastructure that brokers, pays, and settles
+the call so your agent doesn't have to hold a wallet on every chain or register with every
+vendor.
+
+The rate is a single named constant — **20%** by default (`FAIR_COMPENSATION_BPS = 2000`,
+`backend/src/services/fair-compensation.ts`), tunable per deployment. Every brokered surface
+derives its charge from the same engine, so the take-rate is consistent and auditable: each
+brokered ledger row records the raw `upstream_cost_uc` next to the platform's `compensation_uc`.
+
+### `POST /v1/unlock` — brokered web unblocking
+
+The first agent-facing brokered surface. When a site is behind hard anti-bot protection that
+the local capture ladder can't clear, the agent hands the URL to unbrowse and pays once, in the
+same Solana USDC x402 it already uses for routes:
+
+```
+POST /v1/unlock     { "url": "https://…", "js_render": true }
+  → 402  with the sponsor envelope, priced at upstream cost + the 20% markup
+  → agent pays (Flex x402, single payee — no Base wallet, no vendor signup)
+  → unbrowse fronts the upstream web-unblocker on Base x402 and returns the cleared HTML
+```
+
+The response carries `x-unbrowse-charge-usd`, `x-unbrowse-passthrough-usd`, and
+`x-unbrowse-compensation-bps` so the breakdown is visible on every call. The agent never holds a
+Base wallet, never registers with the unblocker vendor, and never sees the vendor's payment
+header — unbrowse holds one upstream account and brokers it for everyone
+(`backend/src/routes/unlock.ts`, paying via `backend/src/services/base-x402-pay.ts`).
+
 ## Who signs the wallet
 
 Unbrowse owns the payment intent: what is being paid for, how much, and to which
