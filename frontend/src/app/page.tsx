@@ -149,6 +149,16 @@ export default function Home() {
             <HeroChat />
           </div>
 
+          {/* Social proof through scale — the registry the live chat draws on. Real, conservative
+              figures (mirrors the FAQ); the agent above resolves against exactly this graph. */}
+          <p className="animate-fade-up stagger-3 mt-5 font-mono text-xs text-[rgba(255,156,64,0.7)]">
+            <span className="text-[rgba(255,176,96,0.95)] font-medium">600+ domains</span>
+            <span className="text-[rgba(255,122,32,0.35)]"> · </span>
+            <span className="text-[rgba(255,176,96,0.95)] font-medium">18,000+ live endpoints</span>
+            <span className="text-[rgba(255,122,32,0.35)]"> · </span>
+            already captured in the shared registry — most asks resolve on the first try.
+          </p>
+
           <div className="animate-fade-up stagger-3 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
             <ScrollToButton sectionId="install" className="hover:text-[rgba(255,176,96,1)] transition-colors cursor-pointer">
               [ npx unbrowse setup → ]
