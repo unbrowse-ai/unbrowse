@@ -13,13 +13,27 @@ import type { RouteDelta } from "../../../src/values/route-delta.js";
 import type { ContributionLedger, ContributionRecord } from "../routes/contribution.js";
 import { emptyLedger } from "../routes/contribution.js";
 
-const GRAPH_KEY = "contrib:graph:v1";
-const LEDGER_KEY = "contrib:ledger:v1";
+/** Key prefix isolates the shared graph from any other data in a shared namespace. */
+export const GRAPH_KEY = "contrib:graph:v1";
+export const LEDGER_KEY = "contrib:ledger:v1";
 
 /** Minimal KV surface we need (matches Cloudflare KVNamespace). */
 export interface GraphKV {
   get(key: string, type: "json"): Promise<unknown>;
   put(key: string, value: string): Promise<void>;
+}
+
+/** Resolve where the shared graph lives. A DEDICATED `GRAPH_KV` namespace is preferred
+ *  (fully isolated from analytics); absent that, STATS_KV under the `contrib:` key prefix
+ *  is the fallback (key-isolated within a shared namespace); absent both, honest-null. The
+ *  `dedicated` flag lets the caller surface which store served the request. */
+export function resolveGraphKV(env: { GRAPH_KV?: GraphKV; STATS_KV?: GraphKV }): {
+  kv: GraphKV | null;
+  dedicated: boolean;
+} {
+  if (env.GRAPH_KV) return { kv: env.GRAPH_KV, dedicated: true };
+  if (env.STATS_KV) return { kv: env.STATS_KV, dedicated: false };
+  return { kv: null, dedicated: false };
 }
 
 /** Load the shared graph winners from KV (empty if unset). */

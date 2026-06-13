@@ -60,6 +60,13 @@ export interface Env {
   UNBROWSE_DEPLOYED_AT?: string;
   STATS_KV: KVNamespace;
   /**
+   * Dedicated shared-route-graph store for ZK-gated delta contributions
+   * (services/graph-store, routes/contribution-route). When bound, the graph +
+   * contribution ledger live here, isolated from analytics; when absent, the store
+   * falls back to STATS_KV under a `contrib:` key prefix (resolveGraphKV).
+   */
+  GRAPH_KV?: KVNamespace;
+  /**
    * v7.0 audit log — pointer-only fill receipts (Ed25519 sig-shape today,
    * Groth16 SNARK in v7.3 behind the same wire surface). See
    * `services/audit.ts` for the KV schema and `routes/audit.ts` for the

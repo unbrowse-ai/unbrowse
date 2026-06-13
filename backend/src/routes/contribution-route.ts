@@ -20,7 +20,7 @@ import { rateLimit } from "../middleware/rate-limit.js";
 import { graphRoot, type Contribution } from "../services/graph-merge/index.js";
 import { submitContribution } from "./contribution.js";
 import {
-  loadGraph, saveGraph, loadLedger, saveLedger, type GraphKV,
+  loadGraph, saveGraph, loadLedger, saveLedger, resolveGraphKV, type GraphKV,
 } from "../services/graph-store.js";
 
 export const contributionRoutes = new Hono<{ Bindings: Env }>();
@@ -28,12 +28,11 @@ export const contributionRoutes = new Hono<{ Bindings: Env }>();
 contributionRoutes.use("/contribute", rateLimit({ limit: 60, window: 60, prefix: "contribute" }));
 contributionRoutes.use("/contribute/*", rateLimit({ limit: 120, window: 60, prefix: "contribute-read" }));
 
-/** The KV the shared graph lives in. STATS_KV is the one namespace provisioned (real id)
- *  in every env, so the shared graph uses it under a `contrib:` key prefix; a dedicated
- *  namespace is a later refinement. Honest-fail when no KV is available at all. */
+/** The KV the shared graph lives in: a dedicated GRAPH_KV namespace if bound, else
+ *  STATS_KV under the `contrib:` prefix (see resolveGraphKV). Honest-fail when neither
+ *  is available. */
 function graphKV(env: Env): GraphKV | null {
-  const kv = env.STATS_KV as unknown as GraphKV | undefined;
-  return kv ?? null;
+  return resolveGraphKV(env as unknown as { GRAPH_KV?: GraphKV; STATS_KV?: GraphKV }).kv;
 }
 
 contributionRoutes.post("/contribute", async (c) => {

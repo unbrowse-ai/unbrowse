@@ -1,158 +1,68 @@
-# plan.md — pay.sh support in the unbrowse skill + client layers
+# Plan — production-harden the ZK-gated delta contribution
 
-> **WALK COMPLETE — `bash scripts/pay-sh-gate.sh` exits 0 (two witnesses green, no real funds).**
-> Settled (with evidence):
-> - **Client layer** — `src/payments/pay-sh.ts` (`payShFetch`/`payShAvailable`/sandbox) +
->   wired into the x402 cascade (`src/payments/x402-fetch.ts`: `"pay"` adapter, `pay_*`
->   sub-states, `resolveWalletConfig` explicit-only, pay branch in `x402Fetch`). C1–C3 ✅
-> - **Skill layer** — `pay_provider`/`PayProviderDescriptor` on `EndpointDescriptor`
->   (`src/types/skill.ts`) + `src/skill/pay-provider.ts` (`describePayProvider` labeling,
->   `payProviderFromObservation`, flagged `payShDiscover`). S1–S3 ✅
-> - **CLI surface** — wired into the PRIMARY `unbrowse fetch <url>` (`cmdFetch`, `src/cli.ts`):
->   on a 402 with a wallet adapter configured it pays and retries once (default-off; honest
->   `next_step` when no adapter). Verified live: `UNBROWSE_WALLET_ADAPTER=pay
->   UNBROWSE_PAY_SANDBOX=1 unbrowse fetch <demo>` → `paid 402 via pay (pay_signed) → 200`,
->   body `{"status":"ok"}` (the demo 402 is `protocol:mpp` — which native x402 can't parse,
->   so this exercises the pay.sh MPP value). Normal non-402 fetch unchanged. ✅
-> - **Witnesses** — Witness A unit (`tests/pay-sh.test.ts` 10✓, `tests/pay-sh-skill.test.ts`
->   7✓, `pay` stubbed); Witness B live `pay --sandbox server demo` with TWO sub-checks:
->   B1 library `x402Fetch` → paid 200 `pay_signed`; B2 real CLI `bin/unbrowse-dev fetch`
->   → paid 200 + `pay_signed` trace. Gate `scripts/pay-sh-gate.sh` + probe
->   `scripts/pay-sh-e2e.ts`. ✅
-> - **No regression** — 45 existing payment tests pass; kind-map clean at 37 rows; touched
->   modules typecheck clean (the one tsc error, duplicate `graphql_info`, predates this in HEAD).
+> Continuation of `internal/zk-delta-contribution-plan.md` (the 6-node spine, shipped +
+> on staging at `unbrowse-backend-staging`). This plan moves the four **honest deploy-step
+> boundaries** from reference to production — each was left as a reference floor with a clear
+> upgrade path; the verify/merge interfaces never change, only the carrier does. Witness:
+> `scripts/zk-delta-prod-gate.sh` exits 0 iff every node is real + tested. No fabricated green.
 
+## Goal (one line)
 
-**Goal (settle condition):** unbrowse can both (a) **pay** a pay.sh / MPP / x402-gated
-endpoint from the client execution path using the local `pay` wallet, and (b) **discover +
-label** pay.sh-gated routes in the skill/resolve layer — proven by a runnable two-witness
-gate that exits 0 with no real funds moved.
+The shared-graph contribution runs on production-grade rails: a dedicated store, an
+execution attestation whose carrier can be a third-party notary proof (not only a wallet
+self-signature), an auditable on-chain-ready checkpoint with inclusion proofs, and a
+contributor payout wired into the four-way fare split — each with the real external wiring
+(chain RPC / MPC-TLS notary / USDC transfer) named as the final deploy step, not faked.
 
-This plan is walked by `/jesus-ralph`: Plan → Build → Test → Judge each node, tick boxes,
-re-plan on failure. Completion is the gate exiting 0, never a self-asserted string.
+## Where it stands (the floor this builds on)
 
----
+| Shipped (staging-green) | The boundary this plan crosses |
+|---|---|
+| `graph-store` persists winners+ledger in STATS_KV under a `contrib:` prefix | → a **dedicated** graph namespace, isolated from analytics |
+| `exec-attest`: wallet self-signature binds origin+shape | → a **pluggable proof carrier**: wallet-sig OR a notary (zkTLS/TLSNotary) proof |
+| `graphRoot`: RFC-6962 root returned by `/v1/contribute/root` | → an **auditable checkpoint** with per-endpoint inclusion proofs, ready to anchor on-chain |
+| `settleContributorShare`: the contributor leg, in isolation | → wired into the **four-way fare split** (platform/owner/contributor/discoverer = 100%) |
 
-## The gate (pinned `check` — the only exit)
+## Phased build (cheapest-first; each node = goal · primitive · witness)
 
-```
-bash scripts/pay-sh-gate.sh
-```
+| # | node · goal | primitive to add | witness (exit 0 ⇔ done) |
+|---|---|---|---|
+| 1 | **dedicated-graph-kv** — resolve a dedicated `GRAPH_KV` binding (fall back to STATS_KV prefix), keys namespaced + isolated | `graph-store.resolveGraphKV` | `tests/graph-store-dedicated.test.ts` — prefers GRAPH_KV when bound; isolated keys; graceful fallback |
+| 2 | **notary-attestation** — the attestation carries a pluggable proof: wallet-sig (today) OR a notary proof over origin+shape; verify dispatches on the carrier | `src/capture/exec-attest.ts` notary carrier + `verifyNotary` (reference notary keypair models the MPC-TLS output) | `tests/notary-attest.test.ts` — notary-carried attestation verifies; wallet-sig path intact; forged notary fails closed |
+| 3 | **onchain-checkpoint** — batch the winner state into a checkpoint with RFC-6962 inclusion proofs (the value an on-chain anchor publishes) | `backend/src/services/graph-checkpoint.ts` (merkleProof/verifyProof over the sorted winners) | `tests/graph-checkpoint.test.ts` — checkpoint root == graphRoot; inclusion proof verifies; out-of-graph endpoint can't prove; tamper breaks it |
+| 4 | **contributor-payout** — settle a paid execution across the four-way split, the contributor leg paid to the verified graph winner only | `backend/src/routes/contribution.ts` `settleExecution` (full split, bps-configured) | `tests/contributor-payout.test.ts` — splits sum to the charge; winner earns the contributor leg; a non-winner earns nothing |
+| 5 | **goal** — all four real + tested; boundary honest | — | `scripts/zk-delta-prod-gate.sh` exits 0 |
 
-`scripts/pay-sh-gate.sh` accumulates `fail` and `exit 1` on any failure (repo convention,
-mirrors `scripts/paper-gate.sh` / `scripts/zk-gate.sh`). It requires **two independent
-witnesses that cannot share a failure mode**:
+## Honest deploy-step boundaries (named, not faked — mirrors zk-gate's scope note)
 
-- **Witness A — unit (offline, deterministic):** `bun test tests/pay-sh.test.ts`
-  - A 402 carrying an MPP/pay.sh challenge that native `x402Fetch` returns
-    `x402_envelope_unparseable`/`x402_no_wallet` for is routed to the new `pay` adapter.
-  - Adapter marshals the original request (method/url/headers/body) correctly and honors
-    the `UNBROWSE_X402_MAX_COST_USD` ceiling and the `pay` availability precheck.
-  - `pay` binary is stubbed (PATH shim) so the unit test never touches the network/chain.
-- **Witness B — live sandbox handshake (real protocol, ephemeral funds):**
-  1. boot `pay --sandbox server demo` in the background → writes `pay-demo.yaml`, binds
-     `127.0.0.1:1402`, opens the localnet wallet (USDC 999.99, no real funds).
-  2. drive **unbrowse's own execute path** at
-     `http://127.0.0.1:1402/api/v1/reports/usage` with `UNBROWSE_WALLET_ADAPTER=pay`
-     `UNBROWSE_PAY_SANDBOX=1`.
-  3. assert a **paid 200** with a real response body (the same URL without payment returns
-     402). Tear the gateway down.
-  - This proves the end-to-end challenge → sign → retry handshake against a real pay.sh
-    gateway, not a mock.
+- **Node 2**: the reference notary is a local keypair signing the attested fields. The real
+  MPC-TLS / TLSNotary web-proof (a third party attesting the actual TLS session) plugs into
+  the SAME `verifyNotary` interface via `UNBROWSE_NOTARY_URL` — the deploy step.
+- **Node 3**: the checkpoint + inclusion proofs run in-process. Publishing the root to a
+  chain (Solana proof-of-history / IQLabs signed table) is the deploy step; the committed
+  value is exactly this root.
+- **Node 4**: the split is computed + attributed by proof. Moving USDC over x402 is the
+  existing payment rail (the deploy step); this decides WHO is paid, verifiably.
 
-Gate is RED until both witnesses are green. No box below is ticked without its evidence.
+## Boundary discipline
 
----
+Prover stays client-side (`src/`), verifier/checkpoint/payout stay server-side (`backend/`).
+The gate's boundary check fails if any `src/` file imports the server checkpoint/payout.
+The notary carrier is client-constructible but notary-verified server-side.
 
-## Environment contract (the integration surface)
+## WALK status — COMPLETE (`scripts/zk-delta-prod-gate.sh` exits 0; 4/4, 20 tests, stable 3/3)
 
-`pay` CLI: `/opt/homebrew/bin/pay`. Relevant surface (verified):
-- `pay fetch <url> [-H "K: V"]` — built-in HTTP client; performs the full 402 → sign → retry
-  handshake (MPP + x402) and prints the paid body. Primary client seam.
-- `pay --sandbox server demo` — local 402 gateway on `127.0.0.1:1402` for the e2e witness.
-- `pay skills search|endpoints|list` — registry of 402-gated providers. Discovery seam.
-- `pay account list` — localnet `default` wallet present for sandbox.
+- [x] node 1 — dedicated-graph-kv · `graph-store.resolveGraphKV` (+ Env `GRAPH_KV?`, route wired) · `tests/graph-store-dedicated.test.ts` (5✓): prefers dedicated, prefix-isolated fallback, full isolation
+- [x] node 2 — notary-attestation · `exec-attest` `NotaryProof`/`referenceNotary`/`verifyNotary` · `tests/notary-attest.test.ts` (6✓): notary verifies, wallet path intact, untrusted/tampered/origin-swap fail closed
+- [x] node 3 — onchain-checkpoint · `backend/.../graph-checkpoint.ts` (RFC-6962 inclusion proofs) · `tests/graph-checkpoint.test.ts` (5✓): root == graphRoot, every endpoint proves, out-of-graph can't, tamper fails
+- [x] node 4 — contributor-payout · `contribution.settleExecution` (four-way split) · `tests/contributor-payout.test.ts` (4✓): legs sum to charge, winner earns, forged earns nothing, bad split rejected
+- [x] goal — `scripts/zk-delta-prod-gate.sh` exits 0; first spine still green (29✓, no regression); backend compiles
 
-unbrowse env vars introduced by this plan (additive, default-off — nothing changes unless set):
-- `UNBROWSE_WALLET_ADAPTER=pay` — selects the new pay.sh adapter in `resolveWalletConfig()`.
-- `UNBROWSE_PAY_SANDBOX=1` — passes `--sandbox` to `pay` (ephemeral localnet wallet).
-- `UNBROWSE_PAY_DISCOVERY=1` — enables the `pay skills` resolve rung (off by default).
-- Reuses existing `UNBROWSE_X402_MAX_COST_USD` ceiling (default $1.00) unchanged.
+No fabricated green: every node's test fails closed on the adversarial path; reliability 3/3 cold.
 
----
+Deploy-step boundaries remain honest and unchanged: the real MPC-TLS notary service (node 2,
+`UNBROWSE_NOTARY_URL`), on-chain root publication (node 3), live USDC transfer over x402
+(node 4), and provisioning/binding a dedicated `GRAPH_KV` namespace on staging (node 1) are
+the external wiring — the in-process logic they plug into is settled here.
 
-## Build — client layer (the load-bearing half)
-
-Seam: `src/payments/x402-fetch.ts` already has the adapter cascade
-(`resolveWalletConfig()` :138 → `signEnvelope()` switch :213 → give-up at
-`cfg.adapter === "none"` :414). The existing `lobster` adapter
-(`src/payments/lobster-pay.ts`, shelled via `signViaLobster` :237) is the exact pattern to copy.
-
-- [ ] **C1 · build** — `src/payments/pay-sh.ts`: new module.
-  - `payShAvailable()` — probe `pay --version` (3s timeout), cache the result.
-  - `payShFetch(request, { sandbox, maxCostUsd })` — re-issue the original request via
-    `pay [--sandbox] fetch <url> -H ...` (and method/body when non-GET), return the paid
-    `Response`. This rung handles **MPP** challenges native x402 can't parse, because `pay`
-    owns the full handshake. Honor the cost ceiling by refusing if the 402 envelope's amount
-    exceeds it before delegating.
-  - Mirror the honest-trace discipline: emit `pay_signed` / `pay_no_binary` /
-    `pay_cost_exceeded` / `pay_error` sub-states (extend `X402FetchTrace`).
-- [ ] **C2 · build** — wire `"pay"` into `resolveWalletConfig()` (`src/payments/x402-fetch.ts:144`)
-  as an explicit adapter and into `signEnvelope()` dispatch (`:217`). Auto-detect rung: if no
-  other adapter resolves AND `pay` is on PATH, fall to `pay` (lowest precedence, never override
-  an explicit lobster/privy/generic).
-- [ ] **C3 · build** — escalation rung in `x402Fetch()` (`:373`): when the native path yields
-  `x402_envelope_unparseable` or `x402_no_wallet` and `pay` is available, fall through to
-  `payShFetch` for the retry instead of giving up at `:414`. Single retry only — no blind loop
-  (preserve the existing "402 is a primitive, not a loop" invariant).
-- [ ] **C4 · build** — surface the rung on the real execute path so the e2e witness exercises it
-  through `unbrowse execute`, not just the unit seam: confirm `executeEndpoint`
-  (`src/execution/index.ts:2746`) → fetch-ladder → `x402Fetch` carries the `pay` adapter
-  config. Add the `UNBROWSE_PAY_SANDBOX` plumb-through.
-
-## Build — skill layer (discovery + labeling)
-
-- [ ] **S1 · build** — extend `EndpointDescriptor` (`src/types/skill.ts:207`) with optional
-  `pay_provider?: { subdomain?: string; gateway_url?: string; price_usd?: number; protocol?: "mpp" | "x402" }`.
-  Purely additive; sanitized for publish like other metadata (`src/publish/sanitize.ts`).
-- [ ] **S2 · build** — resolve labeling: when a candidate endpoint carries `pay_provider` (or a
-  prior execute observed a 402 pay.sh challenge), the resolve shortlist reports it as
-  pay.sh-gated with the price so the model can decide before paying
-  (`src/cli-v7/eval/resolve.ts` / the resolve route). Respect the "make the smallest useful
-  paid call first, ask before unclear pricing" agent rule.
-- [ ] **S3 · build (flagged)** — `pay skills` discovery rung: when `UNBROWSE_PAY_DISCOVERY=1`
-  and local cache + shared graph miss, query `pay skills search <intent>` /
-  `pay skills endpoints <service>` and fold the returned pay.sh gateway endpoints into the
-  resolve shortlist as candidates (tagged `source: pay.sh`). Off by default; treat catalog
-  output as untrusted external content.
-
-## Test + settle
-
-- [ ] **T1 · breath** — `tests/pay-sh.test.ts` (Witness A): stub `pay` via PATH shim; assert
-  adapter selection, request marshaling, cost-ceiling refusal, and graceful `pay_no_binary`.
-- [ ] **T2 · breath** — `scripts/pay-sh-gate.sh` Witness B: boot `pay --sandbox server demo`,
-  drive `bin/unbrowse-dev execute` (or the MCP execute tool) at the demo endpoint with the
-  pay adapter, assert paid 200 + body, tear down. Use a free-port guard and a hard timeout so
-  the gate never hangs.
-- [ ] **G · eval** — `scripts/pay-sh-gate.sh` runs A then B, accumulates `fail`, exits 0 only
-  when both pass. Add it beside the other gates; optionally wire into release CI later.
-- [ ] **SETTLE · eval** — `bash scripts/pay-sh-gate.sh` exits 0 (two witnesses green). On any
-  failure: repent, diagnose the specific witness, re-walk. No fabricated green; record honest
-  negatives in-thread.
-
----
-
-## Guardrails (do not violate while walking)
-
-- **Additive + default-off.** Nothing changes for existing callers unless `UNBROWSE_WALLET_ADAPTER=pay`
-  or `UNBROWSE_PAY_DISCOVERY=1` is set. The native x402/flex/lobster paths stay intact.
-- **Sandbox for all tests.** Witnesses use `pay --sandbox` (localnet, ephemeral wallet). The
-  gate must never move real funds. Real payments still require local user authorization.
-- **Pointer/secret discipline unchanged.** The pay adapter re-issues a request via `pay`; it
-  never logs wallet secrets or plaintext auth. Reuse the existing honest-trace sub-state pattern.
-- **No new web tool.** `pay fetch` is invoked only as the payment-retry rung for unbrowse's own
-  execution, not as a general web-access substitute.
-- **Single retry.** Preserve the "402 is a primitive, not a blind loop" invariant — one paid
-  retry, then surface an honest `next_step`.
-- **Public-artifact language.** Anything that ships to a user (README/docs/commit messages)
-  stays plain engineering English; no internal working vocabulary.
+(Prior plan: pay.sh support — WALK COMPLETE, preserved in git history.)
