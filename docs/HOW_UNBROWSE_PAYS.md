@@ -30,6 +30,21 @@ the platform that runs the infrastructure, just over a third to the indexers who
 discovered the route, and the rest to the website owner. When no owner wallet is
 bound, the owner share folds back into the contributor pool.
 
+## Brokered costs (fair compensation)
+
+The split above taxes a route's **own price**. Separately, when unbrowse fronts a paid
+upstream on your behalf — a web-unblocker for a hard-protected site, an LLM proxy, a paid
+third-party API, a facilitator or gas fee — it charges the raw upstream cost **plus a fair
+compensation markup** for fronting it. The upstream cost passes through to the provider; the
+markup is the platform's compensation for the infrastructure that brokers, pays, and settles
+the call so your agent doesn't have to hold a wallet on every chain or register with every
+vendor.
+
+The rate is a single named constant — **20%** by default (`FAIR_COMPENSATION_BPS = 2000`,
+`backend/src/services/fair-compensation.ts`), tunable per deployment. Every brokered surface
+derives its charge from the same engine, so the take-rate is consistent and auditable: each
+brokered ledger row records the raw `upstream_cost_uc` next to the platform's `compensation_uc`.
+
 ## Who signs the wallet
 
 Unbrowse owns the payment intent: what is being paid for, how much, and to which

@@ -248,6 +248,10 @@ export interface Env {
   EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  /** Override for the fair-compensation rate (basis points, 0–10000) — the platform's take on
+   *  facilitated transaction costs (brokered upstreams: unblockers, LLM proxy, facilitator/gas).
+   *  Defaults to 2000 (20%) in services/fair-compensation.ts. */
+  FAIR_COMPENSATION_BPS?: string;
   /** The unbrowse-default wallet secret (64-byte Solana keypair, JSON-array /
    *  hex / base58). Platform-held; signs attestations server-side via Web Crypto
    *  Ed25519. Set via `wrangler secret put UNBROWSE_DEFAULT_WALLET_KEY`. */
