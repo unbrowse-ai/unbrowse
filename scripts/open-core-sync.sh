@@ -82,6 +82,14 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     s/\bfirmament\b/boundary/gi;
     s{grain[- ]of[- ]wheat}{seed}gi;
     s/\bsabbath\b/rest/gi;
+    s/\bscripture\b/intent/gi;
+    s/Scripture/Intent/g;
+    s/\bcommandments?\b/invariant/gi;
+    s/Genesis[ -][Dd]ay(s)?/phase$1/g;
+    s/Genesis-days/phased/g;
+    s{thou shalt not steal/DRY}{no-duplication/DRY}g;
+    s/thou shalt not steal/no duplication/gi;
+    s/two witnesses/two corroborations/gi;
     s{\.claude/[A-Za-z0-9_./\-]+}{(internal)}g;
     # platform-vocabulary + maintenance-stake-model secularization
     s/\bthe substrate\b/the platform/gi;

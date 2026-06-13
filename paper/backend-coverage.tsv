@@ -187,3 +187,11 @@ services/route-ledger	maintenance
 services/skill-contract	internal-apis
 services/skill-contract-cache	internal-apis
 services/skill-contract-persist	maintenance
+# === Day-N triage: x402 fair-compensation reseller + graph store (classify orphans) ===
+routes/unlock	crypto
+routes/contribution	crypto
+routes/contribution-route	crypto
+services/base-x402-pay	crypto
+services/fair-compensation	crypto
+services/graph-checkpoint	maintenance
+services/graph-store	maintenance
