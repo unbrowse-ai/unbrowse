@@ -57,6 +57,17 @@ describe("graph per-endpoint store (plan node 1)", () => {
     expect(await ledgerNextSeq(kv)).toBe(2);
   });
 
+  it("loadGraph skips a malformed/legacy winner value (missing sig) without throwing", async () => {
+    const kv = new FakeKV();
+    await saveWinner(kv, await mk("GET good.com/x"));           // a well-formed delta
+    // a legacy / truncated value under a winner key — missing sig/walletRoot
+    kv.store.set(WINNER_PREFIX + "deadbeef", JSON.stringify({ endpoint: "GET legacy.com/y", op: "add" }));
+    const g = await loadGraph(kv); // must not throw (Buffer.from(undefined) was the live bug)
+    expect(g.winners.size).toBe(1);
+    expect(g.winners.has("GET good.com/x")).toBe(true);
+    expect(g.winners.has("GET legacy.com/y")).toBe(false);     // malformed entry skipped
+  });
+
   it("saveGraph compat writes every winner as its own key (no blob)", async () => {
     const kv = new FakeKV();
     const g = emptyGraph();

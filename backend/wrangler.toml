@@ -407,6 +407,7 @@ preview_id = "cf963a3f11414e85bbcf9f88246ed680"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
+UNBROWSE_GRAPH_STORE = "emergentdb"  # EmergentDB-primary graph store (CF GRAPH_KV fallback)
 CREDITS_ENABLED = "1"
 X402_NETWORK_MODE = "mainnet"
 PAYMENT_RECIPIENT = "6KpxaoPoTDBAMxNNMPQvQEnTbErtjogL2unK8q3VKcdn"
