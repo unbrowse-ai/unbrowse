@@ -72,7 +72,20 @@ node after the bench confirms the env fix unblocks B/C.
       `bench/capability/gate_durable.sh` (forced-dead proxy `http://127.0.0.1:1` → must still capture
       real data) exits 0 reliably; unit `tests/kuri-proxy-reachable.test.ts` (4✓). The fallback log
       fires live: `[kuri-proxy] proxy 127.0.0.1:1 unreachable — falling back to direct egress`.
-- [ ] **Axis A H/A tiers (NOT done):** lift hardest-scrape + automation coverage above 0.67.
+- [~] **Axis A H/A tiers — diagnosed, witness honestly RED (research-grade, not a focused fix).**
+      `gate_axisA.sh` armed. The two misses surface ZERO endpoints from `unbrowse explain`
+      (= /v1/intent/resolve force_capture → server-side RE inference):
+      - **H2 stackoverflow.com/questions** → 0 endpoints. Server-rendered HTML, no XHR API for
+        the question list — there is no API endpoint to surface; coverage would need
+        DOM-extraction-as-endpoint in resolve (a backend RE change).
+      - **A2 npmjs.com/search?q=react** → `shortlist_for_judgment: []`. npm search IS XHR-backed,
+        but the capture/RE engine inferred no endpoint (SPA/anti-bot/inference gap).
+      - control: **H3 github search** surfaces real endpoints (11.5 KB) — API-backed sites pass.
+      VERDICT: unlike the proxy bug (a clear defect with a clear client fix), this is a DEEP
+      SERVER-SIDE RE/capture-coverage improvement (surface endpoints for no-API / SPA-anti-bot
+      pages) — research-grade, site-specific, uncertain, and gated by the backend inference. It
+      is NOT honestly settleable by a focused in-thread change, and the corpus must NOT be gamed
+      to pass (skill rule #4: coverage is measured, not forced). Named here as the honest ceiling.
 - [ ] full maximization / promise: NOT emitted — levers above are real and unexhausted.
 
 Honest note: the witness measures the binary's *capability* (B/C are green — the binary captures +
