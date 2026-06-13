@@ -22,7 +22,8 @@
     "@x402/hono": "^2.12.0",
     "hono": "^4.7.0",
     "nanoid": "^5.1.6",
-    "stripe": "^22.1.1"
+    "stripe": "^22.1.1",
+    "viem": "^2.47.11"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",
