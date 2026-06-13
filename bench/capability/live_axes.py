@@ -85,7 +85,7 @@ def _parse_envelope(out):
         return {}
 
 
-def resolve(intent, url, top=8, no_execute=True, force_capture=True, timeout=180):
+def resolve(intent, url, top=8, no_execute=True, force_capture=True, timeout=210):
     """Real agent-contract STEP 1: `unbrowse resolve` → ranked endpoint shortlist.
     (The bench previously drove the *diagnostic* `explain`; this is the documented
     contract command a real agent calls.) The resolve envelope nests the shortlist
