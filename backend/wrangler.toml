@@ -398,6 +398,13 @@ binding = "SCREENSHOT_BLOB"
 id = "7f6b208a030f492c96a3648a4614c9da"
 preview_id = "7f6b208a030f492c96a3648a4614c9da"
 
+# Dedicated shared-route-graph store for ZK-gated delta contributions (graph-store /
+# contribution-route). Single-blob graph fits CF KV's value limit; provisioned 2026-06-13.
+[[env.staging.kv_namespaces]]
+binding = "GRAPH_KV"
+id = "cf963a3f11414e85bbcf9f88246ed680"
+preview_id = "cf963a3f11414e85bbcf9f88246ed680"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
 CREDITS_ENABLED = "1"

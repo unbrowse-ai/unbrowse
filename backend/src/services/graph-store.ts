@@ -36,6 +36,52 @@ export function resolveGraphKV(env: { GRAPH_KV?: GraphKV; STATS_KV?: GraphKV }):
   return { kv: null, dedicated: false };
 }
 
+/**
+ * A graph store that reads its PRIMARY first and falls back to a SECONDARY on a miss or an
+ * error, and mirror-writes to both so the secondary can keep serving if the primary later
+ * goes unavailable. The `kv-fallback-pipe` shape (EmergentDB→CF KV) applied to the contribution
+ * graph: GRAPH_KV primary, CF STATS_KV fallback — resilient to a primary-store outage.
+ */
+export class FallbackGraphKV implements GraphKV {
+  constructor(private primary: GraphKV, private fallback: GraphKV) {}
+
+  async get(key: string, type: "json"): Promise<unknown> {
+    try {
+      const v = await this.primary.get(key, type);
+      if (v !== null && v !== undefined) return v;
+    } catch {
+      /* primary unavailable → fall through to the secondary */
+    }
+    try {
+      return await this.fallback.get(key, type);
+    } catch {
+      return null;
+    }
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    let primaryOk = false;
+    try { await this.primary.put(key, value); primaryOk = true; } catch { /* still mirror below */ }
+    try {
+      await this.fallback.put(key, value);
+    } catch {
+      if (!primaryOk) throw new Error("graph store: primary and fallback writes both failed");
+    }
+  }
+}
+
+/** Resolve the graph store with runtime fallback: GRAPH_KV primary + CF STATS_KV fallback
+ *  when both are bound; dedicated GRAPH_KV alone; shared STATS_KV alone; else honest-null. */
+export function resolveGraphStore(env: { GRAPH_KV?: GraphKV; STATS_KV?: GraphKV }): {
+  kv: GraphKV | null;
+  mode: "fallback" | "dedicated" | "shared" | "none";
+} {
+  if (env.GRAPH_KV && env.STATS_KV) return { kv: new FallbackGraphKV(env.GRAPH_KV, env.STATS_KV), mode: "fallback" };
+  if (env.GRAPH_KV) return { kv: env.GRAPH_KV, mode: "dedicated" };
+  if (env.STATS_KV) return { kv: env.STATS_KV, mode: "shared" };
+  return { kv: null, mode: "none" };
+}
+
 /** Load the shared graph winners from KV (empty if unset). */
 export async function loadGraph(kv: GraphKV): Promise<SharedGraph> {
   const raw = (await kv.get(GRAPH_KEY, "json")) as [string, RouteDelta][] | null;
