@@ -44,22 +44,27 @@ export function emptyGraph(): SharedGraph {
   return { winners: new Map() };
 }
 
-/** Gate one contribution and, if every check passes, CRDT-merge it (LWW by freshness,
- *  tie-broken by delta id). Mutates `g`. An unproven / unattested / forged delta is
- *  rejected and the graph is unchanged. */
-export function mergeDelta(g: SharedGraph, c: Contribution): AdmitResult {
+/** The ZK gate + LWW comparison for ONE endpoint, against its CURRENT winner (or null). This
+ *  is the O(1) per-endpoint core: the route loads just the endpoint's winner, calls this, and
+ *  persists a single key on admit — no whole-graph load/save. Unproven / unattested / forged /
+ *  stale ⇒ rejected. */
+export function gateAndCompare(current: RouteDelta | null, c: Contribution): AdmitResult {
   const { delta, validity, attestation } = c;
-  // ── the ZK gate (all three must pass before any state change) ──
   if (!verifyDelta(delta, delta.walletRoot)) return { admitted: false, reason: "bad-signature" };
   if (!verifyDeltaValidity(delta, validity)) return { admitted: false, reason: "bad-validity-proof" };
   if (!verifyAttestation(attestation, delta.walletRoot)) return { admitted: false, reason: "bad-attestation" };
   if (!attestationBindsDelta(attestation, delta)) return { admitted: false, reason: "attestation-unbound" };
-
-  // ── conflict-free merge: LWW per endpoint (freshness, then deterministic id tiebreak) ──
-  const existing = g.winners.get(delta.endpoint);
-  if (existing && !winsOver(delta, existing)) return { admitted: false, reason: "stale" };
-  g.winners.set(delta.endpoint, delta);
+  if (current && !winsOver(delta, current)) return { admitted: false, reason: "stale" };
   return { admitted: true };
+}
+
+/** Gate one contribution and, if every check passes, CRDT-merge it into the in-memory graph
+ *  (LWW by freshness, tie-broken by delta id). Mutates `g`. (The persistent path uses
+ *  gateAndCompare + per-endpoint store writes; this stays for the in-memory/convergence tests.) */
+export function mergeDelta(g: SharedGraph, c: Contribution): AdmitResult {
+  const r = gateAndCompare(g.winners.get(c.delta.endpoint) ?? null, c);
+  if (r.admitted) g.winners.set(c.delta.endpoint, c.delta);
+  return r;
 }
 
 /** Deterministic LWW order: fresher wins; equal freshness broken by higher delta id.

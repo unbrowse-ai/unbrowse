@@ -8,7 +8,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   resolveGraphKV, loadGraph, saveGraph, loadLedger, saveLedger,
-  GRAPH_KEY, LEDGER_KEY, type GraphKV,
+  WINNER_PREFIX, type GraphKV,
 } from "../backend/src/services/graph-store.js";
 import { emptyGraph } from "../backend/src/services/graph-merge/index.js";
 import { emptyLedger } from "../backend/src/routes/contribution.js";
@@ -22,6 +22,9 @@ class FakeKV implements GraphKV {
   }
   async put(key: string, value: string): Promise<void> {
     this.store.set(key, value);
+  }
+  async list(prefix: string): Promise<string[]> {
+    return [...this.store.keys()].filter((k) => k.startsWith(prefix));
   }
 }
 
@@ -73,9 +76,10 @@ describe("graph-store dedicated KV (plan node 1)", () => {
     g.winners.set("GET api.example.com/v1/items", await aDelta());
     await saveGraph(kv, g);
 
-    expect([...GRAPH_KV.store.keys()]).toContain(GRAPH_KEY);
-    expect(GRAPH_KEY.startsWith("contrib:")).toBe(true);
-    expect(LEDGER_KEY.startsWith("contrib:")).toBe(true);
+    const keys = [...GRAPH_KV.store.keys()];
+    expect(keys.length).toBe(1);                              // one per-endpoint winner key
+    expect(keys[0].startsWith(WINNER_PREFIX)).toBe(true);     // contrib:w:… prefix
+    expect(WINNER_PREFIX.startsWith("contrib:")).toBe(true);
     expect(STATS_KV.store.size).toBe(0); // analytics namespace untouched — full isolation
   });
 });

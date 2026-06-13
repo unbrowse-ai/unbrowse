@@ -1,68 +1,54 @@
-# Plan — production-harden the ZK-gated delta contribution
+# Plan — make EmergentDB the primary shared-graph store
 
-> Continuation of `internal/zk-delta-contribution-plan.md` (the 6-node spine, shipped +
-> on staging at `unbrowse-backend-staging`). This plan moves the four **honest deploy-step
-> boundaries** from reference to production — each was left as a reference floor with a clear
-> upgrade path; the verify/merge interfaces never change, only the carrier does. Witness:
-> `scripts/zk-delta-prod-gate.sh` exits 0 iff every node is real + tested. No fabricated green.
+> Continuation. The contribution graph is on a dedicated CF `GRAPH_KV` (primary) + CF
+> STATS_KV (fallback), stored as ONE blob. To make **EmergentDB** the primary store (the
+> backend's production storage, EmergentDB→CF FallbackKV), the blob must become **per-endpoint
+> keys** — EmergentDB's `qdkv` caps a value at ~10KB, and a growing whole-graph blob would be
+> truncated. Witness: `scripts/zk-delta-emergent-gate.sh` exits 0 iff every node is real +
+> tested. No fabricated green.
 
 ## Goal (one line)
 
-The shared-graph contribution runs on production-grade rails: a dedicated store, an
-execution attestation whose carrier can be a third-party notary proof (not only a wallet
-self-signature), an auditable on-chain-ready checkpoint with inclusion proofs, and a
-contributor payout wired into the four-way fare split — each with the real external wiring
-(chain RPC / MPC-TLS notary / USDC transfer) named as the final deploy step, not faked.
+The shared route graph lives in **EmergentDB primary + CF KV fallback** (the same
+`FallbackKV` the rest of the backend uses), stored as one small key per winning endpoint and
+one per ledger record — so no value approaches the 10KB cap, reads enumerate via `list`, and
+an EmergentDB outage degrades to CF KV.
 
-## Where it stands (the floor this builds on)
+## Where it stands
 
-| Shipped (staging-green) | The boundary this plan crosses |
+| Now | Target |
 |---|---|
-| `graph-store` persists winners+ledger in STATS_KV under a `contrib:` prefix | → a **dedicated** graph namespace, isolated from analytics |
-| `exec-attest`: wallet self-signature binds origin+shape | → a **pluggable proof carrier**: wallet-sig OR a notary (zkTLS/TLSNotary) proof |
-| `graphRoot`: RFC-6962 root returned by `/v1/contribute/root` | → an **auditable checkpoint** with per-endpoint inclusion proofs, ready to anchor on-chain |
-| `settleContributorShare`: the contributor leg, in isolation | → wired into the **four-way fare split** (platform/owner/contributor/discoverer = 100%) |
+| `saveGraph`/`loadGraph` read+write the WHOLE winners map as one blob | per-endpoint: `saveWinner(delta)` / `loadGraph` via `list("contrib:w:")` |
+| ledger persisted as one blob | one record per key `contrib:l:<seq>` |
+| store = CF GRAPH_KV primary + CF STATS_KV fallback | EmergentDB `FallbackKV` (EmergentDB primary + CF KV fallback) when keyed |
+| route loads all → merges in memory → saves all | route loads the endpoint's winner → gates → writes ONE winner + ONE ledger key (O(1)) |
 
 ## Phased build (cheapest-first; each node = goal · primitive · witness)
 
-| # | node · goal | primitive to add | witness (exit 0 ⇔ done) |
+| # | node · goal | primitive | witness (exit 0 ⇔ done) |
 |---|---|---|---|
-| 1 | **dedicated-graph-kv** — resolve a dedicated `GRAPH_KV` binding (fall back to STATS_KV prefix), keys namespaced + isolated | `graph-store.resolveGraphKV` | `tests/graph-store-dedicated.test.ts` — prefers GRAPH_KV when bound; isolated keys; graceful fallback |
-| 2 | **notary-attestation** — the attestation carries a pluggable proof: wallet-sig (today) OR a notary proof over origin+shape; verify dispatches on the carrier | `src/capture/exec-attest.ts` notary carrier + `verifyNotary` (reference notary keypair models the MPC-TLS output) | `tests/notary-attest.test.ts` — notary-carried attestation verifies; wallet-sig path intact; forged notary fails closed |
-| 3 | **onchain-checkpoint** — batch the winner state into a checkpoint with RFC-6962 inclusion proofs (the value an on-chain anchor publishes) | `backend/src/services/graph-checkpoint.ts` (merkleProof/verifyProof over the sorted winners) | `tests/graph-checkpoint.test.ts` — checkpoint root == graphRoot; inclusion proof verifies; out-of-graph endpoint can't prove; tamper breaks it |
-| 4 | **contributor-payout** — settle a paid execution across the four-way split, the contributor leg paid to the verified graph winner only | `backend/src/routes/contribution.ts` `settleExecution` (full split, bps-configured) | `tests/contributor-payout.test.ts` — splits sum to the charge; winner earns the contributor leg; a non-winner earns nothing |
-| 5 | **goal** — all four real + tested; boundary honest | — | `scripts/zk-delta-prod-gate.sh` exits 0 |
+| 1 | **per-endpoint-store** — winner-per-key + ledger-per-record, enumerated via `list`; each value is one small delta/record | `graph-store`: `GraphKV.list`, `saveWinner`/`loadGraph`(list)/`appendLedgerRecord`/`loadLedger`(list) | `tests/graph-perkey.test.ts` — save N winners ⇒ N keys; loadGraph reconstructs via list; each value well under 10KB; ledger appends per-record |
+| 2 | **emergentdb-primary-routing** — `makeGraphKV(env)` returns the EmergentDB-backed FallbackKV (EmergentDB primary, CF KV fallback) when EMERGENTDB_API_KEY is set; dedicated CF GRAPH_KV+STATS_KV otherwise; uniform `get/put/list` | `graph-store`: `makeGraphKV` + a list-adapter over EdbKV/CF list shapes | `tests/graph-emergentdb-routing.test.ts` — picks the EmergentDB tier when keyed; CF tier otherwise; the list-adapter normalises both shapes to `string[]` |
+| 3 | **per-endpoint-merge** — the route loads only the endpoint's current winner, gates, and writes exactly ONE winner key + ONE ledger key | `contribution-route`: per-endpoint load/gate/save | `tests/graph-perkey-route.test.ts` — a contribution writes exactly 1 winner + 1 ledger key; gate + LWW still hold; root via list matches in-memory graphRoot |
+| 4 | **goal** — all green; deployed to staging on EmergentDB-primary; live round-trip persists in EmergentDB | — | `scripts/zk-delta-emergent-gate.sh` exits 0 (+ staging live check, reported) |
 
-## Honest deploy-step boundaries (named, not faked — mirrors zk-gate's scope note)
+## Honest boundaries
 
-- **Node 2**: the reference notary is a local keypair signing the attested fields. The real
-  MPC-TLS / TLSNotary web-proof (a third party attesting the actual TLS session) plugs into
-  the SAME `verifyNotary` interface via `UNBROWSE_NOTARY_URL` — the deploy step.
-- **Node 3**: the checkpoint + inclusion proofs run in-process. Publishing the root to a
-  chain (Solana proof-of-history / IQLabs signed table) is the deploy step; the committed
-  value is exactly this root.
-- **Node 4**: the split is computed + attributed by proof. Moving USDC over x402 is the
-  existing payment rail (the deploy step); this decides WHO is paid, verifiably.
+- EmergentDB's internal index/direct-key split is EdbKV's concern (the same store skills/stats
+  use at scale). Per-endpoint values (~500 B) never hit the per-value cap; that is what this
+  plan guarantees. The live EmergentDB round-trip is verified on staging, outside the unit gate.
+- Reads use `list` (EdbKV serves it from its index; CF KV serves a prefix scan). An EmergentDB
+  outage degrades to CF KV via `FallbackKV` (the existing resilience).
 
-## Boundary discipline
+## WALK status — gate green (3/3); live: CF per-endpoint shipped, EmergentDB blocked on a workerd bug
 
-Prover stays client-side (`src/`), verifier/checkpoint/payout stay server-side (`backend/`).
-The gate's boundary check fails if any `src/` file imports the server checkpoint/payout.
-The notary carrier is client-constructible but notary-verified server-side.
+- [x] node 1 — per-endpoint-store · `graph-store` per-key winner/ledger + `list` · `tests/graph-perkey.test.ts` (4✓)
+- [x] node 2 — emergentdb-primary-routing · `makeGraphKV`/`adaptKV`/`buildEmergentGraphKV`, EmergentDB+CF compose · `tests/graph-emergentdb-routing.test.ts` (5✓)
+- [x] node 3 — per-endpoint-merge · `gateAndCompare` + route writes one winner + one ledger key · `tests/graph-perkey-route.test.ts` (4✓)
+- [x] goal (unit) — `scripts/zk-delta-emergent-gate.sh` exits 0; first + prod spines still green (no regression); backend compiles
+- [x] **LIVE (CF)** — the per-endpoint store is DEPLOYED + working on staging via the dedicated CF `GRAPH_KV` (`store: dedicated-fallback`): POST admits, GET /root stable, no 500.
+- [ ] **LIVE (EmergentDB) — HONEST NEGATIVE / BLOCKED.** The EmergentDB `EdbKV` path 500s on the **workerd runtime** with `TypeError [ERR_INVALID_ARG_TYPE]: first argument must be of type string or Buffer…` — a crypto/Buffer incompatibility that does NOT occur in local bun (the probe `kv.put`→`get`→`list` round-trips cleanly). Root cause is in the EmergentDB-on-workerd path, not the per-endpoint logic (the CF per-endpoint path works). EmergentDB is therefore **gated opt-in** behind `UNBROWSE_GRAPH_STORE=emergentdb` and wrapped over CF, so enabling it cannot 500 the route. Flipping it on is the remaining work: reproduce the workerd Buffer error against `EdbKV` (likely an `_idxLoad`/hash call passing a non-Buffer), fix it, then set the staging var.
 
-## WALK status — COMPLETE (`scripts/zk-delta-prod-gate.sh` exits 0; 4/4, 20 tests, stable 3/3)
+Honest landing: the **structural goal** (per-endpoint keys under the qdkv cap, O(1) merge, EmergentDB-ready routing) is shipped and unit-proven; the **EmergentDB live cutover** is one workerd bug away and is held behind a flag rather than faked green.
 
-- [x] node 1 — dedicated-graph-kv · `graph-store.resolveGraphKV` (+ Env `GRAPH_KV?`, route wired) · `tests/graph-store-dedicated.test.ts` (5✓): prefers dedicated, prefix-isolated fallback, full isolation
-- [x] node 2 — notary-attestation · `exec-attest` `NotaryProof`/`referenceNotary`/`verifyNotary` · `tests/notary-attest.test.ts` (6✓): notary verifies, wallet path intact, untrusted/tampered/origin-swap fail closed
-- [x] node 3 — onchain-checkpoint · `backend/.../graph-checkpoint.ts` (RFC-6962 inclusion proofs) · `tests/graph-checkpoint.test.ts` (5✓): root == graphRoot, every endpoint proves, out-of-graph can't, tamper fails
-- [x] node 4 — contributor-payout · `contribution.settleExecution` (four-way split) · `tests/contributor-payout.test.ts` (4✓): legs sum to charge, winner earns, forged earns nothing, bad split rejected
-- [x] goal — `scripts/zk-delta-prod-gate.sh` exits 0; first spine still green (29✓, no regression); backend compiles
-
-No fabricated green: every node's test fails closed on the adversarial path; reliability 3/3 cold.
-
-Deploy-step boundaries remain honest and unchanged: the real MPC-TLS notary service (node 2,
-`UNBROWSE_NOTARY_URL`), on-chain root publication (node 3), live USDC transfer over x402
-(node 4), and provisioning/binding a dedicated `GRAPH_KV` namespace on staging (node 1) are
-the external wiring — the in-process logic they plug into is settled here.
-
-(Prior plan: pay.sh support — WALK COMPLETE, preserved in git history.)
+(Prior plans — pay.sh, prod-hardening — WALK COMPLETE, preserved in git history.)

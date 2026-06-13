@@ -9,18 +9,26 @@
  */
 import type { SharedGraph } from "./graph-merge/index.js";
 import { emptyGraph } from "./graph-merge/index.js";
-import type { RouteDelta } from "../../../src/values/route-delta.js";
+import { type RouteDelta } from "../../../src/values/route-delta.js";
+import { sha256hex } from "../../../src/values/content-address.js";
 import type { ContributionLedger, ContributionRecord } from "../routes/contribution.js";
 import { emptyLedger } from "../routes/contribution.js";
+import { statsKV } from "./kv.js";
 
-/** Key prefix isolates the shared graph from any other data in a shared namespace. */
-export const GRAPH_KEY = "contrib:graph:v1";
-export const LEDGER_KEY = "contrib:ledger:v1";
+/** Per-endpoint key prefixes — one small value per winner / per ledger record, so no value
+ *  approaches EmergentDB's qdkv ~10KB cap (a growing whole-graph blob would be truncated). */
+export const WINNER_PREFIX = "contrib:w:";
+export const LEDGER_PREFIX = "contrib:l:";
+/** A winner's key: prefix + sha256 of its endpoint (clean, fixed-length, collision-resistant). */
+export const winnerKey = (endpoint: string): string => WINNER_PREFIX + sha256hex(endpoint);
+/** A ledger record's key: prefix + zero-padded seq (lexicographically ordered). */
+export const ledgerKey = (seq: number): string => LEDGER_PREFIX + String(seq).padStart(12, "0");
 
-/** Minimal KV surface we need (matches Cloudflare KVNamespace). */
+/** Minimal KV surface: get/put plus a prefix `list` (EdbKV + CF KVNamespace both provide it). */
 export interface GraphKV {
   get(key: string, type: "json"): Promise<unknown>;
   put(key: string, value: string): Promise<void>;
+  list(prefix: string): Promise<string[]>;
 }
 
 /** Resolve where the shared graph lives. A DEDICATED `GRAPH_KV` namespace is preferred
@@ -68,6 +76,16 @@ export class FallbackGraphKV implements GraphKV {
       if (!primaryOk) throw new Error("graph store: primary and fallback writes both failed");
     }
   }
+
+  async list(prefix: string): Promise<string[]> {
+    try {
+      const keys = await this.primary.list(prefix);
+      if (keys.length > 0) return keys;
+    } catch {
+      /* primary unavailable → fall through */
+    }
+    try { return await this.fallback.list(prefix); } catch { return []; }
+  }
 }
 
 /** Resolve the graph store with runtime fallback: GRAPH_KV primary + CF STATS_KV fallback
@@ -82,28 +100,133 @@ export function resolveGraphStore(env: { GRAPH_KV?: GraphKV; STATS_KV?: GraphKV 
   return { kv: null, mode: "none" };
 }
 
-/** Load the shared graph winners from KV (empty if unset). */
+/** A raw KV whose `list` returns the Cloudflare/EdbKV shape ({keys:[{name}]}, paginated). */
+export interface RawListKV {
+  get(key: string, type: "json"): Promise<unknown>;
+  put(key: string, value: string, opts?: unknown): Promise<void>;
+  list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<{
+    keys: { name: string }[];
+    list_complete?: boolean;
+    cursor?: string;
+  }>;
+}
+
+/** Adapt a raw CF/EdbKV/FallbackKV store to the GraphKV interface: normalise its paginated
+ *  `list({prefix})` into a flat `string[]` of key names (EdbKV and CF KVNamespace share the
+ *  shape; FallbackKV layers EmergentDB→CF over it). */
+export function adaptKV(raw: RawListKV): GraphKV {
+  return {
+    get: (k, t) => raw.get(k, t),
+    put: (k, v) => raw.put(k, v),
+    list: async (prefix: string): Promise<string[]> => {
+      const names: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const r = await raw.list({ prefix, cursor });
+        for (const e of r.keys) names.push(e.name);
+        cursor = r.list_complete === false ? r.cursor : undefined;
+      } while (cursor);
+      return names;
+    },
+  };
+}
+
+/** Resolve the production graph store: EmergentDB-backed FallbackKV (EmergentDB primary, CF
+ *  KV fallback) when an EmergentDB store is available, else the dedicated CF GRAPH_KV +
+ *  STATS_KV fallback, else shared STATS_KV, else none. `emergent` is injectable for tests; in
+ *  production it is built from the EmergentDB-backed `statsKV` via `buildEmergentGraphKV`. */
+export function makeGraphKV(
+  env: { GRAPH_KV?: RawListKV; STATS_KV?: RawListKV },
+  deps: { emergent?: GraphKV | null },
+): { kv: GraphKV | null; tier: "emergentdb" | "emergentdb+cf" | "dedicated-fallback" | "shared" | "none" } {
+  const graph = env.GRAPH_KV ? adaptKV(env.GRAPH_KV) : undefined;
+  const stats = env.STATS_KV ? adaptKV(env.STATS_KV) : undefined;
+  // The CF tier (dedicated GRAPH_KV primary + STATS_KV fallback) — the resilient floor.
+  const cf = resolveGraphStore({ GRAPH_KV: graph, STATS_KV: stats }).kv;
+
+  if (deps.emergent) {
+    // EmergentDB primary; if a CF store exists, wrap so an EmergentDB error/miss degrades to
+    // CF and writes mirror to it (an EmergentDB outage never 500s the route).
+    if (cf) return { kv: new FallbackGraphKV(deps.emergent, cf), tier: "emergentdb+cf" };
+    return { kv: deps.emergent, tier: "emergentdb" };
+  }
+  if (cf) {
+    const mode = graph ? "dedicated-fallback" : "shared";
+    return { kv: cf, tier: mode };
+  }
+  return { kv: null, tier: "none" };
+}
+
+/** Build the EmergentDB-backed graph store (EmergentDB primary + CF STATS_KV fallback) from
+ *  the backend's `statsKV` (a FallbackKV), or null when EmergentDB is not configured (no key
+ *  and not local-dev) — the caller then falls back to the dedicated CF GRAPH_KV. */
+export function buildEmergentGraphKV(env: {
+  EMERGENTDB_API_KEY?: string;
+  ENVIRONMENT?: string;
+  STATS_KV?: unknown;
+}): GraphKV | null {
+  const keyed = !!env.EMERGENTDB_API_KEY?.trim();
+  if (!keyed && env.ENVIRONMENT !== "local-dev") return null;
+  try {
+    return adaptKV(statsKV(env as Parameters<typeof statsKV>[0]) as unknown as RawListKV);
+  } catch {
+    return null;
+  }
+}
+
+/** Load one endpoint's current winning delta (null if none). One get; the O(1) read the
+ *  per-endpoint merge needs. */
+export async function loadWinner(kv: GraphKV, endpoint: string): Promise<RouteDelta | null> {
+  return (await kv.get(winnerKey(endpoint), "json")) as RouteDelta | null;
+}
+
+/** Persist one winning delta under its own key (~500 B — never near the qdkv cap). */
+export async function saveWinner(kv: GraphKV, delta: RouteDelta): Promise<void> {
+  await kv.put(winnerKey(delta.endpoint), JSON.stringify(delta));
+}
+
+/** Load the whole shared graph by enumerating per-endpoint winner keys. */
 export async function loadGraph(kv: GraphKV): Promise<SharedGraph> {
-  const raw = (await kv.get(GRAPH_KEY, "json")) as [string, RouteDelta][] | null;
   const g = emptyGraph();
-  if (Array.isArray(raw)) for (const [endpoint, delta] of raw) g.winners.set(endpoint, delta);
+  const keys = await kv.list(WINNER_PREFIX);
+  for (const k of keys) {
+    const d = (await kv.get(k, "json")) as RouteDelta | null;
+    if (d && d.endpoint) g.winners.set(d.endpoint, d);
+  }
   return g;
 }
 
-/** Persist the shared graph winners to KV (serialised as endpoint→delta pairs). */
+/** Persist every winner of an in-memory graph as its own key (compat for whole-graph saves;
+ *  the route uses saveWinner for the single admitted endpoint). */
 export async function saveGraph(kv: GraphKV, g: SharedGraph): Promise<void> {
-  await kv.put(GRAPH_KEY, JSON.stringify([...g.winners.entries()]));
+  for (const delta of g.winners.values()) await saveWinner(kv, delta);
 }
 
-/** Load the contribution attribution ledger from KV (empty if unset). */
+/** Append one ledger record under its own key. */
+export async function appendLedgerRecord(kv: GraphKV, rec: ContributionRecord): Promise<void> {
+  await kv.put(ledgerKey(rec.seq), JSON.stringify(rec));
+}
+
+/** Load the contribution ledger by enumerating per-record keys (ordered by seq). */
 export async function loadLedger(kv: GraphKV): Promise<ContributionLedger> {
-  const raw = (await kv.get(LEDGER_KEY, "json")) as ContributionRecord[] | null;
   const l = emptyLedger();
-  if (Array.isArray(raw)) l.records.push(...raw);
+  const keys = await kv.list(LEDGER_PREFIX);
+  const recs: ContributionRecord[] = [];
+  for (const k of keys) {
+    const r = (await kv.get(k, "json")) as ContributionRecord | null;
+    if (r) recs.push(r);
+  }
+  recs.sort((a, b) => a.seq - b.seq);
+  l.records.push(...recs);
   return l;
 }
 
-/** Persist the contribution attribution ledger to KV. */
+/** Persist every ledger record as its own key (compat; the route appends one at a time). */
 export async function saveLedger(kv: GraphKV, l: ContributionLedger): Promise<void> {
-  await kv.put(LEDGER_KEY, JSON.stringify(l.records));
+  for (const rec of l.records) await appendLedgerRecord(kv, rec);
+}
+
+/** Next ledger seq = current record count (enumerated). */
+export async function ledgerNextSeq(kv: GraphKV): Promise<number> {
+  return (await kv.list(LEDGER_PREFIX)).length;
 }
