@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 import type { OperationBinding } from "../src/types/skill.js";
 

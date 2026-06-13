@@ -10,7 +10,7 @@
 // execute returned HTTP 404 stale_endpoint. Root cause: i18n was admitted.
 
 import { describe, it, expect } from "bun:test";
-import { extractEndpoints } from "../src/reverse-engineer/index";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index";
 import type { RawRequest } from "../src/types/skill";
 
 function req(url: string, body = '{"k":"v"}'): RawRequest {

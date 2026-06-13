@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import { obfuscateCaptureForReveng } from "../src/capture/obfuscate.js";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 const SECRETS = {

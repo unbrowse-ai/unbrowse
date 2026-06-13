@@ -5,7 +5,7 @@ import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
 import { execTokenGate } from "../middleware/exec-token.js";
 import type { RawRequest } from "../../../src/capture/index.js";
 import { obfuscateCaptureForReveng } from "../../../src/capture/obfuscate.js";
-import { extractEndpoints } from "../../../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../services/reverse-engineer/index.js";
 import { extractHoles, type HoleTemplate } from "../../../src/capture/hole-template.js";
 
 export const revengRoutes = new Hono<{ Bindings: Env }>();

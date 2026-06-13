@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { buildDescriptionPrompt, inferDescriptionParams } from "../src/reverse-engineer/description-prompt";
+import { buildDescriptionPrompt, inferDescriptionParams } from "../backend/src/services/reverse-engineer/description-prompt";
 
 describe("#165 grounded LLM descriptions", () => {
   test("prompt includes parameters", () => {

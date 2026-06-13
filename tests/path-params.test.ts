@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { extractEndpoints, type ExtractionContext } from "../src/reverse-engineer/index.js";
+import { extractEndpoints, type ExtractionContext } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 function makeReq(method: string, url: string, responseBody?: string): RawRequest {

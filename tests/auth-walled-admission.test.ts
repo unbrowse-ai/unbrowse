@@ -10,7 +10,7 @@
 // shape (HTML + login keywords) regardless of host.
 
 import { describe, expect, it } from "bun:test";
-import { extractEndpoints, type RawRequest } from "../src/reverse-engineer/index.ts";
+import { extractEndpoints, type RawRequest } from "../backend/src/services/reverse-engineer/index.ts";
 
 const HTML_LOGIN_WALL = `<!doctype html><html><head><title>Sign in to X / X</title></head><body><div>LoggedOutShell</div></body></html>`;
 const HTML_REAL_DATA = `<!doctype html><html><head><title>Home / X</title></head><body><main>Real feed content here</main></body></html>`;

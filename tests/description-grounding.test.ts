@@ -6,7 +6,7 @@
  * instead of the backend service that was never wired in.
  */
 import { describe, it, expect } from "bun:test";
-import { groundedDescription, buildDescriptionPrompt } from "../src/reverse-engineer/description-prompt";
+import { groundedDescription, buildDescriptionPrompt } from "../backend/src/services/reverse-engineer/description-prompt";
 
 describe("description grounding (issue #226)", () => {
   it("extracts last path segment into description", () => {

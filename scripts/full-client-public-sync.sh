@@ -27,17 +27,22 @@ EXCLUDES=(--exclude='node_modules/' --exclude='dist/' --exclude='dist-sm/' --exc
   --exclude='*.snapshot' --exclude='*.min.js' --exclude='codedb*'
   --exclude='*.tsbuildinfo' --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.egg-info/'
   --exclude='.planning/' --exclude='internal/' --exclude='.claude/' --exclude='.git/'
-  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm'
-  # reverse-engineer: the endpoint-inference heuristics are moat and run SERVER-only
-  # (/v1/reveng). No client code imports them (revengServerFirst is the only egress, and
-  # it has no local fallback), so they are not in the client bundle — and not in the
-  # public/audit tree either. The dev repo keeps src/reverse-engineer for the backend route.
-  --exclude='reverse-engineer/')
+  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm')
 
 echo "== sync full client source (src + packages + tests + interop) =="
 for top in src packages tests; do
   [ -d "$ROOT/$top" ] && rsync -a --prune-empty-dirs "${EXCLUDES[@]}" "$ROOT/$top/" "$DST/$top/" && echo "  + $top/"
 done
+
+# Drop server-only tests: anything importing from backend/ (e.g. the reverse-engineer
+# inference engine, which lives under backend/ and is never mirrored) would have a dangling
+# import in the public tree. Those are server-side tests, not client tests — remove them.
+echo "== drop server-only tests (import backend/) from the public tree =="
+if [ -d "$DST/tests" ]; then
+  grep -rlE "(from|import\()[[:space:]]*['\"][^'\"]*/backend/" "$DST/tests" 2>/dev/null | while read -r t; do
+    rm -f "$t"; echo "  - $(echo "$t" | sed "s#$DST/##")"
+  done
+fi
 
 echo "== sync public docs + root entrypoints =="
 rsync -a --prune-empty-dirs "${EXCLUDES[@]}" --exclude='internal/' "$ROOT/docs/" "$DST/docs/"
