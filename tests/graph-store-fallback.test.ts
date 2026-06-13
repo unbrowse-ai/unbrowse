@@ -24,6 +24,10 @@ class FakeKV implements GraphKV {
     if (this.throwOnPut) throw new Error("primary down");
     this.store.set(key, value);
   }
+  async list(prefix: string): Promise<string[]> {
+    if (this.throwOnGet) throw new Error("primary down");
+    return [...this.store.keys()].filter((k) => k.startsWith(prefix));
+  }
 }
 
 describe("graph-store fallback (GRAPH_KV primary, CF KV fallback)", () => {
