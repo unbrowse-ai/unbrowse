@@ -510,6 +510,19 @@ export async function getAnalyticsEngagement(): Promise<EngagementMetrics> {
   return authApi<EngagementMetrics>("GET", "/v1/analytics/engagement");
 }
 
+/** Platform unit economics. Only the fields the ops dashboard renders are typed here; the
+ *  /v1/analytics/economics payload carries more (see backend getUnitEconomicsMetrics). */
+export interface UnitEconomics {
+  estimated_monthly_revenue_run_rate_usd: number;
+  /** Lifetime brokerage compensation — the fair-comp markup earned fronting paid upstreams
+   *  (web-unblockers, LLM proxy, paid APIs). Platform revenue; passthrough excluded. */
+  brokered_compensation_usd_total: number;
+}
+
+export async function getAnalyticsEconomics(): Promise<UnitEconomics> {
+  return authApi<UnitEconomics>("GET", "/v1/analytics/economics");
+}
+
 export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
   return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }
