@@ -10,6 +10,7 @@ import { log } from "../logger.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { enrichEndpointsWithTokenSources } from "../capture/replay-tokens.js";
+import { looksLikeBrowserError } from "../capture/fetch-ladder.js";
 import { buildSkillOperationGraph, inferEndpointSemantic } from "../lib/graph-core/index.js";
 import { validateExtractionQuality } from "../execution/index.js";
 import { assessIntentResult } from "../intent-match.js";
@@ -460,6 +461,14 @@ export async function cacheBrowseRequests(params: {
     diagnostic.dom_extraction_confidence = typeof extracted.confidence === "number" ? extracted.confidence : null;
     if (!domDecision.allow || !extracted.data) {
       diagnostic.dom_decision_reason = domDecision.reason ?? (!extracted.data ? "no_extracted_data" : "dom_fallback_rejected");
+      return { domain, indexed: false, mode: "none", skill: null, capture_diagnostic: diagnostic };
+    }
+    // Cache-poisoning guard: a capture that died because egress failed (the browser served Chrome's
+    // "No Internet" / ERR_PROXY_CONNECTION_FAILED page) extracts as valid spa-initial-state JSON and
+    // would otherwise be admitted as an endpoint — poisoning future resolves with the error-page
+    // schema. Reject it; the proxy failure is transient, the route should re-capture, not be cached.
+    if (looksLikeBrowserError(JSON.stringify(extracted.data))) {
+      diagnostic.dom_decision_reason = "browser_error_page";
       return { domain, indexed: false, mode: "none", skill: null, capture_diagnostic: diagnostic };
     }
 
