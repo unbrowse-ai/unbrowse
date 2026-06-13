@@ -28,6 +28,7 @@ import { cookieRoutes } from "./routes/cookies.js";
 import { adminRoutes } from "./routes/admin.js";
 import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
+import { unlockRoutes } from "./routes/unlock.js";
 import { proxyRoutes } from "./routes/proxy.js";
 import { contractRoutes } from "./routes/contract.js";
 import { skillChatRoutes } from "./routes/skills-chat.js";
@@ -84,6 +85,7 @@ app.route("/v1", analyticsRoutes);
 // Universal x402-gated LLM proxy (Stripe x402 -> xgate.run upstream + 50% markup).
 // Additive to the existing Faremeter Flex/Solana skill routes; both coexist.
 app.route("/v1/llm", llmRoutes);
+app.route("/v1", unlockRoutes);
 app.route("/v1", analyticsRoutes);
 app.route("/v1", publicAgentRoutes);
 app.route("/v1", publicIssueRoutes);
