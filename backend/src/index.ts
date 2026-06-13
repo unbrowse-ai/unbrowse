@@ -35,6 +35,7 @@ import { provisionPodRoutes } from "./routes/provision-pod.js";
 import { openaiToolsRoutes } from "./routes/openai-tools.js";
 import { extractRoutes } from "./routes/extract.js";
 import { revengRoutes } from "./routes/reveng.js";
+import { contributionRoutes } from "./routes/contribution-route.js";
 import { walletRoutes } from "./routes/wallet.js";
 import { auditRoutes } from "./routes/audit.js";
 import { sessionStateRoutes } from "./routes/session-state.js";
@@ -104,6 +105,11 @@ app.route("/v1", extractRoutes);
 // Sibling of /v1/extract/refine — the reveng know-how is served, not shipped in
 // the client; the server re-obfuscates defensively and never sees a secret.
 app.route("/v1", revengRoutes);
+// POST /v1/contribute — ZK-gated delta contribution to the shared route graph.
+// Cryptographically gated (bounded-validity proof + execution attestation + wallet
+// signature ARE the identity), not api-key gated; a forged delta is rejected at the
+// gate. GET /v1/contribute/root returns the shared-graph Merkle commitment.
+app.route("/v1", contributionRoutes);
 // POST /v1/wallet/sign — server-side Ed25519 signing with the platform's
 // default wallet (no Privy delegation; the backend holds the key). Mints
 // domain-separated platform attestations under one stable identity.

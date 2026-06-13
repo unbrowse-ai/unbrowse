@@ -364,39 +364,39 @@ preview_id = "f4fe69f30a3c47008a627113a505f38b"
 # bench-gate signed-receipt rows never spill into prod.
 [[env.staging.kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+id = "2e73470ab6a7416fa9f1c74a7fc91a00"
+preview_id = "2e73470ab6a7416fa9f1c74a7fc91a00"
 
 # RESPONSE_CACHE — see top-level stanza. Dedicated staging cache so
 # bench-gate runs can purge without touching prod.
 [[env.staging.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+id = "1904d20e98a243c095c13734cbff80f8"
+preview_id = "1904d20e98a243c095c13734cbff80f8"
 
 # SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0).
 [[env.staging.kv_namespaces]]
 binding = "SESSION_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+id = "2697e743f98f4a0da6dcf6422a95414d"
+preview_id = "2697e743f98f4a0da6dcf6422a95414d"
 
 # TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.staging.kv_namespaces]]
 binding = "TRACE_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+id = "0955631709834219aef241139bfd24d4"
+preview_id = "0955631709834219aef241139bfd24d4"
 
 # SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.staging.kv_namespaces]]
 binding = "SETTINGS_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+id = "c6034a9f7e2e4e4d9b8367fe879a7237"
+preview_id = "c6034a9f7e2e4e4d9b8367fe879a7237"
 
 # SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
 [[env.staging.kv_namespaces]]
 binding = "SCREENSHOT_BLOB"
-id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
+id = "7f6b208a030f492c96a3648a4614c9da"
+preview_id = "7f6b208a030f492c96a3648a4614c9da"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"

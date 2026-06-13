@@ -27,7 +27,13 @@ EXCLUDES=(--exclude='node_modules/' --exclude='dist/' --exclude='dist-sm/' --exc
   --exclude='*.snapshot' --exclude='*.min.js' --exclude='codedb*'
   --exclude='*.tsbuildinfo' --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.egg-info/'
   --exclude='.planning/' --exclude='internal/' --exclude='.claude/' --exclude='.git/'
-  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm')
+  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm'
+  # CAPTURED DATA — real browsing traces / runs / spools carry cookies, auth tokens, and PII.
+  # They are NEVER public. (public-tree-leak-gate also hard-fails on these as a backstop.)
+  --exclude='traces/' --exclude='runs/' --exclude='captures/' --exclude='spool/'
+  --exclude='.unbrowse/' --exclude='queue/' --exclude='harvest/'
+  # build/package artifacts that embed pre-scrub source or bloat the audit tree
+  --exclude='*.tgz' --exclude='*.tar.gz' --exclude='*.dylib' --exclude='*.so' --exclude='*.exe')
 
 echo "== sync full client source (src + packages + tests + interop) =="
 for top in src packages tests; do

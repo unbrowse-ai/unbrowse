@@ -11,6 +11,9 @@ import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
+import { signDelta, shapePointer } from "./values/route-delta.js";
+import { proveDeltaValidity } from "./values/delta-proof.js";
+import { attestExecution } from "./capture/exec-attest.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
 import { dispatchByKind } from "./cli-v7/dispatch/index.js";
@@ -4989,6 +4992,66 @@ async function cmdCanonicalVerb(alias: "create" | "act" | "read", args: string[]
   ]);
 }
 
+/**
+ * `unbrowse contribute` — ZK-gated delta contribution to the shared route graph.
+ *
+ *   contribute --endpoint "GET host/path" --origin "https://host" [--count N] [--bound B] [--params k1,k2]
+ *       Build {delta, validity-proof, execution-attestation} LOCALLY (the client PROVES),
+ *       then POST to /v1/contribute; the server VERIFIES + merges. No secret leaves the
+ *       machine — the route shape travels as a content hash, the proof as group elements.
+ *   contribute root
+ *       GET /v1/contribute/root — the shared-graph Merkle commitment + endpoint count.
+ *
+ * Mirrors the thin-client split: the client constructs + proves, the cloud verifies + merges.
+ * A forged or unproven contribution is rejected server-side at the gate (HTTP 422).
+ */
+async function cmdContribute(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const sub = args[0];
+  const baseUrl = (
+    (typeof flags["url"] === "string" ? flags["url"] : undefined) ??
+    process.env.UNBROWSE_API_URL ??
+    "https://beta-api.unbrowse.ai"
+  ).replace(/\/+$/, "");
+
+  if (sub === "root") {
+    const res = await fetch(`${baseUrl}/v1/contribute/root`);
+    process.stdout.write((await res.text()) + "\n");
+    return;
+  }
+
+  const endpoint = typeof flags["endpoint"] === "string" ? flags["endpoint"] : "";
+  const origin = typeof flags["origin"] === "string" ? flags["origin"] : "";
+  if (!endpoint || !origin) {
+    console.error('usage: unbrowse contribute --endpoint "GET host/path" --origin "https://host" [--count N] [--bound B] [--params k1,k2]');
+    console.error("       unbrowse contribute root");
+    process.exit(1);
+  }
+  const count = Number(typeof flags["count"] === "string" ? flags["count"] : 3);
+  const bound = Number(typeof flags["bound"] === "string" ? flags["bound"] : 16);
+  const paramKeys = typeof flags["params"] === "string"
+    ? flags["params"].split(",").map((s) => s.trim()).filter(Boolean) : [];
+
+  const [method, ...rest] = endpoint.split(" ");
+  const target = rest.join(" ");
+  const [host, ...pathParts] = target.split("/");
+  const path = "/" + pathParts.join("/");
+  const shape = shapePointer({ method, host, path, paramKeys });
+
+  const delta = await signDelta({ op: "add", endpoint, shape, freshness: Date.now() });
+  const validity = proveDeltaValidity(delta, count, bound);
+  const attestation = await attestExecution({ origin, method, shapeHash: shape });
+
+  const res = await fetch(`${baseUrl}/v1/contribute`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ delta, validity, attestation }),
+  });
+  const text = await res.text();
+  let out: unknown; try { out = JSON.parse(text); } catch { out = text; }
+  process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+  if (!res.ok) process.exit(1);
+}
+
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
@@ -5186,6 +5249,7 @@ async function main(): Promise<void> {
     case "health": return cmdHealth(flags);
     case "mcp": return cmdMcp(flags);
     case "contract-bridge": return cmdContractBridge(flags);
+    case "contribute": return cmdContribute(args, flags);
     case "create": case "act": case "read": return cmdCanonicalVerb(command, args, flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
