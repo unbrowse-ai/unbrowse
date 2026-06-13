@@ -10,20 +10,6 @@ On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than d
 
 On adversarial, JavaScript-challenge-gated anti-bot content, a reproducible nine-post retrieval benchmark across three communities of a major social platform — ground-truthed against the platform's own data — recovers the real content on **9/9 posts where a naive HTTP client is blocked on every request (HTTP 403)**. The benchmark is re-runnable and reports the naive-vs-Unbrowse head-to-head directly.
 
-Exa/BrowseComp release truth is guarded separately from historical triage logs.
-Before treating any Exa or BrowseComp result as release evidence, run the
-gate-manifest handoff in [`bench/exa/HANDOFF.md`](./bench/exa/HANDOFF.md):
-
-```bash
-python3 bench/exa/validate_gate_manifest.py
-bun test tests/exa-gate-manifest.test.ts
-bash bench/exa/gate_manifest_e2e.sh
-```
-
-That handoff is intentionally **HOLD**, not a benchmark-win claim: the robust
-BrowseComp witness must still be a real `N >= 25` result above Exa's published
-`0.336` target.
-
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
 
 ## A uniform agent interface
