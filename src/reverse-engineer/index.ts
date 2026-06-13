@@ -1,3 +1,19 @@
+/**
+ * SERVER-ONLY — the endpoint reverse-engineering inference engine (moat).
+ *
+ * This module MUST NOT be imported by any client entrypoint (sdk / client / cli-v7 /
+ * cli.ts / mcp.ts / index.ts) or anything in their transitive closure. The client
+ * reaches RE only through `src/capture/reveng-server-first.ts` → `/v1/reveng` (server),
+ * which has NO local fallback — so this engine is tree-shaken out of the client bundle
+ * and excluded from the public mirror.
+ *
+ * Enforcement: `scripts/thin-client-gate.sh` keeps `reverse-engineer` in its MOAT set;
+ * the gate fails the moment a client import re-introduces it to the closure.
+ *
+ * It stays in src/ (not backend/) because it has 12 runtime deps on shared client
+ * modules (capture/transform/orchestrator/publish/…); it is shared infrastructure used
+ * server-side by `backend/src/routes/reveng.ts`, not a standalone backend service.
+ */
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
 import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, ProvenRecipe, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";

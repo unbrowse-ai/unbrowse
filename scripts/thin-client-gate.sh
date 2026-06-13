@@ -54,10 +54,23 @@ print(f"target: 0  |  ranking is already server-first when absent here")
 sys.exit(1 if moat_in else 0)
 PY
 rc=$?
+
+# reverse-engineer is SERVER-ONLY: no client (src/) file may import the inference engine,
+# static OR dynamic (the static-closure walk above misses a lazy `import()`; this catches it).
+# The only allowed importer is backend/ (not part of the client and not mirrored).
+re_imp=$(git grep -lE "(from|import\()\s*['\"]((\.\./)+|\./)?reverse-engineer/(index|description-prompt)" -- src 2>/dev/null || true)
+if [ -n "$re_imp" ]; then
+  echo "─────────────────────────────────────────────────────────"
+  echo "GATE RED — client (src/) imports the SERVER-ONLY reverse-engineer engine:"
+  echo "$re_imp" | sed 's/^/    /'
+  echo "  route RE through src/capture/reveng-server-first.ts (server), not a local import."
+  exit 1
+fi
+
 echo "─────────────────────────────────────────────────────────"
 if [ "$rc" -ne 0 ]; then
   echo "GATE RED — moat intelligence still reachable from the public client; migrate it server-side"
   exit 1
 fi
-echo "GATE GREEN — public client is thin: no moat intelligence in its import closure"
+echo "GATE GREEN — public client is thin: no moat closure + reverse-engineer is server-only"
 exit 0
