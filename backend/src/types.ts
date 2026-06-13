@@ -256,6 +256,15 @@ export interface Env {
    *  facilitated transaction costs (brokered upstreams: unblockers, LLM proxy, facilitator/gas).
    *  Defaults to 2000 (20%) in services/fair-compensation.ts. */
   FAIR_COMPENSATION_BPS?: string;
+  /** Upstream web-unblocker the /v1/unlock reseller fronts (Base x402 + apiKey). Defaults to the
+   *  200ok web-unlocker in routes/unlock.ts. */
+  UNLOCK_UPSTREAM_URL?: string;
+  /** Per-unlock passthrough cost in USD (what the operator pays upstream); the agent is charged
+   *  this + the fair-compensation markup. Defaults to 0.01. */
+  UNLOCK_UPSTREAM_COST_USD?: string;
+  /** Vendor account key for the unblocker upstream (200ok requires apiKey + paid, not just crypto).
+   *  The operator holds ONE account; agents never register. Worker secret. */
+  UNLOCK_UPSTREAM_APIKEY?: string;
   /** The unbrowse-default wallet secret (64-byte Solana keypair, JSON-array /
    *  hex / base58). Platform-held; signs attestations server-side via Web Crypto
    *  Ed25519. Set via `wrangler secret put UNBROWSE_DEFAULT_WALLET_KEY`. */
