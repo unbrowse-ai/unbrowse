@@ -192,6 +192,15 @@ unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
 
+Contribute a verified route-delta to the shared graph (the client builds the proof
+locally and posts only the route's structural shape — never captured traffic; the
+server verifies the proof + origin attestation before admitting it):
+
+```bash
+unbrowse contribute --endpoint "GET api.example.com/v1/items" --origin "https://api.example.com" --params "page,limit"
+unbrowse contribute root   # the shared-graph commitment + endpoint count
+```
+
 Local capture/publish policy is configurable:
 
 ```bash
