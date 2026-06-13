@@ -30,16 +30,53 @@ const BLOCK_PHRASES = [
   "just a moment", // cloudflare interstitial
 ];
 
+/** Markers of a BROWSER network-error page (Chrome's "No Internet" / proxy-failure interstitial),
+ *  not the target's content. A capture that died because egress failed must NOT be cached as an
+ *  endpoint — otherwise the error page's schema becomes a "skill" and poisons later resolves. */
+const BROWSER_ERROR_MARKERS = [
+  "err_proxy_connection_failed",
+  "err_connection_refused",
+  "err_connection_reset",
+  "err_connection_timed_out",
+  "err_connection_closed",
+  "err_name_not_resolved",
+  "err_internet_disconnected",
+  "err_tunnel_connection_failed",
+  "err_timed_out",
+  "err_empty_response",
+  "net::err_",
+  "dns_probe_finished",
+  "chrome-error://",
+  "this site can’t be reached",
+  "this site can't be reached",
+  "no internet",
+  "there is something wrong with the proxy server",
+  "\"isofflineerror\"", // the spa-initial-state JSON marker on the chrome error page
+];
+
 /**
- * Heuristic: does this page text look like an anti-bot block/challenge page
- * rather than the real content? Known block phrases always qualify; a sub-`minBytes`
- * payload is treated as blocked/empty too (a real data page is rarely that small).
+ * Does this text look like a BROWSER error page (network/proxy failure) rather than the target's
+ * content? These slip past `looksBlocked` (they're not anti-bot phrases and can exceed minBytes),
+ * yet caching one as an endpoint poisons resolve. Checked at the capture-admission gate.
+ */
+export function looksLikeBrowserError(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const low = text.toLowerCase();
+  return BROWSER_ERROR_MARKERS.some((m) => low.includes(m));
+}
+
+/**
+ * Heuristic: does this page text look like an anti-bot block/challenge page OR a browser
+ * network-error page rather than the real content? Known block phrases and browser-error markers
+ * always qualify; a sub-`minBytes` payload is treated as blocked/empty too (a real data page is
+ * rarely that small).
  */
 export function looksBlocked(text: string | null | undefined, minBytes = 512): boolean {
   if (!text) return true;
   const t = text.trim();
   const low = t.toLowerCase();
   if (BLOCK_PHRASES.some((p) => low.includes(p))) return true;
+  if (looksLikeBrowserError(t)) return true;
   if (t.length < minBytes) return true;
   return false;
 }
