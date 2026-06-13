@@ -2682,8 +2682,10 @@ async function executeDomExtractionEndpoint(
   // Check intercepted requests first — if the site's JS made API calls,
   // those have the actual filtered data (not the initial HTML page load)
   if (captured.requests.length > 0) {
-    const { extractEndpoints: extractEps } = await import("../reverse-engineer/index.js");
-    const apiEndpoints = extractEps(captured.requests, undefined, { pageUrl: url, finalUrl: captured.final_url });
+    // Endpoint reverse-engineering runs SERVER-side (revengServerFirst → /v1/reveng); the
+    // client carries no local RE heuristics. On server failure this returns [] and we fall
+    // through to DOM extraction.
+    const apiEndpoints = await revengServerFirst(captured.requests, undefined, { pageUrl: url, finalUrl: captured.final_url });
     const jsonEndpoints = apiEndpoints.filter(ep => ep.response_schema && !ep.dom_extraction);
     if (jsonEndpoints.length > 0) {
       // Found real API responses — return the best one's data
