@@ -55,16 +55,19 @@ const STICKY_SESSION_ID = randomBytes(4).toString("hex");
 /**
  * Append IProyal sticky-session params to the PASSWORD segment (the documented IProyal grammar
  * — keys live in the password, NOT the username: `pass_country-my,sg_session-<id>_lifetime-30m`).
- * OFF unless UNBROWSE_IPROYAL_STICKY=1 (the default egress stays ROTATING — fresh IP per request,
- * which avoids per-IP rate limits for general scraping). When on:
+ *
+ * ON BY DEFAULT: a STABLE residential IP per process is more human-like (rotating a fresh IP on
+ * every request is itself a bot signal anti-bot systems flag), and it lets an IP-bound cookie /
+ * cf_clearance from a capture survive the replay. Opt OUT with UNBROWSE_IPROYAL_STICKY=0 (back to
+ * rotating — better only for high-volume API scraping where per-IP rate limits dominate). Tunable:
  *   UNBROWSE_IPROYAL_COUNTRY   e.g. "my,sg" (comma-joined, kept literal — never URL-encoded)
  *   UNBROWSE_IPROYAL_SESSION   stable id (default: per-process STICKY_SESSION_ID)
  *   UNBROWSE_IPROYAL_LIFETIME  session lifetime, default "30m" (IProyal min 1s, max 7d)
  * Returns the raw suffix to append AFTER the URL-encoded base password (so the comma survives).
  */
 export function iproyalStickySuffix(env: NodeJS.ProcessEnv = process.env): string {
-  const on = (env.UNBROWSE_IPROYAL_STICKY ?? "").trim().toLowerCase();
-  if (on !== "1" && on !== "true" && on !== "yes") return "";
+  const off = (env.UNBROWSE_IPROYAL_STICKY ?? "").trim().toLowerCase();
+  if (off === "0" || off === "false" || off === "no") return ""; // explicit opt-out → rotating
   const country = env.UNBROWSE_IPROYAL_COUNTRY?.trim();
   const session = env.UNBROWSE_IPROYAL_SESSION?.trim() || STICKY_SESSION_ID;
   const lifetime = env.UNBROWSE_IPROYAL_LIFETIME?.trim() || "30m";

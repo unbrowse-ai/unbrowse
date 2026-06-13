@@ -1,47 +1,53 @@
 /**
- * x402-unblocker.test — the paid Cloudflare-class rescue rung's GATES (the parts that must hold
- * without spending money). The live settle (pay.sh → OnchainExpat → real content) is proven by
- * integration, not here; here we assert: OFF by default, the enable flag parses correctly, and a
- * disabled rung never spawns `pay` (returns null fast). Negative-cache egress keying for the
- * "x402-unblocker" egress is covered transitively by failure-cache.test.ts.
+ * x402-unblocker.test — the paid Cloudflare-class rescue's GATES + fallback chain (the parts
+ * testable without spending). The live settle (pay.sh → provider → real content) is proven by
+ * integration. Here: paid fallback engages only when a wallet is configured (no manual flag), the
+ * chain orders override → known providers, and each provider's body/parse adapter is correct.
  */
 import { describe, expect, it } from "bun:test";
 import {
-  x402UnblockerEnabled,
-  tryX402UnblockerFetch,
-  X402_UNBLOCKER_DEFAULT_URL,
+  x402PaymentAvailable,
+  x402UnblockerChain,
+  ONCHAINEXPAT_UNBLOCKER,
+  ZERO402_UNBLOCKER,
 } from "../src/capture/curl-impersonate-fallback.js";
 
-describe("x402UnblockerEnabled", () => {
-  it("is OFF unless explicitly armed (it spends real money)", () => {
-    expect(x402UnblockerEnabled({} as NodeJS.ProcessEnv)).toBe(false);
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: "" } as NodeJS.ProcessEnv)).toBe(false);
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: "0" } as NodeJS.ProcessEnv)).toBe(false);
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: "no" } as NodeJS.ProcessEnv)).toBe(false);
+const env = (o: Record<string, string>) => o as unknown as NodeJS.ProcessEnv;
+
+describe("x402PaymentAvailable (replaces the old manual flag)", () => {
+  it("true when a wallet adapter is set — paid fallback auto-engages, no manual flag", () => {
+    expect(x402PaymentAvailable(env({ UNBROWSE_WALLET_ADAPTER: "pay" }))).toBe(true);
+    expect(x402PaymentAvailable(env({ UNBROWSE_WALLET_ADAPTER: "lobster" }))).toBe(true);
   });
-  it("arms on 1 / true / yes (case-insensitive, trimmed)", () => {
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: "1" } as NodeJS.ProcessEnv)).toBe(true);
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: "true" } as NodeJS.ProcessEnv)).toBe(true);
-    expect(x402UnblockerEnabled({ UNBROWSE_X402_UNBLOCKER: " YES " } as NodeJS.ProcessEnv)).toBe(true);
+  it("with adapter 'none' falls back to pay.sh availability (PATH-dependent), never throws", () => {
+    // No wallet adapter → the result hinges on whether `pay` is on PATH; either way it's a
+    // deterministic boolean and must not throw. (A machine with neither → false → no auto-spend.)
+    expect(typeof x402PaymentAvailable(env({ UNBROWSE_WALLET_ADAPTER: "none" }))).toBe("boolean");
   });
 });
 
-describe("default endpoint", () => {
-  it("defaults to the proven Solana-payable OnchainExpat geo unblocker", () => {
-    expect(X402_UNBLOCKER_DEFAULT_URL).toContain("onchainexpat.com");
-    expect(X402_UNBLOCKER_DEFAULT_URL).toContain("/fetch/geo");
+describe("x402UnblockerChain", () => {
+  it("defaults to the known providers in order", () => {
+    const chain = x402UnblockerChain(env({}));
+    expect(chain.map((e) => e.id)).toEqual(["x402:onchainexpat", "x402:0000402"]);
+  });
+  it("prepends an override URL (OnchainExpat-shaped) ahead of the providers", () => {
+    const chain = x402UnblockerChain(env({ UNBROWSE_X402_UNBLOCKER_URL: "https://my.unblocker/fetch" }));
+    expect(chain[0].id).toBe("x402:override");
+    expect(chain[0].url).toBe("https://my.unblocker/fetch");
+    expect(chain.map((e) => e.id)).toContain("x402:onchainexpat");
   });
 });
 
-describe("tryX402UnblockerFetch gate", () => {
-  it("returns null immediately when disabled (never spawns pay)", async () => {
-    const prev = process.env.UNBROWSE_X402_UNBLOCKER;
-    delete process.env.UNBROWSE_X402_UNBLOCKER;
-    const t0 = Date.now();
-    const r = await tryX402UnblockerFetch({ url: "https://example.com/" });
-    expect(r).toBeNull();
-    // disabled path is a pure guard — must not block on a subprocess.
-    expect(Date.now() - t0).toBeLessThan(500);
-    if (prev !== undefined) process.env.UNBROWSE_X402_UNBLOCKER = prev;
+describe("endpoint adapters", () => {
+  it("OnchainExpat: body carries url+country, parse reads .body", () => {
+    expect(JSON.parse(ONCHAINEXPAT_UNBLOCKER.body("https://x.com", "US"))).toEqual({ url: "https://x.com", country: "US" });
+    expect(ONCHAINEXPAT_UNBLOCKER.parse({ status_code: 200, body: "<html>hi</html>" })).toEqual({ status: 200, html: "<html>hi</html>" });
+    expect(ONCHAINEXPAT_UNBLOCKER.parse({ status_code: 200 })).toBeNull();
+  });
+  it("0000402: parse decodes base64 body when present", () => {
+    const b64 = Buffer.from("<html>b64</html>", "utf-8").toString("base64");
+    expect(ZERO402_UNBLOCKER.parse({ status: 200, body_base64: b64 })).toEqual({ status: 200, html: "<html>b64</html>" });
+    expect(ZERO402_UNBLOCKER.parse({ status: 200, body: "<html>raw</html>" })).toEqual({ status: 200, html: "<html>raw</html>" });
   });
 });

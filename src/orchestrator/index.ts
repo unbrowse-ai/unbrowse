@@ -5787,7 +5787,8 @@ export async function resolveAndExecute(
       }
       // Paid x402 web-unblocker — the Cloudflare-class rescue that works on the SHIPPED binary
       // (camoufox above needs the dev-only venv → null on npm install, so this is the binary's
-      // only JS-challenge rescue). Default-OFF (UNBROWSE_X402_UNBLOCKER=1), negative-cache-gated.
+      // only JS-challenge rescue). Auto-engages when a payment method is configured
+      // (x402PaymentAvailable) and walks the unblocker fallback chain; negative-cache-gated.
       // Reached only after SSR/curl_cffi/camoufox all failed on a blocked capture.
       try {
         const unlocked = await tryX402UnblockerFetch({ url: context.url, timeoutMs: 240_000 });
@@ -6117,8 +6118,8 @@ export async function resolveAndExecute(
           console.log(`[orchestrator] camoufox_error (dom-fallback path): ${camoErr instanceof Error ? camoErr.message : String(camoErr)}`);
         }
         // Paid x402 web-unblocker — the Cloudflare-class rescue that works on the SHIPPED binary
-        // (camoufox above needs the dev-only venv → null on npm install). Default-OFF
-        // (UNBROWSE_X402_UNBLOCKER=1), negative-cache-gated; only reached after camoufox failed.
+        // (camoufox above needs the dev-only venv → null on npm install). Auto-engages when a
+        // payment method is configured (x402PaymentAvailable); negative-cache-gated, fallback chain.
         try {
           const unlocked = await tryX402UnblockerFetch({ url: context.url, timeoutMs: 240_000 });
           if (unlocked?.html && unlocked.html.length > 1024 && !looksBlocked(unlocked.html, 1024)) {
