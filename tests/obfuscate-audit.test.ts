@@ -30,7 +30,7 @@ const STEALTH_SECRET = "swordfish-vault-handle-pncl-7741";
 const CAP: RawRequest[] = [{
   url: `https://api.example.com/v1/orders?ref=${STEALTH_SECRET}&page=2`,
   method: "POST",
-  request_headers: { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig_abc", "content-type": "application/json" },
+  request_headers: { authorization: "Bearer test-token-redacted", "content-type": "application/json" },
   request_body: JSON.stringify({ ref: STEALTH_SECRET, item_id: 42 }),
   response_status: 200,
   response_headers: { "content-type": "application/json" },

@@ -27,7 +27,7 @@ import { verifyHoleAttested } from "../src/capture/zk-bound-hole.js";
 import type { Hole } from "../src/capture/hole-template.js";
 import type { RawRequest } from "../src/capture/index.js";
 
-const TOKEN = "Bearer sk_live_DO_NOT_LEAK_0123456789abcdef";
+const TOKEN = "Bearer test-token-redacted";
 const COOKIE = "session=abcdef0123456789abcdef0123456789";
 const ACCESS = "at_9f8e7d6c5b4a39281706fedcba987654";
 const ID = "deadbeefcafef00d1234567890abcdef"; // 32-hex opaque id → {id} (an llm hole, not a secret)

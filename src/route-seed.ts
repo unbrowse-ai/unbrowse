@@ -34,7 +34,7 @@ export interface RouteNode {
 	params: Record<string, unknown>;
 	/** who — `wallet:<hex>` | `did:key:hex:<hex>` | bare 64-char hex pubkey. */
 	identity: string;
-	/** why — scripture/intent anchor (optional). */
+	/** why — intent/intent anchor (optional). */
 	witness?: string;
 	/** how (seal) — Ed25519 hex over the canonical body; absent until sealed. */
 	signature?: string;
@@ -128,7 +128,7 @@ export async function sealNode(
 }
 
 /**
- * Verify a node self-seals through its root. Two witnesses must agree (Deut
+ * Verify a node self-seals through its root. two corroborations must agree (Deut
  * 19:15): the Ed25519 signature AND the body-bound `params.walletPubkey` (if
  * present) must both match the signing identity. Returns false, never throws.
  */

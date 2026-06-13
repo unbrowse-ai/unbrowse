@@ -8,7 +8,7 @@
 // of /v1/browse/go BEFORE the response is sent, so any later process can run
 // the expensive enrich -> index -> publish offline.
 //
-// Boundary discipline (Genesis Day 2 / ): the enriched JobEnvelope in
+// Boundary discipline (phase 2 / ): the enriched JobEnvelope in
 // queue-store.ts is the "old bottle" and is left untouched. This is the new
 // bottle for the new wine. We REUSE queue-store's pure primitives
 // (sanitizeDomain, acquireLock, touchHeartbeat, sweepStaleTmp) by import — the
