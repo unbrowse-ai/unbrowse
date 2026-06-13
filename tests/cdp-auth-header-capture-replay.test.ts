@@ -17,7 +17,7 @@
  */
 import { afterAll, describe, expect, it } from "bun:test";
 import { nanoid } from "nanoid";
-import { extractAuthHeaders, isReplayCriticalHeader, isSensitiveHeader } from "../src/reverse-engineer/index.js";
+import { extractAuthHeaders, isReplayCriticalHeader, isSensitiveHeader } from "../backend/src/services/reverse-engineer/index.js";
 import { getCapturedNetworkHeadersAsRequests, type RawRequest } from "../src/capture/index.js";
 import { cacheBrowseRequests } from "../src/api/browse-index.js";
 import { getCredential, deleteCredential } from "../src/vault/index.js";

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import { executeSkill } from "../src/execution/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 import type { EndpointDescriptor, SkillManifest } from "../src/types/index.js";

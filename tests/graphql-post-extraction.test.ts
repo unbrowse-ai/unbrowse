@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { extractEndpoints, extractGraphQLOperationName } from "../src/reverse-engineer/index.js";
+import { extractEndpoints, extractGraphQLOperationName } from "../backend/src/services/reverse-engineer/index.js";
 import { mergePassiveCaptureData } from "../src/capture/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 

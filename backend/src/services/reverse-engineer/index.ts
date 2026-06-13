@@ -7,21 +7,20 @@
  * which has NO local fallback — so this engine is tree-shaken out of the client bundle
  * and excluded from the public mirror.
  *
- * Enforcement: `scripts/thin-client-gate.sh` keeps `reverse-engineer` in its MOAT set;
- * the gate fails the moment a client import re-introduces it to the closure.
- *
- * It stays in src/ (not backend/) because it has 12 runtime deps on shared client
- * modules (capture/transform/orchestrator/publish/…); it is shared infrastructure used
- * server-side by `backend/src/routes/reveng.ts`, not a standalone backend service.
+ * Lives under `backend/` (private, not mirrored); the only importer is
+ * `backend/src/routes/reveng.ts`. It reuses a dozen shared modules from `../../../../src/*`
+ * (capture/transform/types/…) — the dependency is one-way (backend → src), and src never
+ * reaches back. Enforcement: `scripts/thin-client-gate.sh` fails on any `src/` import of
+ * `reverse-engineer/{index,description-prompt}` (static OR dynamic).
  */
-import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
-import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, ProvenRecipe, WsMessage } from "../types/index.js";
-import { inferSchema } from "../transform/index.js";
-import { getRegistrableDomain } from "../domain.js";
+import type { RawRequest, CapturedWsMessage } from "../../../../src/capture/index.js";
+import type { CsrfPlan, EndpointDescriptor, EndpointPathBindingCandidate, ProvenRecipe, WsMessage } from "../../../../src/types/index.js";
+import { inferSchema } from "../../../../src/transform/index.js";
+import { getRegistrableDomain } from "../../../../src/domain.js";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
-import { isSensitiveHeader, isReplayCriticalHeader, extractAuthHeaders, extractGraphQLOperationName } from "../values/header-classify.js";
-export { isSensitiveHeader, isReplayCriticalHeader, extractAuthHeaders, extractGraphQLOperationName } from "../values/header-classify.js";
+import { isSensitiveHeader, isReplayCriticalHeader, extractAuthHeaders, extractGraphQLOperationName } from "../../../../src/values/header-classify.js";
+export { isSensitiveHeader, isReplayCriticalHeader, extractAuthHeaders, extractGraphQLOperationName } from "../../../../src/values/header-classify.js";
 
 /**
  * Generate a deterministic endpoint ID from method + url_template.
@@ -33,15 +32,15 @@ function stableEndpointId(method: string, urlTemplate: string): string {
   const hash = createHash("sha256").update(`${method}:${urlTemplate}`).digest("base64url");
   return hash.slice(0, 21); // same length as nanoid
 }
-import { inferEndpointSemantic, resolveEndpointPathBindings } from "../lib/graph-core/index.js";
-import { parseMaxAge, parseExpiresIn, isCsrfShapedKey } from "../orchestrator/dag-feedback.js";
-import type { OperationBinding } from "../types/index.js";
-import { writeDebugTrace } from "../debug-trace.js";
-import { buildQueryBindingMap } from "../template-params.js";
+import { inferEndpointSemantic, resolveEndpointPathBindings } from "../../../../src/lib/graph-core/index.js";
+import { parseMaxAge, parseExpiresIn, isCsrfShapedKey } from "../../../../src/orchestrator/dag-feedback.js";
+import type { OperationBinding } from "../../../../src/types/index.js";
+import { writeDebugTrace } from "../../../../src/debug-trace.js";
+import { buildQueryBindingMap } from "../../../../src/template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
-import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
-import { decodeProtobufBody, isProtobufLikeEndpoint } from "../protobuf/wire.js";
-import { I18N_CONFIG_PATHS } from "../lib/ranking-core/filters/noise-patterns.js";
+import { isRscPayload, extractRscDataEndpoints } from "../../../../src/capture/rsc.js";
+import { decodeProtobufBody, isProtobufLikeEndpoint } from "../../../../src/protobuf/wire.js";
+import { I18N_CONFIG_PATHS } from "../../../../src/lib/ranking-core/filters/noise-patterns.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;

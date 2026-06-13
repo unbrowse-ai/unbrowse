@@ -58,7 +58,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 
 import type { RawRequest } from "../src/capture/index.js";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import { executeEndpointWithChain } from "../src/execution/index.js";
 import type {
   ChainWalkContext,

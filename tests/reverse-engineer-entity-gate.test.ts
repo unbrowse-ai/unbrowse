@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 function makeRequest(url: string, response: unknown): RawRequest {

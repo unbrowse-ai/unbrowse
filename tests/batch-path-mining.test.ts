@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 // @ts-ignore — looksLikeEntityId is not exported; we test it indirectly via minePathTemplates
-import { minePathTemplates, extractEndpoints } from "../src/reverse-engineer/index.js";
+import { minePathTemplates, extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extractEndpoints } from "../src/reverse-engineer/index";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index";
 
 // A4 fix — GraphQL POST endpoints at non-/graphql/ URLs were getting dropped
 // at extractEndpoints because:

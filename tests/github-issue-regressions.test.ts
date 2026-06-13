@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { executeSkill } from "../src/execution/index.js";
-import { extractAuthHeaders, extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractAuthHeaders, extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import { deleteCredential, storeCredential } from "../src/vault/index.js";
 import { annotateEndpointPolicy, detectSessionBoundParams } from "../src/site-policy.js";
 import { hasUsableEndpoints } from "../src/orchestrator/index.js";

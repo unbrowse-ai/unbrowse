@@ -1,5 +1,5 @@
-import { inferSchema } from "../transform/index.js";
-import { sanitizeAgentVisibleText, sanitizeAgentVisibleValue } from "../publish/sanitize.js";
+import { inferSchema } from "../../../../src/transform/index.js";
+import { sanitizeAgentVisibleText, sanitizeAgentVisibleValue } from "../../../../src/publish/sanitize.js";
 
 export interface DescriptionParamContext {
   name: string;

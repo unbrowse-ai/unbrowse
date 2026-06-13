@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { isRscPayload, parseRscPayload, extractRscDataEndpoints } from "../src/capture/rsc";
-import { extractEndpoints } from "../src/reverse-engineer/index.js";
+import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import type { RawRequest } from "../src/capture/index.js";
 
 function makeRequest(overrides: Partial<RawRequest>): RawRequest {

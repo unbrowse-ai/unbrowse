@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { scanBundlesForRoutes } from "../src/reverse-engineer/bundle-scanner.js";
+import { scanBundlesForRoutes } from "../backend/src/services/reverse-engineer/bundle-scanner.js";
 
 describe("scanBundlesForRoutes", () => {
   test("drops auth and settings bundle routes from public root captures", () => {
