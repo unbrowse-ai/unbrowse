@@ -33,9 +33,12 @@ GO_ENVELOPE = (
 RESOLVE_BROWSE_STRICT = (
     '[trace] phase=run BEGIN\n{"session_id":"S1","tab_id":"T1"}\n[capture-pipeline] drain\n'
 )
+# NEW contract shape: top-level `resolve --no-execute` nests the ranked endpoints under
+# result.available_endpoints (the rewire away from the debug `eval resolve` {shortlist} shape).
 RESOLVE_WITH_SHORTLIST = (
-    '[trace] BEGIN\n' + json.dumps({"ok": True, "count": 2,
-        "shortlist": [{"endpoint_id": "reddit.listing.top"}, {"endpoint_id": "reddit.search"}]}) + "\n"
+    '[trace] BEGIN\n' + json.dumps({"result": {"skill_id": "sk1", "available_endpoints": [
+        {"endpoint_id": "reddit.listing.top", "score": 90.2},
+        {"endpoint_id": "reddit.search", "score": 50.0}]}}) + "\n"
 )
 
 
@@ -64,10 +67,14 @@ class TestResolveLiveHonesty(unittest.TestCase):
         self.assertFalse(r["marketplace_available"])  # MUST NOT fabricate a green
 
     def test_real_shortlist_extracted(self):
-        with mock.patch.object(lp, "_run", return_value=(0, RESOLVE_WITH_SHORTLIST, "")):
+        with mock.patch.object(lp, "_run", return_value=(0, RESOLVE_WITH_SHORTLIST, "")) as m:
             r = lp.resolve_live("list top posts", url="https://old.reddit.com/r/rust")
         self.assertEqual(len(r["shortlist"]), 2)
         self.assertTrue(r["marketplace_available"])
+        # contract guard: resolve_live must drive top-level `resolve`, NOT the debug `eval resolve`.
+        args = m.call_args[0][0]
+        self.assertEqual(args[0], "resolve")
+        self.assertNotIn("eval", args)
 
 
 class TestJsonLines(unittest.TestCase):

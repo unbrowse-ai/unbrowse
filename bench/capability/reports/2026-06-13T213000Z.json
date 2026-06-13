@@ -1,0 +1,29 @@
+{
+  "ts": "2026-06-13T213000Z",
+  "A_coverage": 0.5556,
+  "A_per_tier": {
+    "R": {
+      "n": 3,
+      "coverage_rate": 1.0,
+      "correct_rate": 1.0
+    },
+    "H": {
+      "n": 3,
+      "coverage_rate": 0.3333,
+      "correct_rate": 0.3333
+    },
+    "A": {
+      "n": 3,
+      "coverage_rate": 0.3333,
+      "correct_rate": 0.3333
+    }
+  },
+  "rag_groundedness": 0.4167,
+  "improved_n30": 0.6,
+  "baseline_n30": 0.5,
+  "verdicts": {
+    "gate_all.sh": 1,
+    "gate_real.sh": 1,
+    "gate_selfimprove.sh": 1
+  }
+}

@@ -117,3 +117,59 @@ export async function tryCurlImpersonateFetch(opts: CurlCffiOptions): Promise<Cu
     });
   });
 }
+
+/**
+ * Camoufox stealth-Firefox fetch — the JS-challenge-class rescue curl_cffi cannot do.
+ * camoufox injects fingerprint spoofing at Firefox's C++ level (invisible to JS), kills
+ * CDP/WebRTC leaks, and runs a solve_cloudflare loop, so Cloudflare's "Just a moment…"
+ * challenge actually passes (verified: stackoverflow.com/questions → real "Newest Questions"
+ * DOM). Yoinked from D4Vinci/Scrapling StealthyFetcher(solve_cloudflare=True); we shell out
+ * to a sandboxed venv (no MPL source vendored). Returns null on any failure (helper/venv
+ * absent — e.g. the shipped binary without the dev venv — subprocess error, still-blocked,
+ * timeout), so callers degrade gracefully.
+ */
+export async function tryCamoufoxFetch(opts: CurlCffiOptions): Promise<CurlCffiResult | null> {
+  const scriptPath = opts.scriptPath ?? resolve(process.cwd(), "scripts/camoufox-fetch.py");
+  const pythonPath = resolve(process.cwd(), "scripts/.camoufox-venv/bin/python");
+  const timeoutMs = opts.timeoutMs ?? 90_000;
+  const proxy = opts.forceDirect ? undefined : (opts.proxy ?? resolveEgressProxy());
+  const args = [scriptPath, opts.url, "--timeout", String(Math.floor(timeoutMs / 1000))];
+  if (proxy) { args.push("--proxy", proxy); }
+
+  return await new Promise<CurlCffiResult | null>((resolveP) => {
+    let killed = false;
+    const childEnv = opts.forceDirect ? { ...process.env, UNBROWSE_NO_PROXY: "1" } : process.env;
+    let child;
+    try {
+      child = spawn(pythonPath, args, { stdio: ["ignore", "pipe", "pipe"], env: childEnv });
+    } catch { resolveP(null); return; }
+    let stdout = "";
+    const timer = setTimeout(() => {
+      killed = true;
+      try { child!.kill("SIGKILL"); } catch { /* best-effort */ }
+      resolveP(null);
+    }, timeoutMs + 10_000);
+    child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+    child.on("error", () => { clearTimeout(timer); resolveP(null); });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (killed) return;
+      if (code !== 0) { resolveP(null); return; }
+      try {
+        const parsed = JSON.parse(stdout) as Record<string, unknown>;
+        if (typeof parsed.error === "string") { resolveP(null); return; }
+        if (typeof parsed.html_b64 !== "string") { resolveP(null); return; }
+        if (parsed.solved === false) { resolveP(null); return; }
+        const html = Buffer.from(parsed.html_b64, "base64").toString("utf-8");
+        resolveP({
+          status: Number(parsed.status) || 0,
+          bytes: Number(parsed.bytes) || 0,
+          html,
+          final_url: opts.url,
+          proxy_used: Boolean(proxy),
+          impersonate: "camoufox",
+        });
+      } catch { resolveP(null); }
+    });
+  });
+}
