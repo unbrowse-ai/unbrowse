@@ -53,6 +53,11 @@ Specification" docs.
 structural, so the same signer works across every provider. `pay` uses pay.sh's account; the
 others sign with their own wallet. To use pay: `export UNBROWSE_WALLET_ADAPTER=pay`.
 
+> The open-standard **OWS** path (Open Wallet Standard) is the precedence-#1 wallet *identity* and
+> policy layer (ahead of lobster/generic), signing via its own `ows pay request` or the
+> `UNBROWSE_X402_SIGNER` generic hook rather than as a named adapter here — see
+> [docs/ows-integration.md](./ows-integration.md).
+
 ### Spend ceiling
 
 `UNBROWSE_X402_MAX_COST_USD` (default `1.00`) caps any single 402; over it → `x402_cost_exceeded`,

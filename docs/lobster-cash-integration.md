@@ -84,7 +84,9 @@ user-facing instructions.
 
 `unbrowse payment-provider` re-prompts which wallet rail settles paid calls: lobster.cash /
 pay.sh / external Solana / Privy embedded / skip. lobster.cash and pay.sh are both supported;
-see also [docs/pay-sh-integration.md](./pay-sh-integration.md) for the pay.sh path.
+see also [docs/pay-sh-integration.md](./pay-sh-integration.md) for the pay.sh path and
+[docs/ows-integration.md](./ows-integration.md) for the open-standard OWS path (precedence #1,
+ahead of lobster.cash).
 
 ## Certification
 
