@@ -28,6 +28,7 @@ import { resolve } from "node:path";
 import { resolveEgressProxy } from "../execution/proxy-fetch.js";
 import { resolveWalletConfig } from "../payments/x402-fetch.js";
 import { payShAvailable } from "../payments/pay-sh.js";
+import { baseX402Available, buildBaseX402Header, isEvmExact, type EvmAccept } from "../payments/base-x402-signer.js";
 import { peekFailure, recordOutcome } from "../values/failure-cache.js";
 
 export interface CurlCffiResult {
@@ -191,6 +192,8 @@ export interface UnblockerEndpoint {
    *  separately (a site OnchainExpat can't clear may still be tried via the next provider). */
   id: string;
   url: string;
+  /** Settle rail: "solana" via pay.sh (`pay curl`), "base" via the in-process EIP-3009 signer. */
+  rail: "solana" | "base";
   body: (target: string, country: string) => string;
   /** Pull {status, html} out of the provider's JSON envelope, or null if unparseable. */
   parse: (json: Record<string, unknown>) => { status: number; html: string } | null;
@@ -202,30 +205,46 @@ const decodeMaybeB64 = (j: Record<string, unknown>): string => {
   return "";
 };
 
-/** OnchainExpat geo residential proxy — Solana USDC (gasless feePayer), so pay.sh settles it. */
+/** 200ok web-unlocker — a DEDICATED unblocker (its OWN rotating residential pool + JS render +
+ *  CAPTCHA solve), the candidate most likely to have DataDome-UNBANNED IPs. Base/EVM USDC, settled
+ *  by the in-process EIP-3009 signer. Returns {success, url, html, screenshot}. */
+export const TWOHUNDREDOK_UNBLOCKER: UnblockerEndpoint = {
+  id: "x402:200ok",
+  url: "https://web-unlocker.200ok.xyz/unlock",
+  rail: "base",
+  body: (url) => JSON.stringify({ url, type: "html", js_render: true }),
+  parse: (j) => (typeof j.html === "string" ? { status: 200, html: j.html } : null),
+};
+/** OnchainExpat geo residential proxy — Solana USDC (gasless feePayer), so pay.sh settles it.
+ *  Pool is DataDome-banned, but clears Cloudflare/datacenter-IP/geo blocks. */
 export const ONCHAINEXPAT_UNBLOCKER: UnblockerEndpoint = {
   id: "x402:onchainexpat",
   url: "https://x402.onchainexpat.com/api/x402-proxy/fetch/geo",
+  rail: "solana",
   body: (url, country) => JSON.stringify({ url, country }),
   parse: (j) => (typeof j.body === "string" ? { status: Number(j.status_code) || 0, html: j.body } : null),
 };
-/** 0000402 generic pay-per-request HTTP proxy (Base/EVM USDC — used when a Base wallet is set;
- *  pay.sh-Solana simply errors on it and the chain moves on). */
+/** 0000402 generic pay-per-request HTTP proxy (Base/EVM USDC). */
 export const ZERO402_UNBLOCKER: UnblockerEndpoint = {
   id: "x402:0000402",
   url: "https://proxy.0000402.xyz/fetch",
+  rail: "base",
   body: (url) => JSON.stringify({ url, method: "GET" }),
   parse: (j) => { const html = decodeMaybeB64(j); return html ? { status: Number(j.status) || 0, html } : null; },
 };
 
-/** The x402 unblocker fallback chain: UNBROWSE_X402_UNBLOCKER_URL override (OnchainExpat-shaped),
- *  then the known providers. "If iproyal no worky" the rescue walks this until one clears the URL. */
+/** The x402 unblocker fallback chain. Order = most-capable first: a UNBROWSE_X402_UNBLOCKER_URL
+ *  override, then 200ok (dedicated unblocker — the DataDome/PerimeterX candidate), then OnchainExpat
+ *  (Solana residential — Cloudflare/geo), then 0000402. Base-rail entries are only attempted when a
+ *  Base wallet is funded (baseX402Available); otherwise they're skipped. "If iproyal no worky" the
+ *  rescue walks this until one returns real content. */
 export function x402UnblockerChain(env: NodeJS.ProcessEnv = process.env): UnblockerEndpoint[] {
   const chain: UnblockerEndpoint[] = [];
   const override = env.UNBROWSE_X402_UNBLOCKER_URL?.trim();
   if (override) chain.push({ ...ONCHAINEXPAT_UNBLOCKER, id: "x402:override", url: override });
-  chain.push(ONCHAINEXPAT_UNBLOCKER, ZERO402_UNBLOCKER);
-  return chain;
+  chain.push(TWOHUNDREDOK_UNBLOCKER, ONCHAINEXPAT_UNBLOCKER, ZERO402_UNBLOCKER);
+  // Drop base-rail providers when no Base wallet is funded (can't settle them) — keeps the chain honest.
+  return chain.filter((ep) => ep.rail !== "base" || baseX402Available());
 }
 
 /** A payment method is available, so paid fallback is allowed to spend. Replaces the old manual
@@ -235,7 +254,50 @@ export function x402UnblockerChain(env: NodeJS.ProcessEnv = process.env): Unbloc
  *  method at all → never auto-spend. */
 export function x402PaymentAvailable(env: NodeJS.ProcessEnv = process.env): boolean {
   try { if (resolveWalletConfig(env).adapter !== "none") return true; } catch { /* fall through */ }
+  try { if (baseX402Available()) return true; } catch { /* fall through */ }
   try { return payShAvailable(); } catch { return false; }
+}
+
+/** Pull the accepts[] array out of an x402 402 response (header `payment-required` base64 JSON,
+ *  or a JSON body with `accepts`). */
+async function parse402Accepts(res: Response): Promise<EvmAccept[]> {
+  const hdr = res.headers.get("payment-required") || res.headers.get("x-payment-required");
+  const tryDecode = (s: string): EvmAccept[] => {
+    try { const d = JSON.parse(Buffer.from(s, "base64").toString("utf-8")); return Array.isArray(d?.accepts) ? d.accepts : []; }
+    catch { return []; }
+  };
+  if (hdr) { const a = tryDecode(hdr.trim()); if (a.length) return a; }
+  try { const j = await res.clone().json() as { accepts?: EvmAccept[] }; if (Array.isArray(j?.accepts)) return j.accepts; } catch { /* not json */ }
+  return [];
+}
+
+/** Settle one Base/EVM endpoint in-process: POST (unpaid) → if 402, sign the EIP-3009 authorization
+ *  for the EVM-exact accept and retry with X-PAYMENT → parse the paid response. Gasless for us. */
+async function fetchViaBaseX402(ep: UnblockerEndpoint, target: string, country: string, timeoutMs: number): Promise<CurlCffiResult | null> {
+  if (!baseX402Available()) return null;
+  const headers = { "content-type": "application/json" };
+  const payload = ep.body(target, country);
+  const ctl = AbortSignal.timeout(timeoutMs);
+  let res: Response;
+  try { res = await fetch(ep.url, { method: "POST", headers, body: payload, signal: ctl }); }
+  catch { return null; }
+  if (res.status === 402) {
+    const accepts = await parse402Accepts(res);
+    const evm = accepts.find(isEvmExact);
+    if (!evm) return null; // endpoint wants a non-EVM chain we can't sign here
+    let xpayment: string;
+    try { xpayment = await buildBaseX402Header(evm, Math.floor(Date.now() / 1000)); } catch { return null; }
+    try { res = await fetch(ep.url, { method: "POST", headers: { ...headers, "X-PAYMENT": xpayment }, body: payload, signal: AbortSignal.timeout(timeoutMs) }); }
+    catch { return null; }
+  }
+  if (!res.ok) { recordOutcome(target, { status: res.status }, ep.id); return null; }
+  let j: Record<string, unknown>;
+  try { j = await res.json() as Record<string, unknown>; } catch { return null; }
+  const got = ep.parse(j);
+  if (!got) return null;
+  const cls = recordOutcome(target, { status: got.status, body: got.html.slice(0, 800) }, ep.id);
+  if (cls !== null || got.status < 200 || got.status >= 300 || got.html.length < 256) return null;
+  return { status: got.status, bytes: Buffer.byteLength(got.html, "utf-8"), html: got.html, final_url: target, proxy_used: true, impersonate: ep.id };
 }
 
 /** Settle one endpoint via `pay curl` (the proven slow-Solana path; x402Fetch doesn't thread the
@@ -295,7 +357,9 @@ export async function tryX402UnblockerFetch(
   const timeoutMs = opts.timeoutMs ?? 240_000;
   for (const ep of x402UnblockerChain()) {
     if (peekFailure(opts.url, ep.id) !== null) continue; // this provider already can't clear this target
-    const r = await payFetchVia(ep, opts.url, country, timeoutMs);
+    const r = ep.rail === "base"
+      ? await fetchViaBaseX402(ep, opts.url, country, timeoutMs)   // in-process EIP-3009 settle
+      : await payFetchVia(ep, opts.url, country, timeoutMs);       // Solana via pay.sh
     if (r) return r; // first provider to return real content wins
   }
   return null;
