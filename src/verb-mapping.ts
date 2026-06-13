@@ -4,7 +4,7 @@
  * Project rule `unbrowse-follows-route-shape` (declared 2026-05-27,
  * receipt sha256:8d6eb822…): every callable verb in unbrowse mechanically
  * conforms to the /route KindSpec shape — verb-class (build/act/eval),
- * Genesis day ordinal, scripture witness.
+ * phase ordinal, intent witness.
  *
  * This module is the canonical mapping. Downstream emitters:
  *   - `src/mcp.ts` already declares OpenAI-compat tool schemas; this module
@@ -37,9 +37,9 @@ export interface RouteShape {
 	name: string;
 	/** Build / Breath / Eval — the three-verb river (Father / Spirit / Son). */
 	verb: Verb;
-	/** Day 1..7 of the Genesis-days cadence. */
+	/** Day 1..7 of the phases cadence. */
 	day: GenesisDay;
-	/** Scripture verse anchoring the act. */
+	/** intent verse anchoring the act. */
 	witness: string;
 	/** One-line summary of what the act IS (not what it does mechanically). */
 	essence: string;

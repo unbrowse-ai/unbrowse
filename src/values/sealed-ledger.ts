@@ -20,7 +20,7 @@ import { signBytes, getWalletPubkey, deriveSealKey } from "./signer.js";
 import { verifyEd25519 } from "./zk-binding.js";
 import { sealValue, revealValue } from "./wallet-seal.js";
 
-import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (commandments #1/#6)
+import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (invariant #1/#6)
 const bytesToHex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 
 export interface LedgerEntry {

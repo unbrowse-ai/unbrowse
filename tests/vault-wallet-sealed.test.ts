@@ -21,7 +21,7 @@ mock.module("keytar", () => ({ default: {} }));
 
 const WALLET = "ed25519-seed-8xKpQ2rZvN1mYwTcLdGhJ4sBnEfAuVoPxRgQ7WkMnHj";
 const OTHER = "ed25519-seed-3aNbCdEfGhJkLmNpQrStUvWxYz123456789ABCDEFGH";
-const SECRET = "Bearer sk-proj-AbCdEf0123456789-secret-token-99";
+const SECRET = "Bearer test-token-redacted";
 
 const vault = await import("../src/vault/index.js");
 

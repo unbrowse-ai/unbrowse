@@ -107,7 +107,7 @@ describe("Exa/BrowseComp gate manifest", () => {
     }
   });
 
-  it("fails closed when duplicate ids collapse two witnesses into one name", () => {
+  it("fails closed when duplicate ids collapse two corroborations into one name", () => {
     const dir = copyFixtureRoot();
     try {
       mutateManifest(dir, (manifest) => {

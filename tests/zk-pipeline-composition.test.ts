@@ -23,7 +23,7 @@ const WALLET = "ed25519-seed-8xKpQ2rZvN1mYwTcLdGhJ4sBnEfAuVoPxRgQ7WkMnHj";
 const ATTACKER = "ed25519-seed-3aNbCdEfGhJkLmNpQrStUvWxYz123456789ABCDEFGH";
 
 const SECRETS = {
-	authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig_secret_99",
+	authorization: "Bearer test-token-redacted",
 	api_key: "sk-proj-AbCdEf0123456789AbCdEf0123456789",
 	password: "hunter2-very-secret",
 };
