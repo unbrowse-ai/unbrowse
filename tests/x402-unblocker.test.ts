@@ -10,7 +10,9 @@ import {
   x402UnblockerChain,
   ONCHAINEXPAT_UNBLOCKER,
   ZERO402_UNBLOCKER,
+  TWOHUNDREDOK_UNBLOCKER,
 } from "../src/capture/curl-impersonate-fallback.js";
+import { baseX402Available } from "../src/payments/base-x402-signer.js";
 
 const env = (o: Record<string, string>) => o as unknown as NodeJS.ProcessEnv;
 
@@ -27,15 +29,25 @@ describe("x402PaymentAvailable (replaces the old manual flag)", () => {
 });
 
 describe("x402UnblockerChain", () => {
-  it("defaults to the known providers in order", () => {
-    const chain = x402UnblockerChain(env({}));
-    expect(chain.map((e) => e.id)).toEqual(["x402:onchainexpat", "x402:0000402"]);
+  it("always includes the Solana provider; Base providers only when a Base wallet is funded", () => {
+    const ids = x402UnblockerChain(env({})).map((e) => e.id);
+    expect(ids).toContain("x402:onchainexpat"); // solana rail — always payable via pay.sh
+    if (baseX402Available()) {
+      expect(ids[0]).toBe("x402:200ok"); // dedicated unblocker first when Base is funded
+      expect(ids).toContain("x402:0000402");
+    } else {
+      expect(ids).not.toContain("x402:200ok"); // can't settle Base → not offered
+    }
   });
-  it("prepends an override URL (OnchainExpat-shaped) ahead of the providers", () => {
+  it("prepends an override URL ahead of the providers", () => {
     const chain = x402UnblockerChain(env({ UNBROWSE_X402_UNBLOCKER_URL: "https://my.unblocker/fetch" }));
     expect(chain[0].id).toBe("x402:override");
     expect(chain[0].url).toBe("https://my.unblocker/fetch");
-    expect(chain.map((e) => e.id)).toContain("x402:onchainexpat");
+  });
+  it("tags each provider's settle rail", () => {
+    expect(TWOHUNDREDOK_UNBLOCKER.rail).toBe("base");
+    expect(ONCHAINEXPAT_UNBLOCKER.rail).toBe("solana");
+    expect(ZERO402_UNBLOCKER.rail).toBe("base");
   });
 });
 
@@ -44,6 +56,11 @@ describe("endpoint adapters", () => {
     expect(JSON.parse(ONCHAINEXPAT_UNBLOCKER.body("https://x.com", "US"))).toEqual({ url: "https://x.com", country: "US" });
     expect(ONCHAINEXPAT_UNBLOCKER.parse({ status_code: 200, body: "<html>hi</html>" })).toEqual({ status: 200, html: "<html>hi</html>" });
     expect(ONCHAINEXPAT_UNBLOCKER.parse({ status_code: 200 })).toBeNull();
+  });
+  it("200ok: body requests html+js_render, parse reads .html", () => {
+    expect(JSON.parse(TWOHUNDREDOK_UNBLOCKER.body("https://x.com", "US"))).toEqual({ url: "https://x.com", type: "html", js_render: true });
+    expect(TWOHUNDREDOK_UNBLOCKER.parse({ success: true, html: "<html>ok</html>" })).toEqual({ status: 200, html: "<html>ok</html>" });
+    expect(TWOHUNDREDOK_UNBLOCKER.parse({ success: false })).toBeNull();
   });
   it("0000402: parse decodes base64 body when present", () => {
     const b64 = Buffer.from("<html>b64</html>", "utf-8").toString("base64");
