@@ -10,7 +10,7 @@ import { WalletVault } from "../src/vault/wallet-vault.js";
 
 const WALLET = "ed25519-seed-8xKpQ2rZvN1mYwTcLdGhJ4sBnEfAuVoPxRgQ7WkMnHj";
 const OTHER = "ed25519-seed-3aNbCdEfGhJkLmNpQrStUvWxYz123456789ABCDEFGH";
-const BEARER = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig_secret_value_99";
+const BEARER = "Bearer test-token-redacted";
 
 describe("WalletVault — credentials sealed to the wallet", () => {
 	it("round-trips for the holder: store then open returns the exact secret", async () => {

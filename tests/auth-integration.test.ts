@@ -172,7 +172,7 @@ describe("authenticated API calls", () => {
     const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
     const headers: Record<string, string> = {
       // Twitter's public bearer token (same as bird uses)
-      "authorization": "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+      "authorization": "Bearer test-token-redacted",
       "content-type": "application/json",
       "x-csrf-token": ct0.value, // CSRF header — the bird pattern our code now does automatically
       "x-twitter-auth-type": "OAuth2Session",
