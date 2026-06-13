@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The ONLY module that talks to the preview/global Unbrowse CLI (ARCHITECTURE seam).
 
-Shells the binary for `eval resolve`, `eval version`, `breath execute`; returns plain
-data dicts with NO secret values (the secret-firmament: pointers/hashes only).
+Drives the documented agent contract — top-level `resolve` (step 1, ranked endpoints) and
+`eval version` (info); returns plain data dicts with NO secret values (pointers/hashes only).
+(Earlier this shelled the debug eval-resolve; rewired to the real contract per Execute-Don't-Guess.)
 
 Replay mode (`--replay <fixture.jsonl>`) lets the harness run deterministically without a
 live deploy. NOTE: the committed Reddit fixture is HAND-AUTHORED gold, NOT a live capture
@@ -34,15 +35,18 @@ def resolve(intent, url=None, limit=10):
     Parses the resolve shortlist; tolerant of the verbose trace lines the CLI emits
     by scanning for the last JSON object in stdout.
     """
-    args = ["eval", "resolve", intent]
+    # Agent-contract STEP 1: top-level `resolve --no-execute` (NOT the debug `eval resolve`).
+    args = ["resolve", "--intent", intent, "--no-execute", "--force-capture"]
     if url:
         args += ["--url", url]
-    args += ["--limit", str(limit)]
     rc, out, err = _run(args)
     body = _find_result_body(out)  # the result-bearing JSON, NOT a trailing log line
+    if isinstance(body, dict) and isinstance(body.get("result"), dict):
+        body = body["result"]  # the resolve envelope nests the shortlist under result
     shortlist = []
     if isinstance(body, dict):
-        raw_list = body.get("shortlist") or body.get("domain_results") or body.get("results") or []
+        raw_list = (body.get("available_endpoints") or body.get("shortlist_for_judgment")
+                    or body.get("shortlist") or body.get("domain_results") or body.get("results") or [])
         for i, e in enumerate(raw_list):
             if isinstance(e, dict):
                 shortlist.append({
@@ -55,7 +59,7 @@ def resolve(intent, url=None, limit=10):
     return {"rc": rc, "shortlist": shortlist}
 
 
-_RESULT_KEYS = ("shortlist", "domain_results", "global_results", "results", "error")
+_RESULT_KEYS = ("available_endpoints", "shortlist_for_judgment", "result", "shortlist", "domain_results", "global_results", "results", "error")
 
 
 def _last_json(text):

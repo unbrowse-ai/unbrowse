@@ -2,15 +2,17 @@
 """Live drivers for Axes A (action-retrieval), C (auth), D (security) — over the real CLI.
 
 Each driver produces a genuine evidence row in history.jsonl that gate_all.sh checks:
-  A_indexing : `unbrowse explain` -> ranked shortlist_for_judgment; axis_a_corpus aggregates
-               coverage@1 + correct@1 + mean top_score over a multi-intent live corpus.
+  A_indexing : `unbrowse resolve` (the documented agent-contract STEP 1) -> ranked
+               available_endpoints; axis_a_corpus aggregates coverage@1 + correct@1 over a
+               multi-tier live corpus.
   C_auth     : cookie-injected go -> with-auth execution (real cookies + session response)
   D_security : persisted session files are POINTER-ONLY (redaction invariant holds)
 
-Axis A NOTE: the v7 `eval resolve` returns a browse-strict {session_id,tab_id} envelope on
-this build (never a shortlist); the WORKING ranking command is top-level `unbrowse explain`
-(POSTs /v1/intent/resolve with force_capture -> ranked endpoints + scores). The benchmark
-uses explain — a real live ranking, not the capture-active proxy it started with.
+CONTRACT NOTE: the bench drives the SAME surface a real agent calls — top-level
+`unbrowse resolve` (step 1, ranked endpoints) and `unbrowse execute` (step 2, replay), NOT
+the diagnostic `explain` nor the debug `eval resolve`. Axis A grades the resolve shortlist;
+Axis B (gate_live.py) grades the resolve->execute replay. `resolve --force-capture` indexes
+on a cold miss so a fresh URL still measures real coverage.
 """
 import argparse
 import glob
@@ -24,8 +26,14 @@ HIST = os.path.join(HERE, "history.jsonl")
 
 
 def _run(args, timeout=120):
-    p = subprocess.run([UNBROWSE_BIN, *args], capture_output=True, text=True, timeout=timeout)
-    return p.returncode, p.stdout, p.stderr
+    # Timeout-tolerant: a slow/flaky capture must record a MISS for that one URL, never
+    # raise and abort the whole axis. Returns (124, partial_stdout, "timeout") on expiry.
+    try:
+        p = subprocess.run([UNBROWSE_BIN, *args], capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return 124, out, "timeout"
 
 
 def _json_lines(text):
@@ -62,20 +70,48 @@ def inspect(session_id, timeout=60):
     return {}
 
 
-def explain(intent, url, top=8, timeout=120):
-    """`unbrowse explain` → the ranked shortlist_for_judgment (Axis A LIVE RANKING).
-    POSTs /v1/intent/resolve with force_capture, returning ranked endpoints + scores."""
-    rc, out, err = _run(["explain", "--intent", intent, "--url", url, "--top", str(top)], timeout=timeout)
-    start = out.find("{")
-    if start < 0:
+def _parse_envelope(out):
+    """Robustly parse the one (possibly pretty-printed, possibly log-prefixed) JSON
+    object the CLI prints to stdout: first '{' … last '}'."""
+    i, j = out.find("{"), out.rfind("}")
+    if i < 0 or j <= i:
         return {}
     try:
-        return json.loads(out[start:])
+        return json.loads(out[i:j + 1])
     except json.JSONDecodeError:
         for o in _json_lines(out):
-            if isinstance(o, dict) and "shortlist_for_judgment" in o:
+            if isinstance(o, dict):
                 return o
         return {}
+
+
+def resolve(intent, url, top=8, no_execute=True, force_capture=True, timeout=180):
+    """Real agent-contract STEP 1: `unbrowse resolve` → ranked endpoint shortlist.
+    (The bench previously drove the *diagnostic* `explain`; this is the documented
+    contract command a real agent calls.) The resolve envelope nests the shortlist
+    under result.available_endpoints; --force-capture indexes on a cold miss so a
+    fresh URL still measures real coverage, --no-execute returns the metadata only."""
+    args = ["resolve", "--intent", intent, "--url", url]
+    if no_execute:
+        args.append("--no-execute")
+    if force_capture:
+        args.append("--force-capture")
+    rc, out, err = _run(args, timeout=timeout)
+    d = _parse_envelope(out)
+    r = d.get("result", d) if isinstance(d, dict) else {}
+    sl = (r.get("available_endpoints") or r.get("shortlist_for_judgment")
+          or d.get("available_endpoints") or d.get("shortlist_for_judgment") or [])
+    return {"raw": d, "shortlist": sl, "skill_id": r.get("skill_id") or d.get("skill_id")}
+
+
+def execute(skill_id, endpoint_id, params=None, timeout=120):
+    """Real agent-contract STEP 2: `unbrowse execute --skill ID --endpoint ID` — replay
+    the resolved endpoint for real data. Proves the two-call contract, not just ranking."""
+    args = ["execute", "--skill", str(skill_id), "--endpoint", str(endpoint_id)]
+    if params:
+        args += ["--params", json.dumps(params)]
+    rc, out, err = _run(args, timeout=timeout)
+    return _parse_envelope(out)
 
 
 # ---- Axis A: action-retrieval / ranking (LIVE via explain) ----
@@ -84,8 +120,8 @@ def axis_a(url, ts="", intent="list the top posts in r/rust", expect_substr=None
     (>=1 endpoint resolved with positive score) and correctness (the top endpoint serves the
     requested resource — expect_substr in its url). This is the real action-retrieval signal,
     not a capture-active flag."""
-    d = explain(intent, url)
-    sl = d.get("shortlist_for_judgment") or []
+    d = resolve(intent, url)
+    sl = d.get("shortlist") or []
     top = sl[0] if sl else {}
     top_score = top.get("score")
     top_url = str(top.get("url") or top.get("url_template") or "")
@@ -237,8 +273,8 @@ def axis_a_corpus(corpus_path, ts=""):
     per, scores = [], []
     tiers = {}
     for t in rows:
-        d = explain(t["intent"], t["url"])
-        sl = d.get("shortlist_for_judgment") or []
+        d = resolve(t["intent"], t["url"])
+        sl = d.get("shortlist") or []
         top = sl[0] if sl else {}
         sc = top.get("score")
         url = str(top.get("url") or top.get("url_template") or "")

@@ -4,10 +4,11 @@
 Full caller path: capture (×2 independent) → score each → two-witness verdict → record a
 source=live row in history.jsonl → exit 0/1.
 
-This is the GENUINE two-witness the auditor demanded: TWO independent `go` captures of the
-same URL (not one frozen file read twice). Liveness is proven by the captures themselves
-(real session IDs + real byte counts), so it does NOT need the eval-version string that this
-binary leaves empty. A run only stamps source=live when both captures actually returned data.
+This is the GENUINE two-witness over the REAL REPLAY CONTRACT: TWO independent
+`resolve --intent --url` calls (each auto-executes the top safe GET — `unbrowse`'s
+resolve→execute replay, the actual product path), not browser `go` captures. Liveness is
+proven by the replays themselves (distinct per-run trace IDs + real byte counts). A run only
+stamps source=live when both replays actually returned data.
 
 Usage:
   python3 bench/capability/gate_live.py --url <URL> --gold-id <id> --gold <axisB_live.jsonl>
@@ -45,22 +46,30 @@ def _load_gold(path, gid):
 def _content_key(data):
     """A stable, content-sensitive key for cross-witness agreement: the subreddit of the
     first child of a Reddit listing. Two witnesses must agree on THIS, not on the
-    (content-blind) structural score. None when the payload isn't the expected shape."""
+    (content-blind) structural score. Handles BOTH the wrapped listing ({data:{children}},
+    from a browser go) AND the unwrapped data ({children}, from run/execute result.data).
+    None when the payload isn't the expected shape."""
     try:
         obj = json.loads(data) if isinstance(data, str) else data
-        return obj["data"]["children"][0]["data"]["subreddit"]
-    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        listing = obj.get("data", obj) if isinstance(obj, dict) and "children" not in obj else obj
+        return listing["children"][0]["data"]["subreddit"]
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError, AttributeError):
         return None
 
 
-def capture_and_score(url, gold, gid, min_bytes):
-    """One witness: live go → score. Returns (witness_dict, liveness_ok)."""
-    r = lp.go(url, timeout=120)
-    data = r.get("page_text") or ""
+def capture_and_score(intent, url, gold, gid, min_bytes):
+    """One witness: real resolve→execute REPLAY → score. Returns (witness_dict, liveness_ok).
+    Independence id is the per-invocation trace_id (replays are HTTP, not browser sessions)."""
+    r = lp.resolve_execute(intent, url, timeout=180)
+    data = r.get("data") or ""
     live_ok = bool(r.get("ok")) and len(data) >= min_bytes
     sc = se.score_record({"id": gid, "data": data}, gold)
     return {
-        "session_id": r.get("session_id"),
+        # keep `session_id` as the gate's independence key, valued by the per-run trace_id
+        # (gate_all/gate_current compare session_id distinctness — distinct trace_ids satisfy it).
+        "session_id": r.get("trace_id"),
+        "trace_id": r.get("trace_id"),
+        "replay_source": r.get("source"),
         "data_bytes": len(data),
         "score": sc["score"],
         "parts": sc["parts"],
@@ -72,6 +81,7 @@ def capture_and_score(url, gold, gid, min_bytes):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
+    ap.add_argument("--intent", default="get the top posts listing as JSON", help="resolve intent for the replay contract")
     ap.add_argument("--gold-id", required=True)
     ap.add_argument("--gold", default=os.path.join(HERE, "gold/axisB_live.jsonl"))
     ap.add_argument("--min-score", type=float, default=0.9)
@@ -84,11 +94,11 @@ def main():
 
     gold = _load_gold(args.gold, args.gold_id)
 
-    w1, live1 = capture_and_score(args.url, gold, args.gold_id, args.min_bytes)
-    w2, live2 = capture_and_score(args.url, gold, args.gold_id, args.min_bytes)
+    w1, live1 = capture_and_score(args.intent, args.url, gold, args.gold_id, args.min_bytes)
+    w2, live2 = capture_and_score(args.intent, args.url, gold, args.gold_id, args.min_bytes)
 
-    # liveness: both captures returned real data AND came from DISTINCT sessions (genuine
-    # independence — two reads of one attached session is NOT two witnesses).
+    # liveness: both replays returned real data AND came from DISTINCT runs (genuine
+    # independence — distinct per-invocation trace_ids; two reads of one cache is NOT two).
     liveness = bool(live1 and live2 and w1["session_id"] and w2["session_id"]
                     and w1["session_id"] != w2["session_id"])
     s1, s2 = w1["score"], w2["score"]

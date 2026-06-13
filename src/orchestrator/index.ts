@@ -13,7 +13,8 @@ import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
-import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import { tryCurlImpersonateFetch, tryCamoufoxFetch } from "../capture/curl-impersonate-fallback.js";
+import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy } from "../execution/proxy-fetch.js";
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../client/rank-server-first.js";
@@ -73,6 +74,38 @@ import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
+
+/**
+ * A page-artifact capture (buildPageArtifactCapture / camoufox / curl_cffi rescue) returns
+ * {endpoint, result} where `result` is the extracted DATA — with no `available_endpoints`.
+ * resolve/`explain` reports coverage from `available_endpoints`, so surfacing only the data
+ * shows ZERO coverage for a page that genuinely has a callable DOM-extraction route. Merge
+ * the artifact's endpoint into the result as a positive-score shortlist so the reported
+ * capability matches the real one (same shape `mergeDomShortlist` uses).
+ */
+function artifactResultWithShortlist(
+  artifact: { endpoint?: { endpoint_id?: string; method?: string; url_template?: string; description?: string; dom_extraction?: unknown } | undefined; result?: unknown },
+  skillId: string,
+  triggerUrl: string,
+): unknown {
+  const ep = artifact.endpoint;
+  const res = artifact.result;
+  if (!ep || !res || typeof res !== "object") return res;
+  const rec = res as Record<string, unknown>;
+  if (Array.isArray(rec.available_endpoints) && rec.available_endpoints.length > 0) return res;
+  const shortlist = [{
+    endpoint_id: ep.endpoint_id,
+    source_skill_id: skillId,
+    method: ep.method,
+    url: ep.url_template,
+    url_template: ep.url_template,
+    description: ep.description,
+    score: 1,
+    ...(ep.dom_extraction ? { dom_extraction: ep.dom_extraction } : {}),
+    trigger_url: triggerUrl,
+  }];
+  return { ...rec, available_endpoints: shortlist, available_operations: shortlist, shortlist_for_judgment: shortlist };
+}
 
 /** Flat map of top-level property names → types from a ResponseSchema.
  *  Gives agents enough shape to pick --path targets without full schema bloat. */
@@ -5530,7 +5563,7 @@ export async function resolveAndExecute(
                 requiredRecovery: true,
               });
               return {
-                result: ssrArtifact.result,
+                result: artifactResultWithShortlist(ssrArtifact, captureSkill!.skill_id, context.url),
                 trace: ssrTrace,
                 source: "live-capture",
                 skill: captureSkill!,
@@ -5594,7 +5627,7 @@ export async function resolveAndExecute(
                 requiredRecovery: true,
               });
               return {
-                result: cffiArtifact.result,
+                result: artifactResultWithShortlist(cffiArtifact, captureSkill!.skill_id, context.url),
                 trace: cffiTrace,
                 source: "live-capture",
                 skill: captureSkill!,
@@ -5626,11 +5659,29 @@ export async function resolveAndExecute(
         // unavailable. Bounded by the 25s timeout so it cannot push total
         // wall-clock past the bench budget.
         try {
-          const cffi = await tryCurlImpersonateFetch({
+          let cffi = await tryCurlImpersonateFetch({
             url: context.url,
             proxy: antibotProxy,
             timeoutMs: 25_000,
           });
+          const cffiViable = (r: typeof cffi) =>
+            !!(r?.html && r.html.length > 1024 && r.status >= 200 && r.status < 400);
+          // Proxy-flake resilience: the residential proxy can be slow / blocked / dead
+          // on a page that IS reachable from our own egress (verified: npm, lobste.rs,
+          // news.ycombinator.com all serve directly). When the proxied attempt isn't
+          // viable, retry DIRECT so a flaky upstream proxy doesn't cost us the capture
+          // of a directly-reachable no-API / SPA page. Cloudflare-gated pages (e.g.
+          // stackoverflow "Just a moment...") stay non-viable on BOTH and fall through
+          // honestly — this only rescues pages that are genuinely reachable.
+          if (!cffiViable(cffi) && antibotProxy) {
+            console.log("[orchestrator] empty_capture_curl_cffi: proxied attempt not viable — retrying forceDirect");
+            const directCffi = await tryCurlImpersonateFetch({
+              url: context.url,
+              forceDirect: true,
+              timeoutMs: 25_000,
+            });
+            if (cffiViable(directCffi)) cffi = directCffi;
+          }
           if (cffi?.html && cffi.html.length > 1024 && cffi.status >= 200 && cffi.status < 400) {
             const cffiArtifact = buildPageArtifactCapture(context.url, queryIntent, cffi.html, false);
             if (cffiArtifact.endpoint && cffiArtifact.result) {
@@ -5659,7 +5710,7 @@ export async function resolveAndExecute(
                 requiredRecovery: true,
               });
               return {
-                result: cffiArtifact.result,
+                result: artifactResultWithShortlist(cffiArtifact, captureSkill!.skill_id, context.url),
                 trace: cffiTrace,
                 source: "live-capture",
                 skill: captureSkill!,
@@ -5681,6 +5732,58 @@ export async function resolveAndExecute(
             `[orchestrator] empty_capture_curl_cffi_error: ${cffiErr instanceof Error ? cffiErr.message : String(cffiErr)}`,
           );
         }
+      }
+    }
+
+    // Final rescue rung: camoufox stealth Firefox. SSR-fastpath + curl_cffi have no JS
+    // engine, so they cannot clear a Cloudflare "Just a moment…" JS challenge — camoufox
+    // (fingerprint-spoofed Firefox + solve_cloudflare loop, yoinked from Scrapling's
+    // StealthyFetcher) can, and does (verified: stackoverflow → real "Newest Questions"
+    // DOM). Only reached after the cheaper rungs failed; returns null when the dev venv is
+    // absent (shipped binary) or the page is still blocked, so it degrades cleanly.
+    if (context?.url && !isAuthRequired) {
+      try {
+        // Direct first: camoufox's stealth fingerprint (not the IP) clears Cloudflare, and
+        // the residential-proxy IP is often itself flagged (curl_cffi got 403 through it).
+        // Direct is the verified-working path; fall back to proxied for geo/IP-gated sites.
+        let camo = await tryCamoufoxFetch({ url: context.url, timeoutMs: 90_000, forceDirect: true });
+        if (!(camo?.html && camo.html.length > 1024) && resolveEgressProxy()) {
+          camo = await tryCamoufoxFetch({ url: context.url, timeoutMs: 90_000 });
+        }
+        if (camo?.html && camo.html.length > 1024) {
+          const camoArtifact = buildPageArtifactCapture(context.url, queryIntent, camo.html, false);
+          if (camoArtifact.endpoint && camoArtifact.result) {
+            console.log(`[orchestrator] camoufox_success: ${camo.html.length} bytes (cleared JS challenge where curl_cffi/SSR failed)`);
+            const camoTrace: import("../types/index.js").ExecutionTrace = {
+              trace_id: nanoid(),
+              skill_id: captureSkill!.skill_id,
+              endpoint_id: camoArtifact.endpoint.endpoint_id,
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              success: true,
+              decision_trace: [{ step: "camoufox_success", html_bytes: camo.html.length }],
+            };
+            recordRoutingStep("live-capture", captureSkill, camoTrace, camoArtifact.result, {
+              candidateCount: 1,
+              selectedEndpointId: camoArtifact.endpoint.endpoint_id,
+              didStepUnlockNextStep: true,
+              userOverride: false,
+              requiredRecovery: true,
+            });
+            return {
+              result: artifactResultWithShortlist(camoArtifact, captureSkill!.skill_id, context.url),
+              trace: camoTrace,
+              source: "live-capture",
+              skill: captureSkill!,
+              timing: finalize("live-capture", camoArtifact.result, captureSkill!.skill_id, captureSkill, camoTrace),
+            };
+          }
+          console.log(`[orchestrator] camoufox_null: ${camo.html.length} bytes but DOM extraction yielded no usable artifact`);
+        } else {
+          console.log("[orchestrator] camoufox_null: helper unavailable / still blocked");
+        }
+      } catch (camoErr) {
+        console.log(`[orchestrator] camoufox_error: ${camoErr instanceof Error ? camoErr.message : String(camoErr)}`);
       }
     }
 
@@ -5712,6 +5815,54 @@ export async function resolveAndExecute(
       !hasNonDomApiEndpoints
     )
   ) {
+    // The page was reached and DOM data was extracted (result._extraction). There IS a
+    // usable endpoint — the DOM-extraction route the capture just exercised — but the
+    // direct return path historically emitted only the data, with an EMPTY
+    // available_endpoints, so `explain`/resolve reported zero coverage for SPA / SSR
+    // no-XHR-API pages that genuinely have a callable route. Surface the captured
+    // DOM-extraction endpoint(s) (or the page_fetch structural floor) as the shortlist
+    // alongside the data, so the reported capability matches the real one.
+    const mergeDomShortlist = (raw: unknown, skill: SkillManifest | undefined): unknown => {
+      if (!raw || typeof raw !== "object") return raw;
+      const rec = raw as Record<string, unknown>;
+      const existing = rec.available_endpoints;
+      if (Array.isArray(existing) && existing.length > 0) return raw;
+      let shortlist = (skill?.endpoints ?? [])
+        .filter((ep) => !!ep.dom_extraction || ep.method === "GET")
+        .slice(0, 8)
+        .map((ep) => ({
+          endpoint_id: ep.endpoint_id,
+          source_skill_id: skill!.skill_id,
+          method: ep.method,
+          url: ep.url_template,
+          url_template: ep.url_template,
+          description: ep.description ?? ep.semantic?.description_out,
+          score: 1,
+          ...(ep.dom_extraction ? { dom_extraction: ep.dom_extraction } : {}),
+          trigger_url: ep.trigger_url ?? context?.url,
+        }));
+      if (shortlist.length === 0 && context?.url) {
+        const pf = buildPageFetchEndpoint(context.url, queryIntent);
+        shortlist = [{
+          endpoint_id: pf.endpoint_id,
+          source_skill_id: skill?.skill_id ?? captureSkill!.skill_id,
+          method: pf.method,
+          url: pf.url_template,
+          url_template: pf.url_template,
+          description: pf.description,
+          score: 1,
+          dom_extraction: pf.dom_extraction,
+          trigger_url: context.url,
+        }];
+      }
+      if (shortlist.length === 0) return raw;
+      return {
+        ...rec,
+        available_endpoints: shortlist,
+        available_operations: shortlist,
+        shortlist_for_judgment: shortlist,
+      };
+    };
     if (learned_skill) {
       recordRoutingStep(
         directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
@@ -5726,7 +5877,7 @@ export async function resolveAndExecute(
         },
       );
       const direct: OrchestratorResult = {
-        result,
+        result: mergeDomShortlist(result, learned_skill),
         trace,
         source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
         skill: learned_skill,
@@ -5748,7 +5899,7 @@ export async function resolveAndExecute(
       requiredRecovery: !trace.success,
     });
     return {
-      result,
+      result: mergeDomShortlist(result, captureSkill),
       trace,
       source: "dom-fallback",
       skill: captureSkill!,
@@ -5781,7 +5932,11 @@ export async function resolveAndExecute(
             const rawContent = await kuri.evaluate(evalTabId, "document.body.innerText.substring(0, 10000)");
             const extractedText = typeof rawContent === "string" ? rawContent : String(rawContent ?? "");
 
-            if (extractedText.length > 200) {
+            // Only offer page_fetch on REAL content. An anti-bot interstitial (Cloudflare
+            // "Just a moment…") also yields >200 chars of innerText — minting a page_fetch
+            // endpoint for it would be FALSE coverage (execute would return the interstitial,
+            // not data). When blocked, skip → fall through to the camoufox rescue below.
+            if (extractedText.length > 200 && !looksBlocked(extractedText, 200)) {
               const rawTitle = await kuri.evaluate(evalTabId, "document.title").catch(() => "");
               const pageTitle = typeof rawTitle === "string" ? rawTitle : String(rawTitle ?? "");
               const rawUrl = await kuri.getCurrentUrl(evalTabId).catch(() => context.url!);
@@ -5798,16 +5953,44 @@ export async function resolveAndExecute(
                 completed_at: new Date().toISOString(),
                 success: true,
               };
+              // Structural floor (substrate-faithful): the page rendered and has
+              // real content but no replayable API endpoint survived RE. Surface the
+              // page_fetch DOM-extraction endpoint as a SELECTABLE shortlist entry —
+              // the same `buildPageFetchEndpoint` primitive the cached-skill fallback
+              // (resolve deferral) and the vendor-block artifact path already use.
+              // Without this, resolve returned the extracted content as a bare blob
+              // with an EMPTY available_endpoints, so `explain` showed no shortlist
+              // (zero coverage) for server-rendered / SPA pages that genuinely HAVE a
+              // usable capability. One structural endpoint per page, no per-host arms.
+              const pageFetchEp = buildPageFetchEndpoint(pageUrl, queryIntent);
+              const pageFetchShortlist = [{
+                endpoint_id: pageFetchEp.endpoint_id,
+                source_skill_id: captureSkill!.skill_id,
+                method: pageFetchEp.method,
+                url: pageFetchEp.url_template,
+                url_template: pageFetchEp.url_template,
+                description: pageFetchEp.description,
+                score: 1, // positive: a genuinely-callable structural endpoint exists
+                dom_extraction: pageFetchEp.dom_extraction,
+                trigger_url: pageUrl,
+                agent_warning:
+                  "page_fetch fallback (structural floor): no replayable API endpoint on this page; " +
+                  "execute fetches the rendered page + extracts the structured DOM content inline.",
+              }];
               const evalResult = {
                 status: "dom_extraction",
-                message: "No API endpoints found, but page content was extracted from DOM.",
+                message: "No API endpoints found; page content extracted from DOM and a page_fetch endpoint is offered.",
                 content: extractedText,
                 title: pageTitle,
                 url: pageUrl,
+                available_endpoints: pageFetchShortlist,
+                available_operations: pageFetchShortlist,
+                shortlist_for_judgment: pageFetchShortlist,
               };
 
               recordRoutingStep("dom-fallback", captureSkill, evalTrace, evalResult, {
-                candidateCount: 0,
+                candidateCount: 1,
+                selectedEndpointId: pageFetchEp.endpoint_id,
                 userOverride: false,
                 requiredRecovery: false,
               });
@@ -5830,6 +6013,68 @@ export async function resolveAndExecute(
         }
       } catch (evalError) {
         console.warn("[dom-fallback] eval extraction failed:", evalError instanceof Error ? evalError.message : String(evalError));
+      }
+    }
+
+    // Camoufox escalation (interstitial case): the cheap capture reached the page but it
+    // was an anti-bot interstitial — and a Cloudflare "Just a moment…" page sets
+    // trace.success=TRUE, so the !trace.success rescue ladder above was skipped. camoufox
+    // (stealth Firefox + solve_cloudflare) clears the JS challenge where Kuri's Chrome and
+    // curl_cffi cannot. Only fires when the captured page LOOKS BLOCKED / empty, so reachable
+    // no-API pages (npm, lobste.rs — handled in the isDirectDomResult branch) are unaffected
+    // and not slowed. Direct first (the stealth fingerprint, not the IP, clears CF; the proxy
+    // IP is often itself flagged), proxy fallback for geo/IP-gated sites. null → degrade
+    // honestly (NO page_fetch minted for an interstitial).
+    if (context?.url) {
+      const capturedText = (() => {
+        if (typeof result === "string") return result;
+        if (result && typeof result === "object") {
+          const rec = result as Record<string, unknown>;
+          const parts = [rec.content, rec.html, rec.body].filter((v) => typeof v === "string") as string[];
+          return parts.length ? parts.join("\n") : JSON.stringify(rec);
+        }
+        return "";
+      })();
+      if (!trace.success || looksBlocked(capturedText, 512)) {
+        try {
+          let camo = await tryCamoufoxFetch({ url: context.url, timeoutMs: 90_000, forceDirect: true });
+          if (!(camo?.html && camo.html.length > 1024) && resolveEgressProxy()) {
+            camo = await tryCamoufoxFetch({ url: context.url, timeoutMs: 90_000 });
+          }
+          if (camo?.html && camo.html.length > 1024 && !looksBlocked(camo.html, 1024)) {
+            const camoArtifact = buildPageArtifactCapture(context.url, queryIntent, camo.html, false);
+            if (camoArtifact.endpoint && camoArtifact.result) {
+              console.log(`[orchestrator] camoufox_success: ${camo.html.length} bytes (cleared interstitial in dom-fallback path)`);
+              const camoTrace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: camoArtifact.endpoint.endpoint_id,
+                started_at: trace.started_at,
+                completed_at: new Date().toISOString(),
+                success: true,
+                decision_trace: [{ step: "camoufox_success", html_bytes: camo.html.length }],
+              };
+              recordRoutingStep("live-capture", captureSkill, camoTrace, camoArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: camoArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: artifactResultWithShortlist(camoArtifact, captureSkill!.skill_id, context.url),
+                trace: camoTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", camoArtifact.result, captureSkill!.skill_id, captureSkill, camoTrace),
+              };
+            }
+          } else {
+            console.log("[orchestrator] camoufox_null (dom-fallback path): helper unavailable / still blocked");
+          }
+        } catch (camoErr) {
+          console.log(`[orchestrator] camoufox_error (dom-fallback path): ${camoErr instanceof Error ? camoErr.message : String(camoErr)}`);
+        }
       }
     }
 
@@ -5858,12 +6103,57 @@ export async function resolveAndExecute(
       }
       return result;
     })();
+    // Structural-floor catch-all: capture REACHED the page (trace.success) but
+    // produced no replayable API endpoint AND the DOM-fallback above did not surface
+    // a shortlist (eval extraction threw / returned too little). Rather than hand the
+    // agent a bare `capture_returned_empty`, offer the page_fetch DOM-extraction
+    // endpoint — genuinely callable (execute fetches the rendered page + extracts
+    // inline), so resolve reports the real capability instead of zero coverage. Gated
+    // on trace.success so a truly-failed/blocked capture still returns honestly empty.
+    const liveCaptureWithFloor: unknown = (() => {
+      if (!trace.success || !context?.url) return liveCaptureResult;
+      const rec = (liveCaptureResult && typeof liveCaptureResult === "object")
+        ? (liveCaptureResult as Record<string, unknown>) : {};
+      const hasOps = Array.isArray(rec.available_operations) && (rec.available_operations as unknown[]).length > 0;
+      const hasEndpoints = Array.isArray(rec.available_endpoints) && (rec.available_endpoints as unknown[]).length > 0;
+      if (hasOps || hasEndpoints) return liveCaptureResult;
+      // Reached only AFTER camoufox also failed to clear the page. If what we captured is an
+      // anti-bot interstitial, do NOT mint a page_fetch endpoint for it — that would be false
+      // coverage (execute would just return the interstitial). Return honestly empty instead.
+      const capText = typeof rec.content === "string" ? rec.content
+        : (typeof rec.html === "string" ? rec.html : JSON.stringify(rec));
+      if (looksBlocked(capText, 512)) return liveCaptureResult;
+      const pageFetchEp = buildPageFetchEndpoint(context.url, queryIntent);
+      const pageFetchShortlist = [{
+        endpoint_id: pageFetchEp.endpoint_id,
+        source_skill_id: captureSkill!.skill_id,
+        method: pageFetchEp.method,
+        url: pageFetchEp.url_template,
+        url_template: pageFetchEp.url_template,
+        description: pageFetchEp.description,
+        score: 1,
+        dom_extraction: pageFetchEp.dom_extraction,
+        trigger_url: context.url,
+        agent_warning:
+          "page_fetch fallback (structural floor): no replayable API endpoint on this page; " +
+          "execute fetches the rendered page + extracts the structured DOM content inline.",
+      }];
+      const { error_code: _drop, ...keep } = rec;
+      return {
+        ...keep,
+        status: "page_fetch_fallback",
+        message: "No replayable API endpoint; offering page_fetch (fetch rendered page + extract inline).",
+        available_endpoints: pageFetchShortlist,
+        available_operations: pageFetchShortlist,
+        shortlist_for_judgment: pageFetchShortlist,
+      };
+    })();
     return {
-      result: liveCaptureResult,
+      result: liveCaptureWithFloor,
       trace,
       source: "live-capture",
       skill: captureSkill!,
-      timing: finalize("live-capture", liveCaptureResult, undefined, undefined, trace),
+      timing: finalize("live-capture", liveCaptureWithFloor, undefined, undefined, trace),
     };
   }
 

@@ -301,3 +301,4 @@ bench/exa/highlights_unbrowse.jsonl
 bin/unbrowse-dev
 .release-coverage-baseline
 .bench-secrets/
+scripts/.camoufox-venv/
