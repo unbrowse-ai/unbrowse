@@ -73,7 +73,7 @@ mock.module("../src/auth/index.js", () => ({
   saveAuthProfileBestEffort: async () => false,
 }));
 
-mock.module("../src/reverse-engineer/index.js", () => ({
+mock.module("../backend/src/services/reverse-engineer/index.js", () => ({
   extractEndpoints: () => [],
   extractAuthHeaders: () => ({}),
 }));
