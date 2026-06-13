@@ -10,6 +10,8 @@ On the API-native path Unbrowse is typically ~30x faster and ~90x cheaper than d
 
 On adversarial, JavaScript-challenge-gated anti-bot content, a reproducible nine-post retrieval benchmark across three communities of a major social platform — ground-truthed against the platform's own data — recovers the real content on **9/9 posts where a naive HTTP client is blocked on every request (HTTP 403)**. The benchmark is re-runnable and reports the naive-vs-Unbrowse head-to-head directly.
 
+On a **live-harvested adversarial corpus** — 24 sites mined each run from r/webscraping (the domains practitioners report fighting) plus curated vendor-gated, SPA, and GraphQL targets — the shipped binary's API-native `resolve`→`execute` path covers **12/24 (50%)** on retrieval, with the misses concentrated on JavaScript-challenge and commercial anti-bot gates (Cloudflare, DataDome) that route through the browser-capture path rather than the thin API path. The credential-redaction / no-secret-on-the-wire security invariant holds across **all 24** sites, including the blocked ones. The corpus is re-harvested and re-scored each run, anti-bot misses are recorded with their vendor class (never relabelled a pass), and every number is a gate that exits 0 only when the run was honest — see [docs/benchmarks.md](./docs/benchmarks.md#live-adversarial-corpus-coverage).
+
 Exa/BrowseComp release truth is guarded separately from historical triage logs.
 Before treating any Exa or BrowseComp result as release evidence, run the
 gate-manifest handoff in [`bench/exa/HANDOFF.md`](./bench/exa/HANDOFF.md):
