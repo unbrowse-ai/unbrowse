@@ -9,7 +9,7 @@
 
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
-import { bridgeKuriProxyEnv, kuriProxyTraceEnabled } from "./env/kuri-proxy-bridge.js";
+import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
 import { proveDeltaValidity } from "./values/delta-proof.js";
@@ -5056,6 +5056,25 @@ async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
   const cliParams = parsed.params;
+
+  // Proxy resilience: a dead/flaky residential-proxy upstream wired into KURI_PROXY otherwise
+  // bricks EVERY browser capture (ERR_PROXY_CONNECTION_FAILED → a chrome-error:// page) with no
+  // fallback. For commands that drive the browser, probe the proxy first and fall back to DIRECT
+  // egress when it can't be reached — so the capture survives instead of returning an error page.
+  const BROWSE_COMMANDS = new Set([
+    "go", "run", "capture", "fetch", "snap", "click", "fill", "type", "press", "select",
+    "scroll", "submit", "screenshot", "text", "markdown", "cookies", "eval", "back", "forward",
+    "sync", "close", "inspect", "auth", "auth-capture", "login", "resolve", "execute", "explain",
+    "create", "act", "read",
+  ]);
+  if (process.env.KURI_PROXY && BROWSE_COMMANDS.has(command)) {
+    try {
+      const probe = await ensureKuriProxyReachable();
+      if (probe.unwired) {
+        console.error(`[kuri-proxy] proxy ${probe.target} unreachable — falling back to direct egress`);
+      }
+    } catch { /* probe is best-effort; never block a command on it */ }
+  }
   // Agent-UX / contract-harness invariant: when stdout is MACHINE-CONSUMED
   // (piped to an agent/subprocess, or explicit --json), it MUST carry ONLY the
   // payload. Every payload is emitted via process.stdout.write (output() and the
