@@ -248,6 +248,10 @@ export interface Env {
   EXEC_TOKEN_ENFORCE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  /** EVM private key (0x + 64 hex) the platform uses to FRONT Base x402 upstreams (web-unblockers,
+   *  paid APIs) when reselling at cost + fair-compensation. Worker secret — set via `wrangler secret`,
+   *  never in code. Absent → the backend cannot broker Base upstreams. See services/base-x402-pay.ts. */
+  BASE_X402_SIGNER_KEY?: string;
   /** Override for the fair-compensation rate (basis points, 0–10000) — the platform's take on
    *  facilitated transaction costs (brokered upstreams: unblockers, LLM proxy, facilitator/gas).
    *  Defaults to 2000 (20%) in services/fair-compensation.ts. */
