@@ -26,6 +26,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { resolveEgressProxy } from "../execution/proxy-fetch.js";
+import { recordOutcome } from "../values/failure-cache.js";
 
 export interface CurlCffiResult {
   status: number;
@@ -105,12 +106,18 @@ export async function tryCurlImpersonateFetch(opts: CurlCffiOptions): Promise<Cu
         if (typeof parsed.error === "string") { resolveP(null); return; }
         if (typeof parsed.html_b64 !== "string") { resolveP(null); return; }
         const html = Buffer.from(parsed.html_b64, "base64").toString("utf-8");
+        const status = Number(parsed.status) || 0;
+        const proxyUsed = Boolean(parsed.proxy_used);
+        // Negative-cache layer: record an anti-bot / transient outcome so a later capture of
+        // the same (site, egress) fails-fast instead of re-paying the rescue. 2xx classifies
+        // as null → no record. Keyed by egress so a proxy/direct switch re-probes.
+        recordOutcome(opts.url, { status, body: html.slice(0, 800) }, proxyUsed ? "proxy" : "direct");
         resolveP({
-          status: Number(parsed.status) || 0,
+          status,
           bytes: Number(parsed.bytes) || 0,
           html,
           final_url: String(parsed.final_url || opts.url),
-          proxy_used: Boolean(parsed.proxy_used),
+          proxy_used: proxyUsed,
           impersonate: String(parsed.impersonate || "chrome131"),
         });
       } catch { resolveP(null); }
