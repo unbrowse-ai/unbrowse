@@ -1,0 +1,85 @@
+name: Publish to npm
+
+# Canonical npm publish for `unbrowse`, via OIDC Trusted Publishing from this
+# PUBLIC repo. The private build repo (unbrowse-ai/unbrowse-dev) builds the npm
+# tarball, uploads it as a release asset here, then dispatches this workflow with
+# the tag. We download that prebuilt tarball and `npm publish` it with provenance
+# — which npm only accepts from a public source repo, so it must run here, not in
+# the private build repo.
+#
+# No NPM_TOKEN. No secret rotation. OIDC short-lived token per run, scoped by the
+# npm Trusted Publisher row configured at
+# https://www.npmjs.com/package/unbrowse/access (repo: unbrowse-ai/unbrowse,
+# workflow: .github/workflows/release.yml, environment: prod).
+#
+# Dispatched (not tag-triggered) so the publish only runs AFTER the build repo has
+# attached the tarball — no race, no "no assets match the file pattern".
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v9.0.0 or v9.0.0-preview.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC sigstore + npm publish --provenance
+
+concurrency:
+  group: publish-npm-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: npm publish (OIDC)
+    runs-on: ubuntu-latest
+    # Environment "prod" must match the Environment field of the npm Trusted
+    # Publisher row exactly; the OIDC claim only includes `environment` when
+    # this block is present.
+    environment: prod
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # Intentionally NO registry-url — it auto-writes an .npmrc with a
+          # placeholder NODE_AUTH_TOKEN that makes npm try (and fail) token auth
+          # instead of falling through to OIDC. Per npm community discussion #176761.
+
+      # npm Trusted Publishing requires npm >= 11.5.1. Node 24 ships npm 11+,
+      # but install latest belt-and-suspenders.
+      - name: Upgrade npm to latest (OIDC support)
+        run: npm install -g npm@latest
+
+      - name: Download the prebuilt npm tarball from this repo's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "unbrowse-${VERSION}.tgz" \
+            --output "/tmp/unbrowse-${VERSION}.tgz"
+          ls -la "/tmp/unbrowse-${VERSION}.tgz"
+
+      - name: Publish to npm via OIDC (provenance)
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          # Prereleases (*-preview.*) go under the `preview` dist-tag so they never
+          # transiently clobber `latest`.
+          NPM_TAG="latest"
+          case "$VERSION" in *-preview.*) NPM_TAG="preview" ;; esac
+          echo "Publishing unbrowse@${VERSION} (dist-tag: ${NPM_TAG}) via OIDC trusted publishing"
+          # Idempotent: a re-dispatch of an already-published version is a no-op,
+          # not a failure.
+          if npm view "unbrowse@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::unbrowse@${VERSION} already published; nothing to do."
+            exit 0
+          fi
+          npm publish "/tmp/unbrowse-${VERSION}.tgz" \
+            --provenance \
+            --access=public \
+            --tag "$NPM_TAG"
