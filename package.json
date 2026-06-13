@@ -104,7 +104,8 @@
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
     "sodium-native": "^5.1.0",
-    "turndown": "^7.2.4"
+    "turndown": "^7.2.4",
+    "viem": "^2.47.11"
   },
   "devDependencies": {
     "@release-it/bumper": "^7.0.5",

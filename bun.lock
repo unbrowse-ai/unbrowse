@@ -22,6 +22,7 @@
         "nanoid": "^5.1.6",
         "sodium-native": "^5.1.0",
         "turndown": "^7.2.4",
+        "viem": "^2.47.11",
       },
       "devDependencies": {
         "@release-it/bumper": "^7.0.5",
@@ -242,7 +243,7 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "8.3.1",
+      "version": "9.0.0-preview.0",
       "devDependencies": {
         "typescript": "^6.0.2",
       },
@@ -274,7 +275,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "8.3.1",
+      "version": "9.0.0-preview.0",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },
