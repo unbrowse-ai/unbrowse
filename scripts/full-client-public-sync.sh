@@ -27,7 +27,12 @@ EXCLUDES=(--exclude='node_modules/' --exclude='dist/' --exclude='dist-sm/' --exc
   --exclude='*.snapshot' --exclude='*.min.js' --exclude='codedb*'
   --exclude='*.tsbuildinfo' --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.egg-info/'
   --exclude='.planning/' --exclude='internal/' --exclude='.claude/' --exclude='.git/'
-  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm')
+  --exclude='vendor/' --exclude='*.node' --exclude='*.wasm'
+  # reverse-engineer: the endpoint-inference heuristics are moat and run SERVER-only
+  # (/v1/reveng). No client code imports them (revengServerFirst is the only egress, and
+  # it has no local fallback), so they are not in the client bundle — and not in the
+  # public/audit tree either. The dev repo keeps src/reverse-engineer for the backend route.
+  --exclude='reverse-engineer/')
 
 echo "== sync full client source (src + packages + tests + interop) =="
 for top in src packages tests; do
