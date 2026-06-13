@@ -43,6 +43,7 @@
  * Proxy-Authorization, no silent retry loop.
  */
 import { x402Fetch, type X402SubState } from "../payments/x402-fetch.js";
+import { peekFailure, recordFailure, recordOutcome } from "../values/failure-cache.js";
 import { loadCredsFileSync } from "../cdp/proxy/iproyal.js";
 
 export interface ProxyFetchEnv {
@@ -136,7 +137,13 @@ export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string
   if (iproyal) return iproyal;
 
   const override = env.UNBROWSE_PROXYKINGDOM_URL?.trim();
-  return override || PROXYKINGDOM_DEFAULT_URL;
+  const pk = override || PROXYKINGDOM_DEFAULT_URL;
+  // Negative-cache layer: if this x402 proxy is in a fresh STRUCTURAL cooldown (e.g. the
+  // provider returned NO_AVAILABLE_KEYS / 503-dead recently), don't keep routing captures
+  // through a known-dead proxy — fail-fast to direct egress until the cooldown expires.
+  // (antibot/transient cooldowns do NOT disable the proxy: a fresh IP may still help.)
+  if (peekFailure(pk, "proxy") === "structural") return undefined;
+  return pk;
 }
 
 /**
@@ -261,8 +268,13 @@ export async function x402ProxyAuthorization(
       signal: AbortSignal.timeout(15_000),
     });
     if (trace.sub_state === "x402_passthrough") {
-      // Proxy didn't serve a 402 at the handshake path — either it's not
-      // x402-shaped, or the path is wrong. Caller uses raw proxy.
+      // Proxy didn't serve a 402 at the handshake path — either it's not x402-shaped,
+      // or the provider is dead. Record the outcome so a structurally-dead provider
+      // (e.g. 503 NO_AVAILABLE_KEYS) lands in the negative cache and resolveEgressProxy
+      // stops routing through it until the cooldown expires.
+      let body = "";
+      try { body = (await response.text()).slice(0, 500); } catch { /* ignore */ }
+      recordOutcome(proxyUrl, { status: response.status, body }, "proxy");
       return { proxy_authorization: null, sub_state: "not_x402_proxy", proxy_url: proxyUrl };
     }
     if (trace.sub_state === "x402_signed") {
@@ -306,6 +318,8 @@ export async function x402ProxyAuthorization(
       error: trace.error,
     };
   } catch (err) {
+    // Network-level handshake failure (DNS, connect, timeout) → transient cooldown.
+    recordFailure(proxyUrl, "transient", "proxy");
     return {
       proxy_authorization: null,
       sub_state: "x402_signer_error",
