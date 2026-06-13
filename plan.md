@@ -65,10 +65,13 @@ node after the bench confirms the env fix unblocks B/C.
 - [x] **Axis B execution → fresh GREEN** (ts 140000Z): 2 distinct captures, 23762 B each, score 1.0, key=rust, `source=live`
 - [x] **Axis C auth → fresh GREEN** (ts 140000Z): `session_stateful=True, authed=True`
 - [x] **gate_current.sh exits 0** — all four axes green on the current binary
-- [ ] **durable code fix (NOT done):** capture path detects a dead proxy (`ERR_PROXY_CONNECTION_FAILED` /
-      `chrome-error://`) and retries DIRECT, so the default binary survives a dead residential-proxy
-      upstream instead of bricking. This is the real shipped-binary delta — the witness green above
-      came from an ENV override (`UNBROWSE_KURI_PROXY=0`), not a code change.
+- [x] **durable code fix DONE (validated delta):** `ensureKuriProxyReachable` probes the wired
+      `KURI_PROXY` (TCP connect, short timeout) and **un-wires it → direct egress** when unreachable;
+      called in `cli.ts main()` for browser commands before Kuri spawns. So the shipped binary
+      survives a dead/flaky residential-proxy upstream instead of bricking every capture. Witness
+      `bench/capability/gate_durable.sh` (forced-dead proxy `http://127.0.0.1:1` → must still capture
+      real data) exits 0 reliably; unit `tests/kuri-proxy-reachable.test.ts` (4✓). The fallback log
+      fires live: `[kuri-proxy] proxy 127.0.0.1:1 unreachable — falling back to direct egress`.
 - [ ] **Axis A H/A tiers (NOT done):** lift hardest-scrape + automation coverage above 0.67.
 - [ ] full maximization / promise: NOT emitted — levers above are real and unexhausted.
 

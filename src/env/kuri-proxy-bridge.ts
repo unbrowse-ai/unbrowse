@@ -237,6 +237,49 @@ function applyKuriProxy(env: NodeJS.ProcessEnv, proxyUrl: string): boolean {
   return true;
 }
 
+/**
+ * Probe the wired KURI_PROXY's reachability and UN-WIRE it (fall back to direct egress) when
+ * the proxy host:port cannot be connected to. A dead/flaky residential-proxy upstream
+ * otherwise bricks EVERY browser capture with `ERR_PROXY_CONNECTION_FAILED` / a
+ * `chrome-error://` page and no fallback — this makes the shipped binary survive it.
+ *
+ * Connection-failure only (a TCP connect): catches the observed ERR_PROXY_CONNECTION_FAILED;
+ * an auth failure on a reachable proxy is out of scope (different error class). Cheap when the
+ * proxy is up (sub-100ms connect); the timeout cost only lands when it is actually dead — the
+ * exact case we are recovering from. Idempotent: no KURI_PROXY → no-op.
+ */
+export async function ensureKuriProxyReachable(
+  env: NodeJS.ProcessEnv = process.env,
+  timeoutMs = 2500,
+): Promise<{ unwired: boolean; target?: string }> {
+  const raw = env.KURI_PROXY;
+  if (!raw) return { unwired: false };
+  let host: string;
+  let port: number;
+  try {
+    const u = new URL(raw);
+    host = u.hostname;
+    port = Number(u.port) || (u.protocol.startsWith("socks") ? 1080 : 80);
+    if (!host) return { unwired: false };
+  } catch {
+    return { unwired: false }; // unparseable — leave the caller's value untouched
+  }
+  const net = await import("node:net");
+  const reachable = await new Promise<boolean>((resolve) => {
+    const sock = net.connect({ host, port });
+    const finish = (ok: boolean) => { try { sock.destroy(); } catch { /* noop */ } resolve(ok); };
+    sock.setTimeout(timeoutMs);
+    sock.once("connect", () => finish(true));
+    sock.once("timeout", () => finish(false));
+    sock.once("error", () => finish(false));
+  });
+  if (!reachable) {
+    delete env.KURI_PROXY;
+    return { unwired: true, target: `${host}:${port}` };
+  }
+  return { unwired: false, target: `${host}:${port}` };
+}
+
 export function bridgeKuriProxyEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): KuriProxyBridgeOutcome {
