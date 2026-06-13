@@ -302,3 +302,6 @@ bin/unbrowse-dev
 .release-coverage-baseline
 .bench-secrets/
 scripts/.camoufox-venv/
+bench/index20k/artifacts/
+bench/index20k/results.jsonl
+bench/index20k/*.log
