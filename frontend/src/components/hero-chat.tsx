@@ -62,6 +62,17 @@ const LOADING_PHASES = [
   "running it on your browser…",
   "composing the answer…",
 ];
+
+/** Map each agent tool to the unbrowse capability it exercises — so the live trace reads as the
+ *  product story (search → resolve → execute on real site APIs), not raw function names. */
+const CAP: Record<string, { verb: string; gerund: string }> = {
+  search_routes: { verb: "Search", gerund: "Searching routes" },
+  get_route: { verb: "Resolve", gerund: "Resolving endpoint" },
+  execute_route: { verb: "Execute", gerund: "Executing live" },
+};
+function capVerb(tool: string): string {
+  return CAP[tool]?.verb ?? tool;
+}
 const MAX_ROUNDS = 6;
 const CLIENT_FETCH_TIMEOUT = 9000;
 
@@ -157,6 +168,9 @@ export function HeroChat() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState(0);
+  // Live tool trace — the unbrowse calls the agent makes, streamed AS they happen so the
+  // capability (real web actions on live site APIs) is visible during the wait, not just after.
+  const [liveSteps, setLiveSteps] = useState<HeroStep[]>([]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -175,7 +189,7 @@ export function HeroChat() {
   }, [status]);
 
   /** Client-driven agent loop. Falls back to the server-only loop on failure. */
-  async function runLoop(history: Turn[]): Promise<{ answer: string; steps: HeroStep[]; totalMs: number }> {
+  async function runLoop(history: Turn[], onStep?: (s: HeroStep) => void): Promise<{ answer: string; steps: HeroStep[]; totalMs: number }> {
     const apiOrigin = getConfiguredApiOrigin();
     const t0 = performance.now();
     const steps: HeroStep[] = [];
@@ -246,7 +260,9 @@ export function HeroChat() {
           } else {
             out = { output: `unknown tool: ${tc.function.name}`, label: tc.function.name, ok: false };
           }
-          steps.push({ tool: tc.function.name, label: out.label, ms: Math.round(performance.now() - tStep), ok: out.ok });
+          const step = { tool: tc.function.name, label: out.label, ms: Math.round(performance.now() - tStep), ok: out.ok };
+          steps.push(step);
+          onStep?.(step); // stream the call to the UI the instant it lands
           messages.push({ role: "tool", tool_call_id: tc.id, content: out.output });
         }
         if (performance.now() - t0 > 20000 || steps.length >= 4) {
@@ -285,11 +301,12 @@ export function HeroChat() {
     setPrompt("");
     setStatus("loading");
     setError(null);
+    setLiveSteps([]);
 
     try {
       let result: { answer: string; steps: HeroStep[]; totalMs: number };
       try {
-        result = await runLoop(next);
+        result = await runLoop(next, (s) => setLiveSteps((prev) => [...prev, s]));
       } catch {
         // Client loop failed entirely — fall back to the server-only loop.
         result = await runServerFallback(next);
@@ -347,10 +364,22 @@ export function HeroChat() {
             ),
           )}
           {status === "loading" && (
-            <p className="inline-flex items-center gap-1.5 font-mono text-xs text-[rgba(255,156,64,0.7)]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />
-              {LOADING_PHASES[phase]}
-            </p>
+            <div className="font-mono text-xs">
+              {/* completed calls this turn — stream them as the agent makes them */}
+              {liveSteps.map((s, j) => (
+                <p key={j} className="mb-1 leading-relaxed text-[rgba(255,156,64,0.7)]">
+                  <span className={s.ok ? "text-[rgba(120,220,130,0.9)]" : "text-red-400/80"}>{s.ok ? "✓" : "✗"}</span>{" "}
+                  <span className="text-[rgba(255,176,96,0.95)]">{capVerb(s.tool)}</span>{" "}
+                  <span className="text-[rgba(255,156,64,0.55)]">{s.label.replace(/^(search|manifest)\s·\s/, "")}</span>{" "}
+                  <span className="text-[rgba(255,122,32,0.4)]">· {s.ms}ms</span>
+                </p>
+              ))}
+              {/* the in-flight call */}
+              <p className="inline-flex items-center gap-1.5 text-[rgba(255,156,64,0.7)]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />
+                {(CAP[liveSteps[liveSteps.length - 1]?.tool ?? ""]?.gerund) ?? LOADING_PHASES[phase]}
+              </p>
+            </div>
           )}
           {status === "error" && error && (
             <p className="font-mono text-xs text-red-400">
@@ -390,6 +419,18 @@ export function HeroChat() {
           {status === "loading" ? "…" : "Ask"}
         </button>
       </form>
+
+      {/* Capability legend — names what the agent actually does, so the chat reads as a live
+          demo of unbrowse (not a generic chatbot). Always visible; the heart of the value prop. */}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-mono text-[11px] text-[rgba(255,156,64,0.6)]">
+        <span className="text-[rgba(255,176,96,0.95)]">Search</span>
+        <span className="text-[rgba(255,122,32,0.4)]">→</span>
+        <span className="text-[rgba(255,176,96,0.95)]">Resolve</span>
+        <span className="text-[rgba(255,122,32,0.4)]">→</span>
+        <span className="text-[rgba(255,176,96,0.95)]">Execute</span>
+        <span className="text-[rgba(255,122,32,0.4)]">·</span>
+        <span>real site APIs, no browser window</span>
+      </div>
 
       {!hasConvo && (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
