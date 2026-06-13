@@ -3,6 +3,7 @@ import { GRAPH_OPERATION_COST_UC, getFeesSummary } from "./fees.js";
 import { getPerf } from "./perf.js";
 import { computeSavings } from "./savings.js";
 import { skillsKV, statsKV } from "./kv.js";
+import { readBrokeredCompensationTotalUsd } from "../middleware/sponsor.js";
 
 const SESSION_PREFIX = "analytics:session:";
 const SNAPSHOT_PREFIX = "analytics:snapshot:";
@@ -150,6 +151,9 @@ export interface UnitEconomicsMetrics {
   required_route_volume_for_target_revenue: number | null;
   required_discovery_volume_for_target_revenue: number | null;
   break_even_user_count: number | null;
+  /** Lifetime brokerage compensation — the fair-comp markup unbrowse has earned fronting paid
+   *  upstreams (web-unblockers, LLM proxy, paid APIs). Platform revenue; passthrough excluded. */
+  brokered_compensation_usd_total: number;
   savings: ReturnType<typeof computeSavings>;
 }
 
@@ -560,11 +564,12 @@ export async function getNetworkHealthMetrics(env: Env): Promise<NetworkHealthMe
 }
 
 export async function getUnitEconomicsMetrics(env: Env): Promise<UnitEconomicsMetrics> {
-  const [pricing, perf, feeSummary, sessions] = await Promise.all([
+  const [pricing, perf, feeSummary, sessions, brokeredCompensationUsd] = await Promise.all([
     getRevenuePricing(env),
     getPerf(env),
     getFeesSummary(env),
     loadSessions(env),
+    readBrokeredCompensationTotalUsd(env),
   ]);
   const savings = computeSavings(perf);
   const recentSessions = recentSessionsForWindow(sessions, 30);
@@ -607,6 +612,7 @@ export async function getUnitEconomicsMetrics(env: Env): Promise<UnitEconomicsMe
     break_even_user_count: pricing.monthly_fixed_cost_usd > 0 && avgRevenuePerActiveUser30d > 0
       ? Math.ceil(pricing.monthly_fixed_cost_usd / avgRevenuePerActiveUser30d)
       : null,
+    brokered_compensation_usd_total: safeMoney(brokeredCompensationUsd),
     savings,
   };
 }

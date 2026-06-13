@@ -41,8 +41,9 @@ describe("maybeProxyFallback — 429 paid residential fallback wiring", () => {
     expect(out.status).toBe(200);
     expect(out.proxy_used).toBe("residential");
     expect(out.fallback_used).toBe(true);
-    expect(out.surcharge_usd).toBe(0.001);
-    expect(await readProxySurchargeTodayUsd(e, AGENT)).toBeCloseTo(0.001, 6);
+    // Reported + persisted charge = toll (0.001) + 20% fair-comp markup = 0.0012.
+    expect(out.surcharge_usd).toBeCloseTo(0.0012, 6);
+    expect(await readProxySurchargeTodayUsd(e, AGENT)).toBeCloseTo(0.0012, 6);
   });
 
   it("429 + no consent → returns the 429, no fallback, no toll", async () => {
