@@ -38,9 +38,21 @@ FORBIDDEN=(
   'ledgerEnergy'
   'routeEnergy'
   'learnedEnergy'
-  # scripture citations
+  # scripture citations + bare framing terms (the gap that shipped scripture/Genesis-day/commandment)
   '\b(Deuteronomy|John|Matthew|Luke|Genesis|Hebrews|2 ?Timothy|1 ?Cor(inthians)?)[ ]+[0-9]+:[0-9]+\b'
   'at the mouth of (two|three)'
+  '\bscripture\b'
+  '\bcommandment'
+  'Genesis[ -][Dd]ay'
+  'Genesis-days'
+  'thou shalt'
+  'two witnesses'
+  '\bgospel\b'
+  '\bsabbath\b'
+  'the wheel turns'
+  # captured auth values — a real bearer token or set-cookie value is a session-data leak
+  '[Bb]earer [A-Za-z0-9._~+/-]{30,}'
+  '"set-cookie":[^"]*[=][A-Za-z0-9._-]{24,}'
   # operational internals
   'Projects/fdry'
   'Bpr49sQXsxwNXNMRWS2v3tTBGWu2QgZtdA83BX77xBX1'
@@ -48,6 +60,22 @@ FORBIDDEN=(
 )
 
 hits=0
+
+# ── STRUCTURAL: captured data + build artifacts must never be in the public tree ──
+# (the 49MB packages/skill/traces/ session-data leak got here because the vocab scan
+#  doesn't look at directory shape or binary artifacts — this is the backstop for it.)
+data_dirs=$(find "$DIR" -type d \( -name traces -o -name runs -o -name captures \
+  -o -name spool -o -name queue -o -name harvest -o -name .unbrowse \) \
+  -not -path '*/node_modules/*' 2>/dev/null)
+artifacts=$(find "$DIR" -type f \( -name '*.tgz' -o -name '*.tar.gz' -o -name '*.node' \
+  -o -name '*.so' -o -name '*.dylib' -o -name '*.exe' -o -name '*.wasm' \) \
+  -not -path '*/node_modules/*' 2>/dev/null)
+if [ -n "$data_dirs$artifacts" ]; then
+  echo "[public-leak] ✗ captured-data dirs / build artifacts in the public tree:"
+  printf '%s\n' "$data_dirs" "$artifacts" | grep -v '^$' | sed "s#$DIR/#    #" | head -10
+  hits=$((hits+1))
+fi
+
 for pat in "${FORBIDDEN[@]}"; do
   # scan text-ish files only; skip vcs/build/vendor
   found=$(grep -rinIE "$pat" "$DIR" 2>/dev/null \

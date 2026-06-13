@@ -46,6 +46,15 @@ Supporting doctrine already in the repo (reuse, do not re-derive): `docs/vision.
    grain-of-wheat shape together. This file is that passage; Paper 3 inherits it.
 3. **Finalize Paper 2** — paper-gate + leak-guard + anchors + push. Owned by
    `paper/PLAN.md`; referenced here, not duplicated.
+4. **Next rung (future work, NOT for the sealed bodies)** — the **ZK-gated delta
+   contribution** to the shared graph: the write-side fusion extending §419 (local
+   append-only ledger) to a cross-agent, proof-gated merge. It is mostly
+   `[proposed]`, so it does NOT belong in the sealed Paper 2/3 bodies (would break
+   the no-`\prop{}`-survives invariant of `papers-done-gate.sh`). Design + phased
+   plan + prior-art positioning (the verifiable-CRDT-write white-space the
+   2026-06-12 arXiv/GitHub sweep found unbuilt): `internal/zk-delta-contribution-plan.md`.
+   When its reference primitives are built+tested in `paper/reference/`, it earns a
+   Paper 4 (or a Paper 2 appendix) — only then does it enter a paper body, anchored.
 
 ## The Grain-of-Wheat doctrine — how the token is tied in, and why it is hidden
 

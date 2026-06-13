@@ -38,8 +38,9 @@ function canon(e: Omit<LedgerEntry, "sig">): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(core));
 }
 
-/** RFC-6962 Merkle Tree Hash over the row hashes. Empty → sha256(""). */
-function merkleRoot(leafHexes: string[]): string {
+/** RFC-6962 Merkle Tree Hash over the row hashes. Empty → sha256(""). Exported as the
+ *  one source of truth for the shared-graph merge commitment (graph-merge). */
+export function merkleRoot(leafHexes: string[]): string {
   if (!leafHexes.length) return sha256hex(new Uint8Array());
   let level = leafHexes.map((h) => Buffer.from(h, "hex"));
   while (level.length > 1) {

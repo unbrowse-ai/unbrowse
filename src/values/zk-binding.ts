@@ -104,6 +104,13 @@ export function verifySchnorr(yHex: string, proof: Proof): boolean {
   }
 }
 
+/** Group primitives (RFC-3526 group 14) shared with delta-proof — one source of truth
+ *  (no second copy of the prime). `modPow` is the same square-and-multiply used above. */
+export const GROUP = { P, G, Q } as const;
+export const modPow = modpow;
+export const groupRandomScalar = randomScalar;
+export const groupSha256Big = sha256Big;
+
 // Ed25519 SPKI DER prefix (12 bytes) + 32-byte raw pubkey = a verifiable key.
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 /** Verify an Ed25519 signature from a raw 32-byte pubkey (shared by signed-descent). */
