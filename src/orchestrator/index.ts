@@ -13,7 +13,7 @@ import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
-import { tryCurlImpersonateFetch, tryCamoufoxFetch } from "../capture/curl-impersonate-fallback.js";
+import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy } from "../execution/proxy-fetch.js";
 
@@ -5785,6 +5785,47 @@ export async function resolveAndExecute(
       } catch (camoErr) {
         console.log(`[orchestrator] camoufox_error: ${camoErr instanceof Error ? camoErr.message : String(camoErr)}`);
       }
+      // Paid x402 web-unblocker — the Cloudflare-class rescue that works on the SHIPPED binary
+      // (camoufox above needs the dev-only venv → null on npm install, so this is the binary's
+      // only JS-challenge rescue). Default-OFF (UNBROWSE_X402_UNBLOCKER=1), negative-cache-gated.
+      // Reached only after SSR/curl_cffi/camoufox all failed on a blocked capture.
+      try {
+        const unlocked = await tryX402UnblockerFetch({ url: context.url, timeoutMs: 240_000 });
+        if (unlocked?.html && unlocked.html.length > 1024 && !looksBlocked(unlocked.html, 1024)) {
+          const unlockArtifact = buildPageArtifactCapture(context.url, queryIntent, unlocked.html, false);
+          if (unlockArtifact.endpoint && unlockArtifact.result) {
+            console.log(`[orchestrator] x402_unblocker_success: ${unlocked.html.length} bytes (cleared JS challenge via paid residential unblocker)`);
+            const unlockTrace: import("../types/index.js").ExecutionTrace = {
+              trace_id: nanoid(),
+              skill_id: captureSkill!.skill_id,
+              endpoint_id: unlockArtifact.endpoint.endpoint_id,
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              success: true,
+              decision_trace: [{ step: "x402_unblocker_success", html_bytes: unlocked.html.length }],
+            };
+            recordRoutingStep("live-capture", captureSkill, unlockTrace, unlockArtifact.result, {
+              candidateCount: 1,
+              selectedEndpointId: unlockArtifact.endpoint.endpoint_id,
+              didStepUnlockNextStep: true,
+              userOverride: false,
+              requiredRecovery: true,
+            });
+            return {
+              result: artifactResultWithShortlist(unlockArtifact, captureSkill!.skill_id, context.url),
+              trace: unlockTrace,
+              source: "live-capture",
+              skill: captureSkill!,
+              timing: finalize("live-capture", unlockArtifact.result, captureSkill!.skill_id, captureSkill, unlockTrace),
+            };
+          }
+          console.log(`[orchestrator] x402_unblocker_null: ${unlocked.html.length} bytes but DOM extraction yielded no usable artifact`);
+        } else {
+          console.log("[orchestrator] x402_unblocker_null: disabled / unavailable / still blocked");
+        }
+      } catch (unlockErr) {
+        console.log(`[orchestrator] x402_unblocker_error: ${unlockErr instanceof Error ? unlockErr.message : String(unlockErr)}`);
+      }
     }
 
     return {
@@ -6074,6 +6115,45 @@ export async function resolveAndExecute(
           }
         } catch (camoErr) {
           console.log(`[orchestrator] camoufox_error (dom-fallback path): ${camoErr instanceof Error ? camoErr.message : String(camoErr)}`);
+        }
+        // Paid x402 web-unblocker — the Cloudflare-class rescue that works on the SHIPPED binary
+        // (camoufox above needs the dev-only venv → null on npm install). Default-OFF
+        // (UNBROWSE_X402_UNBLOCKER=1), negative-cache-gated; only reached after camoufox failed.
+        try {
+          const unlocked = await tryX402UnblockerFetch({ url: context.url, timeoutMs: 240_000 });
+          if (unlocked?.html && unlocked.html.length > 1024 && !looksBlocked(unlocked.html, 1024)) {
+            const unlockArtifact = buildPageArtifactCapture(context.url, queryIntent, unlocked.html, false);
+            if (unlockArtifact.endpoint && unlockArtifact.result) {
+              console.log(`[orchestrator] x402_unblocker_success: ${unlocked.html.length} bytes (cleared interstitial via paid residential unblocker)`);
+              const unlockTrace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: unlockArtifact.endpoint.endpoint_id,
+                started_at: trace.started_at,
+                completed_at: new Date().toISOString(),
+                success: true,
+                decision_trace: [{ step: "x402_unblocker_success", html_bytes: unlocked.html.length }],
+              };
+              recordRoutingStep("live-capture", captureSkill, unlockTrace, unlockArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: unlockArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: artifactResultWithShortlist(unlockArtifact, captureSkill!.skill_id, context.url),
+                trace: unlockTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", unlockArtifact.result, captureSkill!.skill_id, captureSkill, unlockTrace),
+              };
+            }
+          } else {
+            console.log("[orchestrator] x402_unblocker_null (dom-fallback path): disabled / unavailable / still blocked");
+          }
+        } catch (unlockErr) {
+          console.log(`[orchestrator] x402_unblocker_error (dom-fallback path): ${unlockErr instanceof Error ? unlockErr.message : String(unlockErr)}`);
         }
       }
     }
