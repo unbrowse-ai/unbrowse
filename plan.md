@@ -1,54 +1,79 @@
-# Plan — make EmergentDB the primary shared-graph store
+# Plan — maximize the four-axis capability benchmark (staging + npm binary)
 
-> Continuation. The contribution graph is on a dedicated CF `GRAPH_KV` (primary) + CF
-> STATS_KV (fallback), stored as ONE blob. To make **EmergentDB** the primary store (the
-> backend's production storage, EmergentDB→CF FallbackKV), the blob must become **per-endpoint
-> keys** — EmergentDB's `qdkv` caps a value at ~10KB, and a growing whole-graph blob would be
-> truncated. Witness: `scripts/zk-delta-emergent-gate.sh` exits 0 iff every node is real +
-> tested. No fabricated green.
+> Drive the **npm-installed `unbrowse` binary** (`UNBROWSE_BIN=/opt/nanobrew/prefix/bin/unbrowse`,
+> via `npm i -g .`) against the **staging backend** (`UNBROWSE_API_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev`)
+> to pass all four capability axes on FRESH evidence. Witness: `bench/capability/gate_current.sh`
+> (latest-row-per-axis, current-binary — not gate_all's ever-passed). Completion is judgment
+> (`--promise`): all four green fresh AND levers genuinely exhausted. No fabricated green; honest
+> negatives kept; the skill's dated report is written each iteration.
 
-## Goal (one line)
+## Baseline (2026-06-13T120000Z, staging + npm binary)
 
-The shared route graph lives in **EmergentDB primary + CF KV fallback** (the same
-`FallbackKV` the rest of the backend uses), stored as one small key per winning endpoint and
-one per ledger record — so no value approaches the 10KB cap, reads enumerate via `list`, and
-an EmergentDB outage degrades to CF KV.
+| axis | state | why |
+|---|---|---|
+| A action-retrieval coverage | **PASS** (cov 0.78) but H/A tiers weak (0.67 vs Reddit 1.0) | misses are SPA/anti-bot XHR endpoints not surfaced by capture |
+| B execution two-witness | **FAIL** — `live-nocapture` | no content-bound two-witness capture produced |
+| C execution with auth | **FAIL** — `authed=False` | 5 cookies injected but session not logged-in |
+| D security leak-scan | **PASS** — 0 leaks / 388 sessions | clean |
 
-## Where it stands
+## Loop (each iteration: bench → analyse → real code change → re-bench → record validated delta)
 
-| Now | Target |
-|---|---|
-| `saveGraph`/`loadGraph` read+write the WHOLE winners map as one blob | per-endpoint: `saveWinner(delta)` / `loadGraph` via `list("contrib:w:")` |
-| ledger persisted as one blob | one record per key `contrib:l:<seq>` |
-| store = CF GRAPH_KV primary + CF STATS_KV fallback | EmergentDB `FallbackKV` (EmergentDB primary + CF KV fallback) when keyed |
-| route loads all → merges in memory → saves all | route loads the endpoint's winner → gates → writes ONE winner + ONE ledger key (O(1)) |
+1. **Axis B — execution two-witness.** Investigate why the live driver reports `live-nocapture`
+   (the binary's capture path against the test origin produced no two-witness content-bound green).
+   Likely a capture/anti-bot or staging-routing issue. Fix in unbrowse; re-bench Axis B.
+2. **Axis C — auth.** cookies inject but `logged_in=False`. Investigate the cookie→session path
+   (the test reads an auth-only endpoint); fix the auth flow so an authenticated read returns
+   auth-only data. Re-bench Axis C.
+3. **Axis A — tier coverage.** Lift H (hardest-scrape) + A (automation) tier coverage above 0.67
+   by surfacing the missed SPA/anti-bot XHR endpoints (extraction/capture improvement). Re-bench.
+4. **Hold D.** Keep the leak-scan clean (no regression).
 
-## Phased build (cheapest-first; each node = goal · primitive · witness)
+## Witness + honesty
+- `bench/capability/gate_current.sh` exits 0 only when the LATEST A/B/C/D rows all pass — the
+  current binary, not stale evidence. RED now (B, C).
+- `--promise` is self-asserted (weak): the loop stays locked until I judge all-four-fresh-green
+  AND no lever moves the real number. Every iteration writes a dated report
+  (`bench/capability/reports/`) and appends honest history; single-run deltas (n<30) are noise,
+  not improvements (the skill's n≥30 rule).
 
-| # | node · goal | primitive | witness (exit 0 ⇔ done) |
-|---|---|---|---|
-| 1 | **per-endpoint-store** — winner-per-key + ledger-per-record, enumerated via `list`; each value is one small delta/record | `graph-store`: `GraphKV.list`, `saveWinner`/`loadGraph`(list)/`appendLedgerRecord`/`loadLedger`(list) | `tests/graph-perkey.test.ts` — save N winners ⇒ N keys; loadGraph reconstructs via list; each value well under 10KB; ledger appends per-record |
-| 2 | **emergentdb-primary-routing** — `makeGraphKV(env)` returns the EmergentDB-backed FallbackKV (EmergentDB primary, CF KV fallback) when EMERGENTDB_API_KEY is set; dedicated CF GRAPH_KV+STATS_KV otherwise; uniform `get/put/list` | `graph-store`: `makeGraphKV` + a list-adapter over EdbKV/CF list shapes | `tests/graph-emergentdb-routing.test.ts` — picks the EmergentDB tier when keyed; CF tier otherwise; the list-adapter normalises both shapes to `string[]` |
-| 3 | **per-endpoint-merge** — the route loads only the endpoint's current winner, gates, and writes exactly ONE winner key + ONE ledger key | `contribution-route`: per-endpoint load/gate/save | `tests/graph-perkey-route.test.ts` — a contribution writes exactly 1 winner + 1 ledger key; gate + LWW still hold; root via list matches in-memory graphRoot |
-| 4 | **goal** — all green; deployed to staging on EmergentDB-primary; live round-trip persists in EmergentDB | — | `scripts/zk-delta-emergent-gate.sh` exits 0 (+ staging live check, reported) |
+## Diagnosis (day 1-2 walk) — B + C are ONE bug
 
-## Honest boundaries
+Both browser-capture axes (B two-witness, C auth) died on `ERR_PROXY_CONNECTION_FAILED`:
+every `unbrowse go` returned the `chrome-error://` "No Internet … proxy server" page, so B had
+no content and C couldn't establish a session. Axis A passed because `explain`'s capture path
+does not route through the browser proxy.
 
-- EmergentDB's internal index/direct-key split is EdbKV's concern (the same store skills/stats
-  use at scale). Per-endpoint values (~500 B) never hit the per-value cap; that is what this
-  plan guarantees. The live EmergentDB round-trip is verified on staging, outside the unit gate.
-- Reads use `list` (EdbKV serves it from its index; CF KV serves a prefix scan). An EmergentDB
-  outage degrades to CF KV via `FallbackKV` (the existing resilience).
+Root cause (verified): `src/env/kuri-proxy-bridge.ts` — `UNBROWSE_KURI_PROXY` unset is treated
+as **"auto"** → `resolveEgressProxy` → the **iproyal creds at `~/.identity/iproyal-creds`** →
+Kuri's Chrome is launched with `--proxy-server=<local forwarder → iproyal>`. The iproyal
+upstream is unreachable, so the forwarder dead-ends and **every browser capture fails, with no
+fallback to direct**. `UNBROWSE_KURI_PROXY=0` alone didn't help while a stale proxied Chrome
+was running (the binary re-attached to it).
 
-## WALK status — gate green (3/3); live: CF per-endpoint shipped, EmergentDB blocked on a workerd bug
+Fix (verified manually): kill the stale `kuri-proxy-forwarder` + Chrome, run direct
+(`UNBROWSE_KURI_PROXY=0`) → `go` returns real Reddit JSON. The bench is re-running with this.
 
-- [x] node 1 — per-endpoint-store · `graph-store` per-key winner/ledger + `list` · `tests/graph-perkey.test.ts` (4✓)
-- [x] node 2 — emergentdb-primary-routing · `makeGraphKV`/`adaptKV`/`buildEmergentGraphKV`, EmergentDB+CF compose · `tests/graph-emergentdb-routing.test.ts` (5✓)
-- [x] node 3 — per-endpoint-merge · `gateAndCompare` + route writes one winner + one ledger key · `tests/graph-perkey-route.test.ts` (4✓)
-- [x] goal (unit) — `scripts/zk-delta-emergent-gate.sh` exits 0; first + prod spines still green (no regression); backend compiles
-- [x] **LIVE (CF)** — the per-endpoint store is DEPLOYED + working on staging via the dedicated CF `GRAPH_KV` (`store: dedicated-fallback`): POST admits, GET /root stable, no 500.
-- [ ] **LIVE (EmergentDB) — HONEST NEGATIVE / BLOCKED.** The EmergentDB `EdbKV` path 500s on the **workerd runtime** with `TypeError [ERR_INVALID_ARG_TYPE]: first argument must be of type string or Buffer…` — a crypto/Buffer incompatibility that does NOT occur in local bun (the probe `kv.put`→`get`→`list` round-trips cleanly). Root cause is in the EmergentDB-on-workerd path, not the per-endpoint logic (the CF per-endpoint path works). EmergentDB is therefore **gated opt-in** behind `UNBROWSE_GRAPH_STORE=emergentdb` and wrapped over CF, so enabling it cannot 500 the route. Flipping it on is the remaining work: reproduce the workerd Buffer error against `EdbKV` (likely an `_idxLoad`/hash call passing a non-Buffer), fix it, then set the staging var.
+**Durable code lever (the real improvement):** the browser-capture path should detect a dead
+proxy (`ERR_PROXY_CONNECTION_FAILED` / a `chrome-error://` result) and **retry direct** rather
+than brick — so the default binary survives a dead residential-proxy upstream. That is the next
+node after the bench confirms the env fix unblocks B/C.
 
-Honest landing: the **structural goal** (per-endpoint keys under the qdkv cap, O(1) merge, EmergentDB-ready routing) is shipped and unit-proven; the **EmergentDB live cutover** is one workerd bug away and is held behind a flag rather than faked green.
+## WALK status — witness GREEN (gate_current exit 0); maximization levers remain
 
-(Prior plans — pay.sh, prod-hardening — WALK COMPLETE, preserved in git history.)
+- [x] baseline run (staging + npm binary) → report 2026-06-13T120000Z.md; gate_current RED (B,C)
+- [x] diagnose B+C → dead iproyal proxy on the browser-capture path (verified root cause)
+- [x] **Axis B execution → fresh GREEN** (ts 140000Z): 2 distinct captures, 23762 B each, score 1.0, key=rust, `source=live`
+- [x] **Axis C auth → fresh GREEN** (ts 140000Z): `session_stateful=True, authed=True`
+- [x] **gate_current.sh exits 0** — all four axes green on the current binary
+- [ ] **durable code fix (NOT done):** capture path detects a dead proxy (`ERR_PROXY_CONNECTION_FAILED` /
+      `chrome-error://`) and retries DIRECT, so the default binary survives a dead residential-proxy
+      upstream instead of bricking. This is the real shipped-binary delta — the witness green above
+      came from an ENV override (`UNBROWSE_KURI_PROXY=0`), not a code change.
+- [ ] **Axis A H/A tiers (NOT done):** lift hardest-scrape + automation coverage above 0.67.
+- [ ] full maximization / promise: NOT emitted — levers above are real and unexhausted.
+
+Honest note: the witness measures the binary's *capability* (B/C are green — the binary captures +
+auths correctly when egress works), masked earlier by a dead LOCAL proxy. That capability is real;
+the robustness gap (dead-proxy → brick) is the next code lever, recorded, not faked.
+
+(Prior plans — pay.sh, prod-hardening, EmergentDB — in git history.)
