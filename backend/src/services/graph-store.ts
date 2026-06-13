@@ -185,13 +185,31 @@ export async function saveWinner(kv: GraphKV, delta: RouteDelta): Promise<void> 
   await kv.put(winnerKey(delta.endpoint), JSON.stringify(delta));
 }
 
-/** Load the whole shared graph by enumerating per-endpoint winner keys. */
+/** A loaded value is only a usable winner if it is a fully-formed signed delta. Legacy or
+ *  truncated entries (e.g. an EmergentDB-truncated index value missing `sig`) are skipped
+ *  rather than fed to deltaId/graphRoot, where `Buffer.from(undefined)` would throw. */
+function isWellFormedDelta(d: unknown): d is RouteDelta {
+  const r = d as Record<string, unknown> | null;
+  return !!r
+    && typeof r.endpoint === "string"
+    && typeof r.sig === "string"
+    && typeof r.walletRoot === "string"
+    && typeof r.shape === "string"
+    && typeof r.prev === "string"
+    && typeof r.op === "string"
+    && typeof r.freshness === "number"
+    && typeof r.seq === "number";
+}
+
+/** Load the whole shared graph by enumerating per-endpoint winner keys. Malformed/legacy
+ *  values are skipped defensively (schema-evolution + truncation resilience). */
 export async function loadGraph(kv: GraphKV): Promise<SharedGraph> {
   const g = emptyGraph();
   const keys = await kv.list(WINNER_PREFIX);
   for (const k of keys) {
-    const d = (await kv.get(k, "json")) as RouteDelta | null;
-    if (d && d.endpoint) g.winners.set(d.endpoint, d);
+    let d: unknown = null;
+    try { d = await kv.get(k, "json"); } catch { continue; }
+    if (isWellFormedDelta(d)) g.winners.set(d.endpoint, d);
   }
   return g;
 }
@@ -213,8 +231,10 @@ export async function loadLedger(kv: GraphKV): Promise<ContributionLedger> {
   const keys = await kv.list(LEDGER_PREFIX);
   const recs: ContributionRecord[] = [];
   for (const k of keys) {
-    const r = (await kv.get(k, "json")) as ContributionRecord | null;
-    if (r) recs.push(r);
+    let r: unknown = null;
+    try { r = await kv.get(k, "json"); } catch { continue; }
+    const rec = r as ContributionRecord | null;
+    if (rec && typeof rec.seq === "number" && typeof rec.endpoint === "string") recs.push(rec);
   }
   recs.sort((a, b) => a.seq - b.seq);
   l.records.push(...recs);
