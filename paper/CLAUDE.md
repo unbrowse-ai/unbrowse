@@ -202,4 +202,5 @@ Reach for these by name when the trigger phrase matches what the user asked for.
 | Skill | Use when |
 |---|---|
 | `/unbrowse-capability-bench` | Re-run the unbrowse four-axis capability benchmark (action-retrieval coverage over Reddit/hardest-scrape/automation tiers, execution with/without auth, security leak-scan) plus the real cloned exa-labs/benchmarks run and the self-improvement A/B, then ALWAYS write a dated markdown report analyzing how each axis performed, what works, what regressed, and why. |
+| `/unbrowse-corpus-bench` | Harvest a LIVE corpus of hard-to-scrape sites (mined from r/webscraping + curated anti-bot / SPA / GraphQL targets + commonly-used agentic-task sites), run the five unbrowse capability axes against it on the npm-installed shipped binary via the REAL resolve→execute contract, and write a dated per-site markdown report. |
 <!-- /skills:pinned -->
