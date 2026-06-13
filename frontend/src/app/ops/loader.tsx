@@ -7,12 +7,14 @@ import {
   getAnalyticsAgents,
   getAnalyticsActivation,
   getAnalyticsEngagement,
+  getAnalyticsEconomics,
   type SkillManifest,
   type StatsSummary,
   type AgentProfile,
   type AgentHealth,
   type ActivationFunnel,
   type EngagementMetrics,
+  type UnitEconomics,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { OpsDashboard } from "./dashboard";
@@ -21,6 +23,7 @@ export interface AnalyticsData {
   agentHealth: AgentHealth | null;
   activation: ActivationFunnel | null;
   engagement: EngagementMetrics | null;
+  economics: UnitEconomics | null;
 }
 
 const EMPTY_STATS: StatsSummary = { skills: 0, endpoints: 0, domains: 0, executions: 0, agents: 0 };
@@ -30,7 +33,7 @@ export function OpsLoader() {
   const [stats, setStats] = useState<StatsSummary>(EMPTY_STATS);
   const [skills, setSkills] = useState<SkillManifest[]>([]);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
-  const [analytics, setAnalytics] = useState<AnalyticsData>({ agentHealth: null, activation: null, engagement: null });
+  const [analytics, setAnalytics] = useState<AnalyticsData>({ agentHealth: null, activation: null, engagement: null, economics: null });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,13 +48,14 @@ export function OpsLoader() {
       getAnalyticsAgents().catch(() => null),
       getAnalyticsActivation().catch(() => null),
       getAnalyticsEngagement().catch(() => null),
+      getAnalyticsEconomics().catch(() => null),
     ])
-      .then(([ops, agentHealth, activation, engagement]) => {
+      .then(([ops, agentHealth, activation, engagement, economics]) => {
         if (cancelled) return;
         setStats(ops.stats);
         setSkills(ops.skills ?? []);
         setAgents(ops.agents ?? []);
-        setAnalytics({ agentHealth, activation, engagement });
+        setAnalytics({ agentHealth, activation, engagement, economics });
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);

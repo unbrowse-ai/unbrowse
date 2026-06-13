@@ -142,6 +142,20 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
         <GrowthCard label="AVG RELIABILITY" value={`${(avgReliability * 100).toFixed(0)}%`} good={avgReliability >= 0.7} />
       </section>
 
+      {/* -- platform revenue strip -- */}
+      <section className="ops-growth-strip">
+        <GrowthCard
+          label="MONTHLY RUN-RATE"
+          value={analytics.economics ? `$${analytics.economics.estimated_monthly_revenue_run_rate_usd.toFixed(2)}` : "—"}
+          hint="route + discovery"
+        />
+        <GrowthCard
+          label="BROKERED REVENUE"
+          value={analytics.economics ? `$${analytics.economics.brokered_compensation_usd_total.toFixed(4)}` : "—"}
+          hint="fair-comp markup (lifetime)"
+        />
+      </section>
+
       {/* -- grid -- */}
       <div className="ops-grid">
 
