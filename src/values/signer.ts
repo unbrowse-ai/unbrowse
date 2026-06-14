@@ -524,6 +524,23 @@ export function ensureLocalWalletAddress(): string {
   return address;
 }
 
+/**
+ * Read the local self-custody wallet's base58 address from the public pointer
+ * (~/.unbrowse/wallet.json) WITHOUT minting. Returns null when no wallet has
+ * been created yet. Use this for read-only identity surfacing (account view,
+ * wallet-context fallback) so merely *checking* never creates key state — the
+ * minting stays in ensureLocalWalletAddress(), called from setup / `account`.
+ */
+export function readLocalWalletAddress(): string | null {
+  try {
+    if (!existsSync(LOCAL_WALLET_POINTER)) return null;
+    const p = JSON.parse(readFileSync(LOCAL_WALLET_POINTER, "utf8")) as Partial<LocalWalletPointer>;
+    return typeof p.address === "string" && p.address.length > 0 ? p.address : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Base64 helper (separate so tests can verify alignment with audit.ts) ───
 
 function bytesToBase64(bytes: Uint8Array): string {
