@@ -1940,6 +1940,10 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // write (POST/PUT/PATCH/DELETE) when the agent knows the target but no
     // marketplace skill exists. Without this the verb never reaches the server.
     if (typeof flags.method === "string") body.method = (flags.method as string).toUpperCase();
+    // --session scopes the disk-backed yield store: a write in one CLI invocation
+    // persists its yields to disk under this id; a later invocation with the same
+    // --session inherits them and auto-fills matching holes (cross-process state).
+    if (typeof flags.session === "string") body.session_id = flags.session;
     if (flags.intent ?? flags.task) body.intent = flags.intent ?? flags.task;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;

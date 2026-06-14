@@ -785,6 +785,13 @@ export interface SessionYield {
   observed_at: string;
   ttl_ms?: number;
   single_use?: boolean;
+  /** In-memory marker: this yield came from a sensitive-named field. On disk
+   *  persistence it is committed (hashed), never written in clear. */
+  sensitive?: boolean;
+  /** Persisted/loaded marker: `value` is a sha256 commitment, not the real value
+   *  (the producer was sensitive). A committed yield cannot fill a hole — the caller
+   *  must re-supply the real secret. Keeps secrets off disk in clear across processes. */
+  committed?: boolean;
 }
 
 /** Walk-scoped cache: binding `key` → most-recently observed yield. */
