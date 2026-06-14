@@ -2185,6 +2185,22 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch (err) { console.warn(`[pipe-walk] fill skipped: ${(err as Error)?.message}`); }
     }
+
+    // ── Cross-skill DAG: for any requires hole STILL unfilled, name the producer in
+    // ANOTHER skill that yields it (agent-actionable "run skill B's endpoint X first").
+    let crossSkillSuggestions: unknown[] = [];
+    try {
+      const byId = skill.endpoints.find((e) => e.endpoint_id === (execParams as Record<string, unknown>).endpoint_id);
+      const targetEp = byId ?? (skill.endpoints.length === 1 ? skill.endpoints[0] : undefined);
+      const requires = targetEp?.semantic?.requires;
+      if (requires?.some((r) => r?.key && (execParams as Record<string, unknown>)[r.key] === undefined)) {
+        const { buildGlobalProducerIndexFromCache, suggestCrossSkillProducers } = await import("../lib/graph-core/cross-skill-index.js");
+        const index = await buildGlobalProducerIndexFromCache();
+        const rk = (targetEp?.semantic as { resource_kind?: string } | undefined)?.resource_kind;
+        crossSkillSuggestions = suggestCrossSkillProducers(requires, execParams as Record<string, unknown>, rk, skill.skill_id, index);
+      }
+    } catch (err) { console.warn(`[cross-skill] suggest skipped: ${(err as Error)?.message}`); }
+
     try {
       // Backstop: never let execute hang indefinitely. replayRecipe, serverFetch,
       // and the browser fallback can each stall on a server that holds the
@@ -2409,6 +2425,11 @@ export async function registerRoutes(app: FastifyInstance) {
         skill,
         endpointId: execResult.trace.endpoint_id,
       });
+      // Surface the cross-skill DAG suggestion so the agent can chain: run the named
+      // producer in another skill to fill the hole this op couldn't fill locally.
+      if (Array.isArray(crossSkillSuggestions) && crossSkillSuggestions.length) {
+        (response as Record<string, unknown>).cross_skill_producers = crossSkillSuggestions;
+      }
       return reply.send(response);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });

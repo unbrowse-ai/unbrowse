@@ -138,3 +138,31 @@ export async function buildGlobalProducerIndexFromCache(): Promise<GlobalProduce
     return { byIdentity: new Map() };
   }
 }
+
+export interface CrossSkillSuggestion {
+  hole: string;                      // the unfilled requires key
+  producers: CrossSkillProducer[];   // run one of these (in another skill) to produce it
+}
+
+/**
+ * For an endpoint about to execute, name the cross-skill producers that could fill each
+ * `requires` hole the caller left empty (after local/session fill). This is what turns the
+ * global index into agent-actionable guidance: "to fill `postId`, run skill B's create_post
+ * first." Excludes the endpoint's own skill (that's the per-skill graph's job).
+ */
+export function suggestCrossSkillProducers(
+  endpointRequires: OperationBinding[] | undefined,
+  filledParams: Record<string, unknown>,
+  consumerResourceKind: string | undefined,
+  consumerSkillId: string,
+  index: GlobalProducerIndex,
+): CrossSkillSuggestion[] {
+  const out: CrossSkillSuggestion[] = [];
+  for (const b of endpointRequires ?? []) {
+    if (!b?.key) continue;
+    if (filledParams[b.key] !== undefined && filledParams[b.key] !== null) continue; // already filled
+    const producers = resolveProducersForHole(index, b, consumerResourceKind, { excludeSkillId: consumerSkillId });
+    if (producers.length) out.push({ hole: b.key, producers });
+  }
+  return out;
+}
