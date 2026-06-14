@@ -121,8 +121,8 @@ unbrowse auth "https://calendar.google.com"
 Get one internet result from the shell:
 
 ```bash
-unbrowse get "top stories with point counts"
-unbrowse get "top stories with point counts" --url "https://news.ycombinator.com"
+unbrowse "top stories with point counts"
+unbrowse "top stories with point counts" --url "https://news.ycombinator.com"
 ```
 
 ## TypeScript SDK

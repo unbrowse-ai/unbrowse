@@ -1,6 +1,6 @@
 ---
 name: unbrowse
-description: Get one internet result from a typed hole. Unbrowse is the API-native agent browser: the caller supplies intent plus optional URL/params/approval, and the runtime picks the cheapest capable layer (route graph, installed skill, standard adapter, browser capture with local cookies/HAR) then returns a contract-shaped CapabilityResult. Captures are indexed so the next call is fast. The old resolve/execute/go/snap CLI verbs are advanced compatibility surfaces; the current architecture is the hole/contract surface exposed by `unbrowse get`, `unbrowse contract surface`, and the SDK `createHole().fill(...)`.
+description: Get one internet result from a typed hole. Unbrowse is the API-native agent browser: the caller supplies intent plus optional URL/params/approval, and the runtime picks the cheapest capable layer (route graph, installed skill, standard adapter, browser capture with local cookies/HAR) then returns a contract-shaped CapabilityResult. Captures are indexed so the next call is fast. The old resolve/execute/go/snap CLI verbs are advanced compatibility surfaces; the current architecture is the single-command hole/contract surface exposed by bare `unbrowse "task"`, `unbrowse contract surface`, and the SDK `createHole().fill(...)`.
 user-invocable: true
 metadata:
   type: integration
@@ -26,8 +26,8 @@ Inspect the machine-readable bridge when you need the formal surface:
 
 ```bash
 unbrowse contract surface
-unbrowse get "top stories with points"
-unbrowse get "top stories with points" --url https://news.ycombinator.com
+unbrowse "top stories with points"
+unbrowse "top stories with points" --url https://news.ycombinator.com
 ```
 
 The bridge exposes holes only:
@@ -67,7 +67,7 @@ and index the learned route. The caller does not pick those steps; the runtime d
 
 | Surface | Reach for it when |
 |---|---|
-| CLI hole (`unbrowse get "task" [--url <url>]`) | A shell/agent wants one internet result without choosing route/debug verbs. |
+| CLI hole (`unbrowse "task" [--url <url>]`) | A shell/agent wants one internet result without choosing route/debug verbs. |
 | SDK hole (`createHole().fill`) | A program embedding the current one-hole contract. |
 | CLI contract (`unbrowse contract surface`) | A shell/agent inspecting the bridge and holes. |
 | Legacy CLI verbs | Debugging route selection, capture, and replay. |
@@ -243,8 +243,9 @@ Policy-sensitive site mutations can require an extra opt-in
 |---|---|---|
 | `health` | | Server health check (auto-starts the server) |
 | `setup` | `[--mcp] [--no-skill] [--no-start]` | Bootstrap engine + install the Agent Skill; MCP is opt-in |
-| `get` | `"task"` or `"task" --url <url>` | Primary read/search one-hole agent path. Runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing |
-| `fill` | `<ref> <value>` | Browser-session DOM input fill by @eN ref. Compatibility: natural-language `fill "task"` still routes through the one-hole path; prefer `get` for reads |
+| bare `unbrowse` | `"task"` or `"task" --url <url>` | Primary read/search one-hole agent path. Runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing |
+| `get` | `"task"` or `"task" --url <url>` | Explicit spelling of the bare read/search path |
+| `fill` | `<ref> <value>` | Browser-session DOM input fill by @eN ref. Compatibility: natural-language `fill "task"` still routes through the one-hole path; prefer bare `unbrowse "task"` for reads |
 | `resolve` | `--intent "..." [--url "..."] [--domain "..."]` | Search indexed routes, optionally execute the top trusted hit |
 | `execute` | `--skill ID --endpoint ID [--path/--extract/--limit/--params/--dry-run]` | Run one endpoint |
 | `run` | `<url> "task"` | Compatibility alias for the one-shot path |

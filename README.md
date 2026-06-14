@@ -49,8 +49,8 @@ The bridge exposes five client-fillable holes:
 In the CLI and SDK this is one tool:
 
 ```bash
-unbrowse get "the top Hacker News stories with points"
-unbrowse get "the top Hacker News stories with points" --url "https://news.ycombinator.com"
+unbrowse "the top Hacker News stories with points"
+unbrowse "the top Hacker News stories with points" --url "https://news.ycombinator.com"
 ```
 
 ```ts
@@ -77,7 +77,7 @@ Each op produces a **pointer-only, wallet-signed receipt**: it points *at* value
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `unbrowse get ...`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
+> The three-verb and v6 command surfaces are compatibility layers. New integrations should target bare `unbrowse "task"`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
 
 ## Drop-in client adapters
 

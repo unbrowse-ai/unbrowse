@@ -17,8 +17,8 @@ const result = await hole.fill({
 From a shell, call the same contract as:
 
 ```bash
-unbrowse get "latest releases from unbrowse-ai/unbrowse"
-unbrowse get "latest releases from this repository" --url "https://github.com/unbrowse-ai/unbrowse"
+unbrowse "latest releases from unbrowse-ai/unbrowse"
+unbrowse "latest releases from this repository" --url "https://github.com/unbrowse-ai/unbrowse"
 ```
 
 The machine-readable shape is:
@@ -54,4 +54,4 @@ Use the route view for:
 * manual replay of a known contract
 * old MCP/tool hosts
 
-Do not use it as the default user-task loop. For user tasks, use `unbrowse get` or the SDK hole.
+Do not use it as the default user-task loop. For user tasks, use bare `unbrowse "task"` or the SDK hole.

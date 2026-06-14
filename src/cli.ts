@@ -4003,8 +4003,9 @@ function printHelp(): void {
     "unbrowse — agent-native browser CLI",
     "",
     "Quick paths:",
+    "  Ask for one internet result           → unbrowse \"top stories with points\" [--url <url>]",
     "  Just want a URL's contents?           → unbrowse fetch <url>",
-    "  Want to call a known API endpoint?    → unbrowse resolve --intent \"...\" --url \"...\"",
+    "  Need route/debug details?             → unbrowse resolve --intent \"...\" --url \"...\"",
     "  Need a real DOM (forms, click flows)? → unbrowse go <url>  (then snap, click, submit, close)",
     "  First time on a site needing login?   → unbrowse auth-capture --url <login_url>",
     "",
@@ -5349,6 +5350,14 @@ async function main(): Promise<void> {
   }
   const noAutoStart = !!flags["no-auto-start"];
 
+  // Single-command surface: `unbrowse "task" [--url <url>]` is the happy path.
+  // parseArgs uses "help" when the first token is a flag, so reinterpret
+  // flag-first intent calls (for example `unbrowse --url X "top stories"`) as
+  // the same typed-hole request. Explicit --help still wins.
+  if (command === "help" && !flags.help && shouldFillIntent(args, flags)) {
+    command = "get";
+  }
+
   if (command === "help" || flags.help) {
     printHelp();
     process.exit(0);
@@ -5452,6 +5461,14 @@ async function main(): Promise<void> {
         return cmdSiteBatch(pack, batchArg, flags);
       }
       return cmdSiteTask(pack, taskName, flags);
+    }
+    if (command.trim()) {
+      if (process.env.UNBROWSE_URL && baseUrlIsLocalhost()) {
+        await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      } else if (!process.env.UNBROWSE_URL) {
+        await getInProcessApp();
+      }
+      return cmdGet([command, ...args], flags);
     }
   }
 

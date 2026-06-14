@@ -40,8 +40,8 @@ In CLI or SDK code, the current surface is one typed hole. The CLI says `get`
 for read/search tasks; the SDK method remains `fill` because it fills the typed hole:
 
 ```bash
-unbrowse get "top stories with point counts"
-unbrowse get "top stories with point counts" --url "https://news.ycombinator.com"
+unbrowse "top stories with point counts"
+unbrowse "top stories with point counts" --url "https://news.ycombinator.com"
 ```
 
 ```ts

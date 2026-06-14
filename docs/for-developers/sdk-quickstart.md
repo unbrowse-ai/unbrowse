@@ -24,8 +24,8 @@ const result = await hole.fill({
 The shell equivalent is:
 
 ```bash
-unbrowse get "list tomorrow's events"
-unbrowse get "list tomorrow's events" --url "https://calendar.google.com"
+unbrowse "list tomorrow's events"
+unbrowse "list tomorrow's events" --url "https://calendar.google.com"
 ```
 
 Need to inspect route selection? The legacy `Unbrowse` client still exposes

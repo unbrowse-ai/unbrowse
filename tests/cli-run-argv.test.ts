@@ -1,5 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { parseCmdFillArgs, parseCmdGetArgs, parseCmdRunArgs, shouldFillIntent } from "../src/cli";
+import { parseArgs, parseCmdFillArgs, parseCmdGetArgs, parseCmdRunArgs, shouldFillIntent } from "../src/cli";
+
+describe("parseArgs bare hole surface", () => {
+  test("quoted task is parsed as an unknown command that dispatch upgrades to get", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "top HN stories"]);
+    expect(parsed.command).toBe("top HN stories");
+    expect(parsed.args).toEqual([]);
+  });
+
+  test("URL-first bare task preserves URL as the first command token", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "https://news.ycombinator.com", "top", "stories"]);
+    expect(parsed.command).toBe("https://news.ycombinator.com");
+    expect(parsed.args).toEqual(["top", "stories"]);
+  });
+
+  test("flag-first bare task is parsed as help plus args so main can upgrade it to get", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "--url", "https://news.ycombinator.com", "top stories"]);
+    expect(parsed.command).toBe("help");
+    expect(parsed.flags.url).toBe("https://news.ycombinator.com");
+    expect(parsed.args).toEqual(["top stories"]);
+  });
+});
 
 describe("parseCmdRunArgs", () => {
   test("positional both: url + intent fragments", () => {
