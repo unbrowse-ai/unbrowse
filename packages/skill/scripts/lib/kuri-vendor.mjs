@@ -61,6 +61,21 @@ export function hashFile(file) {
   return createHash("sha256").update(readFileSync(file)).digest("hex");
 }
 
+export function manifestHashesMatchVendoredBinaries(vendorRoot, manifest = readVendorManifest(vendorRoot)) {
+  if (!manifest?.binaries) return false;
+  for (const target of supportedTargets) {
+    const bin = path.join(vendorRoot, target.id, target.bin);
+    const expected = manifest.binaries?.[target.id]?.sha256;
+    if (!expected || !existsSync(bin)) return false;
+    try {
+      if (hashFile(bin) !== expected) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function readSourceSha(sourceDir) {
   if (!sourceDir) return null;
   try {
@@ -80,11 +95,13 @@ export function shouldRebuildVendoredKuri({
 }) {
   if (env.UNBROWSE_REBUILD_KURI === "1") return true;
   if (!hasVendoredBinaries(vendorRoot)) return true;
+  const manifest = readVendorManifest(vendorRoot);
+  if (!manifestHashesMatchVendoredBinaries(vendorRoot, manifest)) return true;
+  if (manifest?.binaries?.["win-x64"]?.source === "placeholder") return true;
   if (!sourceDir) return false;
 
   const sourceSha = readSourceSha(sourceDir);
   if (!sourceSha) return false;
 
-  const manifest = readVendorManifest(vendorRoot);
   return manifest?.source_sha !== sourceSha;
 }

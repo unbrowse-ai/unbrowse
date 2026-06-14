@@ -26,6 +26,7 @@
     },
     "win-x64": {
       "zig_target": "x86_64-windows-gnu",
+      "source": "pre-staged",
       "sha256": "dbf821b917f24e00b6ed2cc1cc551ab4bb588c0ee7ee244ad8dacb5301edb6f7"
     }
   },

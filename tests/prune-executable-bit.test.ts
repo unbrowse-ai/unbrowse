@@ -5,7 +5,7 @@
  * on the next browse/fetch. The chmod runs even under UNBROWSE_NO_PRUNE.
  */
 import { afterEach, describe, expect, it } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -48,5 +48,33 @@ describe("prune restores the executable bit on host vendor binaries", () => {
     const { kuri } = seed();
     spawnSync("node", [PRUNE, "--root", tmp], { encoding: "utf8", env: { ...process.env, UNBROWSE_NO_PRUNE: "1" } });
     expect(mode(kuri) & 0o111).not.toBe(0);
+  });
+
+  it("does not delete foreign Kuri assets from a source checkout", () => {
+    tmp = mkdtempSync(join(tmpdir(), "ubx-prune-source-"));
+    const packageRoot = join(tmp, "packages", "skill");
+    mkdirSync(join(tmp, "src"), { recursive: true });
+    writeFileSync(join(tmp, "src", "single-binary.ts"), "// source checkout marker\n");
+
+    const foreignKuriDir = hostKuriDir === "darwin-arm64" ? "linux-x64" : "darwin-arm64";
+    const foreignUtlsName = utlsName === "utls-proxy-linux-amd64" ? "utls-proxy-darwin-amd64" : "utls-proxy-linux-amd64";
+    mkdirSync(join(packageRoot, "vendor", "kuri", hostKuriDir), { recursive: true });
+    mkdirSync(join(packageRoot, "vendor", "kuri", foreignKuriDir), { recursive: true });
+    mkdirSync(join(packageRoot, "vendor", "utls-proxy"), { recursive: true });
+    const hostKuri = join(packageRoot, "vendor", "kuri", hostKuriDir, kuriName);
+    const foreignKuri = join(packageRoot, "vendor", "kuri", foreignKuriDir, "kuri");
+    const hostUtls = join(packageRoot, "vendor", "utls-proxy", utlsName);
+    const foreignUtls = join(packageRoot, "vendor", "utls-proxy", foreignUtlsName);
+    writeFileSync(hostKuri, "host"); chmodSync(hostKuri, 0o644);
+    writeFileSync(foreignKuri, "foreign"); chmodSync(foreignKuri, 0o755);
+    writeFileSync(hostUtls, "host"); chmodSync(hostUtls, 0o644);
+    writeFileSync(foreignUtls, "foreign"); chmodSync(foreignUtls, 0o755);
+
+    const res = spawnSync("node", [PRUNE, "--root", packageRoot], { encoding: "utf8" });
+    expect(res.status).toBe(0);
+    expect(mode(hostKuri) & 0o111).not.toBe(0);
+    expect(mode(hostUtls) & 0o111).not.toBe(0);
+    expect(existsSync(foreignKuri)).toBe(true);
+    expect(existsSync(foreignUtls)).toBe(true);
   });
 });

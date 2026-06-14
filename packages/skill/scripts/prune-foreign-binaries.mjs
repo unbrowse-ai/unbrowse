@@ -40,6 +40,20 @@ try {
 
 if (process.env.UNBROWSE_NO_PRUNE === "1") process.exit(0);
 
+// Source/monorepo checkouts build src/single-binary.ts directly. That file
+// statically imports every platform's vendored Kuri asset so Bun can compile
+// any target from the checkout. npm package installs may safely prune foreign
+// platforms, but source checkouts must keep them or Windows builds fail after
+// `bun install` with "Could not resolve ... vendor/kuri/darwin-arm64/kuri".
+// Keep the chmod repair above, skip only deletion. UNBROWSE_FORCE_PRUNE=1 is a
+// manual override for local size experiments.
+if (
+  process.env.UNBROWSE_FORCE_PRUNE !== "1" &&
+  existsSync(join(root, "..", "..", "src", "single-binary.ts"))
+) {
+  process.exit(0);
+}
+
 const du = (p) => {
   try { return statSync(p).isDirectory() ? readdirSync(p).reduce((a, f) => a + du(join(p, f)), 0) : statSync(p).size; }
   catch { return 0; }

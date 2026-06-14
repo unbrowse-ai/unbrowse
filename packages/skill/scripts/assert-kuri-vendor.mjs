@@ -49,6 +49,16 @@ for (const target of supportedTargets) {
   if (!expectedHash) {
     fail(`manifest missing sha256 for ${target.id}`);
   }
+  if (target.id === "win-x64") {
+    const buf = readFileSync(outFile);
+    const isShellStub = buf.length < 1024 && buf.slice(0, 2).toString() === "#!";
+    if (isShellStub || buf.length <= 100 * 1024) {
+      fail(`win-x64 Kuri is not a real Windows broker binary (${buf.length} bytes)`);
+    }
+    if (manifest.binaries?.[target.id]?.source === "placeholder") {
+      fail("win-x64 Kuri manifest points at a placeholder; release must stage native kuri.exe");
+    }
+  }
   const actualHash = hashFile(outFile);
   if (actualHash !== expectedHash) {
     fail(`hash mismatch for ${target.id}: manifest=${expectedHash} actual=${actualHash}`);

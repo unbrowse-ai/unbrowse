@@ -23,7 +23,14 @@ describe("release asset wiring", () => {
 
     expect(workflow).toContain("name: Upload CLI Release Assets");
     expect(workflow).toContain("name: Verify CLI Release Assets");
-    expect(workflow).toContain("bash scripts/build-binaries.sh --all");
+    expect(workflow).toContain("name: Build Kuri Windows Broker (windows-gnu)");
+    expect(workflow).toContain("zig build -Dtarget=x86_64-windows-gnu");
+    expect(workflow).not.toContain("zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe");
+    expect(workflow).toContain("name: kuri-win-x64");
+    expect(workflow).toContain("needs: build-kuri-win-x64");
+    expect(workflow).toContain("matrix:");
+    expect(workflow).toContain("target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64, win-x64]");
+    expect(workflow).toContain("bash scripts/build-binaries.sh ${{ matrix.target }}");
     expect(workflow).toContain("TARGET_REPO=\"unbrowse-ai/unbrowse\"");
     expect(workflow).toContain("ASSETS=(");
     expect(workflow).toContain('"dist/unbrowse-v${VERSION}-win-x64.tar.gz"');

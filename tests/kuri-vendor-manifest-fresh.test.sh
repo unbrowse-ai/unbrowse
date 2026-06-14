@@ -19,7 +19,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${KURI_VENDOR_ROOT:-$ROOT/packages/skill/vendor/kuri}"
 MANIFEST="$VENDOR_DIR/manifest.json"
 STALE_SHA="973c6cf9a457814cf8b4f161b830189908416ee5"  # pre-CURLOPT_PROXY
-PLATFORMS=(darwin-arm64 darwin-x64 linux-arm64 linux-x64)
+PLATFORMS=(darwin-arm64 darwin-x64 linux-arm64 linux-x64 win-x64)
 
 fail_count=0
 pass_count=0
@@ -69,7 +69,9 @@ fi
 for platform in "${PLATFORMS[@]}"; do
   source_field="$(jq -r --arg p "$platform" '.binaries[$p].source // "missing"' "$MANIFEST")"
   recorded_sha="$(jq -r --arg p "$platform" '.binaries[$p].sha256 // "missing"' "$MANIFEST")"
-  bin_path="$VENDOR_DIR/$platform/kuri"
+  bin_name="kuri"
+  if [ "$platform" = "win-x64" ]; then bin_name="kuri.exe"; fi
+  bin_path="$VENDOR_DIR/$platform/$bin_name"
 
   # Check 2: source != "placeholder"
   if [ "$source_field" = "placeholder" ]; then

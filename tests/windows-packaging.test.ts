@@ -87,6 +87,45 @@ describe("kuri binary naming (win .exe)", () => {
   });
 });
 
+describe("release Windows Kuri broker wiring", () => {
+  test("release builds and stages the Windows GNU kuri.exe before shared vendor manifest", () => {
+    const workflow = readFileSync(join(repoRoot, ".github/workflows/release.yml"), "utf8");
+    expect(workflow).toContain("build-kuri-win-x64:");
+    expect(workflow).toContain("runs-on: windows-latest");
+    expect(workflow).toContain("zig build -Dtarget=x86_64-windows-gnu");
+    expect(workflow).not.toContain("zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe");
+    expect(workflow).toContain("name: kuri-win-x64");
+    expect(workflow).toContain("cp /tmp/kuri-win-x64/kuri.exe packages/skill/vendor/kuri/win-x64/kuri.exe");
+    expect(workflow).toContain("needs: build-kuri-win-x64");
+  });
+
+  test("Windows E2E stages compile-time Kuri placeholders before compiling unbrowse.exe", () => {
+    const workflow = readFileSync(join(repoRoot, ".github/workflows/test-windows.yml"), "utf8");
+    expect(workflow).toContain("Stage non-Windows Kuri import placeholders");
+    expect(workflow).toContain("non-Windows Kuri placeholder for Windows compile-only E2E");
+    expect(workflow).not.toContain("node packages/skill/scripts/build-kuri-binaries.mjs");
+    expect(workflow.indexOf("Stage non-Windows Kuri import placeholders"))
+      .toBeLessThan(workflow.indexOf("bun build src/single-binary.ts --compile"));
+  });
+
+  test("Windows E2E builds the release-bearing Windows GNU Kuri broker", () => {
+    const workflow = readFileSync(join(repoRoot, ".github/workflows/test-windows.yml"), "utf8");
+    expect(workflow).toContain("zig build -Dtarget=x86_64-windows-gnu");
+    expect(workflow).not.toContain("zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe");
+    expect(workflow).not.toContain("zig build -Dtarget=x86_64-windows-msvc");
+    expect(workflow).not.toContain("ilammy/msvc-dev-cmd@v1");
+  });
+
+  test("Windows E2E waits for Windows Kuri readiness and captures broker logs", () => {
+    const workflow = readFileSync(join(repoRoot, ".github/workflows/test-windows.yml"), "utf8");
+    expect(workflow).toContain('$env:KURI_HEADLESS = "true"');
+    expect(workflow).toContain("RedirectStandardOutput $stdout");
+    expect(workflow).toContain("RedirectStandardError $stderr");
+    expect(workflow).toContain("for ($i = 0; $i -lt 60; $i++)");
+    expect(workflow).toContain("Kuri did not become healthy within 60s");
+  });
+});
+
 describe("source-structure regressions", () => {
   test("postinstall wires the platform-appropriate explicit binary override, not a hardcoded ./unbrowse", () => {
     const src = readFileSync(join(repoRoot, "packages/skill/scripts/postinstall.mjs"), "utf8");
@@ -107,5 +146,14 @@ describe("source-structure regressions", () => {
     const fn = src.slice(src.indexOf("function ensureKuri"), src.indexOf("async function main"));
     expect(fn).toContain("string | null");
     expect(fn).not.toContain("process.exit");
+  });
+
+  test("sandbox autospawn uses the shared Windows-aware Kuri resolver", () => {
+    const src = readFileSync(join(repoRoot, "src/kuri/spawn.ts"), "utf8");
+    expect(src).toContain("kuriVendorCandidatePaths");
+    expect(src).toContain("kuriBinaryName()");
+    expect(src).toContain('join(tmpdir(), "kuri.log")');
+    expect(src).not.toContain('"submodules/kuri/zig-out/bin/kuri"');
+    expect(src).not.toContain('"/tmp/kuri.log"');
   });
 });

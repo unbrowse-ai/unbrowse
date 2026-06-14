@@ -91,12 +91,32 @@ jobs:
           if (-not (Test-Path $kuriExe)) { Write-Error "kuri.exe still not resolvable"; exit 1 }
           Write-Host "Using kuri.exe at $kuriExe"
           $env:HEADLESS = "true"
-          $proc = Start-Process -FilePath $kuriExe -PassThru -NoNewWindow
-          Start-Sleep -Seconds 5
+          $env:KURI_HEADLESS = "true"
+          $stdout = Join-Path $env:RUNNER_TEMP "kuri.stdout.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "kuri.stderr.log"
+          $proc = Start-Process -FilePath $kuriExe -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
-            $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 10
-            Write-Host "Kuri health: $($health | ConvertTo-Json -Compress)"
-            if ($health.ok -ne $true) { throw "Kuri not ok" }
+            $ok = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($proc.HasExited) {
+                Write-Host "kuri.exe exited early with code $($proc.ExitCode)"
+                break
+              }
+              try {
+                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2 -ErrorAction Stop
+                Write-Host "Kuri health: $($health | ConvertTo-Json -Compress)"
+                if ($health.ok -eq $true) { $ok = $true; break }
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if (-not $ok) {
+              Write-Host "=== kuri stdout ==="
+              if (Test-Path $stdout) { Get-Content $stdout -ErrorAction SilentlyContinue | Select-Object -Last 80 }
+              Write-Host "=== kuri stderr ==="
+              if (Test-Path $stderr) { Get-Content $stderr -ErrorAction SilentlyContinue | Select-Object -Last 80 }
+              throw "Kuri did not become healthy within 60s"
+            }
             Write-Host "PASS: kuri.exe health"
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
@@ -107,6 +127,30 @@ jobs:
         # different platform-specific optional deps on Windows, which trips the
         # frozen check. The E2E only needs deps present to build unbrowse.exe.
         run: bun install --no-frozen-lockfile
+
+      - name: Stage non-Windows Kuri import placeholders
+        shell: pwsh
+        # src/single-binary.ts statically imports every platform's Kuri asset so
+        # Bun can compile any target. This Windows E2E executes only the real
+        # win-x64/kuri.exe staged above; non-Windows assets only need to exist
+        # at compile time. Release packaging still builds the real shared vendor
+        # tree through build-kuri-vendor.
+        run: |
+          $targets = @(
+            @{ Dir = "darwin-arm64"; Bin = "kuri" },
+            @{ Dir = "darwin-x64"; Bin = "kuri" },
+            @{ Dir = "linux-arm64"; Bin = "kuri" },
+            @{ Dir = "linux-x64"; Bin = "kuri" }
+          )
+          foreach ($target in $targets) {
+            $dir = "packages\skill\vendor\kuri\$($target.Dir)"
+            $file = Join-Path $dir $target.Bin
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            if (-not (Test-Path $file)) {
+              Set-Content -Path $file -NoNewline -Value "#!/bin/sh`necho '[unbrowse] non-Windows Kuri placeholder for Windows compile-only E2E' >&2`nexit 1`n"
+            }
+          }
+          Get-ChildItem packages\skill\vendor\kuri -Recurse | Select-Object FullName, Length
 
       - name: Build unbrowse.exe
         shell: pwsh
