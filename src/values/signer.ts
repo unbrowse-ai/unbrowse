@@ -52,15 +52,41 @@ export interface Signature {
 
 const KEYCHAIN_SERVICE = "unbrowse-x402-wallet";
 const KEYCHAIN_ACCOUNT = "default";
-const FILE_FALLBACK_DIR = join(homedir(), ".unbrowse");
-const FILE_FALLBACK_PATH = join(FILE_FALLBACK_DIR, "wallet.enc");
-// Scope security(1) calls to the user's login keychain explicitly. Without
-// this, a spawn whose security-session has no default keychain bound (some
-// MCP-server / launchd-launched node contexts) triggers the system
-// "Keychain Not Found — Reset to Defaults" dialog. Passing the keychain as
-// the final positional makes the call addressable and never falls back to
-// "find a keychain to store this in".
-const LOGIN_KEYCHAIN_PATH = join(homedir(), "Library", "Keychains", "login.keychain-db");
+
+// All wallet paths resolve LAZILY (per call) so an isolated runtime — a test, a
+// profile, a sandbox — can point the wallet elsewhere via env WITHOUT touching
+// the real ~/.unbrowse or the real macOS keychain. Precedence:
+//   UNBROWSE_WALLET_DIR  (wallet-only override; tests use this)
+//   UNBROWSE_CONFIG_DIR  (shared with the config system; profiles use this)
+//   ~/.unbrowse          (default install)
+// Production sets neither, so behaviour is byte-for-byte unchanged.
+function walletDir(): string {
+  const w = process.env.UNBROWSE_WALLET_DIR?.trim();
+  if (w) return w;
+  const c = process.env.UNBROWSE_CONFIG_DIR?.trim();
+  if (c) return c;
+  return join(homedir(), ".unbrowse");
+}
+function walletEncPath(): string {
+  return join(walletDir(), "wallet.enc");
+}
+// Scope security(1) calls to the user's login keychain explicitly (see
+// readFromKeychain). Lazy so HOME changes (tests) redirect it.
+function loginKeychainPath(): string {
+  return join(homedir(), "Library", "Keychains", "login.keychain-db");
+}
+// The keychain is the DEFAULT-install identity store (one slot:
+// unbrowse-x402-wallet/default). It is skipped whenever the wallet is isolated
+// to a non-default directory (UNBROWSE_WALLET_DIR — tests) or explicitly
+// disabled (UNBROWSE_DISABLE_KEYCHAIN=1), so an isolated run can NEVER read or
+// overwrite the real user's key. A single keychain slot cannot serve multiple
+// isolated identities, so file-only storage there is also the correct semantics.
+function keychainEnabled(): boolean {
+  if (!isDarwin() || keychainDisabledThisProcess) return false;
+  if (process.env.UNBROWSE_WALLET_DIR?.trim()) return false;
+  if (process.env.UNBROWSE_DISABLE_KEYCHAIN === "1") return false;
+  return true;
+}
 
 // Cache the pubkey for the lifetime of the process so getWalletPubkey() is
 // O(1) after the first call. The PRIVKEY is NEVER cached — every sign()
@@ -80,8 +106,9 @@ function isDarwin(): boolean {
 let keychainDisabledThisProcess = false;
 
 function readFromKeychain(): Uint8Array | null {
-  if (!isDarwin() || keychainDisabledThisProcess) return null;
-  if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+  if (!keychainEnabled()) return null;
+  const keychainPath = loginKeychainPath();
+  if (!existsSync(keychainPath)) {
     keychainDisabledThisProcess = true;
     return null;
   }
@@ -92,7 +119,7 @@ function readFromKeychain(): Uint8Array | null {
       "-s", KEYCHAIN_SERVICE,
       "-a", KEYCHAIN_ACCOUNT,
       "-w",
-      LOGIN_KEYCHAIN_PATH,
+      keychainPath,
     ],
     { encoding: "utf8" },
   );
@@ -106,8 +133,9 @@ function readFromKeychain(): Uint8Array | null {
 }
 
 function writeToKeychain(privkey: Uint8Array): boolean {
-  if (!isDarwin() || keychainDisabledThisProcess) return false;
-  if (!existsSync(LOGIN_KEYCHAIN_PATH)) {
+  if (!keychainEnabled()) return false;
+  const keychainPath = loginKeychainPath();
+  if (!existsSync(keychainPath)) {
     keychainDisabledThisProcess = true;
     return false;
   }
@@ -125,7 +153,7 @@ function writeToKeychain(privkey: Uint8Array): boolean {
       "-w", hex,
       "-U", // upsert: replace if exists
       "-A", // allow access from any application (no ACL prompts)
-      LOGIN_KEYCHAIN_PATH,
+      keychainPath,
     ],
     { encoding: "utf8" },
   );
@@ -149,9 +177,10 @@ function deriveFileKey(): Buffer {
 }
 
 function readFromFile(): Uint8Array | null {
-  if (!existsSync(FILE_FALLBACK_PATH)) return null;
+  const filePath = walletEncPath();
+  if (!existsSync(filePath)) return null;
   try {
-    const raw = readFileSync(FILE_FALLBACK_PATH);
+    const raw = readFileSync(filePath);
     // [12 iv][16 tag][ciphertext]
     if (raw.length < 12 + 16 + 1) return null;
     const iv = raw.subarray(0, 12);
@@ -169,8 +198,9 @@ function readFromFile(): Uint8Array | null {
 
 function writeToFile(privkey: Uint8Array): boolean {
   try {
-    if (!existsSync(FILE_FALLBACK_DIR)) {
-      mkdirSync(FILE_FALLBACK_DIR, { recursive: true, mode: 0o700 });
+    const dir = walletDir();
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     const key = deriveFileKey();
     const iv = randomBytes(12);
@@ -178,7 +208,7 @@ function writeToFile(privkey: Uint8Array): boolean {
     const ct = Buffer.concat([cipher.update(privkey), cipher.final()]);
     const tag = cipher.getAuthTag();
     const blob = Buffer.concat([iv, tag, ct]);
-    writeFileSync(FILE_FALLBACK_PATH, blob, { mode: 0o600 });
+    writeFileSync(walletEncPath(), blob, { mode: 0o600 });
     return true;
   } catch {
     return false;
@@ -465,7 +495,9 @@ function base58Encode(bytes: Uint8Array): string {
 // wallet on their machine — the address + pubkey are public; the seed never
 // leaves the keychain / encrypted wallet.enc. Distinct from the lobster.cash
 // PAYOUT wallet (src/payments/wallet.ts), which receives USDC.
-const LOCAL_WALLET_POINTER = join(FILE_FALLBACK_DIR, "wallet.json");
+function localWalletPointer(): string {
+  return join(walletDir(), "wallet.json");
+}
 
 interface LocalWalletPointer {
   address: string;       // base58 Solana address
@@ -495,14 +527,16 @@ export function ensureLocalWalletAddress(): string {
   // Best-effort public pointer: a valid address is returned even if the write
   // fails (read-only fs). The address itself is the load-bearing return value.
   try {
-    if (!existsSync(FILE_FALLBACK_DIR)) {
-      mkdirSync(FILE_FALLBACK_DIR, { recursive: true, mode: 0o700 });
+    const dir = walletDir();
+    const pointerPath = localWalletPointer();
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     let createdAt = new Date().toISOString();
     let needWrite = true;
-    if (existsSync(LOCAL_WALLET_POINTER)) {
+    if (existsSync(pointerPath)) {
       try {
-        const prev = JSON.parse(readFileSync(LOCAL_WALLET_POINTER, "utf8")) as Partial<LocalWalletPointer>;
+        const prev = JSON.parse(readFileSync(pointerPath, "utf8")) as Partial<LocalWalletPointer>;
         if (typeof prev.created_at === "string") createdAt = prev.created_at;
         if (prev.address === address) needWrite = false;
       } catch {
@@ -516,7 +550,7 @@ export function ensureLocalWalletAddress(): string {
         provider: "unbrowse-local",
         created_at: createdAt,
       };
-      writeFileSync(LOCAL_WALLET_POINTER, JSON.stringify(pointer, null, 2) + "\n", { mode: 0o600 });
+      writeFileSync(pointerPath, JSON.stringify(pointer, null, 2) + "\n", { mode: 0o600 });
     }
   } catch {
     // pointer is best-effort; the derived address is still valid + idempotent.
@@ -533,8 +567,9 @@ export function ensureLocalWalletAddress(): string {
  */
 export function readLocalWalletAddress(): string | null {
   try {
-    if (!existsSync(LOCAL_WALLET_POINTER)) return null;
-    const p = JSON.parse(readFileSync(LOCAL_WALLET_POINTER, "utf8")) as Partial<LocalWalletPointer>;
+    const pointerPath = localWalletPointer();
+    if (!existsSync(pointerPath)) return null;
+    const p = JSON.parse(readFileSync(pointerPath, "utf8")) as Partial<LocalWalletPointer>;
     return typeof p.address === "string" && p.address.length > 0 ? p.address : null;
   } catch {
     return null;
@@ -552,8 +587,12 @@ function bytesToBase64(bytes: Uint8Array): string {
 export const __internal = {
   KEYCHAIN_SERVICE,
   KEYCHAIN_ACCOUNT,
-  FILE_FALLBACK_PATH,
-  LOCAL_WALLET_POINTER,
+  // Resolved lazily so tests reading these reflect the active (possibly
+  // isolated via UNBROWSE_WALLET_DIR) location, not a frozen module-load path.
+  get FILE_FALLBACK_PATH() { return walletEncPath(); },
+  get LOCAL_WALLET_POINTER() { return localWalletPointer(); },
+  walletDir,
+  keychainEnabled,
   bytesToHex,
   bytesToBase64,
   base58Encode,
