@@ -507,6 +507,35 @@ export interface AgentSkillChunkView {
   available_operations: AgentAvailableOperation[];
 }
 
+/** One step of a composite: a prerequisite endpoint that ran and the binding keys it yielded. */
+export interface SkillCompositeStep {
+  endpoint_id: string;
+  ok: boolean;
+  yielded: string[];
+}
+
+/** A binding edge of a composite: a prerequisite yielded `binding`, threaded into the target. */
+export interface SkillCompositeEdge {
+  from: string;
+  binding: string;
+  to: string;
+}
+
+/**
+ * A discovered composite contract — the persisted, replayable form of a walked prerequisite DAG.
+ * Carries no secrets (endpoint ids + binding key NAMES only), so it publishes alongside routes.
+ * `composite_id` is the structural identity; replay is looked up by (domain, target).
+ */
+export interface SkillComposite {
+  composite_id: string;
+  intent_signature?: string;
+  domain: string;
+  target: string;
+  steps: SkillCompositeStep[];
+  edges: SkillCompositeEdge[];
+  created_at?: string;
+}
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -545,6 +574,13 @@ export interface SkillManifest {
   split_config?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
+  /**
+   * Discovered composites — multi-step contract sub-DAGs a prior resolve walked to satisfy a
+   * target endpoint (ordered constituent endpoints + binding edges). Travel with the skill so a
+   * FOREIGN agent that never walked the chain can replay the recorded order (always-on, ungated —
+   * the local-disk composite cache is the gated mirror). Structural identity is `composite_id`.
+   */
+  composites?: SkillComposite[];
   /** Price in USD per execution; undefined or 0 = free */
   base_price_usd?: number;
   /** Whether the skill owner has opted into compensation */

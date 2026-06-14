@@ -50,6 +50,7 @@ import type {
   OrchestrationTiming,
   ProjectionOptions,
   ResponseSchema,
+  SkillComposite,
   SkillManifest,
 } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
@@ -436,6 +437,30 @@ export function readComposite(domain: string, target: string): PersistedComposit
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Lever 6 — the ALWAYS-ON replay source: a composite that travelled back ATTACHED to the resolved
+ * skill manifest (published by whichever agent first walked it). A foreign agent that never walked
+ * the chain replays it. Pure; ungated (unlike the local-disk cache) — the resolved skill is data
+ * the backend already returned, not a local cache. Matched by the target endpoint id.
+ */
+export function findCompositeInSkill(
+  skill: { composites?: SkillComposite[] } | undefined,
+  target: string,
+): SkillComposite | undefined {
+  return skill?.composites?.find((c) => c.target === target && c.steps.length > 0);
+}
+
+/** Attach a freshly-walked composite to a skill (dedup by composite_id) so it travels with the
+ *  skill into the local cache and any subsequent publish — the path by which lever 6 reaches the
+ *  backend graph. Mutates `skill.composites` in place. Returns true iff it was newly added (a caller
+ *  can then queue a republish to propagate the new composite to the backend). */
+export function attachCompositeToSkill(skill: SkillManifest, composite: SkillComposite): boolean {
+  const list = skill.composites ?? (skill.composites = []);
+  if (list.some((c) => c.composite_id === composite.composite_id)) return false;
+  list.push(composite);
+  return true;
 }
 
 function hasSearchBindings(endpoint: SkillManifest["endpoints"][number]): boolean {
@@ -1950,9 +1975,13 @@ export interface ReplayDecision {
  * advisory prereqs the composite didn't record. Otherwise fall back to the live order unchanged — a
  * stale/missing/now-irreversible constituent cleanly degrades to full recompute. Pure + testable.
  */
+/** The minimal composite shape replay needs: its identity and its ordered steps. Both the
+ *  local-disk PersistedComposite and a skill-manifest SkillComposite satisfy it. */
+type ReplayableComposite = { composite_id: string; steps: { endpoint_id: string }[] };
+
 export function planPrereqOrder(
   livePrereqOrder: string[],
-  persisted: PersistedComposite | undefined,
+  persisted: ReplayableComposite | undefined,
   isReplayable: (endpointId: string) => boolean,
 ): ReplayDecision {
   if (persisted && persisted.steps.length > 0) {
@@ -3690,7 +3719,12 @@ export async function resolveAndExecute(
                 return "";
               }
             })();
-          const persisted = readComposite(replayDomain, candidate.endpoint.endpoint_id);
+          // Lever 6 (always-on): a composite attached to the resolved skill (published by whoever
+          // first walked it) wins — a foreign agent replays it with no local cache and no gate.
+          // Fall back to the local-disk composite cache (gated on UNBROWSE_LOCAL_CACHES).
+          const persisted =
+            findCompositeInSkill(skill, candidate.endpoint.endpoint_id) ??
+            readComposite(replayDomain, candidate.endpoint.endpoint_id);
           const decision = planPrereqOrder(prereqOrder, persisted, (id) => {
             const ep = skill.endpoints.find((e) => e.endpoint_id === id);
             return ep != null && canAutoExecuteEndpoint(ep);
@@ -3756,7 +3790,7 @@ export async function resolveAndExecute(
             // every step succeeded AND the target is auto-executable — never persist a composite
             // whose target is an irreversible op (pay/book/submit), and never one with a failed step.
             if (chainSteps.every((s) => s.ok) && canAutoExecuteEndpoint(candidate.endpoint)) {
-              const persistedPath = writeComposite({
+              const descriptor: PersistedComposite = {
                 composite_id: compositeId,
                 intent_signature: compositeIntentSig,
                 domain: compositeDomain,
@@ -3764,7 +3798,21 @@ export async function resolveAndExecute(
                 steps: chainSteps,
                 edges: compositeEdges,
                 created_at: new Date().toISOString(),
-              });
+              };
+              // Lever 6: attach to the skill so the composite travels with it — into the local
+              // cache now, and into the backend route graph on the next publish (the publish
+              // spreads the manifest; the backend stores it as a raw JSON blob, so it round-trips
+              // with no schema change). A foreign agent then replays it always-on.
+              const composedNewlyAttached = attachCompositeToSkill(skill, descriptor);
+              // When a NEW composite lands on a real (backend) skill, propagate it to the graph via
+              // a passive republish (fire-and-forget; in-flight-deduped + checkpoint-gated downstream,
+              // so a re-walked DAG never spams publishes). This is what makes lever 6 always-on for
+              // composites discovered during replay of an already-published skill.
+              if (composedNewlyAttached && skill.skill_id) {
+                void queuePassiveSkillPublish(skill).catch(() => {});
+              }
+              // Lever 3: also persist the local-disk mirror (gated on UNBROWSE_LOCAL_CACHES).
+              const persistedPath = writeComposite(descriptor);
               if (persistedPath) {
                 (decisionTrace as Record<string, unknown>).composite_persisted = compositeId;
               }

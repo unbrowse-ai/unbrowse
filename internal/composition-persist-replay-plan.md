@@ -54,10 +54,16 @@ freshness/TTL model). A replay that fails a step falls back cleanly to the full 
 Fair-comp split across the composite's constituent contracts in one settlement.
 **Witness:** a paid composite replay produces one settlement row covering N routes; ledger sums match.
 
-### Lever 6 — publish composites  *(after 5)*
-Composites get the same public/private visibility as atomic routes; a foreign composite replays.
-**Witness:** `/v1/account/skills` lists composites; the dashboard renders them; a foreign composite
-replays end-to-end.
+### Lever 6 — publish composites  ✅ SHIPPED (deploy-free)
+Composites travel ATTACHED to the skill manifest, so they reach the backend route graph on the
+existing publish rail with **no backend schema change** — verified: the backend stores skills as
+raw `JSON.stringify(skill)` KV blobs (`marketplace.ts:376/288/318`, `account.ts:310`,
+`skills.ts:712/763`), `getSkill` does `JSON.parse` (round-trips whole), and `validateSkillManifest`
+is a prototype-pollution **denylist**, not an allowlist (an additive `composites` key passes). A
+foreign agent that never walked the chain replays a skill-attached composite **always-on (ungated)**.
+**Witness:** `tests/composite-persist.test.ts` "lever 6 — always-on foreign replay" (a skill carrying
+a composite drives `findCompositeInSkill` → `planPrereqOrder` → `composite_replay` with no local
+disk and `UNBROWSE_LOCAL_CACHES` deleted). 27/27 green; orchestrator + full CLI bundle clean.
 
 ## Non-goals (unchanged from the architecture doc)
 - No declared composites — discovered only, from real satisfied resolutions.
@@ -95,3 +101,16 @@ replays end-to-end.
     from local-cache-gated to always-on via the backend graph). A live two-run integration witness
     (run a real multi-step intent twice, assert run 2 is `composite_replay`) is the next proof —
     the pure-unit witness proves the decision logic; the integration proves the wiring end-to-end.
+- 2026-06-14 — **lever 6 shipped, deploy-free** (rode the existing publish/resolve rail; no backend
+  change — the backend KV is a raw-JSON pass-through). `SkillComposite` type + `composites?` on
+  `SkillManifest` (`src/types/skill.ts`); `findCompositeInSkill` (always-on read from the resolved
+  skill) + `attachCompositeToSkill` (returns newly-added) in the orchestrator; `planPrereqOrder`
+  loosened to a minimal structural composite so both local-disk and skill-manifest composites drive
+  it; replay prefers the skill-attached (ungated) composite over the local-disk (gated) one; on a
+  NEW composite attached to a real skill, a fire-and-forget `queuePassiveSkillPublish` propagates it
+  to the graph (in-flight-deduped + checkpoint-gated, so a re-walked DAG never spams publishes).
+  Witnessed (27/27) including the foreign-replay property.
+  - **Open now:** lever 5 (one settlement row across a composite's constituent routes), the dashboard
+    rendering composites under `/v1/account/skills`, and a live two-run integration witness on the
+    shipped binary. 9.0.4 ships the always-on machinery; the visible-in-prod payoff arrives once a
+    real multi-step domain publishes a composite and a second agent replays it.
