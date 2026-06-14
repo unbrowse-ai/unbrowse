@@ -51,7 +51,7 @@ function isRunnable(
  * Try to extract binding values from a JSON response body for a given set of `provides` bindings.
  * Walks top-level and one-level-nested keys looking for matches against binding keys.
  */
-function extractBindingsFromJson(
+export function extractBindingsFromJson(
   responseBody: string | undefined,
   provides: OperationBinding[],
 ): Record<string, unknown> {

@@ -37,6 +37,7 @@ import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
+import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
@@ -45,6 +46,7 @@ import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
+  OperationBinding,
   OrchestrationTiming,
   ProjectionOptions,
   ResponseSchema,
@@ -1837,6 +1839,77 @@ export function extractSearchTermsFromIntent(intent: string): string | null {
   return terms || null;
 }
 
+/**
+ * Walk the prerequisite chain — the runtime DAG-recompute (north star). When the target
+ * endpoint has params left unbound, instead of LLM-guessing them, find a prerequisite endpoint
+ * that YIELDS that binding key (per the operation DAG's provides/requires), execute it FIRST,
+ * and extract the real value from its result. Dependent steps then run in true dependency order
+ * with real threaded values, not guesses.
+ *
+ * Bounded + safe: one prerequisite execution per yielded key (cached by endpoint_id), only for
+ * keys a prerequisite actually provides, one level deep. A prerequisite failure is skipped (the
+ * caller falls back to LLM inference), so this never regresses the existing path.
+ */
+async function walkPrerequisiteChain(
+  skill: SkillManifest,
+  unboundParams: string[],
+  prerequisiteOrder: string[],
+  baseParams: Record<string, unknown>,
+  queryIntent: string,
+  projection: Parameters<typeof executeSkill>[2],
+  options: Parameters<typeof executeSkill>[3],
+  steps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }>,
+): Promise<Record<string, string | number | boolean>> {
+  const resolved: Record<string, string | number | boolean> = {};
+  const executed = new Map<string, Record<string, unknown>>(); // endpoint_id → extracted yields
+  const epProvides = (ep: (typeof skill.endpoints)[number] | undefined): OperationBinding[] =>
+    (ep?.semantic?.provides ?? []) as OperationBinding[];
+
+  for (const param of unboundParams) {
+    if (resolved[param] != null) continue;
+    // Find a prerequisite (in dependency order) that yields this binding key.
+    const prereqId = prerequisiteOrder.find((id) => {
+      const ep = skill.endpoints.find((e) => e.endpoint_id === id);
+      return ep && epProvides(ep).some((b) => b.key === param);
+    });
+    if (!prereqId) continue;
+    const prereqEp = skill.endpoints.find((e) => e.endpoint_id === prereqId);
+    if (!prereqEp) continue;
+
+    let extracted = executed.get(prereqId);
+    if (!extracted) {
+      try {
+        const out = await executeSkill(
+          skill,
+          { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
+          projection,
+          { ...options, intent: queryIntent },
+        );
+        const ok = !!out?.trace?.success;
+        const yields = extractBindingsFromJson(
+          ok ? JSON.stringify(out.result) : undefined,
+          epProvides(prereqEp),
+        );
+        steps.push({ endpoint_id: prereqId, ok, yielded: Object.keys(yields) });
+        if (!ok) continue;
+        extracted = yields;
+        executed.set(prereqId, extracted);
+      } catch {
+        steps.push({ endpoint_id: prereqId, ok: false, yielded: [] });
+        continue;
+      }
+    }
+
+    const raw = extracted?.[param];
+    // Scalars thread directly; an array/object yield (e.g. a list of ids) threads its first scalar.
+    const scalar = Array.isArray(raw) ? raw[0] : raw;
+    if (scalar != null && (typeof scalar === "string" || typeof scalar === "number" || typeof scalar === "boolean")) {
+      resolved[param] = scalar;
+    }
+  }
+  return resolved;
+}
+
 async function inferParamsFromIntent(
   urlTemplate: string,
   intent: string,
@@ -3338,9 +3411,12 @@ export async function resolveAndExecute(
     // --- DAG advisory boosts (discover-choose-act) ---
     // Backend-first advisory call: tries the EmergentDB graph for cross-session
     // intelligence, falls back to local planner if backend is unavailable.
+    // Hoisted to the outer scope so the execute loop can WALK the prerequisite
+    // chain (run prerequisites, thread their yields) — not just rank-boost.
+    let dagPlan: Awaited<ReturnType<typeof fetchDagAdvisoryPlan>> | null = null;
     if (epRanked.length > 1 && skill.domain) {
       const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
-      const dagPlan = await fetchDagAdvisoryPlan(
+      dagPlan = await fetchDagAdvisoryPlan(
         skill,
         epRanked[0].endpoint.endpoint_id,
         bindings,
@@ -3461,12 +3537,40 @@ export async function resolveAndExecute(
         const stillUnbound = [...candidate.endpoint.url_template.matchAll(/\{([^}]+)\}/g)]
           .map((m) => m[1])
           .filter((name) => allBound[name] == null || allBound[name] === "");
+        // --- runtime DAG-recompute: walk prerequisites for unbound bindings ---
+        // If a prerequisite endpoint YIELDS an unbound param, run it FIRST and thread its real
+        // value — dependency-ordered execution, not an LLM guess. Only fires when the DAG knows a
+        // prerequisite provides the binding; otherwise the LLM-inference path is unchanged.
+        let chainBound: Record<string, string | number | boolean> = {};
+        const prereqOrder = dagPlan?.prerequisite_order ?? [];
+        if (stillUnbound.length > 0 && prereqOrder.length > 0) {
+          const chainSteps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }> = [];
+          chainBound = await walkPrerequisiteChain(
+            skill,
+            stillUnbound,
+            prereqOrder,
+            { ...templateDefaults, ...endpointParams, ...syncInferred, ...searchOverrides },
+            queryIntent,
+            projection,
+            { ...options, intent: queryIntent, contextUrl: context?.url },
+            chainSteps,
+          );
+          if (chainSteps.length > 0) {
+            (decisionTrace as Record<string, unknown>).prerequisite_chain = chainSteps;
+            console.log(
+              `[chain] walked ${chainSteps.length} prerequisite(s): ` +
+                chainSteps.map((s) => `${s.endpoint_id}${s.ok ? "✓" : "✗"}→[${s.yielded.join(",")}]`).join(" "),
+            );
+          }
+        }
+        const chainResolvedKeys = new Set(Object.keys(chainBound));
+        const llmUnbound = stillUnbound.filter((n) => !chainResolvedKeys.has(n));
         let llmInferred: Record<string, string> = {};
-        if (stillUnbound.length > 0 && queryIntent) {
+        if (llmUnbound.length > 0 && queryIntent) {
           llmInferred = await inferParamsFromIntent(
             candidate.endpoint.url_template,
             queryIntent,
-            stillUnbound,
+            llmUnbound,
             candidate.endpoint.description,
           );
         }
@@ -3478,6 +3582,7 @@ export async function resolveAndExecute(
             ...syncInferred,
             ...searchOverrides,
             ...llmInferred,
+            ...chainBound, // chain-resolved real values are authoritative over LLM guesses
             ...inferredOptionalParams,
             endpoint_id: candidate.endpoint.endpoint_id,
             ...(queryIntent !== intent ? { intent: queryIntent } : {}),
