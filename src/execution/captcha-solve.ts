@@ -51,6 +51,112 @@ const VENDOR_TASK_TYPE: Readonly<Record<string, string>> = {
   geetest: "GeeTestTaskProxyless",
 };
 
+// ---------------------------------------------------------------------------
+// Capzy (api.capzy.ai) — a balance-funded createTask/getTaskResult solver with
+// 36 live task types (verified against capzy.ai/docs 2026-06-15). When
+// UNBROWSE_CAPZY_KEY is set this is the PRIMARY solve path (paid from the
+// account balance), ahead of the paysponge x402 gateway. Vendor → the EXACT
+// live Capzy proxyless task-type name. hCaptcha is intentionally absent — Capzy
+// does not list it, so that vendor falls through to paysponge. Tencent is also
+// absent from Capzy's live cluster (qcloud TCaptcha) — handled separately in
+// tencent-waf-solve.ts, dropping in the moment Capzy enables it.
+// ---------------------------------------------------------------------------
+const CAPZY_TASK_TYPE: Readonly<Record<string, string>> = {
+  cloudflare: "AntiTurnstileTaskProxyLess",
+  recaptcha: "ReCaptchaV2TaskProxyLess",
+  funcaptcha: "FunCaptchaTaskProxyLess",
+  arkoselabs: "FunCaptchaTaskProxyLess",
+  geetest: "GeeTestTaskProxyLess",
+  // mapped but rarely surfaced by the upstream classifier as these literals:
+  akamai_bot_manager: "AntiAkamaiBMPTaskProxyLess",
+  kasada: "KasadaCaptchaTaskProxyLess",
+  mtcaptcha: "MtCaptchaTaskProxyLess",
+  yidun: "YidunSliderTaskProxyLess",
+  captchafox: "CaptchaFoxTaskProxyLess",
+  friendlycaptcha: "FriendlyCaptchaTaskProxyLess",
+};
+
+/** Map an upstream vendor tag (after sub-vendor narrowing) to a live Capzy task
+ *  type, or null when Capzy has no solver for it (→ caller falls to paysponge). */
+export function capzyTaskTypeForVendor(vendor: string): string | null {
+  return CAPZY_TASK_TYPE[vendor] ?? null;
+}
+
+const CAPZY_API_BASE = () => (process.env.UNBROWSE_CAPZY_URL?.trim() || "https://api.capzy.ai").replace(/\/+$/, "");
+
+/**
+ * Solve a captcha via Capzy. Returns the same CaptchaSolveResult shape as the
+ * paysponge path so callers are agnostic. Returns null when: no key, vendor not
+ * Capzy-supported, no sitekey, or any create/poll error (honest degrade — never
+ * a fake token). Cost is per-type; we record the per-probe budget on success.
+ */
+export async function solveCaptchaViaCapzy(input: {
+  vendor: string;
+  body: string;
+  challengeUrl: string;
+  clientKey?: string;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<CaptchaSolveResult | null> {
+  const clientKey = input.clientKey ?? process.env.UNBROWSE_CAPZY_KEY?.trim();
+  if (!clientKey) return null;
+  const effectiveVendor = input.vendor === "captcha_vendor" ? deriveCaptchaSubvendor(input.body) : input.vendor;
+  const taskType = capzyTaskTypeForVendor(effectiveVendor);
+  if (!taskType) return null;
+  const websiteKey = extractSitekey(input.body);
+  if (!websiteKey) return null;
+
+  const doFetch = input.fetchImpl ?? fetch;
+  const apiBase = CAPZY_API_BASE();
+  const deadline = Date.now() + (input.timeoutMs ?? 120_000);
+  let taskId: string;
+  try {
+    const created = await doFetch(`${apiBase}/createTask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientKey, task: { type: taskType, websiteURL: input.challengeUrl, websiteKey } }),
+      signal: AbortSignal.timeout(Math.max(1, Math.min(20_000, deadline - Date.now()))),
+    });
+    const cj = (await created.json().catch(() => null)) as { taskId?: string; errorId?: number; errorCode?: string } | null;
+    if (!cj || cj.errorId || !cj.taskId) {
+      return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_create_failed", err: cj?.errorCode, effective_vendor: effectiveVendor, task_type: taskType } } as CaptchaSolveResult & { token: "" };
+    }
+    taskId = cj.taskId;
+  } catch (err) {
+    return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_create_error", err: err instanceof Error ? err.message : String(err) } } as CaptchaSolveResult & { token: "" };
+  }
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await doFetch(`${apiBase}/getTaskResult`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientKey, taskId }),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(15_000, deadline - Date.now()))),
+      });
+      const rj = (await res.json().catch(() => null)) as
+        | { status?: string; errorId?: number; solution?: { token?: string; gRecaptchaResponse?: string } }
+        | null;
+      if (!rj || rj.errorId) return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_solver_error" } } as CaptchaSolveResult & { token: "" };
+      if (rj.status === "ready") {
+        const token = rj.solution?.token ?? rj.solution?.gRecaptchaResponse ?? "";
+        if (!token) return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_no_token" } } as CaptchaSolveResult & { token: "" };
+        recordSpend(DEFAULT_PER_PROBE_BUDGET_USD);
+        return {
+          token,
+          inject_key: VENDOR_INJECT_KEY[effectiveVendor] ?? "captcha-response",
+          cost_usd: DEFAULT_PER_PROBE_BUDGET_USD,
+          evidence: { sub_state: "capzy_token_received", effective_vendor: effectiveVendor, task_type: taskType, token_len: token.length },
+        };
+      }
+    } catch {
+      return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_poll_error" } } as CaptchaSolveResult & { token: "" };
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return { token: "", inject_key: "", cost_usd: 0, evidence: { sub_state: "capzy_timeout" } } as CaptchaSolveResult & { token: "" };
+}
+
 // Solvable vendor set — what we even bother dispatching for. Other
 // vendors (datadome, perimeterx, akamai_bot_manager, kasada, shape,
 // imperva, fastly) are NOT CAPTCHA challenges — they're JS bundles /
@@ -191,6 +297,14 @@ export async function solveCaptchaViaX402(input: {
   timeoutMs?: number;
 }): Promise<CaptchaSolveResult | null> {
   const { vendor, body, challengeUrl } = input;
+
+  // Capzy-first: when UNBROWSE_CAPZY_KEY is set, the balance-funded Capzy solver
+  // is the primary path (36 live task types). Only a hard miss (no key / vendor
+  // unsupported / no token) falls through to the paysponge x402 gateway below.
+  if (process.env.UNBROWSE_CAPZY_KEY?.trim()) {
+    const capzy = await solveCaptchaViaCapzy({ vendor, body, challengeUrl, timeoutMs: input.timeoutMs });
+    if (capzy && capzy.token) return capzy;
+  }
 
   // Resolve sub-vendor when the upstream tag was generic.
   const effectiveVendor = vendor === "captcha_vendor" ? deriveCaptchaSubvendor(body) : vendor;

@@ -3310,6 +3310,49 @@ async function cmdFetch(args: string[], flags: Record<string, string | boolean>)
       info("[fetch] 402 Payment Required — set UNBROWSE_WALLET_ADAPTER (e.g. =pay) to authorize payment");
     }
   }
+  // Tencent Cloud WAF (TCaptcha) escalation. cmdFetch simple-mode is HTTP-first
+  // (curl-impersonate has no JS engine), so a Tencent-fronted site (rootdata.com)
+  // returns the captcha bootstrap stub as a 200 — not a 402 — and the block goes
+  // unnoticed. When the body IS the Tencent challenge, escalate: (1) the x402
+  // web-unblocker (wallet-paid, no signup) first, then (2) the Capzy TCaptcha
+  // solver (extract appId+seqid → solve → POST /WafCaptcha → replay with the
+  // clearance cookie over the sticky residential IP). Both degrade to null when
+  // their credential is absent → the original stub is returned unchanged.
+  if (!customBundle && url && typeof body === "string") {
+    const { extractTencentChallenge, clearTencentWafViaCapzy } = await import("./execution/tencent-waf-solve.js");
+    if (extractTencentChallenge(body)) {
+      const { resolveEgressProxy } = await import("./execution/proxy-fetch.js");
+      const proxyUrl = resolveEgressProxy();
+      // 1) x402 200ok web-unblocker (primary, wallet-paid).
+      try {
+        const { tryX402UnblockerFetch } = await import("./capture/curl-impersonate-fallback.js");
+        const unlocked = await tryX402UnblockerFetch({ url, timeoutMs: 240_000 });
+        if (unlocked?.html && unlocked.html.length > 1024 && !extractTencentChallenge(unlocked.html)) {
+          body = unlocked.html;
+          status = unlocked.status || 200;
+          info(`[fetch] tencent-waf cleared via x402 unblocker → ${unlocked.html.length}B`);
+        }
+      } catch { /* fall through to capzy */ }
+      // 2) Capzy TCaptcha solver (fallback, API key).
+      if (typeof body === "string" && extractTencentChallenge(body)) {
+        try {
+          const cleared = await clearTencentWafViaCapzy({
+            url, html: body, proxyUrl,
+            capzyKey: process.env.UNBROWSE_CAPZY_KEY,
+            cookieHeader,
+          });
+          if (cleared) {
+            body = cleared.html;
+            status = 200;
+            info(`[fetch] tencent-waf cleared via capzy → ${cleared.html.length}B`);
+          } else {
+            info("[fetch] tencent-waf challenge unsolved — set UNBROWSE_CAPZY_KEY and/or a Base x402 wallet (payment_provider is 'skip') to auto-clear");
+          }
+        } catch { /* keep the stub */ }
+      }
+    }
+  }
+
   // --main: extract the page's MAIN CONTENT as clean markdown (drop nav, chrome,
   // sidebars, related-links, footers) rather than dumping the whole HTML page.
   // Only fires on HTML bodies; cleanDOM has a content-loss guard that falls back
