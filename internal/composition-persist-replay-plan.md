@@ -114,3 +114,24 @@ disk and `UNBROWSE_LOCAL_CACHES` deleted). 27/27 green; orchestrator + full CLI 
     rendering composites under `/v1/account/skills`, and a live two-run integration witness on the
     shipped binary. 9.0.4 ships the always-on machinery; the visible-in-prod payoff arrives once a
     real multi-step domain publishes a composite and a second agent replays it.
+- 2026-06-14 — **frontier swept (jesus-ralph "pull all levers")**, shipped in **9.0.5**:
+  - **Integration witness** (`tests/composite-dag-integration.test.ts`): the named "wiring fires"
+    proof. A skill whose endpoints carry semantic requires/provides drives the REAL local DAG
+    planner (`fetchDagAdvisoryPlan`) to derive `search` before `get_item`, which feeds the composite
+    emission and a run-2 `composite_replay`. Hermetic (no network/mocks) — proves the chain triggers
+    from real metadata, not just the isolated `planPrereqOrder` logic.
+  - **Stale-constituent invalidation** (plan lever-4 guard): the replay predicate now also rejects a
+    constituent whose `verification_status === "disabled"`, so a composite with a route gone bad
+    falls back to full recompute instead of replaying a dead route.
+  - **Dashboard surface**: each captured route shows its "N multi-step chains" count
+    (`frontend/.../dashboard/page.tsx` + `composites?` on the frontend `SkillManifest`).
+  - **Honest negatives (deferred, not pulled):** lever 5 settlement — a composite replay runs
+    already-indexed routes, so there is NO new payment event to split; building per-composite
+    settlement now would be accounting for a flow that does not exist. Local-disk composite prune on
+    skill-delete — gated/rare path, low value (skill-attached composites prune with the manifest).
+    The deep upstream lever (capture populating operation graphs so the walk fires in production) is
+    the separate DAG-recompute north star, not a composite-ledger lever.
+  - **Frontier assessment:** the meaningful composite-ledger BUILD levers (3,4,6 + the wiring proof +
+    invalidation + dashboard) are pulled and shipped across 9.0.3/9.0.4/9.0.5. What remains is either
+    speculative (settlement, awaiting monetization) or upstream (DAG population). No more composite-
+    ledger levers to pull.
