@@ -763,7 +763,7 @@ function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
 // Slim output — keep only essential trace metadata + result
 // ---------------------------------------------------------------------------
 
-function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
+export function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   const trace = obj.trace as Record<string, unknown> | undefined;
   const out: Record<string, unknown> = {
     trace: trace
@@ -793,6 +793,11 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   if (obj.next_step) out.next_step = obj.next_step;
   if (obj.source) out.source = obj.source;
   if (obj.skill) out.skill = obj.skill;
+  // cross-skill DAG suggestion — let the CLI agent see "run skill B's endpoint to fill
+  // this hole", not just the MCP/raw path (slimTrace is an allowlist; without this it's dropped).
+  if (Array.isArray(obj.cross_skill_producers) && obj.cross_skill_producers.length) {
+    out.cross_skill_producers = obj.cross_skill_producers;
+  }
   return out;
 }
 
