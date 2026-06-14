@@ -9,11 +9,9 @@
  * Fail-safe (Luke 15:4): if the host's own binary is ABSENT, prune NOTHING — never orphan the
  * CLI. Idempotent (only deletes non-host entries). Opt out with UNBROWSE_NO_PRUNE=1.
  */
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-if (process.env.UNBROWSE_NO_PRUNE === "1") process.exit(0);
 
 const rootArgIdx = process.argv.indexOf("--root");
 const root = rootArgIdx !== -1 ? process.argv[rootArgIdx + 1]
@@ -27,6 +25,20 @@ const goarch = arch === "x64" ? "amd64" : arch === "arm64" ? "arm64" : arch;
 // host's own dir as foreign). Mirror currentBundledKuriTarget().
 const hostKuriDir = (platform === "win32" && arch === "x64") ? "win-x64" : `${platform}-${arch}`;
 const hostUtlsBin = `utls-proxy-${platform}-${goarch}`; // resolver uses the same raw formula (utls-daemon.ts)
+
+// Restore the executable bit on THIS host's vendored binaries — npm/CI packaging
+// can ship them mode 0644 (the linux-x64 kuri does), and `spawn(kuri) EACCES` then
+// crashes the CLI with an unhandled 'error' event on the next browse/fetch. The +x
+// is NOT optional, so this runs even under UNBROWSE_NO_PRUNE. Best-effort: a chmod
+// must never break install.
+try {
+  const kuriBin = join(root, "vendor", "kuri", hostKuriDir, platform === "win32" ? "kuri.exe" : "kuri");
+  if (existsSync(kuriBin)) chmodSync(kuriBin, 0o755);
+  const utlsBin = join(root, "vendor", "utls-proxy", hostUtlsBin);
+  if (existsSync(utlsBin)) chmodSync(utlsBin, 0o755);
+} catch { /* never break install on a chmod */ }
+
+if (process.env.UNBROWSE_NO_PRUNE === "1") process.exit(0);
 
 const du = (p) => {
   try { return statSync(p).isDirectory() ? readdirSync(p).reduce((a, f) => a + du(join(p, f)), 0) : statSync(p).size; }
