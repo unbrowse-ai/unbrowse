@@ -29,16 +29,28 @@ No POST, PUT, form-submit, or authenticate-then-act completed. This is not a pro
 (my wrapper allowed 120 s) — it is the CLI's **internal 38 s in-process cap**: a write requiring
 browser capture + form-fill + submit does not finish inside it.
 
-## Why (the honest read)
+## Why (the honest read — refined by an extended-budget retry)
 
-- unbrowse 9.0.5 is a **read/GET-replay engine**. Its strength (core report Axis B: two-witness GET
-  execution PASS, content-bound) is the opposite shape from a write: `resolve` **auto-executes the
-  top safe GET only** — non-safe POST/PUT are gated by the unsafe-action guard (a correct safety
-  property), and the `run` agent path has no fast route to synthesize a POST body + execute it, so
-  it falls through to browser capture and times out.
-- **Secondary finding (real):** the shipped CLI calls backend `POST /v1/validate` which **404s**
-  ("remote validation unavailable … proceeding unvalidated"). Non-fatal, but a missing endpoint the
-  shipped client expects.
+First pass: all 6 hit the CLI's default 38 s in-process cap (`(budget_ms ?? 8000) + 30000`). That cap
+is tunable via `UNBROWSE_API_TIMEOUT_MS`, so I re-ran the cleanest write case (the httpbin HTML form)
+at 120 s to separate "budget too short" from "can't write at all."
+
+**Result of the retry: it COMPLETED (no timeout) and STILL performed no write.** The capture path
+waited for an XHR API matching `[post, tweet, timeline, status]` — a plain `<form method=post>` fires
+no XHR, so none appeared (3 HAR, 0 bodies) — then fell back to **dom-fallback GET** and executed a
+**GET of the form page**, returning the form HTML with `success:false, error:"schema_drift_recapture_required"`.
+
+So the gap is **architectural, not a timeout**: unbrowse 9.0.5's capture/execute is **XHR/API-replay
+oriented** — it discovers and replays API endpoints. It does **not** fill + submit an HTML form, and
+has no path to synthesize a POST/PUT body from intent and execute it. `resolve` auto-executes the top
+**safe GET** only; non-safe writes are correctly gated, and nothing downstream turns a write intent
+into a write request. This is the honest shape of the product: a strong read/replay engine (core
+Axis B two-witness GET PASS), not yet a write/action agent.
+
+- **Secondary finding (real, now FIXED in code):** the shipped CLI calls backend `POST /v1/validate`
+  which **404s** — `publicValidateRoutes` was imported in `backend/src/index.ts` but never mounted, so
+  validation silently "proceeded unvalidated". Mounted (witness `backend/tests/validate-route-mounted.test.ts`);
+  takes effect in prod on the next backend deploy.
 
 ## What this means for a webagent benchmark
 
@@ -48,9 +60,12 @@ they are reported BLOCKED, not faked. This probe substitutes 6 real public write
 measure the capability directly — and the measured answer is that **write actions are an honest
 capability gap in 9.0.5**, distinct from the strong read/replay path.
 
-## To move the number (levers, not yet pulled)
+## To move the number (levers — the real gap is the action path, not the budget)
 
-1. A deliberate **resolve → capture(POST endpoint) → execute --skill --endpoint -p** path with a
-   write body, raising the in-process cap for the write escalation (the 38 s cap is the binding limit).
+1. **A write-action execute path** (the load-bearing feature): when an intent is a write and the
+   target is an HTML form, fill + submit it during capture (capture the resulting POST as a route);
+   for an API write, synthesize the POST/PUT body from intent + endpoint schema and `execute` it
+   behind the existing unsafe-action confirmation. The 38 s cap is NOT the limit — an extended-budget
+   retry still performed no write.
 2. Clone a real webagent-write suite into `bench/*/vendor/` and grade against its controlled app.
-3. Fix the `/v1/validate` 404 (or stop the client calling a missing endpoint).
+3. ✅ `/v1/validate` 404 fixed (route mounted); deploy to make it live in prod.
