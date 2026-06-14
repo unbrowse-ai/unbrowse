@@ -8,11 +8,12 @@
  * Key: ~/.identity/base-x402-key.json ({address, privateKey}, mode 600 — never committed/echoed).
  * Dedicated wallet, funded only with what the operator wants exposed.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
 import { toHex } from "viem";
+import { resolveSecret } from "../values/keychain.js";
 
 export interface EvmAccept {
   scheme: string; // "exact"
@@ -26,20 +27,43 @@ export interface EvmAccept {
 }
 
 const KEY_FILE = join(homedir(), ".identity", "base-x402-key.json");
+const KEY_SERVICE = "unbrowse-base-x402";
+const KEY_ACCOUNT = "default";
 
-/** True iff a usable Base x402 key is present. */
+/** Read the EVM privateKey from the legacy KEY_FILE (the pre-keychain home). */
+function legacyKeyFile(): string | null {
+  try {
+    const pk = JSON.parse(readFileSync(KEY_FILE, "utf8")).privateKey;
+    return typeof pk === "string" && pk.length > 0 ? pk : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The Base x402 privateKey, from the unified store (migrating the legacy file in). */
+function basePrivateKey(): `0x${string}` | null {
+  const pk = resolveSecret(KEY_SERVICE, KEY_ACCOUNT, legacyKeyFile);
+  return pk ? (pk as `0x${string}`) : null;
+}
+
+/** True iff a usable Base x402 key is present (store or legacy file). */
 export function baseX402Available(): boolean {
-  try { return existsSync(KEY_FILE) && !!JSON.parse(readFileSync(KEY_FILE, "utf8")).privateKey; }
-  catch { return false; }
+  return !!basePrivateKey();
 }
 
 /** The funded Base address (public) — what gets funded, and the `from` of the authorization. */
 export function baseX402Address(): string | undefined {
+  const pk = basePrivateKey();
+  if (pk) {
+    try { return privateKeyToAccount(pk).address; } catch { /* fall through */ }
+  }
+  // Last resort: a legacy file that recorded the address but not a usable key.
   try { return JSON.parse(readFileSync(KEY_FILE, "utf8")).address; } catch { return undefined; }
 }
 
 function loadAccount() {
-  const pk = JSON.parse(readFileSync(KEY_FILE, "utf8")).privateKey as `0x${string}`;
+  const pk = basePrivateKey();
+  if (!pk) throw new Error("base-x402: no key in the unified store or ~/.identity/base-x402-key.json");
   return privateKeyToAccount(pk);
 }
 

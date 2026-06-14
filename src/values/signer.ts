@@ -23,15 +23,12 @@
  * than one sign() call.
  */
 
-import { spawnSync } from "node:child_process";
 import {
   createHash,
   createPrivateKey,
   createPublicKey,
-  randomBytes,
   sign as nodeSign,
   generateKeyPairSync,
-  createCipheriv,
   createDecipheriv,
   scryptSync,
   hkdfSync,
@@ -41,6 +38,7 @@ import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { AdapterError } from "./types.js";
 import { safeZero } from "./memzero.js";
+import { getSecret, setSecret, type SecretStoreOptions } from "./keychain.js";
 
 /** Output of `sign()`. Both fields are safe to log. */
 export interface Signature {
@@ -70,19 +68,15 @@ function walletDir(): string {
 function walletEncPath(): string {
   return join(walletDir(), "wallet.enc");
 }
-// Scope security(1) calls to the user's login keychain explicitly (see
-// readFromKeychain). Lazy so HOME changes (tests) redirect it.
-function loginKeychainPath(): string {
-  return join(homedir(), "Library", "Keychains", "login.keychain-db");
-}
-// The keychain is the DEFAULT-install identity store (one slot:
-// unbrowse-x402-wallet/default). It is skipped whenever the wallet is isolated
+// The OS secret store is the DEFAULT-install identity store (one slot:
+// unbrowse-x402-wallet/default). It is bypassed whenever the wallet is isolated
 // to a non-default directory (UNBROWSE_WALLET_DIR — tests) or explicitly
-// disabled (UNBROWSE_DISABLE_KEYCHAIN=1), so an isolated run can NEVER read or
-// overwrite the real user's key. A single keychain slot cannot serve multiple
-// isolated identities, so file-only storage there is also the correct semantics.
+// disabled (UNBROWSE_DISABLE_KEYCHAIN=1) — see secretStoreOpts() — so an
+// isolated run can NEVER read or overwrite the real user's key. Kept as a
+// diagnostic predicate (exported via __internal): true when the real macOS
+// keychain is the active backend.
 function keychainEnabled(): boolean {
-  if (!isDarwin() || keychainDisabledThisProcess) return false;
+  if (!isDarwin()) return false;
   if (process.env.UNBROWSE_WALLET_DIR?.trim()) return false;
   if (process.env.UNBROWSE_DISABLE_KEYCHAIN === "1") return false;
   return true;
@@ -100,83 +94,16 @@ function isDarwin(): boolean {
   return platform() === "darwin";
 }
 
-// Within one process, once the keychain has refused us (item missing, ACL
-// prompt cancelled, no keychain bound to session), don't keep trying — that
-// causes a cascade of system dialogs. The file fallback handles us instead.
-let keychainDisabledThisProcess = false;
-
-function readFromKeychain(): Uint8Array | null {
-  if (!keychainEnabled()) return null;
-  const keychainPath = loginKeychainPath();
-  if (!existsSync(keychainPath)) {
-    keychainDisabledThisProcess = true;
-    return null;
-  }
-  const r = spawnSync(
-    "/usr/bin/security",
-    [
-      "find-generic-password",
-      "-s", KEYCHAIN_SERVICE,
-      "-a", KEYCHAIN_ACCOUNT,
-      "-w",
-      keychainPath,
-    ],
-    { encoding: "utf8" },
-  );
-  if (r.status !== 0) {
-    keychainDisabledThisProcess = true;
-    return null;
-  }
-  const hex = (r.stdout ?? "").trim();
-  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length === 0) return null;
-  return hexToBytes(hex);
-}
-
-function writeToKeychain(privkey: Uint8Array): boolean {
-  if (!keychainEnabled()) return false;
-  const keychainPath = loginKeychainPath();
-  if (!existsSync(keychainPath)) {
-    keychainDisabledThisProcess = true;
-    return false;
-  }
-  const hex = bytesToHex(privkey);
-  // `-A` allows any application to read the new item without a per-binary
-  // ACL prompt. Combined with the explicit keychain path, this prevents
-  // the "Keychain Not Found" dialog the next time a sibling unbrowse spawn
-  // (bun / nanobrew node / npm exec) tries to read it.
-  const r = spawnSync(
-    "/usr/bin/security",
-    [
-      "add-generic-password",
-      "-s", KEYCHAIN_SERVICE,
-      "-a", KEYCHAIN_ACCOUNT,
-      "-w", hex,
-      "-U", // upsert: replace if exists
-      "-A", // allow access from any application (no ACL prompts)
-      keychainPath,
-    ],
-    { encoding: "utf8" },
-  );
-  if (r.status !== 0) {
-    keychainDisabledThisProcess = true;
-    return false;
-  }
-  return true;
-}
-
-function deriveFileKey(): Buffer {
-  // Use UNBROWSE_WALLET_PASSPHRASE if present, else a host-stable but
-  // weak salt. This is BEST-EFFORT on non-macOS — for production agents
-  // the user is expected to either run on macOS or set a passphrase.
+// Legacy file decryption — ONLY for migrating a pre-keychain.ts wallet.enc
+// (raw 32 seed bytes, scrypt salt "…-v7") into the unified store. New writes
+// go through keychain.ts; this reader exists so an existing non-macOS wallet
+// is never orphaned by the move.
+function deriveLegacyFileKey(): Buffer {
   const passphrase = process.env.UNBROWSE_WALLET_PASSPHRASE ?? `unbrowse:${homedir()}`;
-  // scrypt with a fixed salt — we want determinism so the same passphrase
-  // unlocks across runs. The threat model is "someone reads ~/.unbrowse/
-  // wallet.enc without the passphrase", not "someone bruteforces with the
-  // passphrase known".
   return scryptSync(passphrase, "unbrowse-x402-wallet-v7", 32);
 }
 
-function readFromFile(): Uint8Array | null {
+function readLegacyFile(): Uint8Array | null {
   const filePath = walletEncPath();
   if (!existsSync(filePath)) return null;
   try {
@@ -186,54 +113,60 @@ function readFromFile(): Uint8Array | null {
     const iv = raw.subarray(0, 12);
     const tag = raw.subarray(12, 28);
     const ct = raw.subarray(28);
-    const key = deriveFileKey();
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    const decipher = createDecipheriv("aes-256-gcm", deriveLegacyFileKey(), iv);
     decipher.setAuthTag(tag);
-    const plain = Buffer.concat([decipher.update(ct), decipher.final()]);
-    return new Uint8Array(plain);
+    return new Uint8Array(Buffer.concat([decipher.update(ct), decipher.final()]));
   } catch {
     return null;
   }
 }
 
-function writeToFile(privkey: Uint8Array): boolean {
-  try {
-    const dir = walletDir();
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-    }
-    const key = deriveFileKey();
-    const iv = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", key, iv);
-    const ct = Buffer.concat([cipher.update(privkey), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    const blob = Buffer.concat([iv, tag, ct]);
-    writeFileSync(walletEncPath(), blob, { mode: 0o600 });
-    return true;
-  } catch {
-    return false;
-  }
+// Where the unified secret store should keep this wallet. An isolated run (a
+// test via UNBROWSE_WALLET_DIR, an explicit UNBROWSE_DISABLE_KEYCHAIN) must
+// NEVER read or overwrite the real user's OS-keychain key, so it is pinned to
+// the encrypted-file backend at the isolated dir. Otherwise the
+// platform-native backend handles it (macOS keychain / Linux secret-service /
+// Windows DPAPI) — the no-password, OS-agnostic path.
+function secretStoreOpts(): SecretStoreOptions {
+  const isolated =
+    !!process.env.UNBROWSE_WALLET_DIR?.trim() ||
+    process.env.UNBROWSE_DISABLE_KEYCHAIN === "1";
+  return isolated
+    ? { forceBackend: "encrypted-file", fallbackDir: walletDir() }
+    : { fallbackDir: walletDir() };
 }
 
 function loadPrivkey(): Uint8Array | null {
-  return readFromKeychain() ?? readFromFile();
+  // 1. The unified store. On macOS this reads the SAME keychain item the old
+  //    signer wrote (service/account + hex encoding unchanged), so existing
+  //    macOS wallets carry over with zero migration.
+  const hex = getSecret(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, secretStoreOpts());
+  if (hex && /^[0-9a-fA-F]+$/.test(hex) && hex.length > 0) {
+    return hexToBytes(hex);
+  }
+  // 2. Migration: a pre-keychain.ts wallet.enc (non-macOS / file fallback).
+  //    Decrypt it with the legacy key, re-persist into the unified store so the
+  //    next load is native, and return it — an existing wallet is never lost.
+  const legacy = readLegacyFile();
+  if (legacy) {
+    try { persistPrivkey(legacy); } catch { /* best-effort; the legacy file stays the source */ }
+    return legacy;
+  }
+  return null;
 }
 
 function persistPrivkey(privkey: Uint8Array): void {
-  // Try keychain first on darwin; fall back to file. We persist to ONE
-  // store, not both, to avoid drift.
-  if (isDarwin()) {
-    if (writeToKeychain(privkey)) return;
+  // ONE store (the unified keychain), hex-encoded — no drift between backends.
+  if (setSecret(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, bytesToHex(privkey), secretStoreOpts())) {
+    return;
   }
-  if (!writeToFile(privkey)) {
-    throw new AdapterError(
-      "adapter_unavailable",
-      "could not persist wallet key (neither macOS keychain nor encrypted file fallback succeeded)",
-      isDarwin()
-        ? "check `security` binary permissions and ~/.unbrowse/ writability"
-        : "set UNBROWSE_WALLET_PASSPHRASE and ensure ~/.unbrowse/ is writable",
-    );
-  }
+  throw new AdapterError(
+    "adapter_unavailable",
+    "could not persist wallet key (OS secret store + encrypted-file fallback both failed)",
+    isDarwin()
+      ? "check `security` binary permissions and ~/.unbrowse/ writability"
+      : "ensure secret-tool/libsecret (Linux) is installed, or ~/.unbrowse/ is writable with UNBROWSE_WALLET_PASSPHRASE set",
+  );
 }
 
 // ─── Ed25519 PKCS8 helpers ──────────────────────────────────────────────────

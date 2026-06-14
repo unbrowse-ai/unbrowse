@@ -29,7 +29,10 @@ const out = {
   dir,
   dir_is_temp: dir === process.env.UNBROWSE_WALLET_DIR,
   pointer_in_temp: existsSync(join(dir, "wallet.json")),
-  enc_in_temp: existsSync(join(dir, "wallet.enc")),
+  // The x402 key is stored via the unified keychain store; under isolation it
+  // lands in the encrypted-file backend at <dir>/secrets/… (legacy wallet.enc
+  // still accepted for a pre-migration tree). Either way it is in the temp dir.
+  enc_in_temp: existsSync(join(dir, "secrets", "unbrowse-x402-wallet__default.enc")) || existsSync(join(dir, "wallet.enc")),
   keychain_enabled: __internal.keychainEnabled(),
 };
 console.log(JSON.stringify(out));
