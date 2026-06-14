@@ -136,8 +136,15 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
       clean.body = redactSecrets(clean.body) as Record<string, unknown>;
     }
     if (clean.query) {
+      // Placeholder EVERY query value, not just strings. A numeric query value
+      // (e.g. ?otp=654321, ?pin=123456) is the real input and previously passed
+      // through unredacted — a cleartext leak for a sensitive numeric param.
+      // Strings → "example"; numbers/booleans → synthesizePlaceholder (12345/…).
       clean.query = Object.fromEntries(
-        Object.entries(clean.query).map(([key, value]) => [key, typeof value === "string" ? "example" : value]),
+        Object.entries(clean.query).map(([key, value]) => [
+          key,
+          typeof value === "string" ? "example" : synthesizePlaceholder(key, value),
+        ]),
       );
     }
     if (clean.path_params) {
