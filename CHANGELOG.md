@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.0.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.4...v9.0.5) (2026-06-14)
+
+### Features
+
+* **composites:** end-to-end wiring witness, stale-constituent invalidation, dashboard surface ([281656e](https://github.com/unbrowse-ai/unbrowse-dev/commit/281656ea7eb27b79b5bcd82487b6a34a493b4abb))
+
 ## [9.0.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.3...v9.0.4) (2026-06-14)
 
 ### Features
