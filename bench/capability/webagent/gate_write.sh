@@ -60,9 +60,17 @@ witness_pass() {  # -> echoes "PASS"/"FAIL"/"BLOCKED" + detail to stderr
     fi
   done
   # ── Axis 2: ZK input-censoring ──────────────────────────────────────────────
+  # Isolated target (non-secret nonce in the query so the URL never carries the
+  # secret) → a deterministic, unique skill-cache file. We check THAT exact file,
+  # not `ls | head -1`, so a late async flush from the axis-1 writes cannot race
+  # this assertion. The secret lives only in the body.
   local secret="zk-witness-$$-${RANDOM}"
-  rm -f "$CFG/skill-cache/adhoc-write-"*.json 2>/dev/null
-  local out; out="$(run_write "https://postman-echo.com/post" POST "{\"email\":\"x@y.z\",\"password\":\"$secret\"}")"
+  local nonce="$$-${RANDOM}"
+  local zkurl="https://postman-echo.com/post?zkn=${nonce}"
+  local zkid; zkid="adhoc-write-$(printf 'POST %s' "$zkurl" | shasum -a 256 | cut -c1-40)"
+  local zkfile="$CFG/skill-cache/${zkid}.json"
+  rm -f "$zkfile" 2>/dev/null
+  local out; out="$(run_write "$zkurl" POST "{\"email\":\"x@y.z\",\"password\":\"$secret\"}")"
   local ok="${out%%|*}" echoed="${out#*|}"
   if [ "$ok" = "none" ]; then echo "  ZK BLOCKED ($echoed)" >&2; blocked=1;
   else
@@ -73,10 +81,10 @@ witness_pass() {  # -> echoes "PASS"/"FAIL"/"BLOCKED" + detail to stderr
     if grep -rl "$secret" "$CFG" >/dev/null 2>&1; then
       echo "  ZK FAIL: cleartext secret leaked to disk" >&2; all_ok=0
     else echo "  ZK no-cleartext-on-disk PASS" >&2; fi
-    # the commitment must be persisted
-    local f; f="$(ls "$CFG/skill-cache/adhoc-write-"*.json 2>/dev/null | head -1)"
-    if [ -n "$f" ] && grep -q '"password": *"sha256:' "$f"; then echo "  ZK commitment-persisted PASS" >&2;
-    elif [ -n "$f" ]; then echo "  ZK FAIL: no sha256 commitment in persisted route" >&2; all_ok=0;
+    # the commitment must be persisted in THIS write's own deterministic file
+    local f="$zkfile"
+    if [ -n "$f" ] && [ -f "$f" ] && grep -q '"password":[ ]*"sha256:' "$f"; then echo "  ZK commitment-persisted PASS" >&2;
+    elif [ -f "$f" ]; then echo "  ZK FAIL: no sha256 commitment in persisted route" >&2; all_ok=0;
     else echo "  ZK (no persisted route file — in-memory only)" >&2; fi
   fi
   if [ "$blocked" = "1" ] && [ "$all_ok" = "1" ]; then echo BLOCKED; return; fi

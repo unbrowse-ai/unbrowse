@@ -9,6 +9,7 @@
 
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
@@ -1858,7 +1859,15 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     ["POST", "PUT", "PATCH", "DELETE"].includes((flags.method as string).toUpperCase());
   let skillId = (flags.skill ?? flags["skill-id"]) as string;
   if (!skillId && typeof flags.url === "string" && writeMethod) {
-    skillId = `adhoc-write-${Buffer.from(String(flags.url)).toString("base64url").slice(0, 24)}`;
+    // Collision-resistant id: a sha256 of (method+url), NOT a truncated base64 of
+    // the url. A 24-char base64 prefix is identical for every same-host path
+    // (e.g. all postman-echo.com/* routes), so distinct write targets clobbered
+    // the same skill-cache file. A method+url hash gives each write its own route.
+    const idHash = createHash("sha256")
+      .update(`${(flags.method as string).toUpperCase()} ${String(flags.url)}`)
+      .digest("hex")
+      .slice(0, 40);
+    skillId = `adhoc-write-${idHash}`;
   }
   if (!skillId) die("--skill is required. List skills: unbrowse skills. Or run unbrowse resolve --intent '...' first to get a skill_id.");
   if (SYNTHETIC_SKILL_IDS.has(skillId)) {
