@@ -1236,7 +1236,14 @@ function writeSkillCache(skill: SkillManifest, scopeId?: string): void {
         }
       }
     }
-    writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(skill), "utf-8");
+    // ZK input-censoring at the persistence firmament: sensitive write-body
+    // fields (password, token, api_key, …) are replaced by sha256 commitments
+    // before the secret touches disk. The in-memory recentLocalSkills copy above
+    // keeps the real value (process-local, no firmament crossing) so the in-flight
+    // execution already used it; only the persisted/publishable copy is censored.
+    const { censorSkillForPersistence } = require("../proof/input-censor.js");
+    const { skill: persistable } = censorSkillForPersistence(skill);
+    writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(persistable), "utf-8");
   } catch { /* non-critical — best effort */ }
 }
 

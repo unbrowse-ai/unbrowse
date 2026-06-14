@@ -2093,11 +2093,68 @@ export async function registerRoutes(app: FastifyInstance) {
       }
     }
     if (!skill) skill = await getSkill(skill_id, clientScope);
+
+    // ── Ad-hoc agent-driven WRITE ─────────────────────────────────────────────
+    // The agent already knows the write target (url + write-method + body) and
+    // has no marketplace skill — the webagent write-probe case. Rather than 404,
+    // synthesise a one-endpoint write skill so the existing write fast-path sends
+    // the real method+body. Supplying an explicit write method IS the deliberate
+    // caller action the unsafe-action gate requires, so confirm_unsafe is implied.
+    let adhocWrite = false;
+    let adhocEndpointId: string | undefined;
+    {
+      // An EXPLICIT write method from the agent is authoritative — it overrides any
+      // cached domain skill, so an agent-driven POST/PUT/PATCH/DELETE is deterministic
+      // (a stale GET-shaped cache must never shadow a deliberate write the agent asked for).
+      const reqMethod =
+        typeof (req.body as Record<string, unknown>)?.method === "string"
+          ? String((req.body as Record<string, unknown>).method).toUpperCase()
+          : undefined;
+      const adhocUrl =
+        context_url ?? (typeof params?.url === "string" ? params.url : undefined);
+      if (
+        reqMethod &&
+        adhocUrl &&
+        (reqMethod === "POST" || reqMethod === "PUT" || reqMethod === "PATCH" || reqMethod === "DELETE")
+      ) {
+        const { buildAdhocWriteEndpoint } = await import("../execution/index.js");
+        const reserved = new Set(["url", "endpoint_id", "method", "intent"]);
+        const pBody = (params as Record<string, unknown> | undefined)?.body;
+        const rawBody =
+          pBody && typeof pBody === "object" && !Array.isArray(pBody)
+            ? (pBody as Record<string, unknown>)
+            : Object.fromEntries(
+                Object.entries(params ?? {}).filter(([k]) => !reserved.has(k)),
+              );
+        const ep = buildAdhocWriteEndpoint(adhocUrl, reqMethod, rawBody);
+        adhocEndpointId = ep.endpoint_id;
+        const nowIso = new Date().toISOString();
+        skill = {
+          skill_id,
+          version: "1.0.0",
+          schema_version: "1",
+          name: skill_id,
+          intent_signature: intent ?? `write ${adhocUrl}`,
+          domain: (() => { try { return new URL(adhocUrl).hostname; } catch { return skill_id; } })(),
+          description: `Ad-hoc agent write to ${adhocUrl}`,
+          owner_type: "agent",
+          execution_type: "http",
+          lifecycle: "active",
+          created_at: nowIso,
+          updated_at: nowIso,
+          endpoints: [ep],
+        } as unknown as typeof skill;
+        adhocWrite = true;
+      }
+    }
+
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     const execParams = {
       ...(params ?? {}),
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
+      ...(adhocEndpointId ? { endpoint_id: adhocEndpointId } : {}),
     };
+    const effectiveConfirmUnsafe = confirm_unsafe || adhocWrite;
     try {
       // Backstop: never let execute hang indefinitely. replayRecipe, serverFetch,
       // and the browser fallback can each stall on a server that holds the
@@ -2110,7 +2167,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ? (execParams as Record<string, unknown>).endpoint_id as string
         : "";
       let execResult = await withExecuteDeadline(
-        executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope }),
+        executeSkill(skill, execParams, projection, { confirm_unsafe: effectiveConfirmUnsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope }),
         executeDeadlineMs,
         () => {
           const now = new Date().toISOString();

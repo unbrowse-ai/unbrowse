@@ -1850,7 +1850,16 @@ function schemaOf(value: unknown, depth = 4): unknown {
 const SYNTHETIC_SKILL_IDS = new Set<string>(["exa-web-search"]);
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
-  const skillId = (flags.skill ?? flags["skill-id"]) as string;
+  // Ad-hoc agent-driven write: `execute --url <u> --method POST --body '{...}'`
+  // needs no marketplace skill — synthesise a stable skill id from the url so the
+  // server's ad-hoc write path runs. --skill is only required for replay-by-id.
+  const writeMethod =
+    typeof flags.method === "string" &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes((flags.method as string).toUpperCase());
+  let skillId = (flags.skill ?? flags["skill-id"]) as string;
+  if (!skillId && typeof flags.url === "string" && writeMethod) {
+    skillId = `adhoc-write-${Buffer.from(String(flags.url)).toString("base64url").slice(0, 24)}`;
+  }
   if (!skillId) die("--skill is required. List skills: unbrowse skills. Or run unbrowse resolve --intent '...' first to get a skill_id.");
   if (SYNTHETIC_SKILL_IDS.has(skillId)) {
     die(
@@ -1894,6 +1903,15 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags.params) {
       body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
     }
+    // --body '{json}' — the agent-driven write payload. Nests under params.body so
+    // the ad-hoc write path (and pointer-field censoring) sees it as the request body.
+    if (flags.body) {
+      try {
+        (body.params as Record<string, unknown>).body = JSON.parse(flags.body as string);
+      } catch {
+        (body.params as Record<string, unknown>).body = flags.body;
+      }
+    }
     // Merge -p key=val flags (parsed in parseArgs, stashed on flags._params).
     const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
     if (cliKv && Object.keys(cliKv).length > 0) {
@@ -1903,6 +1921,10 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       body.context_url = flags.url;
       (body.params as Record<string, unknown>).url = flags.url;
     }
+    // --method forwards the HTTP verb so the API can run an ad-hoc agent-driven
+    // write (POST/PUT/PATCH/DELETE) when the agent knows the target but no
+    // marketplace skill exists. Without this the verb never reaches the server.
+    if (typeof flags.method === "string") body.method = (flags.method as string).toUpperCase();
     if (flags.intent ?? flags.task) body.intent = flags.intent ?? flags.task;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
