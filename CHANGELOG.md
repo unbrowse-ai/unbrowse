@@ -1,5 +1,23 @@
 # Changelog
 
+## [9.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.2.0...v9.3.0) (2026-06-14)
+
+### Features
+
+* **captcha:** balance-funded Capzy solver + Tencent WAF path + sticky egress ([142a9d6](https://github.com/unbrowse-ai/unbrowse-dev/commit/142a9d689df7dd5249f5856fbae28ec58f3dcf3e))
+* **cli:** add get as the read hole command ([6364964](https://github.com/unbrowse-ai/unbrowse-dev/commit/636496460b0170647dc823ad36eefee328edb7eb))
+* **cli:** make bare unbrowse the primary hole command ([83680dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/83680dd5d3d47922be4d8eb8454fb0bdd27ad94a))
+* **cli:** make fill the natural-language hole command ([5c879a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/5c879a9e1bf9b97495ac55581d413d25195903a4))
+* **sdk:** make hole contract the primary agent surface ([88bd482](https://github.com/unbrowse-ai/unbrowse-dev/commit/88bd4829caa90224a8ab8c889b2cb2115c04ac35))
+* **setup:** install the Agent Skill by default; MCP is opt-in (--mcp) ([4e79ca9](https://github.com/unbrowse-ai/unbrowse-dev/commit/4e79ca9d21158dfb2a5f873c93358f817b63ed6f))
+* **values:** unified OS-agnostic keychain secret store ([ce76965](https://github.com/unbrowse-ai/unbrowse-dev/commit/ce76965f81ec964f8aa62de08b9348981d1bd606))
+
+### Bug Fixes
+
+* **install:** restore +x on vendored kuri/utls binaries (Linux EACCES crash) ([00d9317](https://github.com/unbrowse-ai/unbrowse-dev/commit/00d931723e8af4600cb10daa6e5462b7fb0f926e))
+* **setup:** remove MCP autoinstall ([963b7f1](https://github.com/unbrowse-ai/unbrowse-dev/commit/963b7f105cd7acdc551a79296f76a68c1f6e4ff8))
+* **windows:** stage Kuri broker in releases ([e95e793](https://github.com/unbrowse-ai/unbrowse-dev/commit/e95e7934d9fa00a95d4091614195d36176e02f6b))
+
 ## [9.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.5...v9.2.0) (2026-06-14)
 
 ### Features
