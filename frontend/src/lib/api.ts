@@ -78,6 +78,8 @@ export interface SkillManifest {
   reviewed_at?: string;
   /** Owner-controlled marketplace visibility. Tri-file sync with backend/src/types.ts + src/types/skill.ts (CLAUDE.md). */
   visibility?: "public" | "private";
+  /** Discovered multi-step composites (replayable prerequisite DAGs) carried on the manifest. */
+  composites?: Array<{ composite_id: string; target: string; steps: unknown[]; edges: unknown[] }>;
 }
 
 export interface PopularSkillSummary {

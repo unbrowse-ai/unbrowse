@@ -263,6 +263,9 @@ export default function DashboardPage() {
                       <div className="truncate text-sm text-text-primary">{s.domain}</div>
                       <div className="truncate font-mono text-[11px] text-text-muted">
                         {s.endpoints?.length ?? 0} endpoint{(s.endpoints?.length ?? 0) === 1 ? "" : "s"}
+                        {s.composites?.length
+                          ? ` · ${s.composites.length} multi-step chain${s.composites.length === 1 ? "" : "s"}`
+                          : ""}
                         {s.description ? ` · ${s.description}` : ""}
                       </div>
                     </div>
