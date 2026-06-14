@@ -1306,6 +1306,32 @@ export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillMan
 }
 
 /**
+ * Enumerate every locally-known skill (in-memory recent map ∪ on-disk skill-cache).
+ * Used to build the GLOBAL cross-skill producer index — the join of every skill's
+ * `provides` into one dependency graph. De-duplicated by skill_id.
+ */
+export function listLocalSkills(): SkillManifest[] {
+  const bySkillId = new Map<string, SkillManifest>();
+  for (const s of recentLocalSkills.values()) {
+    if (s?.skill_id) bySkillId.set(s.skill_id, s);
+  }
+  // disk skill-cache fallback (survives restart; on-disk write bodies are commitment-only)
+  try {
+    const dir = getSkillCacheDir();
+    if (existsSync(dir)) {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith(".json")) continue;
+        const id = f.slice(0, -5);
+        if (bySkillId.has(id)) continue;
+        const s = readSkillCache(id);
+        if (s?.skill_id) bySkillId.set(s.skill_id, s);
+      }
+    }
+  } catch { /* best-effort enumeration */ }
+  return [...bySkillId.values()];
+}
+
+/**
  * Find an existing cached skill for the same domain, so re-captures update
  * the existing skill instead of creating duplicates. Preserves skill_id
  * across re-captures and server restarts.
