@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveOwsWalletAddress } from "./ows.js";
+import { readLocalWalletAddress } from "../values/signer.js";
 
 /**
  * Wallet precheck — lobster.cash compatible.
@@ -90,6 +91,18 @@ export function getWalletContext(): WalletContext {
     const localLobsterWallet = getLobsterWalletFromLocalConfig();
     if (localLobsterWallet) {
       return { wallet_address: localLobsterWallet, wallet_provider: "lobster.cash" };
+    }
+  }
+
+  // Native default: the agent's own self-custody wallet (~/.unbrowse/wallet.json,
+  // minted locally with the key in the OS keychain / wallet.enc). This is the
+  // OWS-style identity the agent already signs x402 with, so every install has a
+  // real, self-custody wallet with zero external setup. Read-only here (no
+  // minting) and last so an explicit OWS / lobster / env wallet always wins.
+  if (!owsDisabled) {
+    const local = readLocalWalletAddress();
+    if (local) {
+      return { wallet_address: local, wallet_provider: "unbrowse-local" };
     }
   }
 

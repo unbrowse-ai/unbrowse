@@ -2792,14 +2792,34 @@ async function cmdAccount(flags: Record<string, string | boolean>): Promise<void
   const contribution = getContributionConfig();
   const { getPaymentProviderConfig } = await import("./config/payment-provider.js");
   const paymentCfg = getPaymentProviderConfig();
+  // Native, zero-step onboarding: every install has a self-custody identity
+  // wallet. `account` is where the user identifies themselves, so surface it.
+  // READ the existing identity first (non-destructive — never touches the key),
+  // and only MINT when there genuinely is no wallet yet (first run). This keeps
+  // `account` a safe query: it can bootstrap a brand-new install's identity but
+  // never rotates an existing one if key storage is transiently unreadable. A
+  // configured payout wallet (lobster / Privy / external / OWS) still takes
+  // precedence for wallet_address; the identity wallet is shown on its own too.
+  let identityWallet: string | null = null;
+  if (process.env.UNBROWSE_DISABLE_LOCAL_WALLET !== "1") {
+    try {
+      const { readLocalWalletAddress, ensureLocalWalletAddress } = await import("./values/signer.js");
+      identityWallet = readLocalWalletAddress() ?? ensureLocalWalletAddress();
+    } catch {
+      /* best-effort: a locked-down / read-only fs still yields a usable account view */
+    }
+  }
+  const payoutWallet = cfg?.wallet_address ?? null;
   const payload = {
     signed_in: !!cfg?.api_key,
     agent_id: cfg?.agent_id ?? null,
     agent_name: cfg?.agent_name ?? null,
     email: cfg?.email ?? null,
     user_id: cfg?.user_id ?? null,
-    wallet_address: cfg?.wallet_address ?? null,
-    wallet_provider: cfg?.wallet_provider ?? null,
+    wallet_address: payoutWallet ?? identityWallet,
+    wallet_provider: cfg?.wallet_provider ?? (payoutWallet ? null : (identityWallet ? "unbrowse-local" : null)),
+    identity_wallet: identityWallet,
+    payout_wallet: payoutWallet,
     payment_provider: paymentCfg.payment.provider,
     payment_provider_set_via: paymentCfg.payment.set_via ?? "default",
     dashboard_url: `${FRONTEND_URL}/dashboard`,
@@ -2826,7 +2846,8 @@ async function cmdAccount(flags: Record<string, string | boolean>): Promise<void
   info(`  signed_in: ${payload.signed_in ? "yes" : "no"}`);
   info(`  email: ${payload.email ?? "(none)"}`);
   info(`  agent_id: ${payload.agent_id ?? "(none)"}`);
-  info(`  wallet: ${payload.wallet_address ?? "(none)"}`);
+  info(`  identity wallet: ${payload.identity_wallet ?? "(none)"}  (self-custody, unbrowse-local)`);
+  info(`  payout wallet: ${payload.payout_wallet ?? "(none — earnings route to identity wallet / sponsor pool)"}`);
   info(`  payment_provider: ${payload.payment_provider}`);
   info(`    top-up: ${PAYMENT_NUDGE[payload.payment_provider] ?? "Run `unbrowse payment-provider` to pick a rail."}`);
   info(`  auto_publish: ${payload.auto_publish ? "on" : "off"}`);
@@ -3321,9 +3342,7 @@ export const CLI_REFERENCE = {
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
 
     // ── Identity & policy ─────────────────────────────────────────────────
-    { name: "account", usage: "[--register] [--email user@example.com] [--reset-key] [--json]", desc: "Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command)." },
-    { name: "mode", usage: "", desc: "Re-prompt for contribution mode: private / share / share + earn (changes whether captured skills go to the marketplace)." },
-    { name: "payment-provider", usage: "", desc: "Re-prompt for payment provider: pay.sh / lobster.cash / external Solana / Privy embedded / skip. Controls which wallet rail settles paid calls." },
+    { name: "account", usage: "[--register] [--email user@example.com] [--reset-key] [--json]", desc: "Show local account, wallet, and contribution mode. --register mints a new key (replaces old `register` command). Contribution mode + payment provider live under `settings`/`setup`." },
     { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
@@ -3337,7 +3356,6 @@ export const CLI_REFERENCE = {
     // ── Capture (live-browser indexing) ───────────────────────────────────
     { name: "capture", usage: "--url <url> --intent <intent> [--retries N]  |  --corpus <file> --out <file> [--retries N]", desc: "Advanced: live-browser HAR capture; discovers + indexes API endpoints. `run` calls this automatically on misses. Marketplace publish gated by `unbrowse mode`." },
     { name: "auth", usage: '<url>', desc: "Open a visible browser so you can sign in to a site; cookies persist for future run/fetch/resolve. (Old names: `auth-capture`, `login`.)" },
-    { name: "note", usage: "<read|write|list> --domain <domain> [--body \"...\"]", desc: "Per-domain LLM-prose notes consumed by augment on next capture. Populate after reading capture's note_evidence." },
 
     // ── Skill management ──────────────────────────────────────────────────
     { name: "skills", usage: "", desc: "List all locally-cached skills (skill_id, domain, endpoint count)." },
@@ -3477,6 +3495,56 @@ export const CLI_REFERENCE = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Deprecated verbs — one registry, one notice.
+//
+// The runtime is in-process and the route contracts live server-side, so the
+// daemon-era management verbs (serve/stop/restart/status) have nothing to
+// manage, and several local utilities were folded into a canonical verb. A
+// deprecated verb is not removed mid-flight: it prints ONE consistent notice
+// pointing at the canonical path and then either forwards (grace period) or,
+// for the daemon verbs that have no successor, stops cleanly instead of
+// dropping to a confusing "Unknown command".
+// ---------------------------------------------------------------------------
+export interface DeprecatedVerb {
+  /** What to use instead. Empty string = nothing (the verb is simply gone). */
+  canonical: string;
+  /** Why it went away — shown to the human, not the agent's JSON. */
+  reason: string;
+  /** No successor: print the notice and exit 0 rather than forwarding. */
+  removed?: boolean;
+}
+
+// `serve`/`stop`/`restart`/`status` are NOT here on purpose — they are the
+// explicit foreground compatibility-daemon facade (see CLAUDE.md "Local runtime
+// authority") and keep their own handlers. Everything below is a local utility
+// that the in-process + server-contract model made redundant: folded into a
+// canonical verb (forward) or simply gone (removed).
+export const DEPRECATED_VERBS: Record<string, DeprecatedVerb> = {
+  // Folded into a canonical verb — print the notice, then forward (grace period).
+  "connect-chrome": { canonical: "go", reason: "the Kuri browser broker replaced direct Chrome CDP — `go` opens a session" },
+  mode: { canonical: "settings", reason: "contribution mode lives under `settings`" },
+  "payment-provider": { canonical: "setup", reason: "wallet/provider setup lives under `setup`" },
+  "browse-cookies": { canonical: "cookies", reason: "duplicate of `cookies`" },
+  "contract-bridge": { canonical: "contract", reason: "internal bridge — use the `contract` verb" },
+  // Gone — not part of the web-routing surface; print the notice and stop.
+  note: { canonical: "", reason: "not part of the web-routing surface", removed: true },
+};
+
+/** The lean essential path — these must never be deprecated (guarded by the witness). */
+export const ESSENTIAL_VERBS: readonly string[] = [
+  "resolve", "execute", "run", "fetch", "search",
+  "go", "snap", "click", "fill", "type", "press", "select", "scroll", "submit", "sync", "close",
+  "auth", "auth-capture", "skills", "skill", "publish", "index", "setup", "health", "mcp",
+];
+
+/** Format the one deprecation notice for a verb, or undefined if it is not deprecated. */
+export function deprecationNotice(verb: string): string | undefined {
+  const d = DEPRECATED_VERBS[verb];
+  if (!d) return undefined;
+  const pointer = d.canonical ? `use \`${d.canonical}\` instead` : "no longer needed";
+  return `[deprecated] \`${verb}\` — ${pointer} (${d.reason})`;
+}
 
 // ---------------------------------------------------------------------------
 // stats — show lifetime impact (savings + earnings) for the current agent
@@ -5241,6 +5309,17 @@ async function main(): Promise<void> {
         return cmdSiteBatch(pack, batchArg, flags);
       }
       return cmdSiteTask(pack, taskName, flags);
+    }
+  }
+
+  // Deprecated verbs: one consistent notice, then stop (no successor) or
+  // forward to the canonical handler (grace period). Runs before the runtime
+  // boots so the removed daemon verbs don't spin up an app just to say goodbye.
+  {
+    const dep = DEPRECATED_VERBS[command];
+    if (dep) {
+      info(deprecationNotice(command)!);
+      if (dep.removed) return;
     }
   }
 
