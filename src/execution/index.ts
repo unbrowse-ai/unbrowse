@@ -934,6 +934,44 @@ export function buildPageFetchEndpoint(
   };
 }
 
+/**
+ * Build an ad-hoc WRITE endpoint from an agent-supplied (url, method, body).
+ *
+ * The agent already knows the write target (it has the URL, the method, and the
+ * body) — there is no marketplace skill to look up and no page to capture. This
+ * is the agent-driven write primitive: `unbrowse execute --url <u> --method POST
+ * --params '{...}'` synthesises this descriptor and the existing write fast-path
+ * (executeEndpoint, "Write fast-path" block) serverFetches the real method+body.
+ *
+ * idempotency is "unsafe" so the upstream auto-exec gate still requires a
+ * deliberate caller action (confirm_unsafe); this only enables the EXPLICIT
+ * write the agent asked for, never a silent side effect.
+ */
+export function buildAdhocWriteEndpoint(
+  url: string,
+  method: string,
+  body: unknown,
+): EndpointDescriptor {
+  const m = method.toUpperCase();
+  return {
+    endpoint_id: stableEndpointId(m, url + "#adhoc_write"),
+    method: m as EndpointDescriptor["method"],
+    url_template: url,
+    idempotency: "unsafe" as const,
+    verification_status: "unverified" as const,
+    reliability_score: 0.5,
+    description: `Ad-hoc ${m} to ${url}`,
+    ...(body !== undefined && body !== null ? { body: body as Record<string, unknown> } : {}),
+    trigger_url: url,
+    semantic: {
+      action_kind: "write",
+      resource_kind: "record",
+      description_in: `Sends a ${m} request to ${url}`,
+      description_out: `Returns the ${url} write response`,
+    },
+  } as EndpointDescriptor;
+}
+
 function derivePublicApiEndpointsFromUrl(
   url: string,
   intent: string,
