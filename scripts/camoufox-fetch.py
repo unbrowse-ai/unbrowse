@@ -36,6 +36,20 @@ CF_INTERSTITIAL = re.compile(
     re.IGNORECASE,
 )
 
+# Tencent Cloud WAF captcha (sg.captcha.qcloud.com / `new Captcha('<appId>', ...)`),
+# as served by rootdata.com and other Tencent-fronted sites. Yoinked detection
+# target from the Boterdrop-Solver /clearance pattern, generalized beyond Cloudflare:
+# a stealth browser (camoufox) on a residential IP frequently gets Tencent's risk
+# check to return ret:0 (no slider), and once cleared the WAF sets a clearance cookie
+# we harvest for HTTP replay. Markers are the captcha bootstrap + its visible refresh text.
+TENCENT_WAF = re.compile(
+    r"__captcha|WafCaptcha|captcha\.qcloud\.com|Captcha\.js|new Captcha\(|"
+    r"Verification Code will refresh|Refreshing too often",
+    re.IGNORECASE,
+)
+
+CHALLENGE = re.compile(f"(?:{CF_INTERSTITIAL.pattern})|(?:{TENCENT_WAF.pattern})", re.IGNORECASE)
+
 
 def parse_proxy(raw: str):
     """playwright wants {server, username, password}; our env carries a URL."""
@@ -57,13 +71,21 @@ def parse_proxy(raw: str):
 
 
 def looks_blocked(html: str, title: str) -> bool:
-    blob = f"{title}\n{html[:4000]}"
-    return bool(CF_INTERSTITIAL.search(blob))
+    # The challenge stub is tiny; only scan a head window. Tencent's bootstrap
+    # marker (`__captcha`) can sit slightly deeper than CF's, so widen to 8KB.
+    blob = f"{title}\n{html[:8000]}"
+    return bool(CHALLENGE.search(blob))
 
 
-def solve_cloudflare(page, deadline: float) -> bool:
-    """Detect + wait out the JS challenge; click an interactive Turnstile if present.
-    Returns True when the page is no longer the interstitial."""
+def solve_challenge(page, deadline: float) -> bool:
+    """Detect + clear the challenge (Cloudflare interstitial/Turnstile OR Tencent WAF).
+    Returns True when the page is no longer a challenge page.
+
+    Strategy is the same shape for both vendors: let the stealth browser run the
+    challenge JS (camoufox's C++-level spoofing is what gets the risk check to pass
+    without a slider), nudge any interactive widget, and re-check. Tencent's
+    `/WafCaptcha` POST + `window.location.reload(true)` self-clears once ret:0, so
+    waiting is usually enough; we also click into a visible qcloud iframe if present."""
     while time.time() < deadline:
         try:
             title = page.title() or ""
@@ -73,7 +95,7 @@ def solve_cloudflare(page, deadline: float) -> bool:
             continue
         if not looks_blocked(html, title):
             return True
-        # Interactive Turnstile: click the checkbox inside the CF challenge iframe.
+        # Interactive Cloudflare Turnstile: click the checkbox inside the CF iframe.
         try:
             for fr in page.frames:
                 src = (fr.url or "")
@@ -86,9 +108,19 @@ def solve_cloudflare(page, deadline: float) -> bool:
                                 break
                         except Exception:
                             continue
+                # Tencent TCaptcha renders its slider inside an *.captcha.qcloud.com iframe.
+                if "captcha.qcloud.com" in src or "captcha.gtimg.com" in src:
+                    for sel in ("#tcaptcha_drag_button", ".tc-slider-normal", "#slideBg", "body"):
+                        try:
+                            el = fr.query_selector(sel)
+                            if el:
+                                el.scroll_into_view_if_needed(timeout=1500)
+                                break
+                        except Exception:
+                            continue
         except Exception:
             pass
-        # Non-interactive JS challenge auto-clears; just let it run.
+        # Non-interactive challenge auto-clears (Tencent reloads on ret:0); let it run.
         try:
             page.wait_for_timeout(2500)
         except Exception:
@@ -98,6 +130,38 @@ def solve_cloudflare(page, deadline: float) -> bool:
         return not looks_blocked(page.content() or "", page.title() or "")
     except Exception:
         return False
+
+
+def harvest_clearance(page):
+    """Boterdrop /clearance primitive: after the challenge clears, the WAF has set
+    an IP+UA-bound clearance cookie. Harvest the cookie jar + the exact user-agent
+    that solved it so a downstream HTTP fetch can replay them (the clearance is
+    worthless from a different UA/IP). Returns (cookies, user_agent, cookie_header)."""
+    cookies = []
+    user_agent = ""
+    try:
+        ctx = page.context
+        cookies = ctx.cookies() or []
+    except Exception:
+        cookies = []
+    try:
+        user_agent = page.evaluate("() => navigator.userAgent") or ""
+    except Exception:
+        user_agent = ""
+    cookie_header = "; ".join(
+        f"{c.get('name')}={c.get('value')}" for c in cookies if c.get("name")
+    )
+    slim = [
+        {
+            "name": c.get("name"),
+            "value": c.get("value"),
+            "domain": c.get("domain"),
+            "path": c.get("path", "/"),
+        }
+        for c in cookies
+        if c.get("name")
+    ]
+    return slim, user_agent, cookie_header
 
 
 def main() -> int:
@@ -138,10 +202,13 @@ def main() -> int:
                 pass
             solved = True
             if not args.no_solve:
-                solved = solve_cloudflare(page, deadline)
+                solved = solve_challenge(page, deadline)
             html = page.content() or ""
             title = page.title() or ""
             status = 200 if (html and not looks_blocked(html, title)) else 403
+            # Harvest the clearance (cookies + UA) regardless of block state — even a
+            # partial clear seeds the per-domain replay jar for the next sticky-IP call.
+            cookies, user_agent, cookie_header = harvest_clearance(page)
     except Exception as e:
         print(json.dumps({"error": f"camoufox fetch failed: {type(e).__name__}: {e}"}))
         return 1
@@ -154,6 +221,10 @@ def main() -> int:
         "html_b64": base64.b64encode(html_b).decode("ascii"),
         "solved": (not blocked),
         "title": title[:200],
+        # Boterdrop /clearance primitive: the IP+UA-bound clearance for HTTP replay.
+        "cookies": cookies,
+        "user_agent": user_agent,
+        "cookie_header": cookie_header,
     }
     print(json.dumps(out))
     return 0 if (not blocked and len(html_b) > 1024) else 1

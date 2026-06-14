@@ -43,14 +43,67 @@
  * Proxy-Authorization, no silent retry loop.
  */
 import { randomBytes } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { x402Fetch, type X402SubState } from "../payments/x402-fetch.js";
 import { peekFailure, recordFailure, recordOutcome } from "../values/failure-cache.js";
 import { loadCredsFileSync } from "../cdp/proxy/iproyal.js";
 
-// Module-stable IProyal sticky-session id: one sticky exit IP per process run, so a
-// capture → (paid solve) → re-fetch chain all exit from the SAME residential IP (required
-// when a cookie/cf_clearance is IP-bound). Override per-call via UNBROWSE_IPROYAL_SESSION.
-const STICKY_SESSION_ID = randomBytes(4).toString("hex");
+// CROSS-PROCESS-stable IProyal sticky-session id. The exit IP an IProyal sticky
+// session maps to is held for `lifetime` (default 30m). The WAF clearance a site
+// hands out (Tencent WAF ticket, cf_clearance, ...) is IP-BOUND — so a
+// `unbrowse auth` (interactive solve, process A) and a later `unbrowse fetch`
+// (process B) MUST exit from the SAME residential IP or the clearance is worthless
+// and the WAF re-challenges. A per-process-random id breaks that: A and B roll
+// different ids → different IPs → re-challenge + rate-limit ("Refreshing too often").
+//
+// So the session id is PERSISTED to ~/.unbrowse/iproyal-session.json and reused by
+// every unbrowse process for the window below — one stable residential identity the
+// solved clearance stays bound to. Refreshes after STICKY_SESSION_MAX_AGE_MS (kept
+// under IProyal's lifetime so we never reuse an id whose IP already rotated).
+// Override per-call via UNBROWSE_IPROYAL_SESSION; opt out of persistence with
+// UNBROWSE_IPROYAL_SESSION_PERSIST=0 (back to per-process-random).
+const STICKY_SESSION_MAX_AGE_MS = 25 * 60_000; // < IProyal default lifetime (30m)
+
+function stickySessionStatePath(env: NodeJS.ProcessEnv): string {
+  const base = env.UNBROWSE_STATE_DIR?.trim() || join(homedir(), ".unbrowse");
+  return join(base, "iproyal-session.json");
+}
+
+let _processStickyFallback: string | undefined;
+
+/** Resolve the cross-process-stable sticky session id (see block comment above). */
+export function stickySessionId(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit = env.UNBROWSE_IPROYAL_SESSION?.trim();
+  if (explicit) return explicit;
+
+  const persistOff = (env.UNBROWSE_IPROYAL_SESSION_PERSIST ?? "").trim().toLowerCase();
+  if (persistOff === "0" || persistOff === "false" || persistOff === "no") {
+    return (_processStickyFallback ??= randomBytes(4).toString("hex"));
+  }
+
+  const path = stickySessionStatePath(env);
+  try {
+    const st = statSync(path);
+    if (Date.now() - st.mtimeMs < STICKY_SESSION_MAX_AGE_MS) {
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as { id?: unknown };
+      if (typeof parsed.id === "string" && parsed.id.length > 0) return parsed.id;
+    }
+  } catch {
+    /* missing / unreadable / expired → mint a fresh one below */
+  }
+
+  const id = randomBytes(4).toString("hex");
+  try {
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, JSON.stringify({ id, createdAt: Date.now() }), { mode: 0o600 });
+  } catch {
+    /* state dir unwritable — degrade to in-process stability for this run */
+    return (_processStickyFallback ??= id);
+  }
+  return id;
+}
 
 /**
  * Append IProyal sticky-session params to the PASSWORD segment (the documented IProyal grammar
@@ -69,7 +122,7 @@ export function iproyalStickySuffix(env: NodeJS.ProcessEnv = process.env): strin
   const off = (env.UNBROWSE_IPROYAL_STICKY ?? "").trim().toLowerCase();
   if (off === "0" || off === "false" || off === "no") return ""; // explicit opt-out → rotating
   const country = env.UNBROWSE_IPROYAL_COUNTRY?.trim();
-  const session = env.UNBROWSE_IPROYAL_SESSION?.trim() || STICKY_SESSION_ID;
+  const session = stickySessionId(env);
   const lifetime = env.UNBROWSE_IPROYAL_LIFETIME?.trim() || "30m";
   return `${country ? `_country-${country}` : ""}_session-${session}_lifetime-${lifetime}`;
 }
