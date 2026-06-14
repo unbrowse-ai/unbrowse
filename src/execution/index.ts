@@ -25,6 +25,7 @@ import { recordEndpointStrike, clearEndpointStrikes } from "../client/eviction-s
 import { withRetry, isRetryableStatus, parseRetryAfter } from "./retry.js";
 import { deriveRecipeReplayNextStep } from "./recipe-replay-hints.js";
 import { probeUrl, decideFromProbe } from "./probe.js";
+import { bindingsFromBody, yieldsFromResponse } from "../lib/write-receipt.js";
 import { isCaptchaVendor, solveCaptchaViaX402, injectSolvedToken } from "./captcha-solve.js";
 import type { ChainWalkContext, DecisionTraceStep, EndpointDescriptor, ExecutionOptions, ExecutionTrace, OperationBinding, ProjectionOptions, ProvenRecipe, ProvenRecipeResponseSignal, SessionYield, SessionYieldCache, SkillManifest } from "../types/index.js";
 import { isBindingStale } from "../orchestrator/dag-feedback.js";
@@ -968,6 +969,13 @@ export function buildAdhocWriteEndpoint(
       resource_kind: "record",
       description_in: `Sends a ${m} request to ${url}`,
       description_out: `Returns the ${url} write response`,
+      // Declare the write's input bindings so it composes in the route DAG exactly
+      // like a read's requires/provides. Sensitive leaves carry their commitment, not
+      // the value. `provides` (the created-resource id) is derived from the response
+      // at execution time via buildWriteReceipt(yieldsFromResponse).
+      ...(body && typeof body === "object" && !Array.isArray(body)
+        ? { requires: bindingsFromBody(body) }
+        : {}),
     },
   } as EndpointDescriptor;
 }
@@ -4786,7 +4794,15 @@ export async function executeEndpoint(
   // verdict-skip path was the silent success-shaped junk leak (see live
   // regressions from .bench-gate/20260521T010031Z probes 018/019/025/029,
   // cited in looksLikeTinyContentReadResult docstring).
-  if (trace.success && effectiveIntent && data != null) {
+  // The tiny-extraction gate is a READ heuristic: a meta-only envelope fails a
+  // content-read. A WRITE's response is legitimately small (e.g. 201 + {id:101}) —
+  // that is the created resource, not a thin extraction — so the gate must NOT run
+  // for write endpoints, or every real REST write (which returns a compact body)
+  // would be mis-flagged as failure.
+  const isWriteEndpoint =
+    ["POST", "PUT", "PATCH", "DELETE"].includes(String(endpoint.method ?? "").toUpperCase()) ||
+    endpoint.semantic?.action_kind === "write";
+  if (trace.success && effectiveIntent && data != null && !isWriteEndpoint) {
     const semanticAssessment = assessIntentResult(data, effectiveIntent);
     const tinyCheck = semanticAssessment.verdict === "pass"
       ? { tiny: false as const }
@@ -4810,6 +4826,21 @@ export async function executeEndpoint(
       trace.result = data;
       trace.steps?.push({ step: "extraction_too_thin_gate", reason: tinyCheck.reason });
     }
+  }
+
+  // Backfill the write's `provides` (yields) from the response: the created-resource
+  // id(s) the write minted. This is the second half of the contract-shaped receipt —
+  // with `requires` declared at build time, a successful write now registers BOTH
+  // edges, so a downstream op can chain on the new resource (DAG-recompute north star).
+  if (trace.success && isWriteEndpoint && data != null) {
+    try {
+      const provides = yieldsFromResponse(data);
+      if (provides.length > 0) {
+        endpoint.semantic = { ...(endpoint.semantic ?? { action_kind: "write", resource_kind: "record" }), provides };
+        trace.steps?.push({ step: "write_yields_registered", keys: provides.map((b) => b.key) });
+        cachePublishedSkill(skill, options?.client_scope);
+      }
+    } catch { /* receipt is best-effort — never fail the write on it */ }
   }
 
   // Backfill response_schema on first successful execution — push to marketplace so all agents benefit
