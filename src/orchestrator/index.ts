@@ -360,6 +360,84 @@ export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): stri
   }
 }
 
+// --- Composite contracts (the persisted contract sub-DAG of a multi-step resolution) ---
+// internal/composition-persist-replay-plan.md lever 3. A composite is a local cache like a skill
+// snapshot, under the same gate (off unless UNBROWSE_LOCAL_CACHES=1) — it can go stale exactly
+// like the routes it composes; the backend graph stays the source of truth.
+// Dir + gate read at CALL time (not module load) so a bench can flip UNBROWSE_LOCAL_CACHES
+// mid-process and so the store is testable without env-at-import hoisting games.
+function compositeSnapshotDir(): string {
+  return process.env.UNBROWSE_COMPOSITE_DIR
+    ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "composites");
+}
+
+export interface PersistedComposite {
+  composite_id: string;
+  intent_signature: string;
+  domain: string;
+  target: string;
+  steps: ChainStepInfo[];
+  edges: CompositeEdge[];
+  created_at: string;
+}
+
+/** Content-address a composite by what makes it the SAME DAG: the domain, the target endpoint, the
+ *  ordered constituent endpoints, and the binding edges. This is structural identity (used by
+ *  settle/publish, levers 5–6) — intent phrasing is metadata, NOT identity, since the prerequisite
+ *  structure is a property of the target endpoint, not how the user asked. */
+export function compositeAddress(
+  domain: string,
+  target: string,
+  steps: ChainStepInfo[],
+  edges: CompositeEdge[],
+): string {
+  const canonical = [
+    `domain:${domain}`,
+    `target:${target}`,
+    `steps:${steps.map((s) => s.endpoint_id).join(">")}`,
+    `edges:${edges.map((e) => `${e.from}.${e.binding}->${e.to}`).sort().join("|")}`,
+  ].join("::");
+  return `composite:${createHash("sha256").update(canonical).digest("hex").slice(0, 32)}`;
+}
+
+/** Replay LOOKUP key — what a resolve knows BEFORE the walk: the domain and the target endpoint it
+ *  picked. Maps to the persisted composite so replay finds the recorded step order without re-walking.
+ *  (The full content-address needs steps+edges, which only exist after the walk — so the filename is
+ *  this pre-walk key, and composite_id rides inside as the structural identity.) */
+export function compositeLookupKey(domain: string, target: string): string {
+  const canonical = `domain:${domain}::target:${target}`;
+  return `lookup:${createHash("sha256").update(canonical).digest("hex").slice(0, 32)}`;
+}
+
+function compositeFilePath(lookupKey: string): string {
+  return join(compositeSnapshotDir(), `${lookupKey.replace(/[^a-z0-9]/gi, "_")}.json`);
+}
+
+export function writeComposite(c: PersistedComposite): string | undefined {
+  if (process.env.UNBROWSE_STATELESS === "1") return undefined;
+  if (process.env.UNBROWSE_LOCAL_CACHES !== "1") return undefined;
+  try {
+    mkdirSync(compositeSnapshotDir(), { recursive: true });
+    const target = compositeFilePath(compositeLookupKey(c.domain, c.target));
+    writeFileSync(target, JSON.stringify(c), "utf-8");
+    return target;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Look up a persisted composite by the pre-walk key (domain + target endpoint). On hit, the caller
+ *  replays the recorded `steps` in order instead of re-deriving the prerequisite order. */
+export function readComposite(domain: string, target: string): PersistedComposite | undefined {
+  try {
+    const path = compositeFilePath(compositeLookupKey(domain, target));
+    if (!existsSync(path)) return undefined;
+    return JSON.parse(readFileSync(path, "utf-8")) as PersistedComposite;
+  } catch {
+    return undefined;
+  }
+}
+
 function hasSearchBindings(endpoint: SkillManifest["endpoints"][number]): boolean {
   const haystack = JSON.stringify({
     url: endpoint.url_template,
@@ -1858,6 +1936,38 @@ export function buildCompositeEdges(
       return from ? { from: from.endpoint_id, binding, to: target } : null;
     })
     .filter((e): e is CompositeEdge => e !== null);
+}
+
+export interface ReplayDecision {
+  prereqOrder: string[];
+  replayedCompositeId?: string;
+}
+
+/**
+ * Lever 4 (replay) — decide the prerequisite order for a resolve. If a composite was persisted for
+ * this (domain, target) and every recorded step is still replayable (exists + auto-executable, never
+ * an irreversible op), run the recorded order first (the known-good DAG), appending any extra live
+ * advisory prereqs the composite didn't record. Otherwise fall back to the live order unchanged — a
+ * stale/missing/now-irreversible constituent cleanly degrades to full recompute. Pure + testable.
+ */
+export function planPrereqOrder(
+  livePrereqOrder: string[],
+  persisted: PersistedComposite | undefined,
+  isReplayable: (endpointId: string) => boolean,
+): ReplayDecision {
+  if (persisted && persisted.steps.length > 0) {
+    const recordedOrder = persisted.steps.map((s) => s.endpoint_id);
+    if (recordedOrder.every((id) => isReplayable(id))) {
+      return {
+        prereqOrder: [
+          ...recordedOrder,
+          ...livePrereqOrder.filter((p) => !recordedOrder.includes(p)),
+        ],
+        replayedCompositeId: persisted.composite_id,
+      };
+    }
+  }
+  return { prereqOrder: livePrereqOrder };
 }
 
 /**
@@ -3563,7 +3673,34 @@ export async function resolveAndExecute(
         // value — dependency-ordered execution, not an LLM guess. Only fires when the DAG knows a
         // prerequisite provides the binding; otherwise the LLM-inference path is unchanged.
         let chainBound: Record<string, string | number | boolean> = {};
-        const prereqOrder = dagPlan?.prerequisite_order ?? [];
+        let prereqOrder = dagPlan?.prerequisite_order ?? [];
+        // Lever 4 — replay: if a composite was persisted for (domain, target) from a prior satisfied
+        // resolve, use its recorded step order so the chain runs in the known-good sequence even when
+        // the live DAG advisory misses — skipping prerequisite re-discovery. Guard: every recorded
+        // step must still exist in the skill AND be auto-executable (never silently re-run an
+        // irreversible step; a stale/missing constituent falls back to the full recompute path).
+        let replayedCompositeId: string | undefined;
+        if (stillUnbound.length > 0) {
+          const replayDomain =
+            skill.domain ??
+            (() => {
+              try {
+                return new URL(candidate.endpoint.url_template).hostname;
+              } catch {
+                return "";
+              }
+            })();
+          const persisted = readComposite(replayDomain, candidate.endpoint.endpoint_id);
+          const decision = planPrereqOrder(prereqOrder, persisted, (id) => {
+            const ep = skill.endpoints.find((e) => e.endpoint_id === id);
+            return ep != null && canAutoExecuteEndpoint(ep);
+          });
+          prereqOrder = decision.prereqOrder;
+          replayedCompositeId = decision.replayedCompositeId;
+          if (replayedCompositeId) {
+            console.log(`[chain] composite replay → ${candidate.endpoint.endpoint_id} (${replayedCompositeId})`);
+          }
+        }
         if (stillUnbound.length > 0 && prereqOrder.length > 0) {
           const chainSteps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }> = [];
           chainBound = await walkPrerequisiteChain(
@@ -3582,13 +3719,56 @@ export async function resolveAndExecute(
             // binding edges threaded between them and the target, and the target endpoint.
             // This is the artifact a future lever persists + replays as one unit
             // (see internal/contract-ledger-architecture.md, levers 3–4).
+            const compositeEdges = buildCompositeEdges(
+              candidate.endpoint.endpoint_id,
+              chainSteps,
+              Object.keys(chainBound),
+            );
+            const compositeDomain =
+              skill.domain ??
+              (() => {
+                try {
+                  return new URL(candidate.endpoint.url_template).hostname;
+                } catch {
+                  return "";
+                }
+              })();
+            const compositeIntentSig = (queryIntent ?? "").trim().toLowerCase();
+            const compositeId = compositeAddress(
+              compositeDomain,
+              candidate.endpoint.endpoint_id,
+              chainSteps,
+              compositeEdges,
+            );
             const composite = {
+              composite_id: compositeId,
               target: candidate.endpoint.endpoint_id,
               steps: chainSteps,
-              edges: buildCompositeEdges(candidate.endpoint.endpoint_id, chainSteps, Object.keys(chainBound)),
+              edges: compositeEdges,
+              // lever 4: replay when this resolve ran a persisted composite's recorded order,
+              // walk when it discovered the order live this run.
+              mode: replayedCompositeId === compositeId ? "composite_replay" : "composite_walk",
             };
             (decisionTrace as Record<string, unknown>).prerequisite_chain = chainSteps;
             (decisionTrace as Record<string, unknown>).composite = composite;
+            // Lever 3 — persist the composite as a content-addressed descriptor so a later resolve
+            // for the same intent can replay the DAG instead of re-walking it. Guard: only when
+            // every step succeeded AND the target is auto-executable — never persist a composite
+            // whose target is an irreversible op (pay/book/submit), and never one with a failed step.
+            if (chainSteps.every((s) => s.ok) && canAutoExecuteEndpoint(candidate.endpoint)) {
+              const persistedPath = writeComposite({
+                composite_id: compositeId,
+                intent_signature: compositeIntentSig,
+                domain: compositeDomain,
+                target: composite.target,
+                steps: chainSteps,
+                edges: compositeEdges,
+                created_at: new Date().toISOString(),
+              });
+              if (persistedPath) {
+                (decisionTrace as Record<string, unknown>).composite_persisted = compositeId;
+              }
+            }
             console.log(
               `[chain] composite → ${composite.target} via ` +
                 composite.edges.map((e) => `${e.from}.${e.binding}`).join(" + ") || "(no edges)",
