@@ -9,6 +9,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildGlobalProducerIndex,
   resolveProducersForHole,
+  suggestCrossSkillProducers,
   bindingIdentityKey,
 } from "../src/lib/graph-core/cross-skill-index.js";
 import type { SkillManifest } from "../src/types/skill.js";
@@ -79,5 +80,18 @@ describe("buildGlobalProducerIndex + resolveProducersForHole", () => {
     const hole = { key: "orderId", source: "body" };
     const producers = resolveProducersForHole(index, hole, "lineitem", { excludeSkillId: "lineitem" });
     expect(producers.map((p) => p.skill_id)).toEqual(["orders"]);
+  });
+
+  it("suggestCrossSkillProducers names the producer for each UNFILLED hole only", () => {
+    const epRequires = [
+      { key: "postId", required: true, source: "body" }, // unfilled → suggest blog
+      { key: "text", required: true, source: "body" },   // filled → no suggestion
+      { key: "invoiceId", required: true, source: "body" }, // unfilled, no producer → omitted
+    ];
+    const suggestions = suggestCrossSkillProducers(epRequires, { text: "hi" }, "comment", "comments", index);
+    expect(suggestions.length).toBe(1);
+    expect(suggestions[0].hole).toBe("postId");
+    expect(suggestions[0].producers[0].skill_id).toBe("blog");
+    expect(suggestions[0].producers[0].endpoint_id).toBe("ep_post_create");
   });
 });
