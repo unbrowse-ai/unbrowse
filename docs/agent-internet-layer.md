@@ -7,6 +7,12 @@ layer that can settle the witness. That descent may reuse a route, execute a cap
 endpoint, call a standard adapter, open a browser with local cookies, inspect HAR,
 capture a new route, and index it for the next caller.
 
+That boundary protects both sides. A company can expose a useful contract without
+handing users its internal API map, HAR contents, auth headers, or route-scoring logic.
+A user can authorize a fill without sending raw credentials or PII to the graph. Secret
+values stay local behind zk-bound / pointer-only holes; the wire carries typed pointers,
+wallet-bound proofs, approvals, and receipts.
+
 This page documents the public boundary: the hole/contract an agent fills, the
 compatibility ops exposed underneath it, the receipt shape, and the trust promise.
 It does not document how routes are scored, ranked, or value-populated; that is
@@ -30,7 +36,12 @@ The bridge exposes five client-fillable holes:
 | `local_capability_result` | local dispatcher | No |
 | `typed_pointer` | server pointer | No |
 
-In SDK code, the current surface is `createHole().fill(...)`:
+In CLI or SDK code, the current surface is one fill:
+
+```bash
+unbrowse fill "top stories with point counts"
+unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+```
 
 ```ts
 import { createHole } from "unbrowse/sdk";

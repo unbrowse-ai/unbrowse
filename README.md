@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Company route IP stays behind typed contracts: end users fill holes and receive results, not raw internal API maps, auth material, HAR payloads, or PII. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Agent Skill, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish. MCP remains available as a legacy compatibility surface.
 
@@ -46,7 +46,12 @@ The bridge exposes five client-fillable holes:
 - `local_capability_result`
 - `typed_pointer`
 
-In SDK code this is one tool:
+In the CLI and SDK this is one tool:
+
+```bash
+unbrowse fill "get the top Hacker News stories with points"
+unbrowse fill "get the top Hacker News stories with points" --url "https://news.ycombinator.com"
+```
 
 ```ts
 import { createHole } from "unbrowse/sdk";
@@ -72,7 +77,7 @@ Each op produces a **pointer-only, wallet-signed receipt**: it points *at* value
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `createHole().fill(...)` or inspect `unbrowse contract surface`.
+> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `unbrowse fill ...`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
 
 ## Drop-in client adapters
 

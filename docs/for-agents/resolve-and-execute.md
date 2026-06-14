@@ -14,6 +14,13 @@ const result = await hole.fill({
 });
 ```
 
+From a shell, call the same contract as:
+
+```bash
+unbrowse fill "latest releases from unbrowse-ai/unbrowse"
+unbrowse fill "latest releases from this repository" --url "https://github.com/unbrowse-ai/unbrowse"
+```
+
 The machine-readable shape is:
 
 ```bash
