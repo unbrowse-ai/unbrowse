@@ -19,58 +19,61 @@ Identity, Authentication, and Zero-Knowledge Privacy across the Stack}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}
   \and Cayden Chik\\ Unbrowse AI \\ \texttt{cayden@unbrowse.ai}}
-\date{March 2026}
+\date{May 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-The field agreed, sensibly, that to let an agent use the web you mainly need a
-good search API and a tidy way to call internal endpoints. This is true. It is
-also, with apologies to a more famous paper,\footnote{The title is an affectionate
-mugging of ``Attention Is All You Need.'' Yes, we know. That \emph{is} the bit.}
-\emph{not all you needed.} An agent stops being a polite HTTP client the instant
-it has to click something, run a shell command, open a real browser, or put bytes
-on a socket that a bot-detector is staring at. The interesting work does not
-politely confine itself to the layer where JSON comes out. This paper makes one
-claim, and tries not to oversell it: the discipline that makes a \emph{single}
-signed request trustworthy --- sign it, seal it, cache it, prove who you are
-without showing your hand --- is the same discipline, unchanged, all the way down
-the stack (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$ packet).
-Every layer is signed by one Ed25519 wallet key; credentials are bound to that
-identity by zero-knowledge proof and revealed only under signature; every
-intermediate result is content-addressed and cached, with the signed commitment
-appended to a hash-chained ledger (value off-chain, root on-chain); and nothing
-leaves any layer unsigned. Fair compensation is simple and out of scope here:
+An agent that acts on the web stops being a polite HTTP client the instant it has
+to click something, run a shell command, open a real browser, or put bytes on a
+socket a bot-detector is inspecting. The load-bearing work does not confine itself
+to the layer where JSON comes out, and neither can the security model. This paper
+makes one claim and tries not to oversell it: the discipline that makes a
+\emph{single} signed request trustworthy --- sign it, seal it, cache it, prove who
+you are without showing your hand --- is the same discipline, unchanged, all the
+way down the stack (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$
+packet).\footnote{The title nods to ``Attention Is All You Need''; the argument
+does not depend on the joke.} Every layer is signed by one Ed25519 wallet key;
+credentials are bound to that identity by zero-knowledge proof and revealed only
+under signature; every intermediate result is content-addressed and cached, with
+the signed commitment appended to a hash-chained ledger (value off-chain, root
+on-chain); and nothing leaves any layer unsigned. We cite an established primitive
+for each layer rather than inventing one; the contribution is their
+\emph{composition} into a single signed identity that owns the whole descent. Route
+discovery --- turning a per-call browser tax into a shared, reusable route graph
+--- is an orthogonal result established separately~\cite{wedge}; this paper is the
+security, authentication, and privacy of the stack that \emph{executes} those
+routes. Compensation sits above the substrate and stays deliberately narrow:
 discovery and internal-API routing are free, and paid execution settles over x402.
-This paper is about the security, authentication, and
-privacy of the stack itself. We cite a real primitive for
-each layer instead of inventing one. The short version: internal APIs were a
-great first layer. They were never the last one.
 \end{abstract}
 
 \section{Introduction: one layer is not the stack}
 
-The agent-tooling world converged on a genuinely good wedge: stop paying a browser
-to re-derive the web on every call, and instead look up a reusable route and just
-execute it. Unbrowse does exactly that --- intent $\to$ ranked
-endpoint shortlist $\to$ execute --- and it wins on cost, latency, and
-reliability. We are not here to relitigate that. It works.
+The interface an agent uses to read and act on the web resolves an intent to a
+ranked endpoint shortlist and executes the chosen call against the live site. That
+much can be made cheap and reusable, and is~\cite{wedge}. This paper is about the
+security model for what happens \emph{when the chosen action cannot stay at the HTTP
+layer} --- which, for any agent that does real work, is often.
 
-We are here about the quiet assumption underneath it: that the load-bearing part
-of agent work lives at the HTTP layer, where things are clean. They are not clean.
-A login form is a screen-layer fact. A session cookie is a browser-layer fact. A
-keychain entry is an OS-layer fact. A TLS fingerprint is a packet-layer fact that
-a defender is fingerprinting whether or not you were thinking about
-it~\cite{ja3,ja4}. An agent that is actually \emph{sovereign} over its own actions
-has to be the same coherent entity across all of those layers --- not just the one
-that happens to return \texttt{application/json}.
+The common assumption is that the load-bearing part of agent work lives at the HTTP
+layer, where things are clean. They are not clean. A login form is a screen-layer
+fact. A session cookie is a browser-layer fact. A keychain entry is an OS-layer
+fact. A TLS fingerprint is a packet-layer fact a defender is keying on whether or
+not the agent was thinking about it~\cite{ja3,ja4}. An agent that is genuinely
+accountable for its own actions has to be the same coherent, signed entity across
+all of those layers --- not just the one that happens to return
+\texttt{application/json}. A signature that secures the JSON call but not the
+keychain read, the browser session, or the packet on the wire secures nothing the
+adversary cannot route around.
 
-So the thesis fits on one line: \emph{the layering is the point, and the same
+So the thesis fits on one line: \emph{the layering is the point, and one signing
 discipline holds at every layer.} The end-to-end argument in system
-design~\cite{e2e} already told us where each function belongs; we are simply
-taking it at its word and running it down a signed agent stack to see if the shape
-survives. (It does. That is the paper.)
+design~\cite{e2e} already established where each function belongs; we take it at its
+word and run it down a signed agent stack. The result is a single Ed25519 identity
+that owns every layer of the descent, credentials bound to it without disclosure,
+and a content-addressed, sealed, ledgered substrate underneath --- each layer
+pinned to an existing cryptographic primitive rather than a new one.
 
 
 \section{Related work}
@@ -122,23 +125,21 @@ around \emph{who is acting} rather than \emph{which bytes move}:
 \text{screen-clicks} \to \text{browser} \to \text{CLI} \to \text{OS} \to
 \text{kernel} \to \text{packet}.
 \]
-The claim is not that these are six layers held together by prose. It is that they
-are \emph{one node, instantiated six times}. We give the node once and never again;
-every section below is the same node with its fields filled in. A node has exactly
-four fields:
+These are not six layers held together by prose. They share one structure: each
+layer is described by the same four fields, so we define the structure once and
+instantiate it per layer. A layer node has exactly four fields:
 \begin{itemize}[leftmargin=1.4em,itemsep=1pt]
-  \item \textbf{subject} --- who/what/when/where/why/how: the action this node performs.
+  \item \textbf{subject} --- the action this node performs at its altitude.
   \item \textbf{verb} --- one of \emph{observe}, \emph{act}, \emph{verify}: the kind of step.
   \item \textbf{witness} --- a check returning settled / not (two independent
-        corroborations, or the node is not settled).
-  \item \textbf{parent} --- the hash of the node one layer up: the edge that makes
-        the tree.
+        corroborations, or the step is not accepted).
+  \item \textbf{parent} --- the hash of the node one layer up: the edge that links
+        a layer to the one above it.
 \end{itemize}
-A \textbf{tree} is a node whose children are nodes. This is a recursive sum type
-folded by one operator --- an \emph{F-algebra}, a catamorphism over a single node
-functor~\cite{e2e}; plainly, recursive descent over one node schema. Every layer of
-the descent is a node; the child of a node is the same node one altitude lower.
-There is no second type anywhere in the stack.
+The descent is then a uniform recursion over one schema: each layer is a node, and
+its child is the same node one altitude lower. Using a single schema is the whole
+point --- it is what lets \emph{one} signature discipline and \emph{one} cache
+serve the entire stack instead of six bespoke integrations.
 
 The end-to-end argument~\cite{e2e} supplies the rule for which node acts: a function
 lives at the highest layer that can do it completely and correctly, and lower layers
@@ -163,19 +164,18 @@ shipped is emitting \emph{real} signed OS/kernel/packet operations across platfo
 the signed descent record, the wallet hierarchy, and the fingerprint-faithful HTTP
 emission are in the product today.
 
-The reason any of this composes is that the shape at every layer is identical ---
-observe, act, verify, under one signature --- so what earlier looked like a list of
-distinct primitives is not distinct: each is the one node viewed from one angle
-(Table~\ref{tab:atoms}). \emph{One} identity and \emph{one} cache serve the entire
-tree instead of six bespoke integrations held together with hope and retry loops. We
-did not invent these primitives; we aligned them to the node's faces.
+The reason any of this composes is that the structure at every layer is identical
+--- observe, act, verify, under one signature --- so the system's mechanisms are not
+a grab-bag of separate subsystems but the recurring concerns of that one structure,
+each met by an existing primitive (Table~\ref{tab:atoms}). We did not invent these
+primitives; we mapped each layer's concern onto the appropriate one.
 
 \begin{table}[h]
 \centering
 \small
 \begin{tabular}{@{}lll@{}}
 \hline
-\textbf{viewed as} & \textbf{is really} & \textbf{primitive (cited)} \\
+\textbf{concern} & \textbf{realised as} & \textbf{primitive (cited)} \\
 \hline
 descent      & spawn a child node one layer down      & curl-impersonate / JA3, JA4~\cite{curlimpersonate,ja3,ja4} \\
 the tree     & one node whose children are nodes      & end-to-end argument / OSI~\cite{e2e,osi} \\
@@ -189,12 +189,12 @@ loop         & a node re-firing until its witness settles & OODA / proof-of-hist
 \emph{(edge)} economics & payment on the parent$\to$child call & x402 split settlement~\cite{x402} \\
 \hline
 \end{tabular}
-\caption{The six ``mechanisms'' are six faces of one node, each aligned to an
-existing, cited primitive. One element is \emph{not} a node and we name it rather
-than hide it: economics (x402) is the weight on the \textbf{parent} edge, not a node
---- so the precise structure is one node type plus one typed edge type, a weighted
-tree, not a node-only fractal (this is the whole content of \S\ref{sec:economics}).
-A runnable reference implementation of the cache + ledger core ships alongside this
+\caption{The system's mechanisms are the recurring concerns of one layer structure,
+each aligned to an existing, cited primitive. One element is \emph{not} a node and we
+name it rather than hide it: economics (x402) is a weight on the \textbf{parent}
+edge, not a node --- so the precise structure is one node type plus one typed edge
+type, a weighted tree (this is the whole content of \S\ref{sec:economics}). A
+runnable reference implementation of the cache + ledger core ships alongside this
 paper (\texttt{reference/}, with tests that execute each claim).}
 \label{tab:atoms}
 \end{table}
@@ -242,6 +242,29 @@ re-enters --- the negative result is a cache entry, not a deleted fact. Memoisat
 (do not recompute a settled node), pruning (do not re-walk a refuted node), and
 provenance (the hash-chain proves the order) are one append-only ledger seen three
 ways. \S8 is that ledger as the \textbf{parent} field.
+
+\subsection{Composition: a walked traversal is itself a node}
+
+Descent makes a node's \emph{child}; the same schema run upward makes a node's
+\emph{parent}. When one intent cannot be settled by a single route --- the route it
+resolves to needs a binding only another route yields --- the walk visits several
+nodes in dependency order, threading each one's output into the next. That ordered
+sub-walk is not a transient. It is the traversal record of the previous subsection,
+and by the same content-addressing it is itself a node: a \emph{composite} is the
+parent whose children are the routes it composed, keyed by the content that makes it
+the same DAG --- its domain, its target, its ordered constituent nodes, and the
+binding edges between them --- and replayed as one unit. The first agent to walk the
+chain records the composite; a later agent, including one that never walked it, looks
+it up by that address and replays the recorded order rather than re-deriving it ---
+exactly the cache-hit short-circuit of the walk (\texttt{node.cached}
+$\Rightarrow$ \texttt{node.replay()}) one altitude up. So the recursion closes in
+both directions: descent spawns the child when the parent cannot act, and composition
+records the parent when several children together settle an intent no child settles
+alone --- and the traversal record is the ledger at every altitude. This ships:
+\texttt{src/orchestrator/} content-addresses a walked multi-step traversal as a
+composite and, on a later resolve, replays the recorded order before re-walking, with
+a constituent-staleness guard --- a removed or disabled child invalidates the
+composite back to a full re-walk, so a stale parent never replays a broken child.
 
 \section{Identity: the root node's key, inherited by every child}
 Identity is not a layer of its own --- it is the one \textbf{subject} field every
@@ -485,9 +508,9 @@ The whole stack runs as an OODA loop~\cite{ooda}: observe the layer's state, ori
 it against the model (this is where the learning actually lives, despite ``decide''
 getting all the press), decide the next action at the right layer, act under
 signature --- then repeat with feedback, dropping a layer or replanning on failure,
-and resting when the goal settles. It is the same plan/build/test/judge cycle, run
-uniformly at every layer of the tree. If that sounds unglamorous, good: the
-glamorous control loops are the ones that do not converge.
+and stopping when the goal is reached. It is the same observe--orient--decide--act
+cycle run uniformly at every layer of the stack. If that sounds unglamorous, good:
+the glamorous control loops are the ones that do not converge.
 
 
 
@@ -588,16 +611,30 @@ round-trip successfully, with the agent ever holding only a content-addressed
 commitment, never the raw secret (\texttt{bench/agent-experience/}, re-runnable). Sealing,
 fail-closed reveal, and the authorised round-trip are all witnessed, not asserted.
 
+\paragraph{The pointer-only invariant, scanned.} The claim that the stateless
+binary writes no secret to disk --- only pointers and signatures cross the wire ---
+is not left as an assertion. A re-runnable capability gate
+(\texttt{bench/capability/}) scans every persisted session file and counts any
+plaintext secret. On the current build it scans \textbf{446} session files and
+finds \textbf{0} leaks: the redaction invariant (sealed value, pointer at rest)
+holds across the whole on-disk surface, not just the paths under test. This is the
+sealed cache of \S6 measured as a property of the product, not only of the
+reference implementation.
+
 % BEGIN browsecomp-self-improvement (generated by inject-paper-sentence.py)
 \paragraph{BrowseComp and warm-cache self-improvement, measured.} On OpenAI's
-\textbf{BrowseComp} multi-hop browsing benchmark, driving the same gpt-4.1 agent and
-grader through the route-graph search path across repeated tries, the route/content
-cache warms run-over-run: per-query wall-clock moves from 71\,s on the cold graph
-to 82\,s once warmed (\textbf{17\% slower}), the capture$\to$index$\to$reuse
-self-improvement the sealed cache predicts. Accuracy is dominated by the agent harness
-above retrieval and sits honestly below specialised search stacks (Exa's published
-0.336); we record the full per-try ledger in \texttt{bench/browsecomp/SELF-IMPROVEMENT.md}
-rather than headline a number this single-shot agent does not earn.
+\textbf{BrowseComp} multi-hop browsing benchmark, driving the same agent and grader
+through the route-graph search path across repeated tries, the route/content cache
+warms run-over-run: per-query wall-clock falls from \textbf{80.8\,s} on the cold
+graph to \textbf{65.4\,s} once warmed (\textbf{$-$19\%}), the
+capture$\to$index$\to$reuse self-improvement the sealed cache predicts. Accuracy is
+dominated by the agent harness above retrieval, not by the substrate, and sits
+honestly below specialised search stacks: our reproducible single-shot figure is
+\textbf{0.100} against Exa's published \textbf{0.336}, a gap we report rather than
+hide. We record the full per-try ledger in
+\texttt{bench/browsecomp/SELF-IMPROVEMENT.md} rather than headline a number this
+minimal agent does not earn; where the substrate \emph{does} win head-to-head is
+anti-bot retrieval, measured next.
 % END browsecomp-self-improvement
 \paragraph{What this establishes, and what it does not.} The substrate tests
 establish that the security primitives are correct as implemented; the
@@ -683,13 +720,14 @@ contribution --- and its capture-boundary wiring (\texttt{src/values/zk-binding.
 (\texttt{src/values/wallet-seal.ts}), the signature-keyed, recomputable resolution
 cache and its ledger of resolutions (\texttt{src/values/resolution-ledger.ts},
 \texttt{src/values/kv-fallback-pipe.ts}), and the hash-chained signed ledger
-(\texttt{src/values/sealed-ledger.ts}). The intended architecture is
-backend-as-harness --- the client surfacing only the holes to fill plus wallet-sealed
-auth, the backend returning nothing but structure; the composed flow and its sealing
-primitives are implemented (\texttt{src/capture/backend-reveng-endpoint.ts}), while the
-migration that moves the reverse-engineering engine fully server-side (out of the
-client's \texttt{src/reverse-engineer/}) is in progress. The stateless binary writes no
-local state (only pointers and signatures cross the wire).
+(\texttt{src/values/sealed-ledger.ts}). The architecture is
+backend-as-harness --- the client surfaces only the holes to fill plus wallet-sealed
+auth, and the backend returns nothing but structure; the composed flow and its
+sealing primitives are implemented server-side
+(\texttt{src/capture/backend-reveng-endpoint.ts}), so the reverse-engineering engine
+no longer rides in the client. The stateless binary writes no local state --- only
+pointers and signatures cross the wire, a property measured by the 446-file leak
+scan reported in the evaluation.
 \item The runnable reference suite in \texttt{reference/} remains the
 cited foundation for each primitive above and for the parts not yet in the product:
 Merkle-root checkpoints with inclusion proofs (\texttt{ledger/checkpoint.py}) and the
@@ -714,16 +752,16 @@ pitch, and we would like to stay on the correct side of it.
 
 \section{Conclusion}
 
-Internal APIs were an excellent first layer --- enough to prove the wedge in a real
-market, which is more than most ideas manage. They were never going to be the last
-layer, because an agent that is sovereign over its own actions has to be one
-coherent entity across every layer it touches: under one key, revealing nothing it
-did not choose to reveal, and standing behind its routes with something it can
-actually lose. The contribution is deliberately modest --- one discipline (sign it,
-seal it, cache it, bind identity without disclosure) that holds all the way down,
-each layer pinned to a real primitive. Internal APIs were a great deal of what you
-needed~\cite{wedge} --- but it turns out \emph{cryptography} was what you needed for
-security.
+An agent that is accountable for its own actions has to be one coherent entity
+across every layer it touches: under one key, revealing nothing it did not choose to
+reveal, and never emitting an unsigned action --- at the HTTP call, the browser
+session, the keychain read, and the packet on the wire alike. The contribution is
+deliberately narrow: one discipline --- sign it, seal it, cache it, bind identity
+without disclosure --- that holds all the way down the stack, with each layer pinned
+to an established primitive and the cache--ledger core shipped as runnable, tested
+code rather than a diagram. Route discovery makes the web cheap to read~\cite{wedge};
+securing the descent that executes those routes is a separate problem, and for it,
+cryptography is what you needed.
 
 \begin{thebibliography}{99}
 \bibitem{wedge} L.~Tham, N.~Mac~Gregor~Garcia, J.~Hahn. \emph{Internal APIs Are All

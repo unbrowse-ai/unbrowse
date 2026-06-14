@@ -14,7 +14,7 @@
 \large Proof of Indexing and Bonded Accountability in a Shared Route Graph}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}}
-\date{March 2026}
+\date{June 2026}
 
 \begin{document}
 \maketitle
@@ -22,7 +22,7 @@
 \begin{abstract}
 A shared graph of reusable web routes solves discovery: an agent looks up a route
 someone already mapped instead of re-deriving it from a browser on every call, and
-the companion paper~\cite{internalapis} shows this wins whenever the route fee
+the wedge paper~\cite{wedge} shows this wins whenever the route fee
 undercuts the cost of rediscovery. Discovery, though, is a one-time cost; freshness
 is a standing liability. Routes decay --- schemas drift, auth flows mutate, fields
 are renamed behind cheerful \texttt{200}s --- and a route that is wrong with
@@ -55,14 +55,13 @@ not the moat.
 
 The first problem an agent has on the open web is \emph{discovery}: finding the
 route in the first place is expensive, and re-deriving it on every call is
-wasteful. That problem is, by now, settled. The earlier work in this
-series~\cite{internalapis} reduces it to a single inequality --- when the fee for
+wasteful. The wedge paper~\cite{wedge} reduces it to a single inequality --- when the fee for
 reusing a route someone already mapped, $f_{\text{shared route}}$, is less than
 the cost of rediscovering it from scratch, $c_{\text{rediscovery}}$, the rational
 move is to share. A live route graph already does this: an intent resolves to a
 ranked endpoint shortlist and executes, and the cost of mapping each route is
-amortised across every agent that follows. We are not here to relitigate
-that. It works.
+amortised across every agent that follows. That result is established and we build
+on it rather than restate it.
 
 This paper is about the \emph{second} problem, which only shows up once the first
 is solved. A graph with real traffic is a graph with real decay. Schemas drift;
@@ -254,7 +253,7 @@ is route quality --- observed freshness, success rate, faithful replay --- not t
 size of anyone's stake. We are emphatic about this because it is the exact line
 where a trust network degrades into a pay-to-win one: bonding buys a maintainer
 \emph{eligibility} to make a slashable claim on a high-trust route, and it buys
-nothing further~\cite{internalapis}. It does not buy placement, it does not buy a
+nothing further~\cite{wedge}. It does not buy placement, it does not buy a
 rank, and it does not let a well-capitalised maintainer outbid a better one for the
 top of a shortlist. The moment stake purchases ranking, the graph is selling
 position rather than reporting quality, and a quality signal you can buy is not a
@@ -444,7 +443,7 @@ stable USDC over x402~\cite{x402}, and we are emphatic that it stays that way. F
 exists for exactly one job the stablecoin cannot do: the security/accountability
 layer, where a maintainer's bond, a challenger's stake, and a slashing penalty must
 be denominated in an asset whose value is tied to the network's own
-integrity~\cite{internalapis}. Payment surface and security stake are kept strictly
+integrity~\cite{security}. Payment surface and security stake are kept strictly
 separate, because the moment a holder is forced to spend the security asset to
 \emph{use} the network, the asset becomes a tollgate and the holder a
 beggar-at-the-gate. This is a separation-of-concerns constraint: a single asset
@@ -474,11 +473,10 @@ deployment of that cycle is the remaining step.
 \paragraph{Why money could not be the point.} There is a deeper reason the
 distribution had to be fair, and it is structural rather than financial: it concerns
 the order in which trust and value can be created. A network that puts money first
-inverts its own foundation. As we argue in the descent paper~\cite{internalapis},
-if the token is launched to enrich its issuer, then the issuer's incentive at the
-root is extraction, and every participant downstream correctly discounts the
-system's trust claims accordingly --- the rot is at the origin, so no amount of
-mechanism layered above it recovers credibility. An accountability layer whose
+inverts its own foundation. If the token is launched to enrich its issuer, then the
+issuer's incentive at the root is extraction, and every participant downstream
+correctly discounts the system's trust claims accordingly --- the rot is at the
+origin, so no amount of mechanism layered above it recovers credibility. An accountability layer whose
 entire job is to let strangers trust each other's claims \emph{cannot} sit on a
 money-first root, because a root optimised for the issuer's gain is precisely the
 thing strangers are right to distrust. FDRY clears this bar only because money was
@@ -499,9 +497,42 @@ The ``what'' is fully disclosed; only the money-as-motive framing is denied,
 because that framing is exactly what would corrupt the trust the security layer
 depends on. We make no promise of profit: the mechanism is the claim, not a guarantee.
 
+\section{The maintained graph, measured}
+
+The mechanisms above are economics and cryptography; the question a maintenance
+paper has to answer with numbers is narrower: \emph{does the maintained graph
+actually resolve and stay covered, and where does it fail?} We answer it with a
+re-runnable capability gate over a fixed, tiered intent set, recorded to a
+two-witness history ledger (\texttt{bench/capability/}) so every figure is a gated
+measurement rather than an assertion.
+
+\paragraph{Coverage, by tier.} Action-retrieval coverage@1 is \textbf{0.78} over nine
+intents split across three difficulty tiers: a public-content tier resolving at
+\textbf{1.0}, an anti-bot tier at \textbf{0.67}, and an automation tier at
+\textbf{0.67}. The misses are not hidden --- they are pages whose first-party
+endpoint was not surfaced (single-page apps, blocked captures), which is precisely
+the freshness/coverage deficit the maintenance economy of this paper exists to
+close, and the target the proof-of-indexing cadence drives down over time.
+
+\paragraph{Resolution is two-witnessed, and writes leak nothing.} A resolved route
+counts only when it is content-bound across two independent sessions, the same
+two-corroborator rule the trust tiers apply to a freshness claim. Separately, the
+pointer-only redaction invariant is scanned, not assumed: across \textbf{446}
+persisted session files the gate finds \textbf{0} plaintext secrets.
+
+\paragraph{The honest external comparison.} Against a retrieval benchmark cloned
+directly from a specialised search vendor (the \texttt{webcode-benchmark} RAG
+harness from \texttt{exa-labs/benchmarks}), our route-graph retrieval scores
+groundedness \textbf{0.167} against the vendor's published target of $\approx$0.79.
+We report this gap rather than bury it: long-form grounded synthesis is dominated by
+the reader model above retrieval, not by the route graph, and a maintenance paper
+that hides its weak axis is not one a stranger should trust. Where the substrate
+\emph{does} win head-to-head is adversarial retrieval past JavaScript-challenge
+anti-bot, reported in the companion security paper~\cite{security}.
+
 \section{What is shipped, what is referenced}
 
-In the spirit of the companion paper~\cite{internalapis} --- and of not selling a
+In the spirit of the companion papers~\cite{wedge,security} --- and of not selling a
 roadmap as a changelog --- we separate what runs in the product, what ships as
 runnable, tested reference code, and where deployment still stops. Live in the
 product today:
@@ -553,7 +584,7 @@ The thesis of this paper compresses to one sentence: the graph is the asset. Eve
 site an agent automates today is re-discovered from scratch, per agent, per call ---
 the browser tax paid over and over. Unbrowse turns that one-off robotic-process work
 into a shared, maintained route graph: discover once, reuse forever, route the cost
-through one layer instead of re-paying it everywhere~\cite{internalapis}. The crucial
+through one layer instead of re-paying it everywhere~\cite{wedge}. The crucial
 asymmetry is that \emph{any single route is copyable, but the maintained graph is
 not.} A route can be lifted; what cannot be lifted is the standing work of keeping
 thousands of routes fresh as the web shifts under them, attributed to who captured
@@ -582,8 +613,12 @@ was never all you needed, and is the one worth building.
 
 \begin{thebibliography}{99}
 
-\bibitem{internalapis} L.~Tham. \emph{Crypto Was All You Needed: A
-Signed, Layer-Descending Stack for Agent Computation}. Unbrowse AI, 2026.
+\bibitem{wedge} L.~Tham, N.~Mac~Gregor~Garcia, J.~Hahn. \emph{Internal APIs Are All
+You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent
+Architectures}. arXiv:2604.00694, 2026.
+
+\bibitem{security} L.~Tham, C.~Chik. \emph{Crypto Was All You Needed: A Signed,
+Layer-Descending Stack for Agent Computation}. Unbrowse AI, 2026.
 
 \bibitem{x402} Coinbase. \emph{x402: An Open Protocol for Internet-Native Payments
 over HTTP 402}. x402.org whitepaper, 2025. \url{https://github.com/coinbase/x402}.
