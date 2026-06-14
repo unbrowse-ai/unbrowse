@@ -612,7 +612,7 @@ export async function drainPendingIndexJobs(): Promise<void> {
     let logged = false;
     while (indexInFlight.size > 0) {
       const pending = [...indexInFlight.values()];
-      if (!logged) {
+      if (!logged && process.env.UNBROWSE_TRACE && process.env.UNBROWSE_TRACE !== "0") {
         console.error(`[capture-pipeline] draining ${pending.length} pending job(s)...`);
         logged = true;
       }
@@ -674,9 +674,11 @@ export async function drainPendingIndexJobs(): Promise<void> {
       if (workerAlive || makingProgress || hardMs <= 5_000) {
         // Short-cap mode (CLI default): always yield once the cap fires;
         // the detached worker owns drain correctness, not this process.
-        console.error(
-          `[capture-pipeline] drain cap ${hardMs}ms reached (pending=${jobs.length}, started=${initialJobCount}, dead=${deadCount}); returning — worker continues in background`,
-        );
+        if (process.env.UNBROWSE_TRACE && process.env.UNBROWSE_TRACE !== "0") {
+          console.error(
+            `[capture-pipeline] drain cap ${hardMs}ms reached (pending=${jobs.length}, started=${initialJobCount}, dead=${deadCount}); returning — worker continues in background`,
+          );
+        }
         return;
       }
       throw new Error(`drainPendingIndexJobs: queue not drained after ${hardMs}ms (pending=${jobs.length}, dead=${deadCount})`);

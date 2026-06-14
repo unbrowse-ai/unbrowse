@@ -333,9 +333,10 @@ export async function runSetup(options?: {
 
   if (flexEscrow.skipped || flexSessionKey.skipped) {
     console.log("");
-    console.log("[unbrowse setup] Onboarding partial — see above for next steps.");
-    console.log("  Priced calls will receive 402 with X-Flex-Onboarding-Required: 1");
-    console.log("  until escrow + session-key are completed via SDK or web flow.");
+    console.log("[unbrowse setup] ✓ Ready to use — start browsing, resolving, and executing now.");
+    console.log("  A wallet is optional: sponsored usage covers you out of the box.");
+    console.log("  Pair one later to earn on captured routes and unlock paid upstreams:");
+    console.log("    npx @crossmint/lobster-cli setup   (or finish at https://unbrowse.ai/account)");
   }
 
   return {
