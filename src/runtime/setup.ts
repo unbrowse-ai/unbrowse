@@ -337,6 +337,9 @@ export async function runSetup(options?: {
     console.log("  A wallet is optional: sponsored usage covers you out of the box.");
     console.log("  Pair one later to earn on captured routes and unlock paid upstreams:");
     console.log("    npx @crossmint/lobster-cli setup   (or finish at https://unbrowse.ai/account)");
+    console.log("");
+    console.log("  See your captured routes, balance, usage, and earnings on the dashboard:");
+    console.log("    unbrowse dashboard   (opens https://unbrowse.ai/dashboard + pairs this install)");
   }
 
   return {

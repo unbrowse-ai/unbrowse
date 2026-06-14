@@ -8,11 +8,14 @@ import { ContributorDashboard } from "@/components/contributor-dashboard";
 import {
   getAccountMe,
   getAccountPreferences,
+  getAccountSkills,
   getMyDashboard,
+  setSkillVisibility,
   updateAccountPreferences,
   type AccountMe,
   type AccountPreferences,
   type DashboardData,
+  type SkillManifest,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -24,6 +27,8 @@ export default function DashboardPage() {
   const [accountMe, setAccountMe] = useState<AccountMe | null>(null);
   const [prefs, setPrefs] = useState<AccountPreferences | null>(null);
   const [prefsBusy, setPrefsBusy] = useState(false);
+  const [skills, setSkills] = useState<SkillManifest[] | null>(null);
+  const [skillBusy, setSkillBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,8 +47,14 @@ export default function DashboardPage() {
         setDashboard(dash);
         setAccountMe(me);
         if (me) {
-          const nextPrefs = await getAccountPreferences().catch(() => null);
-          if (!cancelled) setPrefs(nextPrefs);
+          const [nextPrefs, mySkills] = await Promise.all([
+            getAccountPreferences().catch(() => null),
+            getAccountSkills().catch(() => []),
+          ]);
+          if (!cancelled) {
+            setPrefs(nextPrefs);
+            setSkills(mySkills);
+          }
         }
       })
       .catch((err) => {
@@ -68,6 +79,22 @@ export default function DashboardPage() {
       setError((err as Error).message);
     } finally {
       setPrefsBusy(false);
+    }
+  };
+
+  const toggleSkillVisibility = async (skill: SkillManifest) => {
+    if (skillBusy) return;
+    const next = skill.visibility === "public" ? "private" : "public";
+    setSkillBusy(skill.skill_id);
+    try {
+      await setSkillVisibility(skill.skill_id, next);
+      setSkills((prev) =>
+        (prev ?? []).map((s) => (s.skill_id === skill.skill_id ? { ...s, visibility: next } : s)),
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSkillBusy(null);
     }
   };
 
@@ -202,6 +229,58 @@ export default function DashboardPage() {
                 />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Your private registry — the routes this account has captured, with per-route
+          public (shared + earning) / private (yours only) control. */}
+      {accountMe && skills && (
+        <div className="mx-auto mt-6 max-w-6xl px-6">
+          <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
+            <div className="flex items-baseline justify-between gap-4">
+              <div className="font-semibold text-text-primary">Your captured routes</div>
+              <div className="font-mono text-xs text-text-muted">
+                {skills.length} route{skills.length === 1 ? "" : "s"} ·{" "}
+                {skills.filter((s) => s.visibility === "public").length} public ·{" "}
+                {skills.filter((s) => s.visibility !== "public").length} private
+              </div>
+            </div>
+            <p className="mt-1 mb-4 text-sm text-text-muted">
+              Routes you capture while browsing land here. <span className="text-[rgba(255,176,96,0.9)]">Public</span> routes
+              are shared to the marketplace and earn you USDC when other agents reuse them;{" "}
+              <span className="text-[rgba(255,176,96,0.9)]">private</span> routes stay yours only.
+            </p>
+            {skills.length === 0 ? (
+              <p className="font-mono text-xs text-text-muted">
+                No routes yet — capture one with <span className="text-[rgba(255,176,96,0.9)]">unbrowse run &lt;url&gt; &quot;task&quot;</span>.
+              </p>
+            ) : (
+              <ul className="divide-y divide-[rgba(255,122,32,0.12)]">
+                {skills.slice(0, 50).map((s) => (
+                  <li key={s.skill_id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm text-text-primary">{s.domain}</div>
+                      <div className="truncate font-mono text-[11px] text-text-muted">
+                        {s.endpoints?.length ?? 0} endpoint{(s.endpoints?.length ?? 0) === 1 ? "" : "s"}
+                        {s.description ? ` · ${s.description}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleSkillVisibility(s)}
+                      disabled={skillBusy === s.skill_id}
+                      className={`shrink-0 rounded-full border px-3 py-1 font-mono text-[11px] transition-colors ${
+                        s.visibility === "public"
+                          ? "border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+                          : "border-[rgba(255,122,32,0.25)] text-text-muted hover:border-[rgba(255,122,32,0.5)]"
+                      } ${skillBusy === s.skill_id ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      {skillBusy === s.skill_id ? "…" : s.visibility === "public" ? "public" : "private"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
