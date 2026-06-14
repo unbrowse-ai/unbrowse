@@ -75,6 +75,36 @@ describe("yield-store — write→hole pipe", () => {
     expect(getYieldCache("s1", { store })).toBeUndefined();
   });
 
+  it("LOST SHEEP: bare key-match collides across resources (documented loose behavior)", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store }); // a /posts write
+    recordYields("s1", provides({ id: 5 }), { store }); // a /comments write — clobbers bare 'id'
+    const params: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), params, { store });
+    expect(params.id).toBe(5); // last-write wins — the WRONG post id; this is why scope exists
+  });
+
+  it("FIX: scope-namespacing prevents cross-resource collision", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store, scope: "posts" });
+    recordYields("s1", provides({ id: 5 }), { store, scope: "comments" });
+    const pPost: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), pPost, { store, scope: "posts" });
+    expect(pPost.id).toBe(101); // the right post id
+    const pComment: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), pComment, { store, scope: "comments" });
+    expect(pComment.id).toBe(5); // the right comment id — no collision
+  });
+
+  it("waters do not mix: a scoped yield never fills an unscoped hole", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store, scope: "posts" });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s1", requires("id"), params, { store }); // no scope
+    expect(filled).toEqual([]);
+    expect(params).toEqual({});
+  });
+
   it("isYieldStale honours ttl", () => {
     const now = 1_000_000;
     expect(isYieldStale({ value: 1, observed_at: new Date(now - 2000).toISOString(), ttl_ms: 1000 }, now)).toBe(true);
