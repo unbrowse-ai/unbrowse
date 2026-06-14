@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { getInProcessApp } from "../src/runtime/in-process-app.ts";
-import { getYieldCache, clearSessionYields } from "../src/runtime/yield-store.js";
+import { getYieldCache, fillHolesFromYields, clearSessionYields } from "../src/runtime/yield-store.js";
 
 describe("DOMINION: write→yield captured across the real execute route", () => {
   it("an ad-hoc write through the HTTP route records its id into the session yield store", async () => {
@@ -45,13 +45,18 @@ describe("DOMINION: write→yield captured across the real execute route", () =>
     expect(success).toBe(true);
 
     // CAPTURE seam: the route recorded the write's yielded id into the session store,
-    // scoped by the producer host. The yield is now visible to this session — the pipe
-    // is open for the next op's hole.
-    const cache = getYieldCache(session_id);
-    expect(cache).toBeDefined();
-    const idYield = cache?.get("jsonplaceholder.typicode.com::id");
-    expect(idYield).toBeDefined();
-    expect(String(idYield?.value)).toBe("101");
+    // scoped by the producer host. Verify via the PUBLIC consume path (not the internal
+    // key format): a downstream hole keyed `id`, same host scope, auto-fills from it.
+    expect(getYieldCache(session_id)).toBeDefined();
+    const downstream: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields(
+      session_id,
+      [{ key: "id", required: true, source: "body" }],
+      downstream,
+      { scope: "jsonplaceholder.typicode.com" },
+    );
+    expect(filled).toEqual(["id"]);
+    expect(String(downstream.id)).toBe("101");
 
     clearSessionYields(session_id);
   }, 60_000);

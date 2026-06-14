@@ -105,6 +105,39 @@ describe("yield-store — write→hole pipe", () => {
     expect(params).toEqual({});
   });
 
+  it("AUDIT: delimiter cannot be injected via :: in scope or key", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "b::c", source: "response", example_value: "X" }], { store, scope: "a" });
+    // a different (scope,key) that the naive `${scope}::${key}` would collide with:
+    const params: Record<string, unknown> = {};
+    fillHolesFromYields("s1", [{ key: "c", required: true, source: "body" }], params, { store, scope: "a::b" });
+    expect(params.c).toBeUndefined(); // no collision — the length-prefix kept them distinct
+  });
+
+  it("AUDIT: scoped single_use is consumed under its scoped key", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "tok", source: "response", example_value: "t", single_use: true }], { store, scope: "h" });
+    const p1: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("tok"), p1, { store, scope: "h" }).filled).toEqual(["tok"]);
+    const p2: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("tok"), p2, { store, scope: "h" }).filled).toEqual([]);
+  });
+
+  it("AUDIT: falsy yields (0, false, \"\") are valid and fill; they are not 'unfilled'", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "count", source: "response", example_value: 0 as unknown as string }], { store });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s1", requires("count"), params, { store });
+    expect(filled).toEqual(["count"]);
+    expect(params.count).toBe(0);
+    // and a param already set to 0 is a FILLED hole — not overwritten
+    const store2: YieldStore = new Map();
+    recordYields("s1", provides({ count: 9 }), { store: store2 });
+    const p2 = { count: 0 };
+    expect(fillHolesFromYields("s1", requires("count"), p2, { store: store2 }).filled).toEqual([]);
+    expect(p2.count).toBe(0);
+  });
+
   it("isYieldStale honours ttl", () => {
     const now = 1_000_000;
     expect(isYieldStale({ value: 1, observed_at: new Date(now - 2000).toISOString(), ttl_ms: 1000 }, now)).toBe(true);

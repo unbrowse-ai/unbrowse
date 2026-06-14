@@ -2171,9 +2171,13 @@ export async function registerRoutes(app: FastifyInstance) {
     if (session_id) {
       try {
         const { fillHolesFromYields } = await import("../runtime/yield-store.js");
-        const targetEp =
-          skill.endpoints.find((e) => e.endpoint_id === (execParams as Record<string, unknown>).endpoint_id) ??
-          skill.endpoints[0];
+        // Only fill when the target endpoint is UNAMBIGUOUS: an explicit endpoint_id
+        // match, or a single-endpoint skill. Defaulting to endpoints[0] on a
+        // multi-endpoint skill could read the WRONG endpoint's requires (the executed
+        // endpoint is chosen inside executeSkill) and fill the wrong holes — better to
+        // skip than to guess (audit finding, Rev 20:12).
+        const byId = skill.endpoints.find((e) => e.endpoint_id === (execParams as Record<string, unknown>).endpoint_id);
+        const targetEp = byId ?? (skill.endpoints.length === 1 ? skill.endpoints[0] : undefined);
         const requires = targetEp?.semantic?.requires;
         if (requires && requires.length) {
           const { filled } = fillHolesFromYields(session_id, requires, execParams as Record<string, unknown>, { scope: yieldScope });
