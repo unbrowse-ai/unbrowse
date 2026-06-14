@@ -26,9 +26,11 @@ CFG="${UNBROWSE_CONFIG_DIR:-$HOME/.unbrowse}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HISTORY="$ROOT/bench/capability/history.jsonl"
 
-run_write() { # url method bodyjson -> prints "success|<echoed-json>"
-  local url="$1" method="$2" body="$3"
-  timeout 60 $BIN_CMD execute --url "$url" --method "$method" --body "$body" 2>/dev/null \
+run_write() { # url intent bodyjson -> prints "success|<echoed-json>"
+  # AGENT-NATIVE: drive intent-only — no --method. The verb is inferred from the
+  # intent + body. This is the path an agent actually uses.
+  local url="$1" intent="$2" body="$3"
+  timeout 60 $BIN_CMD execute --url "$url" --intent "$intent" --body "$body" 2>/dev/null \
   | python3 -c "import sys,json
 raw=sys.stdin.read();best=None
 for ln in raw.splitlines():
@@ -46,15 +48,24 @@ print(('yes' if ok else 'no')+'|'+json.dumps(data if data is not None else res)[
 # bash 3.2 (macOS default) has no associative arrays — lowercase the verb for the path.
 witness_pass() {  # -> echoes "PASS"/"FAIL"/"BLOCKED" + detail to stderr
   local all_ok=1 blocked=0
+  # Each verb is exercised purely through intent (no --method); the target path only
+  # accepts its own verb, so a mis-inferred verb fails here — a real inference test.
   for M in POST PUT PATCH DELETE; do
-    local path; path="$(echo "$M" | tr 'A-Z' 'a-z')"
+    local path intent
+    path="$(echo "$M" | tr 'A-Z' 'a-z')"
+    case "$M" in
+      POST)   intent="create a new record" ;;
+      PUT)    intent="replace the entire record" ;;
+      PATCH)  intent="update the record" ;;
+      DELETE) intent="delete the record" ;;
+    esac
     local url="https://postman-echo.com/${path}"
     local marker="wa-${M}-$$-${RANDOM}"
-    local out; out="$(run_write "$url" "$M" "{\"marker\":\"$marker\",\"verb\":\"$M\"}")"
+    local out; out="$(run_write "$url" "$intent" "{\"marker\":\"$marker\",\"verb\":\"$M\"}")"
     local ok="${out%%|*}" echoed="${out#*|}"
     if [ "$ok" = "none" ]; then echo "  $M BLOCKED ($echoed)" >&2; blocked=1; continue; fi
     if [ "$ok" = "yes" ] && echo "$echoed" | grep -q "$marker"; then
-      echo "  $M PASS (body reflected)" >&2
+      echo "  $M PASS (intent→verb inferred, body reflected)" >&2
     else
       echo "  $M FAIL ok=$ok echoed=${echoed:0:80}" >&2; all_ok=0
     fi
@@ -70,7 +81,7 @@ witness_pass() {  # -> echoes "PASS"/"FAIL"/"BLOCKED" + detail to stderr
   local zkid; zkid="adhoc-write-$(printf 'POST %s' "$zkurl" | shasum -a 256 | cut -c1-40)"
   local zkfile="$CFG/skill-cache/${zkid}.json"
   rm -f "$zkfile" 2>/dev/null
-  local out; out="$(run_write "$zkurl" POST "{\"email\":\"x@y.z\",\"password\":\"$secret\"}")"
+  local out; out="$(run_write "$zkurl" "create an account" "{\"email\":\"x@y.z\",\"password\":\"$secret\"}")"
   local ok="${out%%|*}" echoed="${out#*|}"
   if [ "$ok" = "none" ]; then echo "  ZK BLOCKED ($echoed)" >&2; blocked=1;
   else

@@ -10,6 +10,7 @@
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { inferWriteMethod } from "./lib/infer-write-method.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
@@ -1851,12 +1852,17 @@ function schemaOf(value: unknown, depth = 4): unknown {
 const SYNTHETIC_SKILL_IDS = new Set<string>(["exa-web-search"]);
 
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
-  // Ad-hoc agent-driven write: `execute --url <u> --method POST --body '{...}'`
-  // needs no marketplace skill — synthesise a stable skill id from the url so the
-  // server's ad-hoc write path runs. --skill is only required for replay-by-id.
-  const writeMethod =
-    typeof flags.method === "string" &&
-    ["POST", "PUT", "PATCH", "DELETE"].includes((flags.method as string).toUpperCase());
+  // Agent-native writes: the agent expresses INTENT, not an HTTP verb. The method
+  // is inferred from intent + body presence (a body ⇒ a write). `--method` stays as
+  // an explicit override but is no longer required — fewer knobs for the agent.
+  const explicitMethod =
+    typeof flags.method === "string" ? (flags.method as string).toUpperCase() : undefined;
+  const intentText = typeof (flags.intent ?? flags.task) === "string" ? String(flags.intent ?? flags.task) : "";
+  const hasBody = !!flags.body || (typeof flags.params === "string" && /["']body["']\s*:/.test(flags.params as string));
+  const effectiveMethod = inferWriteMethod(explicitMethod, intentText, hasBody);
+  const writeMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(effectiveMethod ?? "");
+  // expose the resolved method to the rest of the handler (used to forward to the API).
+  if (writeMethod) flags.method = effectiveMethod as string;
   let skillId = (flags.skill ?? flags["skill-id"]) as string;
   if (!skillId && typeof flags.url === "string" && writeMethod) {
     // Collision-resistant id: a sha256 of (method+url), NOT a truncated base64 of
@@ -1864,7 +1870,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // (e.g. all postman-echo.com/* routes), so distinct write targets clobbered
     // the same skill-cache file. A method+url hash gives each write its own route.
     const idHash = createHash("sha256")
-      .update(`${(flags.method as string).toUpperCase()} ${String(flags.url)}`)
+      .update(`${effectiveMethod} ${String(flags.url)}`)
       .digest("hex")
       .slice(0, 40);
     skillId = `adhoc-write-${idHash}`;
@@ -3986,7 +3992,18 @@ async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void
     }
 
     info(`Update available: ${result.installed} -> ${result.latest}`);
-    info(`Run: ${result.command}`);
+    // Always attempt the background auto-apply (throttled + guarded inside): for an
+    // npm-global install this spawns a detached reinstall that takes effect next run,
+    // so the client keeps itself current. This is the path the SessionStart hook
+    // (`upgrade --hint-only`) drives, so update is silent + automatic. Opt out with
+    // UNBROWSE_NO_AUTO_UPDATE=1; repo clones + CI fall back to the printed command.
+    const { maybeAutoUpdate } = await import("./runtime/update-hints.js");
+    const applied = await maybeAutoUpdate(import.meta.url);
+    if (applied.applied) {
+      info(`Auto-updating in the background: ${applied.from} -> ${applied.to} (takes effect next run).`);
+    } else {
+      info(`Run: ${result.command}`);
+    }
     if (!hintOnly) {
       info("Tip: `unbrowse setup` now installs session-start update hints for Codex and Claude when those hosts are present.");
     }
