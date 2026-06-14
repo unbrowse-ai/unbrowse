@@ -70,6 +70,14 @@ witness_pass() {  # -> echoes "PASS"/"FAIL"/"BLOCKED" + detail to stderr
       echo "  $M FAIL ok=$ok echoed=${echoed:0:80}" >&2; all_ok=0
     fi
   done
+  # ── Axis 1b: a REAL REST API that returns 201 + a compact created body ────────
+  # (jsonplaceholder). Locks the regression where a write's small {id:…} body was
+  # mis-flagged extraction_too_thin. Asserts success AND a created-resource id.
+  local jout; jout="$(run_write "https://jsonplaceholder.typicode.com/posts" "create a post" "{\"title\":\"wa-$$\",\"userId\":1}")"
+  local jok="${jout%%|*}" jechoed="${jout#*|}"
+  if [ "$jok" = "none" ]; then echo "  REST-201 BLOCKED" >&2; blocked=1;
+  elif [ "$jok" = "yes" ] && echo "$jechoed" | grep -q '"id"'; then echo "  REST-201 PASS (201+small body, created id returned)" >&2;
+  else echo "  REST-201 FAIL ok=$jok echoed=${jechoed:0:80}" >&2; all_ok=0; fi
   # ── Axis 2: ZK input-censoring ──────────────────────────────────────────────
   # Isolated target (non-secret nonce in the query so the URL never carries the
   # secret) → a deterministic, unique skill-cache file. We check THAT exact file,
