@@ -12,7 +12,7 @@ import { surfaceFor, classify, verifySurface, knownCommands } from "../src/super
 // client sees. The manifest must classify every one (superpattern-complete).
 const CANONICAL = [
   "account", "act", "annotate", "auth", "auth-inventory", "capture", "cleanup-stale", "click",
-  "contract", "dashboard", "execute", "explain", "feedback", "fetch", "fill", "go", "health", "index",
+  "contract", "dashboard", "execute", "explain", "feedback", "fetch", "fill", "get", "go", "health", "index",
   "mcp", "mode", "note", "payment-provider", "press", "publish", "publish-bundle", "resolve",
   "create", "read", "review", "run", "screenshot", "scroll", "search", "select", "settings", "setup", "skill",
   "skills", "snap", "spec", "submit", "text", "type", "upgrade",
@@ -39,7 +39,7 @@ describe("CLI superpattern surface", () => {
   });
 
   it("secret-bearing commands bind their secret to the wallet (sealed/wallet auth)", () => {
-    for (const cmd of ["auth", "execute", "fill", "capture", "setup", "publish"]) {
+    for (const cmd of ["auth", "execute", "fill", "get", "capture", "setup", "publish"]) {
       expect(["sealed", "wallet"]).toContain(surfaceFor(cmd)!.auth);
     }
   });

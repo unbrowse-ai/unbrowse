@@ -33,7 +33,7 @@ type Phase = "discover" | "enter" | "browse" | "execute" | "manage";
 
 const PHASE: Record<string, Phase> = {
   // discover — find the route/skill/spec (no session needed)
-  search: "discover", resolve: "discover", explain: "discover", spec: "discover",
+  search: "discover", get: "discover", resolve: "discover", explain: "discover", spec: "discover",
   index: "discover", skills: "discover", skill: "discover", "auth-inventory": "discover",
   // enter — cross into a site / one-shot
   go: "enter", run: "enter", fetch: "enter", capture: "enter", auth: "enter",

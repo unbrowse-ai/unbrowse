@@ -43,6 +43,7 @@ const SURFACE: Record<string, Omit<Surface, "command">> = {
   setup:           { verb: "build",  interrogative: "who",   holes: [],                    auth: "wallet" },
   // what — data / results (eval judges/surfaces)
   search:          { verb: "eval",   interrogative: "what",  holes: ["intent"],            auth: "none" },
+  get:             { verb: "eval",   interrogative: "what",  holes: ["intent", "url"],     auth: "sealed" },
   resolve:         { verb: "eval",   interrogative: "what",  holes: ["intent", "domain"],  auth: "none" },
   explain:         { verb: "eval",   interrogative: "what",  holes: ["intent", "url"],     auth: "none" },
   spec:            { verb: "eval",   interrogative: "what",  holes: ["domain"],            auth: "none" },
@@ -55,7 +56,7 @@ const SURFACE: Record<string, Omit<Surface, "command">> = {
   review:          { verb: "eval",   interrogative: "what",  holes: [],                    auth: "none" },
   // how — actions / effects on the world (build) and fetches that carry bytes (breath)
   execute:         { verb: "build",  interrogative: "how",   holes: ["endpoint", "params"],auth: "sealed" },
-  fill:            { verb: "build",  interrogative: "how",   holes: ["values"],            auth: "sealed" },
+  fill:            { verb: "build",  interrogative: "how",   holes: ["ref", "value"],      auth: "sealed" },
   go:              { verb: "build",  interrogative: "how",   holes: ["url"],               auth: "none" },
   run:             { verb: "build",  interrogative: "how",   holes: ["script"],            auth: "none" },
   capture:         { verb: "build",  interrogative: "how",   holes: ["url", "intent"],     auth: "sealed" },

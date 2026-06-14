@@ -1,6 +1,6 @@
 # The Agent Internet Layer
 
-Every web action an agent takes is one contract-shaped hole fill. The agent supplies
+Every web action an agent takes is one contract-shaped request. The agent supplies
 only the holes it can honestly fill — intent, optional approval, wallet proof, local
 capability results, and typed pointers — and Unbrowse decides the cheapest capable
 layer that can settle the witness. That descent may reuse a route, execute a captured
@@ -9,11 +9,11 @@ capture a new route, and index it for the next caller.
 
 That boundary protects both sides. A company can expose a useful contract without
 handing users its internal API map, HAR contents, auth headers, or route-scoring logic.
-A user can authorize a fill without sending raw credentials or PII to the graph. Secret
+A user can authorize a request without sending raw credentials or PII to the graph. Secret
 values stay local behind zk-bound / pointer-only holes; the wire carries typed pointers,
 wallet-bound proofs, approvals, and receipts.
 
-This page documents the public boundary: the hole/contract an agent fills, the
+This page documents the public boundary: the hole/contract an agent calls, the
 compatibility ops exposed underneath it, the receipt shape, and the trust promise.
 It does not document how routes are scored, ranked, or value-populated; that is
 handled by the aiko substrate and is out of scope (see [Out of scope](#out-of-scope)).
@@ -36,11 +36,12 @@ The bridge exposes five client-fillable holes:
 | `local_capability_result` | local dispatcher | No |
 | `typed_pointer` | server pointer | No |
 
-In CLI or SDK code, the current surface is one fill:
+In CLI or SDK code, the current surface is one typed hole. The CLI says `get`
+for read/search tasks; the SDK method remains `fill` because it fills the typed hole:
 
 ```bash
-unbrowse fill "top stories with point counts"
-unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+unbrowse get "top stories with point counts"
+unbrowse get "top stories with point counts" --url "https://news.ycombinator.com"
 ```
 
 ```ts

@@ -2,15 +2,15 @@
 
 This page is the operating model for an AI agent that has Unbrowse available.
 
-The current mental model is one step: **fill the hole**. The agent describes the
-internet gap it needs filled — intent, optional URL, optional params, and explicit
+The current mental model is one step: **get the result**. The agent describes the
+internet result it needs — intent, optional URL, optional params, and explicit
 approval for writes — and Unbrowse decides how to satisfy it. That may mean a
 direct document fetch, a shared contract in the route graph, a standard adapter, a
 local-auth browser capture, HAR inspection, or indexing a newly discovered route for
 the next call.
 
 The agent should not choose between `resolve`, `execute`, `go`, `snap`, `fetch`, HAR,
-or cookies for ordinary work. Those are implementation layers under the hole.
+or cookies for ordinary work. Those are implementation layers under the typed hole.
 
 The public contract is inspectable:
 
@@ -29,8 +29,8 @@ It exposes five client-fillable holes:
 In shell or code, the same surface is:
 
 ```bash
-unbrowse fill "top stories with point counts"
-unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+unbrowse get "top stories with point counts"
+unbrowse get "top stories with point counts" --url "https://news.ycombinator.com"
 ```
 
 ```ts

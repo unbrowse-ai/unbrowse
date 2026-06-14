@@ -1,7 +1,7 @@
 # SDK Quickstart
 
 `unbrowse/sdk` is the TypeScript client for the current Unbrowse contract: one
-hole fill from intent plus optional URL/params/approval. It runs in browsers, edge
+typed-hole request from intent plus optional URL/params/approval. It runs in browsers, edge
 runtimes, and Node.
 
 ```bash
@@ -24,8 +24,8 @@ const result = await hole.fill({
 The shell equivalent is:
 
 ```bash
-unbrowse fill "list tomorrow's events"
-unbrowse fill "list tomorrow's events" --url "https://calendar.google.com"
+unbrowse get "list tomorrow's events"
+unbrowse get "list tomorrow's events" --url "https://calendar.google.com"
 ```
 
 Need to inspect route selection? The legacy `Unbrowse` client still exposes

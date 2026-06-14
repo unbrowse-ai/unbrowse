@@ -1334,9 +1334,10 @@ export function shouldFillIntent(
   return !looksLikeElementRef(args[0]);
 }
 
-export function parseCmdFillArgs(
+function parseCmdHoleIntentArgs(
   args: string[],
   flags: Record<string, string | boolean>,
+  verb: "get" | "fill",
 ): { url?: string; intent: string } | { error: string } {
   const flagUrl = typeof flags.url === "string" ? flags.url : undefined;
   const flagIntent = (typeof flags.intent === "string" ? flags.intent : undefined)
@@ -1345,19 +1346,33 @@ export function parseCmdFillArgs(
 
   if (flagUrl) {
     const intent = flagIntent ?? (args.length > 0 ? args.join(" ") : undefined);
-    if (!intent) return { error: 'usage: unbrowse fill "task" [--url <url>]' };
+    if (!intent) return { error: `usage: unbrowse ${verb} "task" [--url <url>]` };
     return { url: flagUrl, intent };
   }
 
   if (looksLikeUrl(args[0])) {
     const intent = flagIntent ?? (args.length > 1 ? args.slice(1).join(" ") : undefined);
-    if (!intent) return { error: 'usage: unbrowse fill <url> "task"' };
+    if (!intent) return { error: `usage: unbrowse ${verb} <url> "task"` };
     return { url: args[0], intent };
   }
 
   const intent = flagIntent ?? (args.length > 0 ? args.join(" ") : undefined);
-  if (!intent) return { error: 'usage: unbrowse fill "task" [--url <url>]' };
+  if (!intent) return { error: `usage: unbrowse ${verb} "task" [--url <url>]` };
   return { intent };
+}
+
+export function parseCmdGetArgs(
+  args: string[],
+  flags: Record<string, string | boolean>,
+): { url?: string; intent: string } | { error: string } {
+  return parseCmdHoleIntentArgs(args, flags, "get");
+}
+
+export function parseCmdFillArgs(
+  args: string[],
+  flags: Record<string, string | boolean>,
+): { url?: string; intent: string } | { error: string } {
+  return parseCmdHoleIntentArgs(args, flags, "fill");
 }
 
 async function cmdRun(args: string[], flags: Record<string, string | boolean>, verb = "run"): Promise<void> {
@@ -3457,9 +3472,10 @@ export const CLI_REFERENCE = {
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
     // ── The primary one-hole path + compatibility route views ─────────────
-    { name: "fill", usage: '"task" [--url <url>] | <url> "task"', desc: "PRIMARY one-hole agent path. Fill an internet gap from natural language, optionally scoped to a URL; runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing. In an open browse session, `fill <ref> <value>` still fills a DOM input by @eN ref." },
+    { name: "get", usage: '"task" [--url <url>] | <url> "task"', desc: "PRIMARY read/search one-hole agent path. Ask for the internet result in natural language, optionally scoped to a URL; runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing while keeping private route/auth details behind typed holes." },
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS through the embedded browser/sandbox primitive and prints the full envelope (cookies, post_eval, observed routes). Browser/Kuri helpers are binary-owned implementation details." },
-    { name: "run", usage: '<url> "task"', desc: "Compatibility alias for the one-shot path. Prefer `fill` for new agent prompts; accepts positional task text or --intent/--task/--query." },
+    { name: "fill", usage: '<ref> <value>  |  "task" [--url <url>]', desc: "Browser-session DOM input fill by @eN ref. Compatibility: natural-language `fill \"task\"` still routes through the one-hole path, but new read/search prompts should use `get`." },
+    { name: "run", usage: '<url> "task"', desc: "Compatibility alias for the one-shot path. Prefer `get` for new read/search agent prompts; accepts positional task text or --intent/--task/--query." },
     { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Advanced: resolve an intent against marketplace + local cache only. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
@@ -3644,7 +3660,7 @@ export const DEPRECATED_VERBS: Record<string, DeprecatedVerb> = {
 /** The lean essential path — these must never be deprecated (guarded by the witness). */
 export const ESSENTIAL_VERBS: readonly string[] = [
   "resolve", "execute", "run", "fetch", "search",
-  "go", "snap", "click", "fill", "type", "press", "select", "scroll", "submit", "sync", "close",
+  "get", "go", "snap", "click", "fill", "type", "press", "select", "scroll", "submit", "sync", "close",
   "auth", "auth-capture", "skills", "skill", "publish", "index", "setup", "health", "mcp",
 ];
 
@@ -4498,6 +4514,13 @@ async function cmdFill(args: string[], flags: Record<string, string | boolean>):
   return cmdBrowseFill(args, flags);
 }
 
+async function cmdGet(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const parsed = parseCmdGetArgs(args, flags);
+  if ("error" in parsed) die(parsed.error);
+  if (parsed.url) return cmdRun([], { ...flags, url: parsed.url, intent: parsed.intent }, "get");
+  return cmdSearch({ ...flags, intent: parsed.intent });
+}
+
 async function cmdType(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const text = args.join(" ");
   if (!text) die("usage: unbrowse type <text>  (types into the currently focused element; click an input first via `unbrowse click @eN`)");
@@ -5236,7 +5259,7 @@ async function main(): Promise<void> {
   // fallback. For commands that drive the browser, probe the proxy first and fall back to DIRECT
   // egress when it can't be reached — so the capture survives instead of returning an error page.
   const BROWSE_COMMANDS = new Set([
-    "go", "run", "capture", "fetch", "snap", "click", "fill", "type", "press", "select",
+    "get", "go", "run", "capture", "fetch", "snap", "click", "fill", "type", "press", "select",
     "scroll", "submit", "screenshot", "text", "markdown", "cookies", "eval", "back", "forward",
     "sync", "close", "inspect", "auth", "auth-capture", "login", "resolve", "execute", "explain",
     "create", "act", "read",
@@ -5403,7 +5426,7 @@ async function main(): Promise<void> {
     "create", "act", "read",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "payment-provider", "account", "dashboard", "capture",
     "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
-    "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
+    "get", "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "wallet", "eval", "back", "forward", "sync", "close",
     "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
     "contract-bridge",
@@ -5457,6 +5480,7 @@ async function main(): Promise<void> {
     case "create": case "act": case "read": return cmdCanonicalVerb(command, args, flags);
     case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
+    case "get": return cmdGet(args, flags);
     case "run": return cmdRun(args, flags);
     case "explain": return cmdExplain(flags);
     case "execute": case "exec": return cmdExecute(flags);

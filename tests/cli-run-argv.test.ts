@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCmdFillArgs, parseCmdRunArgs, shouldFillIntent } from "../src/cli";
+import { parseCmdFillArgs, parseCmdGetArgs, parseCmdRunArgs, shouldFillIntent } from "../src/cli";
 
 describe("parseCmdRunArgs", () => {
   test("positional both: url + intent fragments", () => {
@@ -43,15 +43,15 @@ describe("parseCmdRunArgs", () => {
 });
 
 describe("shouldFillIntent", () => {
-  test("URL positional uses the one-hole fill path", () => {
+  test("URL positional uses the one-hole compatibility path", () => {
     expect(shouldFillIntent(["https://news.ycombinator.com", "top", "stories"], {})).toBe(true);
   });
 
-  test("natural language alone uses the one-hole fill path", () => {
+  test("natural language alone uses the one-hole compatibility path", () => {
     expect(shouldFillIntent(["top", "Hacker", "News", "stories"], {})).toBe(true);
   });
 
-  test("--url/--intent uses the one-hole fill path", () => {
+  test("--url/--intent uses the one-hole compatibility path", () => {
     expect(shouldFillIntent([], { url: "https://x.com", intent: "find shoes" })).toBe(true);
   });
 
@@ -60,8 +60,34 @@ describe("shouldFillIntent", () => {
   });
 });
 
-describe("parseCmdFillArgs", () => {
+describe("parseCmdGetArgs", () => {
   test("natural language only becomes an intent", () => {
+    expect(parseCmdGetArgs(["top", "HN", "stories"], {})).toEqual({ intent: "top HN stories" });
+  });
+
+  test("URL positional scopes the intent", () => {
+    expect(parseCmdGetArgs(["https://news.ycombinator.com", "top", "stories"], {})).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+
+  test("--url scopes positional natural language", () => {
+    expect(parseCmdGetArgs(["top", "stories"], { url: "https://news.ycombinator.com" })).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+
+  test("usage text names get", () => {
+    const result = parseCmdGetArgs(["https://x.com"], {});
+    expect("error" in result).toBe(true);
+    if ("error" in result) expect(result.error).toBe('usage: unbrowse get <url> "task"');
+  });
+});
+
+describe("parseCmdFillArgs", () => {
+  test("natural language only remains a compatibility intent", () => {
     expect(parseCmdFillArgs(["top", "HN", "stories"], {})).toEqual({ intent: "top HN stories" });
   });
 

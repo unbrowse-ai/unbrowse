@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Company route IP stays behind typed contracts: end users fill holes and receive results, not raw internal API maps, auth material, HAR payloads, or PII. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed values. Company route IP stays behind typed contracts: end users ask for results, not raw internal API maps, auth material, HAR payloads, or PII. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Agent Skill, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish. MCP remains available as a legacy compatibility surface.
 
@@ -49,8 +49,8 @@ The bridge exposes five client-fillable holes:
 In the CLI and SDK this is one tool:
 
 ```bash
-unbrowse fill "get the top Hacker News stories with points"
-unbrowse fill "get the top Hacker News stories with points" --url "https://news.ycombinator.com"
+unbrowse get "the top Hacker News stories with points"
+unbrowse get "the top Hacker News stories with points" --url "https://news.ycombinator.com"
 ```
 
 ```ts
@@ -77,13 +77,13 @@ Each op produces a **pointer-only, wallet-signed receipt**: it points *at* value
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `unbrowse fill ...`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
+> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `unbrowse get ...`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
 
 ## Drop-in client adapters
 
 Already using a search or browsing client? Swap one import. Unbrowse ships **drop-in
 adapters** that mirror the call shapes of `exa-js`, `@tavily/core`, and `browser-use`, all
-routed through a single streaming `fill` tool (resolve → execute → capture; a browser opens
+routed through a single streaming hole contract (resolve → execute → capture; a browser opens
 only as a fallback) that can be wallet-bound so each request is Ed25519-signed:
 
 ```ts
@@ -91,7 +91,7 @@ import Exa from "unbrowse/sdk/adapters/exa";        // was: import Exa from "exa
 const { results } = await new Exa(key).search("anthropic news", { numResults: 5 });
 ```
 
-Full surface (exa / tavily / browser-use + the wallet-protected `fill` tool): [docs/adapters.md](./docs/adapters.md).
+Full surface (exa / tavily / browser-use + the wallet-protected hole tool): [docs/adapters.md](./docs/adapters.md).
 
 ## Install — pick one
 
