@@ -6,8 +6,8 @@ your exact API and route through Unbrowse with one import swap.
 
 Each adapter is **pure stdlib** — no third-party install is required for the
 fallback path, so the shim works even where the upstream isn't installed. A safe
-`GET` first routes through Unbrowse's resolve + execute marketplace cache (free on a
-hit); a miss or non-GET falls back to a native `urllib` request. Set
+`GET` first routes through Unbrowse's hole fill / marketplace cache (free on a hit);
+a miss or non-GET falls back to a native `urllib` request. Set
 `UNBROWSE_DRYRUN=1` for offline, deterministic calls. Each package ships a parity
 test proving it provides the upstream's surface (`scripts/python-adapter-gate.sh`).
 
@@ -47,12 +47,14 @@ and the top-level `request()` returning an `HTTPResponse`.
 from unbrowse_crewai import unbrowse_tools
 from crewai import Agent
 
-agent = Agent(role="researcher", tools=unbrowse_tools)   # resolve / execute / search
+agent = Agent(role="researcher", tools=unbrowse_tools)   # one fill-hole tool; route tools are legacy
 ```
 
-Each exposes `unbrowse_resolve`, `unbrowse_execute`, and `unbrowse_search`. For
-framework-branded instances, call `create_unbrowse_tools(BaseTool)` (CrewAI) or
-`create_unbrowse_tools(Tool)` (Pydantic AI) and pass the framework's own class.
+New adapters should expose one fill-hole tool. Older packages expose
+`unbrowse_resolve`, `unbrowse_execute`, and `unbrowse_search`; keep those for
+route-inspection compatibility. For framework-branded instances, call
+`create_unbrowse_tools(BaseTool)` (CrewAI) or `create_unbrowse_tools(Tool)`
+(Pydantic AI) and pass the framework's own class.
 
 ## MCP
 

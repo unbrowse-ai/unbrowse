@@ -9,14 +9,14 @@ import change.
 
 | Replace | With | Construction kept | Methods kept |
 |---|---|---|---|
-| `exa-js` | `@unbrowse/sdk/adapters/exa` | `new Exa(apiKey)` | `search`, `searchAndContents`, `getContents`, `answer` |
-| `@tavily/core` | `@unbrowse/sdk/adapters/tavily` | `tavily({ apiKey })` | `search`, `extract` |
-| `browser-use` | `@unbrowse/sdk/adapters/browser-use` | `new Agent({ task })` | `run` |
+| `exa-js` | `unbrowse/sdk/adapters/exa` | `new Exa(apiKey)` | `search`, `searchAndContents`, `getContents`, `answer` |
+| `@tavily/core` | `unbrowse/sdk/adapters/tavily` | `tavily({ apiKey })` | `search`, `extract` |
+| `browser-use` | `unbrowse/sdk/adapters/browser-use` | `new Agent({ task })` | `run` |
 
 ## The one tool — `fill`
 
 ```ts
-import { createHole } from "@unbrowse/sdk/adapters";
+import { createHole } from "unbrowse/sdk";
 
 const hole = createHole();                       // unified streaming tool
 const r = await hole.fill({ intent: "latest anthropic papers" });
@@ -35,7 +35,7 @@ adapter below simply reshapes those `items` into the client shape you already co
 
 ```ts
 // before:  import Exa from "exa-js";
-import Exa from "@unbrowse/sdk/adapters/exa";
+import Exa from "unbrowse/sdk/adapters/exa";
 
 const exa = new Exa(process.env.EXA_API_KEY);
 const { results } = await exa.search("anthropic news", { numResults: 5 });
@@ -46,7 +46,7 @@ const { results } = await exa.search("anthropic news", { numResults: 5 });
 
 ```ts
 // before:  import { tavily } from "@tavily/core";
-import { tavily } from "@unbrowse/sdk/adapters/tavily";
+import { tavily } from "unbrowse/sdk/adapters/tavily";
 
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
 const res = await tvly.search("agent infrastructure");
@@ -59,7 +59,7 @@ const ex = await tvly.extract(["https://example.com/post"]);
 
 ```ts
 // before:  from browser_use import Agent
-import { Agent } from "@unbrowse/sdk/adapters/browser-use";
+import { Agent } from "unbrowse/sdk/adapters/browser-use";
 
 const agent = new Agent({ task: "find the cheapest direct flight SFO→TYO next month" });
 const out = await agent.run();
@@ -74,7 +74,7 @@ request fails verification. Pass any signer that implements `sign(message) → {
 walletPubkey }`:
 
 ```ts
-import { createHole } from "@unbrowse/sdk/adapters";
+import { createHole } from "unbrowse/sdk";
 
 const hole = createHole({ wallet: mySigner });   // wallet-bound
 const r = await hole.fill({ intent: "fill this gap" });

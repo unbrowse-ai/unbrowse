@@ -2,7 +2,7 @@
 
 > **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed fills. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
-Unbrowse is a local Model Context Protocol (MCP) server, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish.
+Unbrowse is a local Agent Skill, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish. MCP remains available as a legacy compatibility surface.
 
 One agent learns a site once. Every later agent gets the fast path.
 
@@ -28,11 +28,39 @@ That handoff is intentionally **HOLD**, not a benchmark-win claim: the robust
 BrowseComp witness must still be a real `N >= 25` result above Exa's published
 `0.336` target.
 
-> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect via the MCP server or the SDK.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are only shared after an explicit checkpoint (`sync`, `close`, or manual `publish`). Agents should connect through the installed Agent Skill or the SDK hole surface.
 
-## A uniform agent interface
+## A Uniform Agent Interface
 
-Every web action an agent takes collapses onto **three verbs** — the same shape the binary speaks internally:
+The current client boundary is a **hole/contract**: the model fills only the holes it can know, and the runtime chooses the cheapest capable layer. The formal bridge is machine-readable:
+
+```bash
+unbrowse contract surface
+```
+
+The bridge exposes five client-fillable holes:
+
+- `intent`
+- `wallet_proof`
+- `approval`
+- `local_capability_result`
+- `typed_pointer`
+
+In SDK code this is one tool:
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "get the top Hacker News stories with points",
+  url: "https://news.ycombinator.com",
+});
+```
+
+Internally the runtime may resolve a route, execute a captured endpoint, call a standard adapter, open a browser, reuse local cookies, inspect HAR, capture a new route, and index it. The agent-facing contract is the hole, not that internal ladder.
+
+The older CLI surface remains for compatibility and route debugging. It is shaped as three verbs:
 
 | Verb | What it is | Examples |
 |---|---|---|
@@ -42,20 +70,9 @@ Every web action an agent takes collapses onto **three verbs** — the same shap
 
 Each op produces a **pointer-only, wallet-signed receipt**: it points *at* values (a URL, a `value:ptr`, a `sha256:` address) and carries a signature from your key — it never carries the secret value itself. `act fill` dereferences a credential pointer **locally** and types the result into the page; the secret never crosses the wire. *We never see your secret values.*
 
-The paper bridge surface is machine-readable:
+Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-```bash
-unbrowse contract surface
-```
-
-That command projects the same boundary described in `paper/crypto-was-all-you-needed.md`: server-owned graph/control, client-owned wallet and local fills, CLI as the bridge, and Aiko as the inverse client/OS harness.
-The bridge exposes five client-fillable holes: `intent`, `wallet_proof`,
-`approval`, `local_capability_result`, and `typed_pointer`. None carries a
-secret value.
-
-Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — all 37 ops, the two-call contract, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
-
-> The three-verb surface (`unbrowse {create,act,read}`) ships in the v7 preview alongside the unchanged v6 commands (`go`, `snap`, `fill`, …). No migration required.
+> The three-verb and v6 command surfaces are compatibility layers. New integrations should target `createHole().fill(...)` or inspect `unbrowse contract surface`.
 
 ## Drop-in client adapters
 
@@ -65,7 +82,7 @@ routed through a single streaming `fill` tool (resolve → execute → capture; 
 only as a fallback) that can be wallet-bound so each request is Ed25519-signed:
 
 ```ts
-import Exa from "@unbrowse/sdk/adapters/exa";        // was: import Exa from "exa-js"
+import Exa from "unbrowse/sdk/adapters/exa";        // was: import Exa from "exa-js"
 const { results } = await new Exa(key).search("anthropic news", { numResults: 5 });
 ```
 
@@ -73,47 +90,40 @@ Full surface (exa / tavily / browser-use + the wallet-protected `fill` tool): [d
 
 ## Install — pick one
 
-### Option 1 — MCP (drop-in for any MCP host)
+### Option 1 — Agent Skill + CLI
 
-Add this once to your host config (Claude Desktop, Cursor, Codex, Open Code, Windsurf, or anything that speaks MCP):
+Install the binary, then run setup. Setup installs the Unbrowse Agent Skill by default; MCP registration is opt-in with `--mcp`.
 
-```json
-{
-  "mcpServers": {
-    "unbrowse": {
-      "command": "npx",
-      "args": ["-y", "unbrowse", "mcp"]
-    }
-  }
-}
+```bash
+npm i -g unbrowse
+unbrowse setup
 ```
 
-That's it. `npx` fetches the `unbrowse` binary on first run; every web task in that host now routes through Unbrowse. Local browsing tools (`unbrowse_go`, `unbrowse_snap`, `unbrowse_eval`, `unbrowse_fetch`) work without registration. Backend-bound tools (`unbrowse_resolve`, `unbrowse_execute`, `unbrowse_publish`, `unbrowse_earnings`) require an API key — register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) or run `npx unbrowse register`. To earn USDC on captured routes, pair a wallet via `npx @crossmint/lobster-cli setup`.
+Skill-aware hosts read `~/.claude/skills/unbrowse/SKILL.md` and learn the current hole/contract surface. To also register the legacy MCP tools:
+
+```bash
+unbrowse setup --mcp
+```
 
 ### Option 2 — TypeScript SDK
 
-One SDK, one install. The HTTP-first client ships inside the `unbrowse` package and is imported from `unbrowse/sdk` — browser + Node 18+, zero runtime deps, talks directly to the hosted Unbrowse API (no local binary required).
+One SDK, one install. The current SDK surface is the hole: `createHole().fill(...)`.
 
 ```bash
 npm i unbrowse
 ```
 
 ```ts
-import { Unbrowse } from "unbrowse/sdk";
+import { createHole } from "unbrowse/sdk";
 
-const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
-
-const result = await unbrowse.resolve({
-  intent: "search hackernews for AI agent papers",
-});
-
-const data = await unbrowse.execute({
-  endpoint_id: result.available_operations![0].endpoint_id,
-  params: { q: "agents" },
+const hole = createHole({ client: { apiKey: process.env.UNBROWSE_API_KEY } });
+const data = await hole.fill({
+  intent: "search Hacker News for AI agent papers",
+  url: "https://news.ycombinator.com",
 });
 ```
 
-Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. The same install also provides the `unbrowse` CLI and the MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for the full surface.
+Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. The same install also provides the `unbrowse` CLI and legacy MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for the full surface.
 
 ### Option 3 — Standalone CLI
 
@@ -231,7 +241,7 @@ If you installed from a repo clone:
 ```bash
 cd ~/unbrowse
 git pull --ff-only
-./setup --host off
+./setup
 ```
 
 Need help or want release updates? Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG). Public docs: [docs.unbrowse.ai](https://docs.unbrowse.ai).

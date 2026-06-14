@@ -160,6 +160,17 @@ packages/skill/dist-sm/
 !.bench-gate/stamp.json
 !.bench-gate/stamp.mcp.json
 
+# Local service/runtime scratch
+backend/.wrangler/
+frontend/.claude/archive/
+
+# Local capability-bench scratch reports. Curated dated reports can still be
+# force-added when they are the intended evidence artifact.
+bench/capability/reports/run-*.json
+bench/capability/reports/run-*.md
+bench/capability/reports/*T*.json
+bench/capability/reports/*T*.md
+
 # bench-converge runtime artifacts (per-run dirs + sandboxed unbrowse state).
 # Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).
 .bench-converge/

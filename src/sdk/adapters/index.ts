@@ -4,10 +4,10 @@
  * Each adapter mirrors a popular client's construction + method shapes, so swapping the
  * import is the only change needed:
  *
- *   import Exa from "@unbrowse/sdk/adapters/exa";          // was: import Exa from "exa-js"
- *   import { tavily } from "@unbrowse/sdk/adapters/tavily"; // was: from "@tavily/core"
- *   import FirecrawlApp from "@unbrowse/sdk/adapters/firecrawl"; // was: from "@mendable/firecrawl-js"
- *   import { Agent } from "@unbrowse/sdk/adapters/browser-use";
+ *   import Exa from "unbrowse/sdk/adapters/exa";          // was: import Exa from "exa-js"
+ *   import { tavily } from "unbrowse/sdk/adapters/tavily"; // was: from "@tavily/core"
+ *   import FirecrawlApp from "unbrowse/sdk/adapters/firecrawl"; // was: from "@mendable/firecrawl-js"
+ *   import { Agent } from "unbrowse/sdk/adapters/browser-use";
  *
  * All of them wrap the same wallet-sealed streaming hole (`../hole.ts`), so each call
  * settles per request via x402 — you pay only for what you fetch, not a flat plan.

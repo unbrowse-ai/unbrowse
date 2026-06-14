@@ -13,7 +13,7 @@ resolves it in best-practice order, and you only have to do one thing:
    signup). You can **sync** it onto an account later to consolidate earnings.
 
 ```ts
-import { ensureIdentity, onboardingStatus } from "@unbrowse/sdk/onboard";
+import { ensureIdentity, onboardingStatus } from "unbrowse/sdk";
 
 const status = onboardingStatus();
 console.log(status.nextStep);     // the one thing to tell the user right now
@@ -36,7 +36,7 @@ capture is **auto-indexed** so the next call is a fast, reusable route — the
 discover → publish loop, automatically:
 
 ```ts
-import { createHole } from "@unbrowse/sdk/adapters";
+import { createHole } from "unbrowse/sdk";
 import { queueBackgroundIndex } from "unbrowse/indexer"; // wire the real indexer
 
 const hole = createHole({

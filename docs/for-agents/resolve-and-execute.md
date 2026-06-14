@@ -1,26 +1,50 @@
-# Resolve and Execute
+# Hole Contract and Legacy Route View
 
-Resolve and execute are deliberately two calls so that the picking decision stays with the agent's reasoning, not with a heuristic.
+The current Unbrowse contract is one hole fill. The caller supplies an intent and
+optional context; the runtime descends through the graph, adapters, browser capture,
+cookies, HAR, and indexing as needed.
 
-## Resolve
+```ts
+import { createHole } from "unbrowse/sdk";
 
-Resolve takes an intent (a natural-language task) and usually a URL or domain. It returns a ranked shortlist of candidate routes. Each candidate carries evidence the agent can judge against the intent:
+const hole = createHole();
+const result = await hole.fill({
+  intent: "latest releases from this repository",
+  url: "https://github.com/unbrowse-ai/unbrowse",
+});
+```
 
-* the route and what it returns
-* what inputs it requires and what it yields
-* a reliability and freshness signal
-* the action kind (read versus write)
+The machine-readable shape is:
 
-Resolve searches local cache and the shared graph first. It only falls back to live capture when reuse genuinely fails.
+```bash
+unbrowse contract surface
+```
 
-## Execute
+## Why the old route view still exists
 
-Execute runs one chosen route. The agent passes the route (or the resolve result) plus any parameters. The response is the data the intent asked for. Projection options control the shape of the response so the agent gets the content it needs rather than the schema.
+`resolve` and `execute` are the compatibility decomposition of the same contract.
+They are useful when you are inspecting the route graph, debugging a bad endpoint,
+or integrating with an older MCP host that cannot call the hole directly.
 
-## Why two calls
+In that view:
 
-A single auto-executing call would force a machine to guess which route the agent meant. The two-call contract keeps that judgement in the calling model, which is the part that actually understands the intent. Unbrowse's job is to make the shortlist correct and the evidence honest, not to choose.
+* `resolve` searches local/server contracts and returns candidate endpoints with evidence.
+* The agent or debugger judges which candidate matches the intent.
+* `execute` runs the selected endpoint with params and projection.
+* `feedback` records whether the selected route satisfied the intent.
 
-## After execute
+This is deliberately no longer the default training path for agents. The dogfood
+failure mode was obvious: agents guessed CLI verbs and flags instead of submitting
+one intent-shaped gap. New integrations should call the hole and let the runtime
+pick the descent.
 
-Send feedback. Feedback is what keeps a reused graph trustworthy: routes that satisfy intents stay ranked, routes that stop working fall away.
+## When to use it
+
+Use the route view for:
+
+* endpoint inspection
+* regression diagnosis
+* manual replay of a known contract
+* old MCP/tool hosts
+
+Do not use it as the default user-task loop. For user tasks, fill the hole.

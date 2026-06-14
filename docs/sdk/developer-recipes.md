@@ -1,45 +1,52 @@
 # Developer Recipes
 
-Common SDK patterns. The SDK surface is small (`resolve`, `execute`, `login`, `importAuth`, `search`, `searchDomain`, `getSkill`, `feedback`, `stats`, `health`). Most leverage comes from composing them.
+Common SDK patterns. The current SDK surface is the hole: `createHole().fill(...)`.
+The older `resolve`/`execute` methods remain for route inspection and compatibility.
 
-## Recipe 1: Resolve, then let the LLM pick the endpoint
+## Recipe 1: Fill One Hole
 
-The two-tool-call contract: never auto-execute on resolve. Resolve returns a shortlist in `available_endpoints`; the calling LLM picks; execute runs the pick.
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole({
+  client: { apiKey: process.env.UNBROWSE_API_KEY },
+});
+
+const r = await hole.fill({
+  intent: "top stories on Hacker News with point counts",
+  url: "https://news.ycombinator.com",
+});
+```
+
+This is the agent-facing contract. Internally the runtime may resolve, execute,
+open a browser, inspect HAR, reuse cookies, or index a newly discovered route.
+
+## Recipe 2: Inspect a Route Manually
+
+Use the legacy route view only when you need to debug endpoint selection:
 
 ```ts
 const resolved = await u.resolve({ intent, url });
-
-const pick = await llm.choose({
-  intent,
-  candidates: resolved.available_endpoints,
-});
-
-// Build params from the picked endpoint's declared input shape.
-const params: Record<string, unknown> = {};
-for (const p of pick.input_params ?? []) {
-  if (p.example_value !== undefined) params[p.key] = p.example_value;
-}
+const pick = resolved.available_endpoints?.[0];
+if (!pick) throw new Error("no route");
 
 const r = await u.execute(pick.endpoint_id, {
-  params,
   projection: { raw: true },
 });
 ```
 
-This is what makes the SDK feel like a tool the agent reasons over, not a black box.
-
-## Recipe 2: Auth-then-mine on a gated site
+## Recipe 3: Auth Before a Fill
 
 ```ts
-const login = await u.login({ url: "https://linkedin.com" });
+await u.login({ url: "https://linkedin.com" });
 
-const resolved = await u.resolve({
+const r = await hole.fill({
   intent: "my recent messages",
   url: "https://www.linkedin.com/messaging/",
 });
 ```
 
-For headless workers, use cookie import from a real Chrome/Firefox profile:
+For headless workers, import cookies from a real Chrome/Firefox profile:
 
 ```ts
 await u.importAuth({
@@ -49,57 +56,20 @@ await u.importAuth({
 });
 ```
 
-## Recipe 3: Domain search before resolve
-
-When you know the domain but not the intent fit, search first to avoid an unnecessary live capture.
+## Recipe 4: Long-running Worker Pool
 
 ```ts
-const hits = await u.searchDomain({
-  domain: "news.ycombinator.com",
-  intent: "new submissions",
-  k: 5,
-});
-
-const hit = hits.results?.[0];
-if (hit?.skill_id) {
-  return await u.execute(hit.skill_id, { params: {} });
-}
-return await u.resolve({ intent: "new submissions", url: "https://news.ycombinator.com/newest" });
-```ts
-const r = await u.execute(pick.endpoint_id, { params });
-
-await u.feedback({
-  skillId: resolved.skill?.skill_id ?? "",
-  endpointId: pick.endpoint_id,
-  rating: r.trace.success ? 5 : 1,
-  outcome: r.trace.success ? "success" : "failure",
-  diagnostics: r.trace.success ? undefined : { wrong_endpoint: true },
-});
-```
-  endpointId: pick.endpoint_id,
-  outcome: r.trace.success ? "success" : "failure",
-  rating: r.trace.success ? 5 : 1,
-  diagnostics: r.trace.success ? undefined : { error: r.trace.error },
-});
-```
-
-## Recipe 5: Long-running worker pool
-
-```ts
-import { Unbrowse } from "unbrowse/sdk";
+import { createHole } from "unbrowse/sdk";
 import pLimit from "p-limit";
 
-const u = new Unbrowse({ clientId: `worker-${process.pid}` });
+const hole = createHole({ client: { clientId: `worker-${process.pid}` } });
 const limit = pLimit(8);
 
 async function processBatch(tasks: { intent: string; url: string }[]) {
   return Promise.all(tasks.map(t => limit(async () => {
     try {
-      const resolved = await u.resolve(t, { timeoutMs: 15_000 });
-      const pick = resolved.available_endpoints?.[0];
-      if (!pick) return { task: t, status: "miss" };
-      const r = await u.execute(pick.endpoint_id);
-      return { task: t, status: r.trace.success ? "ok" : "fail", data: r.result };
+      const r = await hole.fill(t);
+      return { task: t, status: r.ok ? "ok" : "fail", data: r };
     } catch (e) {
       return { task: t, status: "error", error: String(e) };
     }
@@ -107,45 +77,32 @@ async function processBatch(tasks: { intent: string; url: string }[]) {
 }
 ```
 
-Key constraint: 8 concurrent against one runtime is roughly the safe ceiling. For more, run multiple runtimes (see [onboarding-validators.md](./onboarding-validators.md)).
+Key constraint: 8 concurrent calls against one runtime is roughly the safe ceiling.
+For more, run multiple runtimes.
 
-## Recipe 6: Custom fetch / proxy
+## Recipe 5: Custom Fetch / Proxy
 
 Useful for routing through a residential proxy or for instrumentation.
 
 ```ts
-import { Unbrowse } from "unbrowse/sdk";
+import { createHole } from "unbrowse/sdk";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const dispatcher = new ProxyAgent("http://geo.iproyal.com:12321");
-const u = new Unbrowse({
-  fetch: (url, init) => undiciFetch(url, { ...init, dispatcher }),
+const hole = createHole({
+  client: {
+    fetch: (url, init) => undiciFetch(url, { ...init, dispatcher }),
+  },
 });
 ```
 
-## Recipe 7: Health-gated startup
-
-```ts
-async function waitForRuntime(u: Unbrowse, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const h = await u.health({ timeoutMs: 1000 });
-      if (h.status === "ok") return h;
-    } catch {}
-    await new Promise(r => setTimeout(r, 500));
-  }
-  throw new Error("unbrowse runtime did not become healthy");
-}
-```
-
-## Recipe 8: Decide between SDK and CLI
+## Recipe 6: Decide Between SDK and CLI
 
 | Need | Use |
 |---|---|
-| In-process agent making many calls | SDK |
+| In-process agent making many calls | SDK `createHole().fill(...)` |
 | One-off shell automation | CLI |
-| Auth flow with user-facing browser | CLI (`unbrowse login`) |
-| Earnings / payout queries | CLI (`unbrowse stats --earnings`) or HTTP (`/v1/dashboard/me`, `/v1/transactions/creator/:agentId`) |
-| Wallet config | `unbrowse setup` (interactive) or `LOBSTER_WALLET_ADDRESS` / `AGENT_WALLET_ADDRESS` env vars |
-| Embedding in MCP / OpenClaw | OpenClaw plugin (auto-routes) |
+| Inspect current contract | `unbrowse contract surface` |
+| Auth flow with user-facing browser | CLI (`unbrowse auth`) |
+| Route-selection debugging | Legacy `resolve`/`execute` |
+| Wallet config | `unbrowse setup` |
