@@ -26,7 +26,12 @@ It exposes five client-fillable holes:
 * `local_capability_result`
 * `typed_pointer`
 
-In code, the same surface is:
+In shell or code, the same surface is:
+
+```bash
+unbrowse fill "top stories with point counts"
+unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+```
 
 ```ts
 import { createHole } from "unbrowse/sdk";

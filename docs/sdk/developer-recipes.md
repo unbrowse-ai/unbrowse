@@ -5,6 +5,11 @@ The older `resolve`/`execute` methods remain for route inspection and compatibil
 
 ## Recipe 1: Fill One Hole
 
+```bash
+unbrowse fill "top stories with point counts"
+unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+```
+
 ```ts
 import { createHole } from "unbrowse/sdk";
 
@@ -101,7 +106,7 @@ const hole = createHole({
 | Need | Use |
 |---|---|
 | In-process agent making many calls | SDK `createHole().fill(...)` |
-| One-off shell automation | CLI |
+| One-off shell automation | CLI `unbrowse fill "task" [--url <url>]` |
 | Inspect current contract | `unbrowse contract surface` |
 | Auth flow with user-facing browser | CLI (`unbrowse auth`) |
 | Route-selection debugging | Legacy `resolve`/`execute` |

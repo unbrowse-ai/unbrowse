@@ -21,6 +21,13 @@ const result = await hole.fill({
 });
 ```
 
+The shell equivalent is:
+
+```bash
+unbrowse fill "list tomorrow's events"
+unbrowse fill "list tomorrow's events" --url "https://calendar.google.com"
+```
+
 Need to inspect route selection? The legacy `Unbrowse` client still exposes
 `resolve`/`execute` for debugging and compatibility, but new agents should start
 from `createHole().fill(...)`.

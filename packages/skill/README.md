@@ -10,7 +10,8 @@ One agent learns a site once. Every later agent gets the fast path.
 
 > **Primary surface: the hole/contract.** `SKILL.md` (shipped in this package) teaches
 > agents to fill one hole, not juggle a dozen route/debug verbs. The formal bridge is
-> `unbrowse contract surface`; the SDK expression is `createHole().fill(...)`. Old
+> `unbrowse contract surface`; the CLI expression is `unbrowse fill "task" [--url <url>]`;
+> the SDK expression is `createHole().fill(...)`. Old
 > `resolve`/`execute`/`go`/`snap` CLI verbs remain as advanced compatibility and debugging
 > surfaces. **MCP is legacy** — still supported, but no longer the recommended path.
 
@@ -21,6 +22,8 @@ unbrowse setup        # one-time: registration, browser engine, local credential
 
 ```bash
 unbrowse contract surface   # inspect the current hole/contract bridge
+unbrowse fill "top stories with points"
+unbrowse fill "top stories with points" --url https://news.ycombinator.com
 ```
 
 ---
@@ -108,7 +111,7 @@ unbrowse upgrade
 
 ## Command reference
 
-**Current path:** `contract surface` · SDK `createHole().fill(...)`
+**Current path:** `fill` · `contract surface` · SDK `createHole().fill(...)`
 **Advanced compatibility:** `resolve` · `execute` · `run` · `fetch` · `search` · `explain`
 **Browse session:** `go` · `snap` · `click` · `fill` · `type` · `press` · `select` · `scroll` ·
 `submit` · `screenshot` · `text` · `markdown` · `eval` · `back` · `forward` · `sync` · `close` ·

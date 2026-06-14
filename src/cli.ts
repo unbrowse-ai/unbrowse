@@ -1287,6 +1287,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 export function parseCmdRunArgs(
   args: string[],
   flags: Record<string, string | boolean>,
+  verb = "run",
 ): { url: string; intent: string } | { error: string } {
   const flagUrl = typeof flags.url === "string" ? flags.url : undefined;
   const flagIntent = (typeof flags.intent === "string" ? flags.intent : undefined)
@@ -1306,12 +1307,61 @@ export function parseCmdRunArgs(
   }
 
   const intent = flagIntent ?? positionalTask;
-  if (!url || !intent) return { error: 'usage: unbrowse run <url> "task"' };
+  if (!url || !intent) return { error: `usage: unbrowse ${verb} <url> "task"` };
   return { url, intent };
 }
 
-async function cmdRun(args: string[], flags: Record<string, string | boolean>): Promise<void> {
-  const parsed = parseCmdRunArgs(args, flags);
+function looksLikeUrl(s: string | undefined): boolean {
+  return typeof s === "string" && /^https?:\/\//i.test(s);
+}
+
+function looksLikeElementRef(s: string | undefined): boolean {
+  return typeof s === "string" && /^@?e\d+$/i.test(s);
+}
+
+export function shouldFillIntent(
+  args: string[],
+  flags: Record<string, string | boolean>,
+): boolean {
+  if (typeof flags.intent === "string"
+    || typeof flags.task === "string"
+    || typeof flags.query === "string"
+    || typeof flags.url === "string"
+    || looksLikeUrl(args[0])) {
+    return true;
+  }
+  if (args.length === 0) return false;
+  return !looksLikeElementRef(args[0]);
+}
+
+export function parseCmdFillArgs(
+  args: string[],
+  flags: Record<string, string | boolean>,
+): { url?: string; intent: string } | { error: string } {
+  const flagUrl = typeof flags.url === "string" ? flags.url : undefined;
+  const flagIntent = (typeof flags.intent === "string" ? flags.intent : undefined)
+    ?? (typeof flags.task === "string" ? flags.task : undefined)
+    ?? (typeof flags.query === "string" ? flags.query : undefined);
+
+  if (flagUrl) {
+    const intent = flagIntent ?? (args.length > 0 ? args.join(" ") : undefined);
+    if (!intent) return { error: 'usage: unbrowse fill "task" [--url <url>]' };
+    return { url: flagUrl, intent };
+  }
+
+  if (looksLikeUrl(args[0])) {
+    const intent = flagIntent ?? (args.length > 1 ? args.slice(1).join(" ") : undefined);
+    if (!intent) return { error: 'usage: unbrowse fill <url> "task"' };
+    return { url: args[0], intent };
+  }
+
+  const intent = flagIntent ?? (args.length > 0 ? args.join(" ") : undefined);
+  if (!intent) return { error: 'usage: unbrowse fill "task" [--url <url>]' };
+  return { intent };
+}
+
+async function cmdRun(args: string[], flags: Record<string, string | boolean>, verb = "run"): Promise<void> {
+  const parsed = parseCmdRunArgs(args, flags, verb);
   if ("error" in parsed) die(parsed.error);
   const { url, intent } = parsed;
 
@@ -1321,13 +1371,13 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
   await recordFunnelTelemetryEvent("cli_invoked", {
     source: "cli",
     hostType,
-    properties: { command: "run" },
+    properties: { command: verb },
   });
   await recordFunnelTelemetryEvent("resolve_started", {
     source: "cli",
     hostType,
     properties: {
-      command: "run",
+      command: verb,
       intent,
       domain: telemetryDomainFromInput(undefined, url),
       url,
@@ -1458,7 +1508,7 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
         });
         result.next_action = {
           title: "Confirm third-party terms",
-          command: `unbrowse run "${url}" "${intent}" --confirm-third-party-terms`,
+          command: `unbrowse ${verb} "${url}" "${intent}" --confirm-third-party-terms`,
           why: "The best endpoint requires explicit confirmation before execution.",
         };
       } else if (
@@ -1609,7 +1659,7 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
         ...result,
         next_action: {
           title: "Index this page",
-          command: `unbrowse run "${url}" "${intent}"`,
+          command: `unbrowse ${verb} "${url}" "${intent}"`,
           why: "--no-index stopped the automatic capture/index fallback.",
         },
       }), !!flags.pretty);
@@ -1749,11 +1799,11 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>): 
       source: "cli",
       hostType,
       properties: {
-        command: "run",
+        command: verb,
         intent,
         domain: telemetryDomainFromInput(undefined, url),
         url,
-        failure_stage: "run",
+        failure_stage: verb,
         failure_reason: message,
       },
     });
@@ -3406,9 +3456,10 @@ export const CLI_REFERENCE = {
     { name: "dashboard", usage: "[--no-open]", desc: "Open the website dashboard and pair this CLI install through localhost." },
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
-    // ── The two primary call paths for an agent ───────────────────────────
+    // ── The primary one-hole path + compatibility route views ─────────────
+    { name: "fill", usage: '"task" [--url <url>] | <url> "task"', desc: "PRIMARY one-hole agent path. Fill an internet gap from natural language, optionally scoped to a URL; runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing. In an open browse session, `fill <ref> <value>` still fills a DOM input by @eN ref." },
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS through the embedded browser/sandbox primitive and prints the full envelope (cookies, post_eval, observed routes). Browser/Kuri helpers are binary-owned implementation details." },
-    { name: "run", usage: '<url> "task"', desc: "One-shot agent path. Chooses direct cached/API replay first, captures+indexes on miss, retries, then opens browser only when interaction is needed. Accepts positional task text or --intent/--task/--query." },
+    { name: "run", usage: '<url> "task"', desc: "Compatibility alias for the one-shot path. Prefer `fill` for new agent prompts; accepts positional task text or --intent/--task/--query." },
     { name: "resolve", usage: '--intent "..." [--url "..."] [--domain "..."] [--no-execute]', desc: "Advanced: resolve an intent against marketplace + local cache only. --task and --query are accepted aliases for --intent. Auto-executes the top safe GET endpoint by default; --no-execute returns metadata only." },
     { name: "execute", usage: "--skill ID --endpoint ID [-p key=val ...] [--params '{json}']", desc: "Execute a specific endpoint. Call after `unbrowse resolve --no-execute` returned a shortlist. Pass replay params via repeated -p flags or --params with a JSON object." },
     { name: "explain", usage: '--intent "..." --url "..." [--top N]', desc: "Print top-N candidate endpoints + evidence so an LLM (or you) can pick. No heuristic verdict — just primitives + evidence." },
@@ -3438,7 +3489,6 @@ export const CLI_REFERENCE = {
     { name: "go", usage: '<url> [--session id]', desc: "Acquire a binary-owned browser lease and open a fresh tab (or reuse via --session for legacy flows). Step 1 of the browse workflow." },
     { name: "snap", usage: "[--session id] [--filter interactive]", desc: "A11y snapshot with @eN refs. Inspect the page state — gives you the refs to click/fill." },
     { name: "click", usage: "[--session id] <ref>", desc: "Click element by @eN ref from snap." },
-    { name: "fill", usage: "[--session id] <ref> <value>", desc: "Fill input by @eN ref with the given value." },
     { name: "type", usage: "<text>", desc: "Type into the focused element with key events (use after click)." },
     { name: "press", usage: "<key>", desc: "Press a key (Enter, Tab, Escape, ArrowDown, ...)." },
     { name: "select", usage: "<ref> <value>", desc: "Select option by @eN ref + value (for <select> elements)." },
@@ -4421,7 +4471,7 @@ async function cmdClick(args: string[], flags: Record<string, string | boolean>)
   }), false);
 }
 
-async function cmdFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+async function cmdBrowseFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
   const ref = args[0] ?? (typeof flags.ref === "string" ? flags.ref : undefined);
   const value = args.length > 1
     ? args.slice(1).join(" ")
@@ -4436,6 +4486,16 @@ async function cmdFill(args: string[], flags: Record<string, string | boolean>):
     value,
     ...(typeof flags.session === "string" ? { session_id: flags.session } : {}),
   }), false);
+}
+
+async function cmdFill(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  if (shouldFillIntent(args, flags)) {
+    const parsed = parseCmdFillArgs(args, flags);
+    if ("error" in parsed) die(parsed.error);
+    if (parsed.url) return cmdRun([], { ...flags, url: parsed.url, intent: parsed.intent }, "fill");
+    return cmdSearch({ ...flags, intent: parsed.intent });
+  }
+  return cmdBrowseFill(args, flags);
 }
 
 async function cmdType(args: string[], flags: Record<string, string | boolean>): Promise<void> {

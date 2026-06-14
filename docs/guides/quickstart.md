@@ -118,6 +118,13 @@ Open an auth flow when a site needs login:
 unbrowse auth "https://calendar.google.com"
 ```
 
+Fill one internet hole from the shell:
+
+```bash
+unbrowse fill "top stories with point counts"
+unbrowse fill "top stories with point counts" --url "https://news.ycombinator.com"
+```
+
 ## TypeScript SDK
 
 If you want to call the same flow from app code:
