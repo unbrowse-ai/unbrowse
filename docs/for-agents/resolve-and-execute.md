@@ -1,6 +1,6 @@
 # Hole Contract and Legacy Route View
 
-The current Unbrowse contract is one hole fill. The caller supplies an intent and
+The current Unbrowse contract is one typed-hole request. The caller supplies an intent and
 optional context; the runtime descends through the graph, adapters, browser capture,
 cookies, HAR, and indexing as needed.
 
@@ -17,8 +17,8 @@ const result = await hole.fill({
 From a shell, call the same contract as:
 
 ```bash
-unbrowse fill "latest releases from unbrowse-ai/unbrowse"
-unbrowse fill "latest releases from this repository" --url "https://github.com/unbrowse-ai/unbrowse"
+unbrowse get "latest releases from unbrowse-ai/unbrowse"
+unbrowse get "latest releases from this repository" --url "https://github.com/unbrowse-ai/unbrowse"
 ```
 
 The machine-readable shape is:
@@ -54,4 +54,4 @@ Use the route view for:
 * manual replay of a known contract
 * old MCP/tool hosts
 
-Do not use it as the default user-task loop. For user tasks, fill the hole.
+Do not use it as the default user-task loop. For user tasks, use `unbrowse get` or the SDK hole.

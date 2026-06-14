@@ -16,6 +16,7 @@ const cmds = (ctx: Parameters<typeof projectSurface>[0]) => projectSurface(ctx).
 describe("surface-projector — the dynamic surface over the superpattern tree", () => {
   it("no session: surfaces discovery + entry, NOT browse verbs", () => {
     const c = cmds({ sessionOpen: false });
+    expect(c).toContain("get");
     expect(c).toContain("search");
     expect(c).toContain("resolve");
     expect(c).toContain("go");      // entry
