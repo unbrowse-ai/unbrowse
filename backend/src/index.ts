@@ -79,6 +79,10 @@ app.route("/", healthRoutes);
 // bearerAuth middleware. Admin endpoints use ADMIN_KEY, not API_KEY.
 app.route("/v1", adminRoutes);
 app.route("/v1", publicStatsRoutes);
+// publicValidateRoutes (POST /v1/validate — self-improvement manifest validation) was imported
+// but never mounted, so the shipped client's validation call 404'd and silently "proceeded
+// unvalidated". Surfaced by the 9.0.5 webagent write probe. Mount it beside its sibling.
+app.route("/v1", publicValidateRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", publicSkillRoutes);
 app.route("/v1", analyticsRoutes);
