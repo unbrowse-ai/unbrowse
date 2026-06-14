@@ -20,11 +20,14 @@ import {
   compositeLookupKey,
   writeComposite,
   readComposite,
+  findCompositeInSkill,
+  attachCompositeToSkill,
   planPrereqOrder,
   type ChainStepInfo,
   type CompositeEdge,
   type PersistedComposite,
 } from "../src/orchestrator/index.js";
+import type { SkillComposite, SkillManifest } from "../src/types/index.js";
 
 const DOMAIN = "news.ycombinator.com";
 const TARGET = "get_comments";
@@ -199,5 +202,48 @@ describe("composite replay decision (lever 4 — known-good order, guarded fallb
     const d = planPrereqOrder([], found, allReplayable);
     expect(d.prereqOrder).toEqual(["search", "get_item"]);
     expect(d.replayedCompositeId).toBe(persisted.composite_id);
+  });
+});
+
+describe("composite on the skill manifest (lever 6 — always-on foreign replay)", () => {
+  const skillComposite: SkillComposite = {
+    composite_id: compositeAddress(DOMAIN, TARGET, steps, edges),
+    domain: DOMAIN,
+    target: TARGET,
+    steps,
+    edges,
+  };
+  const skillWith = (composites?: SkillComposite[]) =>
+    ({ domain: DOMAIN, composites } as unknown as SkillManifest);
+  const allReplayable = () => true;
+
+  it("finds the composite attached to the resolved skill by target endpoint", () => {
+    const found = findCompositeInSkill(skillWith([skillComposite]), TARGET);
+    expect(found).toBeDefined();
+    expect(found!.composite_id).toBe(skillComposite.composite_id);
+  });
+
+  it("returns undefined for a different target / no composites (clean miss)", () => {
+    expect(findCompositeInSkill(skillWith([skillComposite]), "other_target")).toBeUndefined();
+    expect(findCompositeInSkill(skillWith(undefined), TARGET)).toBeUndefined();
+    expect(findCompositeInSkill(undefined, TARGET)).toBeUndefined();
+  });
+
+  it("a FOREIGN agent replays a skill-attached composite with NO local cache and NO gate", () => {
+    // the decisive lever-6 property: this resolve never walked the chain and has no local disk;
+    // the composite came back attached to the resolved skill, and replay still fires.
+    delete process.env.UNBROWSE_LOCAL_CACHES; // ungated
+    const found = findCompositeInSkill(skillWith([skillComposite]), TARGET);
+    const d = planPrereqOrder([], found, allReplayable);
+    expect(d.prereqOrder).toEqual(["search", "get_item"]);
+    expect(d.replayedCompositeId).toBe(skillComposite.composite_id);
+  });
+
+  it("attachCompositeToSkill adds the composite and dedups by composite_id", () => {
+    const skill = skillWith(undefined);
+    attachCompositeToSkill(skill, skillComposite);
+    attachCompositeToSkill(skill, skillComposite); // idempotent
+    expect(skill.composites).toHaveLength(1);
+    expect(skill.composites![0].composite_id).toBe(skillComposite.composite_id);
   });
 });
