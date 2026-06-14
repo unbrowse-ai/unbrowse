@@ -43,6 +43,9 @@ function tryLoadSodium(): void {
 function warnOnce(): void {
   if (warned) return;
   warned = true;
+  // Optional hardening dependency — the Uint8Array fallback is correct and safe; a normal
+  // user should never see this. Surface it only when explicitly debugging (UNBROWSE_TRACE).
+  if (!process.env.UNBROWSE_TRACE || process.env.UNBROWSE_TRACE === "0") return;
   try {
     process.stderr.write(
       "[unbrowse-values] sodium-native not available; using best-effort Uint8Array.fill(0) for memzero. " +

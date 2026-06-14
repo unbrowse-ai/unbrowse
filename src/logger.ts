@@ -50,7 +50,13 @@ function traceLine(message: string): void {
   }
 }
 
-const TRACE_ENABLED = process.env.UNBROWSE_TRACE !== "0";
+// Phase traces are diagnostic instrumentation, OFF by default — a new user (or any
+// MCP host capturing stderr) should never see internal `[trace] phase=…` spam. Opt in
+// with UNBROWSE_TRACE=1 (or any non-"0"/non-empty value) when debugging a hang.
+const TRACE_ENABLED = (() => {
+  const v = process.env.UNBROWSE_TRACE;
+  return v != null && v !== "" && v !== "0";
+})();
 const TRACE_SLOW_MS = (() => {
   const n = parseInt(process.env.UNBROWSE_TRACE_SLOW_MS ?? "5000", 10);
   return Number.isFinite(n) && n > 0 ? n : 5000;
