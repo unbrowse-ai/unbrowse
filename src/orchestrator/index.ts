@@ -3727,7 +3727,11 @@ export async function resolveAndExecute(
             readComposite(replayDomain, candidate.endpoint.endpoint_id);
           const decision = planPrereqOrder(prereqOrder, persisted, (id) => {
             const ep = skill.endpoints.find((e) => e.endpoint_id === id);
-            return ep != null && canAutoExecuteEndpoint(ep);
+            // Composite invalidation: a recorded constituent that no longer exists, was disabled
+            // (route went stale/bad), or is no longer auto-executable (e.g. became an irreversible
+            // op) makes the composite stale → fall back to the full recompute path, which
+            // re-discovers a working order. (plan lever 4 guard: invalidate on a stale constituent)
+            return ep != null && ep.verification_status !== "disabled" && canAutoExecuteEndpoint(ep);
           });
           prereqOrder = decision.prereqOrder;
           replayedCompositeId = decision.replayedCompositeId;
