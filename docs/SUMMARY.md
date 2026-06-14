@@ -13,7 +13,7 @@
 ## For Agents
 
 * [How an Agent Uses Unbrowse](for-agents/how-an-agent-uses-unbrowse.md)
-* [Resolve and Execute](for-agents/resolve-and-execute.md)
+* [Hole Contract and Legacy Route View](for-agents/resolve-and-execute.md)
 * [MCP Integration](for-agents/mcp-integration.md)
 * [When It Uses a Browser](for-agents/when-it-uses-a-browser.md)
 

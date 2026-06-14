@@ -1,5 +1,26 @@
 export { Unbrowse } from "./client.js";
 export { createFetch, unfetch } from "./fetch.js";
+export {
+  createHole,
+  Hole,
+  canonicalRequest,
+  defaultDescribe,
+  type HoleRequest,
+  type HoleResult,
+  type HoleItem,
+  type HoleOptions,
+  type HoleTransport,
+  type WalletSeal,
+  type IndexInfo,
+  type HoleSkill,
+} from "./hole.js";
+export {
+  ensureIdentity,
+  onboardingStatus,
+  type Identity,
+  type OnboardOptions,
+  type OnboardingStatus,
+} from "./onboard.js";
 export type {
   CreateFetchOptions,
   FetchLike,

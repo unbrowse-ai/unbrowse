@@ -1,16 +1,18 @@
 # Unbrowse
 
-**Turn any website into reusable, indexed API routes for agents.** Teach a route once by
-browsing; replay it on every later call — a replay is ~30× faster and ~90× cheaper than a
-fresh browser session ([peer-reviewed: 3.6× mean / 5.4× median speedup over Playwright
-across 94 live domains](https://unbrowse.ai/whitepaper)).
+**Fill one internet hole; index the route when the runtime has to discover it.** The agent
+supplies intent plus optional URL/params/approval. Unbrowse chooses the cheapest capable
+layer — route graph, installed skill, adapter, local primitive, browser capture with local
+cookies/HAR — and returns a contract-shaped result. If it had to discover a route, that
+route can be indexed so every later agent gets the fast path.
 
 One agent learns a site once. Every later agent gets the fast path.
 
-> **Two primary surfaces: the Skill and the CLI.** `SKILL.md` (shipped in this package) gives
-> any skill-aware agent the full map — load it and the agent drives the CLI directly. The CLI
-> is the runtime everything else calls. **MCP is legacy** — still supported (see the bottom of
-> this file), but no longer the recommended path.
+> **Primary surface: the hole/contract.** `SKILL.md` (shipped in this package) teaches
+> agents to fill one hole, not juggle a dozen route/debug verbs. The formal bridge is
+> `unbrowse contract surface`; the SDK expression is `createHole().fill(...)`. Old
+> `resolve`/`execute`/`go`/`snap` CLI verbs remain as advanced compatibility and debugging
+> surfaces. **MCP is legacy** — still supported, but no longer the recommended path.
 
 ```bash
 npm install -g unbrowse
@@ -18,9 +20,7 @@ unbrowse setup        # one-time: registration, browser engine, local credential
 ```
 
 ```bash
-# the load-bearing two-call path: is there a known route? then run it.
-unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com"
-unbrowse execute --skill <id> --endpoint <id>
+unbrowse contract surface   # inspect the current hole/contract bridge
 ```
 
 ---
@@ -32,61 +32,45 @@ Unbrowse is a **local, stateless CLI**. Each invocation runs an in-process runti
 only when a task actually needs a live browser. Credentials and sensitive inputs never leave
 your machine; only sanitized route metadata is shared when you publish.
 
-### The agent contract — two calls, then browse only on a miss
+### The Agent Contract — One Hole, Cheapest-Capable Descent
 
-1. **`resolve`** — "is there an indexed route for this intent + URL?" Returns a ranked
-   shortlist of endpoints (you pick one) or an honest cache miss.
-2. **`execute`** — runs the one endpoint you picked and returns the real data.
-3. **browse** (`go → snap → act → sync/close`) — the escalation. When `resolve` misses, drive
-   a real browser; passive capture indexes the route so the next caller skips to resolve +
-   execute.
+The client exposes holes only:
 
-Two calls for a known route — never one, never three. When a call can't complete, the response
-carries an honest `next_step` (e.g. `open_browse_session`, `auth_required`) instead of a bare
-error. Three execution paths, fastest first:
+- `intent` — the task the model wants filled.
+- `wallet_proof` — the identity/authorization proof.
+- `approval` — human approval for mutations or policy-sensitive actions.
+- `local_capability_result` — what the local dispatcher returned after invoking a local tool.
+- `typed_pointer` — server-owned pointer to a result/contract, not a secret payload.
 
-1. **Skill cache** — instant (<200 ms): a route already learned locally.
-2. **Shared route graph** — sub-second: a route another agent already mined.
-3. **Browser session** — full traversal: the source of truth for a new site.
+The runtime walks the graph cheapest-capable-first and stops at the first settled witness.
+The browser is not the agent-facing contract; it is the deepest fallback and the capture
+oracle for missing routes.
 
-### Reads
+### SDK: the one tool
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "get the current npm express version and weekly downloads",
+  url: "https://www.npmjs.com/package/express",
+});
+```
+
+`fill` may reuse a route, call a standard adapter, open a browser, use local cookies/HAR,
+capture, and index. The agent does not choose those internal verbs.
+
+### Legacy CLI: route inspection and debugging
+
+Use this when you need to force or inspect a route:
 
 ```bash
-unbrowse resolve --intent "get stock price" --url "https://finance.example.com"
+unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty
 unbrowse execute --skill <id> --endpoint <id> --pretty
-unbrowse fetch https://api.github.com/repos/oven-sh/bun     # one-shot URL → content
-unbrowse run "https://site.com" "list the items"            # resolve → execute → capture-on-miss
 ```
 
-### Writes — agent-native, intent-first
-
-You express **intent**, not an HTTP verb. The method is inferred from the intent and whether a
-body is present; an explicit `--method` always overrides.
-
-```bash
-# verb inferred from intent ("create" → POST, "update" → PATCH, "delete" → DELETE):
-unbrowse execute --url "https://api.example.com/posts" \
-  --intent "create a post" --body '{"title":"hello","userId":1}'
-
-# or explicit:
-unbrowse execute --url "https://api.example.com/posts/1" --method PUT --body '{...}'
-```
-
-- **Mutation safety.** A write is a deliberate action: POST/PUT/PATCH/DELETE only fire when you
-  ask for them; `--dry-run` previews without side effects; policy-sensitive domains require an
-  extra confirmation. Reads (GET) auto-execute.
-- **Sensitive inputs stay local.** A field that looks like a secret (password, token, api_key…)
-  reaches the *target* in clear but is never written to disk or shared in clear — a redacted
-  placeholder is stored in its place, so a saved or published route keeps its shape without ever
-  leaking the value.
-- **Created-resource chaining (`--session`).** Pass `--session <id>` and a write's created id is
-  remembered, then auto-fills a matching field on a later call in the same session. State
-  persists to disk, so a *separate* CLI invocation with the same `--session` inherits it (the
-  stateless binary gets state the way it gets cookies).
-- **Cross-route suggestions.** If a call needs a value no local route can supply, the response
-  names which *other* indexed route produces it — so an agent can chain across sites.
-
-### Browse (escalation for JS-heavy / first-time sites)
+Browser verbs are also legacy/debug escape hatches:
 
 ```bash
 unbrowse go "https://site.com/booking"
@@ -97,9 +81,8 @@ unbrowse submit --wait-for "/time-selection"
 unbrowse close                          # checkpoints + indexes the learned route
 ```
 
-Treat each successful `submit` as a dependency boundary — trust the returned `url` /
-`session_id` / next-step hints over guessed downstream URLs. `sync` records which request chain
-unlocked the next page, so future agents replay the real flow.
+Treat each successful `submit` as a dependency boundary. `close` records which request chain
+unlocked the next page so future fills can replay the real flow.
 
 ### Auth for gated sites
 
@@ -125,7 +108,8 @@ unbrowse upgrade
 
 ## Command reference
 
-**Agent path:** `resolve` · `execute` · `run` · `fetch` · `search` · `explain`
+**Current path:** `contract surface` · SDK `createHole().fill(...)`
+**Advanced compatibility:** `resolve` · `execute` · `run` · `fetch` · `search` · `explain`
 **Browse session:** `go` · `snap` · `click` · `fill` · `type` · `press` · `select` · `scroll` ·
 `submit` · `screenshot` · `text` · `markdown` · `eval` · `back` · `forward` · `sync` · `close` ·
 `inspect` · `capture`
@@ -223,12 +207,13 @@ the same in-process runtime (no daemon, no port).
 }
 ```
 
-Then `npx unbrowse setup` once. Tools mirror the CLI: `unbrowse_resolve`, `unbrowse_execute`,
+Then `npx unbrowse setup --mcp` once. Tools mirror the compatibility CLI: `unbrowse_resolve`, `unbrowse_execute`,
 `unbrowse_search`, the browse chain (`unbrowse_go`, `unbrowse_snap`, `unbrowse_click`,
 `unbrowse_fill`, `unbrowse_submit`, `unbrowse_sync`, `unbrowse_close`, …), and
 `unbrowse_skills` / `unbrowse_sessions`. A generic template is published at
-[`/mcp.json`](https://www.unbrowse.ai/mcp.json). The same two-call contract applies:
-`unbrowse_resolve` first, then `unbrowse_execute`; escalate to the browse chain on a miss.
+[`/mcp.json`](https://www.unbrowse.ai/mcp.json). MCP is the old route-inspection
+view under the one-hole contract: `unbrowse_resolve` first, then
+`unbrowse_execute`; escalate to the browse chain only when debugging a miss.
 
 ---
 

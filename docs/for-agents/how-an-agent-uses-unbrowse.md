@@ -1,16 +1,43 @@
 # How an Agent Uses Unbrowse
 
-This page is the operating model for an AI agent that has Unbrowse available as a tool.
+This page is the operating model for an AI agent that has Unbrowse available.
 
-The mental model is two steps, not one. The agent describes an intent and a target. Unbrowse returns a ranked shortlist of routes that could satisfy it, each with evidence (what it returns, what it needs, how reliable it has been). The agent's own reasoning picks the route that matches the intent, then calls execute on it. Unbrowse does not silently decide for the agent; it filters out the wrong routes and surfaces the evidence on the rest.
+The current mental model is one step: **fill the hole**. The agent describes the
+internet gap it needs filled — intent, optional URL, optional params, and explicit
+approval for writes — and Unbrowse decides how to satisfy it. That may mean a
+direct document fetch, a shared contract in the route graph, a standard adapter, a
+local-auth browser capture, HAR inspection, or indexing a newly discovered route for
+the next call.
 
-The loop in practice:
+The agent should not choose between `resolve`, `execute`, `go`, `snap`, `fetch`, HAR,
+or cookies for ordinary work. Those are implementation layers under the hole.
 
-1. **Resolve** the intent against the shared graph and local cache.
-2. **Read the shortlist.** Each candidate carries enough evidence to judge fit.
-3. **Execute** the chosen route.
-4. **Give feedback** on whether the result satisfied the intent. This keeps good routes ranked and bad ones out of the way.
+The public contract is inspectable:
 
-If nothing in the graph fits, Unbrowse can open a browse session and learn the site live; the agent drives that session and Unbrowse indexes it passively so the next agent does not have to.
+```bash
+unbrowse contract surface
+```
 
-The single most important habit: treat resolve and execute as separate decisions. Resolve gathers options; the agent judges; execute commits.
+It exposes five client-fillable holes:
+
+* `intent`
+* `wallet_proof`
+* `approval`
+* `local_capability_result`
+* `typed_pointer`
+
+In code, the same surface is:
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "top stories on Hacker News with point counts",
+  url: "https://news.ycombinator.com",
+});
+```
+
+Use the old route view only when debugging or when a host cannot call the hole
+directly. In that compatibility path, resolve gathers candidates and execute replays
+one chosen route. It is not the preferred surface for new agents.

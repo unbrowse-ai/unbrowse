@@ -73,7 +73,7 @@ of them are verdicts; each is a structural signal the agent reads:
 | `goal`, `url` | The probe |
 | `source` | `marketplace`, `cache`, `live-capture`, `dom-fallback`, `direct-fetch`, or empty |
 | `trace_success` | The top-level trace verdict from the CLI; `null` means no trace was emitted |
-| `has_available_operations`, `n_operations` | The shortlist size the agent would see (two-tool-call contract) |
+| `has_available_operations`, `n_operations` | The shortlist size visible in the legacy route-inspection view |
 | `error_code`, `error_message` | What the CLI said when it failed |
 | `captured_html_bytes`, `captured_text_bytes`, `captured_title` | Did the browser actually render something, or are we looking at a captcha shell? |
 | `captured_api_calls` | How many XHR/fetch calls fired during capture |

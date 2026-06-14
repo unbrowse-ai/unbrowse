@@ -1,16 +1,55 @@
 # The Agent Internet Layer
 
-Every web action an agent takes — browse, fetch, fill, resolve, execute — is a
-single uniform op: a pointer-only, wallet-signed, witnessed receipt. Unbrowse
-gathers the messy surface of the internet into one named, callable shape and
-hands it to agents as three verbs.
+Every web action an agent takes is one contract-shaped hole fill. The agent supplies
+only the holes it can honestly fill — intent, optional approval, wallet proof, local
+capability results, and typed pointers — and Unbrowse decides the cheapest capable
+layer that can settle the witness. That descent may reuse a route, execute a captured
+endpoint, call a standard adapter, open a browser with local cookies, inspect HAR,
+capture a new route, and index it for the next caller.
 
-This page documents that public surface — the ops an agent can call, the shape
-of the receipt each one produces, and the trust promise underneath. It does not
-document how those ops are scored, ranked, or value-populated; that is handled
-by the aiko substrate and is out of scope (see [Out of scope](#out-of-scope)).
+This page documents the public boundary: the hole/contract an agent fills, the
+compatibility ops exposed underneath it, the receipt shape, and the trust promise.
+It does not document how routes are scored, ranked, or value-populated; that is
+handled by the aiko substrate and is out of scope (see [Out of scope](#out-of-scope)).
+
+## The Current Surface: One Hole
+
+The formal bridge is machine-readable:
+
+```bash
+unbrowse contract surface
+```
+
+The bridge exposes five client-fillable holes:
+
+| Hole | Filled by | Carries secret? |
+|---|---|---|
+| `intent` | LLM | No |
+| `wallet_proof` | wallet/session identity | No |
+| `approval` | human | No |
+| `local_capability_result` | local dispatcher | No |
+| `typed_pointer` | server pointer | No |
+
+In SDK code, the current surface is `createHole().fill(...)`:
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "get the top Hacker News stories with points",
+  url: "https://news.ycombinator.com",
+});
+```
+
+The caller does not choose between `resolve`, `execute`, `go`, `snap`, `fetch`, HAR, or
+cookies. Those are internal/compatibility steps in the descent.
 
 ## The three verbs
+
+The three-verb surface is the compatibility decomposition of the same hole contract.
+It remains useful for debugging, route inspection, and lower-level hosts, but it is
+not the preferred agent-facing surface for new integrations.
 
 Every Unbrowse primitive collapses onto one of three verbs:
 
@@ -87,9 +126,10 @@ receipt (see [Receipt shape](#the-receipt-shape)).
 > scoring rationale is redacted — the trace is the agent's own decision log, not
 > a window into how routes are ranked.
 
-## The two-tool-call contract
+## Compatibility: the two-tool-call decomposition
 
-The canonical flow is **two calls, never one**:
+When a host cannot call the hole directly, it can decompose the same decision into
+two compatibility calls:
 
 1. **`read resolve --intent X --url Y`** returns a ranked shortlist of candidate
    endpoints, each with rich evidence — URL, score, sample values,
@@ -100,9 +140,9 @@ The canonical flow is **two calls, never one**:
 3. **`act execute --endpoint <id>`** commits the chosen route.
 
 Resolve gathers options; the agent judges; execute commits. Both `read resolve`
-and `act execute` are pointer-only receipts. Auto-execute is opt-in
-(`--execute`); by default resolve and execute stay separate decisions so the
-picking judgment stays with the agent's reasoning, not a heuristic.
+and `act execute` are pointer-only receipts. This is no longer the preferred
+surface for new integrations; it is the route-inspection view under the one-hole
+contract.
 
 ## The receipt shape
 
@@ -169,11 +209,10 @@ nothing in this document exposes it.
 
 ## What's public, honestly
 
-Public and open-sourceable: the three verbs, the 37 ops, the two-call contract,
-the pointer-only / wallet-signed receipt shape, and the trust promise above.
-This is the product surface, and an agent that learns Unbrowse does `fill`,
-`fetch`, and `snap` in this uniform shape learns nothing it could not learn from
-any browser tool.
+Public and open-sourceable: the hole contract, its five client-fillable holes, the
+compatibility verbs/ops, the pointer-only / wallet-signed receipt shape, and the
+trust promise above. This is the product surface, and an agent that learns Unbrowse
+as a `fill`-style capability learns nothing it could not learn from any browser tool.
 
 Private, and named honestly: how routes are scored, ranked, populated, and
 learned from. That work lives in the aiko substrate and never crosses Unbrowse's

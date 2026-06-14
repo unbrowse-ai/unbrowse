@@ -16,6 +16,26 @@
       "types": "./dist-sdk/index.d.ts",
       "import": "./dist-sdk/index.js"
     },
+    "./sdk/adapters": {
+      "types": "./dist-sdk/adapters/index.d.ts",
+      "import": "./dist-sdk/adapters/index.js"
+    },
+    "./sdk/adapters/exa": {
+      "types": "./dist-sdk/adapters/exa.d.ts",
+      "import": "./dist-sdk/adapters/exa.js"
+    },
+    "./sdk/adapters/tavily": {
+      "types": "./dist-sdk/adapters/tavily.d.ts",
+      "import": "./dist-sdk/adapters/tavily.js"
+    },
+    "./sdk/adapters/browser-use": {
+      "types": "./dist-sdk/adapters/browser-use.d.ts",
+      "import": "./dist-sdk/adapters/browser-use.js"
+    },
+    "./sdk/adapters/firecrawl": {
+      "types": "./dist-sdk/adapters/firecrawl.d.ts",
+      "import": "./dist-sdk/adapters/firecrawl.js"
+    },
     "./sdk/wallet-standard": {
       "types": "./dist-sdk/wallet-standard.d.ts",
       "import": "./dist-sdk/wallet-standard.js"
