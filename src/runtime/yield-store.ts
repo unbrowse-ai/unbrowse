@@ -39,7 +39,10 @@ function cacheFor(sessionId: string, store: YieldStore): SessionYieldCache {
  * fills an unscoped hole and vice-versa — the two waters do not mix.
  */
 function scopedKey(key: string, scope?: string): string {
-  return scope ? `${scope}::${key}` : key;
+  // Length-prefix the scope so the delimiter cannot be injected: `${scope}::${key}`
+  // would let scope="a",key="b::c" collide with scope="a::b",key="c" (both "a::b::c").
+  // `${len}:${scope}:${key}` is unambiguous — the length pins where the scope ends.
+  return scope ? `${scope.length}:${scope}:${key}` : key;
 }
 
 /** True when a yield is past its ttl_ms relative to `nowMs`. */
