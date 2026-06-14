@@ -37,10 +37,11 @@ const sections = [
   },
 ];
 
-const setupSnippet = `# install + register the MCP server with one command
-npx unbrowse setup --mcp
+const setupSnippet = `# install the Agent Skill + CLI (default)
+npm install -g unbrowse
+unbrowse setup
 
-# or wire it manually: point your MCP client at
+# legacy/manual MCP stdio server
 unbrowse mcp   # stdio transport`;
 
 export const metadata: Metadata = {
@@ -235,7 +236,7 @@ export default function McpIsDefaultPostPage() {
             rel="noopener"
             className="font-mono font-medium text-[rgba(255,176,96,0.9)] hover:text-[rgba(255,176,96,1)]"
           >
-            [ MCP setup guide → ]
+            [ MCP compatibility guide → ]
           </a>
         </section>
       </article>

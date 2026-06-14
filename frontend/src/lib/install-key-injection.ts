@@ -3,10 +3,10 @@
  * surfaces rendered by `<InstallInstructions />`. Lives in lib/ (not in the
  * component) so it's directly testable without a DOM.
  *
- * Three command shapes we need to support, one per tab:
- *   - `npx unbrowse setup --mcp`               → env-var prefix
- *   - `claude mcp add unbrowse -- npx -y …`    → `claude mcp add -e KEY=v unbrowse -- …`
- *   - `{ "unbrowse": { "command": "npx", … } }` → splice `"env"` into the JSON object
+ * Command shapes we need to support:
+ *   - `unbrowse setup`                         → env-var prefix
+ *   - `npm install -g unbrowse && unbrowse setup` → env-var prefix on setup
+ *   - legacy `claude mcp add unbrowse -- npx -y …` → `claude mcp add -e KEY=v unbrowse -- …`
  *
  * `injectKeyIntoCommandText` operates on the rendered terminal-line text
  * (including the `  $  ` prompt). `injectKeyIntoCopyText` operates on the
@@ -16,9 +16,8 @@
  * leaking a full key into a screen-recording.
  */
 
-const SETUP_MCP_CMD_RE = /(\$\s+)(npx unbrowse setup --mcp\b)/;
+const SETUP_CMD_RE = /(\$\s+)(?:(npm install -g unbrowse && )?(unbrowse setup\b))/;
 const CLAUDE_MCP_ADD_RE = /claude mcp add unbrowse(?= )/;
-const MCP_JSON_ARGS_RE = /("args":\s*\[[^\]]*\])/;
 
 /**
  * Render a key as `uk_••••<last-4>` so a passing screen-recorder doesn't
@@ -33,19 +32,15 @@ export function maskApiKey(key: string): string {
 
 export function injectKeyIntoCommandText(text: string, key: string | null): string {
   if (!key) return text;
-  if (SETUP_MCP_CMD_RE.test(text)) {
-    return text.replace(SETUP_MCP_CMD_RE, `$1UNBROWSE_API_KEY=${key} $2`);
+  if (SETUP_CMD_RE.test(text)) {
+    return text.replace(SETUP_CMD_RE, (_m: string, prompt: string, install: string | undefined, setup: string) =>
+      `${prompt}${install ?? ""}UNBROWSE_API_KEY=${key} ${setup}`,
+    );
   }
   if (CLAUDE_MCP_ADD_RE.test(text)) {
     return text.replace(
       CLAUDE_MCP_ADD_RE,
       `claude mcp add -e UNBROWSE_API_KEY=${key} unbrowse`,
-    );
-  }
-  if (text.includes(`"unbrowse":`) && text.includes(`"args"`)) {
-    return text.replace(
-      MCP_JSON_ARGS_RE,
-      `$1, "env": { "UNBROWSE_API_KEY": "${key}" }`,
     );
   }
   return text;
@@ -56,8 +51,11 @@ export function injectKeyIntoCopyText(text: string, key: string | null): string 
   if (text === "claude mcp add unbrowse -- npx -y unbrowse mcp") {
     return `claude mcp add -e UNBROWSE_API_KEY=${key} unbrowse -- npx -y unbrowse mcp`;
   }
-  if (text === "npx unbrowse setup --mcp") {
-    return `UNBROWSE_API_KEY=${key} npx unbrowse setup --mcp`;
+  if (text === "unbrowse setup") {
+    return `UNBROWSE_API_KEY=${key} unbrowse setup`;
+  }
+  if (text === "npm install -g unbrowse && unbrowse setup") {
+    return `npm install -g unbrowse && UNBROWSE_API_KEY=${key} unbrowse setup`;
   }
   return text;
 }

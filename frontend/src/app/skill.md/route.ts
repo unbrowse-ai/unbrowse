@@ -4,17 +4,11 @@ const BODY = `# Unbrowse skill — retired
 
 The Anthropic skill path for Unbrowse retired in v6.15.0. Two replacements:
 
-## MCP server
+## Agent Skill / CLI
 
-\`\`\`json
-{
-  "mcpServers": {
-    "unbrowse": {
-      "command": "npx",
-      "args": ["-y", "unbrowse", "mcp"]
-    }
-  }
-}
+\`\`\`bash
+npm install -g unbrowse
+unbrowse setup
 \`\`\`
 
 ## SDK
@@ -41,7 +35,7 @@ export async function GET(): Promise<Response> {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
       "Cache-Control": "public, max-age=3600",
-      "X-Replaced-By": "@unbrowse/sdk + MCP",
+      "X-Replaced-By": "unbrowse CLI + @unbrowse/sdk",
     },
   });
 }

@@ -36,16 +36,21 @@ test("maskApiKey: short keys (under 4 chars) get the whole key as tail", () => {
 
 test("commandText: noop when key is null", () => {
   expect(
-    injectKeyIntoCommandText("  $  npx unbrowse setup --mcp", null),
-  ).toBe("  $  npx unbrowse setup --mcp");
+    injectKeyIntoCommandText("  $  unbrowse setup", null),
+  ).toBe("  $  unbrowse setup");
   expect(
     injectKeyIntoCommandText("  $  claude mcp add unbrowse -- npx -y unbrowse mcp", null),
   ).toBe("  $  claude mcp add unbrowse -- npx -y unbrowse mcp");
 });
 
-test("commandText: `npx unbrowse setup --mcp` gets env-var prefix", () => {
-  const out = injectKeyIntoCommandText("  $  npx unbrowse setup --mcp", MASKED);
-  expect(out).toBe(`  $  UNBROWSE_API_KEY=${MASKED} npx unbrowse setup --mcp`);
+test("commandText: `unbrowse setup` gets env-var prefix", () => {
+  const out = injectKeyIntoCommandText("  $  unbrowse setup", MASKED);
+  expect(out).toBe(`  $  UNBROWSE_API_KEY=${MASKED} unbrowse setup`);
+});
+
+test("commandText: chained install + setup prefixes only the setup step", () => {
+  const out = injectKeyIntoCommandText("  $  npm install -g unbrowse && unbrowse setup", MASKED);
+  expect(out).toBe(`  $  npm install -g unbrowse && UNBROWSE_API_KEY=${MASKED} unbrowse setup`);
 });
 
 test("commandText: `claude mcp add unbrowse` gets `-e KEY=v` between `add` and `unbrowse`", () => {
@@ -58,15 +63,6 @@ test("commandText: `claude mcp add unbrowse` gets `-e KEY=v` between `add` and `
   );
 });
 
-test("commandText: mcp.json snippet gets an `env` field spliced in", () => {
-  const json = `  {  "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] }  }`;
-  const out = injectKeyIntoCommandText(json, MASKED);
-  expect(out).toContain(`"args": ["-y", "unbrowse", "mcp"]`);
-  expect(out).toContain(`"env": { "UNBROWSE_API_KEY": "${MASKED}" }`);
-  // Order: env field lands AFTER args, inside the same object.
-  expect(out.indexOf(`"args"`)).toBeLessThan(out.indexOf(`"env"`));
-});
-
 test("commandText: comment lines and verify commands are NOT mutated", () => {
   expect(injectKeyIntoCommandText("  ##  one command", MASKED)).toBe("  ##  one command");
   expect(injectKeyIntoCommandText("  $  claude mcp list", MASKED)).toBe("  $  claude mcp list");
@@ -77,14 +73,20 @@ test("commandText: comment lines and verify commands are NOT mutated", () => {
 // ---------------------------------------------------------------------------
 
 test("copyText: noop when key is null", () => {
-  expect(injectKeyIntoCopyText("npx unbrowse setup --mcp", null)).toBe(
-    "npx unbrowse setup --mcp",
+  expect(injectKeyIntoCopyText("unbrowse setup", null)).toBe(
+    "unbrowse setup",
   );
 });
 
-test("copyText: `npx unbrowse setup --mcp` gets the REAL key as env prefix", () => {
-  expect(injectKeyIntoCopyText("npx unbrowse setup --mcp", REAL_KEY)).toBe(
-    `UNBROWSE_API_KEY=${REAL_KEY} npx unbrowse setup --mcp`,
+test("copyText: `unbrowse setup` gets the REAL key as env prefix", () => {
+  expect(injectKeyIntoCopyText("unbrowse setup", REAL_KEY)).toBe(
+    `UNBROWSE_API_KEY=${REAL_KEY} unbrowse setup`,
+  );
+});
+
+test("copyText: chained install + setup gets the REAL key on setup only", () => {
+  expect(injectKeyIntoCopyText("npm install -g unbrowse && unbrowse setup", REAL_KEY)).toBe(
+    `npm install -g unbrowse && UNBROWSE_API_KEY=${REAL_KEY} unbrowse setup`,
   );
 });
 
@@ -108,7 +110,7 @@ test("copyText: unrecognized commands pass through unchanged", () => {
 // ---------------------------------------------------------------------------
 
 test("masking: the on-screen command never contains the real key when callers pass the masked one", () => {
-  const screen = injectKeyIntoCommandText("  $  npx unbrowse setup --mcp", MASKED);
+  const screen = injectKeyIntoCommandText("  $  unbrowse setup", MASKED);
   expect(screen).not.toContain(REAL_KEY);
   expect(screen).toContain(MASKED);
 });
@@ -133,6 +135,8 @@ test("install-instructions.tsx imports and uses the injection helpers + useAuth"
   // Imports
   expect(src.includes('from "@/lib/auth-context"')).toBe(true);
   expect(src.includes('from "@/lib/install-key-injection"')).toBe(true);
+  expect(src).not.toContain("setup --mcp");
+  expect(src).not.toContain("mcp.json");
   expect(src.includes("injectKeyIntoCommandText")).toBe(true);
   expect(src.includes("injectKeyIntoCopyText")).toBe(true);
   // useAuth is read for apiKey + auth state

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { MCP_CONFIG_JSON } from "@/lib/install-command";
 
 export async function GET() {
-  return new NextResponse(MCP_CONFIG_JSON, {
+  return NextResponse.json({
+    error: "mcp_autoinstall_removed",
+    message: "Unbrowse no longer publishes an auto-install MCP config. Use the Agent Skill/CLI install path; the legacy `unbrowse mcp` server remains manual-only.",
+  }, {
+    status: 410,
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "public, max-age=3600, s-maxage=86400",
     },
   });

@@ -108,9 +108,7 @@ npm install -g unbrowse && unbrowse setup
 (preseed headless with `UNBROWSE_AGENT_EMAIL=you@example.com`), caches an API key, and
 detects a wallet if one is configured. For MCP hosts:
 
-```json
-{ "mcpServers": { "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] } } }
-```
+MCP is legacy/manual-only. `unbrowse setup` installs this Agent Skill and never writes MCP host configs. If a host still requires MCP, run `unbrowse mcp` as that host's stdio command manually.
 
 If a wallet is configured, that address becomes the contributor/payout and paid-route
 spending identity. The first capture installs the browser engine automatically.
@@ -242,7 +240,7 @@ Policy-sensitive site mutations can require an extra opt-in
 | Command | Usage | Purpose |
 |---|---|---|
 | `health` | | Server health check (auto-starts the server) |
-| `setup` | `[--mcp] [--no-skill] [--no-start]` | Bootstrap engine + install the Agent Skill; MCP is opt-in |
+| `setup` | `[--no-skill] [--no-start]` | Bootstrap engine + install the Agent Skill; never writes MCP host configs |
 | bare `unbrowse` | `"task"` or `"task" --url <url>` | Primary read/search one-hole agent path. Runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing |
 | `get` | `"task"` or `"task" --url <url>` | Explicit spelling of the bare read/search path |
 | `fill` | `<ref> <value>` | Browser-session DOM input fill by @eN ref. Compatibility: natural-language `fill "task"` still routes through the one-hole path; prefer bare `unbrowse "task"` for reads |

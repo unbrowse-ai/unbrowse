@@ -65,7 +65,7 @@ This is the v6.15.0 baseline. PR #601 (merged 2026-05-21) upgrades all of these 
 
 ## What the harness deliberately does NOT test (yet)
 
-- **MCP wiring against a real Claude Desktop / Cursor config** — the sandbox writes `~/.codex/` and `~/.claude/` paths during setup but no real MCP client consumes them. Wave 2 should drop the generated `mcp.json` into a stubbed client and run a real `tools/list` over stdio.
+- **Legacy MCP stdio against a real Claude Desktop / Cursor config** — setup no longer writes host MCP configs. Wave 2 should invoke `unbrowse mcp` manually from a stubbed client and run a real `tools/list` over stdio.
 - **Browse session (`go` → `snap` → `close`)** — Kuri's headless Chrome inside a podman container may need `--privileged` or a different image base (current Ubuntu image has no Chrome deps preinstalled). Deferred until B1+B2 are in.
 - **Auth-walled site flow** — out of scope for an unauthenticated sandbox.
 

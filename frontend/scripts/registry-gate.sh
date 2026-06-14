@@ -23,7 +23,7 @@ need src/app/aiko/page.tsx 'AikoHome' "/aiko renders the chat"
 # 3. Skill detail page exists (the 404 gap) + is real
 need 'src/app/skill/[id]/page.tsx' 'getSkill' "/skill/[id] fetches the skill"
 need 'src/app/skill/[id]/page.tsx' 'endpoints' "/skill/[id] lists routes"
-need 'src/app/skill/[id]/page.tsx' 'Integrate|unbrowse resolve|setup --mcp' "/skill/[id] has an integrate panel"
+need 'src/app/skill/[id]/page.tsx' 'Integrate|unbrowse resolve|unbrowse mcp' "/skill/[id] has an integrate panel"
 
 # 4. Cards link to the detail page
 need src/components/registry-card.tsx '/skill/' "cards link to the detail page"
