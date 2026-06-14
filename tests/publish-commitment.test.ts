@@ -41,4 +41,18 @@ describe("sanitizeForPublish — binding commitments", () => {
     const blob = JSON.stringify(clean);
     expect(blob).not.toContain("sk-live-SECRET");
   });
+
+  it("does not leak a sensitive NUMERIC value (body or query) — Step-4 lost sheep", () => {
+    const endpoint = {
+      endpoint_id: "w",
+      method: "POST",
+      url_template: "https://api.example.com/login",
+      body: { pin: 123456, password: "secret-string-1", nested: { cvv: 999 } },
+      query: { otp: 654321, token: "sk-livesecretvalue000000000000" },
+    } as unknown as EndpointDescriptor;
+    const blob = JSON.stringify(sanitizeForPublish([endpoint]));
+    for (const real of ["123456", "654321", "999", "secret-string-1", "sk-livesecret"]) {
+      expect(blob).not.toContain(real);
+    }
+  });
 });
