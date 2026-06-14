@@ -1839,6 +1839,27 @@ export function extractSearchTermsFromIntent(intent: string): string | null {
   return terms || null;
 }
 
+export interface ChainStepInfo { endpoint_id: string; ok: boolean; yielded: string[] }
+export interface CompositeEdge { from: string; binding: string; to: string }
+
+/**
+ * Derive the binding edges of a composite contract: each resolved binding key maps back to the
+ * prerequisite step that yielded it → an edge (prerequisite → binding → target). This turns a
+ * walked chain into the inspectable sub-DAG a future lever persists + replays as one unit.
+ */
+export function buildCompositeEdges(
+  target: string,
+  steps: ChainStepInfo[],
+  boundKeys: string[],
+): CompositeEdge[] {
+  return boundKeys
+    .map((binding) => {
+      const from = steps.find((s) => s.yielded.includes(binding));
+      return from ? { from: from.endpoint_id, binding, to: target } : null;
+    })
+    .filter((e): e is CompositeEdge => e !== null);
+}
+
 /**
  * Walk the prerequisite chain — the runtime DAG-recompute (north star). When the target
  * endpoint has params left unbound, instead of LLM-guessing them, find a prerequisite endpoint
@@ -3556,10 +3577,21 @@ export async function resolveAndExecute(
             chainSteps,
           );
           if (chainSteps.length > 0) {
+            // Emit the walked chain as a first-class COMPOSITE — the contract sub-DAG this
+            // multi-step resolution satisfied: ordered prerequisite contracts (steps), the
+            // binding edges threaded between them and the target, and the target endpoint.
+            // This is the artifact a future lever persists + replays as one unit
+            // (see internal/contract-ledger-architecture.md, levers 3–4).
+            const composite = {
+              target: candidate.endpoint.endpoint_id,
+              steps: chainSteps,
+              edges: buildCompositeEdges(candidate.endpoint.endpoint_id, chainSteps, Object.keys(chainBound)),
+            };
             (decisionTrace as Record<string, unknown>).prerequisite_chain = chainSteps;
+            (decisionTrace as Record<string, unknown>).composite = composite;
             console.log(
-              `[chain] walked ${chainSteps.length} prerequisite(s): ` +
-                chainSteps.map((s) => `${s.endpoint_id}${s.ok ? "✓" : "✗"}→[${s.yielded.join(",")}]`).join(" "),
+              `[chain] composite → ${composite.target} via ` +
+                composite.edges.map((e) => `${e.from}.${e.binding}`).join(" + ") || "(no edges)",
             );
           }
         }

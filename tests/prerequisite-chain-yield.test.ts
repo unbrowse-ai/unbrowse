@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { extractBindingsFromJson } from "../src/lib/graph-core/session.js";
+import { buildCompositeEdges, type ChainStepInfo } from "../src/orchestrator/index.js";
 import type { OperationBinding } from "../src/types/index.js";
 
 const b = (key: string): OperationBinding => ({ key }) as OperationBinding;
@@ -47,5 +48,34 @@ describe("prerequisite yield extraction (chain-walker threading)", () => {
   it("is safe on a non-JSON / empty prerequisite result (no throw, no binding)", () => {
     expect(extractBindingsFromJson("not json", [b("id")])).toEqual({});
     expect(extractBindingsFromJson(undefined, [b("id")])).toEqual({});
+  });
+});
+
+describe("composite edges (the walked contract sub-DAG)", () => {
+  const steps: ChainStepInfo[] = [
+    { endpoint_id: "search", ok: true, yielded: ["story_id"] },
+    { endpoint_id: "get_item", ok: true, yielded: ["author"] },
+  ];
+
+  it("maps each resolved binding back to the prerequisite that yielded it", () => {
+    const edges = buildCompositeEdges("get_comments", steps, ["story_id"]);
+    expect(edges).toEqual([{ from: "search", binding: "story_id", to: "get_comments" }]);
+  });
+
+  it("builds one edge per bound key, each pointing at the target", () => {
+    const edges = buildCompositeEdges("target", steps, ["story_id", "author"]);
+    expect(edges).toHaveLength(2);
+    expect(edges.every((e) => e.to === "target")).toBe(true);
+    expect(edges.map((e) => e.from).sort()).toEqual(["get_item", "search"]);
+  });
+
+  it("drops bindings no step yielded (the chain couldn't satisfy them)", () => {
+    const edges = buildCompositeEdges("target", steps, ["story_id", "unyielded_key"]);
+    expect(edges).toHaveLength(1);
+    expect(edges[0].binding).toBe("story_id");
+  });
+
+  it("returns no edges for an empty chain", () => {
+    expect(buildCompositeEdges("target", [], ["x"])).toEqual([]);
   });
 });
