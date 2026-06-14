@@ -1,5 +1,29 @@
 # Changelog
 
+## [9.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.5...v9.2.0) (2026-06-14)
+
+### Features
+
+* **cli:** surface cross_skill_producers in CLI output (was dropped by slimTrace allowlist) ([210ea47](https://github.com/unbrowse-ai/unbrowse-dev/commit/210ea472c2ec92529b54fa08cc45e2b1e9b6fd46))
+* **execute,update:** agent-native method-free writes + background auto-update ([82fdb0d](https://github.com/unbrowse-ai/unbrowse-dev/commit/82fdb0d763c9841e1a543833684fcb569bab7c63))
+* **execute:** ad-hoc agent-driven writes (POST/PUT/PATCH/DELETE) + ZK input-censoring ([10b0daf](https://github.com/unbrowse-ai/unbrowse-dev/commit/10b0daf189eff690d11acae7255fa2afcc8acaf1))
+* **execute:** surface cross-skill producer suggestions when a hole can't be filled ([617f565](https://github.com/unbrowse-ai/unbrowse-dev/commit/617f565791fe1745031a1130c8b367fb4b6eccee))
+* **execute:** wire the yield store into the execute route — write→hole pipe flows ([cb1b429](https://github.com/unbrowse-ai/unbrowse-dev/commit/cb1b4296b17954f251b2ecdbfc0ef751d990930b))
+* **execute:** write receipts (requires/provides DAG edges) + fix 201-write mis-flag ([2e4a29c](https://github.com/unbrowse-ai/unbrowse-dev/commit/2e4a29c8211f44039953729a7af074c08977bb77))
+* **graph:** global cross-skill producer index — trace contract dependencies across skills ([a86574e](https://github.com/unbrowse-ai/unbrowse-dev/commit/a86574e5a715e20e45933359966b8b26108c7641))
+* **publish:** carry input sha256 commitments through the publish boundary ([ee01879](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee01879179ede16d9aa4d06ed554ea9431b99177))
+* **runtime:** persist session yields to disk — CLI invocations share state via --session ([f4fba45](https://github.com/unbrowse-ai/unbrowse-dev/commit/f4fba45302fe7a265c9b3d0cc87ff36f9a5fb114))
+* **runtime:** session yield store — the pipe between holes (write provides -> downstream requires) ([ab6f87d](https://github.com/unbrowse-ai/unbrowse-dev/commit/ab6f87d721d24f84ea51d2a3fbdaef174d9b058f))
+
+### Bug Fixes
+
+* **backend:** mount the /v1/validate route (imported but never wired) + capability bench on 9.0.5 ([621f727](https://github.com/unbrowse-ai/unbrowse-dev/commit/621f727eb65a8be96e9f2b248d80bc2330af6ec0))
+* **execute:** collision-resistant ad-hoc write skill id (kills flaky persistence race) ([bb08efd](https://github.com/unbrowse-ai/unbrowse-dev/commit/bb08efd9e7efbdfcadc4448c191166dfdfdf760a))
+* **execute:** write endpoints skip the GET-oriented HEAD pre-probe (writes now send) ([05915f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/05915f636a87eb0268c79604fdf6bb789faa6e04))
+* **pipe-walk:** harden from the Judgement audit — collision-proof keys + unambiguous-endpoint fill ([9d03cef](https://github.com/unbrowse-ai/unbrowse-dev/commit/9d03cefada41ed10965e082e0f6721678e284037))
+* **publish:** placeholder numeric query values — sensitive numeric param leak ([72e5fc7](https://github.com/unbrowse-ai/unbrowse-dev/commit/72e5fc761f878284519b857873257a02bf65f84a))
+* **runtime:** scope-namespace yields — kill the bare-key cross-resource collision ([c58518b](https://github.com/unbrowse-ai/unbrowse-dev/commit/c58518b4990316e744c9591ef6b8994fc2377a70))
+
 ## [9.0.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.4...v9.0.5) (2026-06-14)
 
 ### Features
