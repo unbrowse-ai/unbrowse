@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FALSIFIER="$SCRIPT_DIR/kuri-vendor-manifest-fresh.test.sh"
 FRESH_SHA="894ecb9b503f60665a31d2c4c8e96b17d9da3f61"   # Tier 1 post-CURLOPT_PROXY target
 STALE_SHA="973c6cf9a457814cf8b4f161b830189908416ee5"   # pre-CURLOPT_PROXY commit
-PLATFORMS=(darwin-arm64 darwin-x64 linux-arm64 linux-x64)
+PLATFORMS=(darwin-arm64 darwin-x64 linux-arm64 linux-x64 win-x64)
 
 if [ ! -x "$FALSIFIER" ] && [ ! -f "$FALSIFIER" ]; then
   echo "FAIL: falsifier not found at $FALSIFIER"
@@ -62,10 +62,12 @@ build_fresh_tree() {
   local entries='{}'
   for p in "${PLATFORMS[@]}"; do
     mkdir -p "$root/$p"
-    head -c 1500000 /dev/urandom > "$root/$p/kuri"
-    chmod +x "$root/$p/kuri"
+    local bin="kuri"
+    if [ "$p" = "win-x64" ]; then bin="kuri.exe"; fi
+    head -c 1500000 /dev/urandom > "$root/$p/$bin"
+    chmod +x "$root/$p/$bin"
     local bsha
-    bsha="$(sha256_of "$root/$p/kuri")"
+    bsha="$(sha256_of "$root/$p/$bin")"
     entries="$(jq --arg p "$p" --arg sha "$bsha" \
       '. + {($p): {source: "ci-build", sha256: $sha}}' <<<"$entries")"
   done

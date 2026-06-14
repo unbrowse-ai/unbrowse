@@ -194,10 +194,9 @@ jobs:
     name: native MSVC build + CDP runtime smoke
     runs-on: windows-latest
     timeout-minutes: 25
-    needs: cross-link
-    # Only run the more expensive native job AFTER the cheap mingw cross-link
-    # proves the source tree is sane. Saves windows-latest minutes when the
-    # PR breaks the build at the compile-time level.
+    # Native MSVC is the release-bearing Windows path. It must run even if the
+    # diagnostic mingw cross-link job is red, because that GNU path is allowed
+    # to expose a long pole while the MSVC artifact is what npm releases need.
     steps:
       - name: Checkout (root only — submodules pulled selectively)
         uses: actions/checkout@v4

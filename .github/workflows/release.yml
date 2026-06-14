@@ -22,6 +22,74 @@ env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
+  build-kuri-win-x64:
+    name: Build Kuri Windows Broker (windows-gnu)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Init submodules/kuri only
+        shell: bash
+        run: |
+          git submodule init submodules/kuri
+          git submodule update --init --depth=1 submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - name: Build Windows Kuri broker
+        working-directory: submodules/kuri
+        shell: pwsh
+        run: |
+          zig build -Dtarget=x86_64-windows-gnu
+          if (-not (Test-Path zig-out\bin\kuri.exe)) {
+            Write-Error "kuri.exe not produced by Windows GNU build"
+            exit 1
+          }
+          Get-ChildItem zig-out\bin\kuri*.exe
+          (Get-FileHash zig-out\bin\kuri.exe -Algorithm SHA256).Hash
+      - name: Smoke Windows Kuri broker
+        working-directory: submodules/kuri
+        shell: pwsh
+        run: |
+          $env:HEADLESS = "true"
+          $env:KURI_HEADLESS = "true"
+          $proc = Start-Process -FilePath "zig-out\bin\kuri.exe" -PassThru -NoNewWindow -RedirectStandardOutput kuri.stdout.log -RedirectStandardError kuri.stderr.log
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2 -ErrorAction Stop
+              if ($health.ok -eq $true) {
+                $ok = $true
+                break
+              }
+            } catch {
+              # keep polling
+            }
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) {
+            Write-Host "::group::kuri stdout"
+            if (Test-Path kuri.stdout.log) { Get-Content kuri.stdout.log }
+            Write-Host "::endgroup::"
+            Write-Host "::group::kuri stderr"
+            if (Test-Path kuri.stderr.log) { Get-Content kuri.stderr.log }
+            Write-Host "::endgroup::"
+            Write-Error "kuri.exe never became healthy within 30s"
+            exit 1
+          }
+          Write-Host "PASS: Windows Kuri broker reached /health"
+      - name: Upload Windows Kuri broker
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-win-x64
+          path: submodules/kuri/zig-out/bin/kuri.exe
+          retention-days: 1
+          if-no-files-found: error
+
   # Build the Kuri browser-broker vendor binaries ONCE per release and share
   # them with every downstream job via the kuri-vendor artifact. This is the
   # ~17min cross-compile that previously ran twice (once inside
@@ -32,6 +100,7 @@ jobs:
   build-kuri-vendor:
     name: Build Kuri Vendor (shared, cached)
     runs-on: ubuntu-latest
+    needs: build-kuri-win-x64
     permissions:
       contents: read
     steps:
@@ -46,15 +115,23 @@ jobs:
         with:
           path: packages/skill/vendor/kuri
           key: kuri-vendor-${{ runner.os }}-${{ steps.kuri.outputs.sha }}-${{ hashFiles('packages/skill/scripts/build-kuri-binaries.mjs') }}
+      - name: Restore Windows Kuri broker
+        uses: actions/download-artifact@v4
+        with:
+          name: kuri-win-x64
+          path: /tmp/kuri-win-x64
+      - name: Stage Windows Kuri broker into vendor tree
+        run: |
+          mkdir -p packages/skill/vendor/kuri/win-x64
+          cp /tmp/kuri-win-x64/kuri.exe packages/skill/vendor/kuri/win-x64/kuri.exe
+          test -s packages/skill/vendor/kuri/win-x64/kuri.exe
       - uses: mlugg/setup-zig@v2
-        if: steps.kuri-cache.outputs.cache-hit != 'true'
         with:
           version: "0.16.0"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Build Kuri vendor binaries
-        if: steps.kuri-cache.outputs.cache-hit != 'true'
         run: node packages/skill/scripts/build-kuri-binaries.mjs
       - name: Upload kuri-vendor artifact
         uses: actions/upload-artifact@v4

@@ -49,6 +49,22 @@ exit 1
   chmodSync(outFile, 0o755);
 }
 
+function canWritePlaceholder(targetId) {
+  return targetId !== "win-x64" || process.env.UNBROWSE_ALLOW_KURI_PLACEHOLDER === "1";
+}
+
+function failOrWritePlaceholder(outFile, targetId, reason) {
+  if (!canWritePlaceholder(targetId)) {
+    throw new Error(
+      `Refusing to ship placeholder Kuri for ${targetId}: ${reason}. ` +
+      "Stage a native Windows kuri.exe before release (the release workflow's build-kuri-win-x64 job does this), " +
+      "or set UNBROWSE_ALLOW_KURI_PLACEHOLDER=1 for a local non-release build.",
+    );
+  }
+  console.warn(`${reason} — writing placeholder stub for ${targetId}`);
+  writePlaceholderStub(outFile, targetId);
+}
+
 /// Best-effort install of build deps needed for the native kuri build on
 /// this host. Linux: zlib + idn2 dev headers (curl-impersonate links them
 /// dynamically; Zig errors at link time if absent). Idempotent — apt-get
@@ -229,18 +245,16 @@ for (const target of supportedTargets) {
       stdio: "inherit",
     });
   } catch (e) {
-    console.warn(`Cross-compile failed for ${target.id} — writing placeholder stub (${e.message?.split("\n")[0] ?? "unknown error"})`);
-    writePlaceholderStub(outFile, target.id);
     rmSync(prefixDir, { recursive: true, force: true });
+    failOrWritePlaceholder(outFile, target.id, `Cross-compile failed (${e.message?.split("\n")[0] ?? "unknown error"})`);
     manifest.binaries[target.id] = { zig_target: target.zigTarget, source: "placeholder", sha256: hashFile(outFile) };
     continue;
   }
 
   const builtBinary = path.join(prefixDir, "bin", target.bin);
   if (!existsSync(builtBinary)) {
-    console.warn(`Kuri build for ${target.id} produced no binary — writing placeholder stub`);
-    writePlaceholderStub(outFile, target.id);
     rmSync(prefixDir, { recursive: true, force: true });
+    failOrWritePlaceholder(outFile, target.id, `Kuri build for ${target.id} produced no binary`);
     manifest.binaries[target.id] = { zig_target: target.zigTarget, source: "placeholder", sha256: hashFile(outFile) };
     continue;
   }

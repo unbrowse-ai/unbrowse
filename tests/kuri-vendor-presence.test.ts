@@ -3,11 +3,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-// Falsifiable signal that the optional Kuri compatibility vendor payload is
-// coherent. Direct CDP is now the canonical stateless browser primitive, so
-// Kuri is no longer required as a full binary for every published target. The
-// current platform must remain executable when present; cross-target entries
-// may be tiny placeholders as long as the manifest hash integrity holds.
+// Falsifiable signal that the Kuri browser-broker vendor payload is coherent.
+// The Windows target is load-bearing for browse/capture on installed Windows
+// CLIs, so win-x64 must not regress to a missing or shell-stubbed kuri.exe.
+// Other cross-target entries may be tiny placeholders in local dev as long as
+// the manifest hash integrity holds; the release guard is stricter.
 //
 // This complements packages/skill/scripts/assert-kuri-vendor.mjs (which runs
 // in `prepack` and verifies hashes against manifest). Running it as part of
@@ -15,10 +15,7 @@ import { spawnSync } from "node:child_process";
 // needing the pack flow.
 //
 // Ground truth for the published target set lives in
-// packages/skill/scripts/lib/kuri-vendor.mjs (`supportedTargets`). At the
-// time of writing, win-x64 is intentionally disabled there (Kuri's getenv
-// usage needs std.process.getenvW for Windows). If win-x64 is re-enabled,
-// this list must be updated to match.
+// packages/skill/scripts/lib/kuri-vendor.mjs (`supportedTargets`).
 
 const repoRoot = path.resolve(import.meta.dir, "..");
 const packageRoot = path.join(repoRoot, "packages", "skill");
@@ -29,6 +26,7 @@ const EXPECTED_TARGETS = [
   { id: "darwin-x64", bin: "kuri", posix: true },
   { id: "linux-arm64", bin: "kuri", posix: true },
   { id: "linux-x64", bin: "kuri", posix: true },
+  { id: "win-x64", bin: "kuri.exe", posix: false },
 ] as const;
 const CURRENT_TARGET =
   process.platform === "darwin" && process.arch === "arm64" ? "darwin-arm64"
@@ -66,10 +64,10 @@ describe("kuri vendor presence", () => {
         expect(existsSync(binPath)).toBe(true);
       });
 
-      it(`current-platform binary size > ${MIN_SIZE_BYTES} bytes or cross-target placeholder is explicit`, () => {
+      it(`current-platform/win-x64 binary size > ${MIN_SIZE_BYTES} bytes or cross-target placeholder is explicit`, () => {
         const stat = statSync(binPath);
         console.log(`[kuri vendor presence] ${target.id} size=${stat.size}`);
-        if (target.id === CURRENT_TARGET) {
+        if (target.id === CURRENT_TARGET || target.id === "win-x64") {
           expect(stat.size).toBeGreaterThan(MIN_SIZE_BYTES);
         } else {
           expect(stat.size).toBeGreaterThan(0);
