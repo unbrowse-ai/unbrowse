@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.0.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.2...v9.0.3) (2026-06-14)
+
+### Features
+
+* **orchestrator:** persist + replay composite routes (runtime DAG) ([8f606f3](https://github.com/unbrowse-ai/unbrowse-dev/commit/8f606f31ff088acdb68e3ca60fb5ac331f401050))
+
 ## [8.3.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v8.3.0...v8.3.1) (2026-06-12)
 
 ### Features
