@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +29,8 @@ type UpdateCheckState = {
   latest_checked_at?: string;
   notified_version?: string;
   notified_at?: string;
+  auto_update_attempted_at?: string;
+  auto_update_target?: string;
 };
 
 export type UpdateCheckResult = {
@@ -222,6 +225,102 @@ export function recordUpdateHint(latestVersion: string): void {
     notified_version: latestVersion,
     notified_at: new Date().toISOString(),
   } satisfies UpdateCheckState);
+}
+
+// ── Auto-update ───────────────────────────────────────────────────────────────
+// The client keeps itself current. We can't hot-swap the running process, so the
+// update is applied in the background (detached, non-blocking) and takes effect on
+// the NEXT invocation — the standard safe self-update shape (npm/yarn/gh-cli do the
+// same: never block the in-flight command on a reinstall).
+
+export type AutoUpdateDecision = { update: boolean; reason: string };
+
+/** Truthy-string env guard (1/true/yes). */
+function envOn(name: string): boolean {
+  const v = (process.env[name] ?? "").toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+/**
+ * Pure decision: should we attempt an auto-update now? No I/O — every input is a
+ * parameter, so this is unit-testable without network, fs, or a clock.
+ */
+export function shouldAutoUpdate(input: {
+  hasUpdate: boolean;
+  method: InstallMethod;
+  disabled: boolean; // opt-out env / CI
+  lastAttemptAt?: string;
+  nowMs: number;
+  intervalMs: number;
+}): AutoUpdateDecision {
+  if (input.disabled) return { update: false, reason: "disabled" };
+  if (!input.hasUpdate) return { update: false, reason: "up-to-date" };
+  // Only npm-global can be safely reinstalled unattended; a repo-clone would need a
+  // git pull + rebuild we won't run behind the user's back.
+  if (input.method !== "npm-global") return { update: false, reason: `method:${input.method}` };
+  if (input.lastAttemptAt) {
+    const last = Date.parse(input.lastAttemptAt);
+    if (Number.isFinite(last) && input.nowMs - last < input.intervalMs) {
+      return { update: false, reason: "throttled" };
+    }
+  }
+  return { update: true, reason: "applying" };
+}
+
+/** Whether auto-update is opted out (env or CI). */
+export function autoUpdateDisabled(): boolean {
+  return (
+    envOn("UNBROWSE_NO_AUTO_UPDATE") ||
+    envOn("UNBROWSE_DISABLE_UPDATE_HINTS") ||
+    envOn("CI") ||
+    !!process.env.GITHUB_ACTIONS
+  );
+}
+
+export type AutoUpdateResult = { applied: boolean; reason: string; from?: string; to?: string };
+
+/**
+ * Check for an update and, when warranted, spawn a detached `npm i -g unbrowse@<latest>`
+ * that survives this process. Never throws, never blocks: a failure to update must not
+ * break the command the user actually ran. Throttled via update-check.json.
+ */
+export async function maybeAutoUpdate(metaUrl: string): Promise<AutoUpdateResult> {
+  try {
+    const result = await checkForUpdates(metaUrl);
+    const statePath = getUpdateCheckStatePath();
+    const state = readJsonFile<UpdateCheckState>(statePath) ?? {};
+    const decision = shouldAutoUpdate({
+      hasUpdate: result.has_update,
+      method: result.install.method,
+      disabled: autoUpdateDisabled(),
+      lastAttemptAt: state.auto_update_attempted_at,
+      nowMs: Date.now(),
+      intervalMs: getUpdateIntervalMs(),
+    });
+    if (!decision.update) return { applied: false, reason: decision.reason };
+    if (!result.latest) return { applied: false, reason: "no-latest" };
+
+    // Record the attempt BEFORE spawning so a crash-looping install can't retry every
+    // invocation (throttle holds even if the spawn never completes).
+    writeJsonFile(statePath, {
+      ...state,
+      auto_update_attempted_at: new Date().toISOString(),
+      auto_update_target: result.latest,
+    } satisfies UpdateCheckState);
+
+    const logFile = path.join(ensureDir(getConfigDir()), "auto-update.log");
+    const child = spawn(
+      process.platform === "win32" ? "npm.cmd" : "npm",
+      ["install", "-g", `unbrowse@${result.latest}`],
+      { detached: true, stdio: ["ignore", "ignore", "ignore"], windowsHide: true },
+    );
+    // best-effort breadcrumb; never await the child
+    try { writeFileSync(logFile, `${new Date().toISOString()} auto-update ${result.installed} -> ${result.latest} (pid ${child.pid ?? "?"})\n`, { flag: "a" }); } catch { /* ignore */ }
+    child.unref();
+    return { applied: true, reason: "spawned", from: result.installed, to: result.latest };
+  } catch (err) {
+    return { applied: false, reason: `error:${(err as Error)?.message ?? "unknown"}` };
+  }
 }
 
 function commandIncludesHook(command: string | undefined, marker: string): boolean {
