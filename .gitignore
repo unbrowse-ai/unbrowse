@@ -40,8 +40,9 @@ backend/.dev.vars
 
 # Project-specific
 .vault/
-# Alpha docs — never committed; see scripts/leak-guard.sh
-internal/
+# Internal tier — tracked on dev (unbrowse-dev, private) but NEVER public:
+# open-core-sync is an allow-list (never copies internal/), and leak-guard scans
+# with --exclude-dir=internal. Keep strategy/economics here, off the public repo.
 skills/
 !skills/
 !skills/worktree-issue-fix/
