@@ -29,6 +29,19 @@ function cacheFor(sessionId: string, store: YieldStore): SessionYieldCache {
   return cache;
 }
 
+/**
+ * The cache key. A bare binding key like `id` collides across resources (a write to
+ * /posts and a write to /comments both yield `id`); the latest would mis-fill a
+ * downstream hole with the wrong resource's id. SCOPE is the contract's "right
+ * condition" (Lewis): when a producer/consumer declares its resource scope, the
+ * yield is namespaced `scope::key`, so `posts::id` never fills a `comments::id` hole.
+ * Unscoped keys stay bare (the single-producer golden path); a scoped yield never
+ * fills an unscoped hole and vice-versa — the two waters do not mix.
+ */
+function scopedKey(key: string, scope?: string): string {
+  return scope ? `${scope}::${key}` : key;
+}
+
 /** True when a yield is past its ttl_ms relative to `nowMs`. */
 export function isYieldStale(y: SessionYield, nowMs: number): boolean {
   if (typeof y.ttl_ms !== "number") return false;
@@ -45,7 +58,7 @@ export function isYieldStale(y: SessionYield, nowMs: number): boolean {
 export function recordYields(
   sessionId: string,
   provides: OperationBinding[] | undefined,
-  opts?: { store?: YieldStore; nowIso?: string },
+  opts?: { store?: YieldStore; nowIso?: string; scope?: string },
 ): number {
   if (!sessionId || !Array.isArray(provides) || provides.length === 0) return 0;
   const store = opts?.store ?? moduleStore;
@@ -54,7 +67,7 @@ export function recordYields(
   let n = 0;
   for (const b of provides) {
     if (!b?.key || b.example_value === undefined) continue;
-    cache.set(b.key, {
+    cache.set(scopedKey(b.key, opts?.scope), {
       value: b.example_value,
       observed_at: b.observed_at ?? nowIso,
       ...(typeof b.ttl_ms === "number" ? { ttl_ms: b.ttl_ms } : {}),
@@ -83,7 +96,7 @@ export function fillHolesFromYields(
   sessionId: string,
   requires: OperationBinding[] | undefined,
   params: Record<string, unknown>,
-  opts?: { store?: YieldStore; nowMs?: number },
+  opts?: { store?: YieldStore; nowMs?: number; scope?: string },
 ): { filled: string[]; params: Record<string, unknown> } {
   const filled: string[] = [];
   if (!sessionId || !Array.isArray(requires) || requires.length === 0) return { filled, params };
@@ -93,11 +106,12 @@ export function fillHolesFromYields(
   for (const b of requires) {
     if (!b?.key) continue;
     if (params[b.key] !== undefined && params[b.key] !== null) continue; // hole already filled
-    const y = cache.get(b.key);
+    const ck = scopedKey(b.key, opts?.scope);
+    const y = cache.get(ck);
     if (!y || isYieldStale(y, nowMs)) continue;
     params[b.key] = y.value;
     filled.push(b.key);
-    if (y.single_use) cache.delete(b.key);
+    if (y.single_use) cache.delete(ck);
   }
   return { filled, params };
 }
