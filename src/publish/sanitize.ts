@@ -1,4 +1,4 @@
-import type { EndpointDescriptor } from "../types/index.js";
+import type { EndpointDescriptor, OperationBinding } from "../types/index.js";
 
 const SECRET_VALUE_PATTERNS = [
   /^eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
@@ -174,18 +174,20 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
           delete semantic.sample_request_url;
         }
       }
-      if (semantic.requires) {
-        semantic.requires = semantic.requires.map((binding) => {
-          const { example_value: _exampleValue, ...rest } = binding;
-          return rest;
-        });
-      }
-      if (semantic.provides) {
-        semantic.provides = semantic.provides.map((binding) => {
-          const { example_value: _exampleValue, ...rest } = binding;
-          return rest;
-        });
-      }
+      // A binding's example_value is normally a real captured value → strip it before
+      // publish (privacy). EXCEPTION: a sha256 commitment (`sha256:…`) is NOT a value —
+      // it is the censored stand-in a write's sensitive input was reduced to. Keeping it
+      // lets a published write route stay VERIFIABLE: a replaying agent supplies its own
+      // value and checks it against the commitment, without the secret ever being shared.
+      const stripExample = (binding: OperationBinding): OperationBinding => {
+        if (typeof binding.example_value === "string" && binding.example_value.startsWith("sha256:")) {
+          return binding; // keep the commitment
+        }
+        const { example_value: _exampleValue, ...rest } = binding;
+        return rest;
+      };
+      if (semantic.requires) semantic.requires = semantic.requires.map(stripExample);
+      if (semantic.provides) semantic.provides = semantic.provides.map(stripExample);
       clean.semantic = semantic;
     }
 
