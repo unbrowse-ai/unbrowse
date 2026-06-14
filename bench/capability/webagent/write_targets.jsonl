@@ -1,0 +1,6 @@
+{"id":"post-echo","url":"https://postman-echo.com/post","intent":"create a new record by POSTing the JSON body {\"name\":\"unbrowse-bench\",\"n\":1}","method":"POST","writesafe":true,"expect":"echoed POST body"}
+{"id":"put-echo","url":"https://postman-echo.com/put","intent":"update the record by PUTting the JSON body {\"name\":\"unbrowse-bench\",\"n\":2}","method":"PUT","writesafe":true,"expect":"echoed PUT body"}
+{"id":"jsonph-create","url":"https://jsonplaceholder.typicode.com/posts","intent":"create a new post with title 'hello' and body 'world' and userId 1","method":"POST","writesafe":true,"expect":"201 created with new id"}
+{"id":"reqres-register","url":"https://reqres.in/api/register","intent":"register a new account with email eve.holt@reqres.in and password pistol","method":"POST","writesafe":true,"expect":"token returned"}
+{"id":"auth-then-act","url":"https://httpbin.org/bearer","intent":"authenticate with bearer token test-token-123 then read the authenticated identity","method":"GET-AUTH","writesafe":true,"expect":"authenticated:true, token echoed"}
+{"id":"form-submit","url":"https://httpbin.org/forms/post","intent":"submit the order form with custname 'unbrowse' and size 'large' and a cheese topping","method":"FORM-POST","writesafe":true,"expect":"form fields echoed in POST"}
