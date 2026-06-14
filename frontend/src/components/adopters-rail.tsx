@@ -8,11 +8,8 @@
  *
  *   - OpenClaw — public plugin (`openclaw-unbrowse-plugin` submodule v0.8.0
  *     pinned in this repo, 344K-star ecosystem per docs/built-on-unbrowse).
- *   - Claude Code — `npx unbrowse setup --mcp` writes the MCP entry into
- *     `~/.claude/mcp.json` (see src/app/mcp.json + install-instructions).
- *   - Codex — same setup writes `~/.codex/mcp.json`.
- *   - Cursor, Windsurf, Claude Desktop — MCP-host installers documented at
- *     /install.
+ *   - Claude Code, Codex, Cursor, Windsurf, Claude Desktop — skill/CLI install
+ *     documented at /install; MCP is legacy/manual-only.
  *   - Crossmint — payout-rail partner (lobster.cash CLI is the recommended
  *     wallet path; see src/app/account/wallet/page.tsx Option 1).
  *   - Faremeter — payment rail (`@faremeter/flex-solana` optional
@@ -49,7 +46,7 @@ export function AdoptersRail() {
       <div className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
         <span className="stamp-label">Already runs on</span>
         <span className="text-xs text-text-muted">
-          MCP-native. Drop-in for every major agent host.
+          Skill-first. Drop-in for every major agent host.
         </span>
       </div>
       <div

@@ -104,10 +104,10 @@ r = requests.get("https://api.site.com/items")   # unchanged`}</code></pre>
       </p>
       <pre><code>{`npx unbrowse mcp`}</code></pre>
       <p>
-        It registers into Claude Desktop, Cursor, Codex, Continue, and Windsurf out of
-        the box (<code>unbrowse setup</code> wires the host config). MCP is the
-        recommended surface for agent hosts; the framework adapters above are for
-        building an agent in code with one of the SDKs.
+        It is still available for hosts that need a stdio server, but setup no
+        longer writes MCP host configs. The Agent Skill + CLI are the default
+        surface; the framework adapters above are for building an agent in code
+        with one of the SDKs.
       </p>
     </>
   );

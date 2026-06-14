@@ -315,7 +315,7 @@ export function FlywheelDiagram() {
  * full multi-host walkthrough. This is the chapter-moment version.
  */
 export function InstallArtifact() {
-  const cmd = "npx unbrowse setup --mcp";
+  const cmd = "unbrowse setup";
   return (
     <figure className="w-full max-w-[56rem] mx-auto py-10 md:py-14 animate-media-entrance">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-10 items-center">
@@ -331,7 +331,7 @@ export function InstallArtifact() {
               color: "color-mix(in oklab, var(--text-inverse) 60%, transparent)",
             }}
           >
-            one command, any MCP host
+            one command, any agent host
           </div>
           <div className="px-5 py-7">
             <div className="flex items-baseline gap-3">

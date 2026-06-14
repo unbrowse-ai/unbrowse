@@ -85,7 +85,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "How do I install Unbrowse?",
-    a: "Run `npx unbrowse setup --mcp` once. It registers the Unbrowse MCP server with Claude Code, Claude Desktop, Cursor, Codex, Windsurf, OpenClaw, or any other MCP-compatible host. After that any agent on your machine can call any website by intent.",
+    a: "Run `npm install -g unbrowse`, then `unbrowse setup`. Setup installs the Agent Skill and browser engine; it does not write MCP host configs. Legacy MCP users can run `unbrowse mcp` manually as a stdio server.",
   },
 ];
 
@@ -384,7 +384,7 @@ export default function WhatIsUnbrowsePage() {
             </Link>
             . Or install it now:{" "}
             <code className="font-mono text-orange-500 bg-surface-ink px-2 py-0.5 rounded-sm border border-border">
-              npx unbrowse setup --mcp
+              unbrowse setup
             </code>
             .
           </p>

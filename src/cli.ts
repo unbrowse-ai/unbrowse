@@ -2618,65 +2618,10 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     else info(`Skill install skipped (${sk.detail ?? sk.action}).`);
   }
 
-  // MCP is LEGACY: register it only when the user explicitly opts in with
-  // `--mcp`. The skill (above) is the default surface.
-  const wantMcp = !!flags["mcp"];
-  if (!wantMcp) {
-    info("MCP registration skipped — the skill is the default surface; pass --mcp to also register the legacy MCP server.");
-  } else if (flags["no-claude-register"]) {
-    info("Claude Code registration skipped (--no-claude-register).");
+  if (flags["mcp"] || flags["no-claude-register"] || flags["no-mcp-host-register"]) {
+    info("MCP host autoinstall has been removed. The legacy server still exists as `unbrowse mcp`, but setup does not write MCP configs.");
   } else {
-    const { registerWithClaudeCode } = await import("./setup/claude-mcp-register.js");
-    const mcpEntrypoint = resolveSiblingEntrypoint(import.meta.url, "mcp");
-    const claudeReg = await registerWithClaudeCode({
-      serverCommand: process.execPath,
-      serverArgs: runtimeArgsForEntrypoint(import.meta.url, mcpEntrypoint),
-    });
-    if (claudeReg.skipped) {
-      if (claudeReg.skip_reason === "claude_cli_not_found") {
-        info("Claude Code not found on PATH — skipping MCP registration (re-run after install).");
-      }
-    } else if (claudeReg.already_configured) {
-      info(`Claude Code: already configured (MCP server + 41 allow entries at ${claudeReg.settings_path}). No changes.`);
-    } else {
-      info(
-        `Claude Code: registered MCP server${claudeReg.mcp_server_registered ? "" : " (already present)"}, ` +
-        `${claudeReg.allowlist_entries_added} new tool allow rules + ${claudeReg.allowlist_entries_already_present} already present at ${claudeReg.settings_path}.`,
-      );
-    }
-  }
-
-  // Also auto-register the MCP server into any detected GUI/editor host
-  // configs (Claude Desktop, Cursor, Codex, Continue, Windsurf). Each host
-  // gets its own per-host result. Hosts that aren't installed report
-  // "not_detected" and nothing is written; idempotent on re-run. Opt-out via
-  // --no-mcp-host-register.
-  if (!wantMcp) {
-    // skill is the default surface; MCP host registration is opt-in via --mcp
-  } else if (flags["no-mcp-host-register"]) {
-    info("MCP host registration skipped (--no-mcp-host-register).");
-  } else {
-    try {
-      const { registerMcpHosts } = await import("./setup/mcp-hosts-register.js");
-      // GUI hosts cannot spawn `bun` reliably without a fully-loaded PATH;
-      // route them through `npx` so the host picks up the package from npm.
-      const hostResults = registerMcpHosts({
-        serverCommand: "npx",
-        serverArgs: ["-y", "unbrowse", "mcp"],
-      });
-      for (const r of hostResults) {
-        if (r.action === "merged") {
-          info(`MCP host ${r.host}: registered at ${r.config_path}`);
-        } else if (r.action === "already_present") {
-          info(`MCP host ${r.host}: already configured`);
-        } else if (r.action === "parse_error") {
-          info(`MCP host ${r.host}: ${r.detail ?? "config malformed; skipped"}`);
-        }
-        // "not_detected" stays silent so we don't spam users about hosts they don't have.
-      }
-    } catch (err) {
-      info(`MCP host registration skipped (${err instanceof Error ? err.message : String(err)}).`);
-    }
+    info("MCP host registration skipped — setup installs the Agent Skill/CLI only.");
   }
 
   await recordInstallTelemetryEvent("setup", {
@@ -3461,7 +3406,7 @@ export const CLI_REFERENCE = {
   // canonical command.
   commands: [
     // ── Setup & lifecycle ─────────────────────────────────────────────────
-    { name: "setup", usage: "[--mcp] [--no-skill] [--opencode auto|global|project|off] [--no-start] [--skip-browser]", desc: "Bootstrap the browser engine, install the unbrowse Agent Skill (the primary surface) into ~/.claude/skills/unbrowse, and write the /unbrowse Open Code command. MCP is legacy: pass --mcp to also register the unbrowse MCP server across detected hosts (Claude, Cursor, Codex, Windsurf — idempotent). Run once on install. Re-run is safe." },
+    { name: "setup", usage: "[--no-skill] [--opencode auto|global|project|off] [--no-start] [--skip-browser]", desc: "Bootstrap the browser engine, install the unbrowse Agent Skill (the primary surface) into ~/.claude/skills/unbrowse, and write the /unbrowse Open Code command. Setup does not write MCP host configs; `unbrowse mcp` remains manual-only for legacy hosts. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
     { name: "health", usage: "", desc: "Quick local runtime health check. Runs in-process by default; explicit `serve` is the compatibility daemon." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },

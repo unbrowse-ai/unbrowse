@@ -35,18 +35,18 @@ const ICP_PATHS = [
     icon: Globe,
   },
   {
-    id: "mcp-hosts",
-    eyebrow: "For MCP Hosts",
-    title: "Add live website actions to any MCP client",
+    id: "agent-hosts",
+    eyebrow: "For Agent Hosts",
+    title: "Add live website actions to any agent",
     body:
-      "Built for MCP-native stacks that need one local website-action layer instead of a pile of one-off browser scripts or hand-wired site APIs.",
+      "Built for agent stacks that need one local website-action layer instead of a pile of one-off browser scripts or hand-wired site APIs.",
     points: [
-      "Works with generic MCP hosts",
+      "Works through the Agent Skill + CLI",
       "Local execution, reusable skills",
-      "Ready config path, not custom glue",
+      "No host config autowrites",
     ],
-    href: "/mcp.json",
-    cta: "Grab the MCP config",
+    href: "/skill.md",
+    cta: "Read the Agent Skill",
     icon: Zap,
   },
 ] as const;

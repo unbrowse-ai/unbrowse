@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   INSTALL_CMD_GENERIC,
-  INSTALL_CMD_MCP,
   INSTALL_CMD_NPM,
   INSTALL_CMD_OPENCLAW,
 } from "@/lib/install-command";
@@ -13,7 +12,6 @@ export async function GET() {
 
   const installOpenClaw = injectAttribution(INSTALL_CMD_OPENCLAW, b64);
   const installGeneric = injectAttribution(INSTALL_CMD_GENERIC, b64);
-  const installMcp = injectAttribution(INSTALL_CMD_MCP, b64);
   const installNpm = injectAttribution(INSTALL_CMD_NPM, b64);
 
   const body = `# Unbrowse
@@ -24,7 +22,6 @@ export async function GET() {
 
 - [Native Browser Install (Recommended)](https://www.unbrowse.ai/skill.md): Run \`${installOpenClaw}\` to make Unbrowse the default browser — every page.goto() routes through Unbrowse automatically, no code changes needed
 - [CLI Install](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
-- [MCP Install](https://www.unbrowse.ai/mcp.json): For generic MCP hosts, run \`${installMcp}\`, then import the generated config or use this template
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
 - [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with \`${installNpm}\`
 - [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion

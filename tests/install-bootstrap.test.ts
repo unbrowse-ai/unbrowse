@@ -5,11 +5,7 @@ import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_CODEX,
   INSTALL_CMD_GENERIC,
-  INSTALL_CMD_MCP,
-  MCP_CONFIG_JSON,
-  MCP_CONFIG_PATH,
   UPGRADE_CMD_GENERIC,
-  UPGRADE_CMD_MCP,
 } from "../frontend/src/lib/install-command";
 
 const ROOT = path.resolve(import.meta.dir, "..");
@@ -18,16 +14,9 @@ describe("bootstrap install flow", () => {
   it("publishes deterministic install and upgrade commands", () => {
     expect(INSTALL_CMD_GENERIC).toContain("curl -fsSL");
     expect(INSTALL_CMD_GENERIC).toContain("install.sh");
-    expect(INSTALL_CMD_MCP).toContain("./setup --host mcp");
     expect(INSTALL_CMD_CODEX).toContain("./setup --host codex");
     expect(INSTALL_CMD_CLAUDE).toContain("./setup --host claude");
     expect(UPGRADE_CMD_GENERIC).toContain("curl -fsSL");
-    expect(UPGRADE_CMD_MCP).toContain("./setup --host mcp");
-    expect(MCP_CONFIG_PATH).toContain("unbrowse/mcp/unbrowse.json");
-    expect(MCP_CONFIG_JSON).toContain("\"mcpServers\"");
-    expect(MCP_CONFIG_JSON).toContain("\"command\": \"unbrowse\"");
-    expect(MCP_CONFIG_JSON).toContain("\"args\": [");
-    expect(MCP_CONFIG_JSON).toContain("\"mcp\"");
   });
 
   it("ships a repo bootstrap script that builds the packaged runtime and installs a shim", () => {
@@ -37,10 +26,11 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("packages/skill/bin/unbrowse-wrapper.mjs");
     expect(script).toContain('CODEX_HOME_DIR/skills/unbrowse');
     expect(script).toContain('$HOME/.claude/skills/unbrowse');
-    expect(script).toContain("auto|codex|claude|mcp|off");
-    expect(script).toContain('MCP_CONFIG_DIR="$(resolve_config_home)/unbrowse/mcp"');
-    expect(script).toContain('log "wrote MCP config: $MCP_CONFIG_PATH"');
-    expect(script).toContain('"args": ["mcp"]');
+    expect(script).toContain("auto|codex|claude|off");
+    expect(script).not.toContain("auto|codex|claude|mcp|off");
+    expect(script).not.toContain("MCP_CONFIG_DIR");
+    expect(script).not.toContain("wrote MCP config");
+    expect(script).not.toContain('"args": ["mcp"]');
     expect(script).toContain("--accept-tos");
     expect(script).toContain("--agent-email");
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
@@ -52,6 +42,17 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("Crossmint lobster.cash recommended");
   });
 
+  it("keeps CLI setup from calling MCP host registrars", () => {
+    const cli = readFileSync(path.join(ROOT, "src", "cli.ts"), "utf8");
+
+    expect(cli).toContain("MCP host autoinstall has been removed");
+    expect(cli).not.toContain("setup --mcp");
+    expect(cli).not.toContain("registerWithClaudeCode");
+    expect(cli).not.toContain("registerMcpHosts");
+    expect(cli).not.toContain("./setup/claude-mcp-register");
+    expect(cli).not.toContain("./setup/mcp-hosts-register");
+  });
+
   it("ships a standalone skill bootstrap script for the public repo clone path", () => {
     const script = readFileSync(path.join(ROOT, "packages", "skill", "setup"), "utf8");
 
@@ -59,10 +60,11 @@ describe("bootstrap install flow", () => {
     expect(script).toContain('exec node "$ROOT_DIR/bin/unbrowse-wrapper.mjs"');
     expect(script).toContain('CODEX_HOME_DIR/skills/unbrowse');
     expect(script).toContain('$HOME/.claude/skills/unbrowse');
-    expect(script).toContain("auto|codex|claude|mcp|off");
-    expect(script).toContain('MCP_CONFIG_DIR="$(resolve_config_home)/unbrowse/mcp"');
-    expect(script).toContain('log "wrote MCP config: $MCP_CONFIG_PATH"');
-    expect(script).toContain('"args": ["mcp"]');
+    expect(script).toContain("auto|codex|claude|off");
+    expect(script).not.toContain("auto|codex|claude|mcp|off");
+    expect(script).not.toContain("MCP_CONFIG_DIR");
+    expect(script).not.toContain("wrote MCP config");
+    expect(script).not.toContain('"args": ["mcp"]');
     expect(script).toContain("--accept-tos");
     expect(script).toContain("--agent-email");
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
@@ -84,8 +86,8 @@ describe("bootstrap install flow", () => {
     const llmsFull = readFileSync(path.join(ROOT, "frontend", "src", "app", "llms-full.txt", "route.ts"), "utf8");
 
     expect(homePage).toContain("Crossmint lobster.cash");
-    expect(installUi).toContain("Crossmint lobster.cash");
-    expect(skillRoute).toContain("Crossmint lobster.cash");
+    expect(installUi).toContain("lobster-cli setup");
+    expect(skillRoute).toContain("npm install -g unbrowse");
     expect(llms).toContain("Crossmint lobster.cash");
     expect(llmsFull).toContain("Crossmint lobster.cash");
   });

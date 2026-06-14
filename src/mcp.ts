@@ -682,7 +682,7 @@ function listSetupResources(): ResourceDefinition[] {
   // the agent has any context) can read the resource and route accordingly.
   //
   // Two resources:
-  //   unbrowse://setup/status  - read-only snapshot: registered? key? MCP wired? Kuri present?
+  //   unbrowse://setup/status  - read-only snapshot: registered? key? skill installed? Kuri present?
   //   unbrowse://setup/guide   - the agent-readable instructions for what to do next
   //
   // Both are READ-ONLY. They never mutate config, never run setup, never
@@ -694,7 +694,7 @@ function listSetupResources(): ResourceDefinition[] {
       uri: "unbrowse://setup/status",
       name: "Unbrowse Setup Status",
       description:
-        "Read-only snapshot of the local unbrowse setup state: agent_id presence, API key configuration (boolean only, never the key), Kuri browser engine binary presence, MCP host registrations. Use this resource BEFORE invoking the setup tool to detect whether setup is needed. Returns JSON; no secrets ever surface.",
+        "Read-only snapshot of the local unbrowse setup state: agent_id presence, API key configuration (boolean only, never the key), Kuri browser engine binary presence, and Agent Skill install status. Setup does not write MCP host configs. Use this resource BEFORE invoking the setup tool to detect whether setup is needed. Returns JSON; no secrets ever surface.",
       mimeType: "application/json",
       read: async () => {
         const fs = await import("node:fs");
@@ -834,13 +834,14 @@ function listSetupResources(): ResourceDefinition[] {
           "# Unbrowse setup guide",
           "",
           "Unbrowse is the agent browser. Setup is one command; everything after",
-          "is calling tools through this MCP server (or the `unbrowse` CLI).",
+          "is calling the Agent Skill / `unbrowse` CLI. This MCP server is",
+          "legacy/manual-only for hosts that still require stdio tools.",
           "",
           "## 1. Easy mode: install via the website (recommended)",
           "",
           "Visit **https://unbrowse.ai/install** — sign in once with email,",
-          "the page bakes your API key into a one-line copy-paste install for",
-          "Claude Code / Cursor / Codex. Fewer terminal steps; the page also",
+          "the page bakes your API key into a one-line copy-paste CLI install.",
+          "Fewer terminal steps; the page also",
           "shows your earnings dashboard alongside the install command.",
           "",
           "## 2. CLI install",
@@ -858,10 +859,10 @@ function listSetupResources(): ResourceDefinition[] {
           "unbrowse setup",
           "```",
           "",
-          "Idempotent: registers an agent_id, installs/updates Kuri, registers",
-          "unbrowse as an MCP server in Claude Code + Codex if those hosts are",
-          "detected, and writes the `/unbrowse` Open Code command if Open Code",
-          "is installed. Re-running is safe.",
+          "Idempotent: registers an agent_id, installs/updates Kuri, installs",
+          "the Agent Skill, and writes the `/unbrowse` Open Code command if",
+          "Open Code is installed. Setup does not write MCP host configs.",
+          "Re-running is safe.",
           "",
           "**Identity ladder (wallet-first, email optional):**",
           "- L1 (default): `unbrowse setup` mints an anonymous agent_id without",

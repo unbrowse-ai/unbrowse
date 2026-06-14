@@ -97,18 +97,20 @@ Full surface (exa / tavily / browser-use + the wallet-protected hole tool): [doc
 
 ### Option 1 — Agent Skill + CLI
 
-Install the binary, then run setup. Setup installs the Unbrowse Agent Skill by default; MCP registration is opt-in with `--mcp`.
+Install the binary, then run setup. Setup installs the Unbrowse Agent Skill by default and does not write MCP host configs.
 
 ```bash
 npm i -g unbrowse
 unbrowse setup
 ```
 
-Skill-aware hosts read `~/.claude/skills/unbrowse/SKILL.md` and learn the current hole/contract surface. To also register the legacy MCP tools:
+Skill-aware hosts read `~/.claude/skills/unbrowse/SKILL.md` and learn the current hole/contract surface. For legacy MCP hosts, run the stdio server manually:
 
 ```bash
-unbrowse setup --mcp
+unbrowse mcp
 ```
+
+`unbrowse mcp` remains a manual stdio compatibility server for hosts that still need MCP.
 
 ### Option 2 — TypeScript SDK
 

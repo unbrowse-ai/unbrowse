@@ -18,7 +18,7 @@ const faqJsonLd = {
       name: "Why do I need yet another MCP server?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "You probably already have Notion MCP, Slack MCP, Browser MCP, Playwright MCP, Gmail MCP, and a few hand-rolled site-specific ones. Unbrowse is one MCP that replaces all of them: drop a single line into your mcp.json and your agent gets direct access to any website without a per-site server. New site appears, same MCP server captures it on the first visit; there is no new MCP to install, no new config block, no new auth flow.",
+        text: "You probably already have Notion MCP, Slack MCP, Browser MCP, Playwright MCP, Gmail MCP, and a few hand-rolled site-specific ones. Unbrowse replaces that per-site stack with one Agent Skill and CLI: install once, say the intent, and the runtime fills the right contract. New site appears, same CLI captures it on the first visit; there is no new config block or new auth flow.",
       },
     },
     {
@@ -74,7 +74,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup --mcp and your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) gets wired in one step. For Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp. For manual setup, add {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} to your mcp.json and restart.",
+        text: "Run npm install -g unbrowse, then unbrowse setup. Setup installs the Agent Skill and browser engine; it does not write MCP host configs. Legacy MCP users can run unbrowse mcp manually as a stdio server.",
       },
     },
   ],
@@ -99,11 +99,11 @@ export default function Classic() {
           <span className="eyebrow" style={{ display: "block" }}>Overview</span>
           <h2>Unbrowse: direct access to anything on the web, without setting up another MCP</h2>
           <p>
-            One MCP server, any website. The first time your agent visits a site,
+            One Agent Skill, any website. The first time your agent visits a site,
             unbrowse runs a headless browser, captures the shadow APIs the page
             itself calls, and publishes those routes to a shared marketplace. Every
             later call on the same site skips the browser entirely and returns the
-            JSON answer in milliseconds. MCP setup: npx unbrowse setup --mcp
+            JSON answer in milliseconds. Setup: npm install -g unbrowse; unbrowse setup
           </p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
         </section>

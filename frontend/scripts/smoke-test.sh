@@ -128,7 +128,7 @@ log "Testing API routes ..."
 
 check_route "/skill.md" "200" "text/markdown" "unbrowse" "skill.md"
 check_route "/llms.txt" "200" "text/plain" "Unbrowse" "llms.txt"
-check_route "/mcp.json" "200" "application/json" "" "mcp.json"
+check_route "/mcp.json" "410" "application/json" "mcp_autoinstall_removed" "mcp.json removed"
 
 # ── Summary ──
 echo ""

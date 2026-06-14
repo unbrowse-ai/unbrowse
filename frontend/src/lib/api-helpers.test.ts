@@ -3,12 +3,11 @@
  *
  * Pure logic that the UI leans on every render: API-origin resolution
  * (which backend every fetch hits), the registry-card domain humanizer,
- * and the published MCP config snippet. Runs under `bun test` with no DOM.
+ * Runs under `bun test` with no DOM.
  */
 import { describe, test, expect } from "bun:test";
 import { getConfiguredApiOrigin, getConfiguredApiV1Origin } from "./api-base";
 import { humanizeDomain } from "./humanize";
-import { MCP_CONFIG_JSON } from "./install-command";
 
 describe("getConfiguredApiOrigin precedence", () => {
   test("NEXT_PUBLIC_API_URL wins over the other env names", () => {
@@ -56,15 +55,5 @@ describe("humanizeDomain (registry card titles)", () => {
   test("empty input stays empty; bare label survives", () => {
     expect(humanizeDomain("")).toBe("");
     expect(humanizeDomain("localhost")).toBe("Localhost");
-  });
-});
-
-describe("MCP config snippet", () => {
-  test("published JSON parses and points at the unbrowse mcp command", () => {
-    const cfg = JSON.parse(MCP_CONFIG_JSON) as {
-      mcpServers: { unbrowse: { command: string; args: string[] } };
-    };
-    expect(cfg.mcpServers.unbrowse.command).toBe("unbrowse");
-    expect(cfg.mcpServers.unbrowse.args).toEqual(["mcp"]);
   });
 });

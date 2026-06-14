@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import {
   INSTALL_CMD_CLAUDE,
   INSTALL_CMD_CODEX,
-  INSTALL_CMD_MCP,
   INSTALL_CMD_NPM,
   INSTALL_CMD_OPENCLAW,
   REPO_CLONE_URL,
@@ -15,7 +14,6 @@ export async function GET() {
   const inject = (cmd: string) => injectAttribution(cmd, b64);
 
   const setupOff = `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host off`;
-  const setupMcp = `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`;
 
   const body = `# Unbrowse
 
@@ -103,14 +101,6 @@ ${inject(setupOff)}
 \`\`\`
 
 This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable \`unbrowse\` shim, and starts the local server. During bootstrap, set up Crossmint lobster.cash if you want mined-route payouts to land in your wallet.
-
-### Generic MCP host install
-
-\`\`\`
-${inject(setupMcp)}
-\`\`\`
-
-This writes a ready-to-import MCP config to \`~/.config/unbrowse/mcp/unbrowse.json\`. A generic template is published at \`https://www.unbrowse.ai/mcp.json\`.
 
 ### Global install for daily use
 

@@ -263,16 +263,16 @@ export function ChapterSpine() {
         id="ch-install"
         numeral="02"
         name="Install"
-        title={<>One line into your MCP host. Any agent.</>}
+        title={<>One skill, one CLI. Any agent.</>}
         lede={
           <>
             Plugs into Claude Code, Claude Desktop, Cursor, Codex, Windsurf, and
-            OpenClaw. Replaces the per-site MCP stack you&rsquo;ve been
+            OpenClaw. Replaces the per-site integration stack you&rsquo;ve been
             assembling by hand.
           </>
         }
       >
-        <HallmarkFigure caption={<>$ unbrowse setup --mcp</>}>
+        <HallmarkFigure caption={<>$ unbrowse setup</>}>
           <InstallInstructions />
         </HallmarkFigure>
       </HallmarkChapter>

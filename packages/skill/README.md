@@ -199,8 +199,9 @@ setups can pass `UNBROWSE_AGENT_EMAIL` + `UNBROWSE_TOS_ACCEPTED`.)
 ## Legacy: MCP server
 
 Unbrowse still implements the Model Context Protocol over stdio for hosts that prefer it, but
-**the Skill + CLI are the primary path now.** `unbrowse mcp` is the stdio entrypoint; it drives
-the same in-process runtime (no daemon, no port).
+**the Skill + CLI are the primary path now.** `unbrowse setup` does not write MCP host configs.
+`unbrowse mcp` remains the manual stdio entrypoint; it drives the same in-process runtime
+(no daemon, no port).
 
 ```json
 {
@@ -210,12 +211,11 @@ the same in-process runtime (no daemon, no port).
 }
 ```
 
-Then `npx unbrowse setup --mcp` once. Tools mirror the compatibility CLI: `unbrowse_resolve`, `unbrowse_execute`,
+Add that block manually if your host still requires MCP. Tools mirror the compatibility CLI: `unbrowse_resolve`, `unbrowse_execute`,
 `unbrowse_search`, the browse chain (`unbrowse_go`, `unbrowse_snap`, `unbrowse_click`,
 `unbrowse_fill`, `unbrowse_submit`, `unbrowse_sync`, `unbrowse_close`, …), and
-`unbrowse_skills` / `unbrowse_sessions`. A generic template is published at
-[`/mcp.json`](https://www.unbrowse.ai/mcp.json). MCP is the old route-inspection
-view under the one-hole contract: `unbrowse_resolve` first, then
+`unbrowse_skills` / `unbrowse_sessions`. MCP is the old route-inspection view under the one-hole contract:
+`unbrowse_resolve` first, then
 `unbrowse_execute`; escalate to the browse chain only when debugging a miss.
 
 ---

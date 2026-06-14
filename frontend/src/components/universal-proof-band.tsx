@@ -79,7 +79,7 @@ export function UniversalProofBand() {
             </p>
             <div className="pt-3 border-t border-[rgba(255,122,32,0.15)] mt-auto space-y-1.5 text-sm">
               <div className="flex items-center gap-2 text-text-secondary">
-                <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> One <code className="text-xs font-mono">mcp.json</code> entry replaces your stack
+                <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> One Agent Skill replaces your per-site stack
               </div>
               <div className="flex items-center gap-2 text-text-secondary">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> New site appears: same server, no config edit

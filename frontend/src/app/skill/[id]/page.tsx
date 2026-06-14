@@ -72,8 +72,8 @@ export default async function SkillDetail({ params }: { params: Promise<{ id: st
 unbrowse resolve "${skill.intent_signature}" --domain ${skill.domain}
 unbrowse execute <endpoint_id>
 
-# MCP — one server, any site
-npx unbrowse setup --mcp`}
+# Legacy MCP stdio (manual-only)
+unbrowse mcp`}
         </pre>
       </section>
     </main>

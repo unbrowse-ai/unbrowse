@@ -25,8 +25,8 @@ export const revalidate = 60;
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "Run npx unbrowse setup --mcp. Unbrowse auto-detects your MCP client (Claude Code, Claude Desktop, Cursor, Windsurf, Codex, OpenClaw) and registers the MCP server in one step. For Claude Code specifically: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients you can also drop {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} into your mcp.json. Restart the host and Unbrowse is wired in."
-  : "Run npx unbrowse setup --mcp and your MCP client (Claude, Cursor, Codex, OpenClaw) gets wired in one step.";
+  ? "Run npm install -g unbrowse, then unbrowse setup. Setup installs the Agent Skill and browser engine; it does not write MCP host configs. Legacy MCP users can run unbrowse mcp manually as a stdio server."
+  : "Run npm install -g unbrowse, then unbrowse setup. The Agent Skill is the default surface.";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -77,7 +77,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup --mcp for one-command installation that registers the Unbrowse MCP server with Claude Code, Claude Desktop, Cursor, Windsurf, Codex, or OpenClaw. For Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp. For other clients, add {\"unbrowse\": {\"command\": \"npx\", \"args\": [\"-y\", \"unbrowse\", \"mcp\"]}} to your mcp.json and restart the host.",
+        text: "Run npm install -g unbrowse, then unbrowse setup. Setup installs the Unbrowse Agent Skill and browser engine; it does not write MCP host configs. Legacy MCP users can run unbrowse mcp manually as a stdio server.",
       },
     },
     {
@@ -107,9 +107,9 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <p>MCP setup (default): npx unbrowse setup --mcp</p>
-          <p>Claude Code: claude mcp add unbrowse -- npx -y unbrowse mcp</p>
-          <p>Manual MCP wiring: add to mcp.json with command &quot;npx&quot; args [&quot;-y&quot;, &quot;unbrowse&quot;, &quot;mcp&quot;]</p>
+          <p>Default setup: npm install -g unbrowse; unbrowse setup</p>
+          <p>Setup installs the Agent Skill and browser engine. It does not write MCP host configs.</p>
+          <p>Legacy MCP stdio server: unbrowse mcp</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
       </section>
@@ -201,13 +201,13 @@ export default function Home() {
               <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  MCP Install</p>
+                    <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  Skill Install</p>
                     <h2 className="mt-1 text-xl sm:text-2xl font-mono tracking-tight text-[#FFB060]" style={{ textShadow: '0 0 20px rgba(255,176,96,0.4)' }}>
-                      $ unbrowse setup --mcp
+                      $ unbrowse setup
                     </h2>
                   </div>
                   <p className="max-w-sm text-sm leading-relaxed text-[rgba(255,122,32,0.55)] font-mono">
-                    Wires the Unbrowse MCP server into your agent host. One command per client.
+                    Installs the Agent Skill and browser engine. MCP config is manual-only.
                   </p>
                 </div>
               </div>
