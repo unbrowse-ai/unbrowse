@@ -60,12 +60,22 @@ they are reported BLOCKED, not faked. This probe substitutes 6 real public write
 measure the capability directly — and the measured answer is that **write actions are an honest
 capability gap in 9.0.5**, distinct from the strong read/replay path.
 
-## To move the number (levers — the real gap is the action path, not the budget)
+## Update — write EXECUTION now works (a bug, fixed); the gap narrows to discovery + selection
 
-1. **A write-action execute path** (the load-bearing feature): when an intent is a write and the
-   target is an HTML form, fill + submit it during capture (capture the resulting POST as a route);
-   for an API write, synthesize the POST/PUT body from intent + endpoint schema and `execute` it
-   behind the existing unsafe-action confirmation. The 38 s cap is NOT the limit — an extended-budget
-   retry still performed no write.
-2. Clone a real webagent-write suite into `bench/*/vendor/` and grade against its controlled app.
-3. ✅ `/v1/validate` 404 fixed (route mounted); deploy to make it live in prod.
+Probing the execute machinery directly (`executeSkill` against a POST endpoint with a body) revealed
+the real blocker: the execute path ran a **HEAD pre-probe** before the request, and HEAD against a
+write-only endpoint **404s legitimately** → `decideFromProbe` misread it as a stale route and aborted
+**before the POST was ever sent**. Fixed: write methods (POST/PUT/PATCH/DELETE) now skip the
+GET-oriented HEAD probe and `serverFetch` the real method + body. **Witness:**
+`tests/write-action-execute.test.ts` — a live POST to postman-echo now round-trips (the body crosses
+the wire, the response schema is learned). So the write *execution* layer is capable; the auto-exec
+unsafe-action gate upstream still prevents writes without a deliberate caller action.
+
+**The remaining write gap is no longer execution — it is discovery + selection:**
+1. **Discovery**: capture is XHR-replay oriented, so a plain HTML `<form method=post>` (no XHR) is
+   never indexed as a write route. Form-fill+submit-during-capture is the missing piece.
+2. **Selection**: `resolve`/`run` auto-execute the top *safe GET* only; an agent write intent has no
+   path to pick + execute an indexed POST/PUT (behind the unsafe-action confirm).
+3. Clone a real webagent-write suite into `bench/*/vendor/` and grade against its controlled app
+   (agentdojo / InjecAgent / wasp cloned; they need their own agent harness + hosted env to run).
+4. ✅ `/v1/validate` 404 fixed (route mounted); staging deployed, prod re-trigger pending.

@@ -3622,6 +3622,27 @@ export async function executeEndpoint(
   }
 
   // ---------------------------------------------------------------------------
+  // Write fast-path. A write endpoint (POST/PUT/PATCH/DELETE) must NOT be gated by
+  // the GET-oriented HEAD pre-probe below: HEAD against a write-only endpoint 404s
+  // legitimately (the route accepts POST, not HEAD/GET), which decideFromProbe
+  // misreads as a stale route and aborts — so the write is never sent (the
+  // capability-bench webagent probe's root cause). Skip the probe and serverFetch
+  // with the real method + body. The explicit execute path is a deliberate caller
+  // action; the auto-execution unsafe-action gate lives upstream in resolve.
+  // ---------------------------------------------------------------------------
+  if (
+    !recipeMatched &&
+    endpoint.method !== "GET" &&
+    endpoint.method !== "HEAD" &&
+    endpoint.method !== "OPTIONS"
+  ) {
+    result = await serverFetch(workflowBindings?.extraHeaders, workflowBindings?.bodyOverride);
+    decisionTrace.push({ step: "server_fetch", status: result.status, write_method: endpoint.method });
+    workflowChosenStrategy = workflowChosenStrategy ?? "server";
+    recipeMatched = true;
+  }
+
+  // ---------------------------------------------------------------------------
   // Phase 7.1 probe path — runs when recipe replay (above) did not match.
   // Probe evidence (status + content-type + body size) determines whether to
   // dispatch via server fetch or fall back to browser capture. The legacy
