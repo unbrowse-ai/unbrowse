@@ -306,3 +306,9 @@ scripts/.camoufox-venv/
 bench/index20k/artifacts/
 bench/index20k/results.jsonl
 bench/index20k/*.log
+
+# 9.0.5 capability re-sweep output (background bench run; regenerated, never source)
+bench/index20k/artifacts-905/
+bench/index20k/results-905.jsonl
+bench/index20k/sweep-905.log
+bench/webagent/vendor/
