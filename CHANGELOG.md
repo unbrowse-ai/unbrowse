@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.0.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.3...v9.0.4) (2026-06-14)
+
+### Features
+
+* **orchestrator:** composites travel on the skill manifest for always-on replay ([a9cca6d](https://github.com/unbrowse-ai/unbrowse-dev/commit/a9cca6d80d048b53653e5abcdac065de10deba41))
+
 ## [9.0.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.0.2...v9.0.3) (2026-06-14)
 
 ### Features
