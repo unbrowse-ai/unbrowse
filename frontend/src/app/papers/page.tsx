@@ -21,11 +21,19 @@ const papers = [
   },
   {
     title: "Crypto Was All You Needed",
-    subtitle: "Payment Rails, Settlement, and the Economics of a Shared Route Graph",
+    subtitle: "A Signed, Layer-Descending Stack: Identity, Authentication, and Zero-Knowledge Privacy across the Agent Stack",
     href: "/crypto-was-all-you-needed.pdf",
     pdf: true,
     description:
-      "The economics companion: how per-use settlement over stablecoin rails turns a shared API route graph into a self-sustaining marketplace — discovery stays free, and the agents that execute a captured route pay the operators who maintain it.",
+      "The security companion: one signing discipline holds at every layer an agent touches — screen, browser, CLI, OS, kernel, packet. A single Ed25519 wallet key signs every layer, credentials are bound to it by zero-knowledge proof and revealed only under signature, every result is content-addressed and sealed, and nothing crosses a layer unsigned. Each layer is pinned to an established cryptographic primitive, with the cache–ledger core shipped as runnable, tested code.",
+  },
+  {
+    title: "Unbrowse Maintenance Network",
+    subtitle: "Proof of Indexing and Bonded Accountability in a Shared Route Graph",
+    href: "/unbrowse-maintenance-network.pdf",
+    pdf: true,
+    description:
+      "The economics companion: discovery is a one-time cost, but freshness is a standing liability. This paper makes a route's freshness a verifiable artifact — a proof of indexing in the lineage of The Graph and Filecoin — secured by bonded, slashable maintenance, stratified into trust tiers, and paid by delta-based attribution. Honest throughout about what is shipped, what ships as runnable reference code, and where the Sybil limit stays open.",
   },
 ];
 
