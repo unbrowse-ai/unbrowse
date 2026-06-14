@@ -2069,7 +2069,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url } = req.body as {
+    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url, session_id } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
@@ -2077,6 +2077,10 @@ export async function registerRoutes(app: FastifyInstance) {
       dry_run?: boolean;
       intent?: string;
       context_url?: string;
+      // session_id scopes the in-process yield store: a write's provides become
+      // available to fill a later op's requires hole within the SAME session/process
+      // (an MCP session, not across stateless CLI invocations — see yield-store.ts).
+      session_id?: string;
     };
     // Check local caches first: recent skills → domain snapshots → marketplace
     let skill = getRecentLocalSkill(skill_id, clientScope);
@@ -2155,6 +2159,28 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(adhocEndpointId ? { endpoint_id: adhocEndpointId } : {}),
     };
     const effectiveConfirmUnsafe = confirm_unsafe || adhocWrite;
+
+    // ── Pipe-walk FILL: fill this op's unfilled `requires` holes from prior yields ──
+    // Within one session, a previous write's `provides` (its created-resource id) was
+    // recorded into the yield store; here we fill any matching hole the caller left
+    // empty, scoped by the producer resource so a bare `id` can't cross resources.
+    const yieldScope = (() => {
+      const u = context_url ?? (typeof params?.url === "string" ? params.url : undefined) ?? skill.domain;
+      try { return new URL(String(u)).host; } catch { return skill.domain; }
+    })();
+    if (session_id) {
+      try {
+        const { fillHolesFromYields } = await import("../runtime/yield-store.js");
+        const targetEp =
+          skill.endpoints.find((e) => e.endpoint_id === (execParams as Record<string, unknown>).endpoint_id) ??
+          skill.endpoints[0];
+        const requires = targetEp?.semantic?.requires;
+        if (requires && requires.length) {
+          const { filled } = fillHolesFromYields(session_id, requires, execParams as Record<string, unknown>, { scope: yieldScope });
+          if (filled.length) console.log(`[pipe-walk] filled holes ${filled.join(",")} from session yields (scope=${yieldScope})`);
+        }
+      } catch (err) { console.warn(`[pipe-walk] fill skipped: ${(err as Error)?.message}`); }
+    }
     try {
       // Backstop: never let execute hang indefinitely. replayRecipe, serverFetch,
       // and the browser fallback can each stall on a server that holds the
@@ -2290,6 +2316,22 @@ export async function registerRoutes(app: FastifyInstance) {
           execResult.trace.endpoint_id,
           execResult.result,
         );
+        // ── Pipe-walk CAPTURE: record this op's yields for the next hole ──────────
+        // The executed endpoint's `provides` were backfilled from the response inside
+        // executeEndpoint; record them (scoped by producer resource) so a later op in
+        // this session can auto-fill a matching hole. Best-effort, never blocks.
+        if (session_id) {
+          try {
+            const { recordYields } = await import("../runtime/yield-store.js");
+            const { yieldsFromResponse } = await import("../lib/write-receipt.js");
+            const execEp = skill.endpoints.find((e) => e.endpoint_id === execResult.trace.endpoint_id);
+            const provides =
+              execEp?.semantic?.provides ??
+              yieldsFromResponse((execResult.result as Record<string, unknown>)?.data ?? execResult.result);
+            const n = recordYields(session_id, provides, { scope: yieldScope });
+            if (n) console.log(`[pipe-walk] recorded ${n} yield(s) for session (scope=${yieldScope})`);
+          } catch (err) { console.warn(`[pipe-walk] capture skipped: ${(err as Error)?.message}`); }
+        }
       }
 
       // Auto-recovery: if endpoint returned 404 (stale), re-capture via orchestrator
