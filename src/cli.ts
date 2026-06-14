@@ -3269,7 +3269,7 @@ export const CLI_REFERENCE = {
   // canonical command.
   commands: [
     // ── Setup & lifecycle ─────────────────────────────────────────────────
-    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register] [--no-mcp-host-register] [--no-contract]", desc: "Bootstrap browser engine, register unbrowse as a Claude Code MCP server (idempotent), register the local /contract bin as a sibling MCP entry across detected hosts, and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start] [--skip-browser] [--no-claude-register] [--no-mcp-host-register]", desc: "Bootstrap the browser engine, register unbrowse as an MCP server across detected hosts (Claude, Cursor, Codex, Windsurf — idempotent), and write the /unbrowse Open Code command. Run once on install. Re-run is safe." },
     { name: "upgrade", usage: "", desc: "Print the right upgrade command (npm i -g unbrowse@latest or @preview)." },
     { name: "health", usage: "", desc: "Quick local runtime health check. Runs in-process by default; explicit `serve` is the compatibility daemon." },
     { name: "mcp", usage: "[--no-auto-start]", desc: "Run the stdio MCP server. Used by Claude/Cursor; not for direct shell use." },
