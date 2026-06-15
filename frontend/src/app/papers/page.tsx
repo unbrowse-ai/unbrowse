@@ -30,7 +30,7 @@ const papers = [
   {
     title: "Unbrowse Maintenance Network",
     subtitle: "Proof of Indexing and Bonded Accountability in a Shared Route Graph",
-    href: "/internal-apis-were-not-all-you-needed.pdf",
+    href: "/unbrowse-maintenance-network.pdf",
     pdf: true,
     description:
       "The economics companion: discovery is a one-time cost, but freshness is a standing liability. This paper makes a route's freshness a verifiable artifact — a proof of indexing in the lineage of The Graph and Filecoin — secured by bonded, slashable maintenance, stratified into trust tiers, and paid by delta-based attribution. Honest throughout about what is shipped, what ships as runnable reference code, and where the Sybil limit stays open.",
