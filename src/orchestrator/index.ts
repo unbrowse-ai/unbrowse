@@ -12,6 +12,9 @@ import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, decomposeGrpcEndpoint, decomposeJsonRpcEndpoint, decomposeFormEndpoint, decomposeXmlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
+import { sealSkillSnapshotHoles } from "../values/storage-hole-bindings.js";
+import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
+import { deriveSealKey } from "../values/signer.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
@@ -354,7 +357,16 @@ export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): stri
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
     const target = snapshotPathForCacheKey(cacheKey);
-    writeFileSync(target, JSON.stringify(skill), "utf-8");
+    // Seal-at-persist (opt-in, UNBROWSE_SEAL_STORAGE_HOLES=1): replace any plaintext
+    // page_metadata.localStorage on the operation graph with sha256 commitments + push the
+    // sealed blobs off-graph. Fail-CLOSED: if sealing is unavailable, skip persistence rather
+    // than write plaintext. Flag off (default) → behaviour unchanged.
+    let toWrite: SkillManifest = skill;
+    if (process.env.UNBROWSE_SEAL_STORAGE_HOLES === "1") {
+      try { toWrite = sealSkillSnapshotHoles(skill, deriveSealKey(), fsSealedBlobStore()); }
+      catch { return undefined; }
+    }
+    writeFileSync(target, JSON.stringify(toWrite), "utf-8");
     return target;
   } catch {
     return undefined;
