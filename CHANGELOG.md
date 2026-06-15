@@ -1,5 +1,30 @@
 # Changelog
 
+## [9.4.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.15...v9.4.0-preview.0) (2026-06-15)
+
+### Features
+
+* **graph,paper:** AC3 — live localStorage yields-wiring + whitepaper commitment-only-graph section ([311b8bf](https://github.com/unbrowse-ai/unbrowse-dev/commit/311b8bf0f536068159566a66f8c65f9d3eb5aaf6))
+* **grpc:** cold-live execution for no-capture Connect/gRPC URLs ([#835](https://github.com/unbrowse-ai/unbrowse-dev/issues/835)) ([c4a4abe](https://github.com/unbrowse-ai/unbrowse-dev/commit/c4a4abe097a5a354ddb2130805e387163a12034d))
+* **holes:** localStorage/credential holes as sealed nodes in the requires/yields DAG ([#836](https://github.com/unbrowse-ai/unbrowse-dev/issues/836)) ([9e3501e](https://github.com/unbrowse-ai/unbrowse-dev/commit/9e3501e62d8bf0ed7e81cfa5dda0421d322bcefc))
+* **holes:** wire the localStorage seal/reveal lockstep (seal-at-persist + reveal-at-replay) ([7c5af28](https://github.com/unbrowse-ai/unbrowse-dev/commit/7c5af2864744de22456691fbfd01f08caa222f97))
+* **orchestrator:** content-addressed cascade invalidation for composites (Merkle content-id) ([321f1d9](https://github.com/unbrowse-ai/unbrowse-dev/commit/321f1d9f991ee476f8dea4b0fa1f29d71b0e9baa))
+* **orchestrator:** wire the live composite cascade — resolveAndExecute passes current endpoints ([279d479](https://github.com/unbrowse-ai/unbrowse-dev/commit/279d4799b5242b24156cd869c0496eef9e99cdca))
+* **rank:** client sends operation_graph in the rank request — activates the server fractal chain ([d095894](https://github.com/unbrowse-ai/unbrowse-dev/commit/d095894c1ea0c5b0d7871fda9b547bd328037b42))
+* **rank:** fractal EBM chain on the server (data-gated on operation_graph) ([3d5d387](https://github.com/unbrowse-ai/unbrowse-dev/commit/3d5d38727dc892da35fbc3fa8902baa64cb3c0d8))
+* **ranking:** decouple the energy ledger from node:fs so an ephemeral worker can serve it ([e645ac7](https://github.com/unbrowse-ai/unbrowse-dev/commit/e645ac77d55d8cbda5fe8810cbf0cd8e0399e2f7))
+* **ranking:** durable energy ledger via an emergent-first tier adapter (nodes 0-3) ([e0685c2](https://github.com/unbrowse-ai/unbrowse-dev/commit/e0685c220b83365fac7f08dfd5a409bc3c5bc348))
+* **ranking:** fractal route energy — compose per-hop energy up the requires/yields DAG ([66a7731](https://github.com/unbrowse-ai/unbrowse-dev/commit/66a7731318d187735da4da642a1127e262a0db79))
+* **ranking:** put the learned route-ranker back into the runtime (embedded head) ([7003bfc](https://github.com/unbrowse-ai/unbrowse-dev/commit/7003bfc9bd0fcea55cecd787697733f0fcc01d39))
+* **rank:** run the EBM learned head in the server ranker, fed by durable identity-free reliability ([b74ce7c](https://github.com/unbrowse-ai/unbrowse-dev/commit/b74ce7cf61e6796fc027481947b12f76d0446b93))
+* **values:** persistent sealed-blob store (off-graph vessel for sealed holes) ([453fa6f](https://github.com/unbrowse-ai/unbrowse-dev/commit/453fa6f4b9ebbf5c39ceb3d1dd8852c34ecc3c2c))
+
+### Bug Fixes
+
+* **holes:** keyed + sentinel commitments — repair 3 findings from the adversarial audit ([e17d262](https://github.com/unbrowse-ai/unbrowse-dev/commit/e17d262ff066db9848d0f39c48046381a184b3f2))
+* **rank:** harden the fractal composer against malformed/hostile operation_graph ([2b607cb](https://github.com/unbrowse-ai/unbrowse-dev/commit/2b607cb0686c8db4bb38931f87702fa501335192))
+* **scrub:** rename *-energy-core.ts siblings so the scrubbed runtime bundle resolves ([8c42c80](https://github.com/unbrowse-ai/unbrowse-dev/commit/8c42c8036167098c726c7ce92bd10043d8ff4bb5))
+
 ## [9.3.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.14...v9.3.15) (2026-06-15)
 
 ### Features
