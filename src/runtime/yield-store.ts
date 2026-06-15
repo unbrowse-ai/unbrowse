@@ -21,6 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import type { OperationBinding, SessionYield, SessionYieldCache } from "../types/skill.js";
 import { isSensitiveFieldName, commitValue } from "../proof/input-censor.js";
+import { bindPrincipalScope } from "./principal-scope.js";
 
 export type YieldStore = Map<string, SessionYieldCache>;
 
@@ -117,16 +118,20 @@ export function isYieldStale(y: SessionYield, nowMs: number): boolean {
 export function recordYields(
   sessionId: string,
   provides: OperationBinding[] | undefined,
-  opts?: { store?: YieldStore; nowIso?: string; scope?: string },
+  opts?: { store?: YieldStore; nowIso?: string; scope?: string; principal?: string },
 ): number {
   if (!sessionId || !Array.isArray(provides) || provides.length === 0) return 0;
   const store = opts?.store ?? moduleStore;
   const nowIso = opts?.nowIso ?? new Date().toISOString();
   const cache = cacheFor(sessionId, store);
+  // Bind the yield namespace to the verified auth principal: a token/created-id yielded
+  // under principal A is stored at a per-A key, so principal B (or anon) can never fill a
+  // hole from it. Unbound callers (principal undefined) keep the bare scope (legacy).
+  const effScope = bindPrincipalScope(opts?.scope, opts?.principal);
   let n = 0;
   for (const b of provides) {
     if (!b?.key || b.example_value === undefined) continue;
-    cache.set(scopedKey(b.key, opts?.scope), {
+    cache.set(scopedKey(b.key, effScope), {
       value: b.example_value,
       observed_at: b.observed_at ?? nowIso,
       ...(typeof b.ttl_ms === "number" ? { ttl_ms: b.ttl_ms } : {}),
@@ -166,7 +171,7 @@ export function fillHolesFromYields(
   sessionId: string,
   requires: OperationBinding[] | undefined,
   params: Record<string, unknown>,
-  opts?: { store?: YieldStore; nowMs?: number; scope?: string },
+  opts?: { store?: YieldStore; nowMs?: number; scope?: string; principal?: string },
 ): { filled: string[]; params: Record<string, unknown> } {
   const filled: string[] = [];
   if (!sessionId || !Array.isArray(requires) || requires.length === 0) return { filled, params };
@@ -175,11 +180,13 @@ export function fillHolesFromYields(
   if (!cache) return { filled, params };
   if (store === moduleStore && !store.get(sessionId)) store.set(sessionId, cache);
   const nowMs = opts?.nowMs ?? Date.now();
+  // Read only the caller-principal's partition (must match the recordYields scope).
+  const effScope = bindPrincipalScope(opts?.scope, opts?.principal);
   let consumed = false;
   for (const b of requires) {
     if (!b?.key) continue;
     if (params[b.key] !== undefined && params[b.key] !== null) continue; // hole already filled
-    const ck = scopedKey(b.key, opts?.scope);
+    const ck = scopedKey(b.key, effScope);
     const y = cache.get(ck);
     if (!y || isYieldStale(y, nowMs)) continue;
     // A committed yield carries only a hash (the producer was sensitive) — it cannot

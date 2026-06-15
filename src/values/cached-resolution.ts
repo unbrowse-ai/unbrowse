@@ -18,9 +18,20 @@ import { homedir } from "node:os";
 import {
   intentPointer, putBlob, resolvePointer, fsBlobStore, fsLedger,
 } from "./resolution-ledger.js";
+import { principalScope } from "../runtime/principal-scope.js";
 
 export function defaultResolutionCacheDir(): string {
   return join(homedir(), ".unbrowse", "resolution-cache");
+}
+
+/** Partition a resolution signature by the verified auth principal. Unbound callers
+ *  (principal === undefined) keep the bare key (legacy/public). A bound caller's key is
+ *  prefixed with its non-reversible principal scope, so the content-addressed pointer
+ *  differs per principal and an authed resolution is never replayed cross-principal.
+ *  A U+001F unit separator (cannot occur in an intent) divides scope from key, so the
+ *  prefix can never collide with a key that happens to start with the scope text. */
+export function scopeResolutionKey(key: string, principal?: string): string {
+  return principal === undefined ? key : `${principalScope(principal)}${key}`;
 }
 
 export interface CachedResolution<T> {
@@ -37,6 +48,10 @@ export async function cachedResolution<T>(opts: {
   cacheable: (v: T) => boolean;
   dir?: string;
   now?: number;
+  /** The VERIFIED auth credential this resolution belongs to. When set, the pointer key
+   *  is partitioned per principal so an authed value is never replayed cross-principal.
+   *  Omit (or pass "") for genuinely public/unauthenticated resolutions (shared "anon"). */
+  principal?: string;
 }): Promise<CachedResolution<T>> {
   if (!(opts.ttlMs > 0)) return { value: await opts.recompute(), cached: false };
 
@@ -46,7 +61,7 @@ export async function cachedResolution<T>(opts: {
   try {
     store = fsBlobStore(join(dir, "blobs"));
     ledger = fsLedger(join(dir, "resolutions.jsonl"));
-    ptrKey = intentPointer(opts.key);
+    ptrKey = intentPointer(scopeResolutionKey(opts.key, opts.principal));
     const hit = ledger.find(ptrKey);
     if (hit && hit.ts != null && now - hit.ts <= opts.ttlMs) {
       const cached = resolvePointer(hit.result, store);
@@ -73,14 +88,14 @@ export async function cachedResolution<T>(opts: {
  * Read-only cache peek — returns the cached value for `key` if a FRESH entry exists,
  * else null. Pure fs, no recompute and no network: it never boots anything, so a hit
  * can short-circuit a command before any expensive setup. Disabled (null) when
- * ttlMs <= 0. Never throws.
+ * ttlMs <= 0. Never throws. Pass `principal` to read only the per-principal partition.
  */
-export function peekResolution<T>(key: string, ttlMs: number, dir?: string, now?: number): T | null {
+export function peekResolution<T>(key: string, ttlMs: number, dir?: string, now?: number, principal?: string): T | null {
   if (!(ttlMs > 0)) return null;
   try {
     const root = dir ?? defaultResolutionCacheDir();
     const ledger = fsLedger(join(root, "resolutions.jsonl"));
-    const hit = ledger.find(intentPointer(key));
+    const hit = ledger.find(intentPointer(scopeResolutionKey(key, principal)));
     if (!hit || hit.ts == null || (now ?? Date.now()) - hit.ts > ttlMs) return null;
     const cached = resolvePointer(hit.result, fsBlobStore(join(root, "blobs")));
     return cached === null ? null : (JSON.parse(cached) as T);
@@ -90,15 +105,16 @@ export function peekResolution<T>(key: string, ttlMs: number, dir?: string, now?
 }
 
 /** Write a value into the resolution cache under `key` (content-addressed pointer +
- *  ledger row). Best-effort: a write failure never throws. */
-export function storeResolution<T>(key: string, value: T, ttlMs: number, dir?: string, now?: number): void {
+ *  ledger row). Best-effort: a write failure never throws. Pass `principal` to write
+ *  into the per-principal partition (so it is only read back by the same principal). */
+export function storeResolution<T>(key: string, value: T, ttlMs: number, dir?: string, now?: number, principal?: string): void {
   if (!(ttlMs > 0)) return;
   try {
     const root = dir ?? defaultResolutionCacheDir();
     const store = fsBlobStore(join(root, "blobs"));
     const ledger = fsLedger(join(root, "resolutions.jsonl"));
     const ptr = putBlob(JSON.stringify(value), store);
-    ledger.append(intentPointer(key), ptr, now ?? Date.now());
+    ledger.append(intentPointer(scopeResolutionKey(key, principal)), ptr, now ?? Date.now());
   } catch {
     /* best-effort */
   }
