@@ -195,3 +195,6 @@
 {"ts": "2026-06-15T10:11:27Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
 {"ts": "2026-06-15T10:13:36Z", "source": "live", "axis": "frontend_signin_ux", "transient_mapping": "PASS", "live_health": "PASS", "http_code": "200", "gate": "true"}
 {"ts": "2026-06-15T10:13:38Z", "source": "live", "axis": "frontend_signin_ux", "transient_mapping": "PASS", "live_health": "PASS", "http_code": "200", "gate": "true"}
+{"ts": "2026-06-15T10:15:30Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 9, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
+{"ts": "2026-06-15T10:17:45Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
+{"ts": "2026-06-15T10:19:33Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
