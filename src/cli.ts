@@ -11,6 +11,7 @@ import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-method.js";
+import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
@@ -1502,6 +1503,21 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>, v
       method: oneHoleWriteVerb,
       ...(oneHoleWriteBody ? { body: oneHoleWriteBody } : {}),
     });
+  }
+
+  // Authenticated one-hole READ. When the agent supplied auth — an explicit
+  // --header, or a bearer token / API key phrased in the intent ("authenticate
+  // with bearer token <t> then read …") — do a DIRECT authenticated fetch instead
+  // of the resolve+capture ladder. That ladder carries no Authorization header, so
+  // the upstream returns 401 and the agent falls all the way to a browser capture
+  // that times out (cli_timeout). The direct fetch is sub-second and returns the
+  // authenticated body. Only fires when auth is actually present, so a plain read
+  // keeps its richer resolve path.
+  if (url) {
+    const authHeader = typeof flags.header === "string" ? (flags.header as string) : extractAuthHeader(intent);
+    if (authHeader) {
+      return cmdFetch([], { ...flags, url, header: authHeader });
+    }
   }
 
   const draftOnlyIntent = isDraftOnlyMutationIntent(intent);
