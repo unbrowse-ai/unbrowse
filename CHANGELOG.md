@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.6...v9.3.7) (2026-06-15)
+
+### Bug Fixes
+
+* **cli:** the default one-hole surface performs writes (no execute needed) ([da75e22](https://github.com/unbrowse-ai/unbrowse-dev/commit/da75e22714fcd6b148a73db2512464e5c29a4109))
+
 ## [9.3.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.5...v9.3.6) (2026-06-15)
 
 ### Bug Fixes
