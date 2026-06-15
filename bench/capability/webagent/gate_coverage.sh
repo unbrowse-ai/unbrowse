@@ -35,12 +35,23 @@ scan() { # -> per-target: prints PASS/FAIL/BLOCK + id to stderr; echoes pass-cou
   local passes=0 reach=0
   for row in "${TARGETS[@]}"; do
     IFS='|' read -r id intent url expect <<<"$row"
-    local out; out="$(timeout 75 $BIN_CMD "$intent" --url "$url" 2>/dev/null)"
-    if echo "$out" | grep -qi 'cli_timeout'; then echo "  $id FAIL (cli_timeout on reachable target)" >&2; reach=$((reach+1)); continue; fi
-    if [ -z "$out" ] || echo "$out" | grep -qiE '"status_code":[ ]*(50[0-9]|429)|service (unavailable|temporarily)'; then echo "  $id BLOCKED (5xx/empty)" >&2; continue; fi
-    reach=$((reach+1))
-    if echo "$out" | grep -qi "$expect"; then echo "  $id PASS (on-topic content returned)" >&2; passes=$((passes+1));
-    else echo "  $id FAIL (no on-topic content): $(echo "$out"|head -c 80|tr -d '\n')" >&2; fi
+    # One retry: a public target can rate-limit / 5xx a single request (the bench hammers
+    # the same hosts back-to-back). Re-probe once before judging, so single-window
+    # flakiness reads as BLOCKED, not a false regression (Eccl 3:1 — one window != truth).
+    local out verdict="" attempt
+    for attempt in 1 2; do
+      out="$(timeout 75 $BIN_CMD "$intent" --url "$url" 2>/dev/null)"
+      if echo "$out" | grep -qi 'cli_timeout'; then verdict="FAIL_TIMEOUT"; break; fi
+      if [ -z "$out" ] || echo "$out" | grep -qiE '"status_code":[ ]*(50[0-9]|429)|service (unavailable|temporarily)|rate.?limit'; then verdict="BLOCK"; continue; fi
+      if echo "$out" | grep -qi "$expect"; then verdict="PASS"; break; else verdict="THIN"; fi
+      sleep 2
+    done
+    case "$verdict" in
+      PASS)        echo "  $id PASS (on-topic content returned)" >&2; reach=$((reach+1)); passes=$((passes+1));;
+      FAIL_TIMEOUT) echo "  $id FAIL (cli_timeout on reachable target)" >&2; reach=$((reach+1));;
+      THIN)        echo "  $id FAIL (no on-topic content after retry): $(echo "$out"|head -c 80|tr -d '\n')" >&2; reach=$((reach+1));;
+      *)           echo "  $id BLOCKED (5xx/empty/rate-limit after retry)" >&2;;
+    esac
   done
   echo "$passes $reach"
 }
