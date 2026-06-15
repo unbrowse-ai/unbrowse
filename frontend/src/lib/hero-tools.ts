@@ -10,7 +10,7 @@ export function systemPrompt(): string {
 1. ALWAYS call search_routes first with a concise intent. A hit is the WARM path: call get_route, then execute_route with that endpoint's endpoint_id + a values object filling its {placeholders} from the user's ask (e.g. endpoint_id:"ep-search", values:{"query":"cats"}). DO NOT write the URL yourself on the warm path — the server builds it from the skill's own template, so you cannot wander off-skill. Pass skill_id so the execution feeds the route's trust score.
 2. On a marketplace MISS, take the COLD path (this is how Unbrowse captures a site on first visit): call execute_route directly on the site's own public search/listing URL or API for the ask — e.g. https://hn.algolia.com/api/v1/search?query=X&tags=front_page for Hacker News, https://www.airbnb.com.sg/s/homes?query=cats for Airbnb. The executor extracts the page's embedded SSR/JSON state automatically.
 3. Answer ONLY from the REAL data the tools returned. Quote concrete items (names, prices, ratings, titles). Keep it tight: one intro line, then a markdown list of the top 5-8 results. Include prices/ratings when present.
-4. If every tool path failed, say so plainly and suggest running Unbrowse locally (`npm install -g unbrowse && unbrowse setup`) to capture the site with a real browser.
+4. If every tool path failed, say so plainly and suggest running Unbrowse locally (npm install -g unbrowse && unbrowse setup) to capture the site with a real browser.
 NEVER invent data. NEVER claim you fetched something you didn't. Today's date: ${new Date().toISOString().slice(0, 10)}.`;
 }
 
