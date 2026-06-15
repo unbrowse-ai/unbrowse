@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.0...v9.3.1) (2026-06-15)
+
+### Bug Fixes
+
+* **frontend:** keep hero tool setup hint parseable ([bb3e3af](https://github.com/unbrowse-ai/unbrowse-dev/commit/bb3e3af785a7f9f4d4cb571f39054c3b5547464e))
+
 ## [9.3.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.2.0...v9.3.0) (2026-06-14)
 
 ### Features
