@@ -2687,6 +2687,7 @@ export async function resolveAndExecute(
         skill.domain,
         context?.url,
         params,
+        skill.operation_graph,
       );
       const map = new Map<string, number>();
       for (const r of serverRanked) map.set(r.endpoint.endpoint_id, r.score);

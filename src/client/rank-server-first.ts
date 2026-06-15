@@ -55,6 +55,9 @@ export async function rankEndpointsServerFirst(
   skillDomain?: string,
   contextUrl?: string,
   params?: Record<string, unknown>,
+  // The skill's operation_graph; forwarded to the server so it ranks by the fractal chain energy
+  // (the data-gate that activates the server-side chainEnergy). Optional + additive.
+  operationGraph?: unknown,
 ): Promise<RankedEndpoint[]> {
   const local = (): RankedEndpoint[] =>
     rankEndpoints(endpoints, intent, skillDomain, contextUrl, params);
@@ -69,6 +72,7 @@ export async function rankEndpointsServerFirst(
     endpoints as unknown as Array<Record<string, unknown>>,
     skillDomain,
     contextUrl,
+    operationGraph,
   );
 
   if (!remote || remote.length === 0) return local();

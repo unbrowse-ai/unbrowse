@@ -1971,7 +1971,10 @@ export async function registerRoutes(app: FastifyInstance) {
     // descriptions in order), so the ordering must match server
     // intelligence. rankEndpointsServerFirst transparently falls back to
     // the local ranker on any backend failure.
-    const ranked = await rankEndpointsServerFirst(indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain);
+    const ranked = await rankEndpointsServerFirst(
+      indexed.skill.endpoints, indexed.skill.intent_signature, indexed.skill.domain,
+      undefined, undefined, indexed.skill.operation_graph,
+    );
     const endpoints_to_describe = ranked.map((r) => {
       const descriptionMeta = getEndpointDescriptionMetadata(r.endpoint);
       return {
