@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.3...v9.3.4) (2026-06-15)
+
+### Bug Fixes
+
+* **kuri:** attach by default without keychain prompts ([cc78ee8](https://github.com/unbrowse-ai/unbrowse-dev/commit/cc78ee8771a0b7f7cf510cc15385d7344ff79a19))
+
 ## [9.3.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.2...v9.3.3) (2026-06-15)
 
 ## [9.3.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.1...v9.3.2) (2026-06-15)
