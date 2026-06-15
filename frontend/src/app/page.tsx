@@ -213,29 +213,40 @@ export default function Home() {
         <HeroHands />
       </section>
 
-      {/* ═══ Credibility strip — backing + ecosystem ═══ */}
-      <section aria-label="Backing and ecosystem" className="relative px-4 sm:px-6 pb-10 sm:pb-14">
+      {/* ═══ Credibility strip — NVIDIA Inception membership + ecosystem ═══ */}
+      <section aria-label="Membership and ecosystem" className="relative px-4 sm:px-6 pb-10 sm:pb-14">
         <div className="max-w-4xl mx-auto flex flex-col items-center gap-7">
-          {/* Backed by NVIDIA Inception — badge ships white + green, reads on dark as-is */}
+          {/* Official NVIDIA Inception program member badge (white + green; reads on dark as-is).
+              Naming per NVIDIA brand guidelines: "member of the NVIDIA Inception program". */}
           <div className="flex flex-col items-center gap-3">
-            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Backed by</span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Member of the</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/nvidia-inception.svg" alt="NVIDIA Inception Program" className="h-14 sm:h-16 w-auto" />
+            <img src="/nvidia-inception.svg" alt="NVIDIA Inception Program member" className="h-14 sm:h-16 w-auto" />
           </div>
-          {/* Ecosystem — uniform monochrome logo cloud (brand colors flattened to one tone) */}
+          {/* Ecosystem — partners in their own brand colours (aiko treatment: invert only the
+              dark marks; Crossmint forced to the light foreground since an img-loaded SVG
+              cannot inherit currentColor). */}
           <div className="flex flex-col items-center gap-4 pt-5 border-t border-[rgba(255,122,32,0.12)] w-full max-w-3xl">
             <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Plugged into the agent economy</span>
-            <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-5 opacity-65">
+            <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
+              {/* Crossmint — currentColor wordmark → light foreground (aiko intent) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/partner-crossmint.svg" alt="Crossmint" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              <img src="/partner-crossmint.svg" alt="Crossmint" className="h-6 w-auto opacity-85" style={{ filter: "brightness(0) invert(1)" }} />
+              {/* MoonPay — dark mark, inverted to read on dark (aiko's exact filter) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/partner-moonpay.svg" alt="MoonPay" className="h-4 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              <img src="/partner-moonpay.svg" alt="MoonPay" className="h-6 w-auto opacity-85" style={{ filter: "invert(1) grayscale(1) brightness(1.6) contrast(1.1)" }} />
+              {/* Corbits — brand orange wordmark, shown as-is */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/partner-corbits.svg" alt="Corbits" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              <img src="/partner-corbits.svg" alt="Corbits" className="h-5 w-auto" />
+              {/* UpRock — brand mark, shown as-is */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/partner-uprock.png" alt="UpRock" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              <img src="/partner-uprock.png" alt="UpRock" className="h-7 w-auto" />
             </div>
           </div>
+          {/* Required NVIDIA trademark attribution — the NVIDIA logo is used above. */}
+          <p className="text-[10px] leading-relaxed text-[rgba(255,122,32,0.4)] font-mono text-center max-w-2xl">
+            © 2025 NVIDIA and the NVIDIA logo are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries.
+          </p>
         </div>
       </section>
 
