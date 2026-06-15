@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.14...v9.3.15) (2026-06-15)
+
+### Features
+
+* **pricing:** execution is free by default — broker markup 0%, monetize opt-in at the edge ([f43865f](https://github.com/unbrowse-ai/unbrowse-dev/commit/f43865f4e999b4f750c865cd466af1138227bcae))
+
 ## [9.3.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.13...v9.3.14) (2026-06-15)
 
 ## [9.3.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.11...v9.3.12) (2026-06-15)
