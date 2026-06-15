@@ -6,7 +6,7 @@
  *
  * The "private, fair-compensated route engine for the agentic web", applied to unblocking:
  *   - charge side  : Flex x402 (services/flex-route-helpers — same as routes/llm.ts)
- *   - price        : services/fair-compensation (cost + 20% by default)
+ *   - price        : services/fair-compensation (raw upstream cost, pass-through; 0% markup by default — opt-in only)
  *   - pay side     : services/base-x402-pay (Worker viem EIP-3009; holds ONE vendor apiKey)
  *
  * Mirrors routes/llm.ts (the xgate LLM proxy reseller) exactly; only the upstream + pricing differ.

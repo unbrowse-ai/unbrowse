@@ -13,12 +13,18 @@
  * incurs while brokering. The two compose: a brokered skill can carry both a Flex split on its
  * price and a fair-compensation markup on the upstream cost it triggers.
  *
- * Default 20% (2000 bps). Override per-deployment with env `FAIR_COMPENSATION_BPS` (0–10000).
- * Compensation is paid to the platform wallet (`PAYMENT_RECIPIENT`).
+ * Default 0% — execution is FREE: unbrowse takes no cut on the commons. A fronted paid
+ * upstream is passed through at raw cost (caller covers genuine cost; unbrowse adds nothing).
+ * Monetization is OPT-IN at the edge: a website/skill owner prices their endpoint (Flex/x402)
+ * and the router tolls THAT via the Flex `PLATFORM_BPS` split / per-skill `markup_bps`.
+ * "Render unto Caesar what is Caesar's" — toll the opt-in paid edge, leave the free commons free.
+ * Override per-deployment with env `FAIR_COMPENSATION_BPS` (0–10000) to re-enable a broker markup.
+ * Compensation, when non-zero, is paid to the platform wallet (`PAYMENT_RECIPIENT`).
  */
 
-/** Unbrowse's default fair-compensation rate on facilitated transaction costs: 20%. */
-export const FAIR_COMPENSATION_BPS = 2000;
+/** Default fair-compensation rate on facilitated transaction costs: 0% (execution is free;
+ *  monetization is opt-in via the owner-priced Flex/x402 edge, not a markup on the commons). */
+export const FAIR_COMPENSATION_BPS = 0;
 
 const BPS_DENOMINATOR = 10_000;
 
