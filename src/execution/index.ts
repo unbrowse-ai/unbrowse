@@ -3488,6 +3488,17 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
+      // Default a JSON content-type for an object/array write body when the caller set none.
+      // Without it, a JSON POST (a GraphQL query is exactly this) goes content-type-less and
+      // strict endpoints reject it with HTTP 415 Unsupported Media Type. Only defaults when
+      // there's a body, the method writes, and no content-type was already chosen.
+      if (
+        bodyOverride && typeof bodyOverride === "object"
+        && endpoint.method !== "GET" && endpoint.method !== "HEAD"
+        && !replayHeaders["content-type"] && !replayHeaders["Content-Type"]
+      ) {
+        replayHeaders["content-type"] = "application/json";
+      }
       log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 200)} csrf-token=${(replayHeaders["csrf-token"] || "none").substring(0, 20)}... hdrs=${Object.keys(replayHeaders).length} cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
       const res = await fetch(replayUrl, {
         method: endpoint.method,

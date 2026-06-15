@@ -29,10 +29,15 @@ witness_pass() { # -> PASS / FAIL / BLOCKED
   local q1; q1="$(run_gql 'run the graphql query {"query":"{ country(code: \"US\") { name capital } }"}')"
   # Query 2: a different shape (continent) + an auth header — proves the credential rides along.
   local q2; q2="$(run_gql 'run the query {"query":"{ continent(code: \"AF\") { name } }"}' --header "Authorization: Bearer gql-gate-tok")"
-  if [ -z "$q1" ] && [ -z "$q2" ]; then echo "  BLOCKED (graphql endpoint unreachable)" >&2; echo BLOCKED; return; fi
-  if echo "$q1" | grep -qiE 'cli_timeout'; then echo "  FAIL: query1 cli_timeout" >&2; all_ok=0; fi
+  # Endpoint down / rate-limited (empty, 5xx, or a non-GraphQL error page with no data) is a
+  # TEST-INFRASTRUCTURE problem, not a broken capability → BLOCKED, never FAIL. The capability
+  # only FAILs on a cli_timeout (the default surface stalled) on an otherwise-reachable call.
+  local infra='(^$|"status_code":[ ]*(50[0-9]|429)|service (unavailable|temporarily)|rate.?limit|too many requests|<html|cloudflare|gateway time)'
+  if echo "$q1" | grep -qiE 'cli_timeout' || echo "$q2" | grep -qiE 'cli_timeout'; then
+    echo "  FAIL: cli_timeout on a reachable graphql call" >&2; echo FAIL; return; fi
+  if { [ -z "$q1" ] || echo "$q1" | grep -qiE "$infra"; } && { [ -z "$q2" ] || echo "$q2" | grep -qiE "$infra"; }; then
+    echo "  BLOCKED (graphql endpoint unreachable / rate-limited)" >&2; echo BLOCKED; return; fi
   if echo "$q1" | grep -qi 'united states'; then echo "  query-country PASS (real result field returned)" >&2; else echo "  FAIL: query1 no country data" >&2; all_ok=0; fi
-  if echo "$q2" | grep -qiE 'cli_timeout'; then echo "  FAIL: query2 cli_timeout" >&2; all_ok=0; fi
   if echo "$q2" | grep -qi 'africa'; then echo "  query-continent+auth PASS (real result, auth header carried)" >&2; else echo "  FAIL: query2 no continent data" >&2; all_ok=0; fi
   [ "$all_ok" = "1" ] && echo PASS || echo FAIL
 }
