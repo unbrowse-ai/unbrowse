@@ -39,6 +39,7 @@ import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationG
 import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client/graph-client.js";
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
+import { ddgSearch } from "../lib/ddg-search.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -4543,6 +4544,22 @@ export async function resolveAndExecute(
       } catch {
         // Web-search fallback is best-effort. X402 / network errors fall through.
       }
+      // $0 routing (distribution mode): when the backend returned no web hits — no Exa key,
+      // or the x402 toll wasn't paid — fall back to a KEYLESS DuckDuckGo search client-side so
+      // grounding stays FREE (no vendor cost, no toll). This is what lets `unbrowse search/resolve`
+      // (and anything grounding through them, e.g. the aiko endpoint) return real web results at
+      // zero cost. Disable with UNBROWSE_DDG_FALLBACK=0 (e.g. to force the paid Exa path).
+      if (exaHits.length === 0 && process.env.UNBROWSE_DDG_FALLBACK !== "0") {
+        try {
+          const ddg = await ddgSearch(queryIntent, 5, fetch, Math.min(6000, Math.max(1000, exaBudgetMs)));
+          if (ddg.length > 0) {
+            exaHits = ddg;
+            webProvider = "ddg";
+          }
+        } catch {
+          // DDG is best-effort; on any error fall through to the serial/capture path.
+        }
+      }
       // Quality-gate exa hits (bench-honesty fix, contract:82b55200): zero-score
       // candidates whose highlights don't contain intent tokens are useless to
       // the caller and were masking 16/26 dimensional-bench probes as fake-green.
@@ -5053,7 +5070,11 @@ export async function resolveAndExecute(
     if (typeof searchResponse.actual_cost_uc === "number" && searchResponse.actual_cost_uc > 0) {
       timing.paid_search_uc = searchResponse.actual_cost_uc;
     }
-    const { domain_results: domainResults, global_results: globalResults, exa_results: exaResults, web_search_provider: serialWebProvider } = searchResponse as typeof searchResponse & { exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>; web_search_provider?: string };
+    const { domain_results: domainResults, global_results: globalResults, exa_results: exaResultsRaw, web_search_provider: serialWebProviderRaw } = searchResponse as typeof searchResponse & { exa_results?: Array<{ url: string; title?: string; score: number; highlights?: string[] }>; web_search_provider?: string };
+    // $0 routing: exaResults/serialWebProvider are mutable so the keyless DDG fallback below
+    // can supply free web hits when the backend returned none (no Exa key / no x402 toll paid).
+    let exaResults = exaResultsRaw;
+    let serialWebProvider = serialWebProviderRaw;
     timing.search_ms = Date.now() - ts0;
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
@@ -5643,6 +5664,23 @@ export async function resolveAndExecute(
         }
       } catch {
         // Not a Connect/gRPC endpoint (or unreachable) — fall through to the ladder.
+      }
+    }
+    // $0 routing (distribution mode): no viable marketplace skill AND the backend returned no
+    // web hits (no Exa key / no x402 toll) → fall back to a KEYLESS DuckDuckGo search so the
+    // pure-intent path still grounds, for free. This is what makes `unbrowse search/resolve`
+    // (and the aiko endpoint grounding through them) return real web results at zero cost instead
+    // of "No matching skill found". Disable with UNBROWSE_DDG_FALLBACK=0 to force the paid path.
+    if (viable.length === 0 && !exaResults?.length && process.env.UNBROWSE_DDG_FALLBACK !== "0") {
+      try {
+        const ddg = await ddgSearch(queryIntent, 5, fetch);
+        if (ddg.length > 0) {
+          exaResults = ddg;
+          serialWebProvider = "ddg";
+          console.log(`[ddg] $0 fallback: ${ddg.length} keyless web result(s) for "${queryIntent}"`);
+        }
+      } catch (err) {
+        console.log(`[ddg] $0 fallback failed: ${(err as Error).message}`);
       }
     }
     // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
