@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.1...v9.3.2) (2026-06-15)
+
+### Bug Fixes
+
+* **release:** generate build-info before npm runtime bundle ([b43b762](https://github.com/unbrowse-ai/unbrowse-dev/commit/b43b7628ab7c1e212ba58350eb58c4710a5975e8))
+
 ## [9.3.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.0...v9.3.1) (2026-06-15)
 
 ### Bug Fixes
