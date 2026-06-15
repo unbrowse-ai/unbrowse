@@ -2184,7 +2184,9 @@ export async function registerRoutes(app: FastifyInstance) {
         const targetEp = byId ?? (skill.endpoints.length === 1 ? skill.endpoints[0] : undefined);
         const requires = targetEp?.semantic?.requires;
         if (requires && requires.length) {
-          const { filled } = fillHolesFromYields(session_id, requires, execParams as Record<string, unknown>, { scope: yieldScope });
+          const { credentialFromAuthHeaders } = await import("../runtime/principal-scope.js");
+          const principal = credentialFromAuthHeaders(auth_headers);
+          const { filled } = fillHolesFromYields(session_id, requires, execParams as Record<string, unknown>, { scope: yieldScope, principal });
           if (filled.length) console.log(`[pipe-walk] filled holes ${filled.join(",")} from session yields (scope=${yieldScope})`);
         }
       } catch (err) { console.warn(`[pipe-walk] fill skipped: ${(err as Error)?.message}`); }
@@ -2352,7 +2354,9 @@ export async function registerRoutes(app: FastifyInstance) {
             const provides =
               execEp?.semantic?.provides ??
               yieldsFromResponse((execResult.result as Record<string, unknown>)?.data ?? execResult.result);
-            const n = recordYields(session_id, provides, { scope: yieldScope });
+            const { credentialFromAuthHeaders } = await import("../runtime/principal-scope.js");
+            const principal = credentialFromAuthHeaders(auth_headers);
+            const n = recordYields(session_id, provides, { scope: yieldScope, principal });
             if (n) console.log(`[pipe-walk] recorded ${n} yield(s) for session (scope=${yieldScope})`);
           } catch (err) { console.warn(`[pipe-walk] capture skipped: ${(err as Error)?.message}`); }
         }
