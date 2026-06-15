@@ -2,9 +2,10 @@
 # bench/capability/webagent/gate_write.sh — the jesus-ralph WITNESS.
 #
 # Exits 0 only when, across TWO independent witnesses (Gen 2:2):
-#   1. agent-driven WRITE actions (POST/PUT/PATCH/DELETE) succeed via the
-#      ad-hoc execute path and the request body crosses the wire (the public
-#      write-safe target reflects it), AND
+#   1. agent-driven WRITE actions (POST/PUT/PATCH/DELETE) succeed via the DEFAULT
+#      one-hole command (`unbrowse "<intent>" --url --body`, the path agents
+#      actually use — not the legacy `execute --intent --body`) and the request
+#      body crosses the wire (the public write-safe target reflects it), AND
 #   2. ZK input-censoring holds: a sensitive body field (password) reaches the
 #      TARGET in clear (the write works) but NEVER persists in clear on disk —
 #      only its sha256 commitment is written.
@@ -27,10 +28,12 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HISTORY="$ROOT/bench/capability/history.jsonl"
 
 run_write() { # url intent bodyjson -> prints "success|<echoed-json>"
-  # AGENT-NATIVE: drive intent-only — no --method. The verb is inferred from the
-  # intent + body. This is the path an agent actually uses.
+  # DEFAULT ONE-HOLE SURFACE: drive the bare hole command an agent actually uses —
+  # `unbrowse "<intent>" --url <url> --body <json>` — NOT the legacy `execute
+  # --intent --body`. The HTTP verb is inferred from the intent + body; the agent
+  # never picks a method or a command. This is the path the bench must measure.
   local url="$1" intent="$2" body="$3"
-  timeout 60 $BIN_CMD execute --url "$url" --intent "$intent" --body "$body" 2>/dev/null \
+  timeout 60 $BIN_CMD "$intent" --url "$url" --body "$body" 2>/dev/null \
   | python3 -c "import sys,json
 raw=sys.stdin.read();best=None
 for ln in raw.splitlines():

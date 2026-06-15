@@ -24,9 +24,10 @@ witness() { # -> echoes PASS / FAIL / BLOCKED ; detail to stderr
   local secret="zk-persist-$$-${RANDOM}"
 
   # ── Witness A: cross-process id inheritance ────────────────────────────────
-  # Process 1: a real write through the CLI, scoped to --session S.
-  timeout 60 bun src/cli.ts execute --url "https://jsonplaceholder.typicode.com/posts" \
-    --intent "create a post" --body '{"title":"p","userId":1}' --session "$S" >/dev/null 2>&1
+  # Process 1: a real write through the DEFAULT one-hole command (not `execute`),
+  # scoped to --session S. The verb is inferred from intent + body.
+  timeout 60 bun src/cli.ts "create a post" --url "https://jsonplaceholder.typicode.com/posts" \
+    --body '{"title":"p","userId":1}' --session "$S" >/dev/null 2>&1
   # Process 2: a SEPARATE process — empty module store, must load S from disk.
   local got; got="$(timeout 30 bun -e '
     const { getYieldCache } = await import("./src/runtime/yield-store.ts");
