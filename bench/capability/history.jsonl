@@ -176,3 +176,12 @@
 {"ts": "2026-06-14T08:02:40Z", "source": "live", "axis": "C_write_zk", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
 {"ts": "2026-06-14T08:13:08Z", "source": "live", "axis": "C_write_zk", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
 {"ts": "2026-06-14T09:32:15Z", "source": "live", "axis": "E_session_persist", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:24:50Z", "source": "live", "axis": "C_write_zk", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:26:58Z", "source": "live", "axis": "C_auth_onehole", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:27:01Z", "source": "live", "axis": "C_authwrite_onehole", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:27:35Z", "source": "live", "axis": "D_security_onehole", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:27:54Z", "source": "live", "axis": "A_graphql_onehole", "bin": "bun src/cli.ts", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T09:28:43Z", "source": "live", "axis": "A_coverage_onehole", "bin": "bun src/cli.ts", "on_topic": 5, "reachable": 5, "total": 5, "gate": "true"}
+{"ts": "2026-06-15T09:29:28Z", "source": "live", "axis": "P_grpc_onehole", "bin": "bun src/cli.ts", "verdict": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T09:29:39Z", "source": "live", "axis": "P_grpc_onehole", "bin": "bun src/cli.ts", "verdict": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T09:24:50Z", "source": "live", "axis": "CAPABILITY_COVERAGE", "pass": 6, "fail": 1, "blocked": 0, "judged": 7, "coverage": 0.8571, "threshold": 0.8, "detail": "write=PASS auth_read=PASS auth_write=PASS security=PASS graphql=PASS coverage=PASS grpc=FAIL", "gate": "true"}
