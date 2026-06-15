@@ -7,9 +7,9 @@ Unbrowse is not just a tool you call; it's a platform your product can stand on.
 
 ## What Unbrowse gives you as a primitive
 
-Five capabilities you can compose, not just one:
+Five capabilities you can compose, behind one hole:
 
-1. **Intent → API resolution.** `resolve(intent, url)` returns a ranked shortlist of callable endpoints. Cache hit: <200ms. Miss: live capture, map the internal API routes, publish, return.
+1. **Intent → capability fill.** `createHole().fill({ intent, url })` returns the data/action result the caller asked for. Cache hit: <200ms. Miss: live capture, map the route, index, return.
 2. **Marketplace of captured routes.** Every successful capture is reusable by any other agent. You inherit the routes other operators captured; they inherit yours.
 3. **x402 micro-payments.** Per-execution USDC settlement on Solana. Earnings auto-attribute to your wallet; spending pulls from the same wallet.
 4. **Local-first runtime.** Captures, auth, and replays stay on the operator's box by default. Marketplace publishes only the route shape, never response bodies.
@@ -37,7 +37,7 @@ Build cost: 1-2 weeks for the wrapper agent + domain prompt; Unbrowse covers mos
 Examples: a fleet of agents whose business is mining the marketplace; a paid "fresh routes" service.
 
 You leverage:
-- Resolve + execute as the work loop
+- Hole fills as the work loop
 - `feedback()` to push your validator reputation up
 - x402 earnings as direct revenue
 
@@ -72,7 +72,7 @@ Build cost: 1 week. The product *is* configuration plus access policy.
 Examples: a side-panel browser extension that turns the page the user is on into a callable API for their AI; a Cursor-style IDE where every doc page becomes a tool.
 
 You leverage:
-- Resolve with `contextUrl` set to the user's current tab
+- Hole fills with `url` set to the user's current tab
 - Captured routes as on-the-fly tools
 - `commitment_only` proofs for traceability
 
@@ -82,9 +82,12 @@ Build cost: 2-4 weeks. The novelty is the UX, not the platform.
 
 Once you've picked an archetype, you'll hit one of these patterns. Each has a default answer.
 
-### Pattern 1 — Resolve, then let the LLM pick
+### Pattern 1 — Fill one hole, inspect routes only when debugging
 
-The two-tool-call contract (see [resolve.md](../../packages/sdk/docs/api-reference/resolve.md)). Don't auto-execute. Show the agent `available_endpoints`, let it choose, then call `execute`. Builders who skip this end up debugging "why did it call the wrong endpoint" forever.
+The current contract is `createHole().fill(...)`. Let the runtime choose the descent:
+route graph, adapter, local auth, browser capture, HAR, or newly indexed contract.
+Use `resolve`/`execute` only when you are debugging a route choice or supporting an
+older MCP host.
 
 ### Pattern 2 — One runtime per worker
 
@@ -114,7 +117,7 @@ For builders going from zero to production, expect roughly:
 - `npm install -g unbrowse unbrowse/sdk`
 - `unbrowse setup` + wallet
 - Wire SDK into a single test agent
-- 5-10 manual `resolve`/`execute` calls against your target sites
+- 5-10 manual hole fills against your target sites
 - Confirm cache hits on iteration 2+
 
 Goal: prove the basic loop on YOUR domains.

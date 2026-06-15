@@ -1,10 +1,10 @@
 # Agent SDK Adapters
 
-Building an agent? Unbrowse plugs into your framework as a **native tool**. Each
-adapter exposes the same three capabilities — `unbrowse_resolve` (intent + URL → a
-ranked endpoint shortlist), `unbrowse_execute` (run the chosen endpoint), and
-`unbrowse_search` (query → results) — in your framework's own tool type, so you
-register Unbrowse with one import instead of hand-writing an HTTP tool.
+Building an agent? Unbrowse plugs into your framework as a **native tool**. The
+current adapter shape is one capability: fill an internet hole from intent plus
+optional URL/params/approval. Older adapters may still expose `unbrowse_resolve`,
+`unbrowse_execute`, and `unbrowse_search`; treat those as route-inspection
+compatibility tools.
 
 The frameworks below were chosen by adoption (June 2026): the Vercel AI SDK is the
 most-downloaded TypeScript AI toolkit, LangChain has the largest integration
@@ -31,7 +31,7 @@ import { unbrowseTools } from '@unbrowse/ai-sdk';
 
 const { text } = await generateText({
   model,
-  tools: unbrowseTools,            // unbrowse_resolve / unbrowse_execute / unbrowse_search
+  tools: unbrowseTools,            // preferably one fill-hole tool; old resolve/execute are compatibility
   prompt: 'Find the cheapest flight from SFO to NYC',
 });
 ```
@@ -74,19 +74,19 @@ import { unbrowseTools } from '@unbrowse/openai-agents';
 const agent = new Agent({ name: 'researcher', tools: unbrowseTools });
 ```
 
-## MCP — the native protocol surface
+## MCP — compatibility protocol surface
 
-Unbrowse is itself an **MCP server**, so any MCP-capable host gets the full tool set
-with no adapter package at all. Run it directly:
+Unbrowse is itself an **MCP server**, so any MCP-capable host gets the compatibility
+tool set with no adapter package at all. Run it directly:
 
 ```bash
 npx unbrowse mcp
 ```
 
 It registers into the common hosts out of the box — Claude Desktop, Cursor, Codex,
-Continue, and Windsurf (`unbrowse setup` wires the host config). MCP is the
-recommended surface for agent hosts; the framework adapters above are for when you
-are building an agent **in code** with one of the SDKs rather than wiring a host.
+Continue, and Windsurf (`unbrowse setup --mcp` wires the host config). MCP is no
+longer the preferred default; the installed Agent Skill plus SDK hole is the current
+agent-facing surface.
 
 ## Honest scope
 
@@ -95,8 +95,9 @@ without bundling the framework itself — import the adapter alongside your exis
 framework install. Where you want framework-branded tool instances (so the runtime's
 type guards and schema coercion apply), call `createUnbrowseTools({ ... })` and pass
 the framework's own `tool` / `createTool` / `FunctionTool` / `jsonSchema` helpers.
-The tool handlers route through `/v1/resolve` + `/v1/execute`; behaviour is identical
-across frameworks because the backend is the same.
+Compatibility tool handlers may route through `/v1/resolve` + `/v1/execute`; the
+preferred fill-hole handler lets the runtime choose that route internally when it is
+the right descent.
 
 See also [Drop-in Adapters](./drop-in-adapters.md) for zero-edit library
 replacements (HTTP clients, browser automation, search) and
