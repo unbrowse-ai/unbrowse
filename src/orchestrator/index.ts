@@ -3843,7 +3843,9 @@ export async function resolveAndExecute(
           // Fall back to the local-disk composite cache (gated on UNBROWSE_LOCAL_CACHES).
           const persisted =
             findCompositeInSkill(skill, candidate.endpoint.endpoint_id) ??
-            readComposite(replayDomain, candidate.endpoint.endpoint_id);
+            // Pass the CURRENT endpoints so a constituent definition change cascade-invalidates the
+            // cached composite (Merkle content-id mismatch → re-walk) instead of serving it stale.
+            readComposite(replayDomain, candidate.endpoint.endpoint_id, skill.endpoints);
           const decision = planPrereqOrder(prereqOrder, persisted, (id) => {
             const ep = skill.endpoints.find((e) => e.endpoint_id === id);
             // Composite invalidation: a recorded constituent that no longer exists, was disabled
@@ -3935,7 +3937,9 @@ export async function resolveAndExecute(
                 void queuePassiveSkillPublish(skill).catch(() => {});
               }
               // Lever 3: also persist the local-disk mirror (gated on UNBROWSE_LOCAL_CACHES).
-              const persistedPath = writeComposite(descriptor);
+              // Stamp the Merkle content_id from the current endpoints so a later readComposite can
+              // detect a constituent change and cascade-invalidate.
+              const persistedPath = writeComposite(descriptor, skill.endpoints);
               if (persistedPath) {
                 (decisionTrace as Record<string, unknown>).composite_persisted = compositeId;
               }
