@@ -1,29 +1,29 @@
-/* /aiko — the agent chat, full page. Same surface as the homepage hero: the
- * ONE chat on the site, backed by the real tool loop (/api/hero-chat —
- * search captured routes, execute the endpoint, answer from live data).
- * The old bare-LLM chat proxy was removed: a chat that
- * can't execute routes misrepresents the product. */
+/* /aiko — Aiko, the grounded assistant. Backed by the Aiko endpoint
+ * (OpenAI-compatible) which grounds every external fact through unbrowse's
+ * route graph (free, keyless DDG) and answers from what it finds — showing
+ * the unbrowse source under each answer. The same endpoint + unbrowse the CLI
+ * uses, on the web. */
 
 import type { Metadata } from "next";
-import { HeroChat } from "@/components/hero-chat";
+import { AikoChat } from "@/components/aiko-chat";
 
 export const metadata: Metadata = {
-  title: "Aiko — the Unbrowse agent, live",
+  title: "Aiko — grounded by unbrowse",
   description:
-    "Ask anything. The agent searches captured website API routes, executes the best one with a real HTTP call, and answers from the live data — showing every step it took.",
+    "Ask anything. Aiko grounds every answer through unbrowse's route graph — searching the live web for free, then answering from what it found, and showing you the source.",
 };
 
 export default function AikoPage() {
   return (
     <main className="relative mx-auto flex min-h-[100dvh] max-w-3xl flex-col justify-center px-5 py-24 text-center sm:px-8">
       <h1 className="mb-3 text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-        Ask the <span className="text-orange-500">live agent</span>
+        Ask <span className="text-orange-500">Aiko</span>
       </h1>
       <p className="mx-auto mb-8 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-        It answers through real website APIs — searching captured routes, executing the best one,
-        and showing you every step it took.
+        A grounded assistant — it answers by searching the live web through unbrowse&apos;s
+        route graph for free, then shows you the source it grounded on.
       </p>
-      <HeroChat />
+      <AikoChat />
     </main>
   );
 }
