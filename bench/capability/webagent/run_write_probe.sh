@@ -11,8 +11,11 @@ while IFS= read -r row; do
   id=$(echo "$row" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
   url=$(echo "$row" | python3 -c "import json,sys;print(json.load(sys.stdin)['url'])")
   intent=$(echo "$row" | python3 -c "import json,sys;print(json.load(sys.stdin)['intent'])")
-  echo "[$id] run $url"
-  raw=$(timeout 120 "$BIN" run "$url" "$intent" 2>&1 | grep -vE "ToS check|rehydrated|cwd was reset" | tail -40)
+  echo "[$id] $url"
+  # DEFAULT one-hole surface: bare `unbrowse "<intent>" --url <url>` (the path agents
+  # use), not the legacy `run <url> <intent>` alias. A write verb + embedded JSON body
+  # in the intent routes straight to the ad-hoc write; a read stays a read.
+  raw=$(timeout 120 "$BIN" "$intent" --url "$url" 2>&1 | grep -vE "ToS check|rehydrated|cwd was reset" | tail -40)
   python3 - "$id" "$url" "$raw" >> "$OUT" <<'PY'
 import json,sys
 rid,url,raw=sys.argv[1],sys.argv[2],sys.argv[3]

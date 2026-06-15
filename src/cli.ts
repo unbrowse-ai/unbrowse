@@ -10,7 +10,7 @@
 import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { inferWriteMethod } from "./lib/infer-write-method.js";
+import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-method.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
@@ -1471,6 +1471,39 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>, v
   const parsed = parseCmdRunArgs(args, flags, verb);
   if ("error" in parsed) die(parsed.error);
   const { url, intent } = parsed;
+
+  // Agent-native one-hole WRITE. A request body (or an explicit write --method)
+  // means the agent wants to WRITE, not read. Route directly to the ad-hoc write
+  // execute path instead of the read resolve+capture ladder — that ladder never
+  // resolves a write to a read skill, so it burns the full discovery budget and
+  // returns cli_timeout (38s). The HTTP verb is inferred from intent + body via
+  // inferWriteMethod; the agent never picks a method. This makes the DEFAULT
+  // one-hole surface (`unbrowse "<task>" --url`, `get`, `run`) do writes, not just
+  // the explicit `execute` command.
+  //
+  // The body comes from --body, or — when the agent expressed the write purely in
+  // natural language (`unbrowse "create a record by POSTing {json}" --url`) — from
+  // a JSON object embedded in the intent. Embedded-body extraction only fires
+  // alongside a write VERB, so a read intent without a write verb is never
+  // mis-routed (the read axes keep their GET path).
+  const oneHoleWriteBody: string | undefined = typeof flags.body === "string"
+    ? flags.body
+    : extractEmbeddedJsonBody(intent);
+  const oneHoleWriteVerb = inferWriteMethod(
+    typeof flags.method === "string" ? (flags.method as string) : undefined,
+    intent,
+    !!oneHoleWriteBody,
+  );
+  if (oneHoleWriteVerb && url && (!!oneHoleWriteBody || typeof flags.method === "string")) {
+    return cmdExecute({
+      ...flags,
+      url,
+      intent,
+      method: oneHoleWriteVerb,
+      ...(oneHoleWriteBody ? { body: oneHoleWriteBody } : {}),
+    });
+  }
+
   const draftOnlyIntent = isDraftOnlyMutationIntent(intent);
   const resolveIntent = draftOnlyIntent ? draftOnlyReadIntent(intent) : intent;
 

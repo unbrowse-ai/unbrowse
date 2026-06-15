@@ -2,7 +2,7 @@
  * infer-write-method.test — agent-native verb inference (no --method needed).
  */
 import { describe, expect, it } from "bun:test";
-import { inferWriteMethod } from "../src/lib/infer-write-method.js";
+import { extractEmbeddedJsonBody, inferWriteMethod } from "../src/lib/infer-write-method.js";
 
 describe("inferWriteMethod", () => {
   it("honours an explicit write method", () => {
@@ -30,5 +30,26 @@ describe("inferWriteMethod", () => {
   });
   it("delete intent beats a present body", () => {
     expect(inferWriteMethod(undefined, "remove the item", true)).toBe("DELETE");
+  });
+});
+
+describe("extractEmbeddedJsonBody", () => {
+  it("extracts a JSON object embedded in a natural-language write intent", () => {
+    expect(extractEmbeddedJsonBody('create a new record by POSTing the JSON body {"name":"x","n":1}'))
+      .toBe('{"name":"x","n":1}');
+  });
+  it("extracts an embedded JSON array", () => {
+    expect(extractEmbeddedJsonBody('replace the list with [{"id":1}]')).toBe('[{"id":1}]');
+  });
+  it("returns undefined when no JSON object is present", () => {
+    expect(extractEmbeddedJsonBody("create a post titled hello with body world")).toBeUndefined();
+    expect(extractEmbeddedJsonBody("get the latest posts")).toBeUndefined();
+    expect(extractEmbeddedJsonBody("")).toBeUndefined();
+  });
+  it("returns undefined for braces that are not valid JSON", () => {
+    expect(extractEmbeddedJsonBody("update the {record} please")).toBeUndefined();
+  });
+  it("ignores a bare number/string in braces (not a request body)", () => {
+    expect(extractEmbeddedJsonBody("post {42}")).toBeUndefined();
   });
 });
