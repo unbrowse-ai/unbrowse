@@ -1,37 +1,30 @@
-// Falsifier for the kuri attach-to-existing-Chrome default flip.
+// Falsifier for the kuri attach-to-existing-Chrome default.
 //
-// Pre-flip: `resolveKuriLaunchConfig` had `attachToExistingChrome = true`
-// by default (any of KURI_DISABLE_CDP_ATTACH / UNBROWSE_LOCAL_ONLY /
-// KURI_CLEAN_ROOM / settings.browser.attach_existing_chrome=false
-// were opt-OUTs). Risk: if the user has Chrome running with CDP on
-// :9222 (Claude Code / VS Code / a debugger) kuri silently attached to
-// that visible Chrome instead of launching its own managed headless
-// one — even when HEADLESS=true was explicitly set, because the
-// headless flag only affects MANAGED Chrome, not attached Chrome.
-// Bench-gate runs, CI, automated capture, anything reproducible got
-// silently coupled to the user's real browser.
-//
-// Post-flip: default OFF. Attach happens only when explicitly opted-in
-// via env KURI_ATTACH_EXISTING_CHROME=1 OR persisted setting
-// browser.attach_existing_chrome=true. The clean-managed-headless
-// path is the safe default.
+// Default is ON: the agent should ride the user's browser/session unless a
+// caller explicitly requests clean-room isolation. CI/bench paths opt out with
+// KURI_DISABLE_CDP_ATTACH, KURI_CLEAN_ROOM, or UNBROWSE_LOCAL_ONLY.
 import { describe, expect, it } from "bun:test";
 import { resolveKuriLaunchConfig } from "../src/kuri/client.ts";
 
-describe("resolveKuriLaunchConfig — attachToExistingChrome default OFF (post-flip)", () => {
-  it("empty env → attach OFF (the new safe default)", () => {
+describe("resolveKuriLaunchConfig — attachToExistingChrome default ON", () => {
+  it("empty env → attach ON (agent default)", () => {
     const cfg = resolveKuriLaunchConfig({});
-    expect(cfg.attachToExistingChrome).toBe(false);
+    expect(cfg.attachToExistingChrome).toBe(true);
     expect(cfg.headless).toBe(true);
   });
 
-  it("KURI_ATTACH_EXISTING_CHROME=1 → attach ON", () => {
-    const cfg = resolveKuriLaunchConfig({ KURI_ATTACH_EXISTING_CHROME: "1" });
-    expect(cfg.attachToExistingChrome).toBe(true);
+  it("KURI_ATTACH_EXISTING_CHROME=0 → attach OFF", () => {
+    const cfg = resolveKuriLaunchConfig({ KURI_ATTACH_EXISTING_CHROME: "0" });
+    expect(cfg.attachToExistingChrome).toBe(false);
   });
 
-  it("KURI_ATTACH_EXISTING_CHROME=true → attach ON", () => {
-    const cfg = resolveKuriLaunchConfig({ KURI_ATTACH_EXISTING_CHROME: "true" });
+  it("KURI_ATTACH_EXISTING_CHROME=false → attach OFF", () => {
+    const cfg = resolveKuriLaunchConfig({ KURI_ATTACH_EXISTING_CHROME: "false" });
+    expect(cfg.attachToExistingChrome).toBe(false);
+  });
+
+  it("KURI_ATTACH_EXISTING_CHROME=1 keeps attach ON", () => {
+    const cfg = resolveKuriLaunchConfig({ KURI_ATTACH_EXISTING_CHROME: "1" });
     expect(cfg.attachToExistingChrome).toBe(true);
   });
 
@@ -62,6 +55,6 @@ describe("resolveKuriLaunchConfig — attachToExistingChrome default OFF (post-f
   it("HEADLESS=false stays an explicit choice and is independent of attach", () => {
     const cfg = resolveKuriLaunchConfig({ HEADLESS: "false" });
     expect(cfg.headless).toBe(false);
-    expect(cfg.attachToExistingChrome).toBe(false); // still default OFF
+    expect(cfg.attachToExistingChrome).toBe(true);
   });
 });

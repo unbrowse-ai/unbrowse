@@ -14,7 +14,7 @@ import net from "node:net";
 import path from "node:path";
 import { log } from "../logger.js";
 import { getPackageRoot } from "../runtime/paths.js";
-import { getBrowserAttachEnabled } from "../settings.js";
+import { getBrowserAttachPreference } from "../settings.js";
 
 /**
  * Opt-in browse tracing. Set UNBROWSE_KURI_TRACE=1 to emit [kuri-trace]
@@ -299,34 +299,21 @@ export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): K
   }
   const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
-  // Default-OFF opportunistic attach (flipped 2026-05-18): kuri no longer
-  // silently attaches to whatever Chrome instance happens to be running
-  // with CDP. The original "attach by default" North Star (catch every
-  // tab any agent opens through one pipeline) had a hidden cost: when
-  // the user has Chrome open (Claude Code, a debugger, daily browsing),
-  // every bench-gate run, every automated capture, every privacy-
-  // sensitive flow silently coupled to the user's visible browser —
-  // bypassing HEADLESS=true entirely, because headless only governs
-  // MANAGED Chrome that kuri launches itself, not chrome it attached to.
-  //
-  // Post-flip, attach is OPT-IN: set env `KURI_ATTACH_EXISTING_CHROME=1`
-  // OR the persisted setting `browser.attach_existing_chrome=true`. The
-  // existing opt-OUT flags (KURI_DISABLE_CDP_ATTACH / UNBROWSE_LOCAL_ONLY
-  // / KURI_CLEAN_ROOM) still trump opt-in (so a CI pipeline can force
-  // clean-room even if a user setting tries to attach).
-  //
-  // Defensive: any settings-read failure keeps attach OFF — a broken
-  // config can never silently flip a user into hijacking their visible
-  // browser.
-  const explicitAttachEnv = envFlag(env.KURI_ATTACH_EXISTING_CHROME);
-  let attachEnabledBySetting = false;
+  // Default-ON opportunistic attach: the primary agent path should ride the
+  // user's existing browser/session when possible. Clean-room automation and
+  // CI opt out explicitly with KURI_DISABLE_CDP_ATTACH, KURI_CLEAN_ROOM, or
+  // UNBROWSE_LOCAL_ONLY. Persisted browser.attach_existing_chrome=false is the
+  // user-level opt-out; unset means attach.
+  const explicitAttachEnv = env.KURI_ATTACH_EXISTING_CHROME;
+  const attachByEnv = explicitAttachEnv === undefined ? undefined : !falseyEnv(explicitAttachEnv);
+  let attachPreference: boolean | undefined;
   try {
-    attachEnabledBySetting = getBrowserAttachEnabled() === true;
+    attachPreference = getBrowserAttachPreference();
   } catch {
-    attachEnabledBySetting = false;
+    attachPreference = undefined;
   }
   const attachToExistingChrome =
-    (explicitAttachEnv || attachEnabledBySetting) && !disableCdpAttach && !cleanRoom;
+    (attachByEnv ?? attachPreference ?? true) && !disableCdpAttach && !cleanRoom;
   return {
     headless,
     attachToExistingChrome,
@@ -557,11 +544,7 @@ async function ensureUserChromeRunning(state: BrokerState): Promise<void> {
   log("kuri", `launching user Chrome with CDP on port ${port}`);
 
   try {
-    const child = spawn(chromeBin, [
-      `--remote-debugging-port=${port}`,
-      "--no-first-run",
-      "--no-default-browser-check",
-    ], {
+    const child = spawn(chromeBin, chromeCdpAttachLaunchArgs(port), {
       stdio: "ignore",
       detached: true,
     });
@@ -585,6 +568,21 @@ async function ensureUserChromeRunning(state: BrokerState): Promise<void> {
     log("kuri", `failed to launch user Chrome: ${err instanceof Error ? err.message : err}`);
     state.cdpPort = null;
   }
+}
+
+export function chromeCdpAttachLaunchArgs(port: number, platform: NodeJS.Platform = process.platform): string[] {
+  const args = [
+    `--remote-debugging-port=${port}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--password-store=basic",
+    "--disable-save-password-bubble",
+    "--disable-features=PasswordManagerOnboarding,AutofillServerCommunication",
+  ];
+  if (platform === "darwin") {
+    args.push("--use-mock-keychain");
+  }
+  return args;
 }
 
 async function terminateBrokerOnPort(port: number): Promise<void> {
@@ -635,7 +633,11 @@ export async function reuseHealthyBrokerIfPossible(
   const cdpAvailable = deps.isChromeCdpAvailable ?? isChromeCdpAvailable;
 
   const discover = deps.discoverCdpPort ?? discoverCdpPort;
-  await discover(state);
+  if (launchConfig.attachToExistingChrome || state.managedChrome) {
+    await discover(state);
+  } else {
+    state.cdpPort = null;
+  }
 
   if (!state.cdpPort && launchConfig.attachToExistingChrome) {
     const ensureChrome = deps.ensureUserChromeRunning ?? ensureUserChromeRunning;
@@ -650,7 +652,7 @@ export async function reuseHealthyBrokerIfPossible(
   await syncTabs(state).catch(() => {});
 
   const tabs = await (deps.listTabs ?? listRegisteredTabs)(state).catch(() => []);
-  if (state.cdpPort) {
+  if (state.cdpPort && (launchConfig.attachToExistingChrome || state.managedChrome)) {
     return true;
   }
 

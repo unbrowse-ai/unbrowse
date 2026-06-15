@@ -8,6 +8,8 @@ import * as kuri from "../src/kuri/client.js";
 const originalKuriBin = process.env.KURI_BIN;
 const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
 const originalDisableCdpAttach = process.env.KURI_DISABLE_CDP_ATTACH;
+const originalExternalPort = process.env.KURI_EXTERNAL_PORT;
+const originalCdpUrl = process.env.CDP_URL;
 const tmpDirs: string[] = [];
 const originalFetch = globalThis.fetch;
 
@@ -39,6 +41,10 @@ afterEach(async () => {
   else process.env.UNBROWSE_PACKAGE_ROOT = originalPackageRoot;
   if (originalDisableCdpAttach === undefined) delete process.env.KURI_DISABLE_CDP_ATTACH;
   else process.env.KURI_DISABLE_CDP_ATTACH = originalDisableCdpAttach;
+  if (originalExternalPort === undefined) delete process.env.KURI_EXTERNAL_PORT;
+  else process.env.KURI_EXTERNAL_PORT = originalExternalPort;
+  if (originalCdpUrl === undefined) delete process.env.CDP_URL;
+  else process.env.CDP_URL = originalCdpUrl;
   kuri.setCdpPortForTests(null);
   while (tmpDirs.length > 0) {
     const dir = tmpDirs.pop();
@@ -123,6 +129,7 @@ describe("kuri client", () => {
     writeFileSync(fakeBin, "#!/bin/sh\nexit 1\n");
     chmodSync(fakeBin, 0o755);
     process.env.KURI_BIN = fakeBin;
+    process.env.KURI_DISABLE_CDP_ATTACH = "1";
 
     // Should retry 3 times (4 attempts total) and throw a descriptive error
     await expect(kuri.start(7798)).rejects.toThrow(/failed to start after 4 attempts/i);
@@ -142,6 +149,7 @@ exit 1
 `);
     chmodSync(fakeBin, 0o755);
     process.env.KURI_BIN = fakeBin;
+    process.env.KURI_DISABLE_CDP_ATTACH = "1";
 
     const results = await Promise.allSettled([
       kuri.start(7797),
@@ -172,6 +180,9 @@ exit 1
     writeFileSync(fakeBin, "#!/bin/sh\nexit 1\n");
     chmodSync(fakeBin, 0o755);
     process.env.KURI_BIN = fakeBin;
+    process.env.KURI_DISABLE_CDP_ATTACH = "1";
+    process.env.KURI_EXTERNAL_PORT = "7795";
+    process.env.CDP_URL = "ws://127.0.0.1:9222/devtools/browser/test";
 
     await kuri.start(7795);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -180,6 +191,8 @@ exit 1
     await waitForPortDown(7795);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    delete process.env.KURI_EXTERNAL_PORT;
+    delete process.env.CDP_URL;
     await expect(kuri.start(7795)).rejects.toThrow(/failed to start after 4 attempts/i);
   }, 30_000);
 
@@ -283,6 +296,7 @@ exit 1
 `);
     chmodSync(fakeBin, 0o755);
     process.env.KURI_BIN = fakeBin;
+    process.env.KURI_DISABLE_CDP_ATTACH = "1";
 
     const basePort = 43000 + (process.pid % 1000);
     const clientA = kuri.getKuriClient(basePort);
@@ -303,7 +317,7 @@ exit 1
       HEADLESS: "true",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: true,
-      attachToExistingChrome: false,
+      attachToExistingChrome: true,
     });
 
     expect(kuri.resolveKuriLaunchConfig({
@@ -314,22 +328,21 @@ exit 1
       attachToExistingChrome: false,
     });
 
-    // New contract (Apr 2026): headless defaults to true on every platform so
+    // New contract (Jun 2026): headless defaults to true on every platform so
     // production unbrowse never floods the user's screen. Attach-to-existing-Chrome
-    // requires explicit HEADLESS=false because canAttachToExistingChrome = !headless.
+    // defaults on; clean-room callers opt out explicitly.
     expect(kuri.resolveKuriLaunchConfig({} as NodeJS.ProcessEnv)).toEqual({
       headless: true,
-      attachToExistingChrome: false,
+      attachToExistingChrome: true,
     });
 
-    // HEADLESS=false alone makes managed Chrome visible, but does not attach
-    // to an existing user browser without an explicit attach intent.
+    // HEADLESS=false is independent of attach; default attach still applies.
     expect(kuri.resolveKuriLaunchConfig({
       HEADLESS: "false",
       UNBROWSE_IMPORT_BROWSER_COOKIES: "0",
     } as NodeJS.ProcessEnv)).toEqual({
       headless: false,
-      attachToExistingChrome: false,
+      attachToExistingChrome: true,
     });
 
     expect(kuri.resolveKuriLaunchConfig({
@@ -349,6 +362,15 @@ exit 1
       headless: false,
       attachToExistingChrome: false,
     });
+  });
+
+  it("launches fallback user Chrome with keychain-safe CDP flags", () => {
+    const args = kuri.chromeCdpAttachLaunchArgs(9223, "darwin");
+    expect(args).toContain("--remote-debugging-port=9223");
+    expect(args).toContain("--password-store=basic");
+    expect(args).toContain("--disable-save-password-bubble");
+    expect(args).toContain("--use-mock-keychain");
+    expect(args.some((arg) => arg.includes("PasswordManagerOnboarding"))).toBe(true);
   });
 
   it("reuses a surviving managed Chrome even when ambient CDP attach is disabled", () => {
@@ -404,6 +426,38 @@ exit 1
       "discover-tabs",
       "terminate-broker",
     ]);
+  });
+
+  it("clean-room opt-out does not discover or reuse ambient CDP", async () => {
+    const seen: string[] = [];
+    const state = {
+      process: null,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: true, attachToExistingChrome: false },
+      {
+        isHealthyPort: async () => true,
+        discoverCdpPort: async (nextState) => {
+          seen.push("discover-cdp");
+          nextState.cdpPort = 9223;
+        },
+        ensureTabsDiscovered: async () => { seen.push("discover-tabs"); },
+        listTabs: async () => [],
+        terminateBrokerOnPort: async () => { seen.push("terminate-broker"); },
+      },
+    );
+
+    expect(reused).toBe(false);
+    expect(state.cdpPort).toBe(null);
+    expect(seen).toEqual(["discover-tabs", "terminate-broker"]);
   });
 
   it("keeps a healthy broker when user Chrome is restored during reuse", async () => {
