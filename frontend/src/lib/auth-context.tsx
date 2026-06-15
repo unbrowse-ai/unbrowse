@@ -162,11 +162,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         throw new Error(`Could not reach the sign-in service: ${(err as Error).message}`);
       }
-      if (res.status === 503) {
-        throw new Error("Sign-in is temporarily unavailable. Try again in a moment.");
-      }
-      if (res.status === 502) {
-        throw new Error("Sign-in upstream is unreachable. Try again in a moment.");
+      // Transient / server-side failures are not the user's fault — show a friendly,
+      // retryable message instead of a cryptic raw status. A 410 here is almost always a
+      // mid-redeploy edge-cache blip (the endpoint is live again on retry), so it belongs
+      // with the 5xx / 429 / timeout family, not a dead end.
+      if (
+        res.status === 410 || res.status === 408 || res.status === 425 ||
+        res.status === 429 || res.status >= 500
+      ) {
+        throw new Error("Sign-in is temporarily unavailable. Please try again in a moment.");
       }
       if (res.status === 400) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
