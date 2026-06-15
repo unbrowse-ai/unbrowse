@@ -53,3 +53,7 @@ bench/energy/intent-type-gate.sh	bench/energy/intent-type-gate.sh
 bench/ebm-closed-loop-gate.sh	bench/ebm-closed-loop-gate.sh
 bench/ebm-runtime-ship-gate.sh	bench/ebm-runtime-ship-gate.sh
 bench/energy/reproduce-all.sh	bench/energy/reproduce-all.sh
+commitment-only structure	src/values/storage-hole-bindings.ts
+keyed commitment	src/values/storage-hole-bindings.ts
+sealed off-graph under the wallet	src/values/sealed-blob-store.ts
+revealed only locally, per step	src/execution/index.ts
