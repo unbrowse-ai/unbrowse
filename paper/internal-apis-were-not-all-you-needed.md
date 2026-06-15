@@ -186,13 +186,13 @@ is the spacetime property, not the point one.
 We stop, deliberately, at *what* the proof attests and never publish
 *how* the index is produced. The proof commits to observable facts about
 the route — it resolves, its schema matches, its fields are present —
-which is all a verifier needs. The deep capture surface that does the
-indexing is the closed engine , for the abuse reasons stated there; the
-boundary is the difference between giving agents a checkable freshness
-proof and handing out the machine that makes scraping cheap. The
-indexing capability the proof of indexing would certify is the live,
-closed capture surface, while the cryptographic proof itself ships as a
-runnable, tested reference (`reference/network/proof_of_indexing.py`) —
+which is all a verifier needs. The private capture surface that does the
+indexing stays outside the public artifact, for the abuse reasons stated
+there; the boundary is the difference between giving agents a checkable
+freshness proof and publishing the capture method. The indexing capability
+the proof of indexing would certify is the private capture surface, while
+the cryptographic proof itself ships as a runnable, tested reference
+(`reference/network/proof_of_indexing.py`) —
 a content-addressed, signed, hash-chained attestation a stranger
 re-derives against the real content — and the bonded economics that
 secure it ship as their own reference; production deployment is the
@@ -541,11 +541,11 @@ the substrate *does* win head-to-head is adversarial retrieval past
 JavaScript-challenge anti-bot, reported in the companion security
 paper .
 
-# What is shipped, what is referenced
+# What is implemented, what is referenced
 
 In the spirit of the companion papers  — and of not selling a roadmap as
-a changelog — we separate what runs in the product, what ships as
-runnable, tested reference code, and where deployment still stops. Live
+a changelog — we separate what runs in the product, what is available as
+runnable, tested reference code, and where deployment still stops. Running
 in the product today:
 
 - The live three-way split: every paid execution settles to the indexer,
@@ -564,10 +564,10 @@ Shipping as runnable, tested reference code:
 - Proof of indexing: a content-addressed, signed, hash-chained
   attestation that a route was re-indexed against its live source,
   re-derivable by independent re-indexing 
-  (`reference/network/proof_of_indexing.py`). The deep capture surface
-  that produces the index is the live, closed engine ; the cryptographic
-  proof is running, tested code, and production deployment of the bonded
-  economics is the remaining step.
+  (`reference/network/proof_of_indexing.py`). The private capture surface
+  that produces the index stays outside the public artifact; the
+  cryptographic proof is running, tested code, and production deployment
+  of the bonded economics is the remaining step.
 
 - Bonding, challenge, and slashing: the collateralised-accountability
   layer in which a maintainer’s stake is forfeit on a proof that fails
@@ -624,16 +624,13 @@ actually happens. FDRY sits underneath all of it as the bonded,
 fairly-distributed security stake — the asset that makes “trust this
 route” a claim with collateral behind it, not a hope.
 
-We have told this as the *what* throughout, and stopped exactly where
-the *how* begins. The primitives that make route discovery cheap and the
-graph fresh are closed by design , for the abuse reasons stated there —
-the boundary is not secrecy for its own sake but the difference between
-giving agents real APIs and handing out an unattributed scraping fleet.
-Internal APIs were a great first layer. The maintained, attributed,
-bonded graph above them — kept fresh, paid for in proportion to the
-value it creates, and underwritten by an asset that had to be kept clear
-of money before it could be trusted with it — is the layer that was
-never all you needed, and is the one worth building.
+We have told this as the *what* throughout, and stopped before the private
+capture *how*. That boundary is not secrecy for its own sake; it is the
+difference between giving agents checkable route contracts and publishing
+a method that could be turned into an unattributed scraping fleet.
+Internal APIs are a useful first layer. The maintained, attributed,
+bonded graph above them — kept fresh and paid for in proportion to the
+value it creates — is the next layer we are building.
 
 <div class="thebibliography">
 

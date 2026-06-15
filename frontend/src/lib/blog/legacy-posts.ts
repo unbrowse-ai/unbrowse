@@ -22,7 +22,7 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     slug: "browser-automation-is-dead",
     title: "Browser Automation Is Dead. Here's What Replaces It.",
     description:
-      "Every AI agent web action pays a hidden $0.53 tax -- the cost of launching a browser, rendering pixels, and converting structured data back into structured data. Across 94 domains, direct API calls achieved 3.6x mean speedup, 106x cost reduction, and eliminated 500 MB RAM per instance.",
+      "Browser-first agent work often pays for rendering and page parsing when the structured route already exists underneath. Across 94 domains in the paper benchmark, warmed cached routes averaged a 3.6x mean speedup over Playwright.",
     canonicalPath: "/browser-automation-is-dead",
     published_at: "2026-04-02",
     author: "Lewis Tham",
@@ -50,9 +50,9 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
   },
   {
     slug: "benchmark-deep-dive",
-    title: "94 Domains, 100% Win Rate: The Full Benchmark",
+    title: "94 Domains: The Warmed-Cache Benchmark",
     description:
-      "We tested Unbrowse against Playwright on every major website category. Browser automation lost every time.",
+      "The paper benchmark compares warmed cached route execution against Playwright across 94 live domains, with 3.6x mean and 5.4x median speedup.",
     canonicalPath: "/benchmark-deep-dive",
     published_at: "2026-04-02",
     author: "Lewis Tham",
@@ -73,7 +73,7 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     slug: "personal-agents",
     title: "Your Personal Agent Is 3.6x Slower Than It Should Be",
     description:
-      "Personal AI agents spend 80% of their time waiting for web pages to load — rendering pixels they will never see, parsing DOM they do not need, burning API credits on vision tokens. The Unbrowse plugin for OpenClaw gives your agent direct access to those APIs. 3.6x faster, 106x cheaper, zero browser overhead.",
+      "Personal AI agents waste time when every web task starts with browser rendering. Unbrowse lets an OpenClaw agent try a known first-party route first and fall back to the browser when needed.",
     canonicalPath: "/personal-agents",
     published_at: "2026-04-02",
     author: "Lewis Tham",

@@ -17,7 +17,7 @@ export const competitors: Record<string, Competitor> = {
     name: "Playwright",
     tagline: "Unbrowse vs Playwright",
     description:
-      "Playwright automates browsers with a powerful API, but every action requires rendering a full page. Unbrowse discovers the internal APIs behind those pages so AI agents call them directly — 3.6x faster on average, 40x fewer tokens.",
+      "Playwright automates browsers with a powerful API, but every action requires rendering a full page. Unbrowse learns first-party routes behind those pages so AI agents can call a known route directly — 3.6x faster on average in the 94-domain paper benchmark.",
     what: "Playwright is a cross-browser automation framework by Microsoft. It controls Chromium, Firefox, and WebKit through the DevTools Protocol, rendering full pages for every interaction.",
     limitations: [
       "Every action renders a full browser page (5-30 seconds per step)",
@@ -41,7 +41,7 @@ export const competitors: Record<string, Competitor> = {
     name: "Puppeteer",
     tagline: "Unbrowse vs Puppeteer",
     description:
-      "Puppeteer gives fine-grained Chrome control via CDP, but agents still pay the full rendering cost. Unbrowse replaces that with direct API calls — same data, 3.6x faster, 40x fewer tokens, no browser process required.",
+      "Puppeteer gives fine-grained Chrome control via CDP, but agents still pay the full rendering cost. Unbrowse tries a known first-party route first, then falls back to the browser when needed.",
     what: "Puppeteer is a Node.js library by Google that controls Chrome/Chromium via the Chrome DevTools Protocol. It is the most popular headless browser tool in the Node ecosystem.",
     limitations: [
       "Chrome-only — no Firefox or WebKit support",

@@ -9,19 +9,19 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "How does Unbrowse work?",
-    a: "Unbrowse is the API layer for AI agents. The first time your agent visits a site, it captures the real APIs the site uses to render itself, then reuses them on every subsequent call. The shared marketplace already covers 600+ domains and 18,000+ endpoints, so most calls skip the browser entirely and return in 50 to 200 milliseconds. That turns a slow, flaky browser step into a single HTTP call your agent can rely on.",
+    a: "Unbrowse is a route layer for AI agents on the web. It learns the first-party routes a site already calls behind its UI, then reuses those routes when they are still valid. If a route is missing or stale, the runtime falls back to browser capture or ordinary browser automation rather than pretending the cache hit.",
   },
   {
     q: "How much faster is Unbrowse than headless browser automation?",
-    a: "Unbrowse is roughly 100x faster per page than headless browser automation. Headless browsers take 5 to 30 seconds per interaction; Unbrowse makes direct API calls in 50 to 200 milliseconds and uses about 200 tokens per action against 8,000 for scraped HTML. The gap compounds because cached marketplace routes skip discovery entirely on first try. For agent loops where the web step is the bottleneck, that turns minutes of work into seconds.",
+    a: "In the Internal APIs Are All You Need benchmark, warmed cached routes averaged a 3.6x mean speedup and 5.4x median speedup over Playwright across 94 live domains. The reason is simple: a known route avoids repeated page rendering, DOM inspection, and token-heavy HTML parsing.",
   },
   {
     q: "Is Unbrowse free?",
-    a: "Unbrowse is open-core. The CLI client and SDKs are open source (MIT) and free to install and run locally on your machine. The capture engine and backend are proprietary. You pay only per-use in USDC when your agent executes a route through the shared marketplace — and you can earn USDC for routes you index. There are no subscriptions: a small per-use marketplace fee is the only cost.",
+    a: "The CLI client and SDKs are open source and free to install and run locally. Marketplace lookups or paid route execution can require x402 payment in USDC; route capture and local execution remain separate from those paid paths. Contributors can also earn when maintained routes they indexed are reused.",
   },
   {
     q: "What websites does Unbrowse support?",
-    a: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site's routes cannot be mapped, Unbrowse falls back to standard browser automation so your agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
+    a: "Unbrowse works best on sites whose frontends call structured first-party routes, which is common on modern web applications. Some routes are already cached; unknown or hostile sites may require browser capture or remain misses. Misses are recorded honestly rather than counted as route successes.",
   },
   {
     q: "Is Unbrowse secure? Do my credentials leave my machine?",

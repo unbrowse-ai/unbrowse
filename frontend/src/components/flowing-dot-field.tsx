@@ -221,7 +221,7 @@ export function FlowingDotField() {
     'Content-Type: application/json  ·  200 OK  ·  0.4s  ·  1.2KB  ·  cache: hit',
     'POST /api/v3/StayCheckout {"listing_id":"TKY-882","dates":{"checkin":"2024-03-15","checkout":"2024-03-22"}}',
     'skill: airbnb-stays-api  ·  quality: 91/100  ·  endpoints: 12  ·  indexed: public registry',
-    'import { unbrowse } from "unbrowse"  // 100x faster than headless browsers, 40x fewer tokens',
+    'import { unbrowse } from "unbrowse"  // known route first, browser fallback on miss',
     'X-Request-ID: 3f2a8b91  ·  X-RateLimit-Remaining: 998  ·  Cache-Control: public, max-age=60',
     'response.listings.map(l => `${l.title}: $${l.price}/night — ${l.rating}★`).join("\\n")',
     'GET /api/v3/PdpAvailabilityCalendar?id=TKY-882&month=2024-03  →  {"available":true,"price_override":null}',

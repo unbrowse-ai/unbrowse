@@ -1,5 +1,5 @@
 """Signed descent through every layer of computer use — the central claim of
-*Internal APIs Were Not All You Needed*.
+*Crypto Was All You Needed*.
 
 Computer use is a self-similar stack: a screen click decomposes into a browser
 action, which decomposes into an HTTP/CLI call, which decomposes into an OS

@@ -65,11 +65,11 @@ export const metadata: Metadata = {
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: "What is Unbrowse in one sentence?",
-    a: "Unbrowse is an open-source MCP server that lets AI agents call any website's internal APIs directly, with no per-site setup, no headless browser, and the user's real cookies for authentication.",
+    a: "Unbrowse is an open-source route layer that lets AI agents reuse known first-party website routes when they are valid, with browser fallback for misses and auth-heavy flows.",
   },
   {
     q: "How is Unbrowse different from Playwright or Browser Use?",
-    a: "Playwright and Browser Use drive a real browser for every action. Unbrowse runs a browser exactly once per site to capture the shadow APIs the page itself calls, then every later call uses those APIs directly. Across 94 live domains, Unbrowse is 3.6x faster on average and uses 40x fewer tokens than Playwright.",
+    a: "Playwright and Browser Use drive a real browser for every action. Unbrowse tries to reuse the first-party routes observed behind a site, then falls back to the browser when the route is missing or stale. Across 94 live domains in the paper benchmark, warmed cached routes were 3.6x faster on average than Playwright.",
   },
   {
     q: "What is a shadow API?",

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     images: [
       {
         url: "https://www.unbrowse.ai/og-image.png",
-        alt: "Unbrowse benchmark — 94 domains, 100% win rate",
+        alt: "Unbrowse benchmark — 94 live domains",
       },
     ],
   },
@@ -79,8 +79,8 @@ const botDetectionBreakdown = [
 ];
 
 const costComparison = [
-  { metric: "Avg. cost per task", browser: "$0.53", cached: "$0.005", ratio: "106x" },
-  { metric: "Avg. tokens per task", browser: "~8,000", cached: "~200", ratio: "40x" },
+  { metric: "Cost model", browser: "browser path pays render + model attention", cached: "known route avoids page parsing", ratio: "lower" },
+  { metric: "Token load", browser: "full page / DOM", cached: "structured response", ratio: "lower" },
   { metric: "Avg. latency per task", browser: "3,404ms", cached: "950ms", ratio: "3.6x" },
   { metric: "Median latency", browser: "2,800ms", cached: "520ms", ratio: "5.4x" },
 ];
@@ -337,9 +337,9 @@ export default function BenchmarkDeepDivePage() {
             </table>
           </div>
           <p className="mt-4 text-sm text-text-secondary">
-            At $0.005 per cached task vs. $0.53 per browser task, the 106x cost ratio means an
-            agent running 1,000 tasks per day saves roughly $525/day by using cached routes. Over a
-            month, that is $15,750 in compute savings for a single agent.
+            The cost model is directional: a known route avoids repeated rendering and page parsing,
+            but the exact dollar value depends on the model, browser runtime, retry rate, and whether
+            the route is already fresh.
           </p>
         </section>
 
@@ -507,9 +507,9 @@ export default function BenchmarkDeepDivePage() {
             delivers an immediate and compounding improvement in speed, cost, and reliability.
           </p>
           <p>
-            The 100% win rate across 94 domains is not a cherry-picked result. It reflects a
-            fundamental architectural advantage: skipping the rendering pipeline is always faster
-            than going through it. The only variable is how much faster.
+            The practical result is narrower and more useful: when a fresh route exists,
+            skipping the rendering pipeline is faster than rediscovering the same route through
+            a browser. When no route exists, the browser path remains the fallback.
           </p>
         </section>
 

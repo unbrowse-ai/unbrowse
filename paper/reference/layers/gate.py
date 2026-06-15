@@ -1,6 +1,6 @@
 """The signed-action gate: no unsigned action crosses, at any layer, ever.
 
-*Internal APIs Were Not All You Needed* states the seal as a hard invariant: an
+*Crypto Was All You Needed* states the seal as a hard invariant: an
 action is admitted at a layer only if it carries a valid signature from the
 wallet root that the layer is bound to. This is the runtime counterpart of the
 descent — descent *produces* the signed chain; the gate *enforces* it at the

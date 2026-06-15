@@ -325,11 +325,11 @@ export function ChapterSpine() {
         id="ch-market"
         numeral="05"
         name="Marketplace"
-        title={<>600+ domains already cached. Your agent skips the browser.</>}
+        title={<>Known routes first. Browser fallback when the route is missing.</>}
         lede={
           <>
-            Every agent indexes; every agent benefits. The marketplace is the
-            shared layer. New domains land every day.
+            Every useful capture can improve the shared graph. The marketplace is
+            the maintained route layer, not a promise that every site is already solved.
           </>
         }
       >

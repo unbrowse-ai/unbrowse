@@ -17,15 +17,15 @@ export async function GET() {
 
   const body = `# Unbrowse
 
-> Unbrowse is an open-source tool that maps the internal API routes behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
+> Unbrowse is an open-source tool that learns first-party routes behind websites from real browsing, then lets AI agents reuse those routes when they are still valid. The browser remains the fallback path on misses, auth flows, and sites that cannot be safely routed directly.
 
 ## Product Description
 
-Unbrowse is the intelligence layer on top of Kuri, a 464KB Zig-native CDP (Chrome DevTools Protocol) broker with ~3ms cold start. Together they form an API-native agent browser: Kuri handles raw browser automation, and Unbrowse watches what Kuri does, learns the internal APIs that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
+Unbrowse is the route layer on top of Kuri, a Zig-native CDP (Chrome DevTools Protocol) broker. Kuri handles browser automation when a browser is the right tool; Unbrowse learns the first-party routes observed during those sessions and reuses them when they are still valid.
 
-The core insight is that every modern website is a thin UI layer over internal APIs -- REST endpoints, GraphQL queries, RPC calls. These internal routes are undocumented but fully functional. Unbrowse captures network traffic during normal browsing, turns these routes into reusable skills (structured endpoint definitions with schemas, auth patterns, and parameter bindings), and publishes them to a shared marketplace. One agent learns a site once; every later agent gets the fast path.
+The core insight is narrower than "never use a browser": many modern websites are UI layers over REST endpoints, GraphQL queries, or RPC calls. When those routes are visible from real browsing and safe to describe, Unbrowse turns them into reusable skills with schemas, auth patterns, and parameter bindings. A known fresh route can be reused; an unknown or stale route falls back.
 
-Agents use Unbrowse as a drop-in replacement for Playwright or Puppeteer. Under the hood, \`page.goto()\` checks the skill cache first -- if a cached internal API route exists, it returns structured JSON data in under 200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background and indexes it for future reuse.
+Agents can use Unbrowse through the CLI, SDK, Agent Skill, or browser adapters. Under the hood, a route lookup checks local and shared caches first. On a miss, Kuri navigates normally while Unbrowse can capture traffic in the background and index it for future reuse.
 
 The whitepaper "Internal APIs Are All You Need" (Tham, Garcia & Hahn, 2026) formalizes the three-path execution model, the shared route graph, and the HTTP-native micropayment protocol (x402). Available at https://arxiv.org/abs/2604.00694.
 
@@ -33,11 +33,11 @@ The whitepaper "Internal APIs Are All You Need" (Tham, Garcia & Hahn, 2026) form
 
 ### Three Execution Paths
 
-1. **Skill cache (Path 1)** -- instant, under 200ms. A cached internal API route is executed directly. No browser launch, no network navigation. The agent gets structured JSON data.
+1. **Local cache (Path 1)** -- a known fresh route is executed directly. No browser launch is needed for that call.
 
-2. **Shared route graph (Path 2)** -- sub-second. A route discovered by another agent is served from the collectively maintained marketplace. The agent installs the skill once (Tier 1 payment) and executes locally thereafter.
+2. **Shared route graph (Path 2)** -- a route discovered or maintained by another agent is found in the marketplace and executed according to its contract.
 
-3. **Kuri browser fallback (Path 3)** -- 20-80 seconds. Full browser session via Kuri. Unbrowse captures and indexes all traffic in the background for future acceleration. This is the slow path that trains the fast path.
+3. **Kuri browser fallback (Path 3)** -- a full browser session handles sites that are not routeable yet, need live browser state, or fail validation. Capture from that run can improve future routing.
 
 ### Seven-Layer Cache Resolution
 
@@ -51,7 +51,7 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 6. First-pass browser action (lightweight 8s attempt)
 7. Live capture (full browser, last resort)
 
-### Six-Layer Pipeline
+### Route Pipeline
 
 1. **Passive capture** -- every network API call is intercepted and recorded during browsing. A JS interceptor is injected via \`Page.addScriptToEvaluateOnNewDocument\` so early SPA hydration calls are never missed.
 
@@ -59,7 +59,7 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 3. **Cache-first resolution** -- the seven-layer resolution stack described above.
 
-4. **Browser replacement API** -- drop-in Playwright replacement where \`page.goto()\` resolves from skill cache first.
+4. **Browser adapters** -- drop-in adapters try known routes first and keep the original browser path as the fallback.
 
 5. **Endpoint graph** -- endpoints are connected in a dependency graph with typed edges: parent/child (list to detail), pagination (cursor chains), and auth dependencies.
 
@@ -73,26 +73,26 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 
 ## Key Stats and Benchmarks
 
-- **3.6x mean speedup** over Playwright across 94 live production domains
-- **5.4x median speedup** -- the median case is even faster because cached routes dominate
-- **18 domains** completed in sub-100ms from cached skill routes
-- **Under 200ms** cached route execution -- no browser launch, no rendering
+- **3.6x mean speedup** over Playwright across 94 live production domains in the first paper's warmed-cache benchmark
+- **5.4x median speedup** in that same benchmark
+- **18 domains** completed in sub-100ms from cached skill routes in that paper benchmark
+- Known fresh routes can execute without browser launch or rendering
 - **464KB** Kuri binary size (Zig-native, statically linked)
 - **~3ms** Kuri cold start time
-- **~200 tokens** per action (vs ~8,000 tokens for DOM-based browser automation)
+- Structured route responses avoid token-heavy DOM/page dumps when a direct route exists
 - **94 domains** benchmarked in the whitepaper evaluation
 - **Seven layers** of cache resolution before touching the network
 - **MIT** open-source SDKs (open-core; engine + backend proprietary)
 
 ## Installation
 
-### Native browser install (recommended)
+### Native browser install
 
 \`\`\`
 ${inject(INSTALL_CMD_OPENCLAW)}
 \`\`\`
 
-Makes Unbrowse the default browser for your agent. Every \`page.goto()\` routes through Unbrowse automatically — no code changes needed. The package pulls in the local runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
+Routes supported browser actions through Unbrowse while keeping browser fallback available. The package pulls in the local runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
 
 ### CLI install
 
@@ -100,7 +100,7 @@ Makes Unbrowse the default browser for your agent. Every \`page.goto()\` routes 
 ${inject(setupOff)}
 \`\`\`
 
-This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable \`unbrowse\` shim, and starts the local server. During bootstrap, set up Crossmint lobster.cash if you want mined-route payouts to land in your wallet.
+This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable \`unbrowse\` shim, and starts the local server. During bootstrap, configure payouts if you want route-maintenance earnings to land in your wallet.
 
 ### Global install for daily use
 

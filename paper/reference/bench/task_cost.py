@@ -13,8 +13,8 @@ structured call: no multi-step navigation, no retry tax, no compounding context.
 This reference makes that honest: it models the end-to-end task cost for the
 browser path vs the API path and shows the per-TASK advantage is the per-call
 advantage MULTIPLIED by the task's click count, its failure-retry factor, and its
-token compounding --- recovering the field's measured ~30x faster / ~90x cheaper
-end-to-end figures, of which the single-call 3.6x is only the floor. It is a
+token compounding --- showing why multi-step browser tasks can exceed the
+single-call 3.6x floor by a large margin. It is a
 mechanism model, deterministic and parameterised; the live numbers are cited.
 
 No wall-clock, no randomness: pure arithmetic over the cost parameters, so the
