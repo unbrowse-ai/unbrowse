@@ -37,6 +37,11 @@ function makeEnv(): Env {
     STATS_KV: new LocalKV("stats") as unknown as KVNamespace,
     ENVIRONMENT: "local-dev",
     SPONSOR_PROXY_SURCHARGE_USD: "0.01",
+    // Execution is free by default (FAIR_COMPENSATION_BPS=0); this suite exercises the
+    // OPT-IN broker-markup lane, so it explicitly enables the historical 20% rate. The
+    // free default (no markup, pass-through) is covered by fair-compensation.test.ts and
+    // proxy-429-fallback.test.ts.
+    FAIR_COMPENSATION_BPS: "2000",
   } as Env;
 }
 
