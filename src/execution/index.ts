@@ -9,7 +9,8 @@ import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
 import { deriveSealKey } from "../values/signer.js";
 import { scanBundlesForRoutes } from "../capture/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
-import { LEDGER_NEUTRAL, ledgerEnergyCached } from "../lib/ranking-core/signals/ledger-energy.js";
+import { LEDGER_NEUTRAL } from "../lib/ranking-core/signals/ledger-energy.js";
+import { routeEnergy } from "../ranking/signals/learned-energy.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { selectMarketplacePublishEndpoints } from "../publish-admission.js";
 import { updateEndpointScore } from "../marketplace/index.js";
@@ -6949,14 +6950,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     else if (ep.verification_status === "pending") score -= 10;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
-    // === Ledger energy: the train-free "what-worked" back-off signal (EBM layer 1) ===
-    // P(success | domain, endpoint, source) from the layer-1 back-off statistic folded from
-    // the agent's own ledger (~/.unbrowse/traces). The layer-3 LEARNED contrastive head is
-    // moat IP and runs SERVER-SIDE only (rankEndpointsServerFirst → /v1/search/rank); the local
-    // client uses the train-free back-off alone as the degraded fallback (thin-client boundary).
-    // Centered on neutral so a route with no signal gets ZERO net effect. Disable with
-    // UNBROWSE_LEDGER_ENERGY=0.
-    score += (ledgerEnergyCached(skillDomain, ep.endpoint_id, ep.source) - LEDGER_NEUTRAL) * 80;
+    // === Route energy: blended what-worked signal ===
+    // routeEnergy blends layer-1 (the train-free P(success | domain, endpoint, source) back-off
+    // folded from the agent's own ledger, ~/.unbrowse/traces) with the layer-3 LEARNED head, which
+    // now travels to every runtime as a compiled-in, vocab-clean embedded head (loaded via the
+    // on-disk pointer when present, else the embedded fallback) — so the closed learned-ranker loop
+    // reaches CLI/npm/worker users, not just the server. The learned head generalises to COLD cells
+    // the back-off statistic is blind to. Centered on neutral so a no-signal route gets ZERO net
+    // effect. Disable with UNBROWSE_LEDGER_ENERGY=0.
+    score += (routeEnergy(skillDomain, ep.endpoint_id, (ep as { source?: string }).source, intent) - LEDGER_NEUTRAL) * 80;
 
     // === Domain affinity ===
     if (skillDomain) {
