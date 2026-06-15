@@ -187,3 +187,7 @@
 {"ts": "2026-06-15T09:24:50Z", "source": "live", "axis": "CAPABILITY_COVERAGE", "pass": 6, "fail": 1, "blocked": 0, "judged": 7, "coverage": 0.8571, "threshold": 0.8, "detail": "write=PASS auth_read=PASS auth_write=PASS security=PASS graphql=PASS coverage=PASS grpc=FAIL", "gate": "true"}
 {"ts": "2026-06-15T10:08:35Z", "source": "live", "axis": "x402", "protocol_tests": "PASS", "facilitator_config": "PASS", "settlement": "BLOCKED", "gate": "true"}
 {"ts": "2026-06-15T10:08:49Z", "source": "live", "axis": "x402", "protocol_tests": "PASS", "facilitator_config": "PASS", "settlement": "BLOCKED", "gate": "true"}
+{"ts": "2026-06-15T10:10:05Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "FAIL", "encrypted_at_rest": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T10:10:05Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "FAIL", "encrypted_at_rest": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T10:10:32Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:10:33Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
