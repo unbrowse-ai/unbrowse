@@ -4,7 +4,7 @@ Unbrowse is the **action engine of the internet** — the open-source action lay
 
 Most AI agents use the web the way a tired human would: open the page, wait for it to load, click through menus, fight popups, fill forms, wait again. Unbrowse learns the structured request path behind a site once, then reuses it — so the agent acts through the site's real APIs instead of pixel-clicking. When a site genuinely needs a real browser session (cookies, sign-in, redirect handling), Unbrowse keeps that browser context in the loop. Same permissions, less ceremony.
 
-It is also a **fair-compensation engine**: routes are a shared, maintained asset, and the people who index and keep them fresh are fairly compensated when those routes run. Unbrowse is open source, runs locally, and is [backed by NVIDIA Inception](https://www.nvidia.com/en-us/startups/).
+It is also a **fair-compensation engine**: routes are a shared, maintained asset, and the people who index and keep them fresh are fairly compensated when those routes run. Unbrowse is open source, runs locally, and is a member of the [NVIDIA Inception program](https://www.nvidia.com/en-us/startups/).
 
 This documentation is organised by who is reading it.
 
