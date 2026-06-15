@@ -191,3 +191,5 @@
 {"ts": "2026-06-15T10:10:05Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "FAIL", "encrypted_at_rest": "FAIL", "gate": "false"}
 {"ts": "2026-06-15T10:10:32Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
 {"ts": "2026-06-15T10:10:33Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:11:26Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:11:27Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
