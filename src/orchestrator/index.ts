@@ -14,7 +14,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { decomposeGraphqlEndpoint, decomposeGrpcEndpoint, decomposeJsonRpcEndpoint, decomposeFormEndpoint, decomposeXmlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { sealSkillSnapshotHoles } from "../values/storage-hole-bindings.js";
 import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
-import { deriveSealKey } from "../values/signer.js";
+import { deriveSealKey, deriveCommitmentKey } from "../values/signer.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
@@ -363,7 +363,7 @@ export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): stri
     // than write plaintext. Flag off (default) → behaviour unchanged.
     let toWrite: SkillManifest = skill;
     if (process.env.UNBROWSE_SEAL_STORAGE_HOLES === "1") {
-      try { toWrite = sealSkillSnapshotHoles(skill, deriveSealKey(), fsSealedBlobStore()); }
+      try { toWrite = sealSkillSnapshotHoles(skill, deriveSealKey(), deriveCommitmentKey(), fsSealedBlobStore()); }
       catch { return undefined; }
     }
     writeFileSync(target, JSON.stringify(toWrite), "utf-8");

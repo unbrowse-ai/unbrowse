@@ -291,6 +291,20 @@ export function deriveSealKey(): Uint8Array {
   }
 }
 
+// Commitment key — distinct domain-separated material so the ON-GRAPH commitment is a KEYED MAC
+// (HMAC under this key), not a bare hash. Without the wallet, an outsider who sees the shared graph
+// cannot brute-force a low-entropy value's commitment, nor link equal values across installs
+// (different wallet → different commitment for the same value). Deterministic per install.
+const COMMIT_INFO = Buffer.from("unbrowse/storage-hole-commitment/v1");
+export function deriveCommitmentKey(): Uint8Array {
+  const seed = ensureWalletKey();
+  try {
+    return new Uint8Array(hkdfSync("sha256", seed, SEAL_SALT, COMMIT_INFO, 32));
+  } finally {
+    safeZero(seed);
+  }
+}
+
 /**
  * Run `fn` with the raw 32-byte wallet seed loaded transiently, then zero it —
  * same posture as sign()/deriveSealKey(). Used to derive the per-layer wallet
