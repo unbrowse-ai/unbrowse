@@ -52,8 +52,7 @@ def test_api_path_is_step_invariant():
 
 def test_per_task_advantage_exceeds_the_per_call_floor():
     # the headline: on a representative real task the end-to-end advantage compounds
-    # WELL past the per-call 3.6x — recovering the field-measured >=30x faster and
-    # >=90x cheaper. The single-call figure is a floor, not the result.
+    # WELL past the per-call 3.6x. The single-call figure is a floor, not the result.
     adv = representative_advantage()
     assert adv["speedup"] >= 30.0
     assert adv["cost_ratio"] >= 90.0

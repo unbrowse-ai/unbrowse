@@ -16,10 +16,10 @@ Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows f
 
 That does not mean "the browser disappears everywhere." It means agent workflows can keep a browser-shaped interface while Unbrowse swaps repeated UI replay for route resolution and execution whenever it can.
 
-The practical performance pitch is:
+The practical performance claim should stay tied to the measured paper result:
 
-- on the API-native path, roughly ~30x faster
-- roughly ~90% cheaper than repeated browser execution
+- 3.6x mean speedup and 5.4x median speedup in the 94-domain warmed-cache benchmark
+- lower token use when the agent receives structured route data instead of rendered page text
 - reusable route assets instead of one-off browser work
 
 The closest alternatives are:
@@ -65,4 +65,3 @@ In practice it is a complete execution plan with:
 - route and schema knowledge
 - auth assumptions
 - refresh or replay behavior
-

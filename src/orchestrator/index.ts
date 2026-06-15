@@ -5425,6 +5425,73 @@ export async function resolveAndExecute(
         // Not a GraphQL endpoint (or unreachable) — fall through to the ladder.
       }
     }
+    // 1.6 Connect/gRPC unary endpoint detection — a Connect/gRPC service answers
+    // GET/HEAD with 405 (method not allowed) and has no HTML to extract, so the
+    // browser ladder just times out on it. The unary path shape is
+    // /<dotted.package>.<Service>/<Method>; the Connect protocol accepts a JSON
+    // POST. Probe with an empty JSON body: a Connect endpoint returns either a
+    // result message or a Connect error envelope ({code,message}) — both confirm
+    // it. Surface it as a POST target (two-call contract) instead of capturing.
+    if (context?.url) {
+      try {
+        const rpcUrl = new URL(context.url);
+        const isRpcPath = /\/[A-Za-z_][\w.]*\.[A-Za-z_]\w*\/[A-Za-z_]\w*\/?$/.test(rpcUrl.pathname);
+        if (isRpcPath) {
+          const rpcProbe = await fetch(context.url, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "connect-protocol-version": "1",
+              Accept: "application/json",
+            },
+            body: "{}",
+            signal: AbortSignal.timeout(12000),
+            redirect: "follow",
+          });
+          const rpcCt = rpcProbe.headers.get("content-type") ?? "";
+          if (rpcCt.includes("json")) {
+            const rpcJson = (await rpcProbe.json().catch(() => null)) as Record<string, unknown> | null;
+            // ok → the method ran on {} defaults; or a Connect error envelope
+            // {code,message} → the endpoint is real, the body just needs fields.
+            const looksConnect =
+              rpcJson != null && (rpcProbe.ok || (typeof rpcJson.code === "string" && "message" in rpcJson));
+            if (looksConnect) {
+              const trace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "grpc-endpoint",
+                endpoint_id: "grpc-unary",
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+                status_code: rpcProbe.status,
+              };
+              const grpcResult = {
+                status: "grpc_endpoint",
+                grpc_endpoint: context.url,
+                method: "POST",
+                protocol: "connect/grpc-web (JSON over POST)",
+                message:
+                  "This is a Connect/gRPC unary endpoint. POST a JSON body with the request message fields (Connect protocol over application/json; send header connect-protocol-version: 1).",
+                probe_response: rpcJson,
+                next_step:
+                  "POST a JSON request message to grpc_endpoint with content-type application/json and connect-protocol-version: 1.",
+              };
+              const t = finalize("direct-fetch", grpcResult, "grpc-endpoint", undefined as any, trace);
+              console.log(`[grpc] ${context.url} confirmed Connect/gRPC unary endpoint`);
+              return {
+                result: grpcResult,
+                trace,
+                source: "direct-fetch" as any,
+                skill: undefined as any,
+                timing: t,
+              };
+            }
+          }
+        }
+      } catch {
+        // Not a Connect/gRPC endpoint (or unreachable) — fall through to the ladder.
+      }
+    }
     // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
     // synthesize an answer directly from the web excerpts — no browser needed.
     if (viable.length === 0 && exaResults?.length) {

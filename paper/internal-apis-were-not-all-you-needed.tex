@@ -45,10 +45,9 @@ distribution is a
 security parameter rather than a marketing choice, and why a coordination asset
 launched for money cannot become trustworthy --- and equally explicit about the
 limit we have not closed, formal Sybil resistance~\cite{sybil}. Throughout we
-separate what is shipped in the product from what ships as a runnable, tested
-reference implementation and what remains a design, and we stop exactly where the
-capture engine begins~\cite{ossnotice}: this paper is the trust surface in full,
-not the moat.
+separate what is implemented in the product from what is available as runnable,
+tested reference code and what remains a design. We stop at the trust surface and
+do not publish the capture method itself~\cite{ossnotice}.
 \end{abstract}
 
 \section{Introduction: the maintenance problem, not the discovery problem}
@@ -223,11 +222,11 @@ to rot. Maintenance is the spacetime property, not the point one.
 We stop, deliberately, at \emph{what} the proof attests and never publish \emph{how}
 the index is produced. The proof commits to observable facts about the route --- it
 resolves, its schema matches, its fields are present --- which is all a verifier
-needs. The deep capture surface that does the indexing is the closed
-engine~\cite{ossnotice}, for the abuse reasons stated there; the boundary is the
-difference between giving agents a checkable freshness proof and handing out the
-machine that makes scraping cheap. The indexing capability the proof of indexing
-would certify is the live, closed capture surface, while
+needs. The private capture surface that does the indexing stays outside the public
+artifact~\cite{ossnotice}, for the abuse reasons stated there; the boundary is the
+difference between giving agents a checkable freshness proof and publishing the
+capture method. The indexing capability the proof of indexing would certify is the
+private capture surface, while
 the cryptographic proof itself ships as a runnable, tested reference
 (\texttt{reference/network/proof\_of\_indexing.py}) --- a content-addressed, signed,
 hash-chained attestation a stranger re-derives against the real content --- and the
@@ -530,12 +529,12 @@ that hides its weak axis is not one a stranger should trust. Where the substrate
 \emph{does} win head-to-head is adversarial retrieval past JavaScript-challenge
 anti-bot, reported in the companion security paper~\cite{security}.
 
-\section{What is shipped, what is referenced}
+\section{What is implemented, what is referenced}
 
 In the spirit of the companion papers~\cite{wedge,security} --- and of not selling a
-roadmap as a changelog --- we separate what runs in the product, what ships as
-runnable, tested reference code, and where deployment still stops. Live in the
-product today:
+roadmap as a changelog --- we separate what runs in the product, what is available
+as runnable, tested reference code, and where deployment still stops. Running in
+the product today:
 \begin{itemize}[leftmargin=1.4em]
 \item The live three-way split: every paid execution settles to the
 indexer, the domain owner, and the platform in one transaction over
@@ -551,8 +550,8 @@ Shipping as runnable, tested reference code:
 \item Proof of indexing: a content-addressed, signed, hash-chained
 attestation that a route was re-indexed against its live source, re-derivable by
 independent re-indexing~\cite{thegraph,filecoin2017}
-(\texttt{reference/network/\allowbreak proof\_of\_indexing.py}). The deep capture
-surface that produces the index is the live, closed engine~\cite{ossnotice}; the
+(\texttt{reference/network/\allowbreak proof\_of\_indexing.py}). The private capture
+surface that produces the index stays outside the public artifact~\cite{ossnotice}; the
 cryptographic proof is running, tested code, and production deployment of the bonded
 economics is the remaining step.
 \item Bonding, challenge, and slashing: the collateralised-accountability
@@ -601,15 +600,12 @@ actually happens. FDRY sits underneath all of it as the bonded, fairly-distribut
 security stake --- the asset that makes ``trust this route'' a claim with collateral
 behind it, not a hope.
 
-We have told this as the \emph{what} throughout, and stopped exactly where the
-\emph{how} begins. The primitives that make route discovery cheap and the graph
-fresh are closed by design~\cite{ossnotice}, for the abuse reasons stated there ---
-the boundary is not secrecy for its own sake but the difference between giving agents
-real APIs and handing out an unattributed scraping fleet. Internal APIs were a great
-first layer. The maintained, attributed, bonded graph above them --- kept fresh,
-paid for in proportion to the value it creates, and underwritten by an asset that
-had to be kept clear of money before it could be trusted with it --- is the layer that
-was never all you needed, and is the one worth building.
+We have told this as the \emph{what} throughout, and stopped before the private
+capture \emph{how}. That boundary is not secrecy for its own sake; it is the
+difference between giving agents checkable route contracts and publishing a method
+that could be turned into an unattributed scraping fleet. Internal APIs are a useful
+first layer. The maintained, attributed, bonded graph above them --- kept fresh and
+paid for in proportion to the value it creates --- is the next layer we are building.
 
 \begin{thebibliography}{99}
 

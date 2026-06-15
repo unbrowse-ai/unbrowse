@@ -1,5 +1,5 @@
 """Key mobility and the public boundary — the identity-exposure rule of
-*Internal APIs Were Not All You Needed*.
+*Crypto Was All You Needed*.
 
 One Ed25519/Solana root owns the whole layer stack (see layers/descent.py). This
 module states the asymmetry that makes exposing that single root safe. The

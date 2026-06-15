@@ -1,10 +1,8 @@
 /**
  * Inline decision_trace mini-terminal for the hero.
  *
- * Shows a real unbrowse resolve output to satisfy unicorn-pattern #4
- * (product in hero) and reinforce the 100x speed claim (487ms ≈ 1/100th
- * of the 30s headless browser cost). Static render: no JS, no animation
- * cost on the LCP path.
+ * Shows a real unbrowse resolve output in the hero. Static render: no JS, no
+ * animation cost on the LCP path.
  *
  * Visual aesthetic matches the install terminal below: orange border,
  * #060402 bg, mono font, archival eyebrow.

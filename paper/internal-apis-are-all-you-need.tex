@@ -44,11 +44,12 @@ and executes against the live site without a browser. We frame the economics as 
 single adoption condition --- a cost-minimising agent reuses a shared route if and
 only if the route fee undercuts the cost of rediscovering it --- and settle paid
 execution over x402 so the indexer who mapped a route, the platform, and the site
-owner are all compensated in one transaction. Across 94 live domains we measure a
+owner can be compensated in one transaction. Across 94 live domains we measure a
 \textbf{3.6$\times$ mean} and \textbf{5.4$\times$ median} speedup over a
 browser-automation baseline, with a best single-domain speedup of $30\times$. The
-short version: for the overwhelming majority of agent web tasks, internal APIs are
-all you need.
+short version: when a website already exposes a stable first-party route behind
+its UI, that route should be the agent's first interface and the browser should be
+the fallback.
 \end{abstract}
 
 \section{Introduction}
@@ -61,11 +62,11 @@ Browser-first agent architectures recover that request the expensive way: they
 render the whole page, run its JavaScript, and observe the resulting network
 traffic, paying a full browser's latency and token cost on every call.
 
-We make one claim and try not to oversell it: for the overwhelming majority of
-agent web tasks, the browser is unnecessary overhead, because the first-party
-endpoint behind the page --- the \emph{shadow API} --- can be learned once and
-replayed by any later agent. The discovery cost should be paid a single time and
-amortised across all callers, not re-paid on every visit. This paper presents
+We make one claim and try not to oversell it: for many repeatable agent web
+tasks, the browser is unnecessary overhead once the first-party endpoint behind
+the page --- the \emph{shadow API} --- has been learned and verified fresh. The
+discovery cost should be paid once per route and amortised across later callers,
+not re-paid on every visit. This paper presents
 Unbrowse, a system built on that observation, and makes three contributions:
 \begin{enumerate}[leftmargin=1.6em]
   \item A passive route-discovery pipeline that learns callable interfaces from
@@ -281,30 +282,28 @@ compounding context. Accounting for this honestly, \emph{the per-call figure is 
 lower bound, not the end-to-end advantage}: the per-task cost is the per-call cost
 multiplied by the task's click count, its failure-retry factor, and its token
 compounding. On a representative task (ten interactions, three DOM reads, an 80\%
-per-step success rate) the model recovers $\approx$45$\times$ faster and
-$\approx$300$\times$ fewer tokens end-to-end, bracketing the field-measured
-$\approx$30$\times$ faster / $\approx$90$\times$ cheaper headline. We ship this as a
-deterministic, runnable reference (\texttt{reference/bench/task\_cost.py}) so the
-compounding is provable arithmetic rather than a marketing multiplier.
+per-step success rate) the model shows why multi-step browser tasks can exceed the
+single-call speedup by a large margin. We ship this as a deterministic, runnable
+reference (\texttt{reference/bench/task\_cost.py}) so the compounding is provable
+arithmetic rather than a marketing multiplier.
 
 \section{Discussion}
 The first-party API is not always present (some surfaces are genuinely
 render-bound), and a learned route can drift. Unbrowse treats both honestly: the
 browser remains the bottom of a descent for the render-bound minority, and the
-lifecycle demotes drifting routes. What the wedge buys is the common case, which is
-most of the web: a structured request the site already makes, recovered once and
-shared. Two questions it deliberately leaves open --- securing the descent below
-HTTP, and keeping the shared graph trustworthy as it scales --- are the subjects of
-the two companion papers.
+lifecycle demotes drifting routes. What the wedge buys is the common case in the
+measured benchmark and in many modern web applications: a structured request the
+site already makes, recovered once and shared. Two questions it deliberately leaves
+open --- securing the descent below HTTP, and keeping the shared graph trustworthy
+as it scales --- are the subjects of the two companion papers.
 
 \section{Conclusion}
 The graph is the asset. Every site an agent automates today is re-discovered from
 scratch, per agent, per call --- the browser tax paid over and over. Turning that
-one-off rediscovery into a shared, reusable route graph removes the tax and makes
-maintenance, not discovery, the place value compounds. Internal APIs are most of
-what an agent needs to read and act on the web, and for that majority they are, in
-the affectionate sense of the title, all you need. They are also not the whole
-stack: securing the layers below HTTP is \emph{Crypto Was All You
+one-off rediscovery into a shared, reusable route graph reduces that tax and makes
+maintenance, not discovery, the place value compounds. Internal APIs carry a large
+part of repeatable web-agent work when they are present and fresh. They are not
+the whole stack: securing the layers below HTTP is \emph{Crypto Was All You
 Needed}~\cite{security}, and keeping the graph fresh and bonded is the
 \emph{Unbrowse Maintenance Network}~\cite{maintenance}. This paper is the wedge they
 stand on.

@@ -1,5 +1,5 @@
 """Zero-knowledge credential binding — the central new claim of
-*Internal APIs Were Not All You Needed*: prove that a credential (cookie, API
+*Crypto Was All You Needed*: prove that a credential (cookie, API
 token, keychain entry) is bound to the wallet WITHOUT revealing the credential.
 
 Construction (a textbook, sound, runnable NIZK):

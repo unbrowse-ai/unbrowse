@@ -12,7 +12,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Unbrowse — Turn any website into API skills for AI agents",
   description:
-    "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+    "Unbrowse learns first-party website routes so AI agents can make direct calls when a route is known, with browser fallback when it is not.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Unbrowse — Turn any website into API skills for AI agents",
     description:
-      "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "Unbrowse learns first-party website routes so AI agents can make direct calls when a route is known, with browser fallback when it is not.",
     url: "https://www.unbrowse.ai",
     siteName: "Unbrowse",
     type: "website",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     site: "@getFoundry",
     title: "Unbrowse — Turn any website into API skills for AI agents",
     description:
-      "Stop automating headless browsers. Unbrowse turns website APIs into reusable routes so AI agents make direct calls. 100x faster, 40x fewer tokens.",
+      "Unbrowse learns first-party website routes so AI agents can make direct calls when a route is known, with browser fallback when it is not.",
     images: ["https://www.unbrowse.ai/og-image.png"],
   },
   other: {
@@ -120,7 +120,7 @@ export default function RootLayout({
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
-                "Unbrowse turns any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
+                "Unbrowse turns known first-party website routes into reusable skills for AI agents, with browser fallback on misses.",
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
@@ -138,7 +138,7 @@ export default function RootLayout({
               "@type": "SoftwareApplication",
               name: "Unbrowse",
               description:
-                "Reverse-engineer any website into reusable API skills for AI agents. Auto-discovers undocumented website APIs and converts them to clean, direct API calls.",
+                "Learns first-party website routes into reusable API skills for AI agents and keeps browser automation as the fallback path.",
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "macOS, Linux, Windows",
@@ -157,10 +157,10 @@ export default function RootLayout({
                 url: "https://www.unbrowse.ai",
               },
               featureList: [
-                "Auto-discovers undocumented website APIs",
-                "100x faster than headless browsers (50-200ms vs 5-30s)",
-                "40x fewer tokens (200 vs 8000 per page)",
-                "Shared marketplace of captured endpoints across 600+ domains",
+                "Learns first-party website routes from real browsing",
+                "3.6x mean and 5.4x median speedup in the 94-domain paper benchmark",
+                "Structured route responses reduce token-heavy page parsing",
+                "Shared marketplace of captured and maintained endpoint routes",
                 "Plugs into OpenClaw, Claude Desktop, Cursor, Codex, and any MCP-aware framework",
                 "Self-hosted Postgres backend with pgvector (provider-agnostic)",
               ],

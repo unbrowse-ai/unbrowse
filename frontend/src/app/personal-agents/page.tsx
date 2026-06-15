@@ -3,13 +3,13 @@ import Link from "next/link";
 
 const TITLE = "Your Personal Agent Is 3.6x Slower Than It Should Be";
 const SUBTITLE =
-  "One plugin gives your OpenClaw agent instant API access to any website — no browser needed.";
+  "One plugin lets your OpenClaw agent try known first-party routes before falling back to a browser.";
 const CANONICAL_PATH = "/personal-agents";
 const PUBLISHED_AT = "2026-04-02";
 const ARXIV_URL = "https://arxiv.org/abs/2604.00694";
 const INSTALL_CMD = "openclaw plugins install unbrowse-openclaw";
 
-const description = `Personal AI agents spend 80% of their time waiting for web pages to load — rendering pixels they will never see, parsing DOM they do not need, burning API credits on vision tokens. The websites your agent visits already have clean JSON APIs behind their UI. The Unbrowse plugin for OpenClaw gives your agent direct access to those APIs. 3.6x faster, 106x cheaper, zero browser overhead.`;
+const description = `Personal AI agents waste time when every web task starts with browser rendering. Many websites already call structured first-party routes behind their UI. Unbrowse lets an OpenClaw agent try a known route first and fall back to the browser when needed; in the 94-domain paper benchmark, warmed cached routes averaged a 3.6x mean speedup over Playwright.`;
 
 const examples = [
   {
@@ -42,27 +42,27 @@ This is like printing a spreadsheet, taking a photo of it, and using OCR to get 
     title: "What the Unbrowse plugin actually does",
     body: `When your OpenClaw agent gets a web task — "find me flights to Tokyo" or "check my GitHub notifications" — the Unbrowse plugin intercepts it before the browser launches. It checks a shared index of known API routes. If a route exists (and for popular sites, it almost always does), your agent gets clean JSON data back in under 100 milliseconds. No browser. No screenshots. No vision tokens.
 
-If no route exists yet, the plugin falls back to normal browser automation. But here is the key part: while the browser runs, Unbrowse captures the routes the website uses, maps their schemas, and publishes them to the shared index. The next agent that hits the same site gets instant API access.
+If no route exists yet, the plugin falls back to normal browser automation. While the browser runs, Unbrowse can capture the routes the website uses, map their schemas, and publish a sanitized route contract to the shared index. A later agent can reuse that route if it is still valid.
 
-One person browses Airbnb. Every agent after that gets the API route for free.`,
+One person maps a useful route. Later agents can try that route first instead of starting from the browser every time.`,
   },
   {
     title: "Why this matters for personal agents",
-    body: `Personal agents are different from enterprise automation, because every wasted token comes out of your pocket. You run them on your own machine, often with local models, paying per call. Browser automation alone burns roughly $0.53 per action when you add compute, vision tokens, and the LLM calls needed to interpret screenshots, against $0.005 for a cached API hit. The gap is 106x, and it shows up directly on your bill.
+    body: `Personal agents are different from enterprise automation, because every wasted token comes out of your pocket. You run them on your own machine, often with local models, paying per call. Browser automation spends tokens interpreting pages and screenshots; a known route can return structured data instead.
 
-Run twenty web tasks a day and the difference is concrete: about $10.60 daily through a browser, or $0.10 through Unbrowse. Over a month, that is $318 versus $3, on the same workload. Cost is the throttle on how often you actually let your agent work for you, so closing the gap turns "ask sometimes" into "run all day".`,
+The point is not that every site is already solved. The point is that repeated browser discovery should not be paid again when a fresh route already exists.`,
   },
   {
-    title: "40x fewer tokens — critical for local models",
+    title: "Structured responses help local models",
     body: `If you are running your agent on a local model — Llama, Mistral, Phi, or anything else that fits on your hardware — context window is everything. Browser automation burns through your context window at an alarming rate. A single page screenshot converted to text can consume 8,000 to 15,000 tokens. Your model's entire context window might only be 32K or 64K tokens.
 
-Unbrowse returns structured JSON that typically uses 200 to 400 tokens. That means your local model can handle 40 times more web interactions before hitting its context limit. For multi-step tasks like "research flights, compare prices, and book the cheapest one," this is the difference between completing the task and running out of context halfway through.`,
+A known route can return structured JSON instead of a whole page. For multi-step tasks like "research flights, compare prices, and book the cheapest one," that is often the difference between keeping the model focused on the task and filling the context with page chrome.`,
   },
   {
     title: "Routes are shared — the network gets smarter",
-    body: `Every Unbrowse user contributes to the shared route graph. When someone browses a new website, the API routes they discover become available to every other agent on the network. Right now, the index covers hundreds of popular sites with thousands of verified API endpoints.
+    body: `Every Unbrowse user can contribute to the shared route graph. When someone maps a useful website route and publishes the sanitized contract, later agents can try that route before falling back to a browser.
 
-This creates a flywheel: more users means more routes discovered, which means more cache hits, which means faster agents, which means more users. The most popular sites — the ones your agent visits most often — are the ones with the best coverage.
+This creates a practical flywheel: useful routes get reused, reused routes get maintained, and stale routes get demoted instead of being treated as permanent wins.
 
 And with x402 micropayments, your agent can earn USDC when other agents use routes it discovered. Your browsing session on a niche site becomes passive income every time another agent hits those routes.`,
   },
@@ -71,9 +71,9 @@ And with x402 micropayments, your agent can earn USDC when other agents use rout
 const stats = [
   { value: "3.6x", label: "mean speedup over Playwright" },
   { value: "5.4x", label: "median speedup" },
-  { value: "106x", label: "cheaper per action" },
-  { value: "40x", label: "fewer tokens per task" },
-  { value: "<100ms", label: "cached route response" },
+  { value: "route", label: "first when known" },
+  { value: "browser", label: "fallback on miss" },
+  { value: "fresh", label: "routes must validate" },
   { value: "94", label: "domains benchmarked" },
 ];
 

@@ -25,14 +25,14 @@ and it is already half-built into the repo's honest split. We make it whole.
 | Paper | What it is | Where | Status |
 |---|---|---|---|
 | **1 — the wedge** | *Internal APIs Are All You Need.* Shared route graph; ~3.6× latency win; three-tier x402 split; delta attribution; 94 domains. Stands alone, needs no token. | arXiv:2604.00694v1 | **[shipped]** / published |
-| **2 — the descent** | *Internal APIs Were Not All You Needed.* **Security / auth / privacy only** (separation of concerns): one Ed25519/Solana key signs every layer (screen→browser→CLI→OS→kernel→packet); ZK credential binding; content-addressed cache sealed-unless-revealed; value-off-chain/root-on-chain hash-chained ledger; threat model. The bonded/economic/token layer is forward-pointed to Paper 3, not carried here (no CA, no FDRY economics in this paper). | `paper/crypto-was-all-you-needed.tex` (+ `.pdf`) | **rewritten**; gates exit 0; push held |
+| **2 — the descent** | *Crypto Was All You Needed.* **Security / auth / privacy only** (separation of concerns): one Ed25519/Solana key signs every layer (screen→browser→CLI→OS→kernel→packet); ZK credential binding; content-addressed cache sealed-unless-revealed; value-off-chain/root-on-chain hash-chained ledger; threat model. The bonded/economic/token layer is forward-pointed to Paper 3, not carried here (no CA, no FDRY economics in this paper). | `paper/crypto-was-all-you-needed.tex` (+ `.pdf`) | **rewritten**; gates exit 0; push held |
 | **3 — the network** | *Unbrowse Maintenance Network.* The whole maintenance economy: **proof of indexing** as the verifiable freshness primitive the bond secures (cited to The Graph's POI + Filecoin PoRep/PoSt), bonded/challenge/slash accountability, trust tiers, delta attribution, and the Grain-of-Wheat token doctrine. Names CA. Cited as ref [3] across Papers 1–2. | `paper/internal-apis-were-not-all-you-needed.tex` (+ `.pdf`) | **rewritten**; gates exit 0; push held |
 
 Supporting doctrine already in the repo (reuse, do not re-derive): `docs/vision.md`
 (prove the wedge first; the user never holds an asset), `docs/THE_FDRY_ECONOMY.md`
 (Matt 6:24 — USDC pays, FDRY only bonds; Vine Doctrine; NAV-by-abiding),
 `docs/HOW_UNBROWSE_PAYS.md` (50/35/15 split), `docs/covenant-internet-layer.md`,
-`docs/OPEN-SOURCE-NOTICE.md` (the moat boundary of record), `paper/anchors.tsv`
+`docs/OPEN-SOURCE-NOTICE.md` (the closed-surface boundary of record), `paper/anchors.tsv`
 (claim→code map for the gate).
 
 ## What's left (the gap we plan against)
@@ -137,7 +137,7 @@ margin. On failure: repent, re-cost the graph, re-walk.
 1. **Paper reflects code.** Every `[shipped]`/`\impl{}` claim maps to a real anchor
    in `paper/anchors.tsv`. A shipped claim with no anchor fails `paper-gate.sh`.
    `[proposed]` may be described freely but must be labelled.
-2. **No moat leak.** No economic constant, capture/RE engine internal, or operator
+2. **No closed-surface leak.** No economic constant, capture/RE engine internal, or operator
    surface in any public artifact (`scripts/leak-guard.sh`). The public papers tell
    the trust/economic *story* (routing, execution-as-payment-surface, website
    wallets, bonded trust) — the WHAT, never the HOW. Moat boundary of record:
@@ -152,7 +152,7 @@ margin. On failure: repent, re-cost the graph, re-walk.
       read end-to-end), 6 doctrine docs, `anchors.tsv`, `leak-guard.sh`.
 - [x] Grain-of-Wheat doctrine written, all 5 verses verified verbatim from
       `~/.claude/bible` (John 12:24, Matt 6:3-4, Mark 4:27-28, Luke 9:24, Matt 6:24).
-- [x] leak-guard green; no moat term in `paper/CLAUDE.md`.
+- [x] leak-guard green; no closed-surface term in `paper/CLAUDE.md`.
 - [x] Paper 3 outline + draft (nodes 4-5).
 - [x] Gates green on the new artifacts (node 7).
 

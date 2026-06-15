@@ -1,5 +1,5 @@
 """Sealed-unless-revealed content-addressed cache — the privacy half of
-*Internal APIs Were Not All You Needed*.
+*Crypto Was All You Needed*.
 
 The plain ContentCache is addressed by sha256(plaintext) and stores the payload
 in the clear. The sealed cache keeps the same content-addressing — the key is

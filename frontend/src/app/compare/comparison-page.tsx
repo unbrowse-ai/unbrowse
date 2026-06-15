@@ -92,7 +92,7 @@ export function ComparisonPage({
         name: `What is the difference between Unbrowse and ${competitor.name}?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `${competitor.what} Unbrowse takes a fundamentally different approach: it maps the internal API routes websites already use and lets AI agents call them directly. In benchmarks across 94 domains, Unbrowse is 3.6x faster (mean) and uses 40x fewer tokens than browser automation.`,
+          text: `${competitor.what} Unbrowse takes a different approach: it learns the first-party routes websites already use and lets AI agents call a known fresh route directly. In the 94-domain paper benchmark, warmed cached routes averaged a 3.6x mean speedup over Playwright.`,
         },
       },
       {
@@ -235,14 +235,12 @@ export function ComparisonPage({
               first place. Working at the API layer skips the entire detour.
             </p>
             <p>
-              Unbrowse captures those internal endpoints from one real browsing
-              session, maps their schemas and auth, and stores them
-              as reusable skills in a shared marketplace of 600+ domains and
-              18,000+ endpoints. The next call from any agent skips discovery
-              and runs as a direct HTTP request, returning JSON in roughly 200
-              tokens instead of 8,000. The shared registry is the difference
-              between every team paying the rendering tax and every team
-              paying it once.
+              Unbrowse captures first-party endpoints from real browsing,
+              maps their schemas and auth, and stores reusable route skills in
+              a shared marketplace. When a fresh route exists, the next call
+              can skip rediscovery and run as a direct HTTP request. When it
+              does not, the browser path stays available and the miss is
+              recorded as a miss.
             </p>
           </div>
         </section>

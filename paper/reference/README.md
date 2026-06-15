@@ -1,6 +1,6 @@
 # Reference implementation — every claim of the trilogy, as runnable code
 
-This is the runnable core of *Internal APIs Were Not All You Needed* and *Unbrowse
+This is the runnable core of *Crypto Was All You Needed* and *Unbrowse
 Maintenance Network*. Every `[reference]` (`\refimpl{}`) claim in the papers maps to
 a module here, and every module is exercised by a test that proves one whitepaper
 sentence. `MANIFEST.tsv` is the claim↔code↔test ledger; `scripts/papers-done-gate.sh`

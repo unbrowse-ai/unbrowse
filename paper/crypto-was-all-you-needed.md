@@ -117,7 +117,7 @@ browser via curl-impersonate , matching exactly the JA3/JA4 signature
 the other side is keying on . The browser, CLI, and HTTP layers and the
 fingerprint-faithful fetch run in the product, and the uniform *signed
 descent through every layer* (screen $`\to`$ browser $`\to`$ CLI $`\to`$
-OS $`\to`$ kernel $`\to`$ packet) ships in production:
+OS $`\to`$ kernel $`\to`$ packet) is implemented in the product:
 `src/values/signed-descent.ts` signs one wallet root once and threads a
 hash-chained, per-layer signature down the whole stack, with tests that
 any tampered or reordered layer fails to verify. Ownership is vertical
@@ -285,7 +285,7 @@ Pedersen commitments  give the “commit now, open later, can’t lie about
 it” primitive for a single secret. Together they make the binding a
 two-witness corroboration that betrays nothing: the chain sees *that* a
 credential is bound, never *what* it is. This is the central
-contribution, and the primitive now ships in production:
+contribution, and the primitive now is implemented in the product:
 `src/values/zk-binding.ts` implements the same non-interactive Schnorr
 proof (Fiat–Shamir over a 2048-bit MODP group) that proves a credential
 is *bound to the wallet without revealing* it — the wallet signs
@@ -525,11 +525,11 @@ sealed, content-addressed commitment is asymptotically cheaper to
 re-read than to re-derive, which is what makes the cache safe to lean on
 rather than merely fast.
 
-#### The descent reaches the network interface, shipped.
+#### The descent reaches the network interface.
 
 The security discipline is only as deep as its lowest layer, so we are
 concrete about the bottom of the descent. The fingerprint-faithful fetch
-is not a diagram: it ships as the orchestrator’s curl-impersonate fetch
+is not only a diagram: it is implemented as the orchestrator’s curl-impersonate fetch
 (`src/capture/curl-impersonate-fallback.ts`) backed by a vendored uTLS
 CONNECT-proxy daemon (`src/cdp/proxy/utls-daemon.ts`) across four
 platforms (darwin/linux $`\times`$ amd64/arm64), so the agent’s TLS
@@ -707,7 +707,7 @@ while discovery and internal-API routing stay free. Residual: the free
 tier is, by design, free to consume; the payment gate sits at execution,
 which is where the cost actually lands.
 
-#### (A5) The exfiltrator of the moat.
+#### (A5) The public-boundary leak.
 
 An adversary — or an honest contributor by accident — leaks the closed
 capture/integrity engine into a public artifact. Resisted mechanically,
@@ -728,14 +728,14 @@ is not misled by silence.
 # What is built, what is referenced (no fabricated green)
 
 In the spirit of not selling a roadmap as a changelog, we separate what
-runs in the product, what ships as runnable code, and where the work
+runs in the product, what is available as runnable code, and where the work
 stops:
 
 - In the product: Intent $`\to`$ route resolve $`\to`$ execute; live
   browser capture; HTTP fetch with browser-faithful TLS fingerprinting;
   wallet-signed admission; route/endpoint caching.
 
-- The cross-layer security primitives now ship in production, each with
+- The cross-layer security primitives are implemented, each with
   tests that execute the claim: the signed descent through every layer
   with vertical wallet ownership (`src/values/signed-descent.ts`,
   `src/values/wallet-hierarchy.ts`,
@@ -768,7 +768,7 @@ stops:
   descent across platforms remain integration work, honestly labelled.
 
 - Zero-edit drop-in replacements for the libraries an agent would
-  otherwise reach for ship as packages backed by the route graph: an
+  otherwise reach for exist as packages backed by the route graph: an
   `exa-py` drop-in (`packages/py-exa`) and a `browser-use` drop-in
   (`packages/py-browser-use`), each providing the upstream’s public
   surface so a single import swap routes the call through Unbrowse

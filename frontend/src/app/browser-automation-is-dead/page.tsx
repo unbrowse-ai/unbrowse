@@ -7,7 +7,7 @@ const CANONICAL_PATH = "/browser-automation-is-dead";
 const PUBLISHED_AT = "2026-04-02";
 const ARXIV_URL = "https://arxiv.org/abs/2604.00694";
 
-const description = `Every AI agent web action pays a hidden $0.53 tax -- the cost of launching a browser, rendering pixels, and converting structured data back into structured data. Across 94 domains, direct API calls achieved 3.6x mean speedup, 106x cost reduction, and eliminated 500 MB RAM per instance. Browser automation for AI agents is architecturally wrong. Internal APIs replace it.`;
+const description = `Browser-first agent work often pays for rendering and page parsing when the structured route already exists underneath. Across 94 domains in the paper benchmark, warmed cached routes averaged a 3.6x mean speedup over Playwright. The browser should be the fallback, not the default tax.`;
 
 export const metadata: Metadata = {
   title: `${TITLE} | Unbrowse`,
@@ -176,9 +176,9 @@ export default function BrowserAutomationIsDeadPage() {
               <div className="text-xs text-text-secondary mt-1">(5.4x median, 30x best case)</div>
             </div>
             <div className="rounded-2xl border border-border bg-surface-sunken p-6 text-center">
-              <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-1">106x</div>
-              <div className="text-sm text-text-secondary font-medium">Cost reduction</div>
-              <div className="text-xs text-text-secondary mt-1">$0.53 browser vs $0.005 cached</div>
+              <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-1">route</div>
+              <div className="text-sm text-text-secondary font-medium">first when known</div>
+              <div className="text-xs text-text-secondary mt-1">browser fallback on miss</div>
             </div>
             <div className="rounded-2xl border border-border bg-surface-sunken p-6 text-center">
               <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-1">100%</div>
@@ -188,7 +188,7 @@ export default function BrowserAutomationIsDeadPage() {
           </div>
 
           <p className="text-base sm:text-lg leading-8 text-text-secondary mb-4">
-            Every agent web action through a browser costs roughly $0.53 when you account for compute, LLM tokens for visual grounding, and wall-clock time. The same action through a cached API call costs $0.005. That is a 106x difference.
+            Every agent web action through a browser pays for rendering, page state recovery, and model attention over material the agent may not need. A known fresh route can return the structured data directly; an unknown route should fall back to the browser and be recorded honestly.
           </p>
           <p className="text-base sm:text-lg leading-8 text-text-secondary">
             At scale, this is not an optimization. It is the difference between a viable product and one that burns through its runway on rendering taxes.
@@ -337,7 +337,7 @@ export default function BrowserAutomationIsDeadPage() {
         {/* --- The Benchmark --- */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold tracking-tight mb-4">
-            94 domains. 100% win rate.
+            94 live domains. Warmed cached routes.
           </h2>
           <p className="text-base sm:text-lg leading-8 text-text-secondary mb-6">
             We benchmarked Unbrowse against Playwright across 94 live production websites. Not synthetic test pages &mdash; real sites with real authentication, real JavaScript rendering, real API complexity.
@@ -349,9 +349,9 @@ export default function BrowserAutomationIsDeadPage() {
               <li><strong className="text-text-primary">3.6x mean speedup</strong> across all domains (warmed-cache execution: 950 ms vs 3,404 ms)</li>
               <li><strong className="text-text-primary">5.4x median speedup</strong> &mdash; the median tells a better story because outlier browser latency skews the mean</li>
               <li><strong className="text-text-primary">30x best-case speedup</strong> on domains with heavy JavaScript rendering</li>
-              <li><strong className="text-text-primary">106x cost reduction</strong> per task ($0.53 browser vs $0.005 cached API)</li>
-              <li><strong className="text-text-primary">100% win rate</strong> &mdash; Unbrowse was faster on every single domain tested</li>
-              <li><strong className="text-text-primary">500 MB RAM eliminated</strong> per concurrent instance (no browser process needed for cached calls)</li>
+              <li><strong className="text-text-primary">Lower token load</strong> when structured route data replaces rendered page text</li>
+              <li><strong className="text-text-primary">Browser fallback remains</strong> for misses, stale routes, and auth flows that need live state</li>
+              <li><strong className="text-text-primary">No browser process for cached calls</strong> when a known fresh route can answer the task</li>
               <li><strong className="text-text-primary">Cold-start discovery: 12.4s average</strong>, amortized within 3-5 reuses</li>
             </ul>
           </div>

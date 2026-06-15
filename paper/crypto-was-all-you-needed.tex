@@ -1,7 +1,7 @@
 \documentclass[11pt]{article}
 
 % =====================================================================
-% Crypto Was All You Needed (formerly "Internal APIs Were Not All You Needed")
+% Crypto Was All You Needed
 % The signed sovereign computation stack — Unbrowse, ZK identity, fair settlement.
 % =====================================================================
 
@@ -38,8 +38,9 @@ does not depend on the joke.} Every layer is signed by one Ed25519 wallet key;
 credentials are bound to that identity by zero-knowledge proof and revealed only
 under signature; every intermediate result is content-addressed and cached, with
 the signed commitment appended to a hash-chained ledger (value off-chain, root
-on-chain); and nothing leaves any layer unsigned. We cite an established primitive
-for each layer rather than inventing one; the contribution is their
+on-chain); and no accepted transition crosses a layer boundary without a signed
+commitment. We cite an established primitive for each layer rather than inventing
+one; the contribution is their
 \emph{composition} into a single signed identity that owns the whole descent. Route
 discovery --- turning a per-call browser tax into a shared, reusable route graph
 --- is an orthogonal result established separately~\cite{wedge}; this paper is the
@@ -330,7 +331,7 @@ Pedersen commitments~\cite{pedersen} give the ``commit now, open later, can't li
 about it'' primitive for a single secret. Together they make the binding a
 two-witness corroboration that betrays nothing: the chain sees \emph{that} a
 credential is bound, never \emph{what} it is. This is the central
-contribution, and the primitive now ships in production: \texttt{src/values/zk-binding.ts}
+contribution, and the primitive is implemented in the product: \texttt{src/values/zk-binding.ts}
 implements the same non-interactive Schnorr proof (Fiat--Shamir over a 2048-bit MODP
 group) that proves a credential is \emph{bound to the wallet without revealing} it ---
 the wallet signs $y=g^{x}$ where $x$ is derived from the credential, and a holder
@@ -542,9 +543,10 @@ network or the browser --- and it establishes exactly one thing: a sealed,
 content-addressed commitment is asymptotically cheaper to re-read than to
 re-derive, which is what makes the cache safe to lean on rather than merely fast.
 
-\paragraph{The descent reaches the network interface, shipped.} The security
+\paragraph{The descent reaches the network interface.} The security
 discipline is only as deep as its lowest layer, so we are concrete about the bottom
-of the descent. The fingerprint-faithful fetch is not a diagram: it ships as the
+of the descent. The fingerprint-faithful fetch is not only a diagram: it is
+implemented as the
 orchestrator's curl-impersonate fetch (\texttt{src/capture/curl-impersonate-fallback.ts})
 backed by a vendored uTLS CONNECT-proxy daemon (\texttt{src/cdp/proxy/utls-daemon.ts})
 across four platforms (darwin/linux $\times$ amd64/arm64), so the agent's TLS
@@ -689,7 +691,7 @@ The \emph{verb} atom binds payment to the act: an unpaid \texttt{execute} gets H
 Residual: the free tier is, by design, free to consume; the payment gate sits at
 execution, which is where the cost actually lands.
 
-\paragraph{(A5) The exfiltrator of the moat.} An adversary --- or an honest
+\paragraph{(A5) The public-boundary leak.} An adversary --- or an honest
 contributor by accident --- leaks the closed capture/integrity engine into a public
 artifact. Resisted mechanically, not by policy: \texttt{leak-guard.sh} and
 \texttt{paper-gate.sh} run in release CI and fail the build if a sensitive term or
@@ -706,12 +708,12 @@ silence.
 \section{What is built, what is referenced (no fabricated green)}
 
 In the spirit of not selling a roadmap as a changelog, we separate what runs in the
-product, what ships as runnable code, and where the work stops:
+product, what is available as runnable code, and where the work stops:
 \begin{itemize}[leftmargin=1.4em]
 \item In the product: Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
 fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
 route/endpoint caching.
-\item The cross-layer security primitives now ship in production, each with
+\item The cross-layer security primitives are implemented, each with
 tests that execute the claim: the signed descent through every layer with vertical
 wallet ownership (\texttt{src/values/signed-descent.ts}, \texttt{src/values/wallet-hierarchy.ts},
 \texttt{src/values/layer-wallet-descent.ts}), ZK credential binding --- the central
@@ -740,7 +742,7 @@ on-chain deployment of the checkpoint root, the ERC-8004 registry binding, and a
 real signed OS/kernel/packet descent across platforms remain integration work,
 honestly labelled.
 \item Zero-edit drop-in replacements for the libraries an agent would
-otherwise reach for ship as packages backed by the route graph: an \texttt{exa-py}
+otherwise reach for exist as packages backed by the route graph: an \texttt{exa-py}
 drop-in (\texttt{packages/py-exa}) and a \texttt{browser-use} drop-in
 (\texttt{packages/py-browser-use}), each providing the upstream's public surface so a
 single import swap routes the call through Unbrowse instead.

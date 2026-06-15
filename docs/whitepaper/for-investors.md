@@ -15,8 +15,8 @@ That works because buyers already understand the browser slot in the stack. The 
 Publicly, the sharp version is:
 
 - drop-in replacement for browser automation in agent stacks
-- roughly ~30x faster on the API-native path
-- roughly ~90% cheaper than repeating the browser loop
+- 3.6x mean speedup and 5.4x median speedup in the 94-domain warmed-cache benchmark
+- lower token use when structured route data replaces page dumps
 - turns repeated browser work into reusable route assets instead of pure execution cost
 
 ## The Right Comparison
@@ -198,5 +198,4 @@ That sequencing is healthier than pretending the economic layer already exists.
 ## Messaging Guardrails
 
 Lead with:
-
 

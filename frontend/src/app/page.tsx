@@ -30,19 +30,19 @@ const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const PAPERS = [
   {
     title: "Internal APIs Are All You Need",
-    blurb: "Why the internal APIs already powering modern websites are the machine-native interface for agents — and how a shared route graph turns rediscovery into collective memory.",
+    blurb: "The wedge: first-party routes already sit beneath modern websites. Learn them once, reuse them when they are still fresh, and keep the browser as fallback.",
     href: "/internal-apis-are-all-you-need",
     pdf: false,
   },
   {
     title: "Crypto Was All You Needed",
-    blurb: "One signing discipline across every layer an agent touches — screen, browser, CLI, OS — with credentials cryptographically bound to one key and every result sealed.",
+    blurb: "The execution layer: one signing discipline follows an agent through screen, browser, CLI, OS, kernel, and packet, with credentials and results bound to that identity.",
     href: "/crypto-was-all-you-needed.pdf",
     pdf: true,
   },
   {
     title: "Unbrowse Maintenance Network",
-    blurb: "How a route's freshness becomes a verifiable, bonded artifact, and how the people who keep routes alive get fairly paid by delta-based attribution.",
+    blurb: "The maintenance layer: route freshness has to be witnessed over time, challenged when wrong, and paid as real maintenance work.",
     href: "/unbrowse-maintenance-network.pdf",
     pdf: true,
   },
@@ -61,7 +61,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is the action engine of the internet — the open-source action layer for AI agents. The first time your agent visits a website, Unbrowse captures the real APIs the site uses to render itself. The next call skips the browser entirely, sub-500ms direct API instead of multi-second pixel-clicking. The shared marketplace already covers 600+ domains, so most calls are instant on first try. Open source, runs locally, plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.",
+        text: "Unbrowse is an open-source action layer for AI agents. It learns first-party routes behind websites from real browsing, keeps credentials local, and lets later calls use a direct route when one is available. When a site still needs a browser, the browser remains the fallback.",
       },
     },
     {
@@ -69,7 +69,7 @@ const faqJsonLd = {
       name: "How much faster is Unbrowse than headless browser automation?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is roughly 100x faster per page than headless browser automation. Headless browsers take 5 to 30 seconds per page interaction; Unbrowse makes direct API calls in 50 to 200 milliseconds, and uses about 200 tokens per action against 8,000 tokens for scraped HTML. Speed compounds because the shared marketplace already covers 600+ domains, so most calls are instant on first try without re-discovery work. For agent loops where the web step is the bottleneck, that turns minutes of work into seconds.",
+        text: "In the Internal APIs Are All You Need benchmark, warmed cached routes averaged a 3.6x mean speedup and 5.4x median speedup over Playwright across 94 live domains. The practical benefit is not magic latency; it is avoiding repeated rendering, DOM parsing, and token-heavy page dumps when a structured route is already known.",
       },
     },
     {
@@ -77,7 +77,7 @@ const faqJsonLd = {
       name: "Is Unbrowse free?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Unbrowse is 100% free and open source under the AGPL-3.0 license. There are no paid tiers, cloud proxies, or usage credits. Everything runs locally on your machine.",
+        text: "The client, CLI, SDK, and local bridge are open and free to install. Shared marketplace usage can require x402 payment when a paid route or paid lookup is used; capture and local execution paths remain available without pretending every upstream cost is free.",
       },
     },
     {
@@ -85,7 +85,7 @@ const faqJsonLd = {
       name: "What websites does Unbrowse support?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse works with any website that uses APIs to render its frontend, which covers most modern web applications. 600+ domains and 18,000+ endpoints are in the live marketplace today, including Airbnb, LinkedIn, x.com, Reddit, and hundreds of others. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation so the agent never gets stuck. The list grows on its own: every new capture adds a domain and helps the next agent on the same site.",
+        text: "Unbrowse works best on sites whose frontends call structured first-party routes, which is common on modern web applications. Some routes are cached already; misses fall back to browser capture or ordinary browser automation. Blocked or hostile sites are recorded as misses rather than relabelled as successes.",
       },
     },
     {
@@ -127,9 +127,9 @@ export default function Home() {
       />
       {/* ═══ Agent-Readable Instructions ═══ */}
       <section id="agent-instructions" aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
-          <h2>Unbrowse — The action engine of the internet</h2>
+          <h2>Unbrowse — an action layer for web agents</h2>
           <p>
-            Unbrowse is the open-source action layer for AI agents. It learns the real APIs behind any website and lets agents act through them directly instead of driving a headless browser. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Routes discovered by one agent are shared in a public registry for all agents to reuse, and the people who maintain those routes are fairly compensated when they run.
+            Unbrowse learns first-party routes behind websites and lets agents act through them directly when they are available, instead of driving a headless browser by default. In the 94-domain paper benchmark, warmed cached routes averaged a 3.6x mean speedup and 5.4x median speedup over Playwright. Routes discovered by one agent can be reused by others, and the people who maintain those routes can be compensated when they run.
           </p>
           <p>Default setup: npm install -g unbrowse; unbrowse setup</p>
           <p>Setup installs the Agent Skill and browser engine. It does not write MCP host configs.</p>
@@ -161,13 +161,13 @@ export default function Home() {
           </div>
 
           <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-            The <span className="text-orange-500">action engine of the internet.</span>
+            The <span className="text-orange-500">route layer for web agents.</span>
           </h1>
 
           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-            The open-source action layer for AI agents. Ask it anything below — it
-            acts through each site&apos;s real APIs, no browser window, no
-            pixel-clicking. Capture once, replay everywhere.
+            Ask it anything below. It tries the site&apos;s real first-party routes
+            first, and keeps the browser for the cases where a browser is still
+            required.
           </p>
 
           <div className="animate-fade-up stagger-3 w-full mt-10">
@@ -177,11 +177,11 @@ export default function Home() {
           {/* Social proof through scale — the registry the live chat draws on. Real, conservative
               figures (mirrors the FAQ); the agent above resolves against exactly this graph. */}
           <p className="animate-fade-up stagger-3 mt-5 font-mono text-xs text-[rgba(255,156,64,0.7)]">
-            <span className="text-[rgba(255,176,96,0.95)] font-medium">600+ domains</span>
+            <span className="text-[rgba(255,176,96,0.95)] font-medium">94-domain benchmark</span>
             <span className="text-[rgba(255,122,32,0.35)]"> · </span>
-            <span className="text-[rgba(255,176,96,0.95)] font-medium">18,000+ live endpoints</span>
+            <span className="text-[rgba(255,176,96,0.95)] font-medium">3.6x mean / 5.4x median speedup</span>
             <span className="text-[rgba(255,122,32,0.35)]"> · </span>
-            already captured in the shared registry — most asks resolve on the first try.
+            direct routes when known; browser fallback when not.
           </p>
 
           <div className="animate-fade-up stagger-3 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs font-mono text-[rgba(255,156,64,0.7)]">
@@ -331,16 +331,16 @@ export default function Home() {
                   </div>
                   <h3 className="text-lg sm:text-xl font-semibold mb-2 tracking-tight">Skip the rendering engine</h3>
                   <p className="text-text-secondary text-sm leading-relaxed max-w-md">
-                    Headless browsers are slow and flaky. Unbrowse taps directly into the hidden shadow APIs that power the frontend, returning data instantly.
+                    Headless browsers are expensive when the page is only a route discovery step. Unbrowse reuses known first-party routes and falls back to the browser when the route is missing.
                   </p>
                 </div>
                 <div className="relative z-10 w-full md:w-auto md:flex-1 bg-[#060402] border border-[rgba(255,122,32,0.18)] p-5 rounded-sm flex flex-col items-center justify-center">
-                  <span className="text-5xl font-bold font-display text-orange-500 tracking-tighter mb-1">100x</span>
-                  <span className="text-[10px] font-mono text-text-muted uppercase tracking-[0.2em] mb-4">faster per page</span>
+                  <span className="text-5xl font-bold font-display text-orange-500 tracking-tighter mb-1">3.6x</span>
+                  <span className="text-[10px] font-mono text-text-muted uppercase tracking-[0.2em] mb-4">mean speedup in paper</span>
                   <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-mono bg-black/20 border border-[rgba(255,122,32,0.1)] px-4 py-2 w-full rounded-sm">
-                    <span className="text-text-muted line-through">5-30s headless</span>
+                    <span className="text-text-muted line-through">browser-first</span>
                     <span className="text-text-muted opacity-50">→</span>
-                    <span className="text-orange-500 font-medium">50-200ms API</span>
+                    <span className="text-orange-500 font-medium">cached route</span>
                   </div>
                 </div>
               </div>
@@ -351,9 +351,9 @@ export default function Home() {
                   <IconScript size={16} />
                   <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Tokens</span>
                 </div>
-                <h3 className="text-lg font-semibold mb-2 tracking-tight">40x fewer tokens</h3>
+                <h3 className="text-lg font-semibold mb-2 tracking-tight">Fewer tokens</h3>
                 <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
-                  Why burn context on 8,000 tokens of HTML? Your agent gets the exact JSON data it needs — nothing else.
+                  A direct route returns structured data instead of forcing the model to reason over a whole rendered page.
                 </p>
                 <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
                   <div className="flex justify-between items-center text-xs font-mono mb-2">
