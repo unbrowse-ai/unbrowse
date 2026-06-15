@@ -15,7 +15,10 @@
  * REQUIRES it" — without either node ever holding the secret.
  */
 import { sealValue, revealValue } from "./wallet-seal.js";
-import type { OperationBinding, SkillOperationNode } from "../types/skill.js";
+import type { OperationBinding, SkillOperationNode, SkillManifest } from "../types/skill.js";
+import type { SealedBlobStore } from "./sealed-blob-store.js";
+
+const COMMITMENT_RE = /^[0-9a-f]{64}$/i;
 
 export type StorageHoleKind = "localStorage" | "sessionStorage" | "cookie" | "header";
 
@@ -131,4 +134,53 @@ export function bindSealedStorageHoles(
     page_metadata: { ...(node.page_metadata ?? {}), localStorage: commitments },
   };
   return { node: next, sealed: holes };
+}
+
+/**
+ * Seal every operation node's `page_metadata.localStorage` in a skill before persistence —
+ * commitments onto the graph, sealed blobs into `store`. The seal-at-persist hook (called from
+ * writeSkillSnapshot). Fail-closed: a value that can't be sealed has its localStorage STRIPPED, never
+ * persisted as plaintext. Idempotent (already-commitment nodes skipped). Never throws.
+ */
+export function sealSkillSnapshotHoles(skill: SkillManifest, sealKey: Uint8Array, store: SealedBlobStore): SkillManifest {
+  const ops = skill.operation_graph?.operations;
+  if (!ops || ops.length === 0) return skill;
+  let changed = false;
+  const sealedOps = ops.map((op) => {
+    const ls = op.page_metadata?.localStorage;
+    if (!ls || Object.keys(ls).length === 0) return op;
+    if (Object.values(ls).every((v) => COMMITMENT_RE.test(String(v)))) return op; // already sealed
+    try {
+      const { node, sealed } = bindSealedStorageHoles(op, sealKey);
+      for (const h of sealed) store.put(h.commitment, h.sealed);
+      changed = true;
+      return node;
+    } catch {
+      changed = true; // fail-closed: strip plaintext rather than persist it
+      return { ...op, page_metadata: { ...(op.page_metadata ?? {}), localStorage: {} } };
+    }
+  });
+  if (!changed) return skill;
+  return { ...skill, operation_graph: { ...skill.operation_graph!, operations: sealedOps } };
+}
+
+/**
+ * Resolve a node's `page_metadata.localStorage` for replay: reveal commitment-shaped values from the
+ * store, pass LEGACY plaintext through unchanged, DROP a commitment whose blob is missing or won't
+ * reveal (graceful — token simply not injected). Backward-compatible; never throws.
+ */
+export function resolveLocalStorageForReplay(
+  ls: Record<string, string> | undefined,
+  sealKey: Uint8Array,
+  store: SealedBlobStore,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(ls ?? {})) {
+    if (typeof v !== "string") continue;
+    if (!COMMITMENT_RE.test(v)) { out[k] = v; continue; } // legacy plaintext passthrough
+    const blob = store.get(v);
+    if (!blob) continue; // missing blob → skip (replay degrades gracefully)
+    try { out[k] = revealStorageHole(v, blob, sealKey); } catch { /* wrong key / tamper → skip */ }
+  }
+  return out;
 }

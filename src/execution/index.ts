@@ -4,6 +4,9 @@ import * as kuri from "../kuri/client.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
+import { resolveLocalStorageForReplay } from "../values/storage-hole-bindings.js";
+import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
+import { deriveSealKey } from "../values/signer.js";
 import { scanBundlesForRoutes } from "../capture/bundle-scanner.js";
 import { resolveAuthTokens } from "./token-resolver.js";
 import { LEDGER_NEUTRAL, ledgerEnergyCached } from "../lib/ranking-core/signals/ledger-energy.js";
@@ -192,10 +195,18 @@ async function tryLiveSessionFallback(
     target_url: url,
   });
   try {
-    // Restore stored anti-bot localStorage tokens to the live tab before in-page fetch
+    // Restore stored anti-bot localStorage tokens to the live tab before in-page fetch.
+    // reveal-at-replay: commitment-shaped values are unsealed from the off-graph store; legacy
+    // plaintext passes through unchanged; a commitment with no/un-revealable blob is dropped
+    // (token simply not injected). Local + per-step — the secret is unsealed at the last moment.
     if (page_metadata?.localStorage && Object.keys(page_metadata.localStorage).length > 0) {
-      const tokens = JSON.stringify(page_metadata.localStorage);
-      await kuri.evaluate(match.tabId, `(function(){var t=JSON.parse(${JSON.stringify(tokens)});Object.keys(t).forEach(function(k){try{localStorage.setItem(k,t[k]);}catch{}});})();`).catch(() => {});
+      let resolved: Record<string, string>;
+      try { resolved = resolveLocalStorageForReplay(page_metadata.localStorage, deriveSealKey(), fsSealedBlobStore()); }
+      catch { resolved = page_metadata.localStorage; } // legacy fallback (only plaintext reaches here pre-flag)
+      if (Object.keys(resolved).length > 0) {
+        const tokens = JSON.stringify(resolved);
+        await kuri.evaluate(match.tabId, `(function(){var t=JSON.parse(${JSON.stringify(tokens)});Object.keys(t).forEach(function(k){try{localStorage.setItem(k,t[k]);}catch{}});})();`).catch(() => {});
+      }
     }
     const tabResult = await kuri.executeInPageFetch(match.tabId, url, method, headers, body);
     if (tabResult.status === 0) {
