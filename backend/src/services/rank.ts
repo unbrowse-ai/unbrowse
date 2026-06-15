@@ -38,8 +38,9 @@ import {
 } from "./rank-noise-patterns.js";
 import { bm25Score, BM25_DELTA_WEIGHT } from "./rank-bm25.js";
 import { freshnessFromDate } from "./rank-freshness.js";
-// The EBM learned head — fs-free core, bundles into the worker (nodejs_compat / node:crypto only).
-import { learnedEnergyEmbedded } from "../../../src/ranking/signals/learned-energy-core.js";
+// The EBM — fs-free cores, bundle into the worker (nodejs_compat / node:crypto only, no node:fs).
+import { learnedEnergyEmbedded, routeEnergyFromBackoff } from "../../../src/ranking/signals/learned-energy-core.js";
+import { composeChainEnergy, type ChainGraph, type ChainNode } from "../../../src/ranking/signals/path-energy-core.js";
 
 export interface RankSignalEvidence {
   bm25: number;
@@ -54,9 +55,13 @@ export interface RankSignalEvidence {
    *  endpoint url_template match the user's contextUrl path. Absent on
    *  older clients; readers treat undefined as 0. */
   context_path_prefix_match?: number;
-  /** EBM learned-head delta: sigmoid(head·features) centered at 0.5, bounded. Absent (0) when no
-   *  head is shipped — older servers/bundles omit it and readers treat undefined as 0. */
+  /** EBM per-hop learned-head delta: sigmoid(head·features) centered at 0.5, bounded. Absent (0) when
+   *  no head is shipped — older servers/bundles omit it and readers treat undefined as 0. */
   learned_energy?: number;
+  /** EBM fractal chain delta: the head energy composed up the requires/yields DAG (weakest-link),
+   *  centered + bounded. Present only when the request carries an operation_graph and this endpoint
+   *  is an op in it; when present it SUBSUMES learned_energy in the score (a leaf's chain == its hop). */
+  chain_energy?: number;
 }
 
 export interface RankedEndpointResult {
@@ -71,6 +76,10 @@ export interface RankRequest {
   endpoints: EndpointDescriptor[];
   skill_domain?: string;
   context_url?: string;
+  /** Optional producer→consumer DAG (the skill's operation_graph). When present, the EBM ranks by the
+   *  fractal chain energy (weakest-link up the chain) instead of the flat per-hop head. Data-gated:
+   *  older clients omit it and the per-hop learned head is used. */
+  operation_graph?: ChainGraph;
 }
 
 export interface RankResponse {
@@ -329,6 +338,30 @@ function learnedHeadSignal(ep: EndpointDescriptor, req: RankRequest): number {
   return (e - 0.5) * 2 * LEARNED_WEIGHT;
 }
 
+/**
+ * EBM fractal chain signal: the head energy composed up the requires/yields DAG ending at this
+ * endpoint's op (weakest-link / Bellman over -log), centered + bounded by the SAME weight as the
+ * per-hop head so it never escapes the reliability-primary invariant. Returns null when the request
+ * carries no operation_graph or this endpoint isn't an op in it → the caller uses the per-hop head.
+ * Per-hop leaf = the EBM leaf (durable reliability blended with the embedded head), all fs-free.
+ */
+function chainHeadSignal(ep: EndpointDescriptor, req: RankRequest): number | null {
+  const g = req.operation_graph;
+  if (!g || !Array.isArray(g.operations) || !g.operations.some((o) => o.endpoint_id === ep.endpoint_id)) {
+    return null;
+  }
+  const relById = new Map(
+    req.endpoints.map((e) => [
+      e.endpoint_id,
+      typeof e.reliability_score === "number" ? Math.max(0, Math.min(1, e.reliability_score)) : 0.5,
+    ]),
+  );
+  const hop = (o: ChainNode): number =>
+    routeEnergyFromBackoff(relById.get(o.endpoint_id) ?? 0.5, req.skill_domain ?? "", o.endpoint_id, "", req.intent);
+  const chain = composeChainEnergy(g, ep.endpoint_id, hop);
+  return (chain - 0.5) * 2 * LEARNED_WEIGHT;
+}
+
 function freshnessSignal(ep: EndpointDescriptor): number {
   if (!ep.last_verified_at) return 0;
   // paper §6.3 freshness decay, surfaced as a small bounded bonus.
@@ -372,9 +405,11 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
     const fresh = freshnessSignal(ep);
     const reliability = reliabilitySignal(ep);
     const learned = learnedHeadSignal(ep, req);
+    const chain = chainHeadSignal(ep, req); // null when no operation_graph for this endpoint
+    const ebm = chain !== null ? chain : learned; // the fractal chain subsumes the per-hop head
     const ctxPathPrefix = contextPathPrefixMatch(ep, req.context_url);
     const score =
-      bm25 + overlap + schema + host + method + shape + fresh + reliability + ctxPathPrefix + learned;
+      bm25 + overlap + schema + host + method + shape + fresh + reliability + ctxPathPrefix + ebm;
     return {
       endpoint_id: ep.endpoint_id,
       score,
@@ -389,6 +424,7 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
         reliability,
         context_path_prefix_match: ctxPathPrefix,
         learned_energy: learned,
+        chain_energy: chain ?? undefined,
       },
     };
   });
