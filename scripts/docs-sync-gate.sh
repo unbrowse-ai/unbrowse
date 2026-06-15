@@ -15,7 +15,7 @@ run docs-clean        bash scripts/docs-clean-gate.sh
 run audit-public-docs bash scripts/audit-public-docs.sh
 run validate-sdk-docs bash scripts/validate-sdk-docs.sh
 run docs-site-adapters bash scripts/docs-site-adapters-gate.sh
-for p in internal-apis-are-all-you-need crypto-was-all-you-needed unbrowse-maintenance-network; do
+for p in internal-apis-are-all-you-need crypto-was-all-you-needed internal-apis-were-not-all-you-needed; do
   run "paper-${p}" bash scripts/paper-gate.sh "paper/${p}.tex"
 done
 

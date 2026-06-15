@@ -23,7 +23,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 P1="paper/internal-apis-are-all-you-need.tex"
 P2="paper/crypto-was-all-you-needed.tex"
-P3="paper/unbrowse-maintenance-network.tex"
+P3="paper/internal-apis-were-not-all-you-needed.tex"
 MANIFEST="paper/reference/MANIFEST.tsv"
 fail=0
 section() { echo; echo "=== $1 ==="; }

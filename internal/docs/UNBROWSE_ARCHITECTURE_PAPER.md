@@ -4,7 +4,7 @@
 
 Status: internal architecture paper  
 Audience: founders, engineering, research, and paper authors  
-Sources: `docs/whitepaper/`, `paper/crypto-was-all-you-needed.md`, `paper/unbrowse-maintenance-network.md`, `internal/docs/concepts/`, and ManicMind architecture notes
+Sources: `docs/whitepaper/`, `paper/crypto-was-all-you-needed.md`, `paper/internal-apis-were-not-all-you-needed.md`, `internal/docs/concepts/`, and ManicMind architecture notes
 
 ---
 

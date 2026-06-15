@@ -84,14 +84,14 @@ done
 ok "agent-experience evidence present (search / search-auth / actions-auth)"
 
 # ── 5. Papers: reflect code + no leak + freshly rendered ────────────────────
-for base in crypto-was-all-you-needed unbrowse-maintenance-network; do
+for base in crypto-was-all-you-needed internal-apis-were-not-all-you-needed; do
   TEX="paper/$base.tex"; [ -f "$TEX" ] || continue
   bash scripts/paper-gate.sh "$TEX" >/dev/null 2>&1 \
     || fail "paper-gate failed for $base (reflects-code or moat leak)"
 done
 ok "paper-gate passes for all papers (reflects code + no moat leak)"
 
-for base in crypto-was-all-you-needed unbrowse-maintenance-network; do
+for base in crypto-was-all-you-needed internal-apis-were-not-all-you-needed; do
   TEX="paper/$base.tex"; PDF="paper/$base.pdf"; MD="paper/$base.md"
   [ -f "$TEX" ] || continue
   [ -f "$PDF" ] || fail "$PDF not rendered"

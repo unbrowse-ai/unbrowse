@@ -9,13 +9,13 @@ zk-binding	paper/crypto-was-all-you-needed.tex	bound to the wallet without revea
 sealed-cache	paper/crypto-was-all-you-needed.tex	sealed-unless-revealed	paper/reference/ledger/sealed_cache.py	test_sealed_cache.py
 signed-gate	paper/crypto-was-all-you-needed.tex	no unsigned action crosses	paper/reference/layers/gate.py	test_gate.py
 key-mobility	paper/crypto-was-all-you-needed.tex	only value copies cross the public boundary	paper/reference/layers/key_mobility.py	test_key_mobility.py
-proof-of-indexing	paper/unbrowse-maintenance-network.tex	proof of indexing	paper/reference/network/proof_of_indexing.py	test_proof_of_indexing.py
-bonding-slash	paper/unbrowse-maintenance-network.tex	bonding, challenge, and slashing	paper/reference/network/bonding.py	test_bonding.py
-merkle-checkpoint	paper/unbrowse-maintenance-network.tex	Merkle-root checkpoint	paper/reference/ledger/checkpoint.py	test_checkpoint.py
-sybil-resistance	paper/unbrowse-maintenance-network.tex	Sybil resistance	paper/reference/network/sybil.py	test_sybil.py
+proof-of-indexing	paper/internal-apis-were-not-all-you-needed.tex	proof of indexing	paper/reference/network/proof_of_indexing.py	test_proof_of_indexing.py
+bonding-slash	paper/internal-apis-were-not-all-you-needed.tex	bonding, challenge, and slashing	paper/reference/network/bonding.py	test_bonding.py
+merkle-checkpoint	paper/internal-apis-were-not-all-you-needed.tex	Merkle-root checkpoint	paper/reference/ledger/checkpoint.py	test_checkpoint.py
+sybil-resistance	paper/internal-apis-were-not-all-you-needed.tex	Sybil resistance	paper/reference/network/sybil.py	test_sybil.py
 erc8004-records	paper/crypto-was-all-you-needed.tex	ERC-8004	paper/reference/network/erc8004.py	test_erc8004.py
-vault-cycle	paper/unbrowse-maintenance-network.tex	staking by holding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
+vault-cycle	paper/internal-apis-were-not-all-you-needed.tex	staking by holding	paper/reference/network/vault_cycle.py	test_vault_cycle.py
 task-cost	paper/internal-apis-are-all-you-need.tex	lower bound, not the end-to-end advantage	paper/reference/bench/task_cost.py	test_task_cost.py
 recompute-invariance	paper/crypto-was-all-you-needed.tex	The recompute boundary is proven runnably	paper/reference/ledger/recompute.py	test_recompute_invariance.py
-frost	paper/unbrowse-maintenance-network.tex	ships as its own runnable, tested reference	paper/reference/network/frost.py	test_frost.py
+frost	paper/internal-apis-were-not-all-you-needed.tex	ships as its own runnable, tested reference	paper/reference/network/frost.py	test_frost.py
 capability-pipe	paper/crypto-was-all-you-needed.tex	capability-gated, content-addressed pipe	paper/reference/pipes/pipe_contract.py	test_pipe_contract.py
