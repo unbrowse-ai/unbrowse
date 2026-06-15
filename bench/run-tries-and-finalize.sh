@@ -34,6 +34,6 @@ echo "[finalize] 1/4 SELF-IMPROVEMENT.md from real ledger..."; python3 bench/bro
 echo "[finalize] 2/4 inject honest browsecomp paragraph..."; python3 bench/browsecomp/inject-paper-sentence.py || exit 1
 echo "[finalize] 3/4 re-render papers..."
 ( cd paper && tectonic crypto-was-all-you-needed.tex >/dev/null 2>&1 && pandoc crypto-was-all-you-needed.tex -o crypto-was-all-you-needed.md >/dev/null 2>&1 ) || { echo "render failed"; exit 1; }
-touch paper/unbrowse-maintenance-network.pdf paper/unbrowse-maintenance-network.md
+touch paper/internal-apis-were-not-all-you-needed.pdf paper/internal-apis-were-not-all-you-needed.md
 echo "[finalize] 4/4 north-star gate..."; bash bench/north-star-gate.sh; RC=$?
 echo "[finalize] GATE EXIT=$RC"; exit $RC

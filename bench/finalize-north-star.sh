@@ -27,7 +27,7 @@ python3 bench/browsecomp/inject-paper-sentence.py || exit 1
 echo "[finalize] 3/4 re-rendering papers (tectonic pdf + pandoc md)..."
 ( cd paper && tectonic crypto-was-all-you-needed.tex >/dev/null 2>&1 && pandoc crypto-was-all-you-needed.tex -o crypto-was-all-you-needed.md >/dev/null 2>&1 ) || { echo "[finalize] render failed"; exit 1; }
 # touch maintenance-network renders so they stay >= their (untouched) tex
-touch paper/unbrowse-maintenance-network.pdf paper/unbrowse-maintenance-network.md
+touch paper/internal-apis-were-not-all-you-needed.pdf paper/internal-apis-were-not-all-you-needed.md
 
 echo "[finalize] 4/4 running the north-star gate..."
 bash bench/north-star-gate.sh

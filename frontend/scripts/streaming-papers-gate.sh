@@ -12,7 +12,7 @@ chk() { # name, condition-cmd already evaluated to 0/1 via [ ]
   :; }
 
 # 1-2. PDFs present
-for p in crypto-was-all-you-needed unbrowse-maintenance-network; do
+for p in crypto-was-all-you-needed internal-apis-were-not-all-you-needed; do
   if [ -f "public/$p.pdf" ]; then echo "ok   gate: public/$p.pdf present";
   else echo "FAIL gate: public/$p.pdf missing"; fail=1; fi
 done
@@ -20,7 +20,7 @@ done
 # 3. /papers lists all three (the two new hrefs)
 pp="src/app/papers/page.tsx"
 miss=""
-for h in crypto-was-all-you-needed unbrowse-maintenance-network internal-apis-are-all-you-need; do
+for h in crypto-was-all-you-needed internal-apis-were-not-all-you-needed internal-apis-are-all-you-need; do
   grep -q "$h" "$pp" 2>/dev/null || miss="$miss $h"
 done
 if [ -z "$miss" ]; then echo "ok   gate: /papers lists all three papers"; else echo "FAIL gate: /papers missing:$miss"; fail=1; fi
