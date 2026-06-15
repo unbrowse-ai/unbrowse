@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.4...v9.3.5) (2026-06-15)
+
+### Bug Fixes
+
+* **cli:** remove baked default egress proxy; fix command misrouting ([9769bb5](https://github.com/unbrowse-ai/unbrowse-dev/commit/9769bb5dc98eb37483007b7b2831bcaa68e65ee1))
+
 ## [9.3.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.3...v9.3.4) (2026-06-15)
 
 ### Bug Fixes
