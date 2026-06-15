@@ -51,6 +51,11 @@
 * [Onboarding Validators](sdk/onboarding-validators.md)
 * [Rewards and Economics](sdk/rewards-and-economics.md)
 
+## Research
+
+* [Whitepaper: Internal APIs Are All You Need](whitepaper/README.md)
+* [How Unbrowse Pays](HOW_UNBROWSE_PAYS.md)
+
 ## Reference
 
 * [Open Source Notice](OPEN-SOURCE-NOTICE.md)

@@ -23,6 +23,30 @@ import {
 export const revalidate = 60;
 
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
+
+// Homepage Research strip — kept in sync with /papers. paper #3 links to the
+// real published PDF (`/unbrowse-maintenance-network.pdf`); the papers page
+// previously pointed at a filename that 404s.
+const PAPERS = [
+  {
+    title: "Internal APIs Are All You Need",
+    blurb: "Why the internal APIs already powering modern websites are the machine-native interface for agents — and how a shared route graph turns rediscovery into collective memory.",
+    href: "/internal-apis-are-all-you-need",
+    pdf: false,
+  },
+  {
+    title: "Crypto Was All You Needed",
+    blurb: "One signing discipline across every layer an agent touches — screen, browser, CLI, OS — with credentials cryptographically bound to one key and every result sealed.",
+    href: "/crypto-was-all-you-needed.pdf",
+    pdf: true,
+  },
+  {
+    title: "Unbrowse Maintenance Network",
+    blurb: "How a route's freshness becomes a verifiable, bonded artifact, and how the people who keep routes alive get fairly paid by delta-based attribution.",
+    href: "/unbrowse-maintenance-network.pdf",
+    pdf: true,
+  },
+];
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
   ? "Run npm install -g unbrowse, then unbrowse setup. Setup installs the Agent Skill and browser engine; it does not write MCP host configs. Legacy MCP users can run unbrowse mcp manually as a stdio server."
@@ -37,7 +61,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is the API layer for AI agents. The first time your agent visits a website, Unbrowse captures the real APIs the site uses to render itself. The next call skips the browser entirely, sub-500ms direct API instead of multi-second pixel-clicking. The shared marketplace already covers 600+ domains, so most calls are instant on first try. Open source, runs locally, plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.",
+        text: "Unbrowse is the action engine of the internet — the open-source action layer for AI agents. The first time your agent visits a website, Unbrowse captures the real APIs the site uses to render itself. The next call skips the browser entirely, sub-500ms direct API instead of multi-second pixel-clicking. The shared marketplace already covers 600+ domains, so most calls are instant on first try. Open source, runs locally, plugs into OpenClaw, Claude Desktop, Cursor, and any MCP-aware framework.",
       },
     },
     {
@@ -103,9 +127,9 @@ export default function Home() {
       />
       {/* ═══ Agent-Readable Instructions ═══ */}
       <section id="agent-instructions" aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
-          <h2>Unbrowse — The API-native browser agent</h2>
+          <h2>Unbrowse — The action engine of the internet</h2>
           <p>
-            Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+            Unbrowse is the open-source action layer for AI agents. It learns the real APIs behind any website and lets agents act through them directly instead of driving a headless browser. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Routes discovered by one agent are shared in a public registry for all agents to reuse, and the people who maintain those routes are fairly compensated when they run.
           </p>
           <p>Default setup: npm install -g unbrowse; unbrowse setup</p>
           <p>Setup installs the Agent Skill and browser engine. It does not write MCP host configs.</p>
@@ -137,12 +161,13 @@ export default function Home() {
           </div>
 
           <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-            The <span className="text-orange-500">API-native browser agent.</span>
+            The <span className="text-orange-500">action engine of the internet.</span>
           </h1>
 
           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-            Ask it anything below. It answers through the site&apos;s real APIs —
-            no browser window, no pixel-clicking. Capture once, replay everywhere.
+            The open-source action layer for AI agents. Ask it anything below — it
+            acts through each site&apos;s real APIs, no browser window, no
+            pixel-clicking. Capture once, replay everywhere.
           </p>
 
           <div className="animate-fade-up stagger-3 w-full mt-10">
@@ -186,6 +211,32 @@ export default function Home() {
         </div>
 
         <HeroHands />
+      </section>
+
+      {/* ═══ Credibility strip — backing + ecosystem ═══ */}
+      <section aria-label="Backing and ecosystem" className="relative px-4 sm:px-6 pb-10 sm:pb-14">
+        <div className="max-w-4xl mx-auto flex flex-col items-center gap-7">
+          {/* Backed by NVIDIA Inception — badge ships white + green, reads on dark as-is */}
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Backed by</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/nvidia-inception.svg" alt="NVIDIA Inception Program" className="h-14 sm:h-16 w-auto" />
+          </div>
+          {/* Ecosystem — uniform monochrome logo cloud (brand colors flattened to one tone) */}
+          <div className="flex flex-col items-center gap-4 pt-5 border-t border-[rgba(255,122,32,0.12)] w-full max-w-3xl">
+            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Plugged into the agent economy</span>
+            <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-5 opacity-65">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/partner-crossmint.svg" alt="Crossmint" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/partner-moonpay.svg" alt="MoonPay" className="h-4 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/partner-corbits.svg" alt="Corbits" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/partner-uprock.png" alt="UpRock" className="h-5 w-auto" style={{ filter: "brightness(0) invert(1)" }} />
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ═══ Install ═══ */}
@@ -238,10 +289,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Earnings nudge — Crossmint lobster.cash payout flow */}
+        {/* Fair-compensation nudge — payout flow set up during install */}
         <div className="w-full max-w-4xl mt-4 max-sm:flex max-sm:justify-center sm:flex">
           <p className="text-xs font-mono text-[rgba(255,122,32,0.55)] max-sm:text-center">
-            <span className="text-[rgba(255,176,96,0.85)]">$</span> Earn from discovered routes — set up Crossmint lobster.cash during setup.
+            <span className="text-[rgba(255,176,96,0.85)]">$</span> Fair compensation, built in — when the routes you index get reused, you earn. Set up payouts during setup.
           </p>
         </div>
       </section>
@@ -357,6 +408,60 @@ export default function Home() {
 
       {/* The live demo IS the hero chat bar; the old scripted replay section was
           removed so the only chat on the site is the real agent loop. */}
+
+      {/* ═══ Research ═══ */}
+      <section id="research" className="relative py-16 sm:py-24 flex flex-col items-center px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto w-full">
+          <div className="text-center mb-8 flex flex-col items-center">
+            <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">##  Research</p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">The thinking behind the engine.</h2>
+            <p className="mt-3 text-text-secondary text-sm sm:text-base max-w-2xl leading-relaxed">
+              Three papers: why internal APIs are the machine-native interface, how one
+              signing discipline secures every layer an agent touches, and how a shared
+              route graph stays fresh and fairly paid.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {PAPERS.map((paper) => {
+              const cardClass =
+                "group flex flex-col h-full p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 rounded-sm transition-colors hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705]";
+              const body = (
+                <>
+                  <div className="mb-3 flex items-center gap-2 text-orange-500">
+                    <IconScript size={16} />
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted">
+                      {paper.pdf ? "PDF ↗" : "Read ↗"}
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-semibold mb-2 tracking-tight text-text-primary group-hover:text-orange-500 transition-colors">
+                    {paper.title}
+                  </h3>
+                  <p className="text-text-secondary text-sm leading-relaxed">{paper.blurb}</p>
+                </>
+              );
+              return paper.pdf ? (
+                <a key={paper.href} href={paper.href} target="_blank" rel="noopener" className={cardClass}>
+                  {body}
+                </a>
+              ) : (
+                <Link key={paper.href} href={paper.href} className={cardClass}>
+                  {body}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 text-center">
+            <Link
+              href="/papers"
+              className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,156,64,0.8)] hover:text-[rgba(255,176,96,1)] border-b border-[rgba(255,122,32,0.3)] hover:border-[rgba(255,122,32,0.6)] pb-1 transition-colors"
+            >
+              read all papers <IconChevron size={11} />
+            </Link>
+          </div>
+        </div>
+      </section>
 
        {/* ═══ 3-Panel Visual ═══ */}
        <ThreePanelVisual />
