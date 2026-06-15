@@ -1,0 +1,10 @@
+{"id": "npm-express-name", "intent": "get the name of the express npm package", "url": "https://registry.npmjs.org/express", "json_path": "name", "expected": "express", "host": "registry.npmjs.org"}
+{"id": "npm-leftpad-name", "intent": "get the name of the left-pad npm package", "url": "https://registry.npmjs.org/left-pad", "json_path": "name", "expected": "left-pad", "host": "registry.npmjs.org"}
+{"id": "npm-react-name", "intent": "get the name of the react npm package", "url": "https://registry.npmjs.org/react", "json_path": "name", "expected": "react", "host": "registry.npmjs.org"}
+{"id": "npm-lodash-name", "intent": "get the name of the lodash npm package", "url": "https://registry.npmjs.org/lodash", "json_path": "name", "expected": "lodash", "host": "registry.npmjs.org"}
+{"id": "npm-leftpad-pinned-ver", "intent": "get the version field of the left-pad 1.3.0 release", "url": "https://registry.npmjs.org/left-pad/1.3.0", "json_path": "version", "expected": "1.3.0", "host": "registry.npmjs.org"}
+{"id": "npm-express-pinned-ver", "intent": "get the version field of the express 4.0.0 release", "url": "https://registry.npmjs.org/express/4.0.0", "json_path": "version", "expected": "4.0.0", "host": "registry.npmjs.org"}
+{"id": "npm-leftpad-license", "intent": "get the license of the left-pad package", "url": "https://registry.npmjs.org/left-pad", "json_path": "license", "expected": "WTFPL", "host": "registry.npmjs.org"}
+{"id": "gh-linux-fullname", "intent": "get the full_name of the torvalds linux repo", "url": "https://api.github.com/repos/torvalds/linux", "json_path": "full_name", "expected": "torvalds/linux", "host": "api.github.com"}
+{"id": "gh-vscode-fullname", "intent": "get the full_name of the microsoft vscode repo", "url": "https://api.github.com/repos/microsoft/vscode", "json_path": "full_name", "expected": "microsoft/vscode", "host": "api.github.com"}
+{"id": "gh-zen-unused", "intent": "get the spdx license id of the microsoft vscode repo", "url": "https://api.github.com/repos/microsoft/vscode", "json_path": "license.spdx_id", "expected": "MIT", "host": "api.github.com"}

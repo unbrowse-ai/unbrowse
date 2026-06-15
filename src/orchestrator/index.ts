@@ -11,7 +11,7 @@ import {
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { decomposeGraphqlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
+import { decomposeGraphqlEndpoint, decomposeGrpcEndpoint, decomposeJsonRpcEndpoint, decomposeFormEndpoint, decomposeXmlEndpoint, executeSkill, isPageFetchEndpoint, buildPageFetchEndpoint, buildPageArtifactCapture } from "../execution/index.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
@@ -3053,6 +3053,52 @@ export async function resolveAndExecute(
                     ...(aliases.length > 0 ? { aliases: [ap.key, ...aliases.slice(1)] } : {}),
                   };
                 });
+              }
+              // Connect/gRPC: surface flat message-field holes (mirrors GraphQL).
+              // Agents pass `tweetId`/`userId`; the executor reconstructs the
+              // Connect JSON message via buildGrpcRequestBody. Path = fixed structure.
+              const _grpc = decomposeGrpcEndpoint(r.endpoint);
+              if (_grpc.isGrpc && _grpc.agentParams.length > 0) {
+                return _grpc.agentParams.map((ap) => ({
+                  key: ap.key,
+                  type: ap.semantic_type,
+                  required: ap.required,
+                  example: ap.example,
+                  grpc_message_path: ap.message_path,
+                }));
+              }
+              // JSON-RPC 2.0: surface params fields as flat holes (method = fixed structure).
+              const _rpc = decomposeJsonRpcEndpoint(r.endpoint);
+              if (_rpc.isJsonRpc && _rpc.agentParams.length > 0) {
+                return _rpc.agentParams.map((ap) => ({
+                  key: ap.key,
+                  type: ap.semantic_type,
+                  required: ap.required,
+                  example: ap.example,
+                  jsonrpc_params_path: ap.params_path,
+                }));
+              }
+              // form-data / urlencoded: surface form fields as flat holes.
+              const _form = decomposeFormEndpoint(r.endpoint);
+              if (_form.isForm && _form.agentParams.length > 0) {
+                return _form.agentParams.map((ap) => ({
+                  key: ap.key,
+                  type: ap.semantic_type,
+                  required: ap.required,
+                  example: ap.example,
+                  form_field_path: ap.field_path,
+                }));
+              }
+              // SOAP / XML: surface leaf-element values as flat holes (envelope = fixed structure).
+              const _xml = decomposeXmlEndpoint(r.endpoint);
+              if (_xml.isXml && _xml.agentParams.length > 0) {
+                return _xml.agentParams.map((ap) => ({
+                  key: ap.key,
+                  type: ap.semantic_type,
+                  required: ap.required,
+                  example: ap.example,
+                  xml_path: ap.xml_path,
+                }));
               }
               return r.endpoint.semantic?.requires?.map((b) => ({
                 key: b.key,
