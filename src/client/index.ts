@@ -1702,6 +1702,9 @@ export async function rankEndpointsRemote(
   endpoints: Array<Record<string, unknown>>,
   skillDomain?: string,
   contextUrl?: string,
+  // The skill's producer→consumer DAG. When sent, the server ranks by the fractal chain energy
+  // (weakest-link up the chain) instead of the flat per-hop head. Optional — older servers ignore it.
+  operationGraph?: unknown,
 ): Promise<RemoteRankedEndpoint[] | null> {
   if (isLocalOnly()) return null;
   if (!Array.isArray(endpoints) || endpoints.length === 0) return null;
@@ -1714,6 +1717,7 @@ export async function rankEndpointsRemote(
         endpoints,
         skill_domain: skillDomain,
         context_url: contextUrl,
+        ...(operationGraph ? { operation_graph: operationGraph } : {}),
       },
       { timeoutMs: 4000 },
     );
