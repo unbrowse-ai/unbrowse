@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.7...v9.3.8) (2026-06-15)
+
+### Features
+
+* **cli:** the default one-hole surface does authenticated reads ([ef1ce10](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef1ce101236beb208f740c40d9c2dfdc77a97c86))
+
 ## [9.3.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.6...v9.3.7) (2026-06-15)
 
 ### Bug Fixes
