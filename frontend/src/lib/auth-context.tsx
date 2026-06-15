@@ -2,6 +2,11 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
+import {
+  classifyAuthStartStatus,
+  TRANSIENT_AUTH_MESSAGE,
+  INVALID_EMAIL_MESSAGE,
+} from "@/lib/auth-errors";
 
 interface AuthState {
   apiKey: string | null;
@@ -163,20 +168,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(`Could not reach the sign-in service: ${(err as Error).message}`);
       }
       // Transient / server-side failures are not the user's fault — show a friendly,
-      // retryable message instead of a cryptic raw status. A 410 here is almost always a
-      // mid-redeploy edge-cache blip (the endpoint is live again on retry), so it belongs
-      // with the 5xx / 429 / timeout family, not a dead end.
-      if (
-        res.status === 410 || res.status === 408 || res.status === 425 ||
-        res.status === 429 || res.status >= 500
-      ) {
-        throw new Error("Sign-in is temporarily unavailable. Please try again in a moment.");
+      // retryable message instead of a cryptic raw status. The status→kind mapping is a
+      // pure helper (classifyAuthStartStatus) so it is unit-testable on its own.
+      const kind = classifyAuthStartStatus(res.status);
+      if (kind === "transient") {
+        throw new Error(TRANSIENT_AUTH_MESSAGE);
       }
-      if (res.status === 400) {
+      if (kind === "invalid") {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? "That email address looks invalid.");
+        throw new Error(data.error ?? INVALID_EMAIL_MESSAGE);
       }
-      if (!res.ok) {
+      if (kind === "other") {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
