@@ -1,6 +1,6 @@
 # What Is Unbrowse
 
-Unbrowse is a faster, cheaper, more reliable way for an AI agent to use a website.
+Unbrowse is the action engine of the internet: a faster, cheaper, more reliable way for an AI agent to act on a website. Instead of driving a browser, the agent acts through the site's real APIs.
 
 When an AI assistant books a flight, pulls a report, or posts an update, it usually controls a real browser: it opens the site, waits for the page, finds buttons, clicks, and re-reads the screen after every step. Every one of those steps can fail, and every one costs time and money. Unbrowse learns the request the browser was going to make underneath all that clicking, and makes that request directly the next time the same task comes up.
 
