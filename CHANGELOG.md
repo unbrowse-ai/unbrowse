@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.5...v9.3.6) (2026-06-15)
+
+### Bug Fixes
+
+* **cli:** autoupdate on every command, not just upgrade/hook ([018760a](https://github.com/unbrowse-ai/unbrowse-dev/commit/018760a9cbdd23df7952d3be3a1240bf53478aa0))
+
 ## [9.3.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.4...v9.3.5) (2026-06-15)
 
 ### Bug Fixes
