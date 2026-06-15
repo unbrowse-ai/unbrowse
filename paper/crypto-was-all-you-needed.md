@@ -117,7 +117,7 @@ browser via curl-impersonate , matching exactly the JA3/JA4 signature
 the other side is keying on . The browser, CLI, and HTTP layers and the
 fingerprint-faithful fetch run in the product, and the uniform *signed
 descent through every layer* (screen $`\to`$ browser $`\to`$ CLI $`\to`$
-OS $`\to`$ kernel $`\to`$ packet) is implemented in the product:
+OS $`\to`$ kernel $`\to`$ packet) ships in production:
 `src/values/signed-descent.ts` signs one wallet root once and threads a
 hash-chained, per-layer signature down the whole stack, with tests that
 any tampered or reordered layer fails to verify. Ownership is vertical
@@ -214,6 +214,33 @@ node), pruning (do not re-walk a refuted node), and provenance (the
 hash-chain proves the order) are one append-only ledger seen three ways.
 §8 is that ledger as the **parent** field.
 
+## Composition: a walked traversal is itself a node
+
+Descent makes a node’s *child*; the same schema run upward makes a
+node’s *parent*. When one intent cannot be settled by a single route —
+the route it resolves to needs a binding only another route yields — the
+walk visits several nodes in dependency order, threading each one’s
+output into the next. That ordered sub-walk is not a transient. It is
+the traversal record of the previous subsection, and by the same
+content-addressing it is itself a node: a *composite* is the parent
+whose children are the routes it composed, keyed by the content that
+makes it the same DAG — its domain, its target, its ordered constituent
+nodes, and the binding edges between them — and replayed as one unit.
+The first agent to walk the chain records the composite; a later agent,
+including one that never walked it, looks it up by that address and
+replays the recorded order rather than re-deriving it — exactly the
+cache-hit short-circuit of the walk (`node.cached` $`\Rightarrow`$
+`node.replay()`) one altitude up. So the recursion closes in both
+directions: descent spawns the child when the parent cannot act, and
+composition records the parent when several children together settle an
+intent no child settles alone — and the traversal record is the ledger
+at every altitude. This ships: `src/orchestrator/` content-addresses a
+walked multi-step traversal as a composite and, on a later resolve,
+replays the recorded order before re-walking, with a
+constituent-staleness guard — a removed or disabled child invalidates
+the composite back to a full re-walk, so a stale parent never replays a
+broken child.
+
 # Identity: the root node’s key, inherited by every child
 
 Identity is not a layer of its own — it is the one **subject** field
@@ -285,7 +312,7 @@ Pedersen commitments  give the “commit now, open later, can’t lie about
 it” primitive for a single secret. Together they make the binding a
 two-witness corroboration that betrays nothing: the chain sees *that* a
 credential is bound, never *what* it is. This is the central
-contribution, and the primitive now is implemented in the product:
+contribution, and the primitive is implemented in the product:
 `src/values/zk-binding.ts` implements the same non-interactive Schnorr
 proof (Fiat–Shamir over a 2048-bit MODP group) that proves a credential
 is *bound to the wallet without revealing* it — the wallet signs
@@ -324,6 +351,32 @@ on any host) yet stores AES-256-GCM ciphertext under a key bound to the
 wallet, and tests confirm the at-rest bytes are unreadable, that only
 the binding wallet can reveal, and that a tampered ciphertext refuses to
 open.
+
+## The route graph as a commitment-only structure
+
+The content-addressed cache above keys each value by the sha256 of its
+plaintext, so the same content resolves to the same key on any host.
+That is exactly right for a *private* cache — but the route graph is
+*shared* across agents, and a bare hash on a shared structure leaks: a
+low-entropy value (a boolean, a locale, a short id) is recoverable by
+hashing a dictionary against the visible commitment, and equal values
+expose linkable equality across hosts. So a captured credential or
+storage value — a session token, an anti-bot `localStorage` entry — is
+promoted to a first-class node in the requires/yields graph under a
+keyed commitment: a MAC under a wallet-derived key, not a bare hash. An
+observer of the shared graph who lacks the wallet cannot brute-force a
+low-entropy value, and the same value under two different wallets yields
+two different commitments, so nothing links across installs. The value
+itself is sealed off-graph under the wallet and revealed only locally,
+per step, at the moment of replay — the graph carries the dependency
+*shape* (which operation yields a token, which operation requires it)
+while the secret is held by no one but the holder. The keyed commitment
+and its graph binding are implemented in
+`src/values/storage-hole-bindings.ts` over the off-graph store
+`src/values/sealed-blob-store.ts`, and revealed at the replay boundary
+in `src/execution/index.ts`; tests confirm the secret appears on neither
+the graph node nor the bytes at rest, that a wrong key cannot reveal,
+and that a legacy plaintext token is never mistaken for a commitment.
 
 The cache and the ledger meet in one production primitive worth naming,
 because it is how a slow truth-resolution is paid for once and never
@@ -529,13 +582,14 @@ rather than merely fast.
 
 The security discipline is only as deep as its lowest layer, so we are
 concrete about the bottom of the descent. The fingerprint-faithful fetch
-is not only a diagram: it is implemented as the orchestrator’s curl-impersonate fetch
-(`src/capture/curl-impersonate-fallback.ts`) backed by a vendored uTLS
-CONNECT-proxy daemon (`src/cdp/proxy/utls-daemon.ts`) across four
-platforms (darwin/linux $`\times`$ amd64/arm64), so the agent’s TLS
-ClientHello and HTTP/2 settings reproduce a real browser’s JA3/JA4
-signature at the *network interface*, not merely a spoofed User-Agent
-header. This is the packet layer of
+is not only a diagram: it is implemented as the orchestrator’s
+curl-impersonate fetch (`src/capture/curl-impersonate-fallback.ts`)
+backed by a vendored uTLS CONNECT-proxy daemon
+(`src/cdp/proxy/utls-daemon.ts`) across four platforms (darwin/linux
+$`\times`$ amd64/arm64), so the agent’s TLS ClientHello and HTTP/2
+settings reproduce a real browser’s JA3/JA4 signature at the *network
+interface*, not merely a spoofed User-Agent header. This is the packet
+layer of
 screen$`\to`$browser$`\to`$CLI$`\to`$OS$`\to`$kernel$`\to`$packet made
 real: the same signed identity that authorises a route also emits the
 bytes that carry it, and the bytes are browser-indistinguishable on the
@@ -728,16 +782,16 @@ is not misled by silence.
 # What is built, what is referenced (no fabricated green)
 
 In the spirit of not selling a roadmap as a changelog, we separate what
-runs in the product, what is available as runnable code, and where the work
-stops:
+runs in the product, what is available as runnable code, and where the
+work stops:
 
 - In the product: Intent $`\to`$ route resolve $`\to`$ execute; live
   browser capture; HTTP fetch with browser-faithful TLS fingerprinting;
   wallet-signed admission; route/endpoint caching.
 
-- The cross-layer security primitives are implemented, each with
-  tests that execute the claim: the signed descent through every layer
-  with vertical wallet ownership (`src/values/signed-descent.ts`,
+- The cross-layer security primitives are implemented, each with tests
+  that execute the claim: the signed descent through every layer with
+  vertical wallet ownership (`src/values/signed-descent.ts`,
   `src/values/wallet-hierarchy.ts`,
   `src/values/layer-wallet-descent.ts`), ZK credential binding — the
   central contribution — and its capture-boundary wiring
