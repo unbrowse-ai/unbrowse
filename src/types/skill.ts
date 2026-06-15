@@ -117,6 +117,16 @@ export interface OperationBinding {
   ttl_ms?: number;
   single_use?: boolean;
   observed_at?: string;
+  /**
+   * ZK seal commitment (sha256 of the PLAINTEXT) for a credential/storage hole
+   * (kind in {localStorage, sessionStorage, cookie, header}). When present, this
+   * binding carries ONLY the commitment — the value is sealed off-graph under the
+   * wallet (src/values/wallet-seal + sealed-ledger), revealed locally per-step at
+   * execution. "Render the structure to all, seal the value to the holder": the
+   * global DAG shares the dependency shape (this hole exists, here's its edge) and
+   * a commitment, never the secret. See src/values/storage-hole-bindings.ts.
+   */
+  commitment?: string;
 }
 
 // Minimal contract for decision-trace steps emitted by the chain walker and
