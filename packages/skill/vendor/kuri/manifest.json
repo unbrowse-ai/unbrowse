@@ -1,12 +1,12 @@
 {
   "repo_url": "https://github.com/justrach/kuri.git",
   "branch": "adding-extensions",
-  "source_sha": "8938f89f3d0c032bd19c59db0de4eadca18a1800",
-  "built_at": "2026-06-12T23:44:09.050Z",
+  "source_sha": "149881254046a20778f642b69f20f0c6468f6fb4",
+  "built_at": "2026-06-15T03:02:15.112Z",
   "binaries": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
-      "sha256": "58edbbf7c7488db8f8a6495fb670f0b731815bb36713b1c4e0c970a74385764a",
+      "sha256": "e7a2f965535c10fe4faf2e962ffa3237e96e65fb8bfe37428c84e72fcbcce613",
       "source": "pre-staged"
     },
     "darwin-x64": {
@@ -26,30 +26,30 @@
     },
     "win-x64": {
       "zig_target": "x86_64-windows-gnu",
-      "source": "pre-staged",
-      "sha256": "dbf821b917f24e00b6ed2cc1cc551ab4bb588c0ee7ee244ad8dacb5301edb6f7"
+      "sha256": "5ecd13f28a26610b97bc07dabbb39f2c313b3bb85fb266ddb67e3988836d7dc8",
+      "source": "pre-staged"
     }
   },
   "ffi": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
       "lib": "libkuri_ffi.dylib",
-      "sha256": "33f4b636a652a5e164b5932f075956e1e2b8a9a6892d7d504f7e8afbfb4ce5ad"
+      "sha256": "e34424df90945cca14edb3dbc78e5ea19d44634c101623347d05fcdff23955ed"
     },
     "darwin-x64": {
       "zig_target": "x86_64-macos",
       "lib": "libkuri_ffi.dylib",
-      "sha256": "097d19dcc22dc317223534083d0aaef88d850be8c87091f448402ea7f44cc93f"
+      "sha256": "6cccfd3676a550decaed87e104389a0940325dde6166478bfa4edcc2f92ef891"
     },
     "linux-arm64": {
       "zig_target": "aarch64-linux",
       "lib": "libkuri_ffi.so",
-      "sha256": "46de6dcee4c22a17d17b49ffa658d86a2408b118e2d602cd2bca4302817a73a7"
+      "sha256": "57697c312db03ec9078127090666f60ab1b091324d78a05a3ab35efb73070f62"
     },
     "linux-x64": {
       "zig_target": "x86_64-linux",
       "lib": "libkuri_ffi.so",
-      "sha256": "c11bc9c3ad09d839687baf701e9e94df4662e7ee3727ea0bf92cf84355daf231"
+      "sha256": "6621ed10613917afb84ca21ef54d77d97c7e7a425b5b287bb7af2241f3063a2e"
     }
   }
 }

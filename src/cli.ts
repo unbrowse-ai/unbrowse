@@ -1375,10 +1375,104 @@ export function parseCmdFillArgs(
   return parseCmdHoleIntentArgs(args, flags, "fill");
 }
 
+export function isDraftOnlyMutationIntent(intent: string): boolean {
+  const s = intent.toLowerCase();
+  const asksForDraft =
+    /\b(draft|write|compose|prepare|suggest)\b/.test(s) &&
+    /\b(message|reply|dm|contact|inquiry|enquiry|seller|agent)\b/.test(s);
+  const explicitSendSideEffect =
+    (/\b(send|buy|purchase|offer|submit|click)\b/.test(s) ||
+      /\b(message|dm|contact)\s+(the\s+)?(seller|agent|owner|user|them|him|her)\b/.test(s)) &&
+    !/\bdo not (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s) &&
+    !/\bdon't (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s) &&
+    !/\bwithout (sending|contacting|messaging|buying|purchasing|offering|submitting|clicking)\b/.test(s) &&
+    !/\b(no|never) (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s);
+  const forbidsSideEffect =
+    /\bdo not (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s) ||
+    /\bdon't (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s) ||
+    /\bwithout (sending|contacting|messaging|buying|purchasing|offering|submitting|clicking)\b/.test(s) ||
+    /\b(no|never) (send|contact|message|buy|purchase|offer|submit|click)\b/.test(s);
+  return asksForDraft && (forbidsSideEffect || !explicitSendSideEffect);
+}
+
+export function draftOnlySubjectHint(intent: string): string {
+  let subject = intent
+    .replace(/\bdo not\b[^.?!]*(?:[.?!]|$)/gi, " ")
+    .replace(/\bdon't\b[^.?!]*(?:[.?!]|$)/gi, " ")
+    .replace(/\bwithout\b[^.?!]*(?:[.?!]|$)/gi, " ")
+    .replace(/\b(?:no|never)\s+(?:send|contact|message|buy|purchase|offer|submit|click)\b[^.?!]*(?:[.?!]|$)/gi, " ")
+    .replace(/\b(draft|write|compose|prepare|suggest)\b/gi, " ")
+    .replace(/\b(polite|message|reply|dm|contact|inquiry|enquiry|seller|agent|asking|ask|whether|if|still|available|availability)\b/gi, " ")
+    .replace(/\b(send|sent|buy|purchase|offer|submit|click)\b/gi, " ")
+    .replace(/\b(a|an|the|to|for|with|and|or|is|are|it|this|that|me|my|please)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  subject = subject.replace(/^[,.:;!?-]+|[,.:;!?-]+$/g, "").trim();
+  return subject.length >= 3 ? subject : "the first relevant visible listing";
+}
+
+export function draftOnlyReadIntent(intent: string): string {
+  const subject = draftOnlySubjectHint(intent);
+  const wantsAvailability = /\b(available|availability|still there|still for sale)\b/i.test(intent);
+  return [
+    `Find the first visible ${subject} on this public page.`,
+    "Return only public listing context: title, price, condition, seller/page context, and visible availability cues.",
+    wantsAvailability ? "This is read-only context for a later local availability draft." : "This is read-only context for a later local draft.",
+  ].join(" ");
+}
+
+function textExcerptFromResult(result: Record<string, unknown>): string | undefined {
+  const direct = result.result as Record<string, unknown> | undefined;
+  const candidates = [
+    direct?.text_excerpt,
+    direct?.markdown,
+    direct?.content,
+    (direct?.result as Record<string, unknown> | undefined)?.text_excerpt,
+    result.text_excerpt,
+    result.markdown,
+    result.content,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim().slice(0, 2400);
+  }
+  return undefined;
+}
+
+function buildDraftOnlyEnvelope(
+  originalIntent: string,
+  url: string,
+  sourceResult: Record<string, unknown>,
+): Record<string, unknown> {
+  const excerpt = textExcerptFromResult(sourceResult);
+  return {
+    status: "draft_only",
+    safety: {
+      side_effects: "none",
+      sent: false,
+      offer_made: false,
+      purchase_made: false,
+      approval_required_before_send: true,
+    },
+    intent: originalIntent,
+    url,
+    draft: "Hi, is this still available? I am interested and would like to know the condition, what is included, and whether the price is negotiable. Thanks.",
+    source_excerpt: excerpt,
+    source: sourceResult.source ?? (sourceResult.result as Record<string, unknown> | undefined)?.source ?? "read_only_lookup",
+    trace: sourceResult.trace,
+    impact: sourceResult.impact,
+    next_action: {
+      title: "Human approval required before any send/contact action",
+      why: "This request asked for a draft only. Unbrowse did not open a composer, send a message, make an offer, or buy anything.",
+    },
+  };
+}
+
 async function cmdRun(args: string[], flags: Record<string, string | boolean>, verb = "run"): Promise<void> {
   const parsed = parseCmdRunArgs(args, flags, verb);
   if ("error" in parsed) die(parsed.error);
   const { url, intent } = parsed;
+  const draftOnlyIntent = isDraftOnlyMutationIntent(intent);
+  const resolveIntent = draftOnlyIntent ? draftOnlyReadIntent(intent) : intent;
 
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
@@ -1413,7 +1507,7 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>, v
 
   function resolveBody(): Record<string, unknown> {
     const body: Record<string, unknown> = {
-      intent,
+      intent: resolveIntent,
       params: { url, ...extraParams },
       context: { url },
       projection: { raw: true },
@@ -1436,7 +1530,7 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>, v
   function execBody(endpointId: string): Record<string, unknown> {
     return {
       params: { endpoint_id: endpointId, url, ...extraParams },
-      intent,
+      intent: resolveIntent,
       projection: { raw: true },
       ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
     };
@@ -1647,6 +1741,42 @@ async function cmdRun(args: string[], flags: Record<string, string | boolean>, v
 
   try {
     let result = await resolveStep("initial");
+    if (draftOnlyIntent) {
+      if (isResolveSuccessResult(result)) {
+        runPlan.push({
+          step: "execute",
+          mode: "draft_only_guard",
+          status: "skipped",
+          reason: "no_side_effects_without_approval",
+        });
+        output(decorate(buildDraftOnlyEnvelope(intent, url, result)), !!flags.pretty);
+        return;
+      }
+      const err = resolveResultError(result);
+      output(decorate({
+        ...result,
+        status: err === "auth_required" ? "auth_required" : "draft_unavailable",
+        original_intent: intent,
+        safety: {
+          side_effects: "none",
+          sent: false,
+          offer_made: false,
+          purchase_made: false,
+          approval_required_before_send: true,
+        },
+        next_action: err === "auth_required"
+          ? {
+              title: "Authenticate site before drafting",
+              command: `unbrowse auth "${resolveLoginUrl(result, url) ?? url}"`,
+              why: "The site requires a local authenticated session before Unbrowse can read enough context to draft safely.",
+            }
+          : {
+              title: "Draft unavailable",
+              why: "Unbrowse could not read enough page context to draft a message, and it did not attempt to send/contact/buy.",
+            },
+      }), !!flags.pretty);
+      return;
+    }
     const firstError = resolveResultError(result);
     if (firstError === "auth_required") {
       const loginUrl = resolveLoginUrl(result, url);

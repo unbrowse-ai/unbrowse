@@ -190,7 +190,11 @@ for (const target of supportedTargets) {
   // If a real binary is already present (e.g. CI download-artifact step
   // dropped one in), skip building and just hash it for the manifest.
   // "Real" = non-stub: > 100KB and not a shell script.
-  if (existsSync(outFile)) {
+  //
+  // UNBROWSE_REBUILD_KURI=1 is stronger than this cache: it must compile from
+  // the checked-out source, because local validation often happens against a
+  // dirty submodule whose git SHA still points at the old release asset.
+  if (process.env.UNBROWSE_REBUILD_KURI !== "1" && existsSync(outFile)) {
     try {
       const buf = readFileSync(outFile);
       const isShellStub = buf.length < 1024 && buf.slice(0, 2).toString() === "#!";
@@ -206,7 +210,12 @@ for (const target of supportedTargets) {
     } catch {}
   }
 
-  const prebuiltUrl = prebuiltAssets[target.id];
+  // A forced rebuild must compile from the checked-out source, not download a
+  // prebuilt asset keyed only by the current committed SHA. This matters while
+  // validating local submodule edits: the source tree can be dirty while
+  // readSourceSha() still returns the old commit, and downloading the old
+  // darwin-arm64 asset silently discards the fix under test.
+  const prebuiltUrl = process.env.UNBROWSE_REBUILD_KURI === "1" ? null : prebuiltAssets[target.id];
   if (prebuiltUrl) {
     // Download pre-built binary instead of cross-compiling
     console.log(`Downloading pre-built ${target.id} from ${prebuiltUrl}`);
