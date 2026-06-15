@@ -31,9 +31,11 @@ done
 find "$DST" -type f -name 'covenant.ts' -not -path '*/node_modules/*' 2>/dev/null | while read -r f; do
   mv "$f" "$(dirname "$f")/route.ts"
 done
-# energy-named files (the EBM scoring mechanism, hidden on the public surface)
-find "$DST" -type f -not -path '*/node_modules/*' -name '*-energy.ts' 2>/dev/null | while read -r f; do
-  b="$(basename "$f")"; nb="$(echo "$b" | sed -E 's/-energy\.ts$/-confidence.ts/')"
+# energy-named files (the EBM scoring mechanism, hidden on the public surface). Match ANY *-energy*.ts
+# so suffixed siblings (e.g. -energy-core.ts) rename too — the content-scrub rewrites their imports to
+# -confidence-, so a file the glob misses leaves a dangling import and the bundle fails to resolve.
+find "$DST" -type f -not -path '*/node_modules/*' -name '*-energy*.ts' 2>/dev/null | while read -r f; do
+  b="$(basename "$f")"; nb="$(echo "$b" | sed -E 's/-energy/-confidence/g')"
   [ "$b" != "$nb" ] && mv "$f" "$(dirname "$f")/$nb"
 done
 
