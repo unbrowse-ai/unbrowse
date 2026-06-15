@@ -198,3 +198,11 @@
 {"ts": "2026-06-15T10:15:30Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 9, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
 {"ts": "2026-06-15T10:17:45Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
 {"ts": "2026-06-15T10:19:33Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
+{"ts": "2026-06-15T10:21:44Z", "source": "live", "axis": "P_grpc_onehole", "bin": "bun src/cli.ts", "verdict": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T10:22:23Z", "source": "live", "axis": "x402", "protocol_tests": "PASS", "facilitator_config": "PASS", "settlement": "BLOCKED", "gate": "true"}
+{"ts": "2026-06-15T10:22:25Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:22:25Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:22:26Z", "source": "live", "axis": "frontend_signin_ux", "transient_mapping": "PASS", "live_health": "PASS", "http_code": "200", "gate": "true"}
+{"ts": "2026-06-15T10:22:31Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "bun src/cli.ts", "gate": "true"}
+{"ts": "2026-06-15T10:25:00Z", "source": "live", "axis": "P_grpc_onehole", "bin": "bun src/cli.ts", "verdict": "FAIL", "gate": "false"}
+{"ts": "2026-06-15T10:22:23Z", "source": "live", "axis": "ALL_LEVERS_PULLED", "workable_pass": 5, "workable_fail": 0, "workable_blocked": 0, "grpc": "FAIL(named-gap)", "detail": "x402=PASS storage=PASS indexing=PASS frontend=PASS sweep=PASS grpc=FAIL(named-gap)", "gate": "true"}
