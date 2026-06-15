@@ -38,6 +38,8 @@ import {
 } from "./rank-noise-patterns.js";
 import { bm25Score, BM25_DELTA_WEIGHT } from "./rank-bm25.js";
 import { freshnessFromDate } from "./rank-freshness.js";
+// The EBM learned head — fs-free core, bundles into the worker (nodejs_compat / node:crypto only).
+import { learnedEnergyEmbedded } from "../../../src/ranking/signals/learned-energy-core.js";
 
 export interface RankSignalEvidence {
   bm25: number;
@@ -52,6 +54,9 @@ export interface RankSignalEvidence {
    *  endpoint url_template match the user's contextUrl path. Absent on
    *  older clients; readers treat undefined as 0. */
   context_path_prefix_match?: number;
+  /** EBM learned-head delta: sigmoid(head·features) centered at 0.5, bounded. Absent (0) when no
+   *  head is shipped — older servers/bundles omit it and readers treat undefined as 0. */
+  learned_energy?: number;
 }
 
 export interface RankedEndpointResult {
@@ -306,6 +311,24 @@ function reliabilitySignal(ep: EndpointDescriptor): number {
   return Math.max(0, Math.min(1, r)) * 25;
 }
 
+/** Bounded weight for the learned-head signal. Kept < reliability/2 (25) so the max learned spread
+ *  (2·8=16) can never overturn a full reliability gap (25): the durable signal stays primary; the
+ *  head only breaks ties and ranks cold/sparse endpoints the back-off (reliability_score 0) is blind to. */
+const LEARNED_WEIGHT = 8;
+
+/**
+ * EBM learned-head signal: the shipped energy head's P(success) for (domain, endpoint, intent),
+ * surfaced as a centered, bounded delta in [-LEARNED_WEIGHT, +LEARNED_WEIGHT]. ADDITIVE — it never
+ * erases the durable reliability signal; it lets the head generalise to cold/sparse endpoints the
+ * back-off is blind to. No head shipped → learnedEnergyEmbedded returns null → 0 → score identical
+ * to today. The head is fed by the same identity-free (domain,endpoint) signal as reliability.
+ */
+function learnedHeadSignal(ep: EndpointDescriptor, req: RankRequest): number {
+  const e = learnedEnergyEmbedded(req.skill_domain, ep.endpoint_id, "", req.intent);
+  if (e === null) return 0;
+  return (e - 0.5) * 2 * LEARNED_WEIGHT;
+}
+
 function freshnessSignal(ep: EndpointDescriptor): number {
   if (!ep.last_verified_at) return 0;
   // paper §6.3 freshness decay, surfaced as a small bounded bonus.
@@ -348,9 +371,10 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
     const shape = responseShape(ep);
     const fresh = freshnessSignal(ep);
     const reliability = reliabilitySignal(ep);
+    const learned = learnedHeadSignal(ep, req);
     const ctxPathPrefix = contextPathPrefixMatch(ep, req.context_url);
     const score =
-      bm25 + overlap + schema + host + method + shape + fresh + reliability + ctxPathPrefix;
+      bm25 + overlap + schema + host + method + shape + fresh + reliability + ctxPathPrefix + learned;
     return {
       endpoint_id: ep.endpoint_id,
       score,
@@ -364,6 +388,7 @@ export function rankEndpointsServer(req: RankRequest): RankResponse {
         freshness: fresh,
         reliability,
         context_path_prefix_match: ctxPathPrefix,
+        learned_energy: learned,
       },
     };
   });
