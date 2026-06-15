@@ -193,3 +193,5 @@
 {"ts": "2026-06-15T10:10:33Z", "source": "live", "axis": "storage", "roundtrip_no_keychain": "PASS", "encrypted_at_rest": "PASS", "gate": "true"}
 {"ts": "2026-06-15T10:11:26Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
 {"ts": "2026-06-15T10:11:27Z", "source": "live", "axis": "indexing_reuse", "persist_replay": "PASS", "reuse_cache": "PASS", "gate": "true"}
+{"ts": "2026-06-15T10:13:36Z", "source": "live", "axis": "frontend_signin_ux", "transient_mapping": "PASS", "live_health": "PASS", "http_code": "200", "gate": "true"}
+{"ts": "2026-06-15T10:13:38Z", "source": "live", "axis": "frontend_signin_ux", "transient_mapping": "PASS", "live_health": "PASS", "http_code": "200", "gate": "true"}
