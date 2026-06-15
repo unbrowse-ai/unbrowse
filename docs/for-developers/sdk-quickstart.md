@@ -1,35 +1,40 @@
 # SDK Quickstart
 
-`unbrowse/sdk` is the thin HTTP-first TypeScript client for the hosted Unbrowse API. It runs in browsers, edge runtimes, and Node 18+.
+`unbrowse/sdk` is the TypeScript client for the current Unbrowse contract: one
+typed-hole request from intent plus optional URL/params/approval. It runs in browsers, edge
+runtimes, and Node.
 
 ```bash
 npm i unbrowse
 ```
 
 ```ts
-import { Unbrowse } from "unbrowse/sdk";
+import { createHole } from "unbrowse/sdk";
 
-const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
+const hole = createHole({
+  client: { apiKey: process.env.UNBROWSE_API_KEY },
+});
 
-const resolved = await unbrowse.resolve({
+const result = await hole.fill({
   intent: "list tomorrow's events",
   url: "https://calendar.google.com",
 });
-
-const result = await unbrowse.execute({
-  endpoint_id: resolved.available_operations![0].endpoint_id,
-  params: {},
-});
 ```
 
-Need a local browser session owned by your process? Use the legacy local-runtime SDK:
+The shell equivalent is:
 
 ```bash
-npm install unbrowse/sdk
+unbrowse "list tomorrow's events"
+unbrowse "list tomorrow's events" --url "https://calendar.google.com"
 ```
 
-Its three factories are `Unbrowse.local()`, `Unbrowse.connect(url)`, and `Unbrowse.spawn({ port })`.
+Need to inspect route selection? The legacy `Unbrowse` client still exposes
+`resolve`/`execute` for debugging and compatibility, but new agents should start
+from `createHole().fill(...)`.
 
-Reused routes can be priced. A paid call returns an HTTP 402 that the SDK raises as a typed error you can catch and retry after settling payment; brand-new agents get a sponsored allowance first. The full SDK reference, including the payment helpers and the typed error hierarchy, lives in the `sdk/` section of this space and in the package README.
+Reused routes can be priced. A paid call returns an HTTP 402 that the SDK raises as
+a typed error you can catch and retry after settling payment; brand-new agents get a
+sponsored allowance first.
 
-Both SDK packages are MIT licensed. The local runtime binary is distributed separately. The split is described in the [Open Source Notice](../OPEN-SOURCE-NOTICE.md).
+The open/closed source split is described in the
+[Open Source Notice](../OPEN-SOURCE-NOTICE.md).

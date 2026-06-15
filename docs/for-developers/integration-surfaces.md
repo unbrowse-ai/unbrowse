@@ -1,34 +1,45 @@
 # Integration Surfaces
 
-There are three ways to call Unbrowse from your own software. They are the same runtime behind different front doors.
+There are three ways to call Unbrowse from your own software. They are the same
+contract behind different front doors.
 
 | Surface | Use it when | Entry point |
 |---|---|---|
-| **MCP server** | You are wiring an agent host (Claude, Cursor, Codex, any MCP client) | `npx unbrowse mcp` |
-| **`unbrowse/sdk`** | You are writing browser, edge, or Node TypeScript/JavaScript | `npm i unbrowse` |
-| **`unbrowse/sdk`** | You need the legacy local-runtime/binary-spawn path | `npm install unbrowse/sdk` |
-| **CLI** | Shell scripts, CI, one-off use | `npx unbrowse` |
+| **Agent Skill** | You are wiring a skill-aware agent host | `unbrowse setup` |
+| **SDK hole** | You are writing browser, edge, or Node TypeScript/JavaScript | `import { createHole } from "unbrowse/sdk"` |
+| **CLI** | Shell scripts, CI, one-off use, contract inspection | `unbrowse contract surface` |
+| **MCP server** | Legacy host compatibility | `unbrowse setup --mcp` / `npx unbrowse mcp` |
 
-MCP and CLI speak to the same local runtime. `unbrowse/sdk` calls the hosted API directly; `unbrowse/sdk` speaks to the local runtime at `http://localhost:6969`.
+The preferred contract is the same everywhere: fill one hole. The caller supplies
+intent plus optional URL/params/approval; the runtime chooses whether the right
+descent is a direct document fetch, shared route graph hit, standard adapter, local
+auth/cookies, browser capture, HAR inspection, or newly indexed contract.
 
-MCP and the SDKs are the supported integration surfaces; the CLI is the same runtime for direct use.
+```ts
+import { createHole } from "unbrowse/sdk";
 
-Both SDK packages are MIT licensed. New code should start with `unbrowse/sdk`; use `unbrowse/sdk` only when you need a local browser session owned by your process. See [SDK Quickstart](./sdk-quickstart.md) and the SDK reference under `sdk/`.
+const hole = createHole();
+const r = await hole.fill({
+  intent: "latest issues in this repository",
+  url: "https://github.com/unbrowse-ai/unbrowse/issues",
+});
+```
 
-## Already using another library?
+## Already Using Another Library?
 
 If your code already calls `axios`, `got`, `ky`, `undici`, `superagent`, `wretch`,
 `node-fetch`, `cross-fetch`, `playwright`, `puppeteer`, `selenium-webdriver`,
 `@browserbasehq/stagehand`, `@mendable/firecrawl-js`, `exa-js`, or `@tavily/core`,
-you do not need to rewrite it — swap one import for the matching `@unbrowse/*` drop-in.
-See [Drop-in Adapters](./drop-in-adapters.md) for the full list and one-line swaps.
+you do not need to rewrite it. Swap one import for the matching Unbrowse drop-in.
+See [Drop-in Adapters](./drop-in-adapters.md).
 
-## Building an agent?
+## Building an Agent?
 
-Unbrowse plugs into the popular agent SDKs as a **native tool** — Vercel AI SDK,
-LangChain JS, Mastra, LlamaIndex, and the OpenAI Agents SDK — and serves the full
-tool set over MCP (`npx unbrowse mcp`) for any MCP host. See
-[Agent SDK Adapters](./agent-sdk-adapters.md).
+Start with the installed Agent Skill or the SDK hole. Older framework adapters and
+MCP tools may expose `resolve`/`execute`; those are compatibility route-inspection
+tools, not the default mental model for new agents.
+
+See [Agent SDK Adapters](./agent-sdk-adapters.md).
 
 ## Writing Python?
 

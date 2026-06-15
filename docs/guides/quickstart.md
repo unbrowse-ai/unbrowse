@@ -5,11 +5,12 @@ Read when: first local install, first CLI run, or CI/headless setup.
 ## Install
 
 ```bash
-# Recommended: make Unbrowse your agent's native browser
-npx unbrowse-openclaw install --restart
+# Recommended: install the binary and Agent Skill
+npm install -g unbrowse
+unbrowse setup
 ```
 
-Every `page.goto()` routes through Unbrowse automatically — no code changes needed. The package pulls in the local runtime.
+`unbrowse setup` installs the Agent Skill by default. MCP is opt-in with `--mcp`.
 
 Alternative standalone CLI install:
 
@@ -19,23 +20,23 @@ curl -fsSL https://unbrowse.ai/install.sh | sh
 
 The CLI installer detects platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse setup`.
 
-Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The MCP-and-SDK agent contract is the public API surface; there is no longer a checked-in `SKILL.md` (retired in v6.15.0 with the skill-repo sync).
+Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The Agent Skill plus SDK hole is the public agent surface; MCP is legacy compatibility.
 
 ## Fast path
 
 ```bash
 git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
-cd ~/unbrowse && ./setup --host off
+cd ~/unbrowse && ./setup
 ```
 
-`./setup` is the canonical bootstrap path. It does the repo-local shim/runtime prep first, then runs the real first-use flow without depending on npm release assets:
+`./setup` is the canonical repo bootstrap path. It does the repo-local shim/runtime prep first, links the clone into the detected skill directory, then runs the real first-use flow without depending on npm release assets:
 
 It is one command, not literal one-click: the first successful run can still prompt for ToS acceptance and agent identity.
 
 1. checks the local package-manager/runtime environment
 2. verifies the bundled Kuri browser runtime, or builds it from vendored source when working from repo checkout with Zig available
 3. installs or updates the stable `unbrowse` shim and the Open Code `/unbrowse` command when Open Code is detected
-4. runs the first-use bootstrap: ToS acceptance, agent registration + API-key caching, wallet detection, then starts the local server on `http://localhost:6969` unless `--no-start` is passed
+4. runs the first-use bootstrap: ToS acceptance, agent registration + API-key caching, wallet detection, and Agent Skill install
 
 If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto the agent profile, used as the contributor payout destination, and used as the spending wallet for paid marketplace routes.
 
@@ -59,13 +60,13 @@ unbrowse dashboard
 
 `unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into CLI contribution mode on later CLI runs.
 
-For MCP host integration, the recommended path is `unbrowse setup --host mcp` (the global binary registers itself with Claude Desktop / Cursor / Aiko / Claude Code automatically):
+For legacy MCP host integration, opt in explicitly:
 
 ```bash
-npm install -g unbrowse@preview && unbrowse setup --host mcp
+npm install -g unbrowse@preview && unbrowse setup --mcp
 ```
 
-The legacy `npx skills add unbrowse-ai/unbrowse` path is retired (v6.15.0). The MCP server lives in the same npm package as the CLI.
+The legacy `npx skills add unbrowse-ai/unbrowse` path is retired. The MCP server lives in the same npm package as the CLI but is no longer the primary setup path.
 
 ## First-run behavior
 
@@ -80,7 +81,7 @@ The CLI auto-starts the local server for normal commands. Account registration i
 Headless repo bootstrap:
 
 ```bash
-cd ~/unbrowse && ./setup --host off --accept-tos --agent-email agent@example.com --skip-wallet-setup
+cd ~/unbrowse && ./setup --accept-tos --agent-email agent@example.com --skip-wallet-setup
 ```
 
 Useful env vars for CI/headless runs:
@@ -117,47 +118,51 @@ Open an auth flow when a site needs login:
 unbrowse auth "https://calendar.google.com"
 ```
 
-## TypeScript SDK
-
-If you want to call the same local-first flow from app code:
+Get one internet result from the shell:
 
 ```bash
-npm install unbrowse/sdk
+unbrowse "top stories with point counts"
+unbrowse "top stories with point counts" --url "https://news.ycombinator.com"
 ```
+
+## TypeScript SDK
+
+If you want to call the same flow from app code:
+
+```bash
+npm install unbrowse
+```
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "get trending searches",
+  url: "https://google.com",
+});
+
+console.log(result.answer ?? result.items);
+```
+
+Inspect the current machine-readable contract:
+
+```bash
+unbrowse contract surface
+```
+
+The legacy `Unbrowse` client still exposes route-inspection methods such as
+`resolve`, `execute`, and `searchDomain`, but new agents should start from the hole.
+Use the route view only when debugging a selected contract:
 
 ```ts
 import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse();
-
-const result = await unbrowse.resolve({
-  intent: "get trending searches",
-  url: "https://google.com",
-});
-
-console.log(result.result);
-```
-
-Search the marketplace directly:
-
-```ts
 const matches = await unbrowse.searchDomain({
   intent: "find trending repositories",
   domain: "github.com",
   k: 3,
-});
-```
-
-Re-execute a learned skill:
-
-```ts
-const resolved = await unbrowse.resolve({
-  intent: "get stock prices",
-  url: "https://finance.yahoo.com",
-});
-
-const rerun = await unbrowse.execute(resolved, {
-  params: { symbol: "NVDA" },
 });
 ```
 
