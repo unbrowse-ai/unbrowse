@@ -170,6 +170,7 @@ bench/capability/reports/run-*.json
 bench/capability/reports/run-*.md
 bench/capability/reports/*T*.json
 bench/capability/reports/*T*.md
+bench/capability/webagent/results-agent-cli-*/
 
 # bench-converge runtime artifacts (per-run dirs + sandboxed unbrowse state).
 # Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).

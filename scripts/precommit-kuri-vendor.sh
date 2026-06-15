@@ -35,8 +35,8 @@ if ! echo "$STAGED" | grep -qE '^submodules/kuri$'; then
 fi
 
 MANIFEST="packages/skill/vendor/kuri/manifest.json"
-if [[ ! -f "$MANIFEST" ]]; then
-  echo "[pre-commit kuri-vendor] ERROR: $MANIFEST missing — cannot verify Kuri vendor freshness" >&2
+if ! git cat-file -e ":$MANIFEST" 2>/dev/null; then
+  echo "[pre-commit kuri-vendor] ERROR: $MANIFEST missing from index — cannot verify Kuri vendor freshness" >&2
   exit 1
 fi
 
@@ -47,8 +47,10 @@ if [[ -z "$STAGED_SHA" ]]; then
   exit 1
 fi
 
-# Extract manifest source_sha without a JSON parser dep.
-MANIFEST_SHA=$(grep -E '"source_sha"' "$MANIFEST" | head -1 | sed -E 's/.*"source_sha"[[:space:]]*:[[:space:]]*"([0-9a-f]+)".*/\1/')
+# Extract manifest source_sha from the INDEX, not the worktree. Earlier
+# pre-commit steps run pack/leak checks that may refresh generated files in the
+# working tree; this guard is about what the pending commit will land.
+MANIFEST_SHA=$(git show ":$MANIFEST" | grep -E '"source_sha"' | head -1 | sed -E 's/.*"source_sha"[[:space:]]*:[[:space:]]*"([0-9a-f]+)".*/\1/')
 if [[ -z "$MANIFEST_SHA" ]]; then
   echo "[pre-commit kuri-vendor] ERROR: could not parse source_sha from $MANIFEST" >&2
   exit 1
