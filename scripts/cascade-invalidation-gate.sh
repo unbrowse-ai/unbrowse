@@ -17,6 +17,7 @@ run() {
 
 echo "[cascade-gate] no-stale-serve: a value change cascades to invalidate transitive dependents"
 run "composite layer (Merkle content-id, validate-on-hit, fail-closed)" "bench/capability/test_composite_cascade_invalidation.ts"
+run "composite adversarial (material invalidates, noise/volatile does NOT — no spurious invalidation)" "bench/capability/test_composite_cascade_adversarial.ts"
 run "value/resolution layer (content-addressed + hash-chain prev-fold)" "bench/capability/test_value_layer_cascade.ts"
 
 if [ "$fail" -eq 0 ]; then
