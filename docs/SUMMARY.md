@@ -13,7 +13,7 @@
 ## For Agents
 
 * [How an Agent Uses Unbrowse](for-agents/how-an-agent-uses-unbrowse.md)
-* [Resolve and Execute](for-agents/resolve-and-execute.md)
+* [Hole Contract and Legacy Route View](for-agents/resolve-and-execute.md)
 * [MCP Integration](for-agents/mcp-integration.md)
 * [When It Uses a Browser](for-agents/when-it-uses-a-browser.md)
 
@@ -50,6 +50,11 @@
 * [Onboarding Users](sdk/onboarding-users.md)
 * [Onboarding Validators](sdk/onboarding-validators.md)
 * [Rewards and Economics](sdk/rewards-and-economics.md)
+
+## Research
+
+* [Whitepaper: Internal APIs Are All You Need](whitepaper/README.md)
+* [How Unbrowse Pays](HOW_UNBROWSE_PAYS.md)
 
 ## Reference
 
