@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.8...v9.3.9) (2026-06-15)
+
+### Features
+
+* **cli:** authenticated writes carry the caller --header to the target ([0bc9788](https://github.com/unbrowse-ai/unbrowse-dev/commit/0bc978845dcf753447289595e24fa1caf49e5752))
+
 ## [9.3.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.7...v9.3.8) (2026-06-15)
 
 ### Features
