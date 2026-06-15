@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.9...v9.3.10) (2026-06-15)
+
+### Bug Fixes
+
+* **execution:** default content-type application/json for JSON-body writes ([212a426](https://github.com/unbrowse-ai/unbrowse-dev/commit/212a426f2c40431045801798182d4a14e332ac2f))
+
 ## [9.3.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.8...v9.3.9) (2026-06-15)
 
 ### Features
