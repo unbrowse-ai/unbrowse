@@ -46,6 +46,38 @@ try {
 } catch {
   // keytar unavailable -- use encrypted file fallback
 }
+
+/**
+ * On macOS, keytar's native setPassword calls SecKeychainAddGenericPassword, which pops a
+ * blocking "Keychain Not Found" modal dialog when there is no usable default login keychain
+ * (a corrupted / reset / headless keychain search list). That dialog freezes the CLI on a
+ * system prompt the agent cannot dismiss. Pre-flight the keychain NON-INTERACTIVELY via the
+ * `security` CLI (which never pops a dialog): if the default keychain is missing or its file
+ * does not exist, disable keytar so the encrypted file vault takes over silently — no prompt.
+ * Honors UNBROWSE_NO_KEYCHAIN=1 as an explicit opt-out (force the file vault).
+ */
+function macKeychainUsable(): boolean {
+  if (process.platform !== "darwin") return true;
+  const v = (process.env.UNBROWSE_NO_KEYCHAIN ?? "").toLowerCase();
+  if (v === "1" || v === "true" || v === "yes") return false;
+  try {
+    const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+    const out = execFileSync("security", ["default-keychain"], {
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 3000,
+    }).toString();
+    const m = out.match(/"([^"]+)"/);
+    if (!m) return false; // no default keychain configured
+    return existsSync(m[1]); // the keychain file must actually exist on disk
+  } catch {
+    return false; // `security` errored / no keychain → unusable
+  }
+}
+
+if (keytar && !macKeychainUsable()) {
+  keytar = null;
+  log("vault", "macOS default keychain unavailable; using encrypted file vault (no keychain prompt)");
+}
 const importedKeytar = keytar;
 let keytarFallbackLogged = false;
 
