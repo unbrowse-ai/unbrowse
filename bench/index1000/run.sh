@@ -32,7 +32,7 @@ index_one() {
   # per-site disposable identity via plus-addressing on the one inbox (quota workaround)
   email="${INBOX%@*}+${slug}@${INBOX#*@}"
   t0=$(date +%s)
-  raw="$(AGENTMAIL_SIGNUP_EMAIL="$email" timeout "$TMO" $BIN run "$url" "index this site's main read API" --json 2>/dev/null || true)"
+  raw="$(AGENTMAIL_SIGNUP_EMAIL="$email" timeout "$TMO" $BIN "index this site's main read API" --url "$url" --json 2>/dev/null || true)"
   t1=$(date +%s)
   if printf '%s' "$raw" | grep -qE '"success":true|"endpoint_id"|"skill_id"'; then ok=true; else ok=false; fi
   printf '{"site":"%s","slug":"%s","email":"%s","ok":%s,"ms":%s}\n' \
