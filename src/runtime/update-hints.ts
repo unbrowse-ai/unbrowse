@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getPackageRoot } from "./paths.js";
+import { getModuleDir, getPackageRoot } from "./paths.js";
 
 export type InstallMethod = "repo-clone" | "npm-global" | "unknown";
 export type InstallHost = "auto" | "codex" | "claude" | "mcp" | "off" | "unknown";
@@ -31,6 +31,7 @@ type UpdateCheckState = {
   notified_at?: string;
   auto_update_attempted_at?: string;
   auto_update_target?: string;
+  bg_check_spawned_at?: string;
 };
 
 export type UpdateCheckResult = {
@@ -112,13 +113,24 @@ function detectInstallHost(repoRoot: string | undefined): InstallHost {
 }
 
 export function getInstalledVersion(metaUrl: string): string {
-  const packageRoot = getPackageRoot(metaUrl);
-  try {
-    const pkg = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as { version?: string };
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
+  // Walk up from the module dir to the first package.json that actually carries a
+  // version. The shipped runtime includes a `runtime/package.json` stub
+  // (`{"type":"module"}`, no version); naively reading the nearest package.json
+  // yields "unknown", which makes the updater believe it is perpetually behind and
+  // reinstall every interval. Skip version-less stubs.
+  let dir = getModuleDir(metaUrl);
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    const pj = path.join(dir, "package.json");
+    if (existsSync(pj)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pj, "utf8")) as { version?: string };
+        if (typeof pkg.version === "string" && pkg.version.trim()) return pkg.version.trim();
+      } catch { /* unreadable — keep walking up */ }
+    }
+    dir = path.dirname(dir);
   }
+  return "unknown";
 }
 
 export function resolveInstallSource(metaUrl: string): InstallSourceState {
@@ -265,6 +277,89 @@ export function shouldAutoUpdate(input: {
     }
   }
   return { update: true, reason: "applying" };
+}
+
+// Commands that must NOT trigger a background update check: the self-update
+// commands (which run the check themselves), the fast health probe, and the
+// long-lived / internal daemons where a spawned node child is noise or harmful.
+const BACKGROUND_UPDATE_SKIP_COMMANDS = new Set<string>([
+  "upgrade", "update", "health", "mcp", "mcp-serve", "serve", "setup", "help",
+  "__drain-queue", "contract-bridge",
+]);
+
+export type BackgroundCheckDecision = { spawn: boolean; reason: string };
+
+/**
+ * Pure decision: on a normal CLI invocation, should we spawn a detached
+ * self-update checker? This is what keeps the CLI current for EVERY user — not
+ * only hosts that ran `unbrowse setup` and got the SessionStart hook. Throttled
+ * by the last-spawn timestamp so a node child is spawned at most once per
+ * interval. No I/O — every input is a parameter (unit-testable, no clock/fs).
+ */
+export function shouldSpawnBackgroundUpdateCheck(input: {
+  command: string;
+  disabled: boolean;
+  lastSpawnAtMs: number | null;
+  nowMs: number;
+  intervalMs: number;
+}): BackgroundCheckDecision {
+  if (input.disabled) return { spawn: false, reason: "disabled" };
+  if (BACKGROUND_UPDATE_SKIP_COMMANDS.has(input.command)) {
+    return { spawn: false, reason: `command:${input.command}` };
+  }
+  if (
+    input.lastSpawnAtMs != null &&
+    Number.isFinite(input.lastSpawnAtMs) &&
+    input.nowMs - input.lastSpawnAtMs < input.intervalMs
+  ) {
+    return { spawn: false, reason: "throttled" };
+  }
+  return { spawn: true, reason: "due" };
+}
+
+export type BackgroundCheckResult = { spawned: boolean; reason: string };
+
+/**
+ * On a normal command, spawn a FULLY DETACHED self-update checker and return
+ * immediately. The child runs `upgrade --hint-only`, which checks npm-latest and
+ * (for npm-global installs) applies the update in its own detached background —
+ * so the in-flight command is never blocked or slowed. Throttled via
+ * update-check.json (`bg_check_spawned_at`); opt out with UNBROWSE_NO_AUTO_UPDATE
+ * / CI. Never throws: a failure here must not break the user's command.
+ *
+ * This mirrors the update-notifier / gh-cli shape: the parent never waits, a
+ * separate process owns the check, and the result lands on the NEXT invocation.
+ */
+export function maybeSpawnBackgroundUpdateCheck(metaUrl: string, command: string): BackgroundCheckResult {
+  try {
+    const statePath = getUpdateCheckStatePath();
+    const state = readJsonFile<UpdateCheckState>(statePath) ?? {};
+    const lastSpawn = state.bg_check_spawned_at ? Date.parse(state.bg_check_spawned_at) : Number.NaN;
+    const decision = shouldSpawnBackgroundUpdateCheck({
+      command,
+      disabled: autoUpdateDisabled(),
+      lastSpawnAtMs: Number.isFinite(lastSpawn) ? lastSpawn : null,
+      nowMs: Date.now(),
+      intervalMs: getUpdateIntervalMs(),
+    });
+    if (!decision.spawn) return { spawned: false, reason: decision.reason };
+
+    // Stamp BEFORE spawning so a crash-looping checker can't re-spawn every
+    // invocation (throttle holds even if the child never completes).
+    writeJsonFile(statePath, { ...state, bg_check_spawned_at: new Date().toISOString() } satisfies UpdateCheckState);
+
+    const hintBin = getHookScriptPath(metaUrl);
+    if (!existsSync(hintBin)) return { spawned: false, reason: "hint-bin-missing" };
+    const child = spawn(process.execPath, [hintBin], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+      windowsHide: true,
+    });
+    child.unref();
+    return { spawned: true, reason: "spawned" };
+  } catch (err) {
+    return { spawned: false, reason: `error:${(err as Error)?.message ?? "unknown"}` };
+  }
 }
 
 /** Whether auto-update is opted out (env or CI). */

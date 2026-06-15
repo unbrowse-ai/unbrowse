@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildUpgradeCommand, checkForUpdates, configureUpdateHintHooks, saveInstallSource } from "../src/runtime/update-hints.js";
+import { pathToFileURL } from "node:url";
+import { buildUpgradeCommand, checkForUpdates, configureUpdateHintHooks, getInstalledVersion, saveInstallSource } from "../src/runtime/update-hints.js";
 
 const tmpDirs: string[] = [];
 const originalHome = process.env.HOME;
@@ -136,5 +137,24 @@ describe("update hints", () => {
     expect(config).toContain("[features]\ncodex_hooks = true\n");
     expect(config).toContain("# Unbrowse update hints — managed by unbrowse setup\n[hooks]\n");
     expect(config).not.toContain("[[hooks]]");
+  });
+
+  it("reads the real version past a version-less runtime/package.json stub", () => {
+    // Reproduce the shipped layout: <pkg>/package.json carries the version, but
+    // the runtime bundle sits under <pkg>/runtime/ next to a stub package.json
+    // ({"type":"module"}, no version). getInstalledVersion must walk past the stub
+    // and return the real version — not "unknown" (which made the updater think it
+    // was perpetually behind and reinstall every interval).
+    const pkgRoot = mkdtempSync(path.join(os.tmpdir(), "unbrowse-ver-"));
+    tmpDirs.push(pkgRoot);
+    writeFileSync(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "unbrowse", version: "9.9.9" }));
+    const runtimeDir = path.join(pkgRoot, "runtime");
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(path.join(runtimeDir, "package.json"), JSON.stringify({ type: "module" }));
+    const runtimeEntry = path.join(runtimeDir, "cli.js");
+    writeFileSync(runtimeEntry, "// bundle");
+
+    const version = getInstalledVersion(pathToFileURL(runtimeEntry).href);
+    expect(version).toBe("9.9.9");
   });
 });

@@ -48,7 +48,7 @@ import { isBundledVirtualEntrypoint, isMainModule, resolveSiblingEntrypoint, run
 import { drainPendingIndexJobs } from "./lib/indexer-core/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
-import { checkForUpdates, recordUpdateHint } from "./runtime/update-hints.js";
+import { checkForUpdates, maybeSpawnBackgroundUpdateCheck, recordUpdateHint } from "./runtime/update-hints.js";
 import { promptContributionMode, maybeShowContributionNotice } from "./cli-setup.js";
 import { getContributionConfig, setContributionConfig } from "./config/contribution.js";
 import { getCapturePipelineSettings, updateCapturePipelineSettings } from "./settings.js";
@@ -5418,6 +5418,13 @@ async function main(): Promise<void> {
   }
 
   _maybeSweepQueue().catch(() => {});
+
+  // Keep the CLI current for EVERY user: on a normal command, spawn a fully
+  // detached self-update checker (throttled, opt-out-aware) that fetches
+  // npm-latest and applies it in its own background process. Never blocks or
+  // slows this command; the update lands on the next invocation. Self-update,
+  // fast (health), and daemon (mcp/serve) commands are skipped inside.
+  try { maybeSpawnBackgroundUpdateCheck(import.meta.url, command); } catch { /* never break the command */ }
 
   // Stash CLI -p key=val params on flags object so command handlers can read them.
   if (Object.keys(cliParams).length > 0) {
