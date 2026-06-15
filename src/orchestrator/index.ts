@@ -392,6 +392,11 @@ export interface PersistedComposite {
   steps: ChainStepInfo[];
   edges: CompositeEdge[];
   created_at: string;
+  /** Merkle content-id: structure ⊕ the constituent endpoints' content-hashes. A constituent
+   *  endpoint definition change re-hashes this, so a (domain,target) lookup hit can detect the
+   *  composite is stale and re-walk instead of serving the old chain. Absent on pre-Merkle
+   *  composites → treated as stale (fail-closed). */
+  content_id?: string;
 }
 
 /** Content-address a composite by what makes it the SAME DAG: the domain, the target endpoint, the
@@ -413,6 +418,38 @@ export function compositeAddress(
   return `composite:${createHash("sha256").update(canonical).digest("hex").slice(0, 32)}`;
 }
 
+/** Content-hash of ONE endpoint's replay-relevant definition. A re-capture that changes the method
+ *  or URL template re-hashes the endpoint, which cascades into any composite that includes it. Only
+ *  the fields that affect replay correctness are folded (NOT volatile metadata like timestamps). */
+export function endpointContentHash(ep: { endpoint_id: string; method?: string; url_template?: string }): string {
+  const canonical = `id:${ep.endpoint_id}::method:${ep.method ?? ""}::url:${ep.url_template ?? ""}`;
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+}
+
+/**
+ * Merkle content-id for a composite: the structural address ⊕ the ordered content-hashes of its
+ * constituent endpoints (looked up in `endpointContentById`). A constituent endpoint definition
+ * change ⇒ its content-hash changes ⇒ the composite content-id changes ⇒ a (domain,target) lookup
+ * hit recomputes a different id and invalidates (cascade). A step whose endpoint is absent from the
+ * current skill hashes as "gone" (also a change → invalidate). Deterministic; no clock.
+ */
+export function compositeContentId(
+  domain: string,
+  target: string,
+  steps: ChainStepInfo[],
+  edges: CompositeEdge[],
+  endpointContentById: Map<string, string>,
+): string {
+  const stepHashes = steps.map((s) => `${s.endpoint_id}=${endpointContentById.get(s.endpoint_id) ?? "gone"}`).join(">");
+  const canonical = `${compositeAddress(domain, target, steps, edges)}::steps:${stepHashes}`;
+  return `cid:${createHash("sha256").update(canonical).digest("hex").slice(0, 32)}`;
+}
+
+/** Build the endpoint content-hash map from a skill's current endpoints (the inputs to a recompute). */
+export function endpointContentMap(endpoints: Array<{ endpoint_id: string; method?: string; url_template?: string }>): Map<string, string> {
+  return new Map(endpoints.map((ep) => [ep.endpoint_id, endpointContentHash(ep)]));
+}
+
 /** Replay LOOKUP key — what a resolve knows BEFORE the walk: the domain and the target endpoint it
  *  picked. Maps to the persisted composite so replay finds the recorded step order without re-walking.
  *  (The full content-address needs steps+edges, which only exist after the walk — so the filename is
@@ -426,13 +463,22 @@ function compositeFilePath(lookupKey: string): string {
   return join(compositeSnapshotDir(), `${lookupKey.replace(/[^a-z0-9]/gi, "_")}.json`);
 }
 
-export function writeComposite(c: PersistedComposite): string | undefined {
+export function writeComposite(
+  c: PersistedComposite,
+  // Current skill endpoints — stamps the Merkle content_id so a later readComposite can detect a
+  // constituent change and cascade-invalidate. Omitted → content_id left as-is (legacy).
+  currentEndpoints?: Array<{ endpoint_id: string; method?: string; url_template?: string }>,
+): string | undefined {
   if (process.env.UNBROWSE_STATELESS === "1") return undefined;
   if (process.env.UNBROWSE_LOCAL_CACHES !== "1") return undefined;
   try {
     mkdirSync(compositeSnapshotDir(), { recursive: true });
     const target = compositeFilePath(compositeLookupKey(c.domain, c.target));
-    writeFileSync(target, JSON.stringify(c), "utf-8");
+    const stamped =
+      currentEndpoints && !c.content_id
+        ? { ...c, content_id: compositeContentId(c.domain, c.target, c.steps, c.edges, endpointContentMap(currentEndpoints)) }
+        : c;
+    writeFileSync(target, JSON.stringify(stamped), "utf-8");
     return target;
   } catch {
     return undefined;
@@ -441,11 +487,25 @@ export function writeComposite(c: PersistedComposite): string | undefined {
 
 /** Look up a persisted composite by the pre-walk key (domain + target endpoint). On hit, the caller
  *  replays the recorded `steps` in order instead of re-deriving the prerequisite order. */
-export function readComposite(domain: string, target: string): PersistedComposite | undefined {
+export function readComposite(
+  domain: string,
+  target: string,
+  // The CURRENT skill endpoints. When supplied, the stored composite is validated by recomputing its
+  // Merkle content-id from these endpoints — a constituent definition change (or a pre-Merkle
+  // composite with no content_id) yields a mismatch and the entry is invalidated (return undefined →
+  // the caller re-walks), never served stale. Omitted → legacy behaviour (return as-is).
+  currentEndpoints?: Array<{ endpoint_id: string; method?: string; url_template?: string }>,
+): PersistedComposite | undefined {
   try {
     const path = compositeFilePath(compositeLookupKey(domain, target));
     if (!existsSync(path)) return undefined;
-    return JSON.parse(readFileSync(path, "utf-8")) as PersistedComposite;
+    const c = JSON.parse(readFileSync(path, "utf-8")) as PersistedComposite;
+    if (currentEndpoints) {
+      if (!c.content_id) return undefined; // fail-closed: pre-Merkle composite → re-walk once
+      const expected = compositeContentId(domain, target, c.steps, c.edges, endpointContentMap(currentEndpoints));
+      if (expected !== c.content_id) return undefined; // a constituent changed → cascade-invalidate
+    }
+    return c;
   } catch {
     return undefined;
   }
