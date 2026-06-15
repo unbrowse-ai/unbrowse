@@ -214,3 +214,5 @@
 {"ts": "2026-06-15T10:29:06Z", "source": "live", "axis": "P_grpc_onehole", "bin": "bun src/cli.ts", "verdict": "FAIL", "gate": "false"}
 {"ts": "2026-06-15T10:26:44Z", "source": "live", "axis": "ALL_LEVERS_PULLED", "workable_pass": 5, "workable_fail": 0, "workable_blocked": 0, "grpc": "FAIL(named-gap)", "detail": "x402=PASS storage=PASS indexing=PASS frontend=PASS sweep=PASS grpc=FAIL(named-gap)", "gate": "true"}
 {"ts": "2026-06-15T10:53:19Z", "source": "live", "axis": "kv_auth_binding", "bound_green": "PASS", "mutation_red": "PASS", "gate": "true"}
+{"ts": "2026-06-15T11:05:13Z", "source": "live", "axis": "C_authwrite_onehole", "bin": "unbrowse", "witness1": "PASS", "witness2": "PASS", "gate": "true"}
+{"ts": "2026-06-15T11:07:39Z", "source": "live", "axis": "indexing_sweep_sample", "on_topic": 10, "reachable": 10, "sample": 10, "threshold": 0.7, "full_10k": "detached-not-run", "bin": "unbrowse", "gate": "true"}

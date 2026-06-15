@@ -14,13 +14,17 @@ function ensureLogDir(): void {
 }
 
 /**
- * Log a message to both stdout and ~/.unbrowse/logs/unbrowse-YYYY-MM-DD.log.
+ * Log a diagnostic message to stderr and ~/.unbrowse/logs/unbrowse-YYYY-MM-DD.log.
+ *
+ * stdout is reserved for command payloads (JSON, fetched documents, etc.). A
+ * vault/cache diagnostic on stdout makes otherwise-valid CLI JSON unparsable,
+ * which is exactly what benchmark harnesses and MCP hosts consume.
  * Format: [HH:MM:SS] [module] message
  */
 export function log(module: string, message: string): void {
   const ts = new Date().toTimeString().slice(0, 8); // HH:MM:SS
   const line = `[${ts}] [${module}] ${message}`;
-  console.log(line);
+  console.error(line);
   try {
     ensureLogDir();
     fs.appendFileSync(getLogFile(), line + "\n");

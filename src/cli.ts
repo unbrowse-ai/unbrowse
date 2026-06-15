@@ -963,6 +963,19 @@ function resolveCacheSafe(flags: Record<string, string | boolean>): boolean {
     && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"];
 }
 
+function markResolveCacheReplay(hit: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...hit, _cache_hit: true };
+  const impact = hit.impact;
+  if (impact && typeof impact === "object" && !Array.isArray(impact)) {
+    out.impact = { ...(impact as Record<string, unknown>), cache_hit: true };
+  }
+  const timing = hit.timing;
+  if (timing && typeof timing === "object" && !Array.isArray(timing)) {
+    out.timing = { ...(timing as Record<string, unknown>), cache_hit: true, source: "cache" };
+  }
+  return out;
+}
+
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
@@ -982,11 +995,12 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   if (resolveCacheSafe(flags)) {
     const cachedHit = peekResolution<Record<string, unknown>>(resolveCacheKeyFor(flags, intent), resolveCacheTtlMs());
     if (cachedHit) {
+      const replay = markResolveCacheReplay(cachedHit);
       const hostType = detectTelemetryHostType();
       if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
         await ensureCliInstallTracked(hostType);
       }
-      addDirectDocumentAgentGuidance(cachedHit, {
+      addDirectDocumentAgentGuidance(replay, {
         intent,
         url: typeof flags.url === "string" ? flags.url : undefined,
       });
@@ -995,7 +1009,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: { command: "resolve", intent, cache_hit: true },
       }).catch(() => {});
-      output(cachedHit, !!flags.pretty);
+      output(replay, !!flags.pretty);
       return;
     }
   }
