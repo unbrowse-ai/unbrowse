@@ -2069,7 +2069,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url, session_id } = req.body as {
+    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url, session_id, auth_headers } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
@@ -2081,6 +2081,10 @@ export async function registerRoutes(app: FastifyInstance) {
       // available to fill a later op's requires hole within the SAME session/process
       // (an MCP session, not across stateless CLI invocations — see yield-store.ts).
       session_id?: string;
+      // Caller-supplied request headers (an explicit `--header`); threaded into the
+      // request's auth headers so a write/read authenticates with a token the agent
+      // already holds, no prior auth-capture required.
+      auth_headers?: Record<string, string>;
     };
     // Check local caches first: recent skills → domain snapshots → marketplace
     let skill = getRecentLocalSkill(skill_id, clientScope);
@@ -2213,7 +2217,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ? (execParams as Record<string, unknown>).endpoint_id as string
         : "";
       let execResult = await withExecuteDeadline(
-        executeSkill(skill, execParams, projection, { confirm_unsafe: effectiveConfirmUnsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope }),
+        executeSkill(skill, execParams, projection, { confirm_unsafe: effectiveConfirmUnsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope, authHeaders: auth_headers }),
         executeDeadlineMs,
         () => {
           const now = new Date().toISOString();
@@ -2319,7 +2323,7 @@ export async function registerRoutes(app: FastifyInstance) {
           }
         }
         if (recovered) {
-          execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+          execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope, authHeaders: auth_headers });
         }
       }
 

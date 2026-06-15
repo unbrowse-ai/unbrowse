@@ -727,6 +727,10 @@ export interface ResolveResultDiagnostic {
 
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
+  /** Caller-supplied request headers (e.g. an explicit `--header "Authorization: Bearer …"`).
+   *  Merged into the request's auth headers AFTER stored vault creds, so an agent can
+   *  authenticate a write/read it already holds a token for, without a prior auth-capture. */
+  authHeaders?: Record<string, string>;
   /** Explicit user confirmation for domains/actions that may violate third-party site terms. */
   confirm_third_party_terms?: boolean;
   dry_run?: boolean;

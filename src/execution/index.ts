@@ -3115,6 +3115,16 @@ export async function executeEndpoint(
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
   await reloadExecutionAuthState(skill, epDomain, authHeaders, cookies);
 
+  // Caller-supplied headers (an explicit `--header` on the CLI) supplement/override the
+  // stored vault creds, so an agent can authenticate a read OR a write it already holds a
+  // token for. Without this, `--header` was honored on the read/fetch path but silently
+  // dropped on writes (the write reached the target with its body but no Authorization).
+  if (options?.authHeaders) {
+    for (const [k, v] of Object.entries(options.authHeaders)) {
+      if (typeof v === "string" && v.length > 0) authHeaders[k] = v;
+    }
+  }
+
   // If endpoint has auth_tokens bindings, always resolve fresh tokens.
   // Vault headers may be stale - the DAG knows how to get fresh ones.
   log("exec", `auth_tokens check: ${endpoint.auth_tokens?.length ?? 0} bindings on ${endpoint.endpoint_id}`);
