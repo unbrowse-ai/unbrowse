@@ -26,12 +26,6 @@ if (detectBrokenMonorepoKuri(packageRoot, repoRoot)) {
   );
 }
 
-execFileSync("bun", [path.join(repoRoot, "scripts", "build-release-manifest.ts")], {
-  cwd: repoRoot,
-  stdio: "inherit",
-  env: process.env,
-});
-
 execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-binaries.mjs")], {
   cwd: packageRoot,
   stdio: "inherit",

@@ -59,7 +59,7 @@
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
     "build:sdk": "tsc -p tsconfig.sdk.json",
-    "prepack": "npm run build:runtime && npm run build:sdk && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
+    "prepack": "bun ../../scripts/build-release-manifest.ts && npm run build:runtime && npm run build:sdk && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts",
