@@ -5483,6 +5483,15 @@ export async function resolveAndExecute(
         const rpcUrl = new URL(context.url);
         const isRpcPath = /\/[A-Za-z_][\w.]*\.[A-Za-z_]\w*\/[A-Za-z_]\w*\/?$/.test(rpcUrl.pathname);
         if (isRpcPath) {
+          // Cold-live execution: if the agent supplied request-message fields (params beyond
+          // the reserved routing keys), POST them as the Connect message body — a real call,
+          // not just a {} probe. No fields supplied → {} probe → detect-only (unchanged).
+          const __rpcReserved = new Set(["url", "intent", "endpoint_id", "domain", "task", "query", "method", "no_execute"]);
+          const __rpcMsg: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(params)) {
+            if (!__rpcReserved.has(k) && v != null) __rpcMsg[k] = v;
+          }
+          const __rpcHasFields = Object.keys(__rpcMsg).length > 0;
           const rpcProbe = await fetch(context.url, {
             method: "POST",
             headers: {
@@ -5490,7 +5499,7 @@ export async function resolveAndExecute(
               "connect-protocol-version": "1",
               Accept: "application/json",
             },
-            body: "{}",
+            body: __rpcHasFields ? JSON.stringify(__rpcMsg) : "{}",
             signal: AbortSignal.timeout(12000),
             redirect: "follow",
           });
@@ -5502,6 +5511,27 @@ export async function resolveAndExecute(
             const looksConnect =
               rpcJson != null && (rpcProbe.ok || (typeof rpcJson.code === "string" && "message" in rpcJson));
             if (looksConnect) {
+              // COLD-LIVE EXECUTION: the agent supplied message fields AND the call returned a
+              // real result (200, not a Connect error envelope) → return the DATA, not guidance.
+              const __rpcIsError = rpcJson != null && typeof rpcJson.code === "string" && "message" in rpcJson;
+              if (__rpcHasFields && rpcProbe.ok && !__rpcIsError) {
+                const xtrace: ExecutionTrace = {
+                  trace_id: nanoid(), skill_id: "grpc-endpoint", endpoint_id: "grpc-unary",
+                  started_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+                  success: true, status_code: rpcProbe.status,
+                };
+                const execResult = {
+                  status: "executed",
+                  grpc_endpoint: context.url,
+                  method: "POST",
+                  protocol: "connect/grpc-web (JSON over POST)",
+                  request: __rpcMsg,
+                  result: rpcJson,
+                };
+                const xt = finalize("direct-fetch", execResult, "grpc-unary", undefined as any, xtrace);
+                console.log(`[grpc] ${context.url} cold-live executed (${Object.keys(__rpcMsg).length} field(s))`);
+                return { result: execResult, trace: xtrace, source: "direct-fetch" as any, skill: undefined as any, timing: xt };
+              }
               const trace: ExecutionTrace = {
                 trace_id: nanoid(),
                 skill_id: "grpc-endpoint",
