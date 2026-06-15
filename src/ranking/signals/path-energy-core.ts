@@ -33,8 +33,10 @@ export type HopEnergy = (op: ChainNode) => number;
  * graph (DAG exact; cycles bounded). Leaf op (no producers) → hopEnergy(op) (self-similar base case).
  */
 export function composeChainEnergy(graph: ChainGraph, targetOpId: string, hopEnergy: HopEnergy): number {
-  const ops = new Map(graph.operations.map((o) => [o.endpoint_id, o]));
-  const edges = graph.edges ?? [];
+  // Defensive: the graph can be client-supplied (untrusted). `?? []` only catches null/undefined, so a
+  // non-array operations/edges (e.g. a string) would throw on .map/.filter — guard with Array.isArray.
+  const ops = new Map((Array.isArray(graph?.operations) ? graph.operations : []).map((o) => [o.endpoint_id, o]));
+  const edges = Array.isArray(graph?.edges) ? graph.edges : [];
   const memo = new Map<string, number>();
 
   function cost(opId: string, depth: number, seen: Set<string>): number {
