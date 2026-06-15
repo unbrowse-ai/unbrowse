@@ -77,6 +77,33 @@ export async function kvMget(keys: string[]): Promise<Record<string, string | nu
   return data.values ?? {};
 }
 
+/** Single KV read over qdkv. Returns the value or null (missing / any non-OK). Fail-soft. */
+export async function kvGet(key: string): Promise<string | null> {
+  const res = await fetch(`${EMERGENTDB_BASE}/qdkv/get/${encodeURIComponent(key)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey()}` },
+    signal: AbortSignal.timeout(timeoutMs()),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { found?: boolean; value?: string | null };
+  return data.found ? (data.value ?? null) : null;
+}
+
+/** KV upsert over qdkv (idempotent). Returns true on 2xx. Fail-soft: never throws on a write miss. */
+export async function kvSet(key: string, value: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${EMERGENTDB_BASE}/qdkv/set`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+      signal: AbortSignal.timeout(timeoutMs()),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export class EmergentDBVectorError extends Error {
   constructor(message: string) {
     super(message);
