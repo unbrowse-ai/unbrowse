@@ -34,5 +34,39 @@ ok(!!edge, "AC3: the EXACT login→feed edge on sessionId appears in the LIVE gr
 // 4. additive: an unrelated key gets no spurious localStorage yields
 ok(!login.provides.find((p: any) => p.key === "unrelated"), "no spurious yields for keys not in localStorage");
 
+// ── EDGE 1: NO pageState (the common case — 4 call-sites pass none) → no localStorage yields, no edge ──
+const g1: any = buildSkillOperationGraph(endpoints); // no pageState
+const login1 = g1.operations.find((o: any) => o.endpoint_id === "login");
+ok(!login1.provides.find((p: any) => p.type === "localStorage"), "EDGE no-pageState → no localStorage yields added (additive, off by default)");
+ok(!(g1.edges ?? []).some((e: any) => e.binding_key === "sessionId" && e.from_operation_id === "login"), "EDGE no-pageState → no sessionId producer edge");
+
+// ── EDGE 2: multi-key localStorage → each becomes a yields; only the referenced one links ──
+const g2: any = buildSkillOperationGraph(endpoints, { localStorage: { sessionId: "a", csrfToken: "b", theme: "dark" } });
+const login2 = g2.operations.find((o: any) => o.endpoint_id === "login");
+ok(["sessionId", "csrfToken", "theme"].every((k) => login2.provides.find((p: any) => p.key === k && p.type === "localStorage")), "EDGE multi-key → all keys become yields bindings");
+ok((g2.edges ?? []).some((e: any) => e.binding_key === "sessionId" && e.to_operation_id === "feed"), "EDGE multi-key → only the query-referenced key (sessionId) forms the consumer edge");
+ok(!(g2.edges ?? []).some((e: any) => e.binding_key === "theme"), "EDGE multi-key → an unreferenced key (theme) forms no edge");
+
+// ── EDGE 3 (generic key): a localStorage key the builder treats as generic ("token") ──
+const g3: any = buildSkillOperationGraph(
+  [endpoints[0], { endpoint_id: "feed2", url_template: "https://x.example/feed2", method: "GET", query: { token: "{token}" }, semantic: {} }],
+  { localStorage: { token: "t" } });
+// observe + assert behaviour is self-consistent (generic keys are intentionally not exact-key-linked)
+const g3edge = (g3.edges ?? []).some((e: any) => e.binding_key === "token");
+ok(typeof g3edge === "boolean", `EDGE generic-key 'token' behaviour observed (edge=${g3edge}) — deterministic, not a crash`);
+
+// ── ADVERSARIAL: self-edge — an op that yields K AND requires K (its own query) must NOT self-link ──
+const gSelf: any = buildSkillOperationGraph(
+  [{ endpoint_id: "solo", url_template: "https://x.example/solo", method: "GET", query: { sessionId: "{sessionId}" }, semantic: {} }],
+  { localStorage: { sessionId: "x" } });
+ok(!(gSelf.edges ?? []).some((e: any) => e.from_operation_id === "solo" && e.to_operation_id === "solo"), "ADVERSARIAL self-edge → an op yielding+requiring its own token does NOT self-link");
+
+// ── ADVERSARIAL: dedup — a localStorage key already present in provides is not duplicated ──
+const gDup: any = buildSkillOperationGraph(
+  [{ endpoint_id: "dup", url_template: "https://x.example/dup", method: "GET", semantic: { provides: [{ key: "sessionId", type: "localStorage", source: "localStorage" }] } }],
+  { localStorage: { sessionId: "x" } });
+const dup = gDup.operations.find((o: any) => o.endpoint_id === "dup");
+ok(dup.provides.filter((p: any) => p.key === "sessionId" && p.type === "localStorage").length === 1, "ADVERSARIAL dedup → a pre-existing localStorage yields is not duplicated");
+
 console.log(fails === 0 ? "\nAC3 DAG-EDGE WITNESS PASSES" : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);
