@@ -1234,6 +1234,23 @@ export function buildSkillOperationGraph(
       op.page_metadata = { ...pageState, captured_at: capturedAt };
     }
   }
+  // Promote captured localStorage keys to first-class YIELDS bindings so the operation that produced a
+  // session/anti-bot token PARTICIPATES in the live requires/yields edge build: a consumer op that
+  // references the same key (its requires come from query/path via inferRequires) auto-links to the
+  // producer. Key-based SHAPE only — the value is sealed off-graph at persist time, so graph-core stays
+  // crypto-free (the build/value firmament). Additive + deduped: never perturbs existing provides.
+  for (const op of operations) {
+    const lsKeys = Object.keys(op.page_metadata?.localStorage ?? {});
+    if (lsKeys.length === 0) continue;
+    const have = new Set(op.provides.map((p) => `${p.key}|${p.type ?? ""}|${p.source ?? ""}`));
+    for (const k of lsKeys) {
+      const id = `${k}|localStorage|localStorage`;
+      if (!have.has(id)) {
+        op.provides.push({ key: k, type: "localStorage", source: "localStorage", required: false });
+        have.add(id);
+      }
+    }
+  }
   const edges: SkillOperationEdge[] = [];
   const seenEdges = new Set<string>();
   for (const target of operations) {

@@ -366,6 +366,28 @@ host) yet stores AES-256-GCM ciphertext under a key bound to the wallet, and tes
 confirm the at-rest bytes are unreadable, that only the binding wallet can reveal, and
 that a tampered ciphertext refuses to open.
 
+\subsection{The route graph as a commitment-only structure}
+
+The content-addressed cache above keys each value by the sha256 of its plaintext, so the
+same content resolves to the same key on any host. That is exactly right for a
+\emph{private} cache --- but the route graph is \emph{shared} across agents, and a bare
+hash on a shared structure leaks: a low-entropy value (a boolean, a locale, a short id) is
+recoverable by hashing a dictionary against the visible commitment, and equal values expose
+linkable equality across hosts. So a captured credential or storage value --- a session
+token, an anti-bot \texttt{localStorage} entry --- is promoted to a first-class node in the
+requires/yields graph under a keyed commitment: a MAC under a wallet-derived key, not a bare
+hash. An observer of the shared graph who lacks the wallet cannot brute-force a low-entropy
+value, and the same value under two different wallets yields two different commitments, so
+nothing links across installs. The value itself is sealed off-graph under the wallet and
+revealed only locally, per step, at the moment of replay --- the graph carries the
+dependency \emph{shape} (which operation yields a token, which operation requires it) while
+the secret is held by no one but the holder. The keyed commitment and its graph binding are
+implemented in \texttt{src/values/storage-hole-bindings.ts} over the off-graph store
+\texttt{src/values/sealed-blob-store.ts}, and revealed at the replay boundary in
+\texttt{src/execution/index.ts}; tests confirm the secret appears on neither the graph node
+nor the bytes at rest, that a wrong key cannot reveal, and that a legacy plaintext token is
+never mistaken for a commitment.
+
 The cache and the ledger meet in one production primitive worth naming, because it is
 how a slow truth-resolution is paid for once and never again.
 \texttt{src/values/resolution-ledger.ts} treats a signature as the KV key to a
