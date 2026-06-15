@@ -32,18 +32,19 @@ bound, the owner share folds back into the contributor pool.
 
 ## Brokered costs (fair compensation)
 
-The split above taxes a route's **own price**. Separately, when unbrowse fronts a paid
-upstream on your behalf — a web-unblocker for a hard-protected site, an LLM proxy, a paid
-third-party API, a facilitator or gas fee — it charges the raw upstream cost **plus a fair
-compensation markup** for fronting it. The upstream cost passes through to the provider; the
-markup is the platform's compensation for the infrastructure that brokers, pays, and settles
-the call so your agent doesn't have to hold a wallet on every chain or register with every
-vendor.
+The split above taxes a route's **own price** — the opt-in lane. **Execution itself is free:
+unbrowse takes no cut on the commons.** When unbrowse fronts a paid upstream on your behalf — a
+web-unblocker for a hard-protected site, an LLM proxy, a paid third-party API, a facilitator or
+gas fee — it passes the raw upstream cost straight through to you **at cost**, adding nothing.
+You never pay unbrowse to execute; you only ever pay the genuine upstream, and only when one
+exists.
 
-The rate is a single named constant — **20%** by default (`FAIR_COMPENSATION_BPS = 2000`,
-`backend/src/services/fair-compensation.ts`), tunable per deployment. Every brokered surface
-derives its charge from the same engine, so the take-rate is consistent and auditable: each
-brokered ledger row records the raw `upstream_cost_uc` next to the platform's `compensation_uc`.
+The broker markup is a single named constant — **0% by default** (`FAIR_COMPENSATION_BPS`,
+`backend/src/services/fair-compensation.ts`): a fronted upstream is pass-through-at-cost.
+Monetization is opt-in and lives at the edge — an endpoint owner prices their own route and the
+router tolls *that* (the Flex split above); a deployment can also opt into a broker markup via
+env. Either way, every brokered ledger row records the raw `upstream_cost_uc` next to
+`compensation_uc` (which is `0` unless someone has opted in), so the take-rate is auditable.
 
 ### `POST /v1/unlock` — brokered web unblocking
 
@@ -53,7 +54,7 @@ same Solana USDC x402 it already uses for routes:
 
 ```
 POST /v1/unlock     { "url": "https://…", "js_render": true }
-  → 402  with the sponsor envelope, priced at upstream cost + the 20% markup
+  → 402  with the sponsor envelope, priced at the raw upstream cost (pass-through; no markup by default)
   → agent pays (Flex x402, single payee — no Base wallet, no vendor signup)
   → unbrowse fronts the upstream web-unblocker on Base x402 and returns the cleared HTML
 ```
