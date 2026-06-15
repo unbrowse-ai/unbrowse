@@ -2,7 +2,7 @@
 
 Unbrowse ships a **zero-edit drop-in** for the libraries you already use. Change one
 import line and your existing code keeps its exact API — every safe `GET`/search/scrape
-first routes through Unbrowse's resolved-route cache (free on a hit), and anything that
+first routes through Unbrowse's hole fill / resolved-route cache (free on a hit), and anything that
 misses falls back to native `fetch` or the upstream library, so behaviour is preserved
 and only cost drops.
 
@@ -18,7 +18,7 @@ Configure once (optional): `UNBROWSE_API_URL` (defaults to the hosted API),
 ## HTTP clients
 
 These provide the upstream client's surface; a safe `GET` routes through Unbrowse's
-resolve + execute marketplace cache, everything else is native `fetch` shaped into the
+hole fill / marketplace cache, everything else is native `fetch` shaped into the
 library's response type.
 
 | Upstream | Drop-in | Swap |
@@ -55,7 +55,7 @@ an Unbrowse browse session, with the upstream's locator/waiter API preserved.
 ## Search, scraping & retrieval
 
 These provide the retrieval SDK's surface; the query routes through Unbrowse's
-resolve + execute and synthesizes the upstream's result shape, falling back to the
+hole fill and synthesizes the upstream's result shape, falling back to the
 upstream API only when its own key is present.
 
 | Upstream | Drop-in | Swap |
