@@ -9,17 +9,16 @@
  * This module wires Unbrowse's residential-proxy env convention into
  * Kuri WITHOUT editing src/kuri/client.ts (banned per CLAUDE.md).
  *
- * As of 2026-05-27 (covenant
- *   sha256:65714387c8c9f6a151f2e8fec26992e7a289b4924e54fcb184312b7763c028a4):
- * residential-proxy egress is the DEFAULT, not opt-in. When the toggle is
- * unset, the bridge behaves as if it were "auto" and routes Kuri's Chrome
- * through resolveEgressProxy() (which falls through to ProxyKingdom when
- * no other creds are present). UNBROWSE_DIRECT_EGRESS=1 is the explicit
- * opt-out for dev / health-check / local-only flows.
+ * Egress is DIRECT by default — there is NO baked-in proxy. When the toggle
+ * is unset, the bridge resolves via resolveEgressProxy(), which now returns
+ * undefined unless the operator opts in (UNBROWSE_PROXY_URL, IProyal creds,
+ * or UNBROWSE_PROXYKINGDOM_URL). So by default Kuri's Chrome launches with no
+ * `--proxy-server` and connects directly. UNBROWSE_DIRECT_EGRESS=1 still
+ * forces direct regardless of any opt-in.
  *
  * Toggle semantics:
- *   - unset                 → treated as "auto" (the new default)
- *   - "0" / "false"         → no-op (legacy explicit opt-out for kuri only)
+ *   - unset                 → resolveEgressProxy() (direct unless opted in)
+ *   - "0" / "false"         → no-op (explicit opt-out for kuri only)
  *   - "auto" / "1" / "true" → resolveEgressProxy() (UNBROWSE_DIRECT_EGRESS still wins)
  *   - explicit URL (starts with http:// or socks5://) → use verbatim
  *

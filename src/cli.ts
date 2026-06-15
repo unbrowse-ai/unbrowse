@@ -72,10 +72,10 @@ loadEnv({ path: ".env.runtime", quiet: true });
     // opt-out from the residential-proxy-default policy.
     if (trace) console.error("[kuri-proxy] direct egress (opt-out); kuri runs without --proxy-server");
   } else if (outcome.reason === "creds_missing") {
-    // Unreachable under the new default — resolveEgressProxy always
-    // returns ProxyKingdom when nothing else is configured. Keep the
-    // branch for safety in case the override env yields "".
-    console.error("[kuri-proxy] no egress proxy resolved (UNBROWSE_PROXYKINGDOM_URL empty?) — kuri runs direct");
+    // The common default now: no proxy configured → direct egress. This is
+    // expected, not actionable, so keep it behind the trace flag (it would
+    // otherwise print on every command, incl. --help).
+    if (trace) console.error("[kuri-proxy] no proxy configured — kuri runs direct (set UNBROWSE_PROXY_URL / IProyal creds / UNBROWSE_PROXYKINGDOM_URL to opt in)");
   } else if (outcome.reason === "invalid_toggle") {
     console.error(`[kuri-proxy] UNBROWSE_KURI_PROXY="${outcome.value}" not recognized — expected auto|1|true|0|false or explicit http://|socks5:// URL`);
   }
@@ -5505,15 +5505,26 @@ async function main(): Promise<void> {
   await refreshContributionPreferenceFromServer(false);
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
-  const KNOWN_COMMANDS = new Set([
-    "health", "mcp", "setup", "resolve", "run", "execute", "exec",
-    "create", "act", "read",
-    "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "payment-provider", "account", "dashboard", "capture",
-    "status", "inspect", "stop", "restart", "serve", "upgrade", "update",
-    "get", "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
-    "screenshot", "text", "markdown", "cookies", "wallet", "eval", "back", "forward", "sync", "close",
-    "connect-chrome", "stats", "flywheel", "earnings", "billing", "telemetry", "corpus-test", "corpus-run", "sessions-scan", "cache-clear", "register", "mode", "account", "dashboard", "capture",
-    "contract-bridge",
+  // Single source of truth: every command the dispatch switch handles MUST be
+  // recognized here, or it is misrouted into the one-hole `get` fallback below
+  // (the bug that silently sent `fetch`/`search`/`skills`/`spec`/`settings`/
+  // `explain` to the marketplace resolver → "No matching skill found"). Derive
+  // the primary set from the help table + deprecated aliases so the allowlist
+  // can never drift behind the switch again; the explicit extras cover
+  // lifecycle / internal verbs not surfaced in the help table.
+  const KNOWN_COMMANDS = new Set<string>([
+    ...CLI_REFERENCE.commands.map((c) => c.name),
+    ...Object.keys(DEPRECATED_VERBS),
+    // lifecycle / server
+    "health", "mcp", "status", "stop", "restart", "serve", "upgrade", "update",
+    // canonical verbs + short aliases handled by the switch
+    "create", "act", "read", "exec", "fb",
+    "contract", "contract-bridge", "contribute", "sandbox-replay", "wallet",
+    "auth-capture", "login", "browse-cookies",
+    // policy / telemetry / lifecycle verbs not in the help table
+    "register", "mode", "payment-provider", "billing", "telemetry",
+    "cache-clear", "sessions-scan", "corpus-test", "corpus-run",
+    "flywheel", "earnings", "connect-chrome",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {

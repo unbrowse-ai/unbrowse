@@ -11,20 +11,22 @@
  * decides WHEN to dispatch via proxy; this module is the structural
  * primitive that knows HOW.
  *
- * Egress default (2026-05-27, covenant
- *   sha256:65714387c8c9f6a151f2e8fec26992e7a289b4924e54fcb184312b7763c028a4):
- * Residential proxy egress is the DEFAULT, not opt-in. `resolveEgressProxy`
- * resolves outbound proxy in this order:
- *   1. UNBROWSE_DIRECT_EGRESS=1 → undefined (explicit opt-out, dev/health-check path)
+ * Egress default: DIRECT. There is NO baked-in proxy. Proxying is strictly
+ * opt-in; `resolveEgressProxy` resolves an outbound proxy in this order:
+ *   1. UNBROWSE_DIRECT_EGRESS=1 → undefined (explicit direct, dev/health-check path)
  *   2. UNBROWSE_PROXY_URL set    → use it verbatim (user / CI override wins)
- *   3. IPROYAL_USER+IPROYAL_PASS → compose IProyal URL (legacy creds still honored)
- *   4. else                      → ProxyKingdom default (proxykingdom.cn2.ai, x402-gated)
+ *   3. IPROYAL creds present     → compose IProyal URL (env or ~/.identity/iproyal-creds)
+ *   4. UNBROWSE_PROXYKINGDOM_URL → that x402 proxy URL (operator opt-in)
+ *   5. else                      → undefined (DIRECT)
  *
- * ProxyKingdom endpoint is a CN2 residential pool at $0.001/req. It speaks
- * x402: on first hit it returns 402 with payment headers; the user wallet
- * signs the micropayment and the request is replayed. The sponsor tier in
- * backend/src/middleware/sponsor.ts credits $1/day/agent so the first ~1000
- * requests/day are free before the agent's own wallet is debited.
+ * A hardcoded `proxykingdom.cn2.ai` default previously sat at step 5,
+ * silently routing every fresh user's browser + fetch egress through an
+ * x402-gated proxy. With no wallet wired that proxy is unreachable, and
+ * Chrome's `--proxy-server` (set by the Kuri bridge) has no graceful
+ * degrade — so every navigation died with ERR_TUNNEL_CONNECTION_FAILED and
+ * `fetch` returned a cryptic "No matching skill found". The default was
+ * removed; an operator who wants a residential/x402 pool sets one of the
+ * opt-in vars above.
  *
  * IProyal legacy: existing IPROYAL_* env consumers keep working — they
  * just become path 3 in the resolution order, behind UNBROWSE_PROXY_URL.
@@ -175,38 +177,23 @@ export function resolveProxyUrl(env: NodeJS.ProcessEnv = process.env): string | 
 }
 
 /**
- * ProxyKingdom default endpoint — CN2 residential pool, x402-gated.
- * Override with UNBROWSE_PROXYKINGDOM_URL when the operator runs a
- * private mirror or wants to point at a different x402-speaking proxy.
- *
- * STUB NOTE (covenant sha256:65714387c8c9f6a151f2e8fec26992e7a289b4924e54fcb184312b7763c028a4):
- * Client-side x402 retry for outbound proxy CONNECT is NOT wired in this
- * session. The URL is set so `tryCurlImpersonateFetch --proxy <url>` runs
- * against the right host end-to-end; absent a wallet-signed
- * Proxy-Authorization the proxy will return a 407/402 and the existing
- * graceful-degrade (caller catches, falls through to direct egress with
- * `proxy_used: false`) keeps the agent unblocked. Honest 402 surface is
- * the signal that wallet wiring needs to land — NOT a fake-green default.
- *
- * The /v1/proxykingdom/relay backend route is the next-wave seam: a
- * server-side x402 relay that signs with the user's Privy/lobster wallet
- * AND consumes the sponsor tier ($1/day/agent), then CONNECT-tunnels for
- * the client. That route does not exist yet.
- */
-export const PROXYKINGDOM_DEFAULT_URL = "https://proxykingdom.cn2.ai";
-
-/**
  * Resolve the outbound proxy URL the runtime should use for THIS request.
  *
- * Order (first match wins):
- *   1. UNBROWSE_DIRECT_EGRESS=1 / true / yes → undefined (direct, explicit opt-out)
+ * Egress is DIRECT by default — there is NO baked-in default proxy. A proxy is
+ * used ONLY when the operator explicitly opts in. Order (first match wins):
+ *   1. UNBROWSE_DIRECT_EGRESS=1 / true / yes → undefined (explicit direct)
  *   2. UNBROWSE_PROXY_URL set                → verbatim
- *   3. IProyal creds present                 → resolveProxyUrl(env)
- *   4. else                                  → PROXYKINGDOM_DEFAULT_URL (or override)
+ *   3. IProyal creds present (env or ~/.identity/iproyal-creds) → resolveProxyUrl(env)
+ *   4. UNBROWSE_PROXYKINGDOM_URL set         → that x402 proxy URL
+ *   5. else                                  → undefined (DIRECT)
  *
- * Returns undefined ONLY for the explicit opt-out path. Every other path
- * returns a usable URL so downstream `tryCurlImpersonateFetch` /
- * `proxiedFetchOnce` / Kuri-Chrome --proxy-server always have a target.
+ * History: a hardcoded `proxykingdom.cn2.ai` default used to sit at step 5,
+ * silently routing every fresh user's browser + fetch egress through an
+ * x402-gated proxy. When that proxy is unreachable (the common case for a
+ * user with no wallet wired) Chrome's `--proxy-server` has no graceful
+ * degrade and every navigation died with ERR_TUNNEL_CONNECTION_FAILED, while
+ * `fetch` fell through to a cryptic "No matching skill found". The default is
+ * removed: proxying is now strictly opt-in.
  */
 export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const direct = env.UNBROWSE_DIRECT_EGRESS?.trim().toLowerCase();
@@ -218,14 +205,16 @@ export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string
   const iproyal = resolveProxyUrl(env);
   if (iproyal) return iproyal;
 
+  // No baked default. ProxyKingdom (or any x402 proxy) is opt-in ONLY via an
+  // explicit UNBROWSE_PROXYKINGDOM_URL. Absent it, egress is DIRECT.
   const override = env.UNBROWSE_PROXYKINGDOM_URL?.trim();
-  const pk = override || PROXYKINGDOM_DEFAULT_URL;
+  if (!override) return undefined;
   // Negative-cache layer: if this x402 proxy is in a fresh STRUCTURAL cooldown (e.g. the
   // provider returned NO_AVAILABLE_KEYS / 503-dead recently), don't keep routing captures
   // through a known-dead proxy — fail-fast to direct egress until the cooldown expires.
   // (antibot/transient cooldowns do NOT disable the proxy: a fresh IP may still help.)
-  if (peekFailure(pk, "proxy") === "structural") return undefined;
-  return pk;
+  if (peekFailure(override, "proxy") === "structural") return undefined;
+  return override;
 }
 
 /**
@@ -307,7 +296,7 @@ export interface X402ProxyHandshakeResult {
 
 /**
  * Run the x402 control handshake against an outbound proxy. For x402-gated
- * proxies (PROXYKINGDOM_DEFAULT_URL, any UNBROWSE_PROXYKINGDOM_URL override),
+ * proxies (an opt-in UNBROWSE_PROXYKINGDOM_URL),
  * the proxy's HTTPS control endpoint serves a 402 envelope describing the
  * payment terms. We sign once per process lifetime and cache the
  * Proxy-Authorization header value for re-use.
