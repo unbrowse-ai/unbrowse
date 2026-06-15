@@ -2193,6 +2193,21 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // persists its yields to disk under this id; a later invocation with the same
     // --session inherits them and auto-fills matching holes (cross-process state).
     if (typeof flags.session === "string") body.session_id = flags.session;
+    // --header forwards a caller-supplied request header (e.g. "Authorization: Bearer …")
+    // so an authenticated WRITE carries the credential to the target — the read/fetch path
+    // already honored --header; this closes the gap where a write reached the target with
+    // its body but no auth header. Multiple --header flags are accepted.
+    {
+      const rawHeaders = Array.isArray(flags.header)
+        ? (flags.header as unknown as string[])
+        : (typeof flags.header === "string" ? [flags.header as string] : []);
+      const authHeaders: Record<string, string> = {};
+      for (const h of rawHeaders) {
+        const idx = h.indexOf(":");
+        if (idx > 0) authHeaders[h.slice(0, idx).trim()] = h.slice(idx + 1).trim();
+      }
+      if (Object.keys(authHeaders).length > 0) body.auth_headers = authHeaders;
+    }
     if (flags.intent ?? flags.task) body.intent = flags.intent ?? flags.task;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
