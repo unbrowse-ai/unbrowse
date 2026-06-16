@@ -41,7 +41,10 @@ ok(/error:\s*"unfilled_url_hole"/.test(between) && /url\.match\(\/\\\{\[a-z0-9_\
 
 // 3) EVIDENCE that bail-early is SAFE — the probe ladder does NOT rewrite/strip holes before probing
 //    (no stripHoles/dropUnfilled), so a holed url can never be recovered by probing; bailing loses nothing.
-ok(!/stripHoles|dropUnfilled|url\s*=\s*url\.replace\(\/\\\{/.test(src),
+// Comment-proof: strip line-comments, then look for ACTUAL stripping CODE — a `url = …replace(…{…)`
+// that drops a hole. (An earlier version matched the word "stripHoles" in a code comment — painted.)
+const codeOnly = src.replace(/\/\/[^\n]*/g, "");
+ok(!/\burl\s*=\s*[^;\n]*\.replace\([^)]*\{[a-z0-9_]/i.test(codeOnly),
    "no hole-stripping rewrite of `url` exists before probeUrl → probe ladder cannot recover a hole");
 
 // 4) KNOWN — the bail vessel to mirror: the session-bound gate returns success:false BEFORE fetch.
