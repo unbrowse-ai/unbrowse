@@ -65,8 +65,8 @@ for (const skill of attribution.by_skill ?? []) {
 ## Same data via CLI
 
 ```bash
-unbrowse stats --earnings
-unbrowse stats --json
+unbrowse eval stats --earnings
+unbrowse eval stats --json
 ```
 
 ## Wallet configuration
@@ -75,13 +75,13 @@ Wallet address is read in this order at runtime (`src/payments/wallet.ts`):
 
 1. `LOBSTER_WALLET_ADDRESS` env var
 2. `AGENT_WALLET_ADDRESS` env var
-3. Local Crossmint Lobster config (`~/.lobster/agents.json`), detected automatically by `unbrowse setup`
+3. Local Crossmint Lobster config (`~/.lobster/agents.json`), detected automatically by `unbrowse build setup`
 
 To (re)configure:
 
 ```bash
 npx @crossmint/lobster-cli setup
-unbrowse setup
+unbrowse build setup
 ```
 
 There is no standalone wallet subcommand on the CLI.

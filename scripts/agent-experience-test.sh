@@ -129,30 +129,30 @@ except: out['server_http_code'] = 'error'
 print(json.dumps(out))
 " 2>/dev/null || echo '{}')"
 
-record "health" "$(unbrowse health 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
+record "health" "$(unbrowse eval status 2>/dev/null || echo '{\"error\":\"health_failed\"}')"
 
 # Resolve: does the marketplace return endpoints?
-record "resolve_pypi_flask" "$(unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' --pretty 2>/dev/null)"
+record "resolve_pypi_flask" "$(unbrowse eval resolve --intent 'get package info' --url 'https://pypi.org/project/flask/' --pretty 2>/dev/null)"
 
 # Execute: does calling an endpoint return data?
-RESOLVE=$(call unbrowse resolve --intent 'get package info' --url 'https://pypi.org/project/flask/')
+RESOLVE=$(call unbrowse eval resolve --intent 'get package info' --url 'https://pypi.org/project/flask/')
 SKILL=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP=$(echo "$RESOLVE" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL" ] && [ -n "$EP" ]; then
-  record "execute_pypi_flask" "$(call unbrowse execute --skill "$SKILL" --endpoint "$EP" --url 'https://pypi.org/project/flask/' --raw --pretty)"
+  record "execute_pypi_flask" "$(call unbrowse breath execute --skill "$SKILL" --endpoint "$EP" --url 'https://pypi.org/project/flask/' --raw --pretty)"
 fi
 
 # Parameterized search: can the agent fill template params?
-RESOLVE_NPM=$(call unbrowse resolve --intent 'search packages' --url 'https://registry.npmjs.org/-/v1/search?text=express')
+RESOLVE_NPM=$(call unbrowse eval resolve --intent 'search packages' --url 'https://registry.npmjs.org/-/v1/search?text=express')
 SKILL_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('trace',{}).get('skill_id',''))" 2>/dev/null)
 EP_NPM=$(echo "$RESOLVE_NPM" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); ops=d.get('result',{}).get('available_operations',[]); print(ops[0]['endpoint_id'] if ops else '')" 2>/dev/null)
 if [ -n "$SKILL_NPM" ] && [ -n "$EP_NPM" ]; then
-  record "execute_npm_search" "$(call unbrowse execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --url 'https://registry.npmjs.org/-/v1/search?text=express' --params '{"q":"express"}' --raw --pretty)"
+  record "execute_npm_search" "$(call unbrowse breath execute --skill "$SKILL_NPM" --endpoint "$EP_NPM" --url 'https://registry.npmjs.org/-/v1/search?text=express' --params '{"q":"express"}' --raw --pretty)"
 fi
 
 # Feedback: does the loop close?
 if [ -n "$SKILL" ] && [ -n "$EP" ]; then
-  record "feedback" "$(call unbrowse feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success)"
+  record "feedback" "$(call unbrowse eval feedback --skill "$SKILL" --endpoint "$EP" --rating 5 --outcome success)"
 fi
 
 # Browse: can the agent drive a browser?
@@ -166,7 +166,7 @@ fi
 BROWSE_GO=""
 BROWSE_OK=0
 for attempt in 1 2 3; do
-  BROWSE_GO=$(unbrowse go 'https://example.com' 2>&1 || echo '{"error":"command_failed"}')
+  BROWSE_GO=$(unbrowse breath go 'https://example.com' 2>&1 || echo '{"error":"command_failed"}')
   BROWSE_GO_JSON=$(printf '%s' "$BROWSE_GO" | strip_logs)
   if [ -n "$BROWSE_GO_JSON" ] && echo "$BROWSE_GO_JSON" | python3 -c "import sys,json; exit(0 if json.loads(sys.stdin.read()).get('ok') else 1)" 2>/dev/null; then
     BROWSE_GO="$BROWSE_GO_JSON"
@@ -180,9 +180,9 @@ record "browse_go" "$BROWSE_GO"
 
 if [ "$BROWSE_OK" = "1" ]; then
   SESSION=$(echo "$BROWSE_GO" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['session_id'])" 2>/dev/null)
-  record "browse_eval" "$(unbrowse eval --session "$SESSION" 'JSON.stringify({title:document.title,h1:(document.querySelector("h1")||{}).textContent,bodyLen:document.body.innerHTML.length})' 2>&1 || echo '{"error":"command_failed"}')"
-  record "browse_snap_head" "$(unbrowse snap --session "$SESSION" 2>&1 | head -15 || echo 'snap_failed')"
-  record "browse_close" "$(unbrowse close --session "$SESSION" 2>&1 || echo '{"error":"command_failed"}')"
+  record "browse_eval" "$(unbrowse breath run-js --session "$SESSION" 'JSON.stringify({title:document.title,h1:(document.querySelector("h1")||{}).textContent,bodyLen:document.body.innerHTML.length})' 2>&1 || echo '{"error":"command_failed"}')"
+  record "browse_snap_head" "$(unbrowse eval snap --session "$SESSION" 2>&1 | head -15 || echo 'snap_failed')"
+  record "browse_close" "$(unbrowse breath close --session "$SESSION" 2>&1 || echo '{"error":"command_failed"}')"
 else
   # Browse go failed 3x — record the dependent tasks as explicit failures
   # so the judge sees them and the gate blocks. Previously these silently

@@ -44,10 +44,10 @@ The SDK never sees private keys in either path.
 
 ```bash
 npm install -g @crossmint/lobster-cli
-unbrowse setup        # pair lobster.cash to your agent profile
+unbrowse build setup        # pair lobster.cash to your agent profile
 ```
 
-`unbrowse setup` invokes `npx @crossmint/lobster-cli setup`, which writes the active agent record to `~/.lobster/agents.json`. The SDK picks it up automatically when you call `Unbrowse.local()` because the runtime binary owns the wallet handle and signs server-side. From your code's perspective, paid calls just succeed — no `FlexWalletLike` to pass.
+`unbrowse build setup` invokes `npx @crossmint/lobster-cli setup`, which writes the active agent record to `~/.lobster/agents.json`. The SDK picks it up automatically when you call `Unbrowse.local()` because the runtime binary owns the wallet handle and signs server-side. From your code's perspective, paid calls just succeed — no `FlexWalletLike` to pass.
 
 If you want to opt out of the runtime-managed wallet and sign in-process, construct a `FlexWalletLike` against lobster's programmatic API and pass it to `payAndRetryFlex`.
 
@@ -116,7 +116,7 @@ The backend settles in **USDC on Solana mainnet** (`X402_NETWORK_MODE = "mainnet
 A few practical notes:
 
 - Per-call amounts are small (`maxAmount` is typically $0.001 – $0.10), so chain-cheap settlement matters.
-- Funding flow with v6.16 Flex: bridge USDC to your Solana wallet → run `unbrowse setup` to fund a Flex escrow → register a session key. Once those three steps are done, paid calls authorize against the escrow without further on-chain ops per request.
+- Funding flow with v6.16 Flex: bridge USDC to your Solana wallet → run `unbrowse build setup` to fund a Flex escrow → register a session key. Once those three steps are done, paid calls authorize against the escrow without further on-chain ops per request.
 - Don't hard-code a chain in your code — read `accepts[]` and let your wallet pick the route it can sign on. EVM Flex is on Faremeter's roadmap; until then, v6.16 paid routes are Solana-only.
 
 ## What the SDK does NOT do

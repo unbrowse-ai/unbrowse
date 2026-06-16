@@ -66,7 +66,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("golden: default >64KB → result, no envelope", async () => {
     const largeResult = buildLargeResult();
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: largeResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     expect(body.extraction_hints).toBeUndefined();
@@ -78,7 +78,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("golden: --summarize >64KB → extraction_hints envelope", async () => {
     const largeResult = buildLargeResult();
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: largeResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e", "--summarize"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e", "--summarize"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     expect(body.extraction_hints).toBeDefined();
@@ -91,7 +91,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("control: <64KB → result regardless of flags", async () => {
     const smallResult = [{ id: "tiny", title: "small" }];
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: smallResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     expect(body.extraction_hints).toBeUndefined();
@@ -101,7 +101,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("edge: --raw still works (back-compat skin) on >64KB", async () => {
     const largeResult = buildLargeResult();
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: largeResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e", "--raw"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e", "--raw"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     expect(body.extraction_hints).toBeUndefined();
@@ -112,7 +112,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("edge: --summarize with <64KB skips envelope (inner threshold guard)", async () => {
     const smallResult = [{ id: "tiny", title: "small" }];
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: smallResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e", "--summarize"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e", "--summarize"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     expect(body.extraction_hints).toBeUndefined();
@@ -122,7 +122,7 @@ describe("execute --summarize (plan-v6 raw-default flip)", () => {
   it("adversarial: --summarize + --raw → summarize wins (envelope emitted)", async () => {
     const largeResult = buildLargeResult();
     const { baseUrl } = await startExecuteServer({ trace: TRACE, result: largeResult });
-    const cli = await runCli(baseUrl, ["execute", "--skill", "s", "--endpoint", "e", "--summarize", "--raw"]);
+    const cli = await runCli(baseUrl, ["breath", "execute", "--skill", "s", "--endpoint", "e", "--summarize", "--raw"]);
     expect(cli.code).toBe(0);
     const body = JSON.parse(cli.stdout.trim() || "{}");
     // Documented precedence: --summarize takes priority. Codified so future

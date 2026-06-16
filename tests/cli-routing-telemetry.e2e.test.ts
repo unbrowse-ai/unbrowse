@@ -311,6 +311,7 @@ describe("cli routing telemetry e2e", () => {
       await waitForServer(localBaseUrl);
 
       const out = await runCli([
+        "eval",
         "resolve",
         "--intent", "get package info",
         "--domain", "pypi.org",

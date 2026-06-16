@@ -88,7 +88,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     }));
     try {
       const { stdout, status } = await runCli(
-        ["capture", "--url", "https://example.com", "--intent", "list things"],
+        ["breath", "capture", "--url", "https://example.com", "--intent", "list things"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);
@@ -126,7 +126,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     }));
     try {
       const { stdout, status } = await runCli(
-        ["capture", "--url", "https://x.test", "--intent", "x"],
+        ["breath", "capture", "--url", "https://x.test", "--intent", "x"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);
@@ -152,7 +152,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     }));
     try {
       const { stdout, status } = await runCli(
-        ["capture", "--url", "https://empty.test", "--intent", "noop"],
+        ["breath", "capture", "--url", "https://empty.test", "--intent", "noop"],
         { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);

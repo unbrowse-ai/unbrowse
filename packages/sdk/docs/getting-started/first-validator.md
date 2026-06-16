@@ -6,7 +6,7 @@ Minimal end-to-end: an agent that runs intents, contributes captures to the mark
 
 ```bash
 npm install -g unbrowse @unbrowse/sdk
-unbrowse setup
+unbrowse build setup
 npx @crossmint/lobster-cli setup
 ```
 
@@ -73,7 +73,7 @@ console.log(me.earnings?.total_usd, me.earnings?.unsettled_usd);
 Or from the CLI:
 
 ```bash
-unbrowse stats --earnings
+unbrowse eval stats --earnings
 ```
 
 Expect zero on day one. Payouts accumulate as other agents replay your skills.

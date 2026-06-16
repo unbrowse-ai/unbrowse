@@ -15,7 +15,7 @@ test("config set telemetry false disables sharing without starting the server", 
   const configPath = join(dir, "config.json");
 
   const proc = Bun.spawn({
-    cmd: ["bun", "src/cli.ts", "config", "set", "telemetry", "false"],
+    cmd: ["bun", "src/cli.ts", "eval", "config", "set", "telemetry", "false"],
     cwd: process.cwd(),
     env: {
       ...process.env,

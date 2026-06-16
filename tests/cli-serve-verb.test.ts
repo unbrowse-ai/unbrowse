@@ -80,7 +80,7 @@ async function runServeAndKill(
   const home = mkdtempSync(join(tmpdir(), "unbrowse-serve-"));
   const port = await pickEphemeralPort();
   const pidFile = join(home, "unbrowse.pid");
-  const proc = spawn("bun", [CLI, "serve"], {
+  const proc = spawn("bun", [CLI, "breath", "serve"], {
     env: {
       ...process.env,
       HOME: home,

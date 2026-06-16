@@ -4,24 +4,27 @@
  * every command maps to a verb (build/breath/eval) + interrogative, surfaces only
  * its holes + auth, and leaks no internal route/logic/secret. Secret-bearing
  * commands declare a wallet/sealed auth (composing with the ZK hole seal).
+ *
+ * Post-collapse: SURFACE is keyed by the FULL subcommand "<verb> <cap>" (model A),
+ * key-identical to src/cli-v7/kind-map.ts. The rejected create/act/read aliases
+ * are gone; "eval" (JS) is now "breath run-js".
  */
 import { describe, expect, it } from "bun:test";
 import { surfaceFor, classify, verifySurface, knownCommands } from "../src/superpattern/cli-surface.js";
 
-// The canonical top-level CLI commands (from `unbrowse --help`) — the surface the
-// client sees. The manifest must classify every one (superpattern-complete).
+// A representative slice of the canonical full-subcommand surface — every one
+// must classify (superpattern-complete). The full set is the kind-map universe.
 const CANONICAL = [
-  "account", "act", "annotate", "auth", "auth-inventory", "capture", "cleanup-stale", "click",
-  "contract", "dashboard", "execute", "explain", "feedback", "fetch", "fill", "get", "go", "health", "index",
-  "mcp", "mode", "note", "payment-provider", "press", "publish", "publish-bundle", "resolve",
-  "create", "read", "review", "run", "screenshot", "scroll", "search", "select", "settings", "setup", "skill",
-  "skills", "snap", "spec", "submit", "text", "type", "upgrade",
+  "build skill", "build publish", "build setup", "build index", "build annotate", "build cleanup-stale",
+  "breath go", "breath execute", "breath fill", "breath fetch", "breath capture", "breath run-js",
+  "breath auth", "breath mcp", "breath serve", "breath upgrade",
+  "eval resolve", "eval search", "eval explain", "eval status", "eval snap", "eval skill", "eval skills",
 ];
 
 describe("CLI superpattern surface", () => {
   it("is superpattern-complete + minimal (every command an atom, no internal leak)", () => {
     const r = verifySurface(CANONICAL);
-    expect(r.missing).toEqual([]);   // every CLI command is classified
+    expect(r.missing).toEqual([]);   // every listed subcommand is classified
     expect(r.errors).toEqual([]);    // valid verbs/interrogatives, no forbidden field
     expect(r.ok).toBe(true);
   });
@@ -32,20 +35,28 @@ describe("CLI superpattern surface", () => {
     }
   });
 
+  it("the rejected create/act/read alias scheme is purged from the surface", () => {
+    for (const cmd of knownCommands()) {
+      expect(["create", "act", "read"]).not.toContain(cmd.split(" ")[0]);
+    }
+    expect(surfaceFor("read")).toBeNull();
+    expect(surfaceFor("create")).toBeNull();
+  });
+
   it("a surface exposes ONLY {command,verb,interrogative,holes,auth} — no route/logic/secret", () => {
-    const s = surfaceFor("execute")!;
+    const s = surfaceFor("breath execute")!;
     expect(Object.keys(s).sort()).toEqual(["auth", "command", "holes", "interrogative", "verb"]);
     expect(JSON.stringify(s)).not.toContain("url_template");
   });
 
   it("secret-bearing commands bind their secret to the wallet (sealed/wallet auth)", () => {
-    for (const cmd of ["auth", "execute", "fill", "get", "capture", "setup", "publish"]) {
+    for (const cmd of ["breath auth", "breath execute", "breath fill", "breath get", "breath capture", "build setup", "build publish"]) {
       expect(["sealed", "wallet"]).toContain(surfaceFor(cmd)!.auth);
     }
   });
 
   it("read-only eval commands expose no auth secret", () => {
-    for (const cmd of ["search", "resolve", "explain", "health", "skills"]) {
+    for (const cmd of ["eval search", "eval resolve", "eval explain", "eval status", "eval skills"]) {
       expect(surfaceFor(cmd)!.auth).toBe("none");
     }
   });
@@ -54,18 +65,8 @@ describe("CLI superpattern surface", () => {
     expect(surfaceFor("rm-rf-the-moat")).toBeNull();
   });
 
-  it("contract is the CLI bridge command and exposes only the bridge holes", () => {
-    expect(surfaceFor("contract")).toMatchObject({
-      verb: "breath",
-      interrogative: "where",
-      auth: "wallet",
-      holes: ["intent", "wallet_proof", "approval", "local_capability_result", "typed_pointer"],
-    });
-  });
-
-  it("canonical create/act/read commands are the only new root verbs", () => {
-    expect(surfaceFor("create")).toMatchObject({ verb: "build", auth: "wallet" });
-    expect(surfaceFor("act")).toMatchObject({ verb: "breath", auth: "sealed" });
-    expect(surfaceFor("read")).toMatchObject({ verb: "eval", auth: "none" });
+  it("the same noun lives under two verbs (build skill publishes, eval skill reads)", () => {
+    expect(surfaceFor("build skill")).toMatchObject({ verb: "build", auth: "wallet" });
+    expect(surfaceFor("eval skill")).toMatchObject({ verb: "eval", auth: "none", holes: ["id"] });
   });
 });

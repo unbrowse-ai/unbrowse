@@ -10,18 +10,18 @@ One agent learns a site once. Every later agent gets the fast path.
 
 > **Primary surface: the hole/contract.** `SKILL.md` (shipped in this package) teaches
 > agents to ask for one result, not juggle a dozen route/debug verbs. The formal bridge is
-> `unbrowse contract surface`; the CLI expression is `unbrowse "task" [--url <url>]`;
+> `GET /v1/contract/surface`; the CLI expression is `unbrowse "task" [--url <url>]`;
 > the SDK expression is `createHole().fill(...)`. Old
 > `resolve`/`execute`/`go`/`snap` CLI verbs remain as advanced compatibility and debugging
 > surfaces. **MCP is legacy** — still supported, but no longer the recommended path.
 
 ```bash
 npm install -g unbrowse
-unbrowse setup        # one-time: registration, browser engine, local credentials
+unbrowse build setup        # one-time: registration, browser engine, local credentials
 ```
 
 ```bash
-unbrowse contract surface   # inspect the current hole/contract bridge
+curl https://beta-api.unbrowse.ai/v1/contract/surface   # inspect the current hole/contract bridge
 unbrowse "top stories with points"
 unbrowse "top stories with points" --url https://news.ycombinator.com
 ```
@@ -69,19 +69,19 @@ capture, and index. The agent does not choose those internal verbs.
 Use this when you need to force or inspect a route:
 
 ```bash
-unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty
-unbrowse execute --skill <id> --endpoint <id> --pretty
+unbrowse eval resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty
+unbrowse breath execute --skill <id> --endpoint <id> --pretty
 ```
 
 Browser verbs are also legacy/debug escape hatches:
 
 ```bash
-unbrowse go "https://site.com/booking"
-unbrowse snap --filter interactive      # accessibility snapshot with @eN refs
-unbrowse click e5
-unbrowse fill e8 "2 adults"
-unbrowse submit --wait-for "/time-selection"
-unbrowse close                          # checkpoints + indexes the learned route
+unbrowse breath go "https://site.com/booking"
+unbrowse eval snap --filter interactive      # accessibility snapshot with @eN refs
+unbrowse breath click e5
+unbrowse breath fill e8 "2 adults"
+unbrowse breath submit --wait-for "/time-selection"
+unbrowse breath close                          # checkpoints + indexes the learned route
 ```
 
 Treat each successful `submit` as a dependency boundary. `close` records which request chain
@@ -90,7 +90,7 @@ unlocked the next page so future fills can replay the real flow.
 ### Auth for gated sites
 
 ```bash
-unbrowse auth-capture --url "https://x.com/login"   # sign in once; the session stays local
+unbrowse breath auth-capture --url "https://x.com/login"   # sign in once; the session stays local
 ```
 
 Sign-in works from your existing browser session or an interactive login window. Auth material
@@ -104,7 +104,7 @@ The client **auto-updates in the background** for global npm installs (a detache
 ran). Opt out with `UNBROWSE_NO_AUTO_UPDATE=1`. Check/upgrade manually any time:
 
 ```bash
-unbrowse upgrade
+unbrowse breath upgrade
 ```
 
 ---
@@ -122,7 +122,7 @@ unbrowse upgrade
 **Account & ops:** `setup` · `upgrade` · `health` · `account` · `settings` · `config` · `stats` ·
 `billing` · `dashboard` · `wallet`
 
-Run `unbrowse <command> --help` for flags. `unbrowse health` is a quick local check.
+Run `unbrowse <verb> --help` for flags. `unbrowse eval status` is a quick local check.
 
 ---
 
@@ -133,7 +133,7 @@ Run `unbrowse <command> --help` for flags. `unbrowse health` is a quick local ch
 curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 
-`unbrowse setup` runs the first-time bootstrap: ToS acceptance, agent registration + API-key
+`unbrowse build setup` runs the first-time bootstrap: ToS acceptance, agent registration + API-key
 caching (in `~/.unbrowse/config.json`), browser-engine verification, and wallet detection. If a
 wallet is configured it becomes the contributor/payout and paid-route spending wallet —
 Crossmint `lobster.cash` is encouraged during setup (`LOBSTER_WALLET_ADDRESS`); other providers
@@ -191,7 +191,7 @@ routes with repeated failures auto-deprecate.
 | `UNBROWSE_URL` | — | Point the CLI at an external compatibility server (unset = in-process) |
 | `HEADLESS` | `true` | Set `false` to show the browser window (dev/auth flows) |
 
-(`unbrowse setup` registers with the marketplace and caches credentials on first run; headless
+(`unbrowse build setup` registers with the marketplace and caches credentials on first run; headless
 setups can pass `UNBROWSE_AGENT_EMAIL` + `UNBROWSE_TOS_ACCEPTED`.)
 
 ---
@@ -199,7 +199,7 @@ setups can pass `UNBROWSE_AGENT_EMAIL` + `UNBROWSE_TOS_ACCEPTED`.)
 ## Legacy: MCP server
 
 Unbrowse still implements the Model Context Protocol over stdio for hosts that prefer it, but
-**the Skill + CLI are the primary path now.** `unbrowse setup` does not write MCP host configs.
+**the Skill + CLI are the primary path now.** `unbrowse build setup` does not write MCP host configs.
 `unbrowse mcp` remains the manual stdio entrypoint; it drives the same in-process runtime
 (no daemon, no port).
 

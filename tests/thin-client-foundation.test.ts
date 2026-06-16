@@ -16,7 +16,6 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -248,21 +247,10 @@ describe("thin-client foundation — wire surface end-to-end", () => {
       aiko_inverse: { mapping: "1:-1" },
     });
 
-    const cli = spawnSync("bun", ["src/cli.ts", "contract", "surface"], {
-      cwd: ROOT,
-      encoding: "utf8",
-      env: { ...process.env, UNBROWSE_NO_SWEEP: "1" },
-    });
-    expect(cli.status).toBe(0);
-    const cliManifest = JSON.parse(cli.stdout);
-    expect(cliManifest.paper).toBe(canonical.paper);
-    expect(cliManifest.claim).toBe(canonical.claim);
-    expect(cliManifest.node_shape).toEqual(canonical.node_shape);
-    expect(cliManifest.layers).toEqual(canonical.layers);
-    expect(cliManifest.cli_bridge.exposes).toBe("holes-only");
-    expect(cliManifest.cli_bridge.holes).toEqual(canonical.cli_bridge.holes);
-    expect(cliManifest.cli_bridge.commands.length).toBeGreaterThan(10);
-    expect(cliManifest.cli_bridge.commands.every((cmd: Record<string, unknown>) => !("route" in cmd) && !("logic" in cmd) && !("secret" in cmd))).toBe(true);
+    // purged in three-verb collapse: the flat `contract surface` CLI command no
+    // longer exists (contract DAG is server-side, not a CLI capability). The
+    // surface shape is still verified above via the server manifest + the
+    // in-process thin-client client.surface() round-trip.
 
     const descriptor = readFileSync(
       join(AIKO_ROOT, "packages/plugin-worker-runtime/src/descriptor.ts"),
@@ -291,7 +279,9 @@ describe("thin-client foundation — wire surface end-to-end", () => {
 
     for (const doc of [readme, notice]) {
       expect(doc).toContain("client boundary");
-      expect(doc).toContain("unbrowse contract surface");
+      // Three-verb collapse: the flat `unbrowse contract surface` command was
+      // purged; the bridge contract is inspected at the server endpoint.
+      expect(doc).toContain("/v1/contract/surface");
       expect(doc).toContain("wallet_proof");
       expect(doc).toContain("local_capability_result");
       expect(doc).toContain("typed_pointer");

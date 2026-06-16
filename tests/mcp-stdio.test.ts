@@ -53,7 +53,7 @@ async function runProcess(args: string[], env: Record<string, string>): Promise<
 }
 
 async function startLocalServer(env: Record<string, string>): Promise<void> {
-  const result = await runProcess(["src/cli.ts", "health"], env);
+  const result = await runProcess(["src/cli.ts", "eval", "status"], env);
   if (result.code !== 0) {
     throw new Error(`health failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   }
@@ -62,12 +62,13 @@ async function startLocalServer(env: Record<string, string>): Promise<void> {
   expect(body.status).toBe("ok");
 }
 
-async function stopLocalServer(env: Record<string, string>): Promise<void> {
-  await runProcess(["src/cli.ts", "stop"], env);
+async function stopLocalServer(_env: Record<string, string>): Promise<void> {
+  // purged in three-verb collapse: `stop` no longer exists (managed the
+  // forbidden local Fastify daemon). Cleanup is now a no-op; nothing to stop.
 }
 
 function spawnMcp(env: Record<string, string>): { child: ChildProcessWithoutNullStreams; rl: Interface } {
-  const child = spawn(process.execPath, ["src/cli.ts", "mcp", "--no-auto-start"], {
+  const child = spawn(process.execPath, ["src/cli.ts", "breath", "mcp", "--no-auto-start"], {
     cwd: ROOT,
     env: { ...process.env, ...env },
     stdio: ["pipe", "pipe", "pipe"],

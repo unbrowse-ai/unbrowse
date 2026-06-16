@@ -214,7 +214,7 @@ interface LiveProbe {
 }
 
 async function runFetchCli(url: string, raw: boolean): Promise<{ code: number; stdout: string; stderr: string }> {
-  const args = ["src/cli.ts", "fetch", url, "--no-auto-start"];
+  const args = ["src/cli.ts", "breath", "fetch", url, "--no-auto-start"];
   if (raw) args.push("--raw");
   const proc = Bun.spawn(["bun", ...args], {
     cwd: ROOT,

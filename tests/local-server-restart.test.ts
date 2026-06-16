@@ -78,7 +78,7 @@ setInterval(() => {}, 1 << 30);
 }
 
 async function runCliHealth(baseUrl: string, runDir: string): Promise<{ code: number; body: any; stderr: string }> {
-  const proc = Bun.spawn([process.execPath, "src/cli.ts", "health", "--pretty"], {
+  const proc = Bun.spawn([process.execPath, "src/cli.ts", "eval", "status", "--pretty"], {
     cwd: ROOT,
     env: {
       ...process.env,

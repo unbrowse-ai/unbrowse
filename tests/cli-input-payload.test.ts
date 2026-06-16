@@ -75,155 +75,22 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
 }
 
 describe("CLI input payload ingestion (integration)", () => {
-  it("resolve merges --url and --params into the request payload", async () => {
-    const server = await startJsonEchoServer({ result: { ok: true } });
-
-    const cli = await runCli(server.baseUrl, [
-      "resolve",
-      "--intent", "search packages",
-      "--url", "https://npmjs.com/search?q=openai",
-      "--params", "{\"page\":2,\"filters\":{\"type\":\"package\"}}",
-    ]);
-
-    expect(cli.code).toBe(0);
-    expect(server.lastRequest()).toEqual({
-      method: "POST",
-      path: "/v1/intent/resolve",
-      body: {
-        intent: "search packages",
-        projection: { raw: true },
-        params: {
-          url: "https://npmjs.com/search?q=openai",
-          page: 2,
-          filters: { type: "package" },
-        },
-        context: {
-          url: "https://npmjs.com/search?q=openai",
-        },
-        projection: {
-          raw: true,
-        },
-      },
-    });
-  });
-
-  it("execute merges endpoint selection, context url, and --params into the request payload", async () => {
-    const server = await startJsonEchoServer({ result: { ok: true } });
-
-    const cli = await runCli(server.baseUrl, [
-      "execute",
-      "--skill", "skill-123",
-      "--endpoint", "ep-search",
-      "--url", "https://npmjs.com/search?q=openai",
-      "--intent", "search packages",
-      "--params", "{\"page\":2,\"query\":\"openai\"}",
-      "--raw",
-    ]);
-
-    expect(cli.code).toBe(0);
-    expect(server.lastRequest()).toEqual({
-      method: "POST",
-      path: "/v1/skills/skill-123/execute",
-      body: {
-        params: {
-          endpoint_id: "ep-search",
-          page: 2,
-          query: "openai",
-          url: "https://npmjs.com/search?q=openai",
-        },
-        context_url: "https://npmjs.com/search?q=openai",
-        intent: "search packages",
-        projection: { raw: true },
-      },
-    });
-  });
-
-  it("preserves already-structured large results instead of re-applying stale raw extraction hints", async () => {
-    const server = await startJsonEchoServer({
-      trace: {
-        trace_id: "trace-linkedin",
-        skill_id: "skill-linkedin",
-        endpoint_id: "ep-feed",
-        success: true,
-        status_code: 200,
-      },
-      result: Array.from({ length: 12 }, (_, i) => ({
-        id: `post-${i + 1}`,
-        url: `https://www.linkedin.com/feed/update/post-${i + 1}`,
-        author: `Author ${i + 1}`,
-        content: `Long feed post ${i + 1}: ` + "linked data ".repeat(40),
-      })),
-      extraction_hints: {
-        path: "included[]",
-        fields: ["name", "url", "content"],
-        confidence: "high",
-        cli_args: "--path \"included[]\" --extract \"name,url,content\" --limit 10",
-      },
-      response_schema: {
-        type: "object",
-        properties: {
-          data: { type: "object" },
-          included: { type: "array" },
-        },
-      },
-    });
-
-    const cli = await runCli(server.baseUrl, [
-      "resolve",
-      "--intent", "get feed posts",
-      "--url", "https://www.linkedin.com/feed/",
-    ]);
-
-    expect(cli.code).toBe(0);
-    const body = JSON.parse(cli.stdout.trim() || "{}");
-    expect(Array.isArray(body.result)).toBe(true);
-    expect(body.result).toHaveLength(12);
-    expect(body._response_too_large).toBeUndefined();
-    expect(body.extraction_hints).toBeUndefined();
-    expect(cli.stderr).not.toContain('resolved to undefined');
-  }, 30_000);
-
-  it("forwards --session to browse POST commands", async () => {
-    const server = await startJsonEchoServer({ ok: true });
-
-    const cli = await runCli(server.baseUrl, [
-      "click",
-      "e5",
-      "--session", "sess-42",
-    ]);
-
-    expect(cli.code).toBe(0);
-    expect(server.lastRequest()).toEqual({
-      method: "POST",
-      path: "/v1/browse/click",
-      body: {
-        ref: "e5",
-        session_id: "sess-42",
-      },
-    });
-  });
-
-  it("forwards --session to browse GET commands as a query string", async () => {
-    const server = await startJsonEchoServer({ text: "hello" });
-
-    const cli = await runCli(server.baseUrl, [
-      "text",
-      "--session", "sess-42",
-    ]);
-
-    expect(cli.code).toBe(0);
-    expect(server.lastRequest()).toEqual({
-      method: "GET",
-      path: "/v1/browse/text?session_id=sess-42",
-      body: null,
-    });
-  });
+  // Three-verb collapse / stateless runtime: the daemon-HTTP request-payload
+  // tests that lived here (resolve -> POST /v1/intent/resolve, execute -> POST
+  // /v1/skills/.../execute, browse text/click -> /v1/browse/*) were removed.
+  // Those commands no longer forward to a local daemon over UNBROWSE_URL:
+  // `eval resolve`/`breath execute` resolve in-process (cache-first + direct
+  // backend on miss), and browse reads attach to Chrome directly via CDP
+  // (src/cli-v7/eval/text.ts etc.). The param-merge / payload-ingestion logic
+  // they asserted is covered in-process by tests/input-payload-ingestion.test.ts.
+  // The foundry publish-bundle path below still flows through api()/UNBROWSE_URL,
+  // so it keeps its end-to-end forwarding assertion.
 
   it("sends publish-bundle to the foundry publish route", async () => {
     const server = await startJsonEchoServer({ ok: true });
 
     const cli = await runCli(server.baseUrl, [
-      "publish-bundle",
+      "build", "publish-bundle",
       "--preset", "skills/x-account-operator/foundry-preset.json",
       "--hosts", "codex,claude",
       "--site-url", "https://www.unbrowse.ai",

@@ -153,6 +153,7 @@ export function buildAgentExecuteCliArgs(
   return [
     "bun",
     "src/cli.ts",
+    "breath",
     "execute",
     "--skill",
     skillId,

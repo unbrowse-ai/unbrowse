@@ -36,6 +36,7 @@ function runCli(args: string[], timeoutMs = 30_000): { stdout: string; stderr: s
 describe("CLI --json: stdout is pure JSON (contract 7ae6a26d)", () => {
   it("resolve --json: stdout parses as a single JSON object", () => {
     const { stdout, status } = runCli([
+      "eval",
       "resolve",
       "--json",
       "--intent",
@@ -56,7 +57,7 @@ describe("CLI --json: stdout is pure JSON (contract 7ae6a26d)", () => {
   }, 100_000);
 
   it("health --json: stdout is pure JSON when the local app is reachable", () => {
-    const { stdout, stderr, status } = runCli(["health", "--json"], 15_000);
+    const { stdout, stderr, status } = runCli(["eval", "status", "--json"], 15_000);
     // health may return non-zero if no app — but stdout must still parse.
     // (status is informational here; the invariant is on stdout shape.)
     expect(() => JSON.parse(stdout)).not.toThrow();
@@ -76,7 +77,7 @@ describe("CLI --json: stdout is pure JSON (contract 7ae6a26d)", () => {
   // stdout and broke JSON.parse. `skills` is a no-network local-cache read, so
   // this is a deterministic gate.
   it("skills (no --json, piped): stdout is pure JSON with no chatter", () => {
-    const { stdout, status } = runCli(["skills"], 40_000);
+    const { stdout, status } = runCli(["eval", "skills"], 40_000);
     expect(status).toBe(0);
     expect(() => JSON.parse(stdout)).not.toThrow();
     expect(stdout).not.toContain("[trace]");
@@ -87,6 +88,7 @@ describe("CLI --json: stdout is pure JSON (contract 7ae6a26d)", () => {
 
   it("resolve (no --json, piped): stdout parses as a single JSON object", () => {
     const { stdout, status } = runCli([
+      "eval",
       "resolve",
       "--intent",
       "github trending repositories",

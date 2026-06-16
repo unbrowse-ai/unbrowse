@@ -260,15 +260,41 @@ async function runHandlerCaptured(
 async function loadVerb(verb: string): Promise<Record<string, unknown>> {
   switch (verb) {
     case "build": {
-      const { handler: skill } = await import("../build/skill.js");
-      const { handler: template } = await import("../build/template.js");
-      const { handler: valueSource } = await import("../build/value-source.js");
-      return { skill, template, "value-source": valueSource };
+      const [skill, template, valueSource, idx, publish, publishBundle, annotate, review, skillPackage, cleanupStale] = await Promise.all([
+        import("../build/skill.js"),
+        import("../build/template.js"),
+        import("../build/value-source.js"),
+        import("../build/idx.js"),
+        import("../build/publish.js"),
+        import("../build/publish-bundle.js"),
+        import("../build/annotate.js"),
+        import("../build/review.js"),
+        import("../build/skill-package.js"),
+        import("../build/cleanup-stale.js"),
+      ]);
+      return {
+        skill: skill.handler,
+        template: template.handler,
+        "value-source": valueSource.handler,
+        // `build index` handler lives in idx.ts (index.ts is the verb router).
+        index: idx.handler,
+        publish: publish.handler,
+        "publish-bundle": publishBundle.handler,
+        annotate: annotate.handler,
+        review: review.handler,
+        "skill-package": skillPackage.handler,
+        "cleanup-stale": cleanupStale.handler,
+      };
     }
     case "breath": {
-      const [go, fill, type, click, press, select, scroll, submit, execute, authCapture, proxyRotate, close] = await Promise.all([
+      const [
+        go, fill, fillForm, type, click, press, select, scroll, submit, execute,
+        authCapture, proxyRotate, close, sessionPark, sessionRestore,
+        run, get, fetch, capture, back, forward, sync, runJs, auth,
+      ] = await Promise.all([
         import("../breath/go.js"),
         import("../breath/fill.js"),
+        import("../breath/fill-form.js"),
         import("../breath/type.js"),
         import("../breath/click.js"),
         import("../breath/press.js"),
@@ -279,10 +305,22 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         import("../breath/auth-capture.js"),
         import("../breath/proxy-rotate.js"),
         import("../breath/close.js"),
+        import("../breath/session-park.js"),
+        import("../breath/session-restore.js"),
+        import("../breath/run.js"),
+        import("../breath/get.js"),
+        import("../breath/fetch.js"),
+        import("../breath/capture.js"),
+        import("../breath/back.js"),
+        import("../breath/forward.js"),
+        import("../breath/sync.js"),
+        import("../breath/run-js.js"),
+        import("../breath/auth.js"),
       ]);
       return {
         go: go.handler,
         fill: fill.handler,
+        "fill-form": fillForm.handler,
         type: type.handler,
         click: click.handler,
         press: press.handler,
@@ -293,10 +331,21 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         "auth-capture": authCapture.handler,
         "proxy-rotate": proxyRotate.handler,
         close: close.handler,
+        "session-park": sessionPark.handler,
+        "session-restore": sessionRestore.handler,
+        run: run.handler,
+        get: get.handler,
+        fetch: fetch.handler,
+        capture: capture.handler,
+        back: back.handler,
+        forward: forward.handler,
+        sync: sync.handler,
+        "run-js": runJs.handler,
+        auth: auth.handler,
       };
     }
     case "eval": {
-      const [snap, resolve, status, version, trace, markdown, screenshot, text, cookies, stats, skills, skill, sessions, earnings, settings, feedback, reflect, authInventory, spec] = await Promise.all([
+      const [snap, resolve, status, version, trace, markdown, screenshot, text, cookies, stats, skills, skill, sessions, earnings, settings, feedback, reflect, authInventory, spec, explain, search, inspect] = await Promise.all([
         import("../eval/snap.js"),
         import("../eval/resolve.js"),
         import("../eval/status.js"),
@@ -316,6 +365,9 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         import("../eval/reflect.js"),
         import("../eval/auth-inventory.js"),
         import("../eval/spec.js"),
+        import("../eval/explain.js"),
+        import("../eval/search.js"),
+        import("../eval/inspect.js"),
       ]);
       return {
         snap: snap.handler,
@@ -337,6 +389,9 @@ async function loadVerb(verb: string): Promise<Record<string, unknown>> {
         reflect: reflect.handler,
         "auth-inventory": authInventory.handler,
         spec: spec.handler,
+        explain: explain.handler,
+        search: search.handler,
+        inspect: inspect.handler,
       };
     }
     default:

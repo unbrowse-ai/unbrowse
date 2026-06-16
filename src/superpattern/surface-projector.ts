@@ -31,23 +31,29 @@ export interface SurfaceContext {
  *  model stays a pure atom map. */
 type Phase = "discover" | "enter" | "browse" | "execute" | "manage";
 
+// Keyed by FULL subcommand "<verb> <cap>" (key-identical to cli-surface.ts SURFACE),
+// matching what knownCommands() returns. Purged caps (note, mode, payment-provider,
+// health, contract, create/act/read, browse-cookies) are absent.
 const PHASE: Record<string, Phase> = {
   // discover — find the route/skill/spec (no session needed)
-  search: "discover", get: "discover", resolve: "discover", explain: "discover", spec: "discover",
-  index: "discover", skills: "discover", skill: "discover", "auth-inventory": "discover",
+  "eval search": "discover", "breath get": "discover", "eval resolve": "discover",
+  "eval explain": "discover", "eval spec": "discover", "build index": "discover",
+  "eval skills": "discover", "eval skill": "discover", "eval auth-inventory": "discover",
   // enter — cross into a site / one-shot
-  go: "enter", run: "enter", fetch: "enter", capture: "enter", auth: "enter",
+  "breath go": "enter", "breath run": "enter", "breath fetch": "enter",
+  "breath capture": "enter", "breath auth": "enter",
   // browse — only meaningful with a session open
-  snap: "browse", click: "browse", type: "browse", press: "browse", scroll: "browse",
-  select: "browse", submit: "browse", screenshot: "browse", text: "browse",
-  review: "browse", annotate: "browse", note: "browse", close: "browse",
+  "eval snap": "browse", "breath click": "browse", "breath type": "browse",
+  "breath press": "browse", "breath scroll": "browse", "breath select": "browse",
+  "breath submit": "browse", "eval screenshot": "browse", "eval text": "browse",
+  "build review": "browse", "build annotate": "browse", "breath close": "browse",
   // execute — replay a resolved endpoint / fill sealed values
-  execute: "execute", fill: "execute",
+  "breath execute": "execute", "breath fill": "execute",
   // manage — account / config / publish (always available, low priority)
-  setup: "manage", account: "manage", mode: "manage", "payment-provider": "manage",
-  dashboard: "manage", settings: "manage", health: "manage", feedback: "manage",
-  publish: "manage", "publish-bundle": "manage", upgrade: "manage",
-  "cleanup-stale": "manage", mcp: "manage",
+  "build setup": "manage", "eval account": "manage", "breath dashboard": "manage",
+  "eval settings": "manage", "eval feedback": "manage", "build publish": "manage",
+  "build publish-bundle": "manage", "breath upgrade": "manage",
+  "build cleanup-stale": "manage", "breath mcp": "manage",
 };
 
 function phaseOf(command: string): Phase {
@@ -74,7 +80,7 @@ export function projectSurface(ctx: SurfaceContext = {}): Surface[] {
   const out: Surface[] = [];
   for (const command of knownCommands()) {
     const phase = phaseOf(command);
-    const include = wanted.has(phase) || (ctx.authRequired && command === "auth");
+    const include = wanted.has(phase) || (ctx.authRequired && command === "breath auth");
     if (!include) continue;
     const s = surfaceFor(command);
     if (s) out.push(s);
