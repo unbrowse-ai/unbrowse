@@ -1,5 +1,30 @@
 # Changelog
 
+## [9.4.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0-preview.0...v9.4.0-preview.1) (2026-06-16)
+
+### Features
+
+* **cache:** fold value_id into the composite firmament (Step 4 lights) ([19bc221](https://github.com/unbrowse-ai/unbrowse-dev/commit/19bc2216b2137a9c6b9268ebf284e8db0dc732c6))
+* **dag:** edge-disambiguated hole binding — the DAG knows which hole fits which ([5f35b0e](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f35b0e71872efd2c15fce8c65a858daa7d573ff))
+* **frontend:** Aiko grounded chat on /aiko — same endpoint + unbrowse ([ee85938](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee8593821f133fdac6de264d6362d3388eaa6500))
+* **resolve:** cascade ON by default — close the cookie-principal leak, remove the opt-in escape hatch ([4af6cff](https://github.com/unbrowse-ai/unbrowse-dev/commit/4af6cff2bd18c45948580f60a536e9383ca0a26c))
+* **resolve:** persist prerequisite-walk results in the values ledger (live cascade to the CLI) ([01db12a](https://github.com/unbrowse-ai/unbrowse-dev/commit/01db12a64251b6976df48ebede017244a3ca4fe3))
+* **routing:** $0 keyless DDG fallback — free web grounding for distribution ([36117b1](https://github.com/unbrowse-ai/unbrowse-dev/commit/36117b127f4673d4c9d563c01d91298f255f168b))
+* **values:** values-ledger dependency cascade — the real pointer→pointer invalidation (Step 5) ([afac69b](https://github.com/unbrowse-ai/unbrowse-dev/commit/afac69b6a349b9644c886afc7f1b4da493fc0afe))
+* **values:** valueSetPointer — the value-side content pointer (Step 3 seed) ([a7eb3ae](https://github.com/unbrowse-ai/unbrowse-dev/commit/a7eb3aed8c985c550b7eacb0466af49f66c104f7))
+
+### Bug Fixes
+
+* **execution:** pre-fetch guard for unfilled {param} url holes (no literal braces to the server) ([d834b17](https://github.com/unbrowse-ai/unbrowse-dev/commit/d834b1745b6fe2ccd722fbd0d68570a057ae608f))
+* **frontend:** stream /api/aiko-chat — grounded answers exceed the 30s function budget ([9c5724f](https://github.com/unbrowse-ai/unbrowse-dev/commit/9c5724f69634ee4a54a710fac7865cd43f0db36c))
+* **resolve:** gate the persistent prereq cascade OPT-IN (default OFF) — Day-8 cold-audit repairs ([2ea3949](https://github.com/unbrowse-ai/unbrowse-dev/commit/2ea3949b4c2df3574a5405a9c689d1bbf7a953dd))
+* **resolve:** safe cacheable gate for the persistent cascade — exclude auth-backed + one-time yields ([e8b0a61](https://github.com/unbrowse-ai/unbrowse-dev/commit/e8b0a61a0a2e6956084fdb3639a92f0c53e94632))
+* **values:** make keyWithDeps injective — JSON-encode the deps fold (no comma ambiguity) ([d8f78ad](https://github.com/unbrowse-ai/unbrowse-dev/commit/d8f78add7a238aa3191f86210e988a4f3321d559))
+
+### Refactoring
+
+* **cache:** prune the inert composite value_id; value cascade lives in the ledger (Step 6) ([af01229](https://github.com/unbrowse-ai/unbrowse-dev/commit/af012299298f03bf3ff11f6deb22ccb3374f538d))
+
 ## [9.4.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.3.15...v9.4.0-preview.0) (2026-06-15)
 
 ### Features
