@@ -2091,11 +2091,21 @@ export function planPrereqOrder(
  * keys a prerequisite actually provides, one level deep. A prerequisite failure is skipped (the
  * caller falls back to LLM inference), so this never regresses the existing path.
  */
-/** TTL (ms) for persisting prerequisite-step results in the resolution ledger. 0 under
- *  UNBROWSE_STATELESS (no local state) → cachedResolution is pass-through, so the walk behaves
- *  exactly as before. Mirrors the CLI's resolveCacheTtlMs gate (default 10 min). */
+/** TTL (ms) for persisting prerequisite-step results in the resolution ledger.
+ *  OFF BY DEFAULT (opt-in via UNBROWSE_LOCAL_CACHES=1) — the plan's risk mitigation, and two cold
+ *  audit findings make on-by-default unsafe:
+ *   (A) freshness/stale-token: persisting a prereq yield ACROSS resolve invocations replays a
+ *       one-time/auth-bearing yield (token, nonce, CSRF) stale within the TTL — the cacheable gate
+ *       (ok+non-empty) has no per-yield granularity to exclude such values.
+ *   (B) principal scope: the principal is credentialFromAuthHeaders(baseParams.auth_headers), which
+ *       EXCLUDES cookies (loaded later in execution), so a cookie-authed yield mis-partitions as
+ *       "anon" → cross-principal read. Folding cookies into the principal is the gate to enabling it.
+ *  Until (A)+(B) are addressed + witnessed, persistence is opt-in. Under the default the walk keeps
+ *  its prior in-memory-per-walk behaviour (cachedResolution is pass-through at ttl<=0).
+ *  UNBROWSE_STATELESS=1 also forces 0 (no local state). */
 function prereqCacheTtlMs(): number {
   if (process.env.UNBROWSE_STATELESS === "1") return 0;
+  if (process.env.UNBROWSE_LOCAL_CACHES !== "1") return 0; // opt-in only (default OFF — see A/B above)
   return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
 }
 async function walkPrerequisiteChain(
