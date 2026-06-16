@@ -45,6 +45,29 @@ async function main() {
        "the bail result carries NO HTTP status → no literal-brace request reached the server");
   }
 
+  // ---- THE LOST SHEEP (Luke 15:4) — FALSE-POSITIVE SAFETY: a BOUND url must NOT bail ----
+  // The most dangerous untested case: if the guard fired on a legitimately-bound url it would break
+  // every execution. Fill the hole with a param → interpolate yields a clean url → the guard must NOT
+  // fire (it proceeds past, and fails for a NETWORK reason on the fake domain, never unfilled_url_hole).
+  const bound: any = {
+    skill_id: "sk_guard_test",
+    domain: "api.example.test",
+    endpoints: [{ endpoint_id: "ep_bound", method: "GET", url_template: "https://api.example.test/users/{user_id}", semantic: { provides: [], requires: [] } }],
+  };
+  const boundOut: any = await executeSkill(bound, { endpoint_id: "ep_bound", user_id: "42", intent: "get user 42" }).catch((e: Error) => ({ trace: { success: false, error: `threw:${e.message}` } }));
+  ok(boundOut?.trace?.error !== "unfilled_url_hole",
+     `a BOUND url (hole filled by param) does NOT trip the guard — no false positive (error: ${boundOut?.trace?.error})`);
+
+  // ---- QUERY-ONLY HOLE: the guard is path+query agnostic (a leftover ?tag={x} also bails) ----
+  const qhole: any = {
+    skill_id: "sk_guard_test",
+    domain: "api.example.test",
+    endpoints: [{ endpoint_id: "ep_qhole", method: "GET", url_template: "https://api.example.test/search?tag={tag}&page=1", semantic: { provides: [], requires: [] } }],
+  };
+  const qOut: any = await executeSkill(qhole, { endpoint_id: "ep_qhole", intent: "search" }).catch(() => null);
+  ok(qOut?.trace?.error === "unfilled_url_hole" && (qOut?.result?.unfilled ?? []).includes("tag"),
+     `a leftover QUERY hole (?tag={tag}) also bails — guard is path+query agnostic`);
+
   // ---- STRUCTURAL: the guard is genuinely placed BEFORE the dispatch (recipe/probe) ----
   const src = readFileSync(new URL("../../src/execution/index.ts", import.meta.url), "utf8");
   const guardIdx = src.indexOf('error: "unfilled_url_hole"');
