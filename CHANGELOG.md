@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.4.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0...v9.4.1-preview.0) (2026-06-16)
+
+### Bug Fixes
+
+* **skill:** quote SKILL.md descriptions so frontmatter is valid YAML ([4d678d4](https://github.com/unbrowse-ai/unbrowse-dev/commit/4d678d48df4cca19d37e18fc9e00ce66b89373e6))
+
+### Refactoring
+
+* **cli:** three-verb collapse + bare `unbrowse "task"` front door ([34c2700](https://github.com/unbrowse-ai/unbrowse-dev/commit/34c2700d19c54ecba8da898914bc8d02051fd14f))
+
 ## [9.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0-preview.1...v9.4.0) (2026-06-16)
 
 ### Features
