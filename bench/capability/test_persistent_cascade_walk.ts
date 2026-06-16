@@ -97,7 +97,7 @@ async function main() {
   ok(/const principal = credentialFromAuthHeaders\(baseParams\.auth_headers/.test(walk), "that principal IS the verified auth credential, not a self-asserted header");
   ok(/\n\s*dependsOn,\s*\n/.test(callObj), "the call PASSES dependsOn (the pointer→pointer cascade edge)");
   ok(/const dependsOn = priorPointer \? \[priorPointer\] : undefined/.test(walk), "dependsOn binds the PRIOR step's pointer (the ordered cascade chain)");
-  ok(/cacheable:\s*\(r\)\s*=>\s*r\.ok\s*&&\s*Object\.keys\(r\.yields\)\.length\s*>\s*0/.test(callObj), "the call PASSES the cacheable gate excluding error/empty/auth-required results");
+  ok(/cacheable:\s*\(r\)\s*=>\s*isPersistableYield\(r\.ok,\s*r\.yields,\s*prereqEp,\s*skill\)/.test(callObj), "the call PASSES the SAFE cacheable gate (isPersistableYield: no auth-backed / one-time yields)");
   ok(/ttlMs:\s*prereqTtlMs,/.test(callObj) && /UNBROWSE_STATELESS/.test(src), "the call is ttl-gated (pass-through under UNBROWSE_STATELESS)");
   // SAFETY (Day-8 cold audit): persistence is OPT-IN — OFF by default so a one-time/auth-bearing
   // prereq yield is never replayed stale across invocations, and a cookie-authed yield (principal
