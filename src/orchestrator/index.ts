@@ -219,15 +219,21 @@ const ISOLATED_SKILL_SNAPSHOT_MODE = !!process.env.UNBROWSE_SKILL_SNAPSHOT_DIR;
 export const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
-// Local skill caches: HARD-DISABLED by default. Caching was misleading us
-// (stale skill_ids resolved to 404 on execute, masking real backend search
-// gaps). Force every resolve through the backend so failures are visible.
-// Set UNBROWSE_LOCAL_CACHES=1 to re-enable for offline benchmarks only.
-const LOCAL_CACHES_ENABLED = process.env.UNBROWSE_LOCAL_CACHES === "1";
-/** Call-time read of the local-caches gate (the snapshot/route-cache persist functions read this so
- *  a runtime env change is honoured — consistent with the composite path at writeComposite. The
- *  load-time const above stays for the once-at-module-load setup blocks). */
-function localCachesEnabled(): boolean { return process.env.UNBROWSE_LOCAL_CACHES === "1"; }
+// Local skill caches (the internal-API HOLE-PIPING replay, pointer→pointer→value) — ON BY DEFAULT.
+// Originally hard-disabled because stale skill_ids 404'd on execute (masking real backend gaps). That
+// reason is CLOSED: the replay SELF-HEALS — a cached endpoint that fails on auto-exec invalidates +
+// re-resolves (shouldFallbackToLiveCaptureAfterAutoexecFailure → invalidateResolveCacheEntries, route
+// path ~:4856; the domain-cache evicts stale/low-score ~:4899). So a cached endpoint binds the RESOLVED
+// VALUE (Exodus 28:32 — the binding around the hole, that it not be torn; sign the resolved blob, not
+// the pointer string) — failures stay visible AND the holed endpoint is replayed instead of a cold
+// re-resolve. Disable explicitly with UNBROWSE_LOCAL_CACHES=0; UNBROWSE_STATELESS=1 also forces off.
+const LOCAL_CACHES_ENABLED =
+  process.env.UNBROWSE_STATELESS !== "1" && process.env.UNBROWSE_LOCAL_CACHES !== "0";
+/** Call-time read of the local-caches gate (persist/replay functions read this so a runtime env
+ *  change is honoured. ON unless STATELESS or LOCAL_CACHES=0). */
+function localCachesEnabled(): boolean {
+  return process.env.UNBROWSE_STATELESS !== "1" && process.env.UNBROWSE_LOCAL_CACHES !== "0";
+}
 
 export function persistDomainCache() {
   if (!LOCAL_CACHES_ENABLED || ISOLATED_SKILL_SNAPSHOT_MODE) return;
