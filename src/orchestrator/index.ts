@@ -41,6 +41,8 @@ import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { ddgSearch } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
+import { cachedResolution } from "../values/cached-resolution.js";
+import { credentialFromAuthHeaders } from "../runtime/principal-scope.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -2089,6 +2091,13 @@ export function planPrereqOrder(
  * keys a prerequisite actually provides, one level deep. A prerequisite failure is skipped (the
  * caller falls back to LLM inference), so this never regresses the existing path.
  */
+/** TTL (ms) for persisting prerequisite-step results in the resolution ledger. 0 under
+ *  UNBROWSE_STATELESS (no local state) → cachedResolution is pass-through, so the walk behaves
+ *  exactly as before. Mirrors the CLI's resolveCacheTtlMs gate (default 10 min). */
+function prereqCacheTtlMs(): number {
+  if (process.env.UNBROWSE_STATELESS === "1") return 0;
+  return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
+}
 async function walkPrerequisiteChain(
   skill: SkillManifest,
   unboundParams: string[],
@@ -2109,6 +2118,17 @@ async function walkPrerequisiteChain(
   // Explicit DAG edges disambiguate which producer fills each hole when several yield the same key.
   const bindingGraph = bindingGraphFromOperationGraph(skill.operation_graph);
 
+  // Persistent values-ledger cascade (the firmament): each prerequisite's yields are content-addressed
+  // in the resolution ledger — not just the per-call `executed` Map — partitioned by the VERIFIED auth
+  // principal (no cross-tenant replay) and folded pointer→pointer so an earlier step's VALUE change
+  // cascade-invalidates the later steps that ran in its context (keyWithDeps). Gated by ttl: 0 under
+  // UNBROWSE_STATELESS → cachedResolution is pass-through (behaviour unchanged). Fail-open: any ledger
+  // error → live recompute; only `cacheable` (ok + non-empty yields) results are ever stored, so an
+  // error / empty / auth-required prerequisite is never written to a shared key.
+  const prereqTtlMs = prereqCacheTtlMs();
+  const principal = credentialFromAuthHeaders(baseParams.auth_headers as Record<string, string> | undefined);
+  let priorPointer: string | undefined; // the prior executed step's result pointer — the cascade edge
+
   for (const param of unboundParams) {
     if (resolved[param] != null) continue;
     // 1) explicit edge (operation_graph) → the RIGHT producer; must be in the executable order.
@@ -2128,21 +2148,39 @@ async function walkPrerequisiteChain(
 
     let extracted = executed.get(prereqId);
     if (!extracted) {
+      // Bind this step to the prior step's pointer (pointer→pointer): if an earlier prerequisite's
+      // value changes, its pointer changes → this step re-keys → recompute (never serve a stale yield
+      // produced in a now-changed context). Omitted for the first step (leaf).
+      const dependsOn = priorPointer ? [priorPointer] : undefined;
       try {
-        const out = await executeSkill(
-          skill,
-          { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
-          projection,
-          { ...options, intent: queryIntent },
-        );
-        const ok = !!out?.trace?.success;
-        const yields = extractBindingsFromJson(
-          ok ? JSON.stringify(out.result) : undefined,
-          epProvides(prereqEp),
-        );
-        steps.push({ endpoint_id: prereqId, ok, yielded: Object.keys(yields) });
-        if (!ok) continue;
-        extracted = yields;
+        const res = await cachedResolution<{ ok: boolean; yields: Record<string, unknown> }>({
+          key: `prereq ${skill.skill_id}|${prereqId}|${queryIntent}`,
+          ttlMs: prereqTtlMs,
+          principal,
+          dependsOn,
+          // Only a successful, non-empty extraction is persisted: an error / empty / auth-required
+          // result honestly misses and retries next walk (no secret/blank written to a shared key).
+          cacheable: (r) => r.ok && Object.keys(r.yields).length > 0,
+          recompute: async () => {
+            const out = await executeSkill(
+              skill,
+              { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
+              projection,
+              { ...options, intent: queryIntent },
+            );
+            const ok = !!out?.trace?.success;
+            const yields = extractBindingsFromJson(
+              ok ? JSON.stringify(out.result) : undefined,
+              epProvides(prereqEp),
+            );
+            return { ok, yields };
+          },
+        });
+        steps.push({ endpoint_id: prereqId, ok: res.value.ok, yielded: Object.keys(res.value.yields) });
+        if (!res.value.ok) continue;
+        // Advance the cascade edge to this step's pointer (when persisted; pass-through under ttl<=0).
+        if (res.pointer) priorPointer = res.pointer;
+        extracted = res.value.yields;
         executed.set(prereqId, extracted);
       } catch {
         steps.push({ endpoint_id: prereqId, ok: false, yielded: [] });
