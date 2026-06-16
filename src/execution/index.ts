@@ -1,5 +1,6 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
+import { buildBloombergDirectDocumentResult } from "../orchestrator/direct-document.js";
 import * as kuri from "../kuri/client.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
@@ -4932,23 +4933,51 @@ export async function executeEndpoint(
       ? { tiny: false as const }
       : looksLikeTinyContentReadResult(data, effectiveIntent);
     if (tinyCheck.tiny) {
-      trace.success = false;
-      trace.error = "extraction_too_thin";
       const contextUrl = options?.contextUrl ?? `https://${skill.domain}`;
-      data = {
-        error: "extraction_too_thin",
-        message: `Extraction returned a meta-only envelope (${tinyCheck.bytes} bytes, ${tinyCheck.stringLeafChars} string-leaf chars) for content-read intent "${effectiveIntent}". This is the page-metadata fallback shape (title/url/site_name only), not the requested content. The page either rendered via JS post-load (SPA), was blocked by an anti-bot challenge, or the captured selectors no longer match the live DOM.`,
-        partial_data: data,
-        next_step: `Open a live browser session: \`unbrowse go "${contextUrl}"\` then \`unbrowse snap\` to inspect what actually rendered. \`unbrowse close\` will index the real network calls and rebuild the route.`,
-        commands: [
-          `unbrowse go "${contextUrl}"`,
-          `unbrowse snap`,
-          `unbrowse close`,
-        ],
-        diagnostic: tinyCheck.reason,
-      };
-      trace.result = data;
-      trace.steps?.push({ step: "extraction_too_thin_gate", reason: tinyCheck.reason });
+      // #838: escalate a thin server-fetch extraction to the BROWSER render — captureSession opens
+      // a Kuri Chrome tab, renders JS, and bypasses many anti-bot walls (the `unbrowse go` path,
+      // witnessed full-render of aetna.com where the server-fetch went thin). Use the rendered page
+      // as the answer (markdown via buildBloombergDirectDocumentResult), instead of only TELLING the
+      // agent to run `unbrowse go` manually. Gated by UNBROWSE_DEEP_CAPTURE=1 (default OFF): the
+      // render is ~20-80s and would breach a fast coverage budget — opt-in for the walled/SPA slice,
+      // measured under a realistic per-site budget.
+      let escalated = false;
+      if (process.env.UNBROWSE_DEEP_CAPTURE === "1" && effectiveIntent) {
+        try {
+          const cap = await captureSession(contextUrl, authHeaders, cookies, effectiveIntent);
+          if (cap?.html) {
+            const rendered = buildBloombergDirectDocumentResult(contextUrl, cap.html, "text/html", effectiveIntent);
+            if (!rendered.rejected && !looksLikeTinyContentReadResult(rendered, effectiveIntent).tiny) {
+              data = rendered as unknown as typeof data;
+              trace.result = data;
+              trace.success = true;
+              trace.error = undefined;
+              log("exec", `[deep-capture] ${contextUrl} browser-render escalation past thin: ${cap.html.length}B`);
+              escalated = true;
+            }
+          }
+        } catch (e) {
+          log("exec", `[deep-capture] escalation failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      if (!escalated) {
+        trace.success = false;
+        trace.error = "extraction_too_thin";
+        data = {
+          error: "extraction_too_thin",
+          message: `Extraction returned a meta-only envelope (${tinyCheck.bytes} bytes, ${tinyCheck.stringLeafChars} string-leaf chars) for content-read intent "${effectiveIntent}". This is the page-metadata fallback shape (title/url/site_name only), not the requested content. The page either rendered via JS post-load (SPA), was blocked by an anti-bot challenge, or the captured selectors no longer match the live DOM.`,
+          partial_data: data,
+          next_step: `Open a live browser session: \`unbrowse go "${contextUrl}"\` then \`unbrowse snap\` to inspect what actually rendered. \`unbrowse close\` will index the real network calls and rebuild the route.`,
+          commands: [
+            `unbrowse go "${contextUrl}"`,
+            `unbrowse snap`,
+            `unbrowse close`,
+          ],
+          diagnostic: tinyCheck.reason,
+        };
+        trace.result = data;
+        trace.steps?.push({ step: "extraction_too_thin_gate", reason: tinyCheck.reason });
+      }
     }
   }
 
