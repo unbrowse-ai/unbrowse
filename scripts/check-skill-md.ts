@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 type SkillFile = {
   file: string;
@@ -8,6 +9,12 @@ type SkillFile = {
 };
 
 const roots = [".agents/skills", "skills"];
+// User-facing / published SKILL.md files installed via `npx skills add unbrowse-ai/unbrowse`.
+// These MUST parse as real YAML — a naive line parser silently tolerated an unquoted
+// `description:` containing a colon-space ("for AI agents: it learns"), which a real YAML
+// parser (and the skills CLI) rejects with "mapping values are not allowed here" → the public
+// install reported "No skills found". Validate them with the same parser the installer uses.
+const rootSkills = ["SKILL.md", "packages/skill/SKILL.md"];
 const errors: string[] = [];
 
 function walk(dir: string, out: string[]): void {
@@ -22,24 +29,32 @@ function walk(dir: string, out: string[]): void {
 function readSkillFiles(): SkillFile[] {
   const files: string[] = [];
   for (const root of roots) walk(root, files);
-  return files.sort().map((file) => ({ file, text: fs.readFileSync(file, "utf8") }));
+  for (const f of rootSkills) if (fs.existsSync(f)) files.push(f);
+  return [...new Set(files)].sort().map((file) => ({ file, text: fs.readFileSync(file, "utf8") }));
 }
 
-function frontmatter(text: string): Record<string, string> | null {
+// Real-YAML frontmatter parse — mirrors what `npx skills` does. Returns null when there is no
+// frontmatter block; throws (caught by caller) when the frontmatter is present but YAML-invalid.
+function frontmatter(text: string): Record<string, unknown> | null {
   const match = text.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) return null;
-  const fields: Record<string, string> = {};
-  for (const line of match[1]!.split("\n")) {
-    const field = line.match(/^([a-zA-Z0-9_-]+):\s*(.+?)\s*$/);
-    if (field) fields[field[1]!] = field[2]!.replace(/^["']|["']$/g, "");
-  }
-  return fields;
+  const parsed = parseYaml(match[1]!) as Record<string, unknown> | null;
+  return parsed ?? {};
 }
 
 for (const skill of readSkillFiles()) {
   const strict = skill.file.startsWith(".agents/skills/unbrowse-bench-");
-  const fields = frontmatter(skill.text);
-  if (!fields && strict) {
+  const published = rootSkills.includes(skill.file);
+  let fields: Record<string, unknown> | null;
+  try {
+    fields = frontmatter(skill.text);
+  } catch (err) {
+    // YAML-invalid frontmatter is a hard failure for any published skill (the installer rejects
+    // it); for internal skills it is still surfaced so it can't silently ship.
+    errors.push(`${skill.file}: invalid YAML frontmatter — ${(err as Error).message.split("\n")[0]}`);
+    continue;
+  }
+  if (!fields && (strict || published)) {
     errors.push(`${skill.file}: missing YAML frontmatter`);
     continue;
   }

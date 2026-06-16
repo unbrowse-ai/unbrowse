@@ -1,6 +1,6 @@
 ---
-name: unbrowse
-description: Get one internet result from a typed hole. Unbrowse is the API-native agent browser: the caller supplies intent plus optional URL/params/approval, and the runtime picks the cheapest capable layer (route graph, installed skill, standard adapter, browser capture with local cookies/HAR) then returns a contract-shaped CapabilityResult. Captures are indexed so the next call is fast. The old resolve/execute/go/snap CLI verbs are advanced compatibility surfaces; the current architecture is the single-command hole/contract surface exposed by bare `unbrowse "task"`, `unbrowse contract surface`, and the SDK `createHole().fill(...)`.
+name: "unbrowse"
+description: "Get one internet result from a typed hole. Unbrowse is the API-native agent browser: the caller supplies intent plus optional URL/params/approval, and the runtime picks the cheapest capable layer (route graph, installed skill, standard adapter, browser capture with local cookies/HAR) then returns a contract-shaped CapabilityResult. Captures are indexed so the next call is fast. The old resolve/execute/go/snap CLI verbs are advanced compatibility surfaces; the current architecture is the single-command hole/contract surface exposed by bare `unbrowse \"task\"`, `unbrowse contract surface`, and the SDK `createHole().fill(...)`."
 user-invocable: true
 metadata:
   type: integration
