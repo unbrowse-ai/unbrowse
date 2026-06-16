@@ -1029,13 +1029,20 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
-  await ensureCliInstallTracked(hostType);
-  await recordFunnelTelemetryEvent("cli_invoked", {
+  // Telemetry is observability, NOT on the critical path. Awaiting these backend POSTs added ~8s
+  // to every cold resolve (bisected: 3 awaited network calls before the resolve even started) —
+  // the dominant cold-resolve latency and a coverage killer under a fast bench budget. Fire and
+  // forget (matches recordOrchestrationPerf's .catch pattern); the events still fire, just off the
+  // hot path. Install tracking only matters when an attribution token is present.
+  if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
+    void ensureCliInstallTracked(hostType).catch(() => {});
+  }
+  void recordFunnelTelemetryEvent("cli_invoked", {
     source: "cli",
     hostType,
     properties: { command: "resolve" },
-  });
-  await recordFunnelTelemetryEvent("resolve_started", {
+  }).catch(() => {});
+  void recordFunnelTelemetryEvent("resolve_started", {
     source: "cli",
     hostType,
     properties: {
@@ -1047,7 +1054,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       has_domain: typeof flags.domain === "string",
       auto_execute: !!flags.execute,
     },
-  });
+  }).catch(() => {});
 
   try {
     const body: Record<string, unknown> = { intent };
@@ -1243,7 +1250,9 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     if (isResolveSuccessResult(result)) {
-      await recordFunnelTelemetryEvent("resolve_completed", {
+      // Fire-and-forget: this backend POST added ~4.7s between the result and printing it
+      // (bisected). Observability must not block the answer.
+      void recordFunnelTelemetryEvent("resolve_completed", {
         source: "cli",
         hostType,
         properties: {
@@ -1255,7 +1264,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
           auto_execute: autoExecute,
           explicit_endpoint: explicitEndpointId ?? null,
         },
-      });
+      }).catch(() => {});
     }
 
     addDirectDocumentAgentGuidance(result, { intent, url });
