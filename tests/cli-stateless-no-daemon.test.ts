@@ -33,7 +33,7 @@ test(
     // Precondition: nothing on 6969 (loud, not silently green).
     expect(await portRefused(6969)).toBe(true);
 
-    const child = spawn(process.execPath, [CLI_ENTRY, "health"], {
+    const child = spawn(process.execPath, [CLI_ENTRY, "eval", "status"], {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, UNBROWSE_NON_INTERACTIVE: "1" },
     });

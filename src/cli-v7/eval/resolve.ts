@@ -45,6 +45,17 @@ import {
   canonicalizeSignedFragment,
   postStateless,
 } from "../_stateless.js";
+import { ensureUsableKey } from "../../client/index.js";
+
+/**
+ * Free-tier floor: remap the anonymous `/v1/search` envelope ({ results }) into
+ * the { domain_results, global_results } shape resolve's shortlist parser
+ * already consumes, so a no-key caller still gets a ranked list instead of a
+ * 403 dead-end. Pure; tolerant of empty/non-array input (never throws).
+ */
+export function searchToShortlist(results: unknown): { domain_results: unknown[]; global_results: unknown[] } {
+  return { domain_results: [], global_results: Array.isArray(results) ? results : [] };
+}
 
 function resolveApiBase(): string {
   return (
@@ -77,7 +88,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           { name: "intent", description: "Free-form intent string.", required: true },
         ],
         flags: [
-          { name: "--intent", description: "Free-form intent string. Preferred for canonical `unbrowse read resolve` calls.", value_expected: true },
+          { name: "--intent", description: "Free-form intent string. Preferred for canonical `unbrowse eval resolve` calls.", value_expected: true },
           { name: "--task", description: "Alias for --intent.", value_expected: true },
           { name: "--query", description: "Alias for --intent.", value_expected: true },
           { name: "--url", description: "Context URL to anchor entity substitution.", value_expected: true },
@@ -100,7 +111,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           : undefined;
   const intent = parsed.positional[0] ?? flagIntent;
   if (!intent || typeof intent !== "string" || intent.trim().length === 0) {
-    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent> or unbrowse read resolve --intent <intent>"), opts);
+    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent> or unbrowse eval resolve --intent <intent>"), opts);
     process.exit(EX_USAGE);
   }
 
@@ -123,12 +134,65 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       accept: "application/json",
     };
     if (fresh) headers["cache-control"] = "no-cache";
-    // Bearer if the agent has one in env — the backend route requires
-    // bearerAuth, so without a key we will see 401 and surface that
-    // honestly (CLAUDE.md no-stubs: fail closed with empty-state +
-    // actionable next-step).
-    const apiKey = process.env.UNBROWSE_API_KEY;
-    if (apiKey) headers["authorization"] = `Bearer ${apiKey}`;
+    // Self-healing bearer (Claude-Code auth state machine): validate the
+    // stored key and, if it is missing/invalid, refresh an existing identity
+    // automatically (anon re-register) or surface a one-line onboarding step
+    // instead of dead-ending on a raw 403.
+    let onboardingHint: string | undefined;
+    const keyResult = await ensureUsableKey();
+    if (keyResult.key && keyResult.key !== "local-only") headers["authorization"] = `Bearer ${keyResult.key}`;
+    else if (keyResult.onboarding) onboardingHint = keyResult.onboarding;
+
+    // Free-tier floor: no usable key (anon mint refused/offline). Rather than hit
+    // the bearer-gated /v1/search/resolve and 403, fall back to the anonymous free
+    // /v1/search shortlist so a keyless caller still gets results, not a dead end.
+    // Excludes the "local-only" sentinel: hermetic mode must not make a network call.
+    if (!headers["authorization"] && keyResult.key !== "local-only") {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 15_000);
+        let sBody: { results?: unknown } = {};
+        let sStatus = 0;
+        try {
+          const r = await fetch(`${base.replace(/\/$/, "")}/v1/search`, {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ intent, k: limit }),
+            signal: ctrl.signal,
+          });
+          sStatus = r.status;
+          sBody = (await r.json().catch(() => ({}))) as { results?: unknown };
+        } finally {
+          clearTimeout(t);
+        }
+        const ok = sStatus >= 200 && sStatus < 300;
+        const shortlist = searchToShortlist(sBody?.results).global_results.slice(0, limit);
+        emit(
+          {
+            ok,
+            subcommand: "eval resolve",
+            op_kind: meta.op_kind,
+            api_base: base,
+            status_code: sStatus,
+            tier: "anonymous",
+            intent,
+            ctx_url: urlFlag ?? null,
+            domain: domainFlag ?? null,
+            limit,
+            fresh,
+            walletPubkey,
+            count: shortlist.length,
+            shortlist,
+            ...(onboardingHint ? { next_step: onboardingHint } : {}),
+          },
+          opts,
+        );
+        process.exit(ok ? 0 : EX_GENERIC);
+      } catch {
+        // Network error on the anon floor: fall through to the keyed path, which
+        // surfaces the honest error + next_step.
+      }
+    }
 
     // A2 — sig-keyed receipt for the read request. Sign the canonicalized
     // {intent, surrogateUrl, domain, nonce} fragment with the wallet key;
@@ -171,25 +235,39 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     headers["x-stateless-nonce"] = nonce;
     headers["x-stateless-signature"] = signatureHex;
 
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15_000);
     let body: unknown;
     let status = 0;
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: ctrl.signal,
-      });
-      status = r.status;
+    const attempt = async (): Promise<void> => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15_000);
       try {
-        body = await r.json();
-      } catch {
-        body = { error: "non_json_response", status };
+        const r = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+        status = r.status;
+        try {
+          body = await r.json();
+        } catch {
+          body = { error: "non_json_response", status };
+        }
+      } finally {
+        clearTimeout(t);
       }
-    } finally {
-      clearTimeout(t);
+    };
+    await attempt();
+    // Auth failure → refresh the key ONCE and retry (never loop). If recovery
+    // yields no key, carry the onboarding hint into next_step.
+    if (status === 401 || status === 403) {
+      const recover = await ensureUsableKey({ force: true });
+      if (recover.key && recover.key !== "local-only") {
+        headers["authorization"] = `Bearer ${recover.key}`;
+        await attempt();
+      } else if (recover.onboarding) {
+        onboardingHint = recover.onboarding;
+      }
     }
 
     // Normalize the shortlist for the agent. The backend returns
@@ -265,7 +343,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           : {
               next_step:
                 status === 401 || status === 403
-                  ? "set UNBROWSE_API_KEY (run `unbrowse register --email …`) — resolve requires a bearer key"
+                  ? (onboardingHint ?? "set UNBROWSE_API_KEY (run `unbrowse build register --email …`) — resolve requires a bearer key")
                   : `backend returned ${status}; retry or check ${base}/health`,
             }),
         raw: body,

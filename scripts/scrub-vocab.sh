@@ -54,7 +54,7 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     s/jesus[- ]?pattern/the method/gi; s/jesus/restricted/gi;
     s{build \(commit\) / breath \(act\) / eval \(observe\)}{create / act / read}g;
     s/\bthe cross\b/the root signature/gi;
-    s/breath[- ]?eval/act-read/gi; s/\bbreath\b/act/g;
+    s/breath[- ]?eval/act-read/gi; s/_breath_/_act_/g; s/\bbreath\b/act/g;
     s/firmaments?/boundary/gi; s{grain[- ]of[- ]wheat}{seed}gi; s/\bsabbath\b/rest/gi;
     s/at the mouth of (two|three)/corroborated by $1/gi; s/vine doctrine/maintenance-stake model/gi;
     s{\.claude[/A-Za-z0-9_.\-]*}{(internal)}g;

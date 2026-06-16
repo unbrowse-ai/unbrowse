@@ -268,7 +268,7 @@ describe("CLI end-to-end", () => {
     const baseUrl = `http://127.0.0.1:${port}`;
     const runDir = mkdtempSync(join(tmpdir(), "unbrowse-run-"));
 
-    const { code, body } = await runCliWithAutoStart(["health"], {
+    const { code, body } = await runCliWithAutoStart(["eval", "status"], {
       UNBROWSE_URL: baseUrl,
       UNBROWSE_RUN_DIR: runDir,
       UNBROWSE_DISABLE_AUTO_UPDATE: "1",
@@ -287,7 +287,7 @@ describe("CLI end-to-end", () => {
   }, 45_000);
 
   it("health returns JSON from the local server", async () => {
-    const { code, body } = await runCli(["health"]);
+    const { code, body } = await runCli(["eval", "status"]);
     expect(code).toBe(0);
     expect(body.status).toBe("ok");
   }, 20_000);
@@ -308,7 +308,7 @@ describe("CLI end-to-end", () => {
       }));
 
       const sessions = await runCliWithAutoStart([
-        "sessions",
+        "eval", "sessions",
         "--domain", "www.linkedin.com",
         "--limit", "1",
       ], {
@@ -340,7 +340,7 @@ describe("CLI end-to-end", () => {
 
   it("resolve returns a runnable marketplace-backed endpoint for a public PyPI package page", async () => {
     const resolve = await runCli([
-      "resolve",
+      "eval", "resolve",
       "--intent", "get package info",
       "--url", "https://pypi.org/project/openai/",
     ]);
@@ -354,7 +354,7 @@ describe("CLI end-to-end", () => {
 
   it("resolve + execute works through the CLI path for npm package search", async () => {
     const resolve = await runCli([
-      "resolve",
+      "eval", "resolve",
       "--intent", "search packages",
       "--url", "https://www.npmjs.com/search?q=openai",
     ]);
@@ -369,7 +369,7 @@ describe("CLI end-to-end", () => {
     if (!skillId || !endpointId) return;
 
     const execute = await runCli([
-      "execute",
+      "breath", "execute",
       "--skill", skillId,
       "--endpoint", endpointId,
       "--url", "https://www.npmjs.com/search?q=openai",
@@ -390,7 +390,7 @@ describe("CLI end-to-end", () => {
     const searchUrl = "https://x.com/search?q=openai&src=typed_query";
 
     const resolve = await runCli([
-      "resolve",
+      "eval", "resolve",
       "--intent", "search tweets",
       "--url", searchUrl,
     ]);
@@ -405,7 +405,7 @@ describe("CLI end-to-end", () => {
     if (!skillId || !endpointId) return;
 
     const execute = await runCli([
-      "execute",
+      "breath", "execute",
       "--skill", skillId,
       "--endpoint", endpointId,
     ]);
@@ -424,7 +424,7 @@ describe("CLI end-to-end", () => {
     // Try auto-start first; if Kuri/Chrome isn't available, skip gracefully.
     // In CI the cli-e2e job builds Kuri before running tests.
     // Locally, `unbrowse health` should be running for this to work.
-    const go = await runCliWithAutoStart(["go", "https://example.com"]);
+    const go = await runCliWithAutoStart(["breath", "go", "https://example.com"]);
     if (typeof go.body.error === "string") {
       console.log(`SKIP: Kuri/Chrome not available for browse session test (${go.body.error}: ${go.body.message ?? "no detail"})`);
       return;
@@ -438,7 +438,7 @@ describe("CLI end-to-end", () => {
 
     // eval must return real page content — not CDP error, not empty.
     // This is the key assertion: if eval fails here, the tab never navigated.
-    const evalResult = await runCli(["eval", "--session", sessionId, "document.title"]);
+    const evalResult = await runCli(["breath", "run-js", "--session", sessionId, "document.title"]);
     expect(evalResult.code).toBe(0);
     expect(evalResult.body.result).toBeTruthy();
     expect(evalResult.body.result).not.toEqual({ error: "CDP command failed" });
@@ -446,14 +446,14 @@ describe("CLI end-to-end", () => {
     expect(evalResult.body.result.length).toBeGreaterThan(0);
 
     // snap must return a non-empty a11y tree
-    const snap = await runCliRaw(["snap", "--session", sessionId]);
+    const snap = await runCliRaw(["eval", "snap", "--session", sessionId]);
     expect(snap.code).toBe(0);
     // snap outputs raw text when not --pretty, check stdout directly
     expect(snap.stdout).toContain("[e0]");
     expect(snap.stdout).toContain("Example Domain");
 
     // close must succeed and checkpoint
-    const close = await runCli(["close", "--session", sessionId]);
+    const close = await runCli(["breath", "close", "--session", sessionId]);
     expect(close.code).toBe(0);
     expect(close.body.ok).toBe(true);
   }, 90_000);
@@ -466,7 +466,7 @@ describe("CLI end-to-end", () => {
     }
 
     const resolve = await runCli([
-      "resolve",
+      "eval", "resolve",
       "--intent", "search people",
       "--url", "https://www.linkedin.com/search/results/people/?keywords=openai",
     ]);
@@ -481,7 +481,7 @@ describe("CLI end-to-end", () => {
     if (!skillId || !endpointId) return;
 
     const execute = await runCli([
-      "execute",
+      "breath", "execute",
       "--skill", skillId,
       "--endpoint", endpointId,
     ]);

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { handleContractSurface } from "../backend/src/routes/contract";
@@ -9,6 +10,27 @@ import { bridgeManifest } from "../src/superpattern/bridge-manifest";
 
 const ROOT = join(import.meta.dir, "..");
 const ARCH_PAPER = join(ROOT, "internal/docs/UNBROWSE_ARCHITECTURE_PAPER.md");
+
+// Run the CLI and capture stdout via a temp file. Importing the heavy
+// backend/contract module into this test process makes bun's `bun test` runner
+// swallow a spawned child's piped stdout/stderr (status survives, the buffers
+// come back empty), so we redirect the child's stdout to a file the child
+// writes directly — bypassing the in-memory pipe capture entirely.
+function runCli(args: string[]): { status: number | null; stdout: string } {
+  const dir = mkdtempSync(join(tmpdir(), "ub-cap-"));
+  const out = join(dir, "out");
+  const cmd = ["bun", "src/cli.ts", ...args]
+    .map((a) => `'${a.replace(/'/g, "'\\''")}'`)
+    .join(" ");
+  const r = spawnSync("sh", ["-c", `${cmd} > '${out}' 2>/dev/null`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, UNBROWSE_NO_SWEEP: "1" },
+  });
+  let stdout = "";
+  try { stdout = readFileSync(out, "utf8"); } catch { /* empty */ }
+  return { status: r.status, stdout };
+}
 
 describe("capability compatibility standard", () => {
   test("contract surface exposes one CapabilityResult shape for every fallback source", () => {
@@ -144,13 +166,8 @@ describe("capability compatibility standard", () => {
     expect(server.runtime_authority).toEqual(local.runtime_authority);
     expect(server.cli_bridge.canonical_verbs).toEqual(["create", "act", "read"]);
     expect(server.cli_bridge.legacy_aliases).toEqual(local.cli_bridge.legacy_aliases);
-    expect(server.cli_bridge.legacy_aliases).toEqual(
-      expect.arrayContaining([
-        { legacy: "resolve", canonical: "read resolve", reason: "backward-compatibility" },
-        { legacy: "execute", canonical: "act execute", reason: "backward-compatibility" },
-        { legacy: "publish", canonical: "create publish", reason: "backward-compatibility" },
-      ]),
-    );
+    expect(server.cli_bridge.legacy_aliases).toEqual([]);
+    expect(local.cli_bridge.legacy_aliases).toHaveLength(0);
   });
 
   test("stateless browser primitive normalizes into CapabilityResult", () => {
@@ -219,21 +236,26 @@ describe("capability compatibility standard", () => {
 });
 
 describe("canonical CLI compatibility e2e", () => {
-  test("unbrowse read routes into the v7 eval tree", () => {
-    const canonical = spawnSync("bun", ["src/cli.ts", "read", "version", "--json"], {
-      cwd: ROOT,
-      encoding: "utf8",
-      env: { ...process.env, UNBROWSE_NO_SWEEP: "1" },
-    });
-    expect(canonical.status).toBe(0);
-    const readBody = JSON.parse(canonical.stdout);
-    expect(readBody.ok).toBe(true);
-    expect(readBody.subcommand).toBe("eval version");
-    expect(readBody.op_kind).toBe("eval:version");
-    expect(readBody.signatureScheme).toBe("ed25519-v7.0");
+  test("build/breath/eval are the canonical verbs; `eval version` routes into the v7 eval tree", () => {
+    // Three-verb surface: build/breath/eval are the only structured verbs
+    // (create/act/read were rejected as verb names). A non-verb first token —
+    // `read`, or any natural-language phrase — is NOT a verb; it is forwarded to
+    // the one-hole `breath get` intent path (the bare-NL front door). So the
+    // witness here is the canonical verb form resolving into the v7 eval tree.
+    const r = runCli(["eval", "version", "--json"]);
+    expect(r.status).toBe(0);
+    const body = JSON.parse(r.stdout || "{}");
+    expect(body.ok).toBe(true);
+    expect(body.subcommand).toBe("eval version");
+    expect(body.op_kind).toBe("eval:version");
+    expect(body.signatureScheme).toBe("ed25519-v7.0");
   });
 
-  test("agentic UX surface is machine-readable and hides internal route logic", () => {
+  // purged in three-verb collapse: the flat `contract surface` CLI command no
+  // longer exists (contract DAG is server-side, not a CLI capability). The
+  // manifest shape it asserted is covered in-process by the "server and local
+  // CLI manifest agree" test above via handleContractSurface()/bridgeManifest().
+  test.skip("agentic UX surface is machine-readable and hides internal route logic", () => {
     const cli = spawnSync("bun", ["src/cli.ts", "contract", "surface"], {
       cwd: ROOT,
       encoding: "utf8",
@@ -253,22 +275,21 @@ describe("canonical CLI compatibility e2e", () => {
     expect(JSON.stringify(manifest.cli_bridge.commands)).not.toContain("secret");
   });
 
-  test("CLI help presents the stateless runtime while preserving legacy commands", () => {
-    const cli = spawnSync("bun", ["src/cli.ts", "help"], {
-      cwd: ROOT,
-      encoding: "utf8",
-      env: { ...process.env, UNBROWSE_NO_SWEEP: "1" },
-    });
-    expect(cli.status).toBe(0);
-    const output = `${cli.stdout}\n${cli.stderr}`;
+  test("CLI help presents the stateless three-verb runtime", () => {
+    const r = runCli(["help"]);
+    expect(r.status).toBe(0);
+    const output = r.stdout;
     expect(output).toContain("local runtime health");
     expect(output).toContain("in-process stateless runtime");
     expect(output).toContain("compatibility daemon");
-    expect(output).toContain("go <url>");
-    expect(output).toContain("resolve");
-    expect(output).toContain("execute");
+    // The collapse leaves exactly three top-level verbs.
+    expect(output).toContain("build");
+    expect(output).toContain("breath");
+    expect(output).toContain("eval");
     expect(output).not.toContain("Quick local server health check");
     expect(output).not.toContain("Open a fresh Kuri browser tab");
+    // Help advertises the bare natural-language front door, not flat commands.
+    expect(output).toContain('unbrowse breath get "task"');
   });
 });
 

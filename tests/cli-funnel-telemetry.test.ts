@@ -102,6 +102,7 @@ describe("cli funnel telemetry", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
+        "eval",
         "resolve",
         "--intent", "get items",
         "--url", "https://example.com/items",
@@ -157,6 +158,7 @@ describe("cli funnel telemetry", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
+        "eval",
         "search",
         "--intent", "create checkout session",
         "--domain", "stripe.com",
@@ -208,6 +210,7 @@ describe("cli funnel telemetry", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
+        "eval",
         "resolve",
         "--intent", "get items",
         "--url", "https://example.com/items",
@@ -259,7 +262,7 @@ describe("cli funnel telemetry", () => {
 
       const out = await runCli(
         baseUrl,
-        ["search", "--intent", "create checkout session", "--domain", "stripe.com"],
+        ["eval", "search", "--intent", "create checkout session", "--domain", "stripe.com"],
         { UNBROWSE_ATTRIBUTION_B64: encoded },
       );
 

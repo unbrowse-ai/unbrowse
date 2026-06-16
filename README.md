@@ -1,6 +1,6 @@
 # Unbrowse
 
-> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed values. Company route IP stays behind typed contracts: end users ask for results, not raw internal API maps, auth material, HAR payloads, or PII. Inspect the live bridge contract with `unbrowse contract surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
+> **The Unbrowse client boundary is open and auditable.** The local runtime, CLI bridge, SDK, drop-in adapters, and wallet/auth/signing layer are MIT and readable here, so you can verify what runs on your machine rather than trust a black box. The backend owns the route graph, ranking, settlement, and recursive contract compilation; the client sees only typed holes, approvals, pointer-only receipts, and wallet-sealed values. Company route IP stays behind typed contracts: end users ask for results, not raw internal API maps, auth material, HAR payloads, or PII. Inspect the live bridge contract at `GET /v1/contract/surface`. See [docs/OPEN-SOURCE-NOTICE.md](./docs/OPEN-SOURCE-NOTICE.md) for the exact open/private split.
 
 Unbrowse is a local Agent Skill, CLI, and TypeScript SDK that turns websites into reusable API routes for agents. It learns callable routes from real browsing, keeps credentials local, and shares only sanitized route metadata with the marketplace when you explicitly publish. MCP remains available as a compatibility surface.
 
@@ -35,7 +35,7 @@ BrowseComp witness must still be a real `N >= 25` result above Exa's published
 The current client boundary is a **hole/contract**: the model fills only the holes it can know, and the runtime chooses the cheapest capable layer. The formal bridge is machine-readable:
 
 ```bash
-unbrowse contract surface
+curl https://beta-api.unbrowse.ai/v1/contract/surface
 ```
 
 The bridge exposes five client-fillable holes:
@@ -77,7 +77,7 @@ Each op produces a **pointer-only, wallet-signed receipt**: it points *at* value
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-> The three-verb and v6 command surfaces are compatibility layers. New integrations should target bare `unbrowse "task"`, `createHole().fill(...)`, or inspect `unbrowse contract surface`.
+> The bare `unbrowse "task"` front door routes to the one-hole path; the three-verb CLI (`build`/`breath`/`eval`) is the explicit surface underneath. New integrations should target `unbrowse "task"`, `createHole().fill(...)`, or inspect the live bridge contract at `GET /v1/contract/surface`.
 
 ## Drop-in client adapters
 
@@ -101,7 +101,7 @@ Install the binary, then run setup. Setup installs the Unbrowse Agent Skill by d
 
 ```bash
 npm i -g unbrowse
-unbrowse setup
+unbrowse build setup
 ```
 
 Skill-aware hosts read `~/.claude/skills/unbrowse/SKILL.md` and learn the current hole/contract surface. For legacy MCP hosts, run the stdio server manually:
@@ -140,7 +140,7 @@ If you just want the binary on your machine:
 curl -fsSL https://unbrowse.ai/install.sh | sh
 ```
 
-The installer detects your platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse setup`.
+The installer detects your platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse build setup`.
 
 For OpenClaw / `agent-browser` users, the plugin form is also still around — `npx unbrowse-openclaw install --restart` routes every `page.goto()` through Unbrowse — but it is no longer the primary install path.
 
@@ -170,7 +170,7 @@ Unbrowse routes monetize on use. Every `unbrowse_execute` against a priced route
 You have three ways to pay:
 
 1. **Sponsored credit (default).** Brand-new agents get a daily allowance of platform-sponsored execute calls before they need to fund a wallet — so creators start earning USDC the moment their captured routes are reused. Sponsored responses include `X-Sponsored: <ledger_id>`. Once you've burned through the daily allowance the server returns 402 with `X-Sponsor-Exhausted: 1`; the SDK throws `SponsorExhaustedError`. Opt out per-request with `X-No-Sponsor: 1`.
-2. **Your wallet + Flex escrow.** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs a payment header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md).
+2. **Your wallet + Flex escrow.** Pair a Solana mainnet wallet, fund a Flex escrow with USDC, register a session key — three steps walked through by `unbrowse build setup` or `/account`. The SDK catches `PaymentRequiredError`, calls `payAndRetryFlex(error, wallet)`, signs the authorization, packs a payment header, and returns the data. Your wallet's USDC ATA also receives your contributor share when other agents replay routes you captured. Settlement is split natively in every signed authorization across the indexer, the platform, and (when claimed) the site owner — the exact mechanics live in [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md).
 3. **Stripe subscription + overage.** Same `/v1/account` surface, same `unbrowse_settings`, for teams that prefer a card on file.
 
 > Protocol appendix (for implementers): the payment flow is the canonical [x402](https://www.x402.org) protocol; payment proofs travel in the `X-PAYMENT` request header. The runtime exposes `payAndRetryFlex` so most agents never touch the protocol directly.
@@ -205,12 +205,12 @@ For most MCP hosts the standard flow is `unbrowse_resolve` → `unbrowse_execute
 ## Common commands
 
 ```bash
-unbrowse health
+unbrowse eval status
 unbrowse mcp
-unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
-unbrowse login --url "https://calendar.google.com"
-unbrowse skills
-unbrowse search --intent "get stock prices"
+unbrowse eval resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse breath auth --url "https://calendar.google.com"
+unbrowse eval skills
+unbrowse eval search --intent "get stock prices"
 ```
 
 Contribute a verified route-delta to the shared graph (the client builds the proof
@@ -218,17 +218,17 @@ locally and posts only the route's structural shape — never captured traffic; 
 server verifies the proof + origin attestation before admitting it):
 
 ```bash
-unbrowse contribute --endpoint "GET api.example.com/v1/items" --origin "https://api.example.com" --params "page,limit"
-unbrowse contribute root   # the shared-graph commitment + endpoint count
+unbrowse build contribute --endpoint "GET api.example.com/v1/items" --origin "https://api.example.com" --params "page,limit"
+unbrowse build contribute root   # the shared-graph commitment + endpoint count
 ```
 
 Local capture/publish policy is configurable:
 
 ```bash
-unbrowse config set telemetry false
-unbrowse settings --auto-publish off
-unbrowse settings --publish-blacklist "linkedin.com,x.com"
-unbrowse settings --publish-promptlist "github.com"
+unbrowse eval config set telemetry false
+unbrowse eval settings --auto-publish off
+unbrowse eval settings --publish-blacklist "linkedin.com,x.com"
+unbrowse eval settings --publish-promptlist "github.com"
 ```
 
 Auto-publish is off by default. `fetch` stays local unless you pass `--publish`. Those settings only affect automatic publish after explicit checkpoints (`sync`, `close`). Local `index` still works, and explicit `publish` is still available with confirmation when a guarded domain is intentional.
@@ -238,10 +238,10 @@ Auto-publish is off by default. `fetch` stays local unless you pass `--publish`.
 Unbrowse no longer self-updates at runtime. After each release, run:
 
 ```bash
-unbrowse upgrade
+unbrowse breath upgrade
 ```
 
-Codex and Claude hosts also get a session-start update hint during `unbrowse setup`, so newer releases are surfaced before the CLI drifts too far behind.
+Codex and Claude hosts also get a session-start update hint during `unbrowse build setup`, so newer releases are surfaced before the CLI drifts too far behind.
 
 If you installed from a repo clone:
 
@@ -304,6 +304,16 @@ Six-layer pipeline:
 4. **Browser replacement API** — `Browser.launch()` + `page.goto()` from the `unbrowse` import resolves from the skill cache first; cache miss falls through to kuri.
 5. **Endpoint graph** — Typed edges (list→detail, pagination, auth) prefetched in the same round-trip. `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.
 6. **Marketplace + payments** — New unverified submissions land in a shadow state until corroborated. Brand-new endpoints on an existing public skill also stay shadow until independently verified. Skill creators set a price per execution; sponsored calls cover brand-new agents' first calls so creators earn from day zero. See [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md) (payment + sponsor flow).
+
+## Privacy — your credentials and data stay on your machine
+
+What holds today:
+
+- **Credentials are sealed to your wallet.** Saved auth/secret values are encrypted at rest to your wallet key and dereferenced **locally** at the moment of use; the plaintext value never crosses the wire. The backend can verify you *hold* a credential without ever receiving it (a cryptographic possession proof, not the secret).
+- **Execution is local-first.** On the default path, a resolved route runs from your own machine straight to the target site — the request and its body do not pass through unbrowse's servers.
+- **Routes are pointers, not maps.** The client sees typed holes and `sha256:` pointers to secret-stripped route structures, never raw internal API maps, HAR payloads, or PII.
+
+The design guarantee we are completing (rolling out): **unbrowse's servers never see your credentials or request bodies in the clear** — including when egress needs a clean IP, where the proxy tier is moving to a blind end-to-end-encrypted tunnel (the server lends an IP, relays only ciphertext, and never terminates your TLS). Until that tunnel ships, the local execution path above is the guarantee; the IP-escalation tier is the one place still being closed.
 
 ## Authentication
 

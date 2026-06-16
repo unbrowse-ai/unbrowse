@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Node >= 20
-- A running Unbrowse runtime: either local (`unbrowse setup`) or a remote one you control.
+- A running Unbrowse runtime: either local (`unbrowse build setup`) or a remote one you control.
 
 ## Install
 
@@ -18,7 +18,7 @@ pnpm add @unbrowse/sdk
 ## Start the runtime
 
 ```bash
-npx unbrowse setup
+npx unbrowse build setup
 ```
 
 The runtime auto-starts on demand at `http://localhost:6969` whenever an SDK or CLI call needs it. There is no separate `server start` command.
@@ -38,7 +38,7 @@ console.log(await u.health());
 | Option | Env var | Default | Notes |
 |---|---|---|---|
 | `baseUrl` | `UNBROWSE_URL` | `http://localhost:6969` | Point at a remote runtime if not local. |
-| `apiKey` | `UNBROWSE_API_KEY` | none | Required for remote runtimes; auto-set by `unbrowse account --register`. |
+| `apiKey` | `UNBROWSE_API_KEY` | none | Required for remote runtimes; auto-set by `unbrowse eval account --register`. |
 | `clientId` | none | none | Per-worker tag for payout attribution. |
 | `timeoutMs` | none | none | Default per-call timeout. |
 | `fetch` | none | global `fetch` | Override for proxy/instrumentation. |

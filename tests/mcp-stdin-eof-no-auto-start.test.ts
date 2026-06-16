@@ -98,7 +98,7 @@ describe("mcp stdin-EOF respects --no-auto-start", () => {
 
       // Step 1: pre-spawn a daemon ourselves via `unbrowse serve`. This
       // simulates a user-owned daemon that MCP must not touch.
-      const daemon = spawn("bun", [CLI_ENTRY, "serve"], {
+      const daemon = spawn("bun", [CLI_ENTRY, "breath", "serve"], {
         cwd: REPO_ROOT,
         env,
         stdio: ["ignore", "pipe", "pipe"],

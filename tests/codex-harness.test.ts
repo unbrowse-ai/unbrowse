@@ -170,6 +170,7 @@ describe("codex harness helpers", () => {
     })).toEqual([
       "bun",
       "src/cli.ts",
+      "breath",
       "execute",
       "--skill",
       "skill-1",

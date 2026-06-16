@@ -29,6 +29,11 @@ import { handler as feedbackHandler } from "./feedback.js";
 import { handler as reflectHandler } from "./reflect.js";
 import { handler as authInventoryHandler } from "./auth-inventory.js";
 import { handler as specHandler } from "./spec.js";
+import { handler as explainHandler } from "./explain.js";
+import { handler as searchHandler } from "./search.js";
+import { handler as inspectHandler } from "./inspect.js";
+import { handler as accountHandler } from "./account.js";
+import { handler as configHandler } from "./config.js";
 
 const TABLE: Record<string, VerbHandler> = {
   snap: snapHandler,
@@ -50,6 +55,11 @@ const TABLE: Record<string, VerbHandler> = {
   reflect: reflectHandler,
   "auth-inventory": authInventoryHandler,
   spec: specHandler,
+  explain: explainHandler,
+  search: searchHandler,
+  inspect: inspectHandler,
+  account: accountHandler,
+  config: configHandler,
 };
 
 export const router: VerbRouter = {

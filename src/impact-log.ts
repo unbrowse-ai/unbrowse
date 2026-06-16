@@ -22,7 +22,10 @@ export interface ImpactLogEntry {
   command: "resolve" | "execute" | "browse" | string;
   source?: string;
   domain?: string;
-  intent?: string;
+  // NOTE: the raw `intent` is deliberately NOT persisted here — it is a hole
+  // value that can carry user-typed PII/secrets, and nothing reads it back
+  // (readImpactSummary aggregates only time/tokens/cost/source). Keep it out of
+  // this at-rest local log. (privacy-at-rest invariant, Phase A.)
   skill_id?: string;
   endpoint_id?: string;
   time_saved_ms?: number;
@@ -126,7 +129,8 @@ export function impactFromResult(
     command,
     source: typeof impact.source === "string" ? impact.source : undefined,
     domain: extras.domain,
-    intent: extras.intent,
+    // `extras.intent` is intentionally dropped (see ImpactLogEntry note) — never
+    // persisted to the at-rest log.
     skill_id: extras.skill_id ?? (typeof r.skill_id === "string" ? r.skill_id : undefined),
     endpoint_id: extras.endpoint_id ?? (typeof r.endpoint_id === "string" ? r.endpoint_id : undefined),
     time_saved_ms: num(impact.time_saved_ms),

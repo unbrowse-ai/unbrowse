@@ -106,7 +106,7 @@ describe("exit drain — bounded by hard cap (D5 speed)", () => {
     const exitCode: number | null = await new Promise((resolve) => {
       const child = spawn(
         "bun",
-        [cliPath, "fetch", "--url", "https://example.com"],
+        [cliPath, "breath", "fetch", "--url", "https://example.com"],
         {
           // Isolated HOME so we don't trip on a polluted .unbrowse from other
           // tests; rehydrate of 72 stale browse sessions adds ~2s on its own.

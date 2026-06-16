@@ -87,7 +87,7 @@ async function runSetupOnboarding(envOverrides: Record<string, string> = {}): Pr
   durationMs: number;
 }> {
   const start = Date.now();
-  const proc = Bun.spawn([process.execPath, "src/cli.ts", "setup", "--no-auto-start"], {
+  const proc = Bun.spawn([process.execPath, "src/cli.ts", "build", "setup", "--no-auto-start"], {
     cwd: ROOT,
     env: {
       ...process.env,

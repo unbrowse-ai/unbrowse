@@ -24,6 +24,20 @@ import { handler as proxyRotateHandler } from "./proxy-rotate.js";
 import { handler as closeHandler } from "./close.js";
 import { handler as sessionParkHandler } from "./session-park.js";
 import { handler as sessionRestoreHandler } from "./session-restore.js";
+import { handler as runHandler } from "./run.js";
+import { handler as getHandler } from "./get.js";
+import { handler as fetchHandler } from "./fetch.js";
+import { handler as captureHandler } from "./capture.js";
+import { handler as backHandler } from "./back.js";
+import { handler as forwardHandler } from "./forward.js";
+import { handler as syncHandler } from "./sync.js";
+import { handler as runJsHandler } from "./run-js.js";
+import { handler as authHandler } from "./auth.js";
+import { handler as connectChromeHandler } from "./connect-chrome.js";
+import { handler as serveHandler } from "./serve.js";
+import { handler as mcpHandler } from "./mcp.js";
+import { handler as dashboardHandler } from "./dashboard.js";
+import { handler as upgradeHandler } from "./upgrade.js";
 
 const TABLE: Record<string, VerbHandler> = {
   go: goHandler,
@@ -42,6 +56,21 @@ const TABLE: Record<string, VerbHandler> = {
   // v7.2.0-preview.0 (W23) — close-is-antipattern persistent sessions.
   "session-park": sessionParkHandler,
   "session-restore": sessionRestoreHandler,
+  // Delegating shims to the (exported) cmd* in src/cli.ts.
+  run: runHandler,
+  get: getHandler,
+  fetch: fetchHandler,
+  capture: captureHandler,
+  back: backHandler,
+  forward: forwardHandler,
+  sync: syncHandler,
+  "run-js": runJsHandler,
+  auth: authHandler,
+  "connect-chrome": connectChromeHandler,
+  serve: serveHandler,
+  mcp: mcpHandler,
+  dashboard: dashboardHandler,
+  upgrade: upgradeHandler,
 };
 
 export const router: VerbRouter = {

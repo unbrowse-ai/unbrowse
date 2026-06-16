@@ -204,21 +204,7 @@ const FALLBACK_HIERARCHY: readonly FallbackLevel[] = [
   { rank: 9, source: "unavailable", returns: "CapabilityResult", fallback_on: [] },
 ];
 
-const LEGACY_ALIASES: readonly LegacyAlias[] = [
-  { legacy: "resolve", canonical: "read resolve", reason: "backward-compatibility" },
-  { legacy: "search", canonical: "read resolve", reason: "backward-compatibility" },
-  { legacy: "skills", canonical: "read skills", reason: "backward-compatibility" },
-  { legacy: "skill", canonical: "read skill", reason: "backward-compatibility" },
-  { legacy: "snap", canonical: "read snap", reason: "backward-compatibility" },
-  { legacy: "text", canonical: "read text", reason: "backward-compatibility" },
-  { legacy: "execute", canonical: "act execute", reason: "backward-compatibility" },
-  { legacy: "go", canonical: "act go", reason: "backward-compatibility" },
-  { legacy: "click", canonical: "act click", reason: "backward-compatibility" },
-  { legacy: "fill", canonical: "act fill", reason: "backward-compatibility" },
-  { legacy: "submit", canonical: "act submit", reason: "backward-compatibility" },
-  { legacy: "publish", canonical: "create publish", reason: "backward-compatibility" },
-  { legacy: "index", canonical: "create index", reason: "backward-compatibility" },
-];
+const LEGACY_ALIASES: readonly LegacyAlias[] = [];
 
 const INDEXER_CONTRIBUTION: IndexerContributionContract = {
   format: "capability-knowledge-row",

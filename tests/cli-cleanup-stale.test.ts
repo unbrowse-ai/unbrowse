@@ -67,6 +67,7 @@ describe("cleanup-stale CLI", () => {
     const server = await startServer();
 
     const cli = await runCli(server.baseUrl, [
+      "build",
       "cleanup-stale",
       "--skill", "skill-123",
       "--domain", "x.com",

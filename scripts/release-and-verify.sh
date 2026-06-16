@@ -133,18 +133,18 @@ if [[ "$SKIP_REMOTE" != "1" ]]; then
     INSTALLED="$(unbrowse --version 2>/dev/null || echo 'binary not found')"
     log "installed: $INSTALLED"
 
-    # Setup (headless, non-interactive)
+    # Setup (headless, non-interactive) — three-verb surface: `build setup`.
     log "running setup..."
-    UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse setup --no-start --skip-browser 2>&1 || true
+    UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse build setup --no-start --skip-browser 2>&1 || true
 
-    # Health check
+    # Health check — three-verb surface: `eval status` is the local runtime health probe.
     log "health check..."
-    UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse health 2>&1
+    UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse eval status 2>&1
     log "health OK"
 
-    # Resolve smoke — marketplace-backed, no browser needed
+    # Resolve smoke — marketplace-backed, no browser needed. Three-verb: `eval resolve`.
     log "resolve smoke (pypi.org)..."
-    RESULT=$(UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse resolve \
+    RESULT=$(UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 unbrowse eval resolve \
       --intent "get package info" \
       --url "https://pypi.org/project/openai/" 2>&1 || true)
     if echo "$RESULT" | grep -q '"error"'; then

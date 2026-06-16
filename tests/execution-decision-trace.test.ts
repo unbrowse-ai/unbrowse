@@ -278,6 +278,7 @@ describe("CLI slimTrace preserves decision_trace (Phase 7.2)", () => {
       "bun",
       [
         "src/cli.ts",
+        "breath",
         "execute",
         "--url",
         "https://example.invalid-host-xyzzy.test/api/data.json",

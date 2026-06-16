@@ -14,7 +14,7 @@ describe("unbrowse serve live probe", () => {
     // default 6969 or any local dev server.
     const port = 16000 + Math.floor(Math.random() * 1000);
 
-    const child = spawn(process.execPath, ["src/cli.ts", "serve"], {
+    const child = spawn(process.execPath, ["src/cli.ts", "breath", "serve"], {
       cwd: REPO_ROOT,
       env: {
         ...process.env,

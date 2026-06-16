@@ -76,7 +76,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--url", "https://www.carousell.sg/search/beige%20shirt",
         "--task", "search listings",
       ]);
@@ -100,7 +100,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--url", "https://www.carousell.sg",
         "--query", "beige sweater Serangoon",
       ]);
@@ -141,7 +141,7 @@ describe("cli agent experience", () => {
       const proc = Bun.spawn([
         process.execPath,
         "src/cli.ts",
-        "read",
+        "eval",
         "resolve",
         "--intent", "resolve repository data for github.com",
         "--url", "https://github.com",
@@ -201,7 +201,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "run",
+        "breath", "run",
         "https://www.carousell.sg/search/beige%20shirt",
         "list beige shirts",
       ]);
@@ -235,7 +235,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--url", "https://github.com",
         "--intent", "resolve repository data for github.com",
       ]);
@@ -283,7 +283,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--url", "https://mail.google.com",
         "--intent", "resolve the authenticated workflow surface and report the next required user action if auth is needed for mail.google.com",
       ]);
@@ -349,7 +349,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "run",
+        "breath", "run",
         "https://www.carousell.sg/search/beige%20shirt",
         "list beige shirts",
       ]);
@@ -393,7 +393,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "run",
+        "breath", "run",
         "https://www.carousell.sg/search/beige%20pants",
         "list beige pants with links",
       ]);
@@ -433,7 +433,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "run",
+        "breath", "run",
         "https://www.carousell.sg/search/beige%20pants",
         "find pants near Serangoon",
       ]);
@@ -461,7 +461,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "run",
+        "breath", "run",
         "https://paid.example/search",
         "search listings",
       ]);
@@ -488,7 +488,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "execute",
+        "breath", "execute",
         "--skill-id", "skill_123",
         "--endpoint-id", "endpoint_456",
       ]);
@@ -517,7 +517,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "auth-capture",
+        "breath", "auth-capture",
         "--url", "https://www.carousell.sg/",
       ]);
 
@@ -545,7 +545,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "auth",
+        "breath", "auth",
         "https://www.carousell.sg/",
       ]);
 
@@ -577,7 +577,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "settings",
+        "eval", "settings",
         "--auto-publish", "off",
         "--publish-blacklist", "linkedin.com,x.com",
         "--publish-promptlist", "github.com",
@@ -600,7 +600,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "index",
+        "build", "index",
         "--skill", "skill-123",
       ]);
 
@@ -629,7 +629,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "publish",
+        "build", "publish",
         "--skill", "skill-123",
         "--confirm-publish",
         "--endpoints", '[{"endpoint_id":"ep-1","description":"test"}]',
@@ -664,7 +664,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--intent", "get feed posts",
         "--url", "https://www.linkedin.com/feed/",
       ]);
@@ -694,7 +694,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--intent", "get timeline",
         "--url", "https://x.com/home",
       ]);
@@ -721,7 +721,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--intent", "search tweets",
         "--url", "https://x.com",
       ]);
@@ -760,7 +760,7 @@ describe("cli agent experience", () => {
       return new Response("not found", { status: 404 });
     }, async (baseUrl, requests) => {
       const out = await runCli(baseUrl, [
-        "resolve",
+        "eval", "resolve",
         "--intent", "post tweet",
         "--url", "https://x.com/compose/post",
         "--execute",

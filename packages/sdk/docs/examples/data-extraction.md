@@ -50,7 +50,7 @@ await writeFile("out.json", JSON.stringify(rows, null, 2));
 
 The first URL on a new domain triggers a full live capture. The runtime publishes the captured skill. URLs 2..N hit the cache. By target #3 you should be on a sub-second-per-call path.
 
-If target #2 still triggers capture, the published skill probably failed admission. Inspect with `await u.getSkill(resolved.skill?.skill_id ?? "")` to see the manifest, or run `unbrowse skills` locally to list known skills.
+If target #2 still triggers capture, the published skill probably failed admission. Inspect with `await u.getSkill(resolved.skill?.skill_id ?? "")` to see the manifest, or run `unbrowse eval skills` locally to list known skills.
 
 ## Productionizing
 

@@ -35,7 +35,7 @@ describe.skipIf(SKIP)("integration: headless golden (Worker F)", () => {
 
   it("spawns Chrome with --headless=new and exits cleanly", () => {
     const proc = Bun.spawnSync({
-      cmd: ["bun", CLI, "go", "https://example.com"],
+      cmd: ["bun", CLI, "breath", "go", "https://example.com"],
       cwd: REPO_ROOT,
       stdout: "pipe",
       stderr: "pipe",
