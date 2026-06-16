@@ -4669,7 +4669,13 @@ export async function resolveAndExecute(
         // as a direct-document (ON the target site) before falling to off-domain exa guesses. Gated
         // by UNBROWSE_DEEP_CAPTURE=1 (default OFF): the render is ~20-80s and would breach a fast
         // coverage budget — opt-in, measured under a realistic per-site budget for the walled slice.
-        if (process.env.UNBROWSE_DEEP_CAPTURE === "1" && directDoc?.rejected) {
+        // Only escalate for reasons where the BROWSER renders MORE than the server-fetch got: an
+        // anti-bot interstitial, an unhydrated SPA shell, or a too-small body. NOT intent_mismatch
+        // (content is fine, just off-intent — the browser renders the same) or dead/unsupported.
+        const ddReason = directDoc?.rejected ? (directDoc as { reason?: string }).reason : undefined;
+        const escalatable = ddReason === "interstitial_detected" ||
+          ddReason === "spa_hydration_required" || ddReason === "too_small";
+        if (process.env.UNBROWSE_DEEP_CAPTURE === "1" && escalatable) {
           try {
             const cap = await captureSession(raceContextUrl, undefined, undefined, intent);
             if (cap?.html) {
