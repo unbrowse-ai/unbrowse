@@ -25,13 +25,21 @@ cleanup() {
     # Drop the wait — a detached bun child can inherit the server PID and
     # outlive the kill, and `wait` on a non-child will block forever.
   fi
-  # Also sweep any orphan bun/unbrowse/kuri descendants spawned by the smoke
+  # Also sweep any orphan bun/unbrowse/kuri descendants spawned by the smoke. kuri (the CDP
+  # broker) is NOT a child of $$ and does not match $RUNTIME_ENTRY, so it survives the kills
+  # above and keeps writing to $TMP_HOME/.unbrowse — which races the rm below and yields
+  # "Directory not empty". Kill it explicitly, then give the FS a beat to settle.
   pkill -9 -P $$ 2>/dev/null || true
   pkill -9 -f "$RUNTIME_ENTRY" 2>/dev/null || true
+  pkill -9 -f 'kuri' 2>/dev/null || true
+  sleep 0.3
   if [[ -n "$TARBALL" && -f "$TARBALL" ]]; then
     rm -f "$TARBALL"
   fi
-  rm -rf "$TMP_PREFIX" "$TMP_HOME"
+  # Cleanup must NEVER fail the job: the smoke has already passed by the time this EXIT trap
+  # runs. A surviving process racing the rm previously yielded "Directory not empty" → exit 1
+  # (set -e) → the npm publish step never ran. Tolerate any residual rm failure.
+  rm -rf "$TMP_PREFIX" "$TMP_HOME" 2>/dev/null || true
 }
 trap cleanup EXIT
 
