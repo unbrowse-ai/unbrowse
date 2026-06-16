@@ -51,6 +51,19 @@ guard's own loop settles this with a probe-ladder integration witness, then ship
 - `probe.unwired` (`cli.ts:5424`) — not a buried export; an ACTIVE flag from
   `ensureKuriProxyReachable()` gating proxy-resilience fallback. Correctly wired.
 
+## ACC#2 end-to-end closure (Day 6 — real source CLI, real network)
+Driven via `bun src/cli.ts resolve --intent … --url https://httpbin.org/json --json` (the live
+edited source, not the npm dist):
+- **Run 1:** `cache_hit:false`, resolution ledger 218→219 (persisted), real httpbin JSON returned.
+- **Run 2 (same intent+url):** `cache_hit:true` + `_cache_hit:true`, ledger stayed 219 (replayed,
+  no growth), and the **identical `trace_id`** was returned — a re-execution mints a new nanoid, so
+  the same id proves the cached resolution was served, not recomputed.
+⇒ the CLI → orchestrator → resolution-persistence/replay seam is now witnessed BEHAVIORALLY
+end-to-end (was structural-only). HONEST SCOPE: this exercised the single-step `direct-fetch`
+resolution cache; the multi-step `walkPrerequisiteChain` per-prereq cascade specifically is
+witnessed at unit + structural level (`test_persistent_cascade_walk.ts`) — its full-network e2e
+needs a multi-step skill fixture (named, not faked).
+
 ## Summary
 - **1 wired this loop** (#1, the persistent cascade — the loop's GOAL face 1).
 - **1 real bug queued** (#2, the `{param}` leak — the next node).
