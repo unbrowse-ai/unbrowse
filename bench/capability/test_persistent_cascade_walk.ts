@@ -99,6 +99,13 @@ async function main() {
   ok(/const dependsOn = priorPointer \? \[priorPointer\] : undefined/.test(walk), "dependsOn binds the PRIOR step's pointer (the ordered cascade chain)");
   ok(/cacheable:\s*\(r\)\s*=>\s*r\.ok\s*&&\s*Object\.keys\(r\.yields\)\.length\s*>\s*0/.test(callObj), "the call PASSES the cacheable gate excluding error/empty/auth-required results");
   ok(/ttlMs:\s*prereqTtlMs,/.test(callObj) && /UNBROWSE_STATELESS/.test(src), "the call is ttl-gated (pass-through under UNBROWSE_STATELESS)");
+  // SAFETY (Day-8 cold audit): persistence is OPT-IN — OFF by default so a one-time/auth-bearing
+  // prereq yield is never replayed stale across invocations, and a cookie-authed yield (principal
+  // excludes cookies) is never mis-partitioned as anon. Under the default the walk keeps its prior
+  // in-memory-per-walk behaviour. prereqCacheTtlMs must return 0 unless UNBROWSE_LOCAL_CACHES=1.
+  const ttlFn = src.slice(src.indexOf("function prereqCacheTtlMs"), src.indexOf("function prereqCacheTtlMs") + 400);
+  ok(/UNBROWSE_LOCAL_CACHES\s*!==\s*"1"\)\s*return 0/.test(ttlFn),
+     "persistence is OPT-IN — prereqCacheTtlMs returns 0 unless UNBROWSE_LOCAL_CACHES=1 (default OFF: no stale-token replay, no cookie mis-partition)");
 
   console.log(fails === 0 ? "\nPERSISTENT CASCADE WALK WITNESS PASSES" : `\n${fails} FAILED`);
   process.exit(fails === 0 ? 0 : 1);

@@ -51,12 +51,10 @@ ok(!/\burl\s*=\s*[^;\n]*\.replace\([^)]*\{[a-z0-9_]/i.test(codeOnly),
 ok(/error:\s*"browser_replay_only"/.test(src) && /success:\s*false/.test(src),
    "a pre-fetch bail precedent exists (session-bound gate: stampTrace success:false; return {trace,result})");
 
-// 5) THE ONE REMAINING UNKNOWN (named, not asserted — Mark 9:24): does probeUrl, on a 404 from a
-//    holed url, ever fall to a rung that DROPS the holed segment and recovers? The two probers found
-//    no such rewrite, but the full probe ladder was not exhaustively traced. The guard's own loop must
-//    settle this with a probe-ladder integration witness before choosing bail-vs-strip. Pinned here so
-//    the next loop starts from evidence, not from this characterization's silence.
-ok(true, "UNKNOWN named: full probe-ladder recovery behaviour on a holed url — settle in the guard's loop");
+// 5) The unknown this seed first named (does any probe-ladder rung DROP the holed segment and
+//    recover?) was SETTLED when the guard shipped: the ladder's rungs (server/browser/captcha) all
+//    operate on the same closure `url` with no stripHoles rewrite, so a hole is never recovered — the
+//    guard bails before the ladder. (Removed a painted `ok(true,…)` tautology here — cold audit, Day 8.)
 
 console.log(fails === 0 ? "\n{param}-LEAK CHARACTERIZATION SEED PASSES (known pinned, unknown named)" : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);
