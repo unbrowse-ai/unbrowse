@@ -3708,6 +3708,36 @@ export async function executeEndpoint(
   // - endpoint has no proven_recipe (older skills, bundle-mined endpoints)
   // - the substituted URL still has leftover {placeholders} (re-discovery is safer)
   // ---------------------------------------------------------------------------
+  // Pre-fetch unfilled-{hole} guard (jesus-loop). An unbound {param} survives interpolate() as a
+  // literal `{param}` in the url. Resolution (walkPrerequisiteChain + inferParamsFromIntent) has
+  // already run upstream, so a hole reaching here is a GENUINE miss — and neither dispatch path can
+  // recover it: shouldReplayRecipe (:5575) already skips replay on a leftover {hole}, and the probe
+  // ladder (:3791) probes the holed url verbatim (no stripHoles rewrite), so it only sends a
+  // malformed request and fails. Bail before any network so we never leak literal braces to the
+  // server; the caller re-resolves. Same regex the recipe-skip uses, so no new false-positive class.
+  // Witnessed: bench/capability/test_param_leak_guard.ts (red→green, mutation-proven).
+  const __unfilledUrlHoles = url.match(/\{[a-z0-9_]+\}/gi);
+  if (__unfilledUrlHoles && __unfilledUrlHoles.length > 0) {
+    const unfilled = [...new Set(__unfilledUrlHoles)].map((h) => h.slice(1, -1));
+    const resultData = {
+      error: "unfilled_url_hole",
+      message: `Cannot execute: ${unfilled.length} URL parameter(s) unresolved (${unfilled.slice(0, 5).join(", ")}). Resolution did not bind them; the request was NOT sent.`,
+      unfilled,
+    };
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: endpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "unfilled_url_hole",
+      result: resultData,
+    });
+    log("exec", `endpoint ${endpoint.endpoint_id} bailed — unfilled url hole(s): ${unfilled.join(",")}`);
+    return { trace, result: resultData };
+  }
+
   // result + recipeMatched declared at the start of the dispatch block
   let recipeMatched = false;
 

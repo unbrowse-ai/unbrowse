@@ -16,7 +16,7 @@ definition line and comments → a real production caller, or zero (genuinely bu
 | # | mechanism | file:line | prod callers | disposition |
 |---|---|---|---|---|
 | 1 | `cachedResolution.dependsOn` / `.pointer` | `src/values/cached-resolution.ts:42,52,71` | **now 1** (this loop) | **WIRED** — `walkPrerequisiteChain` (orchestrator/index.ts) persists each prereq via `cachedResolution(principal, dependsOn=[priorPointer], cacheable)`; witness `test_persistent_cascade_walk.ts` 17/17, mutation-proven. |
-| 2 | unfilled-`{param}` leak (no pre-fetch hole guard, direct path) | `src/execution/index.ts:3311` (`interpolate`→fetch); guard only at `:3709` recipe-replay | n/a (a hole, not an export) | **bug-queued (own loop — hazard-mapped below)** — a literal `{param}` survives into the fetched URL when a hole is unbound on the DIRECT execute path. `:3482` handles SURPLUS params (appends as query), NOT missing ones. Real, unguarded. |
+| 2 | unfilled-`{param}` leak (no pre-fetch hole guard, direct path) | guard now at `src/execution/index.ts` `executeEndpoint` (before recipe-replay + probe ladder) | n/a (a hole, not an export) | **FIXED** — a pre-fetch guard bails with `success:false error:"unfilled_url_hole"` when `url` still matches `/\{[a-z0-9_]+\}/gi` after interpolation, before any network. Witness `test_param_leak_guard.ts` (behavioral via real `executeSkill` + structural), mutation-proven: with the guard neutered the holed url is genuinely SENT (test fails "Unable to connect") — proving both the leak and the fix. tsc delta 0. |
 
 ### Item #2 hazard map — PROBED & CORRECTED (Mark 9:24; seed = `test_param_leak_characterization.ts`)
 Two probers settled the unknowns with code evidence; the seed pins them runnably. The map's
