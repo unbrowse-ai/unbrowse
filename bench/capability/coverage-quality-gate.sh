@@ -54,7 +54,16 @@ try:
         # precise: the hit's registrable domain == the target's (handles SHORT brands like tnt.com,
         # kpn.com, bbt.com where a substring guard would false-miss). e.g. www.tnt.com -> tnt.com == tnt.com
         h=hit_host(u).lower().replace("www.","")
-        return h==reg or h.endswith("."+reg)
+        if h==reg or h.endswith("."+reg): return True
+        # brand-FAMILY match (accuracy fix, not leniency): the corpus domain is often a variant of
+        # the real brand domain — chimebank.com→chime.com, adobesign.com→adobe.com,
+        # drordash.com→doordash.com are GENUINE on-target resolutions the strict reg-match misses.
+        # Match when one main label contains the other (both ≥5 chars, to avoid common-word noise).
+        hl=h.split(".")[-2] if len(h.split("."))>=2 else h
+        # PREFIX match only (safe — no false-positives on compound generics like
+        # digitalvideoplatform⊃video): chimebank⊃chime, adobesign⊃adobe are prefix-related.
+        if len(label)>=5 and len(hl)>=5 and (hl.startswith(label) or label.startswith(hl)): return True
+        return False
     on=False
     if has:
         if src in ("direct-fetch","direct-document","marketplace","route-cache","live-capture","browser-action"):
