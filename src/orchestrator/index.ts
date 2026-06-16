@@ -40,6 +40,11 @@ import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { ddgSearch } from "../lib/ddg-search.js";
+import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
+import { cachedResolution } from "../values/cached-resolution.js";
+import { credentialFromAuthContext } from "../runtime/principal-scope.js";
+import { isPersistableYield } from "../values/yield-safety.js";
+import { getStoredAuth } from "../auth/index.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -399,6 +404,11 @@ export interface PersistedComposite {
    *  composites → treated as stale (fail-closed). */
   content_id?: string;
 }
+// NOTE (cache cascade, Dominion prune): a composite's VALUE cascade does NOT live here. readComposite
+// is the PRE-walk lookup — the resolved values don't exist yet at read time, so a value_id on the
+// composite is structurally inert. The values-ledger pointer→pointer cascade (a change in a consumed
+// value invalidating a dependent) lives in src/values/cached-resolution.ts (cachedResolution.dependsOn),
+// which is where resolved VALUES are content-addressed. Composites carry only the SHAPE cascade.
 
 /** Content-address a composite by what makes it the SAME DAG: the domain, the target endpoint, the
  *  ordered constituent endpoints, and the binding edges. This is structural identity (used by
@@ -504,7 +514,7 @@ export function readComposite(
     if (currentEndpoints) {
       if (!c.content_id) return undefined; // fail-closed: pre-Merkle composite → re-walk once
       const expected = compositeContentId(domain, target, c.steps, c.edges, endpointContentMap(currentEndpoints));
-      if (expected !== c.content_id) return undefined; // a constituent changed → cascade-invalidate
+      if (expected !== c.content_id) return undefined; // a constituent SHAPE changed → cascade-invalidate
     }
     return c;
   } catch {
@@ -2083,7 +2093,20 @@ export function planPrereqOrder(
  * keys a prerequisite actually provides, one level deep. A prerequisite failure is skipped (the
  * caller falls back to LLM inference), so this never regresses the existing path.
  */
-async function walkPrerequisiteChain(
+/** TTL (ms) for persisting prerequisite-step results in the resolution ledger. ON by default — the
+ *  two cold-audit safety findings that justified the old opt-in escape hatch are now CLOSED, not
+ *  gated away:
+ *   (A) one-time/stale-token replay → isPersistableYield rejects any one-time/auth-bearing yield key
+ *       (token/nonce/CSRF/session/...) AND any auth-backed endpoint.
+ *   (B) cross-principal via cookies → the per-prereq principal now folds the domain's stored cookies
+ *       (credentialFromAuthContext), so a cookie-authed yield partitions per (headers+cookies).
+ *  So persistence is safe on by default. UNBROWSE_STATELESS=1 still forces 0 (the stateless binary
+ *  writes no local state); UNBROWSE_RESOLVE_CACHE_TTL_MS=0 also disables it explicitly. */
+function prereqCacheTtlMs(): number {
+  if (process.env.UNBROWSE_STATELESS === "1") return 0;
+  return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
+}
+export async function walkPrerequisiteChain(
   skill: SkillManifest,
   unboundParams: string[],
   prerequisiteOrder: string[],
@@ -2092,40 +2115,97 @@ async function walkPrerequisiteChain(
   projection: Parameters<typeof executeSkill>[2],
   options: Parameters<typeof executeSkill>[3],
   steps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }>,
+  // The TARGET endpoint whose holes are being filled. When set, the skill's operation_graph edges
+  // bind each hole to the RIGHT producer (Ex 28:32 — which hole fits which); omitted → order fallback.
+  consumerId?: string,
+  // Test seam (dependency injection): the per-prerequisite execution fn. Defaults to the real
+  // executeSkill (zero prod change); a witness injects a controlled/counting fn to exercise the
+  // walk's persist+replay deterministically without network.
+  execFn: typeof executeSkill = executeSkill,
 ): Promise<Record<string, string | number | boolean>> {
   const resolved: Record<string, string | number | boolean> = {};
   const executed = new Map<string, Record<string, unknown>>(); // endpoint_id → extracted yields
   const epProvides = (ep: (typeof skill.endpoints)[number] | undefined): OperationBinding[] =>
     (ep?.semantic?.provides ?? []) as OperationBinding[];
+  // Explicit DAG edges disambiguate which producer fills each hole when several yield the same key.
+  const bindingGraph = bindingGraphFromOperationGraph(skill.operation_graph);
+
+  // Persistent values-ledger cascade (the firmament): each prerequisite's yields are content-addressed
+  // in the resolution ledger — not just the per-call `executed` Map — partitioned by the VERIFIED auth
+  // principal (no cross-tenant replay) and folded pointer→pointer so an earlier step's VALUE change
+  // cascade-invalidates the later steps that ran in its context (keyWithDeps). Gated by ttl: 0 under
+  // UNBROWSE_STATELESS → cachedResolution is pass-through (behaviour unchanged). Fail-open: any ledger
+  // error → live recompute; only `cacheable` (ok + non-empty yields) results are ever stored, so an
+  // error / empty / auth-required prerequisite is never written to a shared key.
+  const prereqTtlMs = prereqCacheTtlMs();
+  const authHeaders = baseParams.auth_headers as Record<string, string> | undefined;
+  let priorPointer: string | undefined; // the prior executed step's result pointer — the cascade edge
 
   for (const param of unboundParams) {
     if (resolved[param] != null) continue;
-    // Find a prerequisite (in dependency order) that yields this binding key.
-    const prereqId = prerequisiteOrder.find((id) => {
-      const ep = skill.endpoints.find((e) => e.endpoint_id === id);
-      return ep && epProvides(ep).some((b) => b.key === param);
-    });
+    // 1) explicit edge (operation_graph) → the RIGHT producer; must be in the executable order.
+    let prereqId: string | null =
+      consumerId ? selectHoleProducer(param, consumerId, bindingGraph, prerequisiteOrder) : null;
+    if (prereqId && !prerequisiteOrder.includes(prereqId)) prereqId = null;
+    // 2) fallback: the first prerequisite (in dependency order) that yields this binding key.
+    if (!prereqId) {
+      prereqId = prerequisiteOrder.find((id) => {
+        const ep = skill.endpoints.find((e) => e.endpoint_id === id);
+        return ep && epProvides(ep).some((b) => b.key === param);
+      }) ?? null;
+    }
     if (!prereqId) continue;
     const prereqEp = skill.endpoints.find((e) => e.endpoint_id === prereqId);
     if (!prereqEp) continue;
 
     let extracted = executed.get(prereqId);
     if (!extracted) {
+      // Bind this step to the prior step's pointer (pointer→pointer): if an earlier prerequisite's
+      // value changes, its pointer changes → this step re-keys → recompute (never serve a stale yield
+      // produced in a now-changed context). Omitted for the first step (leaf).
+      const dependsOn = priorPointer ? [priorPointer] : undefined;
+      // Per-prereq principal: fold the prereq DOMAIN's stored cookies into the auth credential, not
+      // headers alone (cold-audit finding B — cookies are the common auth vector the header-only
+      // principal missed). A cookie-authed yield now partitions per (headers+cookies) → a different
+      // user (different cookies) gets a different cache partition; never a cross-principal read. Only
+      // read the vault when caching is actually on (ttl>0), so the default path pays nothing.
+      let prereqPrincipal: string | undefined;
+      if (prereqTtlMs > 0) {
+        let prereqDomain = skill.domain;
+        try { prereqDomain = new URL(prereqEp.url_template).hostname; } catch { /* keep skill.domain */ }
+        const prereqCookies = await getStoredAuth(prereqDomain).catch(() => null);
+        prereqPrincipal = credentialFromAuthContext(authHeaders, prereqCookies);
+      }
       try {
-        const out = await executeSkill(
-          skill,
-          { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
-          projection,
-          { ...options, intent: queryIntent },
-        );
-        const ok = !!out?.trace?.success;
-        const yields = extractBindingsFromJson(
-          ok ? JSON.stringify(out.result) : undefined,
-          epProvides(prereqEp),
-        );
-        steps.push({ endpoint_id: prereqId, ok, yielded: Object.keys(yields) });
-        if (!ok) continue;
-        extracted = yields;
+        const res = await cachedResolution<{ ok: boolean; yields: Record<string, unknown> }>({
+          key: `prereq ${skill.skill_id}|${prereqId}|${queryIntent}`,
+          ttlMs: prereqTtlMs,
+          principal: prereqPrincipal,
+          dependsOn,
+          // Persist only a SAFE prereq yield (cold-audit findings A+B): successful, non-empty, from a
+          // NON-auth-backed endpoint (no cookie-authed user data under the cookie-blind anon principal),
+          // and with NO one-time/auth-bearing yield key (no token/nonce/CSRF replay). Any doubt → miss.
+          cacheable: (r) => isPersistableYield(r.ok, r.yields, prereqEp, skill),
+          recompute: async () => {
+            const out = await execFn(
+              skill,
+              { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
+              projection,
+              { ...options, intent: queryIntent },
+            );
+            const ok = !!out?.trace?.success;
+            const yields = extractBindingsFromJson(
+              ok ? JSON.stringify(out.result) : undefined,
+              epProvides(prereqEp),
+            );
+            return { ok, yields };
+          },
+        });
+        steps.push({ endpoint_id: prereqId, ok: res.value.ok, yielded: Object.keys(res.value.yields) });
+        if (!res.value.ok) continue;
+        // Advance the cascade edge to this step's pointer (when persisted; pass-through under ttl<=0).
+        if (res.pointer) priorPointer = res.pointer;
+        extracted = res.value.yields;
         executed.set(prereqId, extracted);
       } catch {
         steps.push({ endpoint_id: prereqId, ok: false, yielded: [] });
@@ -3872,6 +3952,7 @@ export async function resolveAndExecute(
             projection,
             { ...options, intent: queryIntent, contextUrl: context?.url },
             chainSteps,
+            candidate.endpoint.endpoint_id, // the consumer (target) — for edge-disambiguated hole binding
           );
           if (chainSteps.length > 0) {
             // Emit the walked chain as a first-class COMPOSITE — the contract sub-DAG this
