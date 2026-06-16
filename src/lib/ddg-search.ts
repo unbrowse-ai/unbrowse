@@ -40,6 +40,29 @@ function unwrapDdg(href: string): string {
 }
 
 /**
+ * DDG soft-block predicate for the egress chain's body-level check.
+ *
+ * DuckDuckGo throttles a hot IP NOT with a 429 but with an HTTP **202 Accepted** + a ~14KB
+ * "unusual traffic" anomaly page that carries ZERO `result__a` anchors (measured live: after
+ * ~6 rapid queries the IP flips to 202+empty and stays there). A status-only block check
+ * (0/401/403/429/≥500) accepts that 202 page, so the egress chain never escalates to the clean
+ * server IP — the exact mechanism that makes a multi-resolve run self-throttle. Treat as a block:
+ *   - any 202 (DDG never legitimately 202s a SERP), or
+ *   - a 2xx with no result anchors AND an explicit anomaly/rate-limit marker.
+ * On a block the chain advances to the server (clean IP) → residential proxy tiers.
+ */
+export function ddgSoftBlock(status: number, body: string): boolean {
+  if (status === 202) return true;
+  if (status >= 200 && status < 300) {
+    const hasResults = /class="result__a"/.test(body);
+    if (!hasResults && /anomaly|unusual traffic|too many requests|rate.?limit|If this error persists/i.test(body)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Keyless DDG-HTML search. Returns up to `numResults` {url,title,score,highlights} hits.
  * Throws on a non-2xx so the caller can fall through; returns [] for an empty query.
  */

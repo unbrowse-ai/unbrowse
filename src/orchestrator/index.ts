@@ -19,7 +19,7 @@ import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execution/proxy-fetch.js";
-import { egressFetch } from "../execution/egress-chain.js";
+import { egressFetchWithBlockCheck } from "../execution/egress-chain.js";
 
 // Native CLI web-search egress with residential-proxy FALLBACK. Keyless DDG (and other client-side
 // web fetches) run from the USER's IP, which gets rate-limited under load — witnessed: DDG direct ->
@@ -61,11 +61,15 @@ function pickAnswerHit<T extends { url: string; highlights?: string[] }>(
 //   → CLIENT-PROXY (the client's own residential egress, last resort).
 // Same interface the hole (internal-API) call uses — server owns the proxy tier, so a local-IP
 // throttle (DDG, rate-limit) recovers on the server's clean IP before any residential toll.
+// Body-aware: DDG throttles with HTTP 202 + an anomaly page (a 2xx, invisible to status-only
+// escalation) — `ddgSoftBlock` makes the chain treat it as a block and escalate, so a hot local
+// IP recovers on the clean server IP instead of returning the throttled empty page.
 // Opt out (local only) with UNBROWSE_WEB_PROXY=0.
+const ddgEgressFetch = egressFetchWithBlockCheck(ddgSoftBlock);
 const proxiedWebFetch: typeof fetch = (input, init) =>
   process.env.UNBROWSE_WEB_PROXY === "0"
     ? fetch(input as Parameters<typeof fetch>[0], init)
-    : egressFetch(input, init);
+    : ddgEgressFetch(input, init);
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
@@ -86,7 +90,7 @@ import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationG
 import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client/graph-client.js";
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
-import { ddgSearch } from "../lib/ddg-search.js";
+import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";

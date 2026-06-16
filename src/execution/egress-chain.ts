@@ -46,11 +46,25 @@ export interface EgressOpts {
   allowServer?: boolean;
   /** Disable the client-side residential proxy tier. */
   allowClientProxy?: boolean;
+  /**
+   * Body-level block predicate. Some throttles are invisible to the status code: a soft-block
+   * arrives as a 2xx whose BODY is the anomaly page (e.g. DuckDuckGo returns HTTP 202 + a
+   * ~14KB "unusual traffic" page with zero results — never a 429). Status-only `isBlock` would
+   * accept that throttled page and never escalate. When supplied, a tier's result counts as
+   * blocked if `isBlock(status) || isBlockBody(status, body)`, so escalation continues through
+   * server → client-proxy until a tier returns a genuinely-served body.
+   */
+  isBlockBody?: (status: number, body: string) => boolean;
 }
 
 /** A status that means "this egress path is blocked / dead — try the next tier." */
 function isBlock(status: number): boolean {
   return status === 0 || status === 401 || status === 403 || status === 429 || status >= 500;
+}
+
+/** A tier's result is blocked if the status is a block OR the body is a soft-block (opt-in). */
+function tierBlocked(status: number, body: string, opts: EgressOpts): boolean {
+  return isBlock(status) || (opts.isBlockBody?.(status, body) ?? false);
 }
 
 export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Promise<EgressOutcome> {
@@ -69,7 +83,7 @@ export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Pr
         redirect: "follow",
       });
       const body = await r.text();
-      if (!isBlock(r.status)) return { status: r.status, body, tier: "local" };
+      if (!tierBlocked(r.status, body, opts)) return { status: r.status, body, tier: "local" };
       last = { status: r.status, body, tier: "local", blocked: true };
     } catch {
       last = { status: 0, body: "", tier: "local", blocked: true };
@@ -83,7 +97,7 @@ export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Pr
         { url: req.url, method, headers: req.headers, body: req.body, timeoutMs },
         { mode: "auto" },
       );
-      if (sp && !isBlock(sp.status)) return { status: sp.status, body: sp.body, tier: "server" };
+      if (sp && !tierBlocked(sp.status, sp.body, opts)) return { status: sp.status, body: sp.body, tier: "server" };
       if (sp) last = { status: sp.status, body: sp.body, tier: "server", blocked: true };
     } catch { /* server tier unavailable — advance */ }
   }
@@ -99,7 +113,7 @@ export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Pr
           proxyUrl,
         );
         const body = await response.text();
-        if (!isBlock(response.status)) return { status: response.status, body, tier: "client-proxy" };
+        if (!tierBlocked(response.status, body, opts)) return { status: response.status, body, tier: "client-proxy" };
         last = { status: response.status, body, tier: "client-proxy", blocked: true };
       } catch { /* fall through to honest failure */ }
     }
@@ -130,3 +144,42 @@ export const egressFetch: typeof fetch = async (input, init) => {
   const out = await egressChain({ url, method, headers, body, timeoutMs: 12_000 }, { skipLocal: true });
   return new Response(out.body, { status: out.status || 502, headers: { "x-egress-tier": out.tier } });
 };
+
+/**
+ * Body-aware variant of {@link egressFetch}: same local → server → client-proxy chain, but the
+ * LOCAL tier ALSO escalates when a 2xx body is itself a soft-block (per `isBlockBody`). This is
+ * the fix for status-invisible throttles — DuckDuckGo's HTTP 202 anomaly page is a 2xx that
+ * status-only `isBlock` accepts, so without a body check the chain returns the throttled empty
+ * page and never reaches the clean server IP. The local tier must read the body to test it, so
+ * it reconstructs a fresh `Response` (the stream is consumed) for the caller to read again.
+ * The predicate is threaded into `egressChain` so every downstream tier applies it too.
+ */
+export function egressFetchWithBlockCheck(
+  isBlockBody: (status: number, body: string) => boolean,
+): typeof fetch {
+  return async (input, init) => {
+    const url = typeof input === "string" ? input : (input as URL).toString();
+    // 1. LOCAL with the caller's init; escalate on a status block OR a soft-block body.
+    try {
+      const r = await fetch(input as Parameters<typeof fetch>[0], init);
+      if (!isBlock(r.status)) {
+        const text = await r.text();
+        if (!isBlockBody(r.status, text)) {
+          return new Response(text, { status: r.status, headers: r.headers });
+        }
+        // 2xx soft-block (e.g. DDG 202 anomaly page) → fall through to escalate.
+      }
+    } catch { /* throttle / block — fall to the server → proxy tiers */ }
+
+    const method = init?.method ?? "GET";
+    const headers = init?.headers
+      ? Object.fromEntries(new Headers(init.headers as Record<string, string>).entries())
+      : undefined;
+    const body = typeof init?.body === "string" ? init.body : undefined;
+    const out = await egressChain(
+      { url, method, headers, body, timeoutMs: 12_000 },
+      { skipLocal: true, isBlockBody },
+    );
+    return new Response(out.body, { status: out.status || 502, headers: { "x-egress-tier": out.tier } });
+  };
+}
