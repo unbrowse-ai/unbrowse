@@ -5082,14 +5082,14 @@ export async function resolveAndExecute(
 
   // --- Marketplace search with hard timeout ---
   // When a URL is available, the direct-fetch / direct-document / capture fast-paths are the PRIMARY
-  // strategy and the marketplace is a secondary lookup — so cap it tight (1500ms). Measured: the
+  // strategy and the marketplace is a secondary lookup — so cap it tight (800ms). Measured: the
   // remote backend /skills/search dominates cold-resolve latency (~7s when capped at 2500ms; the
   // endpoint itself takes ~2.7s and usually 404s for a specific site URL the marketplace doesn't
-  // hold). 1500ms still catches a fast (cached) backend hit; a slower one falls to the fast-paths
+  // hold). 800ms still catches a fast (cached) backend hit; a slower one falls to the fast-paths
   // that cover URL-present resolves anyway. Tune with UNBROWSE_RESOLVE_SEARCH_TIMEOUT_MS (a bench that
   // wants the full backend search can raise it). No-URL intents keep the wider 10s (no fast-path).
   const MARKETPLACE_TIMEOUT_MS = Number(
-    process.env.UNBROWSE_RESOLVE_SEARCH_TIMEOUT_MS ?? (context?.url ? "1500" : "10000"),
+    process.env.UNBROWSE_RESOLVE_SEARCH_TIMEOUT_MS ?? (context?.url ? "800" : "10000"),
   );
 
   if (!forceCapture && !options?.local_skills_only) {
