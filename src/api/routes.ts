@@ -656,6 +656,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (req, _reply) => {
     if (req.url === "/health" || req.url === "/v1/stats" || req.url.startsWith("/v1/settings")) return;
     if (getApiKey()) return;
+    // Stateless mode keeps no persistent identity, so background registration can never land —
+    // waiting 2s per request for it is pure latency waste (witnessed ~2s/cold-resolve in the bench).
+    if (process.env.UNBROWSE_STATELESS === "1") return;
     // No key yet — give any in-flight background registration a moment to land,
     // but never block the request or 401 on missing key.
     try {
