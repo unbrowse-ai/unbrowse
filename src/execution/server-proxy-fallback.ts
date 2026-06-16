@@ -45,6 +45,16 @@ export interface ServerProxyOpts {
   env?: NodeJS.ProcessEnv;
   /** Defaults to getApiKey(). Pass explicitly in tests. */
   apiKey?: string;
+  /**
+   * Egress tier the server should use:
+   *   - "auto" (default): server tries its own clean datacenter IP FIRST (free, the
+   *     server-direct tier), escalating to residential only when its IP is also blocked.
+   *   - "direct": server egresses from its clean IP only (no residential escalation, no toll).
+   *   - "residential": force the residential proxy immediately (tolled).
+   * This is what makes the local → server-direct → proxy chain real: a local IP throttle
+   * (DDG, rate-limit) usually clears on the server's clean IP alone, with no residential toll.
+   */
+  mode?: "auto" | "direct" | "residential";
 }
 
 function isDirectEgress(env: NodeJS.ProcessEnv): boolean {
@@ -82,7 +92,9 @@ export async function serverProxyFallback(
         method: req.method ?? "GET",
         headers: req.headers,
         body: req.body ?? null,
-        proxy: "residential",
+        // "auto" = server-direct-first (free), escalate to residential on block. The server
+        // treats an unknown value as residential (back-compat), so older servers degrade safely.
+        proxy: opts.mode ?? "auto",
         timeout_ms: Math.min(timeoutMs, 60_000),
       }),
       signal: ctrl.signal,

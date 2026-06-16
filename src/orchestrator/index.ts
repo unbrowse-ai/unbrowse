@@ -19,6 +19,7 @@ import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execution/proxy-fetch.js";
+import { egressFetch } from "../execution/egress-chain.js";
 
 // Native CLI web-search egress with residential-proxy FALLBACK. Keyless DDG (and other client-side
 // web fetches) run from the USER's IP, which gets rate-limited under load — witnessed: DDG direct ->
@@ -55,31 +56,16 @@ function pickAnswerHit<T extends { url: string; highlights?: string[] }>(
   return onDomain ?? rich ?? null;
 }
 
-let webEgressThrottled = false;
-const proxiedWebFetch: typeof fetch = async (input, init) => {
-  const fwd = (i: typeof input, n: typeof init) => fetch(i as Parameters<typeof fetch>[0], n);
-  const mode = process.env.UNBROWSE_WEB_PROXY;
-  const proxyUrl = mode === "0" ? undefined : resolveEgressProxy();
-  const url = typeof input === "string" ? input : (input as URL).toString();
-  const viaProxy = async () => {
-    const { response } = await proxiedFetchOnce(url, (init ?? {}) as RequestInit, proxyUrl);
-    return response;
-  };
-  // Proxy-first only when explicitly forced OR the session already saw a throttle (avoid the
-  // repeated direct-timeout tax on a known-throttled IP).
-  if (proxyUrl && (mode === "force" || webEgressThrottled)) {
-    try { return await viaProxy(); } catch { return fwd(input, init); }
-  }
-  try {
-    const res = await fwd(input, init);
-    if (proxyUrl && !res.ok) { webEgressThrottled = true; try { return await viaProxy(); } catch { return res; } }
-    return res;
-  } catch (e) {
-    if (!proxyUrl) throw e;
-    webEgressThrottled = true; // remember: this IP is throttled/blocked for the session
-    return await viaProxy();
-  }
-};
+// CLI web-search egress, standardized on the egress CHAIN (execution/egress-chain.ts):
+//   LOCAL (client IP) → SERVER (unbrowse server's clean IP, residential escalation server-side)
+//   → CLIENT-PROXY (the client's own residential egress, last resort).
+// Same interface the hole (internal-API) call uses — server owns the proxy tier, so a local-IP
+// throttle (DDG, rate-limit) recovers on the server's clean IP before any residential toll.
+// Opt out (local only) with UNBROWSE_WEB_PROXY=0.
+const proxiedWebFetch: typeof fetch = (input, init) =>
+  process.env.UNBROWSE_WEB_PROXY === "0"
+    ? fetch(input as Parameters<typeof fetch>[0], init)
+    : egressFetch(input, init);
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
