@@ -55,6 +55,14 @@ async function resolve(key: string, dependsOn: string[] | undefined, c: { fn: ()
   // — adversarial: a dependency value that mimics the fold delimiter must NOT collide —
   ok(keyWithDeps("intent:Z", ["sha256:a"]) !== keyWithDeps("intent:Z", ["sha256:a,sha256:b"]),
      "one dep 'a,b' (comma inside) does not collide with two deps [a,b]");
+  // THE LOST SHEEP (Day 5): the true comma-ambiguity — one dep literally "p1,p2" vs two deps
+  // ["p1","p2"] folded IDENTICALLY under the old bare comma-join. JSON-encoding makes it injective.
+  // (latent today — deps are hex pointers — but the content-addressing contract must hold for any
+  // future caller that folds non-hash value keys.) Mutation-proven against the bare comma-join.
+  ok(keyWithDeps("intent:W", ["p1,p2"]) !== keyWithDeps("intent:W", ["p1", "p2"]),
+     "one dep 'p1,p2' (comma INSIDE the value) does NOT collide with two deps ['p1','p2'] — injective");
+  ok(keyWithDeps("intent:W", ["aaa", "bbb"]) === keyWithDeps("intent:W", ["bbb", "aaa"]),
+     "deps remain order-independent (sorted) after the injectivity fix");
   ok(keyWithDeps("intent:Z", undefined) === "intent:Z", "no deps → bare key unchanged (back-compat)");
   // a key that literally contains 'deps:[' must not be forgeable into a dep-bearing key
   ok(keyWithDeps("intent:Zdeps:[sha256:a]", undefined) !== keyWithDeps("intent:Z", ["sha256:a"]),

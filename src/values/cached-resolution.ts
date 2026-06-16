@@ -37,11 +37,14 @@ export function scopeResolutionKey(key: string, principal?: string): string {
 /** Fold the value pointers a resolution DEPENDS ON into its signature, so a change to ANY
  *  dependency re-keys this entry (its cached value is orphaned → recompute next time). This is
  *  the values-ledger pointer→pointer cascade: result B folds A's content pointer; A changes →
- *  A's pointer changes → B's key changes → B cascade-invalidates. Order-independent (sorted);
- *  the U+001F unit separator cannot occur in an intent, so it never collides with the bare key. */
+ *  A's pointer changes → B's key changes → B cascade-invalidates. Order-independent (sorted).
+ *  The U+001F unit separator divides key from fold (cannot occur in an intent), AND the deps array
+ *  is JSON-encoded — injective for arbitrary string deps: a dep literally "p1,p2" no longer collides
+ *  with two deps ["p1","p2"] (a bare comma-join did; pointers are hex today, but the contract must
+ *  hold for any future caller that folds non-hash value keys). Witnessed: dependency-cascade test. */
 export function keyWithDeps(key: string, dependsOn?: readonly string[]): string {
   if (!dependsOn || dependsOn.length === 0) return key;
-  return `${key}deps:[${[...dependsOn].sort().join(",")}]`;
+  return `${key}deps:${JSON.stringify([...dependsOn].sort())}`;
 }
 
 export interface CachedResolution<T> {
