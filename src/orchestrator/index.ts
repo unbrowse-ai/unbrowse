@@ -43,6 +43,7 @@ import { ddgSearch } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
 import { credentialFromAuthHeaders } from "../runtime/principal-scope.js";
+import { isPersistableYield } from "../values/yield-safety.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -2168,9 +2169,10 @@ async function walkPrerequisiteChain(
           ttlMs: prereqTtlMs,
           principal,
           dependsOn,
-          // Only a successful, non-empty extraction is persisted: an error / empty / auth-required
-          // result honestly misses and retries next walk (no secret/blank written to a shared key).
-          cacheable: (r) => r.ok && Object.keys(r.yields).length > 0,
+          // Persist only a SAFE prereq yield (cold-audit findings A+B): successful, non-empty, from a
+          // NON-auth-backed endpoint (no cookie-authed user data under the cookie-blind anon principal),
+          // and with NO one-time/auth-bearing yield key (no token/nonce/CSRF replay). Any doubt → miss.
+          cacheable: (r) => isPersistableYield(r.ok, r.yields, prereqEp, skill),
           recompute: async () => {
             const out = await executeSkill(
               skill,
