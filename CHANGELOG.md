@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.4.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0-preview.1...v9.4.0) (2026-06-16)
+
+### Features
+
+* **cache:** un-hard-disable the internal-API skill caches (hole-piping ON by default) ([a750522](https://github.com/unbrowse-ai/unbrowse-dev/commit/a7505225eaed1b959d21a1de5f4c24c571211852))
+* **direct-document:** HTML pages are parameterized GET holes (same interface as internal APIs) ([918453a](https://github.com/unbrowse-ai/unbrowse-dev/commit/918453a7c7deb286a2a8032096f02693403335df))
+* **egress:** standardized local→server→proxy egress chain (one interface for hole + web) ([89deb00](https://github.com/unbrowse-ai/unbrowse-dev/commit/89deb00913ed6e05efc6d4dcef156d6ee909fb46))
+* **execute:** [#838](https://github.com/unbrowse-ai/unbrowse-dev/issues/838) escalation at the REAL locus — extraction_too_thin → browser render ([56f4340](https://github.com/unbrowse-ai/unbrowse-dev/commit/56f43401a5d56b05ceec01e2880fb4f533198f8b))
+* **resolve:** gated deep browser-capture escalation for walled/SPA sites ([#838](https://github.com/unbrowse-ai/unbrowse-dev/issues/838) v1) ([7076457](https://github.com/unbrowse-ai/unbrowse-dev/commit/7076457c2f41c182a45ecd499747ed84b1cb29a2))
+* **resolve:** residential-proxy fallback for keyless DDG web egress (throttle-resilient) ([ca778ea](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca778ea486d509b39437c010827a0c30a511f0ab))
+
+### Bug Fixes
+
+* **cache:** include method+body in the resolve cache key + idempotency gate (POST/GraphQL) ([76a9971](https://github.com/unbrowse-ai/unbrowse-dev/commit/76a9971ebbe9e50b0599b7cd0242301dc54af874))
+* **egress:** escalate DDG HTTP-202 soft-throttle (the self-throttle bug) ([73b0805](https://github.com/unbrowse-ai/unbrowse-dev/commit/73b080564e29f7e90ee0ba2a324086973d104dd1))
+* **resolve:** domain-anchor the BACKEND search/exa query (zero-latency on-target lift) ([629569a](https://github.com/unbrowse-ai/unbrowse-dev/commit/629569a8057d531b181f7c69d5dc1880fe576af4))
+* **resolve:** domain-anchor the keyless DDG web-fallback query (kill site-irrelevant fabrication) ([f916eb9](https://github.com/unbrowse-ai/unbrowse-dev/commit/f916eb9eeb911d8085fc9a90ff7cd26f805d1285))
+* **resolve:** don't present an off-domain web hit as the site's answer ([3863523](https://github.com/unbrowse-ai/unbrowse-dev/commit/3863523e6bbd050f52397f05a7e84edd01d4dbc8))
+* **resolve:** prefer on-domain candidate for the exa answer (pickAnswerHit) ([7712037](https://github.com/unbrowse-ai/unbrowse-dev/commit/77120372aa107a48673da304580768a441d5e01b)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* **storage:** snapshot persist reads UNBROWSE_LOCAL_CACHES at call-time (was load-frozen) ([e4d2a6b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e4d2a6bc78aeaff263ff7d412e2db9182ee0dc1b))
+
+### Performance
+
+* **resolve:** fire-and-forget CLI telemetry — cold resolve 18.7s → ~5-8s (the bench-coverage lever) ([a74031d](https://github.com/unbrowse-ai/unbrowse-dev/commit/a74031dc2e50f30b005b86757e7f99e3478e3592))
+* **resolve:** skip the 2s background-registration wait in stateless mode ([753f819](https://github.com/unbrowse-ai/unbrowse-dev/commit/753f8198ec77d44685b242a32769be39afcfe7b4))
+* **resolve:** tighten URL marketplace-search cap 2500→1500ms (cut cold-resolve backend latency) ([e96ef12](https://github.com/unbrowse-ai/unbrowse-dev/commit/e96ef122559621204d84bdf1379942a823366421))
+* **resolve:** tighten URL-present marketplace cap 1500→800ms (witnessed +13pp coverage) ([00b4cff](https://github.com/unbrowse-ai/unbrowse-dev/commit/00b4cff9e394627d0652554c7efdc99e8be2f010))
+
 ## [9.4.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0-preview.0...v9.4.0-preview.1) (2026-06-16)
 
 ### Features
