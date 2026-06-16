@@ -8,19 +8,82 @@ export interface DirectDocumentTable {
   rows: string[][];
 }
 
+/**
+ * A hole in an HTML GET endpoint — exactly like an API's query/path param. The agent fills it to
+ * re-query (search terms, pagination, an entity id) without re-discovering the page. This is what
+ * makes an HTML page a first-class, replayable endpoint (pointer→pointer→value) and not a one-shot
+ * document: `GET /search?q={q}&page={page}` filled and fetched, returning the page as markdown.
+ */
+export interface HtmlHole {
+  name: string;
+  in: "query" | "path";
+  example: string;
+}
+
 export interface DirectDocumentResult {
   rejected: false;
   title: string;
   url: string;
+  /** The page's URL with query params + numeric/uuid path segments turned into {holes}, so the
+   *  HTML endpoint is a replayable parameterized GET (like an API). Equals `url` when no params. */
+  url_template: string;
+  /** The fillable holes (query + path params) — the standardized hole interface for HTML. */
+  input_params: HtmlHole[];
+  /** EndpointDescriptor-shaped hole defaults, IDENTICAL to an internal API endpoint, so an HTML
+   *  GET hole executes through the same fill-and-fetch path as an API (true interface parity). */
+  path_params: Record<string, string>;
+  query: Record<string, string>;
   content_type: string;
   html_bytes: number;
   text_excerpt: string;
+  /** The page rendered to markdown — the resolved VALUE of the HTML hole. */
   markdown: string;
   tables: DirectDocumentTable[];
   extraction: {
     source: "direct-document";
     rejected: false;
   };
+}
+
+/**
+ * Turn an HTML page URL into a parameterized GET hole, the SAME shape an API endpoint uses:
+ *   - every `?key=value` query param → a `{key}` hole (search, filters, pagination);
+ *   - every numeric or uuid path segment → a `{<prev>_id}` hole (`/products/12345` → `/products/{products_id}`).
+ * Returns the `{hole}`-templated url + the input_params. No params → url_template === url, [] holes.
+ */
+export function extractHtmlHoles(
+  rawUrl: string,
+): { url_template: string; input_params: HtmlHole[]; path_params: Record<string, string>; query: Record<string, string> } {
+  try {
+    const u = new URL(rawUrl);
+    const holes: HtmlHole[] = [];
+    const query: Record<string, string> = {};
+    const path_params: Record<string, string> = {};
+    for (const [k, v] of u.searchParams.entries()) {
+      holes.push({ name: k, in: "query", example: v });
+      query[k] = v;
+    }
+    const queryTemplate = [...u.searchParams.keys()]
+      .map((k) => `${encodeURIComponent(k)}={${k}}`)
+      .join("&");
+    const segs = u.pathname.split("/");
+    const templatedSegs = segs.map((seg, i) => {
+      const isNumeric = /^\d+$/.test(seg);
+      const isUuidish = /^[0-9a-f]{8}-?[0-9a-f]{4}/i.test(seg) || /^[0-9a-f]{16,}$/i.test(seg);
+      if (seg && (isNumeric || isUuidish)) {
+        const prev = (segs[i - 1] || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+        const name = prev ? `${prev}_id` : `id${Object.keys(path_params).length + 1}`;
+        holes.push({ name, in: "path", example: seg });
+        path_params[name] = seg;
+        return `{${name}}`;
+      }
+      return seg;
+    });
+    const url_template = `${u.origin}${templatedSegs.join("/")}${queryTemplate ? "?" + queryTemplate : ""}`;
+    return { url_template, input_params: holes, path_params, query };
+  } catch {
+    return { url_template: rawUrl, input_params: [], path_params: {}, query: {} };
+  }
 }
 
 export interface DirectDocumentRejection {
@@ -313,10 +376,15 @@ export function buildDirectDocumentResult(
     }
   }
 
+  const { url_template, input_params, path_params, query } = extractHtmlHoles(url);
   return {
     rejected: false,
     title,
     url,
+    url_template,
+    input_params,
+    path_params,
+    query,
     content_type: contentType,
     html_bytes: html.length,
     text_excerpt: bodyText.slice(0, MARKDOWN_BUDGET),
