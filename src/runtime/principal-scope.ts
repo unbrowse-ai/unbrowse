@@ -49,3 +49,22 @@ export function credentialFromAuthHeaders(
     .sort();
   return entries.length ? entries.join("\n") : undefined;
 }
+
+/** Fold the FULL auth context — request headers AND the domain's stored cookies — into one
+ *  credential string. The header-only principal (credentialFromAuthHeaders) missed cookies, which
+ *  are the common auth vector (cold audit finding B): a cookie-authed yield would otherwise
+ *  partition as "anon" and leak cross-principal. Cookies are sorted (order can't fork the scope) and
+ *  joined into the credential, so a cache entry partitions by everything that made the response
+ *  user-specific. Returns undefined ONLY when there is no auth context at all (genuinely public →
+ *  shared anon). A U+0001 separator divides the header- and cookie-halves so they can't be confused. */
+export function credentialFromAuthContext(
+  headers?: Record<string, string> | null,
+  cookies?: Array<{ name: string; value: string }> | null,
+): string | undefined {
+  const h = credentialFromAuthHeaders(headers);
+  const c = cookies && cookies.length
+    ? cookies.map((k) => `${k.name}=${k.value}`).sort().join(";")
+    : undefined;
+  const parts = [h, c].filter(Boolean) as string[];
+  return parts.length ? parts.join("cookie") : undefined;
+}

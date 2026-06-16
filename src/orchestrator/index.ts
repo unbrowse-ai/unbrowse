@@ -42,8 +42,9 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
-import { credentialFromAuthHeaders } from "../runtime/principal-scope.js";
+import { credentialFromAuthContext } from "../runtime/principal-scope.js";
 import { isPersistableYield } from "../values/yield-safety.js";
+import { getStoredAuth } from "../auth/index.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -2092,21 +2093,17 @@ export function planPrereqOrder(
  * keys a prerequisite actually provides, one level deep. A prerequisite failure is skipped (the
  * caller falls back to LLM inference), so this never regresses the existing path.
  */
-/** TTL (ms) for persisting prerequisite-step results in the resolution ledger.
- *  OFF BY DEFAULT (opt-in via UNBROWSE_LOCAL_CACHES=1) — the plan's risk mitigation, and two cold
- *  audit findings make on-by-default unsafe:
- *   (A) freshness/stale-token: persisting a prereq yield ACROSS resolve invocations replays a
- *       one-time/auth-bearing yield (token, nonce, CSRF) stale within the TTL — the cacheable gate
- *       (ok+non-empty) has no per-yield granularity to exclude such values.
- *   (B) principal scope: the principal is credentialFromAuthHeaders(baseParams.auth_headers), which
- *       EXCLUDES cookies (loaded later in execution), so a cookie-authed yield mis-partitions as
- *       "anon" → cross-principal read. Folding cookies into the principal is the gate to enabling it.
- *  Until (A)+(B) are addressed + witnessed, persistence is opt-in. Under the default the walk keeps
- *  its prior in-memory-per-walk behaviour (cachedResolution is pass-through at ttl<=0).
- *  UNBROWSE_STATELESS=1 also forces 0 (no local state). */
+/** TTL (ms) for persisting prerequisite-step results in the resolution ledger. ON by default — the
+ *  two cold-audit safety findings that justified the old opt-in escape hatch are now CLOSED, not
+ *  gated away:
+ *   (A) one-time/stale-token replay → isPersistableYield rejects any one-time/auth-bearing yield key
+ *       (token/nonce/CSRF/session/...) AND any auth-backed endpoint.
+ *   (B) cross-principal via cookies → the per-prereq principal now folds the domain's stored cookies
+ *       (credentialFromAuthContext), so a cookie-authed yield partitions per (headers+cookies).
+ *  So persistence is safe on by default. UNBROWSE_STATELESS=1 still forces 0 (the stateless binary
+ *  writes no local state); UNBROWSE_RESOLVE_CACHE_TTL_MS=0 also disables it explicitly. */
 function prereqCacheTtlMs(): number {
   if (process.env.UNBROWSE_STATELESS === "1") return 0;
-  if (process.env.UNBROWSE_LOCAL_CACHES !== "1") return 0; // opt-in only (default OFF — see A/B above)
   return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
 }
 async function walkPrerequisiteChain(
@@ -2137,7 +2134,7 @@ async function walkPrerequisiteChain(
   // error → live recompute; only `cacheable` (ok + non-empty yields) results are ever stored, so an
   // error / empty / auth-required prerequisite is never written to a shared key.
   const prereqTtlMs = prereqCacheTtlMs();
-  const principal = credentialFromAuthHeaders(baseParams.auth_headers as Record<string, string> | undefined);
+  const authHeaders = baseParams.auth_headers as Record<string, string> | undefined;
   let priorPointer: string | undefined; // the prior executed step's result pointer — the cascade edge
 
   for (const param of unboundParams) {
@@ -2163,11 +2160,23 @@ async function walkPrerequisiteChain(
       // value changes, its pointer changes → this step re-keys → recompute (never serve a stale yield
       // produced in a now-changed context). Omitted for the first step (leaf).
       const dependsOn = priorPointer ? [priorPointer] : undefined;
+      // Per-prereq principal: fold the prereq DOMAIN's stored cookies into the auth credential, not
+      // headers alone (cold-audit finding B — cookies are the common auth vector the header-only
+      // principal missed). A cookie-authed yield now partitions per (headers+cookies) → a different
+      // user (different cookies) gets a different cache partition; never a cross-principal read. Only
+      // read the vault when caching is actually on (ttl>0), so the default path pays nothing.
+      let prereqPrincipal: string | undefined;
+      if (prereqTtlMs > 0) {
+        let prereqDomain = skill.domain;
+        try { prereqDomain = new URL(prereqEp.url_template).hostname; } catch { /* keep skill.domain */ }
+        const prereqCookies = await getStoredAuth(prereqDomain).catch(() => null);
+        prereqPrincipal = credentialFromAuthContext(authHeaders, prereqCookies);
+      }
       try {
         const res = await cachedResolution<{ ok: boolean; yields: Record<string, unknown> }>({
           key: `prereq ${skill.skill_id}|${prereqId}|${queryIntent}`,
           ttlMs: prereqTtlMs,
-          principal,
+          principal: prereqPrincipal,
           dependsOn,
           // Persist only a SAFE prereq yield (cold-audit findings A+B): successful, non-empty, from a
           // NON-auth-backed endpoint (no cookie-authed user data under the cookie-blind anon principal),
