@@ -129,6 +129,7 @@ import {
 } from "../routing-telemetry.js";
 import { runResolveRace } from "./resolve-race.js";
 import { buildBloombergDirectDocumentResult, fetchDirectDocument } from "./direct-document.js";
+import { captureSession } from "../capture/index.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -4660,6 +4661,29 @@ export async function resolveAndExecute(
             skill: undefined as any,
             timing: finalize("direct-document", null, "direct-document", undefined as any, trace),
           };
+        }
+        // #838: gated DEEP browser-capture escalation. direct-document was rejected (SPA shell /
+        // interstitial) for a specific URL — render the real page in the browser (captureSession,
+        // the `unbrowse go` path: opens a Kuri Chrome tab, renders JS, bypasses many anti-bot walls;
+        // witnessed full-render of aetna.com where server-fetch went thin). Return the rendered page
+        // as a direct-document (ON the target site) before falling to off-domain exa guesses. Gated
+        // by UNBROWSE_DEEP_CAPTURE=1 (default OFF): the render is ~20-80s and would breach a fast
+        // coverage budget — opt-in, measured under a realistic per-site budget for the walled slice.
+        if (process.env.UNBROWSE_DEEP_CAPTURE === "1" && directDoc?.rejected) {
+          try {
+            const cap = await captureSession(raceContextUrl, undefined, undefined, intent);
+            if (cap?.html) {
+              const rendered = buildBloombergDirectDocumentResult(raceContextUrl, cap.html, "text/html", intent);
+              if (!rendered.rejected) {
+                const trace: ExecutionTrace = {
+                  trace_id: nanoid(), skill_id: "deep-capture", endpoint_id: "browser-render",
+                  started_at: new Date(t0).toISOString(), completed_at: new Date().toISOString(), success: true,
+                };
+                console.log(`[deep-capture] ${raceContextUrl} browser-render escalation past thin/interstitial: ${cap.html.length}B`);
+                return { result: rendered, trace, source: "live-capture" as const, skill: undefined as any, timing: finalize("live-capture", rendered, "live-capture", undefined as any, trace) };
+              }
+            }
+          } catch (e) { console.log(`[deep-capture] escalation failed: ${e instanceof Error ? e.message : String(e)}`); }
         }
         // Probe said HTML but the document was rejected/thin (likely an SPA
         // shell) — fall through to Exa / the serial ladder as the genuine fallback.
