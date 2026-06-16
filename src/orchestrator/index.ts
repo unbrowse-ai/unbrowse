@@ -224,6 +224,10 @@ const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-
 // gaps). Force every resolve through the backend so failures are visible.
 // Set UNBROWSE_LOCAL_CACHES=1 to re-enable for offline benchmarks only.
 const LOCAL_CACHES_ENABLED = process.env.UNBROWSE_LOCAL_CACHES === "1";
+/** Call-time read of the local-caches gate (the snapshot/route-cache persist functions read this so
+ *  a runtime env change is honoured — consistent with the composite path at writeComposite. The
+ *  load-time const above stays for the once-at-module-load setup blocks). */
+function localCachesEnabled(): boolean { return process.env.UNBROWSE_LOCAL_CACHES === "1"; }
 
 export function persistDomainCache() {
   if (!LOCAL_CACHES_ENABLED || ISOLATED_SKILL_SNAPSHOT_MODE) return;
@@ -359,7 +363,7 @@ export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): stri
   // stateless makes the suppression unambiguous (stricter superset).
   // Precedence: STATELESS wins over OFFLINE (Heb 7:18-19).
   if (process.env.UNBROWSE_STATELESS === "1") return undefined;
-  if (!LOCAL_CACHES_ENABLED) return undefined;
+  if (!localCachesEnabled()) return undefined;
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
     const target = snapshotPathForCacheKey(cacheKey);
@@ -830,7 +834,7 @@ function promoteLearnedSkill(
   endpointId?: string,
   contextUrl?: string,
 ): void {
-  if (!LOCAL_CACHES_ENABLED) return;
+  if (!localCachesEnabled()) return;
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
@@ -859,7 +863,7 @@ function cacheResolvedSkill(
   skill: SkillManifest,
   endpointId?: string,
 ): void {
-  if (!LOCAL_CACHES_ENABLED) return;
+  if (!localCachesEnabled()) return;
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   skillRouteCache.set(cacheKey, {
     skillId: skill.skill_id,
@@ -878,7 +882,7 @@ function promoteResultSnapshot(
   result: unknown,
   trace: ExecutionTrace,
 ): void {
-  if (!LOCAL_CACHES_ENABLED) return;
+  if (!localCachesEnabled()) return;
   routeResultCache.set(cacheKey, {
     skill,
     endpointId,
