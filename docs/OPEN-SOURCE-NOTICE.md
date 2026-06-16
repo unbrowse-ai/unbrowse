@@ -2,7 +2,7 @@
 
 **The Unbrowse client boundary is open source and auditable** at [github.com/unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse). The local runtime, CLI bridge, SDK and drop-in adapters, and wallet/auth/signing layer are MIT and readable. The CLI ships **unsigned and readable by design**: an agent runs code on your machine and touches your credentials, so you should be able to read exactly what it does rather than trust an opaque binary. Trust comes from auditability, not from a signature.
 
-The private product surface is the **backend** plus the **web app**. The backend owns the route graph, ranking, settlement, and recursive contract compilation. The public client boundary sees only typed holes, approvals, pointer-only receipts, wallet-sealed fills, and local capability dispatch. `unbrowse contract surface` is the machine-readable bridge contract for this split; its client-fillable holes are `intent`, `wallet_proof`, `approval`, `local_capability_result`, and `typed_pointer`, none of which carries a secret value.
+The private product surface is the **backend** plus the **web app**. The backend owns the route graph, ranking, settlement, and recursive contract compilation. The public client boundary sees only typed holes, approvals, pointer-only receipts, wallet-sealed fills, and local capability dispatch. `GET /v1/contract/surface` is the machine-readable bridge contract for this split; its client-fillable holes are `intent`, `wallet_proof`, `approval`, `local_capability_result`, and `typed_pointer`, none of which carries a secret value.
 
 The split:
 
