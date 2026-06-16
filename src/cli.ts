@@ -14,6 +14,7 @@ import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-met
 import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
+import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { signDelta, shapePointer } from "./values/route-delta.js";
 import { proveDeltaValidity } from "./values/delta-proof.js";
 import { attestExecution } from "./capture/exec-attest.js";
@@ -950,7 +951,13 @@ function resolveCacheKeyFor(flags: Record<string, string | boolean>, intent: str
   try {
     extra = { ...(flags.params ? JSON.parse(flags.params as string) : {}), ...(cliKv && Object.keys(cliKv).length ? cliKv : {}) };
   } catch { extra = {}; }
-  return `intent-resolve ${JSON.stringify({ intent, url: url ?? "", domain: domain ?? "", autoExecute: flags["no-execute"] !== true, params: extra })}`;
+  // The key MUST include method + body: two POSTs to the same url+intent with different bodies
+  // (e.g. different GraphQL queries) must NOT collide. (Was: omitted → wrong cached result served.)
+  return requestCacheKey({
+    intent, url, domain, autoExecute: flags["no-execute"] !== true, params: extra,
+    method: typeof flags.method === "string" ? (flags.method as string) : undefined,
+    body: typeof flags.body === "string" ? (flags.body as string) : undefined,
+  });
 }
 function resolveCacheTtlMs(): number {
   if (process.env.UNBROWSE_STATELESS === "1") return 0;
@@ -960,7 +967,13 @@ function resolveCacheSafe(flags: Record<string, string | boolean>): boolean {
   const endpointFlag = flags["endpoint-id"] ?? flags.endpoint;
   return resolveCacheTtlMs() > 0
     && typeof endpointFlag !== "string"
-    && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"];
+    && !flags["dry-run"] && !flags["force-capture"] && !flags["require-proof"]
+    // Only cache IDEMPOTENT requests: GET/HEAD or a GraphQL query. A write mutation (generic POST,
+    // PUT/DELETE/PATCH, GraphQL mutation/subscription) must never be cached + replayed.
+    && isIdempotentRequest(
+      typeof flags.method === "string" ? (flags.method as string) : undefined,
+      typeof flags.body === "string" ? (flags.body as string) : undefined,
+    );
 }
 
 function markResolveCacheReplay(hit: Record<string, unknown>): Record<string, unknown> {
