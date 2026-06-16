@@ -29,6 +29,32 @@ import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execut
 // A session-level circuit-breaker (`webEgressThrottled`) skips the doomed direct attempt once a
 // throttle has been seen, so a throttled session doesn't pay the direct-timeout on every call.
 // Opt out of the proxy with UNBROWSE_WEB_PROXY=0; force proxy-first with UNBROWSE_WEB_PROXY=force.
+// Pick the web hit to synthesize the answer from. When the caller asked about a SPECIFIC site
+// (domain present), PREFER an on-domain (or brand-family) candidate over a richer-highlighted
+// off-domain one — the user asked about THAT site, so its own page is the on-target answer, even
+// if a generic jargon-matching third-party doc has a longer highlight (the lakeofficepros.com →
+// github-azure-docs miss). Falls back to the richest-highlight hit, then null (no-URL pure-intent
+// searches: domain is empty → unchanged behaviour).
+function pickAnswerHit<T extends { url: string; highlights?: string[] }>(
+  hits: T[],
+  domain: string | null | undefined,
+): T | null {
+  const norm = (h: string) => h.replace(/^www\./, "").toLowerCase();
+  const rd = domain ? norm(domain) : "";
+  const onDomain = rd
+    ? hits.find((h) => {
+        try {
+          const hh = norm(new URL(h.url).hostname);
+          if (hh === rd || hh.endsWith("." + rd)) return true;
+          const a = rd.split(".")[0], b = hh.split(".")[0]; // brand-family prefix (chimebank↔chime)
+          return a.length >= 5 && b.length >= 5 && (a.startsWith(b) || b.startsWith(a));
+        } catch { return false; }
+      })
+    : undefined;
+  const rich = hits.find((h) => (h.highlights ?? []).join(" ").length >= 150);
+  return onDomain ?? rich ?? null;
+}
+
 let webEgressThrottled = false;
 const proxiedWebFetch: typeof fetch = async (input, init) => {
   const fwd = (i: typeof input, n: typeof init) => fetch(i as Parameters<typeof fetch>[0], n);
@@ -4744,7 +4770,7 @@ export async function resolveAndExecute(
         }
       }
       if (exaHits.length > 0) {
-        const richHit = exaHits.find((r) => (r.highlights ?? []).join(" ").length >= 150) ?? null;
+        const richHit = pickAnswerHit(exaHits, raceProbeDomain);
         const candidates = exaHits.map((hit) => ({
           url: hit.url,
           title: hit.title,
@@ -5839,7 +5865,7 @@ export async function resolveAndExecute(
     // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
     // synthesize an answer directly from the web excerpts — no browser needed.
     if (viable.length === 0 && exaResults?.length) {
-      const richHit = exaResults.find((r) => (r.highlights ?? []).join(" ").length >= 150);
+      const richHit = pickAnswerHit(exaResults, requestedDomain);
       if (richHit) {
         console.log(`[exa] returning highlights answer from ${richHit.url} (${(richHit.highlights ?? []).join(" ").length} chars) + ${exaResults.length} ranked candidate(s)`);
         const exaTrace: ExecutionTrace = {
