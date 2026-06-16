@@ -3,10 +3,11 @@
 /*
  * AikoChat — chat backed by the Aiko endpoint, grounded via unbrowse.
  *
- * Posts to /api/aiko-chat (server proxy → the Aiko OpenAI-compatible endpoint with
- * retriever:"unbrowse"). Aiko grounds external facts through the unbrowse route graph
- * (free, keyless DDG) and answers; we show the unbrowse source it grounded on under
- * each answer, so the page demonstrates "the same endpoint + unbrowse" end to end.
+ * Streams from /api/aiko-chat (server proxy → the Aiko OpenAI-compatible endpoint with
+ * retriever:"unbrowse", stream:true). Aiko grounds external facts through the unbrowse
+ * route graph (free, keyless DDG). The model reasons inside <think>…</think> first, so we
+ * hide that and show a "grounding through unbrowse…" state until the real answer streams;
+ * the final chunk's x_grounding gives the unbrowse source we render under each answer.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -20,12 +21,21 @@ const SUGGESTIONS = [
 
 interface Turn {
   role: "user" | "assistant";
-  content: string;
+  content: string; // already <think>-stripped for assistant turns
   grounding?: string[];
-  retriever?: string | null;
+  thinking?: boolean; // assistant is still inside <think> (no answer text yet)
 }
 
 type Status = "idle" | "loading" | "error";
+
+/** Drop <think>…</think> (the model's hidden reasoning). If a <think> is open but not yet
+ *  closed, everything from it on is hidden → returns the text before it (usually ""). */
+function stripThink(raw: string): string {
+  let out = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
+  const open = out.indexOf("<think>");
+  if (open !== -1) out = out.slice(0, open);
+  return out.trim();
+}
 
 export function AikoChat() {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -42,40 +52,93 @@ export function AikoChat() {
     const q = text.trim();
     if (!q || status === "loading") return;
     setError(null);
-    const next: Turn[] = [...turns, { role: "user", content: q }];
-    setTurns(next);
+    const base: Turn[] = [...turns, { role: "user", content: q }];
+    // Add a placeholder assistant turn we stream into.
+    setTurns([...base, { role: "assistant", content: "", thinking: true }]);
     setInput("");
     setStatus("loading");
+
+    const assistantIdx = base.length; // index of the placeholder
+
     try {
       const res = await fetch("/api/aiko-chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          messages: next.map((t) => ({ role: t.role, content: t.content })),
-        }),
+        body: JSON.stringify({ messages: base.map((t) => ({ role: t.role, content: t.content })) }),
       });
-      const data = (await res.json()) as {
-        content?: string;
-        grounding?: string[];
-        retriever?: string | null;
-        error?: string;
-      };
-      if (!res.ok || data.error) {
-        throw new Error(data.error ?? `request failed (${res.status})`);
+      if (!res.ok || !res.body) {
+        let msg = `request failed (${res.status})`;
+        try {
+          const j = (await res.json()) as { error?: string };
+          if (j.error) msg = j.error;
+        } catch {
+          /* not JSON */
+        }
+        throw new Error(msg);
       }
-      setTurns((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.content || "(no answer)",
-          grounding: data.grounding ?? [],
-          retriever: data.retriever ?? null,
-        },
-      ]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let raw = "";
+      let grounding: string[] = [];
+      let buf = "";
+
+      const apply = () => {
+        const shown = stripThink(raw);
+        setTurns((prev) => {
+          const next = [...prev];
+          next[assistantIdx] = {
+            role: "assistant",
+            content: shown,
+            thinking: shown.length === 0,
+            grounding,
+          };
+          return next;
+        });
+      };
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const chunk = JSON.parse(payload) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+              x_grounding?: Array<{ source?: string }>;
+            };
+            const piece = chunk.choices?.[0]?.delta?.content;
+            if (piece) {
+              raw += piece;
+              apply();
+            }
+            if (chunk.x_grounding) {
+              grounding = chunk.x_grounding.map((g) => g.source).filter((s): s is string => Boolean(s));
+            }
+          } catch {
+            /* skip malformed SSE chunk */
+          }
+        }
+      }
+      // Final settle (answer + grounding).
+      setTurns((prev) => {
+        const next = [...prev];
+        const shown = stripThink(raw) || "(no answer)";
+        next[assistantIdx] = { role: "assistant", content: shown, thinking: false, grounding };
+        return next;
+      });
       setStatus("idle");
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "something went wrong");
+      // Drop the empty placeholder on error.
+      setTurns((prev) => prev.filter((_, i) => !(i === assistantIdx && prev[i]?.role === "assistant" && !prev[i]?.content)));
     }
   }
 
@@ -100,13 +163,20 @@ export function AikoChat() {
               }
             >
               {t.role === "assistant" ? (
-                <div className="prose prose-sm prose-invert max-w-none [&_p]:my-1">
-                  <Streamdown>{t.content}</Streamdown>
-                </div>
+                t.thinking ? (
+                  <span className="inline-flex items-center gap-2 text-text-secondary">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />
+                    grounding through unbrowse…
+                  </span>
+                ) : (
+                  <div className="prose prose-sm prose-invert max-w-none [&_p]:my-1">
+                    <Streamdown>{t.content}</Streamdown>
+                  </div>
+                )
               ) : (
                 t.content
               )}
-              {t.role === "assistant" && t.grounding && t.grounding.length > 0 && (
+              {t.role === "assistant" && !t.thinking && t.grounding && t.grounding.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2 text-[11px] text-text-secondary">
                   <span className="font-medium text-orange-500">grounded via unbrowse:</span>
                   {t.grounding.slice(0, 3).map((s, j) => (
@@ -119,16 +189,6 @@ export function AikoChat() {
             </div>
           </div>
         ))}
-        {status === "loading" && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm bg-surface-raised px-4 py-2.5 text-[14px] text-text-secondary">
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />
-                grounding through unbrowse…
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {error && <p className="mt-2 px-1 text-[12px] text-red-400">{error}</p>}
