@@ -1,0 +1,141 @@
+/**
+ * B1 witness — auth-local-first egress. The runnable proof for the firmament
+ * (Gen 1:6-7): an auth-bearing request never reaches the terminating server
+ * `/v1/proxy` tier, while a non-auth request still does (the gate discriminates,
+ * it does not vacuously block everything).
+ *
+ * Mutation-proof: deleting the `!authBearing` guard in egress-chain.ts, or the
+ * `isAuthBearing` backstop in server-proxy-fallback.ts, re-introduces the leak —
+ * and the "never reaches /v1/proxy" assertions below go red.
+ *
+ * CHECK: bun test tests/egress-auth-local-first.test.ts && bun run check:privacy
+ *        && bun scripts/surface-gate.ts
+ */
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+
+import { isAuthBearing } from "../src/execution/auth-bearing";
+import { egressChain } from "../src/execution/egress-chain";
+import { serverProxyFallback } from "../src/execution/server-proxy-fallback";
+
+// ── AC2: classifier witness ────────────────────────────────────────────────
+describe("isAuthBearing classifier (B1 firmament)", () => {
+  const cases: Array<[Record<string, string>, boolean, string]> = [
+    [{ Authorization: "Bearer eyJabc" }, true, "Authorization"],
+    [{ authorization: "Bearer eyJabc" }, true, "authorization (case-insensitive)"],
+    [{ Cookie: "sid=abc" }, true, "Cookie"],
+    [{ "X-Api-Key": "k_123" }, true, "X-Api-Key"],
+    [{ "Proxy-Authorization": "Basic eyJ" }, true, "Proxy-Authorization"],
+    [{ "X-Custom-Auth": "Token abc123" }, true, "credential-shaped value in a non-standard header"],
+    [{ "X-Request-Id": "req-123" }, true, "any custom X-* header (non-benign) is auth-bearing"],
+    [{ "X-Csrf-Token": "t0ken" }, true, "csrf token header is auth-bearing"],
+    [{ "X-Amz-Date": "20260617" }, true, "vendor signing header is auth-bearing"],
+    [{ Accept: "application/json" }, false, "Accept is benign"],
+    [{ "User-Agent": "Mozilla/5.0" }, false, "User-Agent is benign"],
+    [{ Referer: "https://example.com" }, false, "Referer is benign"],
+    [
+      { "User-Agent": "Mozilla/5.0", Accept: "*/*", "Accept-Language": "en", Referer: "https://duckduckgo.com" },
+      false,
+      "an anonymous public GET (only benign headers) stays eligible for the server tier",
+    ],
+    [{}, false, "no headers"],
+  ];
+  for (const [headers, expected, label] of cases) {
+    test(`${label} → ${expected}`, () => {
+      expect(isAuthBearing(headers)).toBe(expected);
+    });
+  }
+
+  test("a sealed credential fill forces auth-bearing", () => {
+    expect(isAuthBearing({ Accept: "application/json" }, { sealedFill: true })).toBe(true);
+  });
+  test("a storage-derived (storageBound) request forces auth-bearing", () => {
+    expect(isAuthBearing({ "User-Agent": "Mozilla/5.0" }, { storageBound: true })).toBe(true);
+  });
+  test("null / undefined headers are not auth-bearing", () => {
+    expect(isAuthBearing(undefined)).toBe(false);
+    expect(isAuthBearing(null)).toBe(false);
+  });
+});
+
+// ── AC1: auth-exclusion witness (+ positive control) ───────────────────────
+describe("egress auth-exclusion: server tier never sees a credential", () => {
+  let calls: string[];
+  let origFetch: typeof fetch;
+  const origEnv = { ...process.env };
+
+  beforeEach(() => {
+    calls = [];
+    origFetch = globalThis.fetch;
+    // A resolvable key so the SERVER tier actually attempts /v1/proxy in the
+    // positive control; not local-only, not direct-egress (those short-circuit).
+    process.env.UNBROWSE_API_KEY = "test-key-b1";
+    delete process.env.UNBROWSE_LOCAL_ONLY;
+    delete process.env.UNBROWSE_DIRECT_EGRESS;
+    delete process.env.UNBROWSE_PROXY_URL; // keep the client-proxy tier out of the way
+  });
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+    process.env = { ...origEnv };
+  });
+
+  /** LOCAL tier (target URL) returns a hard block; /v1/proxy serves cleanly. */
+  function stubFetch() {
+    globalThis.fetch = (async (input: unknown, init?: { method?: string }) => {
+      const url = typeof input === "string" ? input : String(input);
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.includes("/v1/proxy")) {
+        return new Response(JSON.stringify({ status: 200, body: "served-by-server" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("blocked", { status: 403 });
+    }) as unknown as typeof fetch;
+  }
+
+  const hitServerProxy = () => calls.some((c) => c.includes("/v1/proxy"));
+
+  test("auth-bearing request blocked locally NEVER escalates to the server tier", async () => {
+    stubFetch();
+    const out = await egressChain(
+      { url: "https://api.site.com/data", headers: { Authorization: "Bearer secret", Cookie: "sid=abc" } },
+      { allowClientProxy: false },
+    );
+    expect(hitServerProxy()).toBe(false); // the credential never crossed unbrowse's servers
+    expect(out.blocked).toBe(true);
+    expect(out.tier).toBe("local");
+    expect(out.authExcluded).toBe(true); // honest: excluded by design, not silently unavailable
+  });
+
+  test("positive control: the SAME path WITHOUT auth DOES reach the server tier", async () => {
+    stubFetch();
+    const out = await egressChain(
+      { url: "https://api.site.com/data", headers: { Accept: "application/json" } },
+      { allowClientProxy: false },
+    );
+    expect(hitServerProxy()).toBe(true); // gate discriminates — non-auth still escalates
+    expect(out.tier).toBe("server");
+    expect(out.body).toBe("served-by-server");
+    expect(out.authExcluded).toBeUndefined();
+  });
+
+  test("backstop: serverProxyFallback refuses an auth-bearing request directly (any caller)", async () => {
+    stubFetch();
+    const refused = await serverProxyFallback(
+      { url: "https://api.site.com/data", headers: { Authorization: "Bearer secret" } },
+      { apiKey: "test-key-b1" },
+    );
+    expect(refused).toBeNull();
+    expect(hitServerProxy()).toBe(false);
+  });
+
+  test("backstop discriminates: a non-auth request still reaches /v1/proxy", async () => {
+    stubFetch();
+    const served = await serverProxyFallback(
+      { url: "https://api.site.com/data", headers: { Accept: "application/json" } },
+      { apiKey: "test-key-b1" },
+    );
+    expect(served?.body).toBe("served-by-server");
+    expect(hitServerProxy()).toBe(true);
+  });
+});
