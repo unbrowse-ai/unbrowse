@@ -4642,7 +4642,14 @@ export async function resolveAndExecute(
       // zero cost. Disable with UNBROWSE_DDG_FALLBACK=0 (e.g. to force the paid Exa path).
       if (exaHits.length === 0 && process.env.UNBROWSE_DDG_FALLBACK !== "0") {
         try {
-          const ddg = await ddgSearch(queryIntent, 5, fetch, Math.min(6000, Math.max(1000, exaBudgetMs)));
+          // Anchor the web query on the TARGET DOMAIN. Without this, a generic intent
+          // ("find the main data/listing endpoint and return its records") web-searches the
+          // bare phrase and returns the SAME generic API-design articles for every unrelated
+          // site (bmo.com, a bank, and onstove.com, a game, both got medium.com/rest-api-design)
+          // — fabricated, site-irrelevant coverage. Prefixing the domain makes each site's query
+          // distinct and site-relevant (or empty → honest fall-through to capture).
+          const webQuery = raceProbeDomain ? `${raceProbeDomain} ${queryIntent}` : queryIntent;
+          const ddg = await ddgSearch(webQuery, 5, fetch, Math.min(6000, Math.max(1000, exaBudgetMs)));
           if (ddg.length > 0) {
             exaHits = ddg;
             webProvider = "ddg";
@@ -5770,11 +5777,15 @@ export async function resolveAndExecute(
     // of "No matching skill found". Disable with UNBROWSE_DDG_FALLBACK=0 to force the paid path.
     if (viable.length === 0 && !exaResults?.length && process.env.UNBROWSE_DDG_FALLBACK !== "0") {
       try {
-        const ddg = await ddgSearch(queryIntent, 5, fetch);
+        // Domain-anchored web query (see the race-path DDG fallback above): a bare generic
+        // intent returns the same site-irrelevant articles for every domain. Prefix the target
+        // domain so each site's fallback is distinct and on-topic, or empty (honest miss).
+        const webQuery = requestedDomain ? `${requestedDomain} ${queryIntent}` : queryIntent;
+        const ddg = await ddgSearch(webQuery, 5, fetch);
         if (ddg.length > 0) {
           exaResults = ddg;
           serialWebProvider = "ddg";
-          console.log(`[ddg] $0 fallback: ${ddg.length} keyless web result(s) for "${queryIntent}"`);
+          console.log(`[ddg] $0 fallback: ${ddg.length} keyless web result(s) for "${webQuery}"`);
         }
       } catch (err) {
         console.log(`[ddg] $0 fallback failed: ${(err as Error).message}`);
