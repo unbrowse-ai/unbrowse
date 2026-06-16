@@ -97,23 +97,21 @@ describe("browse request merge", () => {
     expect(decision.reason).toBe("form_only_without_network_evidence");
   });
 
-  it("defers low-quality repeated ui chrome rows even when a form exists", () => {
+  it("admits dom data (incl. low-quality rows); quality is a DOWNSTREAM concern, not an in-code gate", () => {
+    // The primitive_rows / nav-chrome admission gates were REMOVED 2026-05-18 (browse-index.ts
+    // :154-168) per the substrate-enables principle: never bake a quality verdict into a script.
+    // Anything WITH data is admitted; the ranker + agent-judge + reliability-feedback (Darwinian
+    // marketplace) handle quality downstream. This test now asserts that DESIGN (was stale, asserting
+    // the removed in-code gate).
     const decision = shouldIndexDomBrowseFallback({
       requestCount: 0,
       intent: "browse www.linkedin.com",
-      extractedData: [
-        "Home",
-        "My Network",
-        "Jobs",
-        "Messaging",
-        "Notifications",
-      ],
+      extractedData: ["Home", "My Network", "Jobs", "Messaging", "Notifications"],
       extractedConfidence: 0.7,
       hasStructuredForm: true,
     });
 
-    expect(decision.allow).toBe(false);
-    expect(decision.reason).toBe("primitive_rows");
+    expect(decision.allow).toBe(true); // data present → admitted; quality filtered downstream
   });
 
   it("still allows structured search-form fallbacks when network evidence exists", () => {
