@@ -40,6 +40,7 @@ import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { ddgSearch } from "../lib/ddg-search.js";
+import { valueSetPointer } from "../values/content-address.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -396,8 +397,15 @@ export interface PersistedComposite {
   /** Merkle content-id: structure ⊕ the constituent endpoints' content-hashes. A constituent
    *  endpoint definition change re-hashes this, so a (domain,target) lookup hit can detect the
    *  composite is stale and re-walk instead of serving the old chain. Absent on pre-Merkle
-   *  composites → treated as stale (fail-closed). */
+   *  composites → treated as stale (fail-closed). This is the SHAPE water. */
   content_id?: string;
+  /** Value content-id: valueSetPointer of the resolved bound VALUES (param-hole fills /
+   *  prerequisite yields) the composite replayed with — the divided VALUE water (Step 2 firmament).
+   *  A bound value change re-hashes this, so a lookup hit detects a stale VALUE (not just a stale
+   *  shape) and re-walks. Absent when the composite was written without bound values → only the
+   *  shape cascade applies (back-compat); readComposite fails closed only when value validation is
+   *  explicitly requested (currentValues supplied) but value_id is missing. */
+  value_id?: string;
 }
 
 /** Content-address a composite by what makes it the SAME DAG: the domain, the target endpoint, the
@@ -469,16 +477,23 @@ export function writeComposite(
   // Current skill endpoints — stamps the Merkle content_id so a later readComposite can detect a
   // constituent change and cascade-invalidate. Omitted → content_id left as-is (legacy).
   currentEndpoints?: Array<{ endpoint_id: string; method?: string; url_template?: string }>,
+  // The resolved bound VALUES (param-hole fills / prerequisite yields) the composite replayed with.
+  // Supplied → stamps value_id (valueSetPointer) so a later readComposite can cascade-invalidate on a
+  // VALUE change too. Omitted → value_id left as-is (shape-only cascade, back-compat).
+  boundValues?: Record<string, string | number | boolean>,
 ): string | undefined {
   if (process.env.UNBROWSE_STATELESS === "1") return undefined;
   if (process.env.UNBROWSE_LOCAL_CACHES !== "1") return undefined;
   try {
     mkdirSync(compositeSnapshotDir(), { recursive: true });
     const target = compositeFilePath(compositeLookupKey(c.domain, c.target));
-    const stamped =
+    let stamped =
       currentEndpoints && !c.content_id
         ? { ...c, content_id: compositeContentId(c.domain, c.target, c.steps, c.edges, endpointContentMap(currentEndpoints)) }
         : c;
+    if (boundValues && !stamped.value_id) {
+      stamped = { ...stamped, value_id: valueSetPointer(boundValues) };
+    }
     writeFileSync(target, JSON.stringify(stamped), "utf-8");
     return target;
   } catch {
@@ -496,6 +511,11 @@ export function readComposite(
   // composite with no content_id) yields a mismatch and the entry is invalidated (return undefined →
   // the caller re-walks), never served stale. Omitted → legacy behaviour (return as-is).
   currentEndpoints?: Array<{ endpoint_id: string; method?: string; url_template?: string }>,
+  // The CURRENT resolved bound VALUES. When supplied, the stored composite's value_id is recomputed
+  // from these and compared — a bound VALUE change (or a composite stamped without a value_id) yields
+  // a mismatch and the entry is invalidated (return undefined → re-walk), never served stale. Omitted
+  // → only the shape cascade (content_id) is checked (back-compat).
+  currentValues?: Record<string, string | number | boolean>,
 ): PersistedComposite | undefined {
   try {
     const path = compositeFilePath(compositeLookupKey(domain, target));
@@ -504,7 +524,11 @@ export function readComposite(
     if (currentEndpoints) {
       if (!c.content_id) return undefined; // fail-closed: pre-Merkle composite → re-walk once
       const expected = compositeContentId(domain, target, c.steps, c.edges, endpointContentMap(currentEndpoints));
-      if (expected !== c.content_id) return undefined; // a constituent changed → cascade-invalidate
+      if (expected !== c.content_id) return undefined; // a constituent SHAPE changed → cascade-invalidate
+    }
+    if (currentValues) {
+      if (!c.value_id) return undefined; // fail-closed: no value_id but value validation requested → re-walk
+      if (valueSetPointer(currentValues) !== c.value_id) return undefined; // a bound VALUE changed → cascade-invalidate
     }
     return c;
   } catch {
