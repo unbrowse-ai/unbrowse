@@ -7,6 +7,8 @@ import { resolveLocalStorageForReplay } from "../../src/values/storage-hole-bind
 import { fsSealedBlobStore } from "../../src/values/sealed-blob-store.ts";
 import { deriveSealKey } from "../../src/values/signer.ts";
 import { readFileSync } from "node:fs";
+// storage persist is gated by UNBROWSE_LOCAL_CACHES (read call-time); enable it for this disk e2e.
+process.env.UNBROWSE_LOCAL_CACHES = "1";
 
 let fails = 0;
 function ok(c: boolean, m: string) { if (!c) { console.error("  FAIL", m); fails++; } else console.log("  ok  ", m); }
