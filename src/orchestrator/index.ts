@@ -18,7 +18,42 @@ import { deriveSealKey, deriveCommitmentKey } from "../values/signer.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
-import { resolveProxyUrl, resolveEgressProxy } from "../execution/proxy-fetch.js";
+import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execution/proxy-fetch.js";
+
+// Native CLI web-search egress with residential-proxy FALLBACK. Keyless DDG (and other client-side
+// web fetches) run from the USER's IP, which gets rate-limited under load — witnessed: DDG direct ->
+// TimeoutError, DDG via IProyal -> on-target hits. Strategy: try DIRECT first (fast, the common case
+// — a normal user's IP is not throttled), and only on a failure (timeout / block / non-2xx) RETRY
+// through the resolved egress proxy (IProyal residential, ~/.identity/iproyal-creds, or
+// UNBROWSE_PROXY_URL). This keeps normal use fast while staying resilient when the IP is throttled.
+// A session-level circuit-breaker (`webEgressThrottled`) skips the doomed direct attempt once a
+// throttle has been seen, so a throttled session doesn't pay the direct-timeout on every call.
+// Opt out of the proxy with UNBROWSE_WEB_PROXY=0; force proxy-first with UNBROWSE_WEB_PROXY=force.
+let webEgressThrottled = false;
+const proxiedWebFetch: typeof fetch = async (input, init) => {
+  const fwd = (i: typeof input, n: typeof init) => fetch(i as Parameters<typeof fetch>[0], n);
+  const mode = process.env.UNBROWSE_WEB_PROXY;
+  const proxyUrl = mode === "0" ? undefined : resolveEgressProxy();
+  const url = typeof input === "string" ? input : (input as URL).toString();
+  const viaProxy = async () => {
+    const { response } = await proxiedFetchOnce(url, (init ?? {}) as RequestInit, proxyUrl);
+    return response;
+  };
+  // Proxy-first only when explicitly forced OR the session already saw a throttle (avoid the
+  // repeated direct-timeout tax on a known-throttled IP).
+  if (proxyUrl && (mode === "force" || webEgressThrottled)) {
+    try { return await viaProxy(); } catch { return fwd(input, init); }
+  }
+  try {
+    const res = await fwd(input, init);
+    if (proxyUrl && !res.ok) { webEgressThrottled = true; try { return await viaProxy(); } catch { return res; } }
+    return res;
+  } catch (e) {
+    if (!proxyUrl) throw e;
+    webEgressThrottled = true; // remember: this IP is throttled/blocked for the session
+    return await viaProxy();
+  }
+};
 
 import { rankEndpoints, rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
@@ -2609,7 +2644,7 @@ export async function resolveAndExecute(
   // site. Folding the domain in is ZERO extra latency (same single call) and empirically flips
   // the result on-target (bmo.com → developer.bmo.com/api/commercial). Marketplace vector-match
   // for a specific URL is near-always empty anyway, so anchoring the query doesn't cost recall.
-  const searchDomainAnchor = context?.url
+  const searchDomainAnchor = context?.url && process.env.UNBROWSE_SEARCH_DOMAIN_ANCHOR !== "0"
     ? (() => { try { return new URL(context.url).hostname.replace(/^www\./, ""); } catch { return ""; } })()
     : "";
   const searchQueryIntent = searchDomainAnchor ? `${searchDomainAnchor} ${queryIntent}` : queryIntent;
@@ -4659,7 +4694,7 @@ export async function resolveAndExecute(
           // — fabricated, site-irrelevant coverage. Prefixing the domain makes each site's query
           // distinct and site-relevant (or empty → honest fall-through to capture).
           const webQuery = raceProbeDomain ? `${raceProbeDomain} ${queryIntent}` : queryIntent;
-          const ddg = await ddgSearch(webQuery, 5, fetch, Math.min(6000, Math.max(1000, exaBudgetMs)));
+          const ddg = await ddgSearch(webQuery, 5, proxiedWebFetch, Math.min(6000, Math.max(1000, exaBudgetMs)));
           if (ddg.length > 0) {
             exaHits = ddg;
             webProvider = "ddg";
@@ -5791,7 +5826,7 @@ export async function resolveAndExecute(
         // intent returns the same site-irrelevant articles for every domain. Prefix the target
         // domain so each site's fallback is distinct and on-topic, or empty (honest miss).
         const webQuery = requestedDomain ? `${requestedDomain} ${queryIntent}` : queryIntent;
-        const ddg = await ddgSearch(webQuery, 5, fetch);
+        const ddg = await ddgSearch(webQuery, 5, proxiedWebFetch);
         if (ddg.length > 0) {
           exaResults = ddg;
           serialWebProvider = "ddg";
