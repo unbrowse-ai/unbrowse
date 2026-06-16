@@ -20,6 +20,7 @@
  */
 import { serverProxyFallback } from "./server-proxy-fallback.js";
 import { proxiedFetchOnce, resolveEgressProxy } from "./proxy-fetch.js";
+import { isAuthBearing } from "./auth-bearing.js";
 
 export type EgressTier = "local" | "server" | "client-proxy";
 
@@ -37,6 +38,15 @@ export interface EgressOutcome {
   tier: EgressTier;
   /** True when no tier produced a non-block status (caller decides what to do). */
   blocked?: boolean;
+  /**
+   * B1: true when this request was auth-bearing, so the terminating server
+   * `/v1/proxy` tier was deliberately EXCLUDED from the escalation ladder (the
+   * credential would otherwise be readable server-side). A blocked outcome with
+   * this flag is the honest "stayed local / client-proxy, never leaked" result —
+   * it waits for the B2 blind CONNECT tunnel rather than escalating to a tier
+   * that terminates TLS. Never set for non-auth requests.
+   */
+  authExcluded?: boolean;
 }
 
 export interface EgressOpts {
@@ -70,6 +80,11 @@ function tierBlocked(status: number, body: string, opts: EgressOpts): boolean {
 export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Promise<EgressOutcome> {
   const method = req.method ?? "GET";
   const timeoutMs = req.timeoutMs ?? 15_000;
+  // B1 firmament: an auth-bearing request (credential headers / sealed fill) must
+  // never escalate to the terminating server `/v1/proxy` tier — the server would
+  // read the cleartext credential + body. Divide the waters here: such requests
+  // stay on client-controlled tiers (local, client-proxy) or fail honestly.
+  const authBearing = isAuthBearing(req.headers);
   let last: EgressOutcome = { status: 0, body: "", tier: "local", blocked: true };
 
   // 1. LOCAL
@@ -91,7 +106,9 @@ export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Pr
   }
 
   // 2. SERVER (clean datacenter IP first, residential escalation server-side) — needs API key.
-  if (opts.allowServer !== false) {
+  //    EXCLUDED for auth-bearing requests (B1): this tier terminates TLS and could read the
+  //    credential, so the firmament keeps the upper waters out of it.
+  if (opts.allowServer !== false && !authBearing) {
     try {
       const sp = await serverProxyFallback(
         { url: req.url, method, headers: req.headers, body: req.body, timeoutMs },
@@ -119,6 +136,10 @@ export async function egressChain(req: EgressRequest, opts: EgressOpts = {}): Pr
     }
   }
 
+  // Honest result. When the request was auth-bearing and we still ended blocked,
+  // mark that the server tier was excluded by design (not silently unavailable) —
+  // the caller can surface "blocked; waiting on the B2 blind tunnel", never a leak.
+  if (authBearing && last.blocked) last.authExcluded = true;
   return last;
 }
 

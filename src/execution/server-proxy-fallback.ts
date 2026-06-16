@@ -20,6 +20,7 @@
  * On null the caller keeps the existing stale-endpoint / Retry-After path.
  */
 import { getApiKey } from "../client/index.js";
+import { isAuthBearing } from "./auth-bearing.js";
 
 export interface ServerProxyResult {
   status: number;
@@ -69,6 +70,15 @@ export async function serverProxyFallback(
   const env = opts.env ?? process.env;
   // Explicit opt-out: direct egress everywhere means no server-side proxying.
   if (isDirectEgress(env)) return null;
+
+  // B1 firmament backstop (defense-in-depth): never hand an auth-bearing request
+  // to the terminating `/v1/proxy` tier — the server reads the cleartext
+  // credential + body there. egressChain already excludes the server tier for
+  // these, but this is the single choke to /v1/proxy, so it also catches the
+  // direct executeEndpoint 4xx/429 mouths and the egressFetch adapter. Graceful
+  // null degrade — the caller keeps its honest stay-local / fail path; the
+  // cleartext credential never crosses unbrowse's servers (Matt 6:6).
+  if (isAuthBearing(req.headers)) return null;
 
   const apiKey = opts.apiKey ?? getApiKey();
   // No key → the server's /v1/proxy returns 402 with payment requirements.
