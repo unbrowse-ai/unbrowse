@@ -40,9 +40,9 @@ url. Does NOT touch `interpolate`/`shouldReplayRecipe` (recipe path unaffected).
 **The ONE remaining unknown** (named, not assumed): whether any probe-ladder rung DROPS the holed
 segment and recovers — the probers found none, but did not exhaustively trace every rung. The
 guard's own loop settles this with a probe-ladder integration witness, then ships the bail red→green.
-| 3 | `resolveCached` (local↔remote tier selector) | `src/values/resolution-tier.ts:42` | **0** (test-only) | **dormant-because**: it routes a resolution local-then-remote, but there is no remote resolution-cache backend in the resolve path yet (the "maintenance network" tier). The LOCAL tier is exactly the `cachedResolution` I wired in #1; promoting the prereq cascade to route THROUGH `resolveCached` is the wiring once a remote ledger tier ships. Not pruned — it is the seam for #1's remote half. |
-| 4 | `descentResolve` (trust/descent fallback) | `src/trust/descent-cache.ts:99` | **0** (test-only) | **dormant-because**: Paper-2 descent (wallets-own-wallets / hierarchical trust) is not yet on the resolve fallback ladder. A research arm with its own witness; wire only when the descent path is the chosen fallback. Named, not silent. |
-| 5 | `agenticBrowserResolve` (agentic browser fallback) | `src/orchestrator/browser-agent.ts:163` | **0** (headless resolve path) | **dormant-because**: reachable only via the MCP browse tools (interactive session), not the headless `unbrowse resolve` ladder. Intentional separation (the headless path must stay deterministic/cheap). Candidate to wire as the LAST-resort resolve fallback behind an explicit flag; until then, dormant-by-design. |
+| 3 | `resolveCached` (local↔remote tier selector) | DELETED (was `src/values/resolution-tier.ts`) | n/a | **DELETED** — de-hatching: 0 prod imports, 0 sibling usage; a speculative remote-tier selector with no remote backend. No dormant-by-design. Removed the file + test (also cleared 15 pre-existing tsc errors). |
+| 4 | `descentResolve` (trust/descent fallback) | DELETED (was `src/trust/descent-cache.ts`) | n/a | **DELETED** — de-hatching: 0 prod imports/callers; a Paper-2 research arm never wired. Removed the file + test. |
+| 5 | `agenticBrowserResolve` (agentic browser fallback) | DELETED (was `src/orchestrator/browser-agent.ts`) | n/a | **DELETED** — de-hatching: 0 prod imports/callers; never wired into any resolve path. Removed the file. |
 | 6 | `buildCompositeEdges` (walked-chain → composite edges) | `src/orchestrator/index.ts:3938` | **1** (emitted in trace) | **WIRED-partial** — the edges are BUILT and emitted in the route trace, but not PERSISTED as a replayable composite (contract-ledger lever 3). Follow-up: persist + replay the composite as one unit. Not buried (it runs); the persistence half is the open lever. |
 
 ## Audit corrections (false-buried, verified WIRED — kept honest)
@@ -67,8 +67,7 @@ multi-step skill fixture and is NOT yet behaviorally proven. Named, not faked.
 
 ## Summary
 - **1 wired this loop** (#1, the persistent cascade — the loop's GOAL face 1).
-- **1 real bug queued** (#2, the `{param}` leak — the next node).
-- **3 genuinely dormant, each named with why** (#3 remote tier, #4 descent, #5 agentic) —
-  none left silent (GOAL face 2 / ACC#4).
+- **1 real bug FIXED** (#2, the `{param}` leak — pre-fetch guard, mutation-proven).
+- **3 dormant stubs DELETED** (#3 resolveCached, #4 descentResolve, #5 agenticBrowserResolve) — de-hatching: 0 prod usage, removed (also cleared 15 tsc errors).
 - **1 wired-partial** (#6 composite persistence — an open lever, already tracked).
 - **3 audit false-positives corrected** — the verify-before-dispose discipline (Prov 18:17).
