@@ -32,9 +32,12 @@ const src = readFileSync(new URL("../../src/execution/index.ts", import.meta.url
 const directBlock = src.slice(src.indexOf("if (!recipeMatched) {"), src.indexOf("if (!recipeMatched) {") + 600);
 ok(/await probeUrl\(url,/.test(directBlock),
    "the direct path passes `url` to probeUrl (:3791) — this is the leak site for a holed url");
+// The gap this seed first pinned (no pre-fetch bail) is now CLOSED by the guard — assert the guard
+// is present between interpolate and the probe ladder (a permanent regression witness; if the guard
+// is ever removed, this flips red).
 const between = src.slice(src.indexOf("let url = interpolate(urlTemplate, mergedParams)"), src.indexOf("if (!recipeMatched) {"));
-ok(!/\/\\\{[a-z0-9_]+\\\}\/i?\.test\(url\)[\s\S]{0,80}(return|bail|success:\s*false)/.test(between),
-   "NO pre-fetch unfilled-{hole} bail on the direct path between interpolate and the probe ladder (the gap)");
+ok(/error:\s*"unfilled_url_hole"/.test(between) && /url\.match\(\/\\\{\[a-z0-9_\]\+\\\}\/gi\)/.test(between),
+   "the pre-fetch unfilled-{hole} guard now sits between interpolate and the probe ladder (the gap is CLOSED)");
 
 // 3) EVIDENCE that bail-early is SAFE — the probe ladder does NOT rewrite/strip holes before probing
 //    (no stripHoles/dropUnfilled), so a holed url can never be recovered by probing; bailing loses nothing.
