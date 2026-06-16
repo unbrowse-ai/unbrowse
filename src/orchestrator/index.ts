@@ -40,6 +40,7 @@ import { syncEdgeConfidence, getCachedEdgeConfidenceProjection } from "../client
 import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { ddgSearch } from "../lib/ddg-search.js";
+import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { storeExecutionTrace, findTracesByIntent } from "../lib/graph-core/trace-store.js";
 import { extractBindingsFromJson } from "../lib/graph-core/session.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -2097,19 +2098,30 @@ async function walkPrerequisiteChain(
   projection: Parameters<typeof executeSkill>[2],
   options: Parameters<typeof executeSkill>[3],
   steps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }>,
+  // The TARGET endpoint whose holes are being filled. When set, the skill's operation_graph edges
+  // bind each hole to the RIGHT producer (Ex 28:32 — which hole fits which); omitted → order fallback.
+  consumerId?: string,
 ): Promise<Record<string, string | number | boolean>> {
   const resolved: Record<string, string | number | boolean> = {};
   const executed = new Map<string, Record<string, unknown>>(); // endpoint_id → extracted yields
   const epProvides = (ep: (typeof skill.endpoints)[number] | undefined): OperationBinding[] =>
     (ep?.semantic?.provides ?? []) as OperationBinding[];
+  // Explicit DAG edges disambiguate which producer fills each hole when several yield the same key.
+  const bindingGraph = bindingGraphFromOperationGraph(skill.operation_graph);
 
   for (const param of unboundParams) {
     if (resolved[param] != null) continue;
-    // Find a prerequisite (in dependency order) that yields this binding key.
-    const prereqId = prerequisiteOrder.find((id) => {
-      const ep = skill.endpoints.find((e) => e.endpoint_id === id);
-      return ep && epProvides(ep).some((b) => b.key === param);
-    });
+    // 1) explicit edge (operation_graph) → the RIGHT producer; must be in the executable order.
+    let prereqId: string | null =
+      consumerId ? selectHoleProducer(param, consumerId, bindingGraph, prerequisiteOrder) : null;
+    if (prereqId && !prerequisiteOrder.includes(prereqId)) prereqId = null;
+    // 2) fallback: the first prerequisite (in dependency order) that yields this binding key.
+    if (!prereqId) {
+      prereqId = prerequisiteOrder.find((id) => {
+        const ep = skill.endpoints.find((e) => e.endpoint_id === id);
+        return ep && epProvides(ep).some((b) => b.key === param);
+      }) ?? null;
+    }
     if (!prereqId) continue;
     const prereqEp = skill.endpoints.find((e) => e.endpoint_id === prereqId);
     if (!prereqEp) continue;
@@ -3877,6 +3889,7 @@ export async function resolveAndExecute(
             projection,
             { ...options, intent: queryIntent, contextUrl: context?.url },
             chainSteps,
+            candidate.endpoint.endpoint_id, // the consumer (target) — for edge-disambiguated hole binding
           );
           if (chainSteps.length > 0) {
             // Emit the walked chain as a first-class COMPOSITE — the contract sub-DAG this
