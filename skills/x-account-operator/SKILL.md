@@ -1,6 +1,6 @@
 ---
-name: x-account-operator
-description: Turn a weak or inconsistent X account into one coherent operating loop: learn from winners, lock a recognizable voice, cut filler, rewrite the queue, and keep a stronger draft bank. Use when Lewis asks to revamp Typefully, sharpen the account personality, or decide what the account should post next.
+name: "x-account-operator"
+description: "Turn a weak or inconsistent X account into one coherent operating loop: learn from winners, lock a recognizable voice, cut filler, rewrite the queue, and keep a stronger draft bank. Use when Lewis asks to revamp Typefully, sharpen the account personality, or decide what the account should post next."
 user-invocable: true
 ---
 
