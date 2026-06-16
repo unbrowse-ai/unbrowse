@@ -34,9 +34,25 @@ export function scopeResolutionKey(key: string, principal?: string): string {
   return principal === undefined ? key : `${principalScope(principal)}${key}`;
 }
 
+/** Fold the value pointers a resolution DEPENDS ON into its signature, so a change to ANY
+ *  dependency re-keys this entry (its cached value is orphaned → recompute next time). This is
+ *  the values-ledger pointer→pointer cascade: result B folds A's content pointer; A changes →
+ *  A's pointer changes → B's key changes → B cascade-invalidates. Order-independent (sorted).
+ *  The U+001F unit separator divides key from fold (cannot occur in an intent), AND the deps array
+ *  is JSON-encoded — injective for arbitrary string deps: a dep literally "p1,p2" no longer collides
+ *  with two deps ["p1","p2"] (a bare comma-join did; pointers are hex today, but the contract must
+ *  hold for any future caller that folds non-hash value keys). Witnessed: dependency-cascade test. */
+export function keyWithDeps(key: string, dependsOn?: readonly string[]): string {
+  if (!dependsOn || dependsOn.length === 0) return key;
+  return `${key}deps:${JSON.stringify([...dependsOn].sort())}`;
+}
+
 export interface CachedResolution<T> {
   value: T;
   cached: boolean;
+  /** The content pointer of this resolution's result — surfaced so a DEPENDENT resolution can
+   *  fold it via `dependsOn` (the pointer→pointer edge). null when not stored (uncacheable / ttl<=0). */
+  pointer?: string | null;
 }
 
 export async function cachedResolution<T>(opts: {
@@ -52,6 +68,10 @@ export async function cachedResolution<T>(opts: {
    *  is partitioned per principal so an authed value is never replayed cross-principal.
    *  Omit (or pass "") for genuinely public/unauthenticated resolutions (shared "anon"). */
   principal?: string;
+  /** Content pointers of the values this resolution CONSUMED (e.g. a prerequisite's result
+   *  pointer). Folded into the key so a change to any dependency cascade-invalidates this
+   *  entry — the values-ledger pointer→pointer edge. Omit for a leaf resolution. */
+  dependsOn?: readonly string[];
 }): Promise<CachedResolution<T>> {
   if (!(opts.ttlMs > 0)) return { value: await opts.recompute(), cached: false };
 
@@ -61,11 +81,11 @@ export async function cachedResolution<T>(opts: {
   try {
     store = fsBlobStore(join(dir, "blobs"));
     ledger = fsLedger(join(dir, "resolutions.jsonl"));
-    ptrKey = intentPointer(scopeResolutionKey(opts.key, opts.principal));
+    ptrKey = intentPointer(scopeResolutionKey(keyWithDeps(opts.key, opts.dependsOn), opts.principal));
     const hit = ledger.find(ptrKey);
     if (hit && hit.ts != null && now - hit.ts <= opts.ttlMs) {
       const cached = resolvePointer(hit.result, store);
-      if (cached !== null) return { value: JSON.parse(cached) as T, cached: true };
+      if (cached !== null) return { value: JSON.parse(cached) as T, cached: true, pointer: hit.result };
     }
   } catch {
     // cache read failed — fall through to a live recompute, no cache write
@@ -73,15 +93,16 @@ export async function cachedResolution<T>(opts: {
   }
 
   const value = await opts.recompute(); // errors propagate to the caller, never cached
+  let pointer: string | null = null;
   try {
     if (opts.cacheable(value)) {
-      const ptr = putBlob(JSON.stringify(value), store);
-      ledger.append(ptrKey, ptr, now);
+      pointer = putBlob(JSON.stringify(value), store);
+      ledger.append(ptrKey, pointer, now);
     }
   } catch {
     /* cache write best-effort — the value is still returned */
   }
-  return { value, cached: false };
+  return { value, cached: false, pointer };
 }
 
 /**

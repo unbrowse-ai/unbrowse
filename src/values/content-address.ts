@@ -31,6 +31,22 @@ export function intentKey(intent: string): Pointer {
   return `sha256:${sha256hex(`intent ${intent}`)}`;
 }
 
+/** Content pointer for an ORDERED set of resolved values (the param-hole fills / prerequisite
+ *  yields a result was built from) — the value-side mirror of endpointContentHash (shape side).
+ *  Folds canonical, key-SORTED [key, value] pairs so it is order-independent (same pairs in any
+ *  insertion order → same pointer) and any single value/key change → a new pointer. Nothing
+ *  volatile is folded; the caller passes only the bound values. Empty set → a stable pointer. */
+export function valueSetPointer(bound: Record<string, string | number | boolean>): Pointer {
+  // JSON-bounded pairs (not `key=value` joined by newlines): a value containing "=" or a
+  // newline must not be able to forge another set's pointer. JSON.stringify escapes the
+  // delimiters so each [key, value] pair is unambiguously bounded (Merkle-safety).
+  const canon = Object.keys(bound)
+    .sort()
+    .map((k) => JSON.stringify([k, String(bound[k])]))
+    .join(",");
+  return `sha256:${sha256hex(`valueset [${canon}]`)}`;
+}
+
 /** Canonical hash of a ledger record's signed core. Key order intent,prev,result,seq is
  *  fixed (NOT sorted) — every chain that links rows must agree on it. */
 export function recordHash(rec: { intent: string; prev: string; result: Pointer; seq: number }): string {
