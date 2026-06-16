@@ -2603,6 +2603,16 @@ export async function resolveAndExecute(
   };
   const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
   if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
+  // Domain-anchored variant for the backend search/exa call: when a target URL is present, a
+  // bare generic intent ("find the main data/listing endpoint…") makes the remote exa service
+  // return off-domain API-doc junk (bmo.com → docs.nex.ai) that matches the jargon but not the
+  // site. Folding the domain in is ZERO extra latency (same single call) and empirically flips
+  // the result on-target (bmo.com → developer.bmo.com/api/commercial). Marketplace vector-match
+  // for a specific URL is near-always empty anyway, so anchoring the query doesn't cost recall.
+  const searchDomainAnchor = context?.url
+    ? (() => { try { return new URL(context.url).hostname.replace(/^www\./, ""); } catch { return ""; } })()
+    : "";
+  const searchQueryIntent = searchDomainAnchor ? `${searchDomainAnchor} ${queryIntent}` : queryIntent;
 
   // Interop discovery (opt-in: UNBROWSE_INTEROP_DISCOVERY=1). Surface the
   // primitives a site already uses — x402 Bazaar resources, installed skills —
@@ -4623,7 +4633,7 @@ export async function resolveAndExecute(
           | null
         >([
           (options?.exaSearchOverride ?? searchIntentResolve)(
-            queryIntent,
+            searchQueryIntent,
             raceProbeDomain,
             MARKETPLACE_DOMAIN_SEARCH_K,
             MARKETPLACE_GLOBAL_SEARCH_K,
@@ -5112,7 +5122,7 @@ export async function resolveAndExecute(
     try {
       searchResponse = await Promise.race([
         searchIntentResolve(
-          queryIntent,
+          searchQueryIntent,
           requestedDomain ?? undefined,
           MARKETPLACE_DOMAIN_SEARCH_K,
           MARKETPLACE_GLOBAL_SEARCH_K,
