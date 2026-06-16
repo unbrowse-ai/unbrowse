@@ -20,6 +20,7 @@ import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from
 import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execution/proxy-fetch.js";
 import { egressFetchWithBlockCheck } from "../execution/egress-chain.js";
+import { pickAnswerHit } from "./answer-hit.js";
 
 // Native CLI web-search egress with residential-proxy FALLBACK. Keyless DDG (and other client-side
 // web fetches) run from the USER's IP, which gets rate-limited under load — witnessed: DDG direct ->
@@ -30,31 +31,8 @@ import { egressFetchWithBlockCheck } from "../execution/egress-chain.js";
 // A session-level circuit-breaker (`webEgressThrottled`) skips the doomed direct attempt once a
 // throttle has been seen, so a throttled session doesn't pay the direct-timeout on every call.
 // Opt out of the proxy with UNBROWSE_WEB_PROXY=0; force proxy-first with UNBROWSE_WEB_PROXY=force.
-// Pick the web hit to synthesize the answer from. When the caller asked about a SPECIFIC site
-// (domain present), PREFER an on-domain (or brand-family) candidate over a richer-highlighted
-// off-domain one — the user asked about THAT site, so its own page is the on-target answer, even
-// if a generic jargon-matching third-party doc has a longer highlight (the lakeofficepros.com →
-// github-azure-docs miss). Falls back to the richest-highlight hit, then null (no-URL pure-intent
-// searches: domain is empty → unchanged behaviour).
-function pickAnswerHit<T extends { url: string; highlights?: string[] }>(
-  hits: T[],
-  domain: string | null | undefined,
-): T | null {
-  const norm = (h: string) => h.replace(/^www\./, "").toLowerCase();
-  const rd = domain ? norm(domain) : "";
-  const onDomain = rd
-    ? hits.find((h) => {
-        try {
-          const hh = norm(new URL(h.url).hostname);
-          if (hh === rd || hh.endsWith("." + rd)) return true;
-          const a = rd.split(".")[0], b = hh.split(".")[0]; // brand-family prefix (chimebank↔chime)
-          return a.length >= 5 && b.length >= 5 && (a.startsWith(b) || b.startsWith(a));
-        } catch { return false; }
-      })
-    : undefined;
-  const rich = hits.find((h) => (h.highlights ?? []).join(" ").length >= 150);
-  return onDomain ?? rich ?? null;
-}
+// pickAnswerHit (on-domain-preferring web answer selection) lives in ./answer-hit.ts — a pure
+// module so it is unit-testable without importing this resolve module.
 
 // CLI web-search egress, standardized on the egress CHAIN (execution/egress-chain.ts):
 //   LOCAL (client IP) → SERVER (unbrowse server's clean IP, residential escalation server-side)
