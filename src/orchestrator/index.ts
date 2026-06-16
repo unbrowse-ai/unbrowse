@@ -2106,7 +2106,7 @@ function prereqCacheTtlMs(): number {
   if (process.env.UNBROWSE_STATELESS === "1") return 0;
   return Math.max(0, Number(process.env.UNBROWSE_RESOLVE_CACHE_TTL_MS ?? 600_000) || 0);
 }
-async function walkPrerequisiteChain(
+export async function walkPrerequisiteChain(
   skill: SkillManifest,
   unboundParams: string[],
   prerequisiteOrder: string[],
@@ -2118,6 +2118,10 @@ async function walkPrerequisiteChain(
   // The TARGET endpoint whose holes are being filled. When set, the skill's operation_graph edges
   // bind each hole to the RIGHT producer (Ex 28:32 — which hole fits which); omitted → order fallback.
   consumerId?: string,
+  // Test seam (dependency injection): the per-prerequisite execution fn. Defaults to the real
+  // executeSkill (zero prod change); a witness injects a controlled/counting fn to exercise the
+  // walk's persist+replay deterministically without network.
+  execFn: typeof executeSkill = executeSkill,
 ): Promise<Record<string, string | number | boolean>> {
   const resolved: Record<string, string | number | boolean> = {};
   const executed = new Map<string, Record<string, unknown>>(); // endpoint_id → extracted yields
@@ -2183,7 +2187,7 @@ async function walkPrerequisiteChain(
           // and with NO one-time/auth-bearing yield key (no token/nonce/CSRF replay). Any doubt → miss.
           cacheable: (r) => isPersistableYield(r.ok, r.yields, prereqEp, skill),
           recompute: async () => {
-            const out = await executeSkill(
+            const out = await execFn(
               skill,
               { ...baseParams, endpoint_id: prereqId, intent: queryIntent },
               projection,
