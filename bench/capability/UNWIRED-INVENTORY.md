@@ -16,7 +16,22 @@ definition line and comments → a real production caller, or zero (genuinely bu
 | # | mechanism | file:line | prod callers | disposition |
 |---|---|---|---|---|
 | 1 | `cachedResolution.dependsOn` / `.pointer` | `src/values/cached-resolution.ts:42,52,71` | **now 1** (this loop) | **WIRED** — `walkPrerequisiteChain` (orchestrator/index.ts) persists each prereq via `cachedResolution(principal, dependsOn=[priorPointer], cacheable)`; witness `test_persistent_cascade_walk.ts` 17/17, mutation-proven. |
-| 2 | unfilled-`{param}` leak (no pre-fetch hole guard, direct path) | `src/execution/index.ts:3311` (`interpolate`→fetch); guard only at `:3709` recipe-replay | n/a (a hole, not an export) | **bug-queued** — a literal `{param}` survives into the fetched URL when a hole is unbound on the DIRECT execute path. The `:3482` leftover check handles SURPLUS params (appends as query), NOT missing ones. Real, unguarded. Next node: a pre-fetch `/{\w+}/`-remaining guard on the direct path that defers to re-discovery (mirror `shouldReplayRecipe`). |
+| 2 | unfilled-`{param}` leak (no pre-fetch hole guard, direct path) | `src/execution/index.ts:3311` (`interpolate`→fetch); guard only at `:3709` recipe-replay | n/a (a hole, not an export) | **bug-queued (own loop — hazard-mapped below)** — a literal `{param}` survives into the fetched URL when a hole is unbound on the DIRECT execute path. `:3482` handles SURPLUS params (appends as query), NOT missing ones. Real, unguarded. |
+
+### Item #2 hazard map (why it is its own loop, not a one-pass tail)
+The bail vessel exists — the session-bound gate at `:2814` returns `success:false` BEFORE the
+fetch, the exact shape a hole-guard should mirror. But every surgical option collides with a
+live mechanism, so each needs its own red→green witness:
+- **bail-early on leftover `/{\w+}/`** — but today holes→`shouldReplayRecipe` skips replay→the
+  **probe ladder re-discovers**. Bailing would PREVENT that re-discovery (a regression on
+  endpoints the ladder currently recovers). Must witness the ladder cases first.
+- **strip unfilled QUERY holes only** — safe for the leak's common case, BUT `shouldReplayRecipe`
+  (`:3709`) reads leftover `{placeholders}` as its skip signal; stripping blinds it → a recipe
+  could replay when it should not. Must strip on the DIRECT-fetch url only, never the recipe url.
+- **the 5 decomposers** (form/xml/graphql/grpc/jsonrpc) each build their own URL/body — a guard
+  must cover all five, not just the path-template case.
+Next loop: a witness corpus over {path-hole, query-hole, recipe-skip, probe-ladder, each
+decomposer}, then the guard, red→green per case. Start from this map.
 | 3 | `resolveCached` (local↔remote tier selector) | `src/values/resolution-tier.ts:42` | **0** (test-only) | **dormant-because**: it routes a resolution local-then-remote, but there is no remote resolution-cache backend in the resolve path yet (the "maintenance network" tier). The LOCAL tier is exactly the `cachedResolution` I wired in #1; promoting the prereq cascade to route THROUGH `resolveCached` is the wiring once a remote ledger tier ships. Not pruned — it is the seam for #1's remote half. |
 | 4 | `descentResolve` (trust/descent fallback) | `src/trust/descent-cache.ts:99` | **0** (test-only) | **dormant-because**: Paper-2 descent (wallets-own-wallets / hierarchical trust) is not yet on the resolve fallback ladder. A research arm with its own witness; wire only when the descent path is the chosen fallback. Named, not silent. |
 | 5 | `agenticBrowserResolve` (agentic browser fallback) | `src/orchestrator/browser-agent.ts:163` | **0** (headless resolve path) | **dormant-because**: reachable only via the MCP browse tools (interactive session), not the headless `unbrowse resolve` ladder. Intentional separation (the headless path must stay deterministic/cheap). Candidate to wire as the LAST-resort resolve fallback behind an explicit flag; until then, dormant-by-design. |
