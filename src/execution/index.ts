@@ -1,6 +1,37 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { buildBloombergDirectDocumentResult } from "../orchestrator/direct-document.js";
+
+/**
+ * #838 deep-capture escalation, as a testable unit: render the page in the browser (the witnessed
+ * `unbrowse go` path) and turn the rendered HTML into a direct-document answer. Returns the rendered
+ * doc when it is real (non-rejected AND not a thin meta-only envelope), else null (caller keeps the
+ * thin error). `captureFn` is injectable so the composition is machine-witnessable without a live
+ * (flaky, ~20-80s) browser render. Used by the executeEndpoint extraction_too_thin gate.
+ */
+export async function escalateThinViaBrowser(
+  contextUrl: string,
+  intent: string,
+  authHeaders?: Record<string, string>,
+  cookies?: Parameters<typeof captureSession>[2],
+  captureFn: (
+    url: string,
+    a?: Record<string, string>,
+    c?: Parameters<typeof captureSession>[2],
+    i?: string,
+  ) => Promise<CaptureResult> = captureSession,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const cap = await captureFn(contextUrl, authHeaders, cookies, intent);
+    if (cap?.html) {
+      const rendered = buildBloombergDirectDocumentResult(contextUrl, cap.html, "text/html", intent);
+      if (!rendered.rejected && !looksLikeTinyContentReadResult(rendered, intent).tiny) {
+        return rendered as unknown as Record<string, unknown>;
+      }
+    }
+  } catch { /* render failed — caller keeps the thin error */ }
+  return null;
+}
 import * as kuri from "../kuri/client.js";
 import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
@@ -4943,21 +4974,14 @@ export async function executeEndpoint(
       // measured under a realistic per-site budget.
       let escalated = false;
       if (process.env.UNBROWSE_DEEP_CAPTURE === "1" && effectiveIntent) {
-        try {
-          const cap = await captureSession(contextUrl, authHeaders, cookies, effectiveIntent);
-          if (cap?.html) {
-            const rendered = buildBloombergDirectDocumentResult(contextUrl, cap.html, "text/html", effectiveIntent);
-            if (!rendered.rejected && !looksLikeTinyContentReadResult(rendered, effectiveIntent).tiny) {
-              data = rendered as unknown as typeof data;
-              trace.result = data;
-              trace.success = true;
-              trace.error = undefined;
-              log("exec", `[deep-capture] ${contextUrl} browser-render escalation past thin: ${cap.html.length}B`);
-              escalated = true;
-            }
-          }
-        } catch (e) {
-          log("exec", `[deep-capture] escalation failed: ${e instanceof Error ? e.message : String(e)}`);
+        const rendered = await escalateThinViaBrowser(contextUrl, effectiveIntent, authHeaders, cookies);
+        if (rendered) {
+          data = rendered as unknown as typeof data;
+          trace.result = data;
+          trace.success = true;
+          trace.error = undefined;
+          log("exec", `[deep-capture] ${contextUrl} browser-render escalation past thin`);
+          escalated = true;
         }
       }
       if (!escalated) {
