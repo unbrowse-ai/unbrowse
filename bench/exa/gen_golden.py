@@ -71,7 +71,7 @@ def render(url: str, timeout: int = 120) -> str:
     render; the extraction is unbrowse's DETERMINISTIC cleanDOM+turndown of the
     same render — two different transforms of one shared input."""
     try:
-        r = subprocess.run([UNBROWSE, "fetch", url], capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run([UNBROWSE, "act", "fetch", url], capture_output=True, text=True, timeout=timeout)
         html = clean_trace(r.stdout)
         # collapse the rendered HTML to text the golden LLM refines into markdown.
         html = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html)

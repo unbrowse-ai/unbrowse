@@ -99,7 +99,7 @@ def main() -> int:
         ext = ""
         for _try in range(3):
             try:
-                r = subprocess.run([UNBROWSE, "fetch", url, *extract_flags],
+                r = subprocess.run([UNBROWSE, "act", "fetch", url, *extract_flags],
                                    capture_output=True, text=True, timeout=120)
                 cand = clean(r.stdout).strip()
             except Exception:  # noqa: BLE001
