@@ -15,7 +15,7 @@ staking vault and net-asset-value (NAV) growth.
 
 ## TL;DR
 
-1. Every paid `unbrowse execute` settles via Faremeter Flex. The platform's 50%
+1. Every paid `unbrowse act execute` settles via Faremeter Flex. The platform's 50%
    lands as USDC at the platform recipient token account.
 2. An off-chain revenue-routing job takes that USDC, swaps it for FDRY on a DEX,
    and deposits the FDRY into a staking vault.
@@ -45,7 +45,7 @@ the check and the binary would not sign.
 ## The revenue cycle
 
 ```
-unbrowse execute (paid call)
+unbrowse act execute (paid call)
    |
    |- Faremeter Flex authorization, up to 5 recipients
    |    |- Platform   (50% default) -> platform USDC token account

@@ -70,18 +70,18 @@ Use this when you need to force or inspect a route:
 
 ```bash
 unbrowse eval resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty
-unbrowse breath execute --skill <id> --endpoint <id> --pretty
+unbrowse act execute --skill <id> --endpoint <id> --pretty
 ```
 
 Browser verbs are also legacy/debug escape hatches:
 
 ```bash
-unbrowse breath go "https://site.com/booking"
+unbrowse act go "https://site.com/booking"
 unbrowse eval snap --filter interactive      # accessibility snapshot with @eN refs
-unbrowse breath click e5
-unbrowse breath fill e8 "2 adults"
-unbrowse breath submit --wait-for "/time-selection"
-unbrowse breath close                          # checkpoints + indexes the learned route
+unbrowse act click e5
+unbrowse act fill e8 "2 adults"
+unbrowse act submit --wait-for "/time-selection"
+unbrowse act close                          # checkpoints + indexes the learned route
 ```
 
 Treat each successful `submit` as a dependency boundary. `close` records which request chain
@@ -90,7 +90,7 @@ unlocked the next page so future fills can replay the real flow.
 ### Auth for gated sites
 
 ```bash
-unbrowse breath auth-capture --url "https://x.com/login"   # sign in once; the session stays local
+unbrowse act auth-capture --url "https://x.com/login"   # sign in once; the session stays local
 ```
 
 Sign-in works from your existing browser session or an interactive login window. Auth material
@@ -104,7 +104,7 @@ The client **auto-updates in the background** for global npm installs (a detache
 ran). Opt out with `UNBROWSE_NO_AUTO_UPDATE=1`. Check/upgrade manually any time:
 
 ```bash
-unbrowse breath upgrade
+unbrowse act upgrade
 ```
 
 ---
