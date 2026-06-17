@@ -36,7 +36,7 @@ def resolve(intent, url=None, limit=10):
     by scanning for the last JSON object in stdout.
     """
     # Agent-contract STEP 1: top-level `resolve --no-execute` (NOT the debug `eval resolve`).
-    args = ["resolve", "--intent", intent, "--no-execute", "--force-capture"]
+    args = ["eval", "resolve", "--intent", intent, "--no-execute", "--force-capture"]
     if url:
         args += ["--url", url]
     rc, out, err = _run(args)

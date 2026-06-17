@@ -147,7 +147,7 @@ class UnbrowseSearcher(Searcher):
 
     async def extract(self, url: str, query: str | None = None) -> list[SearchResult]:
         """Primary edge: url -> clean markdown via libcurl-impersonate fetch."""
-        stdout, ok = await _run(["fetch", url])
+        stdout, ok = await _run(["act", "fetch", url])
         if not ok:
             return [SearchResult(url=url, metadata={"error": stdout, "ok": False})]
         text = _clean(stdout)
@@ -161,7 +161,7 @@ class UnbrowseSearcher(Searcher):
         on SERP failure; thin DDG snippet kept as fallback if a per-page fetch fails."""
         serp_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
         async with self._sem:
-            stdout, ok = await _run(["fetch", serp_url])
+            stdout, ok = await _run(["act", "fetch", serp_url])
         if not ok:
             return []
         ranked = _parse_ddg_markdown(_clean(stdout), num_results)
@@ -174,7 +174,7 @@ class UnbrowseSearcher(Searcher):
             if not r.url:
                 return r
             async with self._sem:
-                body, fok = await _run(["fetch", r.url])
+                body, fok = await _run(["act", "fetch", r.url])
             if not fok:
                 return r  # keep the thin DDG snippet as honest fallback
             full = _clean(body)[:ENRICH_CHARS]

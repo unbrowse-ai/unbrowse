@@ -78,7 +78,7 @@ def main() -> int:
         if not gok or golden.startswith("__ERR__") or not golden.strip():
             print(f"  [skip] {r['id']}: golden fetch failed")
             continue
-        ext_raw, eok = run([UNBROWSE, "fetch", blob])
+        ext_raw, eok = run([UNBROWSE, "act", "fetch", blob])
         extracted = clean(ext_raw) if eok else ""
         score = rouge_l(golden, extracted)
         scores.append(score)

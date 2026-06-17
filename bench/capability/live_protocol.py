@@ -43,7 +43,7 @@ def _json_lines(text):
 def go(url, timeout=120):
     """Open a session on url; return the REAL captured payload (Axis-B live data).
     -> {ok, session_id, tab_id, page_text, marketplace_publish_mode}."""
-    rc, out, err = _run(["go", url], timeout=timeout)
+    rc, out, err = _run(["act", "go", url], timeout=timeout)
     best = None
     for obj in _json_lines(out):
         if isinstance(obj, dict) and ("page" in obj or "session_id" in obj):
@@ -80,7 +80,7 @@ def _parse_envelope(out):
 def resolve_live(intent, url=None, force_capture=True, timeout=180):
     """Agent-contract STEP 1: top-level `unbrowse resolve --no-execute` → ranked endpoints
     (result.available_endpoints). --force-capture indexes on a cold miss."""
-    args = ["resolve", "--intent", intent, "--no-execute"]
+    args = ["eval", "resolve", "--intent", intent, "--no-execute"]
     if url:
         args += ["--url", url]
     if force_capture:

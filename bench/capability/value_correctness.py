@@ -21,7 +21,7 @@ CORPUS = Path(os.environ.get("CORRECTNESS_CORPUS", HERE / "corpus" / "correctnes
 
 def _run_get(intent: str, url: str) -> tuple[str, bool]:
     try:
-        p = subprocess.run([UNBROWSE, "get", intent, "--url", url],
+        p = subprocess.run([UNBROWSE, "act", "get", intent, "--url", url],
                            capture_output=True, text=True, timeout=TIMEOUT)
         return p.stdout, p.returncode == 0
     except Exception as e:  # noqa: BLE001 — surface, never mask
