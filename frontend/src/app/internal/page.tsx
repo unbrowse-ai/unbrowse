@@ -45,6 +45,17 @@ interface IssuesData {
     by_version?: { key: string; count: number }[];
     by_day?: { key: string; count: number }[];
   };
+  cohort?: {
+    totals?: { installs: number; registered: number; active: number };
+    by_variant?: {
+      variant: string;
+      installs: number;
+      registered: number;
+      active: number;
+      registration_rate: number;
+      activation_rate: number;
+    }[];
+  };
   error?: string;
   reason?: string;
 }
@@ -177,6 +188,41 @@ export default function InternalDashboard() {
             <div className="grid gap-3 md:grid-cols-2">
               <BarsCard title="By command" rows={issues.usage.by_verb} />
               <BarsCard title="By day" rows={issues.usage.by_day} />
+            </div>
+          </section>
+        )}
+
+        {/* Funnel — acquisition cohort: installs → registered → active by variant */}
+        {issues?.cohort?.by_variant && issues.cohort.by_variant.length > 0 && (
+          <section className="mb-12">
+            <SectionLabel>
+              Funnel · by acquisition cohort
+              {issues.cohort.totals && (
+                <span className="ml-2 font-mono text-text-muted text-xs">
+                  {issues.cohort.totals.installs} → {issues.cohort.totals.registered} → {issues.cohort.totals.active}
+                </span>
+              )}
+            </SectionLabel>
+            <div className="overflow-x-auto rounded-2xl border border-border bg-surface-sunken">
+              <div className="min-w-[34rem]">
+                <div className="grid grid-cols-[1fr_5rem_6rem_6rem] gap-3 border-b border-border px-4 py-2.5 text-[11px] uppercase tracking-wide text-text-muted">
+                  <span>Variant</span><span className="text-right">Installs</span><span className="text-right">Registered</span><span className="text-right">Active</span>
+                </div>
+                <div className="divide-y divide-border/60">
+                  {issues.cohort.by_variant.map((r) => (
+                    <div key={r.variant} className="grid grid-cols-[1fr_5rem_6rem_6rem] items-baseline gap-3 px-4 py-2.5 text-sm">
+                      <span className="font-mono text-xs text-text-primary truncate">{r.variant}</span>
+                      <span className="text-right font-mono tabular-nums">{r.installs}</span>
+                      <span className="text-right font-mono tabular-nums">
+                        {r.registered}<span className="text-text-muted text-[11px] ml-1">{Math.round(r.registration_rate * 100)}%</span>
+                      </span>
+                      <span className="text-right font-mono tabular-nums">
+                        {r.active}<span className="text-text-muted text-[11px] ml-1">{Math.round(r.activation_rate * 100)}%</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
         )}
