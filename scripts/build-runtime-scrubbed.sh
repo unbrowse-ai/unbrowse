@@ -38,4 +38,14 @@ if [ "${hits:-0}" -ne 0 ]; then
   grep -aoE 'covenant|superpattern|\bjesus\b|firmament|nullifier|\bsubstrate\b' "$ROOT/$OUTDIR"/*.js 2>/dev/null | sort | uniq -c >&2
   exit 1
 fi
-echo "[runtime] clean: readable runtime bundle built from scrubbed src ($OUTDIR), 0 vocab hits"
+# Regression guard (browser path): chrome-remote-interface must be INLINED, never
+# left as an external require. A dynamic createRequire load leaves it external and
+# the npm bundle then hard-fails `act go` with "Cannot find module
+# 'chrome-remote-interface'" (CRI is not a published dep). Fail closed if any
+# entrypoint requires it externally.
+cri_external="$(grep -aoE 'require(CJS)?\("chrome-remote-interface"\)' "$ROOT/$OUTDIR"/*.js 2>/dev/null | wc -l | tr -d ' ' || true)"
+if [ "${cri_external:-0}" -ne 0 ]; then
+  echo "[runtime] FAIL: chrome-remote-interface left EXTERNAL ($cri_external require site(s)) — browser path will break on npm. Use a static import so the bundler inlines it." >&2
+  exit 1
+fi
+echo "[runtime] clean: readable runtime bundle built from scrubbed src ($OUTDIR), 0 vocab hits, CRI inlined"
