@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.4...v9.4.5) (2026-06-17)
+
+### Bug Fixes
+
+* **cdp:** bundle chrome-remote-interface (static import) so the browser path works on npm ([cf83455](https://github.com/unbrowse-ai/unbrowse-dev/commit/cf83455f7bfb8145c53c931f076d8c3aedb24016))
+
 ## [9.4.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.3...v9.4.4) (2026-06-17)
 
 ## [9.4.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.2...v9.4.3) (2026-06-17)
