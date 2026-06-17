@@ -26,7 +26,10 @@ export function middleware(request: NextRequest) {
   // bytes are never served without the credential, and the credential is NOT in
   // the client bundle (it is a deploy-time var sourced from a GitHub secret).
   // Fail-closed: if no credential is configured on the worker, /internal is denied.
-  if (request.nextUrl.pathname.startsWith("/internal")) {
+  // Gate ONLY /internal and its subpaths — NOT /internal-apis-are-all-you-need
+  // (a public page) or any other /internal* route.
+  const p = request.nextUrl.pathname;
+  if (p === "/internal" || p.startsWith("/internal/")) {
     const expected = process.env.INTERNAL_AUTH_PASSWORD;
     const header = request.headers.get("authorization") ?? "";
     let provided = "";
