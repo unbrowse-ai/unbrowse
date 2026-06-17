@@ -6,7 +6,7 @@ import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
 import { getLandingHomepageInstallAttribution } from "../services/landing-experiments.js";
 import { recordSurfaceError, loadSurfaceErrors, recordUsagePing, loadUsagePings } from "../services/issues.js";
-import { recordTokenInstall } from "../services/attribution-link.js";
+import { recordTokenInstall, recordInstallVariant, bumpCohortStage, getCohortFunnel } from "../services/attribution-link.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -92,6 +92,12 @@ telemetryRoutes.post("/telemetry/install", async (c) => {
   // Funnel keystone: bind landing token → install_id (first-write-wins) so registration
   // can later resolve which install an agent came from. Best-effort.
   if (attribution?.token_id) await recordTokenInstall(c.env, attribution.token_id, body.install_id);
+  // Cohort funnel (KV counters): remember install→variant + count this install once.
+  if (body.install_id) {
+    const variant = attribution?.variant_id || "(unattributed)";
+    await recordInstallVariant(c.env, body.install_id, variant);
+    await bumpCohortStage(c.env, variant, "installs", body.install_id);
+  }
   const stored = await recordInstallTelemetry(c.env, {
     install_id: body.install_id,
     source: body.source,
@@ -222,14 +228,15 @@ telemetryRoutes.get("/telemetry/issues", optionalAuth, async (c) => {
     return c.json({ error: "admin or dashboard token required" }, 403);
   }
   const days = Number(c.req.query("days") ?? "7") || 7;
-  // NOTE: getCohortFunnel is deliberately NOT folded here — it does 3 unbounded
-  // listWithValues (install-event/attrib:agent/analytics:session) which blows the
-  // request timeout at prod data scale (witnessed http=000). The cohort view needs a
-  // cron-precomputed snapshot before it can serve inline; tracked for the next iteration.
-  // Keeping this read fast (usage + errors only) is what the dashboard depends on.
-  const [summary, usage] = await Promise.all([loadSurfaceErrors(c.env, days), loadUsagePings(c.env, days)]);
+  // getCohortFunnel is now KV-counter-backed (O(variants) keyed gets, no scan) so it serves
+  // inline cheaply — the listWithValues-join version that timed out on prod is gone.
+  const [summary, usage, cohort] = await Promise.all([
+    loadSurfaceErrors(c.env, days),
+    loadUsagePings(c.env, days),
+    getCohortFunnel(c.env),
+  ]);
   c.header("Cache-Control", "no-store");
-  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary, usage });
+  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary, usage, cohort });
 });
 
 // ---------------------------------------------------------------------------

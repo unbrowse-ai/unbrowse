@@ -13,6 +13,7 @@ import { getFlywheelPulse } from "../services/flywheel.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getLandingHomepageAnalyticsSummary } from "../services/landing-experiments.js";
 import { getCampaignFeedbackSummary } from "../services/campaign-feedback.js";
+import { variantForInstall, bumpCohortStage } from "../services/attribution-link.js";
 import {
   getGrowthMetrics,
   getNetworkHealthMetrics,
@@ -153,6 +154,15 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cost_saved_uc: body.cost_saved_uc,
     install_id: body.install_id,
   });
+  // Cohort funnel: count this install active once (best-effort, never blocks the session write).
+  if (body.install_id) {
+    try {
+      const variant = (await variantForInstall(c.env, body.install_id)) || "(unattributed)";
+      await bumpCohortStage(c.env, variant, "active", body.install_id);
+    } catch {
+      /* best-effort */
+    }
+  }
   return c.json({ ok: true });
 });
 

@@ -84,10 +84,21 @@ export async function getAttributionStats(env: Env): Promise<{ linked_agents: nu
   return { linked_agents: agents.length, linked_tokens: tokens.length };
 }
 
-// KV prefixes owned elsewhere (kept as literals to avoid a circular import; the source of
-// truth is install-telemetry.ts INSTALL_EVENT_PREFIX + metrics.ts SESSION_PREFIX).
-const INSTALL_EVENT_PREFIX = "install-event:";
-const SESSION_PREFIX = "analytics:session:";
+// Cohort funnel — KV-NATIVE counters (point get/put + a tiny variant registry), NOT a
+// scan. Each stage increments a fixed per-variant counter at write time, deduped per
+// install so the count is distinct-installs (not events). Reading the funnel is O(variants)
+// keyed gets — it scales, unlike the listWithValues-and-join scan that timed out on prod.
+//   cohort:c:<variant>:<stage>  -> count        (installs|registered|active)
+//   cohort:iv:<install_id>      -> variant       (so register/session resolve their variant)
+//   cohort:seen:<stage>:<id>    -> "1"           (distinct-count guard; point-access, never scanned)
+//   cohort:variants             -> JSON string[] (the small registry the read enumerates)
+const COHORT_COUNTER_PREFIX = "cohort:c:";
+const COHORT_IV_PREFIX = "cohort:iv:";
+const COHORT_SEEN_PREFIX = "cohort:seen:";
+const COHORT_VARIANTS_KEY = "cohort:variants";
+const UNATTRIBUTED = "(unattributed)";
+
+export type CohortStage = "installs" | "registered" | "active";
 
 export interface CohortRow {
   variant: string;
@@ -98,78 +109,88 @@ export interface CohortRow {
   activation_rate: number;
 }
 export interface CohortFunnel {
-  days: number;
   totals: { installs: number; registered: number; active: number };
   by_variant: CohortRow[];
 }
 
 const rate = (n: number, d: number): number => (d > 0 ? Math.round((n / d) * 1000) / 1000 : 0);
 
-/**
- * The dominion view (break ③): join installs -> registered agents -> active usage by
- * acquisition cohort (landing variant). Closes the chain the attribution-link layer binds —
- * revenue can now be read per-cohort, not just per-agent. Pure listWithValues join.
- */
-export async function getCohortFunnel(env: Env, days: number): Promise<CohortFunnel> {
-  const clampedDays = Math.max(1, Math.min(365, Math.trunc(Number.isFinite(days) ? days : 30)));
-  const cutoffMs = Date.now() - clampedDays * 86_400_000;
+/** At install: remember which variant seeded an install, so register/session can resolve it. */
+export async function recordInstallVariant(env: Env, installId: string, variant: string): Promise<void> {
+  const i = clean(installId);
+  if (!i) return;
+  await statsKV(env).put(`${COHORT_IV_PREFIX}${i}`, clean(variant) || UNATTRIBUTED);
+}
+
+export async function variantForInstall(env: Env, installId: string): Promise<string | null> {
+  const i = clean(installId);
+  if (!i) return null;
+  return ((await statsKV(env).get(`${COHORT_IV_PREFIX}${i}`)) as string | null) || null;
+}
+
+async function registerVariant(env: Env, variant: string): Promise<void> {
   const kv = statsKV(env);
-  const [installEntries, agentEntries, sessionEntries] = await Promise.all([
-    kv.listWithValues(INSTALL_EVENT_PREFIX),
-    kv.listWithValues(AGENT_INSTALL_PREFIX),
-    kv.listWithValues(SESSION_PREFIX),
-  ]);
-
-  // install_id -> variant (windowed by install created_at)
-  const installVariant = new Map<string, string>();
-  const variantInstalls = new Map<string, Set<string>>();
-  for (const e of installEntries) {
-    try {
-      const ev = JSON.parse(e.value) as { install_id?: string; landing_variant_id?: string; created_at?: string };
-      if (!ev.install_id) continue;
-      if (ev.created_at && Date.parse(ev.created_at) < cutoffMs) continue;
-      const v = ev.landing_variant_id || "(unattributed)";
-      installVariant.set(ev.install_id, v);
-      (variantInstalls.get(v) ?? variantInstalls.set(v, new Set()).get(v)!).add(ev.install_id);
-    } catch {
-      /* skip */
-    }
+  const raw = (await kv.get(COHORT_VARIANTS_KEY)) as string | null;
+  let list: string[];
+  try {
+    list = raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    list = [];
   }
-
-  // registered: attrib:agent value is the install_id
-  const variantRegistered = new Map<string, Set<string>>();
-  for (const a of agentEntries) {
-    const installId = (a.value || "").trim();
-    const v = installVariant.get(installId);
-    if (!v) continue;
-    (variantRegistered.get(v) ?? variantRegistered.set(v, new Set()).get(v)!).add(installId);
+  if (!list.includes(variant)) {
+    list.push(variant);
+    await kv.put(COHORT_VARIANTS_KEY, JSON.stringify(list.slice(0, 500)));
   }
+}
 
-  // active: sessions carrying install_id
-  const variantActive = new Map<string, Set<string>>();
-  for (const s of sessionEntries) {
-    try {
-      const ss = JSON.parse(s.value) as { install_id?: string };
-      const v = ss.install_id ? installVariant.get(ss.install_id) : undefined;
-      if (!v || !ss.install_id) continue;
-      (variantActive.get(v) ?? variantActive.set(v, new Set()).get(v)!).add(ss.install_id);
-    } catch {
-      /* skip */
-    }
+/**
+ * Bump a funnel stage for a variant, deduped per install (distinct-install count, not events).
+ * Best-effort + idempotent; KV INCR is read-modify-write (not atomic) — fine for analytics,
+ * an occasional lost increment is noise, never a correctness/billing path.
+ */
+export async function bumpCohortStage(env: Env, variant: string, stage: CohortStage, dedupeId: string): Promise<void> {
+  const v = clean(variant) || UNATTRIBUTED;
+  const d = clean(dedupeId);
+  if (!d) return;
+  const kv = statsKV(env);
+  const seenKey = `${COHORT_SEEN_PREFIX}${stage}:${d}`;
+  if (await kv.get(seenKey)) return; // already counted this install at this stage
+  await kv.put(seenKey, "1");
+  const cKey = `${COHORT_COUNTER_PREFIX}${v}:${stage}`;
+  const cur = Number((await kv.get(cKey)) as string | null) || 0;
+  await kv.put(cKey, String(cur + 1));
+  await registerVariant(env, v);
+}
+
+/**
+ * The dominion view (break ③) — read the per-variant funnel from the counters. O(variants)
+ * point-gets via the small `cohort:variants` registry; no scan, so it serves inline cheaply.
+ */
+export async function getCohortFunnel(env: Env): Promise<CohortFunnel> {
+  const kv = statsKV(env);
+  const raw = (await kv.get(COHORT_VARIANTS_KEY)) as string | null;
+  let variants: string[];
+  try {
+    variants = raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    variants = [];
   }
-
-  const by_variant: CohortRow[] = Array.from(variantInstalls.entries())
-    .map(([variant, set]) => {
-      const installs = set.size;
-      const registered = variantRegistered.get(variant)?.size ?? 0;
-      const active = variantActive.get(variant)?.size ?? 0;
-      return { variant, installs, registered, active, registration_rate: rate(registered, installs), activation_rate: rate(active, installs) };
-    })
-    .sort((a, b) => b.installs - a.installs);
-
+  const by_variant: CohortRow[] = [];
+  for (const variant of variants) {
+    const [i, r, a] = await Promise.all([
+      kv.get(`${COHORT_COUNTER_PREFIX}${variant}:installs`),
+      kv.get(`${COHORT_COUNTER_PREFIX}${variant}:registered`),
+      kv.get(`${COHORT_COUNTER_PREFIX}${variant}:active`),
+    ]);
+    const installs = Number(i as string | null) || 0;
+    const registered = Number(r as string | null) || 0;
+    const active = Number(a as string | null) || 0;
+    by_variant.push({ variant, installs, registered, active, registration_rate: rate(registered, installs), activation_rate: rate(active, installs) });
+  }
+  by_variant.sort((x, y) => y.installs - x.installs);
   const totals = by_variant.reduce(
     (acc, r) => ({ installs: acc.installs + r.installs, registered: acc.registered + r.registered, active: acc.active + r.active }),
     { installs: 0, registered: 0, active: 0 },
   );
-  return { days: clampedDays, totals, by_variant };
+  return { totals, by_variant };
 }

@@ -3,7 +3,7 @@ import { statsKV } from "./kv.js";
 import { CURRENT_TOS_VERSION } from "../tos.js";
 import { grantCredits } from "./credits.js";
 import { createLocalKey } from "./keys.js";
-import { linkAgentViaToken } from "./attribution-link.js";
+import { linkAgentViaToken, variantForInstall, bumpCohortStage } from "./attribution-link.js";
 import { resolveLandingHomepageToken } from "./landing-experiments.js";
 
 const MAX_ACTIVITY_DAYS = 90;
@@ -146,7 +146,13 @@ export async function registerAgent(
   if (attribution?.landing_token) {
     try {
       const claims = await resolveLandingHomepageToken(env, attribution.landing_token);
-      if (claims?.token_id) await linkAgentViaToken(env, data.keyId, claims.token_id);
+      if (claims?.token_id) {
+        const installId = await linkAgentViaToken(env, data.keyId, claims.token_id);
+        if (installId) {
+          const variant = (await variantForInstall(env, installId)) || "(unattributed)";
+          await bumpCohortStage(env, variant, "registered", installId);
+        }
+      }
     } catch {
       /* attribution is best-effort; never block registration */
     }
