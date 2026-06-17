@@ -160,3 +160,100 @@ export function buildIssueTemplate(bundle: ReproBundle): IssueTemplate {
 export function shouldFileIssue(errorCount: number): boolean {
   return errorCount >= ISSUE_FILING_THRESHOLD;
 }
+
+// ---------------------------------------------------------------------------
+// Surface-error feed — the "secret faults" (Psalms 19:12): the errors users
+// actually hit across CLI / frontend / backend (cli_timeout, 426
+// client_update_required, ECONNREFUSED, no_route, captcha_block, …), made
+// visible on the internal dashboard. Distinct from the agent-filed skill
+// IssueReport above (that is per-skill bug reports; this is surface telemetry).
+// Low-volume by nature, so it reuses the funnel KV pattern (statsKV) — it does
+// NOT re-open the retired high-volume session store (a Neon→IQ non-goal).
+// Time-keyed (`error-event:<iso>:<id>`) so listWithValues yields newest-first.
+// ---------------------------------------------------------------------------
+
+const ERROR_EVENT_PREFIX = "error-event:";
+const MAX_ERROR_MSG = 1000;
+
+export interface SurfaceErrorEvent {
+  event_id: string;
+  created_at: string;
+  /** "cli" | "frontend" | "backend" */
+  surface: string;
+  /** error kind/code (cli_timeout | client_update_required | ECONNREFUSED | no_route | captcha_block | …) */
+  kind: string;
+  message?: string;
+  /** pointer-only op/route/intent context, NEVER credentials */
+  context?: Record<string, unknown>;
+  install_id?: string;
+  session_id?: string;
+  version?: string;
+  agent_id?: string | null;
+}
+
+export async function recordSurfaceError(
+  env: Env,
+  ev: Omit<SurfaceErrorEvent, "event_id" | "created_at"> &
+    Partial<Pick<SurfaceErrorEvent, "event_id" | "created_at">>,
+): Promise<SurfaceErrorEvent> {
+  const stored: SurfaceErrorEvent = {
+    event_id: ev.event_id ?? generateId(),
+    created_at: ev.created_at ?? new Date().toISOString(),
+    surface: ev.surface,
+    kind: ev.kind,
+    message: ev.message ? ev.message.slice(0, MAX_ERROR_MSG) : undefined,
+    context: ev.context,
+    install_id: ev.install_id,
+    session_id: ev.session_id,
+    version: ev.version,
+    agent_id: ev.agent_id ?? null,
+  };
+  await statsKV(env).put(
+    `${ERROR_EVENT_PREFIX}${stored.created_at}:${stored.event_id}`,
+    JSON.stringify(stored),
+  );
+  return stored;
+}
+
+function tallyErrors(events: SurfaceErrorEvent[], pick: (e: SurfaceErrorEvent) => string): { key: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const e of events) {
+    const k = pick(e) || "unknown";
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return Array.from(m.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({ key, count }));
+}
+
+export interface SurfaceErrorSummary {
+  total: number;
+  by_kind: { key: string; count: number }[];
+  by_surface: { key: string; count: number }[];
+  by_version: { key: string; count: number }[];
+  recent: SurfaceErrorEvent[];
+}
+
+/** Load + aggregate recent surface errors (newest-first) for the dashboard. */
+export async function loadSurfaceErrors(env: Env, days: number, limit = 200): Promise<SurfaceErrorSummary> {
+  const clampedDays = Math.max(1, Math.min(365, Math.trunc(Number.isFinite(days) ? days : 7)));
+  const cutoffMs = Date.now() - clampedDays * 86_400_000;
+  const entries = await statsKV(env).listWithValues(ERROR_EVENT_PREFIX);
+  const events = entries
+    .map((e) => {
+      try {
+        return JSON.parse(e.value) as SurfaceErrorEvent;
+      } catch {
+        return null;
+      }
+    })
+    .filter((e): e is SurfaceErrorEvent => !!e?.kind && !!e?.created_at && Date.parse(e.created_at) >= cutoffMs)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return {
+    total: events.length,
+    by_kind: tallyErrors(events, (e) => e.kind),
+    by_surface: tallyErrors(events, (e) => e.surface),
+    by_version: tallyErrors(events, (e) => e.version ?? "unknown"),
+    recent: events.slice(0, limit),
+  };
+}
