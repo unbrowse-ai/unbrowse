@@ -9,6 +9,9 @@ import {
   linkAgentViaToken,
   getAttributionStats,
   getCohortFunnel,
+  recordInstallVariant,
+  variantForInstall,
+  bumpCohortStage,
 } from "../src/services/attribution-link.js";
 
 const env = {
@@ -115,19 +118,21 @@ describe("attribution-link — the funnel keystone join", () => {
     expect(stats.linked_agents).toBe(1);
   });
 
-  // Gen 1:26 — dominion: the whole chain, end-to-end, read back by acquisition cohort.
-  it("END-TO-END: install → register → session resolves into a cohort funnel by variant", async () => {
-    const kv = statsKV(env);
-    const now = new Date().toISOString();
-    // (a) INSTALL: the route writes an install-event (with variant) + binds token->install
-    await kv.put("install-event:ev1", JSON.stringify({ install_id: "install_e2e", landing_variant_id: "variant-A", created_at: now }));
+  // Gen 1:26 — dominion: the whole chain, end-to-end, counted into the cohort funnel.
+  it("END-TO-END: install → register → session counts into the cohort funnel by variant (KV counters)", async () => {
+    // (a) INSTALL: route binds token→install, records install→variant, bumps installs
     await recordTokenInstall(env, "tok_e2e", "install_e2e");
-    // (b) REGISTER: decode token -> bind agent->install (the keystone)
+    await recordInstallVariant(env, "install_e2e", "variant-A");
+    await bumpCohortStage(env, "variant-A", "installs", "install_e2e");
+    // (b) REGISTER: keystone links agent→install, resolves variant, bumps registered
     expect(await linkAgentViaToken(env, "agent_e2e", "tok_e2e")).toBe("install_e2e");
-    // (c) USAGE: a session carrying install_id (break ② closed)
-    await kv.put("analytics:session:s1", JSON.stringify({ session_id: "s1", install_id: "install_e2e", started_at: now }));
-    // (d) DOMINION: the cohort funnel reflects the whole chain, grouped by acquisition variant
-    const cohort = await getCohortFunnel(env, 30);
+    const v = await variantForInstall(env, "install_e2e");
+    expect(v).toBe("variant-A");
+    await bumpCohortStage(env, v!, "registered", "install_e2e");
+    // (c) USAGE: a session bumps active
+    await bumpCohortStage(env, v!, "active", "install_e2e");
+    // (d) DOMINION: the cohort funnel reflects the chain, by acquisition variant
+    const cohort = await getCohortFunnel(env);
     const row = cohort.by_variant.find((r) => r.variant === "variant-A");
     expect(row).toBeDefined();
     expect(row!.installs).toBe(1);
@@ -137,10 +142,17 @@ describe("attribution-link — the funnel keystone join", () => {
     expect(cohort.totals).toEqual({ installs: 1, registered: 1, active: 1 });
   });
 
-  it("cohort funnel: an install with NO registration shows registered=0 (honest funnel drop-off)", async () => {
-    const kv = statsKV(env);
-    await kv.put("install-event:ev2", JSON.stringify({ install_id: "install_lonely", landing_variant_id: "variant-B", created_at: new Date().toISOString() }));
-    const cohort = await getCohortFunnel(env, 30);
+  it("cohort counter dedupes per install: same install bumped twice counts once", async () => {
+    await bumpCohortStage(env, "variant-D", "installs", "install_dup");
+    await bumpCohortStage(env, "variant-D", "installs", "install_dup");
+    const cohort = await getCohortFunnel(env);
+    expect(cohort.by_variant.find((r) => r.variant === "variant-D")!.installs).toBe(1);
+  });
+
+  it("cohort: an install with NO registration shows registered=0 (honest funnel drop-off)", async () => {
+    await recordInstallVariant(env, "install_lonely", "variant-B");
+    await bumpCohortStage(env, "variant-B", "installs", "install_lonely");
+    const cohort = await getCohortFunnel(env);
     const row = cohort.by_variant.find((r) => r.variant === "variant-B");
     expect(row!.installs).toBe(1);
     expect(row!.registered).toBe(0);
