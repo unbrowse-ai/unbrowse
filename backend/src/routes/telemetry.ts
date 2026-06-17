@@ -207,9 +207,14 @@ telemetryRoutes.post("/telemetry/usage", async (c) => {
   return c.json({ ok: true, event_id: stored.event_id });
 });
 
-telemetryRoutes.get("/telemetry/issues", bearerAuth, async (c) => {
-  if (c.get("agent_id") !== "__admin__") {
-    return c.json({ error: "Admin only" }, 403);
+telemetryRoutes.get("/telemetry/issues", optionalAuth, async (c) => {
+  // Read access: the __admin__ key OR the internal-dashboard password (the page is
+  // already edge-gated by the same secret). optionalAuth (not bearerAuth) so a
+  // password bearer isn't rejected as an invalid API key before we can check it.
+  const tok = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const dashOk = !!c.env.INTERNAL_AUTH_PASSWORD && tok === c.env.INTERNAL_AUTH_PASSWORD;
+  if (c.get("agent_id") !== "__admin__" && !dashOk) {
+    return c.json({ error: "admin or dashboard token required" }, 403);
   }
   const days = Number(c.req.query("days") ?? "7") || 7;
   const [summary, usage] = await Promise.all([loadSurfaceErrors(c.env, days), loadUsagePings(c.env, days)]);

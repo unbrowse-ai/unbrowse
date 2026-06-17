@@ -119,7 +119,7 @@ export default function InternalDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             <input
               className="h-9 w-44 rounded-lg border border-border bg-surface-raised px-3 text-sm text-text-primary placeholder:text-text-muted/70 outline-none focus-visible:border-border-strong focus-visible:ring-2 focus-visible:ring-[var(--accent-spark)]/25 transition-colors"
-              type="password" placeholder="admin key" value={key} onChange={(e) => setKey(e.target.value)}
+              type="password" placeholder="admin key or dashboard password" value={key} onChange={(e) => setKey(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && key) void load(); }}
             />
             <select

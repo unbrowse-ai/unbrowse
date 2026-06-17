@@ -111,6 +111,24 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CAPZY_KEY: ${{ secrets.CAPZY_KEY }}
+      - name: Provision INTERNAL_AUTH_PASSWORD (dashboard telemetry read)
+        # Lets the password-gated /internal dashboard READ /v1/telemetry/issues
+        # without the rotated __admin__ key. Same value as the FE edge-auth secret.
+        run: |
+          if [ -z "$INTERNAL_AUTH_PASSWORD" ]; then
+            echo "::notice::INTERNAL_AUTH_PASSWORD not set; dashboard read stays __admin__-only"
+            exit 0
+          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)           ENVFLAG="--env staging" ;;
+            lewis/experiments) ENVFLAG="--env experiments" ;;
+            *)                 ENVFLAG="" ;;
+          esac
+          printf '%s' "$INTERNAL_AUTH_PASSWORD" | ./node_modules/.bin/wrangler secret put INTERNAL_AUTH_PASSWORD --config wrangler.ci.toml $ENVFLAG
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INTERNAL_AUTH_PASSWORD: ${{ secrets.INTERNAL_AUTH_PASSWORD }}
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
