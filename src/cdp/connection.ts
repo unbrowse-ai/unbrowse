@@ -10,13 +10,16 @@
 // in target.ts. Every other CDP domain (Network/DOM/Input/...) consumes
 // `conn.call(method, params, sessionId?)` from here.
 
-import { createRequire } from "node:module";
+import CDPClient from "chrome-remote-interface";
 
 import type { CDPConnection } from "./types.js";
 
-// chrome-remote-interface is CommonJS; load via createRequire so the
-// module works under both Node ESM and bun.
-const requireCJS = createRequire(import.meta.url);
+// chrome-remote-interface is CommonJS, but it is STATICALLY imported (not a
+// dynamic createRequire) so the bundler inlines it into the runtime bundle.
+// The published `runtime/cli.js` is therefore self-contained: `act go` works on
+// a plain `npm i -g unbrowse` without the module being separately installed.
+// (A prior createRequire load left CRI external, so it failed at runtime with
+// "Cannot find module 'chrome-remote-interface'" — the whole browser path dead.)
 type CRIClient = {
   send: (method: string, params: unknown, sessionId?: string) => Promise<unknown>;
   close: () => Promise<void>;
@@ -27,7 +30,7 @@ type CRIClient = {
 type CRIFactory = (opts: { target: string }) => Promise<CRIClient>;
 
 function loadCRI(): CRIFactory {
-  return requireCJS("chrome-remote-interface") as CRIFactory;
+  return CDPClient as unknown as CRIFactory;
 }
 
 /**
