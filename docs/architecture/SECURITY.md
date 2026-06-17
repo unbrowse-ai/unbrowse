@@ -56,18 +56,20 @@ fabricating a fake clearance.
 
 | Anti-bot system | Handler | Clearance signal | Status |
 |---|---|---|---|
-| Cloudflare (JS challenge) | `src/execution/cf-challenge.ts` | `cf_clearance` | bundle extraction live; full replay wiring in progress |
+| Cloudflare (JS challenge) | `src/execution/cf-challenge.ts`, `capzy-cf-solve.ts` | `cf_clearance` | Capzy solver wired (`AntiCloudflareTask`, **proxy-required**, IP+UA-bound) + in-house bundle-replay fallback. API contract live-witnessed; a successful clearance depends on the target's solvability (challenges can return `ERROR_CAPTCHA_UNSOLVABLE`). |
 | PerimeterX | `src/execution/px-challenge.ts` | `_pxhd` + `_px3` | bundle extract + replay |
 | Akamai Bot Manager | `src/execution/akamai-challenge.ts` | `_abck` | detection live; solver pending |
 | Kasada | `src/execution/kasada-challenge.ts` | `x-kpsdk-cd` + `x-kpsdk-ct` | detection only (needs live DOM/crypto, slated for browser-eval path) |
 | Tencent Cloud WAF (TCaptcha) | `src/execution/tencent-waf-solve.ts` | `/WafCaptcha` clearance cookie | solved via Capzy (`UNBROWSE_CAPZY_KEY`) |
 | Generic captcha (reCAPTCHA, hCaptcha, Turnstile, FunCaptcha, GeeTest) | `src/execution/captcha-solve.ts`, `captcha-clear.ts` | injected token | Capzy first, x402-paid solver fallback |
 
-> **Status legend.** *live* = shipping; *in progress* = bundle detection ships,
-> the solve/retry is wired but the body still returns null pending its final
-> step; *detection only* = the blocker is detected but not yet solved. Verified
-> against the modules' own headers (the `solve*AndRetry` bodies are stubs for
-> cf/akamai/kasada as of v9.4.12).
+> **Status legend.** *live* = shipping; *wired* = a real solve path exists
+> (managed solver or replay) but live verification needs a key + a gated target;
+> *detection only* = the blocker is detected but not yet solved. Cloudflare is
+> *wired* via Capzy (`src/execution/capzy-cf-solve.ts`, proxy-required). Akamai and
+> Kasada remain *detection only*: Capzy offers **no** task type for them
+> (live-witnessed `ERROR_TASK_NOT_SUPPORTED`), so they await a different solver —
+> their `solve*AndRetry` bodies stay stubs rather than fake a path that cannot exist.
 
 Cost guardrails live in `src/execution/captcha-solve.ts`: a per-probe budget
 (default $0.01, prevents double-solve) and a per-day budget (default $1.00,
