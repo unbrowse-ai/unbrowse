@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.4.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.9...v9.4.10) (2026-06-17)
+
+### Features
+
+* **telemetry:** CLI emits surface errors (cli_timeout, http_error) to /v1/telemetry/issue ([4970a36](https://github.com/unbrowse-ai/unbrowse-dev/commit/4970a36ff0305586cfa65edb41fb3c18655d638d))
+* **telemetry:** internal ops dashboard (/internal) — usage + the secret-faults feed ([28dfeb1](https://github.com/unbrowse-ai/unbrowse-dev/commit/28dfeb1c6c61d92c0c37c6dc1f5190e1944b01a9))
+* **telemetry:** surface-error feed — POST /telemetry/issue + admin GET /telemetry/issues ([28bc42c](https://github.com/unbrowse-ai/unbrowse-dev/commit/28bc42cb6b16cff456a5e5bf926d038554cf64c1))
+
 ## [9.4.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.8...v9.4.9) (2026-06-17)
 
 ### Features
