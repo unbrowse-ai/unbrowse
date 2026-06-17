@@ -195,3 +195,4 @@ services/base-x402-pay	crypto
 services/fair-compensation	crypto
 services/graph-checkpoint	maintenance
 services/graph-store	maintenance
+routes/solve	out-of-scope
