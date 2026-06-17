@@ -193,7 +193,14 @@ jobs:
         shell: pwsh
         run: |
           $env:HEADLESS = "true"
-          & dist\unbrowse.exe eval resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty 2>&1
+          # A freshly-built CI binary has no signed release manifest, so the prod
+          # backend rejects marketplace calls with 426 client_update_required. This
+          # smoke verifies `eval resolve` RUNS and emits a structured envelope — not
+          # that the prod backend accepts an unsigned dev build.
+          $out = & dist\unbrowse.exe eval resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty 2>&1 | Out-String
+          Write-Host $out
+          if ($out -match '"shortlist"|"op_kind"|"client_update_required"|"next_step"') { Write-Host "PASS: eval resolve ran" }
+          else { Write-Host "FAIL: eval resolve produced no structured output"; exit 1 }
 
       - name: Test install.ps1 syntax
         shell: pwsh
