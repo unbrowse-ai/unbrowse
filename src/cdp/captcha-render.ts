@@ -48,7 +48,26 @@ export async function clearCaptchaInRender(
   target: RenderTarget,
   url: string,
 ): Promise<CaptchaRenderResult> {
-  // 1. Read the rendered DOM.
+  // 1. Wait for the page to load + a short settle, THEN read the DOM — captcha
+  //    widgets (reCAPTCHA/Turnstile) inject asynchronously after navigate, so an
+  //    immediate read misses them. Poll document.readyState (bounded), then settle.
+  try {
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      const rs = (await conn.call(
+        "Runtime.evaluate",
+        { expression: "document.readyState", returnByValue: true },
+        target.sessionId,
+      )) as { result?: { value?: string } };
+      if (rs?.result?.value === "complete" || Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    await new Promise((r) => setTimeout(r, 1500)); // settle for async widget injection
+  } catch {
+    /* best-effort; fall through to the read */
+  }
+
+  // Read the rendered DOM.
   let html = "";
   try {
     const res = (await conn.call(
