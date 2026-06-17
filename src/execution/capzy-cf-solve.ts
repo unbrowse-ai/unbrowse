@@ -88,20 +88,19 @@ export function extractCfClearance(solution: unknown): CfClearance | null {
   return null;
 }
 
-/** Build the Capzy task body for a Cloudflare challenge (proxy vs proxyless). */
-export function buildCfTask(websiteURL: string, proxy?: CapzyProxy): Record<string, unknown> {
-  if (proxy) {
-    return {
-      type: "AntiCloudflareTask",
-      websiteURL,
-      proxyType: proxy.type,
-      proxyAddress: proxy.address,
-      proxyPort: proxy.port,
-      ...(proxy.login ? { proxyLogin: proxy.login } : {}),
-      ...(proxy.password ? { proxyPassword: proxy.password } : {}),
-    };
-  }
-  return { type: "AntiCloudflareTaskProxyLess", websiteURL };
+/** Build the Capzy task body for a Cloudflare challenge. Witnessed against the
+ *  live API (2026-06-17): Cloudflare REQUIRES a proxy — `AntiCloudflareTaskProxyLess`
+ *  returns ERROR_PROXY_REQUIRED, so there is only the proxied `AntiCloudflareTask`. */
+export function buildCfTask(websiteURL: string, proxy: CapzyProxy): Record<string, unknown> {
+  return {
+    type: "AntiCloudflareTask",
+    websiteURL,
+    proxyType: proxy.type,
+    proxyAddress: proxy.address,
+    proxyPort: proxy.port,
+    ...(proxy.login ? { proxyLogin: proxy.login } : {}),
+    ...(proxy.password ? { proxyPassword: proxy.password } : {}),
+  };
 }
 
 /**
@@ -112,6 +111,9 @@ export function buildCfTask(websiteURL: string, proxy?: CapzyProxy): Record<stri
 export async function solveCfViaCapzy(input: SolveCfViaCapzyInput): Promise<CfClearance | null> {
   const clientKey = input.clientKey ?? process.env.UNBROWSE_CAPZY_KEY?.trim();
   if (!clientKey) return null;
+  // Cloudflare REQUIRES a proxy (witnessed: proxyless → ERROR_PROXY_REQUIRED).
+  // No proxy → honest null; caller falls back to the in-house bundle-replay.
+  if (!input.proxy) return null;
   const apiBase = (input.apiBase ?? process.env.UNBROWSE_CAPZY_URL?.trim() ?? "https://api.capzy.ai").replace(/\/+$/, "");
   const doFetch = input.fetchImpl ?? fetch;
   const deadline = Date.now() + (input.timeoutMs ?? 120_000);
@@ -146,6 +148,8 @@ export async function solveCfViaCapzy(input: SolveCfViaCapzyInput): Promise<CfCl
         | { status?: string; errorId?: number; solution?: unknown }
         | null;
       if (!rj || rj.errorId) return null;
+      // "failed" (e.g. ERROR_CAPTCHA_UNSOLVABLE) is terminal — stop polling, honest null.
+      if (rj.status === "failed") return null;
       if (rj.status === "ready") {
         return extractCfClearance(rj.solution);
       }
