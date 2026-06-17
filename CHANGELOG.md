@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.8...v9.4.9) (2026-06-17)
+
+### Features
+
+* **anti-bot:** backend-paid captcha solve tier (/v1/solve), client renders+injects locally ([421044e](https://github.com/unbrowse-ai/unbrowse-dev/commit/421044e46de389a723b1a00e526c7880b3bd5d37))
+
 ## [9.4.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.7...v9.4.8) (2026-06-17)
 
 ### Bug Fixes
