@@ -1,5 +1,16 @@
 # Changelog
 
+## [9.4.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.10...v9.4.11) (2026-06-17)
+
+### Features
+
+* **internal:** password-gate the /internal dashboard (keep randos out) ([db5d300](https://github.com/unbrowse-ai/unbrowse-dev/commit/db5d300b2f6d030f2695ada2293f186ff285afbd))
+* **internal:** real edge auth for /internal (middleware Basic auth, server-side credential) ([962cfb7](https://github.com/unbrowse-ai/unbrowse-dev/commit/962cfb7b9d734ccc2afd0f88be2b009dc932b46e))
+
+### Bug Fixes
+
+* **captcha-render:** wait for load + settle before detecting the widget ([d0fdbb2](https://github.com/unbrowse-ai/unbrowse-dev/commit/d0fdbb24f83e9899c8c389c3fdaf98e0015e6790))
+
 ## [9.4.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.9...v9.4.10) (2026-06-17)
 
 ### Features
