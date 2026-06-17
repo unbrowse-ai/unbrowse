@@ -55,6 +55,22 @@ describe("isAuthBearing classifier (B1 firmament)", () => {
     expect(isAuthBearing(undefined)).toBe(false);
     expect(isAuthBearing(null)).toBe(false);
   });
+
+  // Drift guard (Matt 7:24 — the sign the foundation still stands): these headers
+  // must ALWAYS be auth-bearing. If a future edit accidentally widens the benign
+  // allowlist to include any of them, this goes red.
+  test("no sensitive/credential header is ever treated as benign", () => {
+    const mustBeAuth = [
+      "authorization", "Authorization", "cookie", "Cookie", "set-cookie",
+      "x-api-key", "x-apikey", "api-key", "x-auth-token", "x-access-token",
+      "x-csrf-token", "csrf-token", "x-xsrf-token", "proxy-authorization",
+      "x-amz-security-token", "x-amz-date", "x-goog-api-key", "authentication",
+      "x-session-id", "x-session-token", "x-id-token",
+    ];
+    for (const h of mustBeAuth) {
+      expect(isAuthBearing({ [h]: "value" })).toBe(true);
+    }
+  });
 });
 
 // ── AC1: auth-exclusion witness (+ positive control) ───────────────────────
