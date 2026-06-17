@@ -11,6 +11,24 @@ import { config as loadEnv } from "dotenv";
 import { spawn } from "node:child_process";
 import { getInProcessApp } from "../../runtime/in-process-app.js";
 import { getLastVendorBlock } from "../../capture/process-vendor-signal.js";
+import { RELEASE_MANIFEST_BASE64, RELEASE_MANIFEST_SIGNATURE } from "../../version.js";
+
+/**
+ * Release-manifest attestation headers. The backend's `requireSignedClient`
+ * middleware returns 426 `client_update_required` for any request that omits
+ * them. The three-verb collapse dropped the old `apiRequest` path (the only one
+ * that attached these), so every direct backend fetch MUST spread these in or
+ * the marketplace (resolve/execute/search) hard-fails for all released clients.
+ */
+export function releaseAttestationHeaders(): Record<string, string> {
+  const manifest = (RELEASE_MANIFEST_BASE64 ?? "").trim();
+  const sig = (RELEASE_MANIFEST_SIGNATURE ?? "").trim();
+  if (!manifest || !sig) return {};
+  return {
+    "X-Unbrowse-Release-Manifest": manifest,
+    "X-Unbrowse-Release-Signature": sig,
+  };
+}
 
 // Mirror cli.ts's top-of-module dotenv load so these consts read the same
 // environment they did when defined inline in cli.ts. loadEnv is idempotent
@@ -52,6 +70,7 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
       headers: {
         ...(payload !== undefined ? { "content-type": "application/json" } : {}),
         "x-unbrowse-client-id": CLI_CLIENT_ID,
+        ...releaseAttestationHeaders(),
       },
       ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
     };
