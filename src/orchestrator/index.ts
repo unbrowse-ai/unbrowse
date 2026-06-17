@@ -117,6 +117,46 @@ import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../
 const CONFIDENCE_THRESHOLD = 0.3;
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
 
+/** Registrable host (eTLD+1-ish: last two labels, www-stripped) for the
+ *  auto-walk same-domain gate. Best-effort; returns null on unparseable input. */
+export function registrableHost(u: string | null | undefined): string | null {
+  if (!u) return null;
+  try { return new URL(u).hostname.replace(/^www\./, "").split(".").slice(-2).join("."); } catch { return null; }
+}
+
+/** Auto-walk gate (the web-search→direct-document DAG edge): walk the top
+ *  candidate only when it is high-confidence — same registrable domain as the
+ *  requested URL, or score >= minScore. Keeps the one-hop walk from chasing a
+ *  low-confidence off-domain link. Pure + exported for unit tests. */
+export function shouldAutoWalk(
+  requestedUrl: string | null | undefined,
+  topUrl: string | null | undefined,
+  topScore: number | undefined,
+  minScore = 0.8,
+): boolean {
+  if (!topUrl) return false;
+  const reqReg = registrableHost(requestedUrl);
+  const topReg = registrableHost(topUrl);
+  return (!!reqReg && reqReg === topReg) || (topScore ?? 0) >= minScore;
+}
+
+/** Pick the candidate to auto-walk from a score-ranked list: the highest-scored
+ *  one that passes {@link shouldAutoWalk}, preferring a DEEP page over a bare
+ *  homepage ("/" rarely answers a specific intent — e.g. a "list food" query
+ *  should walk a food listing, not carousell.sg). Returns null when none qualify. */
+export function pickWalkTarget<T extends { url: string; score?: number }>(
+  requestedUrl: string | null | undefined,
+  ranked: ReadonlyArray<T>,
+  minScore = 0.8,
+): T | null {
+  const eligible = ranked.filter((c) => c?.url && shouldAutoWalk(requestedUrl, c.url, c.score, minScore));
+  if (eligible.length === 0) return null;
+  const hasPath = (u: string): boolean => {
+    try { return new URL(u).pathname.replace(/\/+$/, "").length > 0; } catch { return false; }
+  };
+  return eligible.find((c) => hasPath(c.url)) ?? eligible[0];
+}
+
 /**
  * A page-artifact capture (buildPageArtifactCapture / camoufox / curl_cffi rescue) returns
  * {endpoint, result} where `result` is the extracted DATA — with no `available_endpoints`.
@@ -4796,6 +4836,51 @@ export async function resolveAndExecute(
           skill_id: "exa-web-search",
           domain: exaSkillDomain,
         } as unknown as SkillManifest;
+        // DAG edge (north star): rather than return a leaf with a manual
+        // next_step, WALK the top candidate through direct-document (curl-
+        // impersonate rescue included) when it is high-confidence — same
+        // registrable domain as the requested URL, or score >= the gate. One hop
+        // only: fetchDirectDocument never re-enters resolve, so it cannot loop.
+        // On any miss (ineligible/rejected/empty/error) we fall through to the
+        // unchanged candidate leaf below — honest, never a fabricated walk.
+        const topWalk = pickWalkTarget(raceContextUrl, exaHits);
+        if (topWalk?.url) {
+          try {
+            const doc = await fetchDirectDocument(topWalk.url);
+            if (doc && !doc.rejected) {
+              console.log(`[exa→walk] auto-walked top candidate ${topWalk.url} → direct-document (${doc.html_bytes}B)`);
+              const walkTrace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "direct-document",
+                endpoint_id: "direct-document",
+                started_at: new Date(t0).toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+                status_code: 200,
+              };
+              return {
+                result: {
+                  ...doc,
+                  ...(webProvider && { web_search_provider: webProvider }),
+                  walked_from: "exa-web-search",
+                  exa_candidates: candidates,
+                  run_plan: [
+                    { step: "resolve", mode: "web-search", status: "hit", label: "fallback", error: null, source: webProvider ?? "exa" },
+                    { step: "walk", mode: "direct-document", status: "hit", label: "top-candidate", error: null, source: "direct-document" },
+                  ],
+                  decision_trace: decisionTrace,
+                },
+                trace: walkTrace,
+                source: "direct-document" as const,
+                skill: { skill_id: "direct-document", domain: registrableHost(topWalk.url) ?? "direct-document" } as unknown as SkillManifest,
+                timing: finalize("direct-document", null, "direct-document", undefined, walkTrace),
+              };
+            }
+            console.log(`[exa→walk] top candidate ${topWalk.url} rejected/empty — falling back to candidate leaf`);
+          } catch (e) {
+            console.log(`[exa→walk] walk error (${(e as Error).message}) — candidate leaf`);
+          }
+        }
         return {
           result: {
             ...(richHit
@@ -5890,6 +5975,48 @@ export async function resolveAndExecute(
             fetch: `unbrowse fetch --url ${JSON.stringify(hit.url)}`,
           },
         }));
+        // DAG edge (north star): walk the top candidate through direct-document
+        // (curl-impersonate rescue) when high-confidence — same registrable
+        // domain as the requested URL, or score >= gate. One hop; honest leaf
+        // fallback below on any miss. This is the path the bot-blocked Carousell
+        // intent hits, so the one-shot fix lives here too.
+        const topWalk = pickWalkTarget(context?.url, exaResults);
+        if (topWalk?.url) {
+          try {
+            const doc = await fetchDirectDocument(topWalk.url);
+            if (doc && !doc.rejected) {
+              console.log(`[exa→walk] auto-walked top candidate ${topWalk.url} → direct-document (${doc.html_bytes}B)`);
+              const walkTrace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "direct-document",
+                endpoint_id: "direct-document",
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+                status_code: 200,
+              };
+              return {
+                result: {
+                  ...doc,
+                  ...(serialWebProvider && { web_search_provider: serialWebProvider }),
+                  walked_from: "exa-web-search",
+                  exa_candidates: candidates,
+                  run_plan: [
+                    { step: "resolve", mode: "web-search", status: "hit", label: "fallback", error: null, source: serialWebProvider ?? "exa" },
+                    { step: "walk", mode: "direct-document", status: "hit", label: "top-candidate", error: null, source: "direct-document" },
+                  ],
+                },
+                trace: walkTrace,
+                source: "direct-document" as const,
+                skill: { skill_id: "direct-document", domain: registrableHost(topWalk.url) ?? "direct-document" } as unknown as SkillManifest,
+                timing: finalize("direct-document", null, "direct-document", undefined, walkTrace),
+              };
+            }
+            console.log(`[exa→walk] top candidate ${topWalk.url} rejected/empty — exa leaf`);
+          } catch (e) {
+            console.log(`[exa→walk] walk error (${(e as Error).message}) — exa leaf`);
+          }
+        }
         return {
           result: {
             data: richHit.highlights,
