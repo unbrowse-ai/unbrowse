@@ -73,7 +73,7 @@ of them are verdicts; each is a structural signal the agent reads:
 | `goal`, `url` | The probe |
 | `source` | `marketplace`, `cache`, `live-capture`, `dom-fallback`, `direct-fetch`, or empty |
 | `trace_success` | The top-level trace verdict from the CLI; `null` means no trace was emitted |
-| `has_available_operations`, `n_operations` | The shortlist size the agent would see (two-tool-call contract) |
+| `has_available_operations`, `n_operations` | The shortlist size visible in the legacy route-inspection view |
 | `error_code`, `error_message` | What the CLI said when it failed |
 | `captured_html_bytes`, `captured_text_bytes`, `captured_title` | Did the browser actually render something, or are we looking at a captcha shell? |
 | `captured_api_calls` | How many XHR/fetch calls fired during capture |
@@ -213,3 +213,53 @@ above stays stable across runs; the numbers move there.
 - `CLAUDE.md` "bench-local" section — same rubric, project-local detail
 - `harness/probes/JUDGE.md` — judge prompt for the agent-experience harness
 - `harness/probes/GATE_JUDGE.md` — judge prompt for the MCP release gate
+
+---
+
+## Live adversarial corpus coverage
+
+A second harness, `unbrowse-corpus-bench`, grades the **shipped npm binary** against a
+**corpus harvested live each run** rather than a fixed list. The harvester dogfoods the
+Unbrowse CLI itself (it runs `unbrowse run` against r/webscraping's top listing) to mine the
+domains practitioners report fighting, then merges a curated seed of vendor-gated, SPA, and
+GraphQL targets plus commonly-used agentic-task sites. Each site is tagged tier (R/H/A) and
+difficulty (1 reachable, 2 SPA/JS-render, 3 vendor-gated).
+
+It then drives the **documented agent contract** — `resolve` (retrieval) and `run`
+(`resolve`→`execute` replay) — never a diagnostic stub, and records one row per (site, axis).
+
+### Latest run (24-site corpus, 11 mined live from r/webscraping)
+
+| axis | result |
+|---|---|
+| A search / indexing / retrieval (resolve coverage) | **12 / 24 = 0.50** |
+| B execution (resolve→execute replay) | 1 / 6 sampled |
+| D security (credential redaction + obfuscated-egress no-leak witness) | **pass on all 24** |
+
+Retrieval coverage is **0.50 across every difficulty tier** (R, H, A). The misses are
+concentrated, by design, on the hardest targets: JavaScript-challenge gates (e.g. a Cloudflare
+"Just a moment" interstitial), commercial anti-bot vendors (DataDome), and direct JSON-API URLs
+(which are execution targets, not retrieval targets). Those sites route through the
+browser-capture path rather than the thin API-native path the shipped binary exercises here.
+
+### Honesty rules (gated, not prose)
+
+- **No fabricated green.** `gate_corpus.sh` exits 0 only when the run used the real contract, a
+  fresh corpus + dated report exist, retrieval coverage is non-trivial, and the security witness
+  ran. A hard-tier miss is a *reported negative*, never a gate failure or a relabelled pass.
+- **Honest negatives are the product.** Every blocked site is named with its vendor class
+  (`cloudflare-js-challenge`, `datadome`, `anti-bot`, `spa-no-endpoint`) in the dated report.
+- **Security holds everywhere.** The no-secret-on-the-wire invariant passes on all sites,
+  including the ones that block retrieval.
+
+### Reproduce
+
+```bash
+# harvest a fresh corpus (dogfoods unbrowse on r/webscraping) + run the five axes + report
+UNBROWSE_BIN=$(command -v unbrowse) UNBROWSE_API_URL=<staging> \
+  bash ~/(internal) --project . --out bench/corpus/corpus-$(date -u +%Y-%m-%dT%H%M%SZ).jsonl
+# (run_corpus_bench.sh runs the axes; report_corpus.py writes the dated report; gate_corpus.sh is the witness)
+```
+
+Dated per-site reports land in `bench/corpus/reports/`; the per-(site,axis) evidence is appended
+to `bench/corpus/history.jsonl`.
