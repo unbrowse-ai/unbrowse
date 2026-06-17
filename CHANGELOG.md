@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.1...v9.4.2) (2026-06-17)
+
+### Bug Fixes
+
+* **ci:** release smoke runs browse in-process; deep browser steps are best-effort ([a1da6fe](https://github.com/unbrowse-ai/unbrowse-dev/commit/a1da6fe499382c87589798a2e09b890d5b35f6c4))
+
 ## [9.4.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.1-preview.0...v9.4.1) (2026-06-17)
 
 ### Features
