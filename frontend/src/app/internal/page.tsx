@@ -1,17 +1,20 @@
 "use client";
 
-// Internal-only ops dashboard (its own stratum — not linked from the public nav):
-// aggregates the LIVE usage analytics (/v1/analytics/*) and the surface-error
-// feed (/v1/telemetry/issues — the "secret faults" users hit across CLI/FE/backend)
-// into one view. Admin-key gated; the key is pasted + kept in localStorage only
-// (never bundled). Honest: shows raw aggregates, renders the error reason when a
-// feed is down — no fabricated "healthy".
+/* Hallmark · macrostructure: Stat-Led · tone: utilitarian/technical · genre: modern-minimal
+ * theme: project-system (warm-paper light · cyan spark) · component: ops-dashboard
+ * pre-emit critique: P4 H5 E4 S5 R5 V4
+ *
+ * Internal-only ops dashboard (its own stratum — not in public nav): aggregates the
+ * LIVE usage analytics (/v1/analytics/*) and the surface-error feed
+ * (/v1/telemetry/issues — the "secret faults" users hit across CLI/FE/backend).
+ * Access is gated at the EDGE (middleware HTTP Basic auth) before this page is
+ * served, plus the admin Bearer key for the data. Honest: surfaces the feed's
+ * error/reason when down — no fabricated "healthy".
+ */
 
 import { useCallback, useEffect, useState } from "react";
 
 const DEFAULT_API = "https://beta-api.unbrowse.ai";
-// Access is gated at the EDGE (middleware HTTP Basic auth) before this page is
-// served, plus the admin Bearer key for the data — no client-side password here.
 
 interface UsageData {
   total_sessions_30d?: number;
@@ -39,6 +42,12 @@ interface IssuesData {
   reason?: string;
 }
 
+const SURFACE_DOT: Record<string, string> = {
+  cli: "var(--accent-spark)",
+  frontend: "var(--text-secondary)",
+  backend: "var(--border-strong)",
+};
+
 export default function InternalDashboard() {
   const [apiBase, setApiBase] = useState(DEFAULT_API);
   const [key, setKey] = useState("");
@@ -47,6 +56,7 @@ export default function InternalDashboard() {
   const [issues, setIssues] = useState<IssuesData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   useEffect(() => {
     const k = localStorage.getItem("unbrowse_admin_key");
@@ -74,106 +84,170 @@ export default function InternalDashboard() {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [apiBase, key, days]);
 
+  const fmt = (v: number | undefined, suffix = "") =>
+    v === undefined || v === null ? "—" : `${typeof v === "number" && !Number.isInteger(v) ? v.toFixed(2) : v}${suffix}`;
+
   return (
-    <main className="mx-auto max-w-5xl p-6 font-mono text-sm">
-      <h1 className="text-xl font-bold mb-1">unbrowse · internal ops</h1>
-      <p className="text-gray-500 mb-4">usage + the secret faults users hit (CLI / FE / backend)</p>
-
-      <div className="flex flex-wrap gap-2 items-center mb-6">
-        <input
-          className="border px-2 py-1 rounded w-64" placeholder="admin Bearer key (ubr_…)"
-          type="password" value={key} onChange={(e) => setKey(e.target.value)}
-        />
-        <input
-          className="border px-2 py-1 rounded w-64" placeholder="api base" value={apiBase}
-          onChange={(e) => setApiBase(e.target.value)}
-        />
-        <select className="border px-2 py-1 rounded" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          <option value={1}>1d</option><option value={7}>7d</option><option value={30}>30d</option>
-        </select>
-        <button className="bg-black text-white px-3 py-1 rounded" onClick={load} disabled={loading || !key}>
-          {loading ? "loading…" : "load"}
-        </button>
-      </div>
-
-      {err && <div className="bg-red-50 text-red-700 border border-red-200 rounded p-2 mb-4">⚠ {err}</div>}
-
-      {usage && (
-        <section className="mb-6">
-          <h2 className="font-bold mb-2">usage (30d)</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Stat label="sessions" value={usage.total_sessions_30d} />
-            <Stat label="unique agents" value={usage.unique_agents_30d} />
-            <Stat label="calls / session" value={usage.api_calls_per_session} />
-            <Stat label="repeat rate" value={usage.repeat_usage_rate} />
-          </div>
-          {usage.version_breakdown_30d && usage.version_breakdown_30d.length > 0 && (
-            <div className="mt-3 text-xs text-gray-600">
-              versions: {usage.version_breakdown_30d.map((v) => `${v.trace_version.slice(0, 12)} (${v.sessions})`).join(" · ")}
+    <main className="min-h-screen bg-surface text-text-primary">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6 py-10">
+        {/* Header + toolbar */}
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between mb-10">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ background: "var(--accent-spark)", boxShadow: "0 0 0 3px color-mix(in oklab, var(--accent-spark) 18%, transparent)" }}
+              />
+              <h1 className="text-2xl font-semibold tracking-[-0.01em]">Internal ops</h1>
             </div>
-          )}
-        </section>
-      )}
-
-      {issues && issues.ok !== false && (
-        <section>
-          <h2 className="font-bold mb-2">issues — {issues.total ?? 0} in {issues.days ?? days}d</h2>
-          <div className="grid md:grid-cols-2 gap-4 mb-4">
-            <Bars title="by kind" rows={issues.by_kind} />
-            <Bars title="by surface" rows={issues.by_surface} />
+            <p className="text-text-muted text-sm mt-1.5 leading-relaxed">
+              Usage at a glance, and the errors users actually hit — CLI · frontend · backend.
+            </p>
           </div>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                <th className="py-1 pr-2">when</th><th className="pr-2">surface</th><th className="pr-2">kind</th><th className="pr-2">ver</th><th>message</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(issues.recent ?? []).map((e, idx) => (
-                <tr key={idx} className="border-b border-gray-100">
-                  <td className="py-1 pr-2 whitespace-nowrap text-gray-500">{e.created_at?.slice(5, 16).replace("T", " ")}</td>
-                  <td className="pr-2">{e.surface}</td>
-                  <td className="pr-2 font-semibold">{e.kind}</td>
-                  <td className="pr-2 text-gray-400">{(e.version ?? "").slice(0, 8)}</td>
-                  <td className="text-gray-700">{e.message ?? JSON.stringify(e.context ?? {}).slice(0, 80)}</td>
-                </tr>
-              ))}
-              {(!issues.recent || issues.recent.length === 0) && (
-                <tr><td colSpan={5} className="py-2 text-gray-400">no issues in window — either healthy or the CLI/FE haven&apos;t emitted yet</td></tr>
-              )}
-            </tbody>
-          </table>
-        </section>
-      )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="h-9 w-44 rounded-lg border border-border bg-surface-raised px-3 text-sm text-text-primary placeholder:text-text-muted/70 outline-none focus-visible:border-border-strong focus-visible:ring-2 focus-visible:ring-[var(--accent-spark)]/25 transition-colors"
+              type="password" placeholder="admin key" value={key} onChange={(e) => setKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && key) void load(); }}
+            />
+            <select
+              className="h-9 rounded-lg border border-border bg-surface-raised px-2.5 text-sm text-text-secondary outline-none focus-visible:border-border-strong transition-colors"
+              value={days} onChange={(e) => setDays(Number(e.target.value))}
+            >
+              <option value={1}>24h</option><option value={7}>7 days</option><option value={30}>30 days</option>
+            </select>
+            <button
+              className="h-9 rounded-lg bg-text-primary px-4 text-sm font-medium text-surface transition-[opacity,transform] hover:opacity-90 active:translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => void load()} disabled={loading || !key}
+            >
+              {loading ? "Loading…" : "Load"}
+            </button>
+          </div>
+        </header>
+
+        {err && (
+          <div className="mb-8 flex items-start gap-2.5 rounded-xl border border-border-strong bg-surface-sunken px-4 py-3 text-sm text-text-secondary">
+            <span className="mt-0.5 text-text-primary">⚠</span>
+            <span>{err}</span>
+          </div>
+        )}
+
+        {/* Usage */}
+        {usage && (
+          <section className="mb-12">
+            <SectionLabel>Usage · last 30 days</SectionLabel>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Metric label="Sessions" value={fmt(usage.total_sessions_30d)} />
+              <Metric label="Unique agents" value={fmt(usage.unique_agents_30d)} />
+              <Metric label="Calls / session" value={fmt(usage.api_calls_per_session)} />
+              <Metric label="Repeat rate" value={fmt(usage.repeat_usage_rate)} />
+            </div>
+            {usage.version_breakdown_30d && usage.version_breakdown_30d.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {usage.version_breakdown_30d.map((v) => (
+                  <span key={v.trace_version} className="rounded-md border border-border bg-surface-raised px-2 py-1 font-mono text-[11px] text-text-muted">
+                    {v.trace_version.slice(0, 14)} · {v.sessions}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Issues */}
+        {issues && issues.ok !== false && (
+          <section>
+            <SectionLabel>
+              Issues · last {issues.days ?? days}d
+              <span className="ml-2 font-mono text-text-primary">{issues.total ?? 0}</span>
+            </SectionLabel>
+            <div className="grid gap-3 md:grid-cols-2 mb-3">
+              <BarsCard title="By kind" rows={issues.by_kind} />
+              <BarsCard title="By surface" rows={issues.by_surface} />
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-border bg-surface-sunken">
+              <div className="min-w-[34rem]">
+              <div className="grid grid-cols-[7rem_5.5rem_minmax(0,1fr)_5rem] gap-3 border-b border-border px-4 py-2.5 text-[11px] uppercase tracking-wide text-text-muted">
+                <span>When</span><span>Surface</span><span>Kind · message</span><span className="text-right">Version</span>
+              </div>
+              <div className="divide-y divide-border/60">
+                {(issues.recent ?? []).map((e, idx) => (
+                  <div key={idx} className="grid grid-cols-[7rem_5.5rem_minmax(0,1fr)_5rem] items-baseline gap-3 px-4 py-2.5 text-sm">
+                    <span className="font-mono text-xs text-text-muted whitespace-nowrap">{e.created_at?.slice(5, 16).replace("T", " ")}</span>
+                    <span className="flex items-center gap-1.5 text-text-secondary text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: SURFACE_DOT[e.surface] ?? "var(--text-muted)" }} />
+                      {e.surface}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="font-mono text-xs text-text-primary">{e.kind}</span>
+                      {(e.message || e.context) && (
+                        <span className="ml-2 text-text-muted truncate inline-block max-w-full align-bottom">
+                          {e.message ?? JSON.stringify(e.context ?? {}).slice(0, 80)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-right font-mono text-[11px] text-text-muted">{(e.version ?? "").slice(0, 8)}</span>
+                  </div>
+                ))}
+                {(!issues.recent || issues.recent.length === 0) && (
+                  <div className="px-4 py-10 text-center text-sm text-text-muted">
+                    No issues in this window — healthy, or nothing emitted yet.
+                  </div>
+                )}
+              </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Initial / empty state */}
+        {!loading && !loadedOnce && (
+          <div className="rounded-2xl border border-dashed border-border bg-surface-sunken px-6 py-16 text-center">
+            <p className="text-text-primary font-medium">Enter an admin key and load.</p>
+            <p className="text-text-muted text-sm mt-1.5">Usage from <span className="font-mono text-xs">/v1/analytics</span>, issues from <span className="font-mono text-xs">/v1/telemetry/issues</span>.</p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | undefined }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="mb-4 text-sm font-medium text-text-secondary flex items-center">{children}</h2>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border rounded p-2">
-      <div className="text-2xl font-bold">{value ?? "–"}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+    <div className="rounded-2xl border border-border bg-surface-sunken p-4">
+      <div className="font-mono text-3xl font-semibold tracking-[-0.02em] text-text-primary tabular-nums">{value}</div>
+      <div className="mt-1 text-xs text-text-muted">{label}</div>
     </div>
   );
 }
 
-function Bars({ title, rows }: { title: string; rows?: { key: string; count: number }[] }) {
+function BarsCard({ title, rows }: { title: string; rows?: { key: string; count: number }[] }) {
   const max = Math.max(1, ...(rows ?? []).map((r) => r.count));
   return (
-    <div>
-      <div className="text-xs text-gray-500 mb-1">{title}</div>
-      {(rows ?? []).slice(0, 8).map((r) => (
-        <div key={r.key} className="flex items-center gap-2 mb-0.5">
-          <span className="w-32 truncate">{r.key}</span>
-          <span className="bg-black/80 h-3 rounded" style={{ width: `${(r.count / max) * 100}%`, minWidth: 4 }} />
-          <span className="text-gray-500">{r.count}</span>
-        </div>
-      ))}
-      {(!rows || rows.length === 0) && <div className="text-gray-400 text-xs">none</div>}
+    <div className="rounded-2xl border border-border bg-surface-sunken p-4">
+      <div className="mb-3 text-xs text-text-muted">{title}</div>
+      {(rows ?? []).length === 0 && <div className="text-text-muted/70 text-sm">none</div>}
+      <div className="space-y-2">
+        {(rows ?? []).slice(0, 8).map((r) => (
+          <div key={r.key} className="flex items-center gap-3">
+            <span className="w-28 shrink-0 truncate font-mono text-xs text-text-secondary">{r.key}</span>
+            <span className="relative h-2 flex-1 rounded-full bg-surface overflow-hidden">
+              <span className="absolute inset-y-0 left-0 rounded-full bg-text-primary/85" style={{ width: `${Math.max(3, (r.count / max) * 100)}%` }} />
+            </span>
+            <span className="w-8 shrink-0 text-right font-mono text-xs text-text-muted tabular-nums">{r.count}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
