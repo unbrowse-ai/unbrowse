@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.4.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.6...v9.4.7) (2026-06-17)
+
+### Bug Fixes
+
+* **session:** atomic temp+rename write for the on-disk browse-session record ([636c143](https://github.com/unbrowse-ai/unbrowse-dev/commit/636c14307690c8d1da6781cbdf979063ea47e563))
+* **session:** liveness-prune + stale-session reaper (no ECONNREFUSED, bounded leak) ([e0afd5d](https://github.com/unbrowse-ai/unbrowse-dev/commit/e0afd5dd1c6b045b722cefd58b45d8f5879f0a7c))
+
 ## [9.4.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.5...v9.4.6) (2026-06-17)
 
 ### Bug Fixes
