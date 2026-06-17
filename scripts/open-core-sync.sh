@@ -39,10 +39,10 @@ done
 
 echo "== syncing public developer docs =="
 mkdir -p "$DST/docs/for-developers" "$DST/docs/for-agents"
-for d in for-developers for-agents sdk whitepaper start-here public concepts guides; do
+for d in for-developers for-agents sdk whitepaper start-here public concepts guides architecture; do
   [ -d "$ROOT/docs/$d" ] && rsync -a --exclude='internal/' "$ROOT/docs/$d/" "$DST/docs/$d/" && echo "  + docs/$d"
 done
-for f in OPEN-SOURCE-NOTICE.md README.md SUMMARY.md SECURITY.md vision.md HOW_UNBROWSE_PAYS.md THE_FDRY_ECONOMY.md wallets.md; do
+for f in OPEN-SOURCE-NOTICE.md README.md SUMMARY.md SECURITY.md vision.md HOW_UNBROWSE_PAYS.md THE_FDRY_ECONOMY.md wallets.md CATALOGUE.md benchmarks.md benchmarks-history.md caching.md CLAIM_YOUR_DOMAIN.md EARN_AS_INDEXER.md; do
   [ -f "$ROOT/docs/$f" ] && cp "$ROOT/docs/$f" "$DST/docs/$f" && echo "  + docs/$f"
 done
 
