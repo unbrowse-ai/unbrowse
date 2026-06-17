@@ -5,11 +5,13 @@ import { recordFunnelEvent } from "../services/funnel.js";
 import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
 import { getLandingHomepageInstallAttribution } from "../services/landing-experiments.js";
+import { recordSurfaceError, loadSurfaceErrors } from "../services/issues.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 telemetryRoutes.use("/telemetry/events", optionalAuth);
 telemetryRoutes.use("/telemetry/install", optionalAuth);
+telemetryRoutes.use("/telemetry/issue", optionalAuth);
 
 async function hashIpPrefix(raw: string): Promise<string> {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
@@ -141,6 +143,54 @@ telemetryRoutes.post("/telemetry/web", async (c) => {
   return c.json({ ok: true, event_id: stored.event_id });
 });
 
+
+// ---------------------------------------------------------------------------
+// Surface-error feed — the "secret faults" users hit across CLI / FE / backend.
+// POST /telemetry/issue  — ingest one error event (fire-and-forget, optionalAuth).
+// GET  /telemetry/issues — admin read: aggregated + recent, for the internal dashboard.
+// Low-volume KV-backed (see services/issues.ts), distinct from the retired
+// high-volume session store.
+// ---------------------------------------------------------------------------
+telemetryRoutes.post("/telemetry/issue", async (c) => {
+  const body = await c.req.json<{
+    surface?: string;
+    kind?: string;
+    message?: string;
+    context?: Record<string, unknown>;
+    install_id?: string;
+    session_id?: string;
+    version?: string;
+    created_at?: string;
+  }>().catch(() => null);
+  if (!body?.surface || !body.kind) {
+    return c.json({ error: "surface and kind are required" }, 400);
+  }
+  const agentId = c.get("agent_id");
+  const stored = await recordSurfaceError(c.env, {
+    surface: body.surface,
+    kind: body.kind,
+    message: body.message,
+    context: body.context,
+    install_id: body.install_id,
+    session_id: body.session_id,
+    version: body.version,
+    created_at: body.created_at,
+    agent_id: agentId && agentId !== "__admin__" ? agentId : null,
+  });
+  c.header("Cache-Control", "no-store");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json({ ok: true, event_id: stored.event_id });
+});
+
+telemetryRoutes.get("/telemetry/issues", bearerAuth, async (c) => {
+  if (c.get("agent_id") !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  const days = Number(c.req.query("days") ?? "7") || 7;
+  const summary = await loadSurfaceErrors(c.env, days);
+  c.header("Cache-Control", "no-store");
+  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary });
+});
 
 // ---------------------------------------------------------------------------
 // MCP session bug-report telemetry (Phase 3, docs/mcp-telemetry-plan.md)
