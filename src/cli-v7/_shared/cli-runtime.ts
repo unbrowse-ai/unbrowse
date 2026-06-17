@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import { getInProcessApp } from "../../runtime/in-process-app.js";
 import { getLastVendorBlock } from "../../capture/process-vendor-signal.js";
 import { RELEASE_MANIFEST_BASE64, RELEASE_MANIFEST_SIGNATURE } from "../../version.js";
+import { reportIssue } from "../../telemetry/issue.js";
 
 /**
  * Release-manifest attestation headers. The backend's `requireSignedClient`
@@ -85,10 +86,14 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
       const ct = res.headers.get("content-type") ?? "";
       const ok = res.ok;
       if (!ok && ct.includes("json")) return res.json();
-      if (!ok) return { error: `HTTP ${res.status}: ${await res.text()}` };
+      if (!ok) {
+        void reportIssue("http_error", { message: `HTTP ${res.status}`, context: { path, status: res.status } });
+        return { error: `HTTP ${res.status}: ${await res.text()}` };
+      }
       return res.json();
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") {
+        void reportIssue("cli_timeout", { context: { path, timeoutMs } });
         return { error: "cli_timeout", message: `API request exceeded ${timeoutMs}ms.` };
       }
       throw err;
@@ -137,6 +142,7 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
         vendor_detected: { vendor: vendor.vendor, host: vendor.host, detected_at_ms: vendor.detected_at },
       };
     }
+    void reportIssue("cli_timeout", { context: { path, timeoutMs, in_process: true } });
     return { error: "cli_timeout", message: `In-process API exceeded ${timeoutMs}ms.` };
   }
 
@@ -144,7 +150,10 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
   const ct = Array.isArray(ctRaw) ? ctRaw.join(";") : String(ctRaw ?? "");
   const ok = res.statusCode >= 200 && res.statusCode < 300;
   if (!ok && ct.includes("json")) return res.json();
-  if (!ok) return { error: `HTTP ${res.statusCode}: ${res.body}` };
+  if (!ok) {
+    void reportIssue("http_error", { message: `HTTP ${res.statusCode}`, context: { path, status: res.statusCode } });
+    return { error: `HTTP ${res.statusCode}: ${res.body}` };
+  }
   return res.json();
 }
 
