@@ -24,6 +24,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { releaseAttestationHeaders } from "../_shared/cli-runtime.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
 import { safeZero } from "../../values/memzero.js";
@@ -153,6 +154,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       const headers: Record<string, string> = {
         accept: "application/json",
         ...signedHeaders,
+        ...releaseAttestationHeaders(),
       };
       if (fresh) headers["cache-control"] = "no-cache";
       const ctrl = new AbortController();

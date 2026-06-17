@@ -36,6 +36,7 @@ import {
   type OutputOptions,
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
+import { releaseAttestationHeaders } from "../_shared/cli-runtime.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
 import { safeZero } from "../../values/memzero.js";
@@ -132,6 +133,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const headers: Record<string, string> = {
       "content-type": "application/json",
       accept: "application/json",
+      ...releaseAttestationHeaders(),
     };
     if (fresh) headers["cache-control"] = "no-cache";
     // Self-healing bearer (Claude-Code auth state machine): validate the
@@ -156,7 +158,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         try {
           const r = await fetch(`${base.replace(/\/$/, "")}/v1/search`, {
             method: "POST",
-            headers: { "content-type": "application/json", accept: "application/json" },
+            headers: { "content-type": "application/json", accept: "application/json", ...releaseAttestationHeaders() },
             body: JSON.stringify({ intent, k: limit }),
             signal: ctrl.signal,
           });
