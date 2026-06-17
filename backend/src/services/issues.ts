@@ -215,9 +215,9 @@ export async function recordSurfaceError(
   return stored;
 }
 
-function tallyErrors(events: SurfaceErrorEvent[], pick: (e: SurfaceErrorEvent) => string): { key: string; count: number }[] {
+function tally<T>(items: T[], pick: (e: T) => string): { key: string; count: number }[] {
   const m = new Map<string, number>();
-  for (const e of events) {
+  for (const e of items) {
     const k = pick(e) || "unknown";
     m.set(k, (m.get(k) ?? 0) + 1);
   }
@@ -251,9 +251,77 @@ export async function loadSurfaceErrors(env: Env, days: number, limit = 200): Pr
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   return {
     total: events.length,
-    by_kind: tallyErrors(events, (e) => e.kind),
-    by_surface: tallyErrors(events, (e) => e.surface),
-    by_version: tallyErrors(events, (e) => e.version ?? "unknown"),
+    by_kind: tally(events, (e) => e.kind),
+    by_surface: tally(events, (e) => e.surface),
+    by_version: tally(events, (e) => e.version ?? "unknown"),
     recent: events.slice(0, limit),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Usage-ping feed — answers "is anyone using it?" The CLI fires one ping per
+// invocation ({verb, version, install_id}); the rich per-session store stays
+// retired (Neon→IQ non-goal). Low-volume KV, time-keyed, same pattern as the
+// error feed. Aggregates: total invocations, distinct active installs, by verb,
+// by version, and a per-day series — the real usage signal the retired analytics
+// feed can't give.
+// ---------------------------------------------------------------------------
+
+const USAGE_PING_PREFIX = "usage-ping:";
+
+export interface UsagePing {
+  event_id: string;
+  created_at: string;
+  verb: string;
+  version?: string;
+  install_id?: string;
+  agent_id?: string | null;
+}
+
+export async function recordUsagePing(
+  env: Env,
+  ping: Omit<UsagePing, "event_id" | "created_at"> & Partial<Pick<UsagePing, "event_id" | "created_at">>,
+): Promise<UsagePing> {
+  const stored: UsagePing = {
+    event_id: ping.event_id ?? generateId(),
+    created_at: ping.created_at ?? new Date().toISOString(),
+    verb: ping.verb,
+    version: ping.version,
+    install_id: ping.install_id,
+    agent_id: ping.agent_id ?? null,
+  };
+  await statsKV(env).put(`${USAGE_PING_PREFIX}${stored.created_at}:${stored.event_id}`, JSON.stringify(stored));
+  return stored;
+}
+
+export interface UsagePingSummary {
+  total: number;
+  active_installs: number;
+  by_verb: { key: string; count: number }[];
+  by_version: { key: string; count: number }[];
+  by_day: { key: string; count: number }[];
+}
+
+export async function loadUsagePings(env: Env, days: number): Promise<UsagePingSummary> {
+  const clampedDays = Math.max(1, Math.min(365, Math.trunc(Number.isFinite(days) ? days : 7)));
+  const cutoffMs = Date.now() - clampedDays * 86_400_000;
+  const entries = await statsKV(env).listWithValues(USAGE_PING_PREFIX);
+  const pings = entries
+    .map((e) => {
+      try {
+        return JSON.parse(e.value) as UsagePing;
+      } catch {
+        return null;
+      }
+    })
+    .filter((p): p is UsagePing => !!p?.verb && !!p?.created_at && Date.parse(p.created_at) >= cutoffMs);
+  const installs = new Set<string>();
+  for (const p of pings) if (p.install_id) installs.add(p.install_id);
+  return {
+    total: pings.length,
+    active_installs: installs.size,
+    by_verb: tally(pings, (p) => p.verb),
+    by_version: tally(pings, (p) => p.version ?? "unknown"),
+    by_day: tally(pings, (p) => p.created_at.slice(0, 10)).sort((a, b) => a.key.localeCompare(b.key)),
   };
 }

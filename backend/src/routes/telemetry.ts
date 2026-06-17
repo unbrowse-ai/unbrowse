@@ -5,13 +5,14 @@ import { recordFunnelEvent } from "../services/funnel.js";
 import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
 import { getLandingHomepageInstallAttribution } from "../services/landing-experiments.js";
-import { recordSurfaceError, loadSurfaceErrors } from "../services/issues.js";
+import { recordSurfaceError, loadSurfaceErrors, recordUsagePing, loadUsagePings } from "../services/issues.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 telemetryRoutes.use("/telemetry/events", optionalAuth);
 telemetryRoutes.use("/telemetry/install", optionalAuth);
 telemetryRoutes.use("/telemetry/issue", optionalAuth);
+telemetryRoutes.use("/telemetry/usage", optionalAuth);
 
 async function hashIpPrefix(raw: string): Promise<string> {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
@@ -182,14 +183,38 @@ telemetryRoutes.post("/telemetry/issue", async (c) => {
   return c.json({ ok: true, event_id: stored.event_id });
 });
 
+// One usage ping per CLI invocation — the "is anyone using it?" signal.
+telemetryRoutes.post("/telemetry/usage", async (c) => {
+  const body = await c.req.json<{
+    verb?: string;
+    version?: string;
+    install_id?: string;
+    created_at?: string;
+  }>().catch(() => null);
+  if (!body?.verb) {
+    return c.json({ error: "verb is required" }, 400);
+  }
+  const agentId = c.get("agent_id");
+  const stored = await recordUsagePing(c.env, {
+    verb: body.verb,
+    version: body.version,
+    install_id: body.install_id,
+    created_at: body.created_at,
+    agent_id: agentId && agentId !== "__admin__" ? agentId : null,
+  });
+  c.header("Cache-Control", "no-store");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json({ ok: true, event_id: stored.event_id });
+});
+
 telemetryRoutes.get("/telemetry/issues", bearerAuth, async (c) => {
   if (c.get("agent_id") !== "__admin__") {
     return c.json({ error: "Admin only" }, 403);
   }
   const days = Number(c.req.query("days") ?? "7") || 7;
-  const summary = await loadSurfaceErrors(c.env, days);
+  const [summary, usage] = await Promise.all([loadSurfaceErrors(c.env, days), loadUsagePings(c.env, days)]);
   c.header("Cache-Control", "no-store");
-  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary });
+  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary, usage });
 });
 
 // ---------------------------------------------------------------------------

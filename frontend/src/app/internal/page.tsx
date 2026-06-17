@@ -38,6 +38,13 @@ interface IssuesData {
     version?: string;
     context?: Record<string, unknown>;
   }[];
+  usage?: {
+    total?: number;
+    active_installs?: number;
+    by_verb?: { key: string; count: number }[];
+    by_version?: { key: string; count: number }[];
+    by_day?: { key: string; count: number }[];
+  };
   error?: string;
   reason?: string;
 }
@@ -156,6 +163,21 @@ export default function InternalDashboard() {
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {/* Activity — real CLI usage (the "is anyone using it?" signal) */}
+        {issues?.usage && (
+          <section className="mb-12">
+            <SectionLabel>Activity · last {issues.days ?? days}d · CLI invocations</SectionLabel>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+              <Metric label="Invocations" value={fmt(issues.usage.total)} />
+              <Metric label="Active installs" value={fmt(issues.usage.active_installs)} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <BarsCard title="By command" rows={issues.usage.by_verb} />
+              <BarsCard title="By day" rows={issues.usage.by_day} />
+            </div>
           </section>
         )}
 

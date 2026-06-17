@@ -18,6 +18,7 @@ import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
 import { dispatchByKind } from "./cli-v7/dispatch/index.js";
+import { reportUsage } from "./telemetry/issue.js";
 import {
   detectTelemetryHostType,
   ensureCliInstallTracked,
@@ -3761,6 +3762,13 @@ async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
   let { command, args, flags } = parsed;
   const cliParams = parsed.params;
+
+  // Usage ping — the "is anyone using it?" signal the retired session store no
+  // longer captures. One fire-and-forget ping per invocation (skips help/internal
+  // verbs); opt-out-respecting, never blocks the command.
+  if (command && command !== "help" && !command.startsWith("__")) {
+    void reportUsage(command);
+  }
 
   // Proxy resilience: a dead/flaky residential-proxy upstream wired into KURI_PROXY otherwise
   // bricks EVERY browser capture (ERR_PROXY_CONNECTION_FAILED → a chrome-error:// page) with no
