@@ -763,6 +763,12 @@ export interface ExecutionOptions {
   payment_verified?: boolean;
   /** Phase 8.1 — wall-clock budget in ms for the parallel resolve race. Default 8000. */
   budget_ms?: number;
+  /** Internal: recursion depth of the web-search→candidate auto-walk (the pointer
+   *  pipe). 0 on the top-level call; the walk re-enters resolveAndExecute on the
+   *  chosen candidate with depth+1. The walk only fires while depth < 1, so the
+   *  inner resolve runs the full internal-API ladder (cache→capture→direct-document)
+   *  for the candidate but can never re-walk — the pipe is bounded to one hop. */
+  __walkDepth?: number;
   /** Test seam: override the Exa probe-fallback search. Production leaves this
    *  undefined and uses the real searchIntentResolve. Tests inject deterministic
    *  exa_results to exercise the probe-fallback routing without a live network. */
