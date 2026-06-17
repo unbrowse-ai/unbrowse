@@ -19,10 +19,10 @@ FILES=()
 add() { [ -f "$1" ] && FILES+=("$1"); }
 add README.md
 add SKILL.md
-for d in for-developers for-agents sdk whitepaper start-here public concepts; do
+for d in for-developers for-agents sdk whitepaper start-here public concepts architecture; do
   while IFS= read -r f; do FILES+=("$f"); done < <(find "docs/$d" -type f -name '*.md' 2>/dev/null | sort)
 done
-for rootdoc in OPEN-SOURCE-NOTICE README SECURITY vision HOW_UNBROWSE_PAYS THE_FDRY_ECONOMY; do
+for rootdoc in OPEN-SOURCE-NOTICE README SECURITY vision HOW_UNBROWSE_PAYS THE_FDRY_ECONOMY CATALOGUE; do
   add "docs/$rootdoc.md"
 done
 # public package READMEs (the shipped drop-ins / adapters)

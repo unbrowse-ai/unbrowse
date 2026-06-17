@@ -49,8 +49,8 @@
 | [benchmarks.md](./benchmarks.md), [benchmarks-history.md](./benchmarks-history.md) | Coverage methodology + append-only log |
 | [HOW_UNBROWSE_PAYS.md](./HOW_UNBROWSE_PAYS.md), [THE_FDRY_ECONOMY.md](./THE_FDRY_ECONOMY.md) | Money model + token economy |
 | [CLAIM_YOUR_DOMAIN.md](./CLAIM_YOUR_DOMAIN.md), [EARN_AS_INDEXER.md](./EARN_AS_INDEXER.md) | Domain claim + indexer economics |
-| [wallets.md](./wallets.md), [ows.md](./ows.md), [pay-sh-integration.md](./pay-sh-integration.md), [public/lobster-cash-integration.md](./public/lobster-cash-integration.md) | Wallet & payment integrations |
-| [mcp-workflow-guide.md](./mcp-workflow-guide.md) | MCP workflow reference |
+| [wallets.md](./wallets.md), `ows.md`, `pay-sh-integration.md`, [public/lobster-cash-integration.md](./public/lobster-cash-integration.md) | Wallet & payment integrations |
+| `mcp-workflow-guide.md` | MCP workflow reference |
 | [public/primitives/README.md](./public/primitives/README.md) (15) | Auditable transparency primitives |
 | [OPEN-SOURCE-NOTICE.md](./OPEN-SOURCE-NOTICE.md) | Open-source scope / moat boundary of record |
 | `design/` (4) | Design explorations (per-contract VM, runpod-bound VM, openai tools, windows) |
