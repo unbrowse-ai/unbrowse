@@ -30,6 +30,7 @@ import { syntheticRoutes } from "./routes/synthetic.js";
 import { llmRoutes } from "./routes/llm.js";
 import { unlockRoutes } from "./routes/unlock.js";
 import { proxyRoutes } from "./routes/proxy.js";
+import { solveRoutes } from "./routes/solve.js";
 import { contractRoutes } from "./routes/contract.js";
 import { skillChatRoutes } from "./routes/skills-chat.js";
 import { provisionPodRoutes } from "./routes/provision-pod.js";
@@ -177,6 +178,7 @@ app.route("/v1", claimRoutes);
 app.route("/v1", accountRoutes);
 app.route("/v1", cookieRoutes);
 app.route("/", proxyRoutes);
+app.route("/", solveRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
