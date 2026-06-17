@@ -91,6 +91,26 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Provision CAPZY_KEY secret (captcha /v1/solve tier)
+        # Idempotently set the server-only Capzy key on the Worker so /v1/solve can
+        # solve (the secret persists across deploys; re-setting is harmless). Skips
+        # cleanly until the CAPZY_KEY repo secret is added — /v1/solve 503s honestly
+        # until then. Reads from a GitHub Actions secret, never plaintext.
+        run: |
+          if [ -z "$CAPZY_KEY" ]; then
+            echo "::notice::CAPZY_KEY repo secret not set; skipping /v1/solve provisioning (route 503s solver_unconfigured)"
+            exit 0
+          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)           ENVFLAG="--env staging" ;;
+            lewis/experiments) ENVFLAG="--env experiments" ;;
+            *)                 ENVFLAG="" ;;
+          esac
+          printf '%s' "$CAPZY_KEY" | ./node_modules/.bin/wrangler secret put CAPZY_KEY --config wrangler.ci.toml $ENVFLAG
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CAPZY_KEY: ${{ secrets.CAPZY_KEY }}
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
