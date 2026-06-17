@@ -1,5 +1,16 @@
 # Changelog
 
+## [9.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.5.0...v9.6.0) (2026-06-17)
+
+### Features
+
+* **resolve:** cache the walked route — web-search off on re-entry + index under outer key ([#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2)) ([775f1a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/775f1a6a84edbadcc0b825785ceb31b4c3438817))
+* **resolve:** web-search node walks its top candidate (the runtime DAG edge) ([fc2a6a5](https://github.com/unbrowse-ai/unbrowse-dev/commit/fc2a6a5096405b51afa973b4e039feaecd414cab)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+
+### Refactoring
+
+* **resolve:** web-search walk becomes the pattern — resolve the candidate pointer through the ladder ([37a9fb1](https://github.com/unbrowse-ai/unbrowse-dev/commit/37a9fb11ab518b700772a2d84c7f75f46ecba582))
+
 ## [9.5.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.5.0-preview.1...v9.5.0) (2026-06-17)
 
 ### Features
