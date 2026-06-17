@@ -9,8 +9,11 @@
 > from paid executions are split deterministically among platform, site
 > owner, contributors, and first discoverer.
 
-> Generated 2026-06-10 from the code at monorepo v8.3.0-preview.2. Every claim
-> cites a real file path. Start at [README.md](./README.md) for reading paths.
+> Reviewed 2026-06-17 against build v9.4.12 (`src/build-info.generated.ts`).
+> Every claim cites a real file path. Start at [README.md](./README.md) for
+> reading paths, or [../CATALOGUE.md](../CATALOGUE.md) for the full repo index.
+> Cross-cutting detail lives in the deep-dives: [SECURITY](./SECURITY.md) ·
+> [PRIVACY](./PRIVACY.md) · [AUTH](./AUTH.md) · [PERFORMANCE](./PERFORMANCE.md).
 
 ## What Unbrowse is
 
@@ -59,17 +62,40 @@ shared cloud backend:
    (with secret obfuscation in `src/capture/obfuscate.ts`, template holes in
    `src/capture/hole-template.ts`, credential binding in
    `src/capture/zk-bound-hole.ts` / `src/capture/wallet-bind.ts`).
-2. **Index** — `src/indexer/` queues and indexes captured routes locally;
-   `src/graph/` maintains the route cache and ranking.
-3. **Publish** — `unbrowse publish` posts a skill manifest to
+2. **Infer (server-side, secret-stripped)** — the client is **thin**: it does
+   not carry the route-inference intelligence. `src/capture/obfuscate.ts` strips
+   every secret/PII *value* locally and replaces it with a one-way,
+   wallet-bound commitment, then `src/capture/reveng-server-first.ts` POSTs only
+   the **structure** (method / URL shape / param keys / schema) to
+   `POST /v1/reveng`. The reverse-engineering / indexing / ranking engine runs
+   **server-side only**; the client sees the inferred endpoints, never the
+   inference IP. "Credentials never leave
+   the machine" holds by construction — the server sees shape, never a secret.
+   (`scripts/thin-client-gate.sh` = 0 enforces that no moat module is reachable
+   from the public client closure.)
+3. **Publish / contribute** — `unbrowse publish` posts a skill manifest to
    `POST /v1/skills` (`backend/src/routes/skills.ts`), which validates,
    sanitizes residual secrets (`backend/src/services/marketplace.ts`), and
-   indexes endpoints for search.
+   indexes endpoints for search. A contributed route is a **content-addressed,
+   wallet-sealed, signed delta** (`src/values/content-address.ts`,
+   `src/values/sealed-ledger.ts`, `src/values/signed-descent.ts`): the value is
+   sealed to the contributor's wallet and only its content hash enters the
+   append-only, hash-chained shared graph — tamper-evident end to end.
 4. **Resolve & execute** — any agent resolves an intent
    (`src/intent-match.ts`, backend `/v1/search`) and replays the route
    (`src/execution/index.ts`), with anti-bot challenge handlers and proxy
    fallback (`src/execution/proxy-fetch.ts`,
    `src/execution/server-proxy-fallback.ts`).
+
+> **Contribution to the shared graph (target architecture).** The write path is
+> moving from "publish a sanitized manifest" to a **verified delta contribution**:
+> a remote skill execution yields a route-delta that is admitted into the shared
+> graph only behind a contribution-validity proof and an execution attestation
+> bound to the contributor's wallet — the delta is proven well-formed and
+> produced against the real origin **without revealing the captured traffic**.
+> Discovery and routing stay free; paid execution settles fairly over x402 across
+> the parties who created the value. The cryptographic construction is detailed in
+> the forthcoming whitepaper.
 
 ### 2. Identity & auth
 - Users sign in with **email magic links** (`backend/src/routes/auth.ts`,
@@ -81,6 +107,10 @@ shared cloud backend:
 - The CLI stores its key in `~/.unbrowse/config.json`
   (`src/client/index.ts`); the frontend stores it in `localStorage`
   (`frontend/src/lib/auth-context.tsx`).
+- The client also **gates before it spends**: `src/auth/pre-resolve-gate.ts`
+  blocks resolve for a personal/auth-shaped intent on a known login-walled host
+  with no fresh cookie, and `src/auth/stale-endpoints.ts` removes endpoints that
+  just returned 401/403 from future resolves. Full detail in [AUTH.md](./AUTH.md).
 
 ### 3. Money (four rails, one ledger)
 - **Stripe subscriptions** — checkout/portal/webhooks + usage metering and
