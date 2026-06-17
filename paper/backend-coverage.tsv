@@ -159,6 +159,7 @@ routes/tts	out-of-scope
 services/acquisition	out-of-scope
 services/aggregates	out-of-scope
 services/analytics	out-of-scope
+services/attribution-link	out-of-scope
 services/campaign-feedback	out-of-scope
 services/demo-pipeline	out-of-scope
 services/email	out-of-scope
