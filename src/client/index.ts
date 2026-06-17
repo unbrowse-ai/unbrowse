@@ -1907,6 +1907,7 @@ export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): 
   await api("POST", "/v1/analytics/sessions", {
     ...getTelemetryAttribution(),
     ...payload,
+    install_id: getInstallId(), // funnel break ②: usage → install → acquisition cohort
   });
 }
 

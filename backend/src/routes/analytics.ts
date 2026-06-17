@@ -129,6 +129,7 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     tokens_saved?: number;
     tokens_saved_pct?: number;
     cost_saved_uc?: number;
+    install_id?: string;
   }>();
   if (!body.session_id || !body.started_at) {
     return c.json({ error: "session_id and started_at required" }, 400);
@@ -150,6 +151,7 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     tokens_saved: body.tokens_saved,
     tokens_saved_pct: body.tokens_saved_pct,
     cost_saved_uc: body.cost_saved_uc,
+    install_id: body.install_id,
   });
   return c.json({ ok: true });
 });
