@@ -1,0 +1,80 @@
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { Env } from "../src/types.js";
+import { statsKV, clearKVCacheForTests } from "../src/services/kv.js";
+import {
+  recordTokenInstall,
+  recordAgentInstall,
+  resolveInstallForToken,
+  resolveInstallForAgent,
+  linkAgentViaToken,
+} from "../src/services/attribution-link.js";
+
+const env = {
+  API_KEY: "admin",
+  EMERGENTDB_API_KEY: "test",
+  NEBIUS_API_KEY: "nebius",
+  STATS_KV: {} as unknown,
+  ENVIRONMENT: "local-dev",
+} as unknown as Env;
+
+function createMockFetch(store: Map<string, string>) {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url);
+    if (url.pathname === "/qdkv/set") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { key: string; value: string };
+      store.set(body.key, body.value);
+      return Response.json({ ok: true });
+    }
+    if (url.pathname.startsWith("/qdkv/get/")) {
+      const key = decodeURIComponent(url.pathname.replace("/qdkv/get/", ""));
+      const value = store.get(key);
+      return Response.json(value == null ? { found: false, value: null } : { found: true, value });
+    }
+    if (url.pathname.startsWith("/qdkv/del/")) {
+      const key = decodeURIComponent(url.pathname.replace("/qdkv/del/", ""));
+      store.delete(key);
+      return Response.json({ ok: true });
+    }
+    throw new Error(`Unexpected fetch: ${url.toString()}`);
+  };
+}
+
+describe("attribution-link — the funnel keystone join", () => {
+  const store = new Map<string, string>();
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(async () => {
+    globalThis.fetch = createMockFetch(store) as typeof fetch;
+    store.clear();
+    clearKVCacheForTests();
+    await statsKV(env).resetSplitIndex();
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("round-trips token->install", async () => {
+    await recordTokenInstall(env, "tok_1", "install_A");
+    expect(await resolveInstallForToken(env, "tok_1")).toBe("install_A");
+  });
+
+  it("closes the keystone chain: token->install at install, then agent->install at register", async () => {
+    await recordTokenInstall(env, "tok_2", "install_B"); // install time
+    const linked = await linkAgentViaToken(env, "agent_X", "tok_2"); // register time
+    expect(linked).toBe("install_B");
+    expect(await resolveInstallForAgent(env, "agent_X")).toBe("install_B");
+  });
+
+  it("returns null (no fabricated link) when the token was never seen", async () => {
+    const linked = await linkAgentViaToken(env, "agent_Y", "tok_unknown");
+    expect(linked).toBeNull();
+    expect(await resolveInstallForAgent(env, "agent_Y")).toBeNull();
+  });
+
+  it("ignores empty ids", async () => {
+    await recordTokenInstall(env, "", "install_C");
+    await recordAgentInstall(env, "agent_Z", "");
+    expect(await resolveInstallForToken(env, "")).toBeNull();
+    expect(await resolveInstallForAgent(env, "agent_Z")).toBeNull();
+  });
+});
