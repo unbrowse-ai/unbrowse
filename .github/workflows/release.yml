@@ -171,7 +171,13 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --no-frozen-lockfile
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
       - name: Restore shared Kuri vendor binaries
         uses: actions/download-artifact@v4
         with:
@@ -381,7 +387,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --no-frozen-lockfile
+      - run: bun install --frozen-lockfile
       # Reuse the Kuri vendor binaries the build-kuri-vendor job already
       # compiled this run (shared via artifact). build-kuri-binaries.mjs below
       # then self-skips because the per-target binaries are already present,
@@ -519,7 +525,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --no-frozen-lockfile
+      - run: bun install --frozen-lockfile
 
       - name: Read SDK package metadata
         id: pkg
@@ -620,7 +626,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --no-frozen-lockfile
+      - run: bun install --frozen-lockfile
       - name: Deploy worker with version vars
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -661,7 +667,7 @@ jobs:
           fi
           curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
-      - run: bun install --no-frozen-lockfile
+      - run: bun install --frozen-lockfile
       - run: bun run deploy:ci
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
