@@ -68,8 +68,8 @@ shared cloud backend:
    wallet-bound commitment, then `src/capture/reveng-server-first.ts` POSTs only
    the **structure** (method / URL shape / param keys / schema) to
    `POST /v1/reveng`. The reverse-engineering / indexing / ranking engine runs
-   **server-side only** (`backend/src/services/reverse-engineer/`); the client
-   sees the inferred endpoints, never the inference IP. "Credentials never leave
+   **server-side only**; the client sees the inferred endpoints, never the
+   inference IP. "Credentials never leave
    the machine" holds by construction — the server sees shape, never a secret.
    (`scripts/thin-client-gate.sh` = 0 enforces that no moat module is reachable
    from the public client closure.)
