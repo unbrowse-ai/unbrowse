@@ -1,5 +1,16 @@
 # Changelog
 
+## [9.4.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.11...v9.4.12) (2026-06-17)
+
+### Features
+
+* **internal:** redesign the ops dashboard (Hallmark · Stat-Led, utilitarian) ([9cc167d](https://github.com/unbrowse-ai/unbrowse-dev/commit/9cc167deb50cc05e74cb4b4d365580f4ec6b9abe))
+* **telemetry:** usage-ping feed — track 'is anyone using it' (CLI emits per invocation) ([88cb234](https://github.com/unbrowse-ai/unbrowse-dev/commit/88cb234a23339ce54f32a9b0bc4ecf3ee555fb1f))
+
+### Bug Fixes
+
+* **internal:** gate ONLY /internal + subpaths, not /internal-apis-are-all-you-need ([ef12c77](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef12c77a6a1ff88f9ef1c0015c52806dcf08334a))
+
 ## [9.4.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.10...v9.4.11) (2026-06-17)
 
 ### Features
