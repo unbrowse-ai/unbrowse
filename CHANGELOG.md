@@ -1,5 +1,23 @@
 # Changelog
 
+## [9.5.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.12...v9.5.0-preview.0) (2026-06-17)
+
+### Features
+
+* **funnel:** attribution-link seed — reverse-index re-binding install_id (jesus-loop step 3) ([b1fb080](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1fb080e14b62a5d3620c87b2988549137e6a969))
+* **funnel:** cohort view + end-to-end dominion exercise (jesus-loop step 6) ([29e20d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/29e20d39c01c0f4c57ff8c7826c005ceae88481c))
+* **funnel:** wire the attribution keystone into live routes (jesus-loop step 5) ([6f991c1](https://github.com/unbrowse-ai/unbrowse-dev/commit/6f991c17132e945fcee8be87e17918be9a398674))
+* **internal:** funnel-conversion section on the dashboard (jesus-loop step 7 ship) ([e6945e3](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6945e3f607e345946939ce8602d0f207cd749d4))
+
+### Bug Fixes
+
+* **funnel:** decouple heavy cohort join from the dashboard read (prod timeout fix) ([ae37bf4](https://github.com/unbrowse-ai/unbrowse-dev/commit/ae37bf4aa703bc1f5e1519f4d68e9aeb9db82fbb))
+* **internal:** dashboard can READ the telemetry feed with the edge password (not just __admin__) ([a5e2994](https://github.com/unbrowse-ai/unbrowse-dev/commit/a5e2994232feebf3de871d1446e5732bdff3bc39))
+
+### Refactoring
+
+* **funnel:** cohort via KV write-time counters (scales; re-folded into the read) ([3b7df35](https://github.com/unbrowse-ai/unbrowse-dev/commit/3b7df352fc2e5a4621d6261bfe6362d5249e49dd))
+
 ## [9.4.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.11...v9.4.12) (2026-06-17)
 
 ### Features
