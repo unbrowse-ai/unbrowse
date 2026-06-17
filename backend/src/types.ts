@@ -23,6 +23,12 @@ export interface Env {
    * EXA_API_KEY`. Absent → DDG only, same behavior as before the adapter.
    */
   EXA_API_KEY?: string;
+  /** Capzy (api.capzy.ai) captcha-solver key — server-side ONLY (the paid /v1/solve moat;
+   *  the client never holds it). Host override via CAPZY_URL. */
+  CAPZY_KEY?: string;
+  CAPZY_URL?: string;
+  /** Per-solve toll (USD) charged to the agent on /v1/solve. Default 0.003. */
+  SOLVE_SURCHARGE_USD?: string;
   /** Pin the web-search chain: "exa" | "ddg" | "off". Unset = auto (exa when keyed, else ddg). */
   WEB_SEARCH_PROVIDER?: string;
   /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */

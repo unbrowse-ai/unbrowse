@@ -109,6 +109,18 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     // re-attach from a separate `eval snap` / `act click` / `act close` call.
     const target = await createTarget(conn, url, {});
 
+    // Optional anti-bot solve (opt-in via --solve or UNBROWSE_AUTO_SOLVE=1, since
+    // it is a METERED backend call — treated like the tolled proxy fallback). When
+    // the rendered page is a captcha WIDGET, escalate the solve to the backend
+    // paid tier (/v1/solve, server holds the key) and inject the token locally.
+    let captcha: import("../../cdp/captcha-render.js").CaptchaRenderResult | undefined;
+    if (parsed.flags.solve === true || process.env.UNBROWSE_AUTO_SOLVE === "1") {
+      const { clearCaptchaInRender } = await import("../../cdp/captcha-render.js");
+      captcha = await clearCaptchaInRender(conn, target, url).catch(
+        () => ({ cleared: false, reason: "error" }) as import("../../cdp/captcha-render.js").CaptchaRenderResult,
+      );
+    }
+
     const sessionId = randomUUID();
     const rec: BrowseSessionRecord = {
       sessionId,
@@ -141,6 +153,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         context_id: "",
         chrome_ws_url: conn.endpoint,
         url,
+        ...(captcha ? { captcha } : {}),
         audit: {
           ok: navAudit.ok,
           idempotent: navAudit.idempotent,
