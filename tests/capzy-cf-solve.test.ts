@@ -42,14 +42,8 @@ describe("extractCfClearance — defensive over solution-envelope variants", () 
   });
 });
 
-describe("buildCfTask — proxy vs proxyless task shape", () => {
-  it("proxyless", () => {
-    expect(buildCfTask("https://x.test")).toEqual({
-      type: "AntiCloudflareTaskProxyLess",
-      websiteURL: "https://x.test",
-    });
-  });
-  it("with proxy carries credentials", () => {
+describe("buildCfTask — proxied task shape (CF requires a proxy — witnessed)", () => {
+  it("always AntiCloudflareTask, carries proxy credentials", () => {
     const t = buildCfTask("https://x.test", {
       type: "http",
       address: "1.2.3.4",
@@ -63,6 +57,8 @@ describe("buildCfTask — proxy vs proxyless task shape", () => {
 });
 
 describe("solveCfViaCapzy — full createTask→poll flow with mocked Capzy", () => {
+  const PROXY = { type: "http" as const, address: "p", port: 1, login: "u", password: "p" };
+
   it("returns cf_clearance when Capzy reports ready", async () => {
     const calls: string[] = [];
     const mock: typeof fetch = (async (url: any) => {
@@ -76,7 +72,7 @@ describe("solveCfViaCapzy — full createTask→poll flow with mocked Capzy", ()
         { status: 200 },
       );
     }) as any;
-    const out = await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", fetchImpl: mock });
+    const out = await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", proxy: PROXY, fetchImpl: mock });
     expect(out).toEqual({ cf_clearance: "CLR", user_agent: "UA" });
     expect(calls.some((c) => c.endsWith("/createTask"))).toBe(true);
     expect(calls.some((c) => c.endsWith("/getTaskResult"))).toBe(true);
@@ -86,11 +82,17 @@ describe("solveCfViaCapzy — full createTask→poll flow with mocked Capzy", ()
     const prev = process.env.UNBROWSE_CAPZY_KEY;
     delete process.env.UNBROWSE_CAPZY_KEY;
     try {
-      const out = await solveCfViaCapzy({ websiteURL: "https://x.test" });
-      expect(out).toBeNull();
+      expect(await solveCfViaCapzy({ websiteURL: "https://x.test", proxy: PROXY })).toBeNull();
     } finally {
       if (prev !== undefined) process.env.UNBROWSE_CAPZY_KEY = prev;
     }
+  });
+
+  it("honest null when no proxy (CF requires a proxy — witnessed)", async () => {
+    let called = false;
+    const mock: typeof fetch = (async () => { called = true; return new Response("{}", { status: 200 }); }) as any;
+    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", fetchImpl: mock })).toBeNull();
+    expect(called).toBe(false); // returns before any network call
   });
 
   it("honest null on Capzy errorId", async () => {
@@ -100,7 +102,18 @@ describe("solveCfViaCapzy — full createTask→poll flow with mocked Capzy", ()
       }
       return new Response("{}", { status: 200 });
     }) as any;
-    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", fetchImpl: mock })).toBeNull();
+    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", proxy: PROXY, fetchImpl: mock })).toBeNull();
+  });
+
+  it("honest null + stops polling on terminal 'failed' (ERROR_CAPTCHA_UNSOLVABLE)", async () => {
+    let polls = 0;
+    const mock: typeof fetch = (async (url: any) => {
+      if (String(url).endsWith("/createTask")) return new Response(JSON.stringify({ taskId: "T1" }), { status: 200 });
+      polls++;
+      return new Response(JSON.stringify({ status: "failed", errorId: 1, errorCode: "ERROR_CAPTCHA_UNSOLVABLE", solution: null }), { status: 200 });
+    }) as any;
+    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", proxy: PROXY, fetchImpl: mock })).toBeNull();
+    expect(polls).toBe(1); // terminal — does not poll to deadline
   });
 
   it("honest null when ready but solution carries no clearance", async () => {
@@ -108,6 +121,6 @@ describe("solveCfViaCapzy — full createTask→poll flow with mocked Capzy", ()
       if (String(url).endsWith("/createTask")) return new Response(JSON.stringify({ taskId: "T1" }), { status: 200 });
       return new Response(JSON.stringify({ status: "ready", solution: { token: "x", type: "turnstile" } }), { status: 200 });
     }) as any;
-    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", fetchImpl: mock })).toBeNull();
+    expect(await solveCfViaCapzy({ websiteURL: "https://x.test", clientKey: "k", proxy: PROXY, fetchImpl: mock })).toBeNull();
   });
 });
