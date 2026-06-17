@@ -10,15 +10,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 const DEFAULT_API = "https://beta-api.unbrowse.ai";
-// sha256("ilovejesus") — the literal never ships in the bundle. Client-side gate =
-// obscurity (keeps randos out of the UI), NOT real security: the data still requires
-// a valid admin Bearer key, which is the real gate.
-const PW_HASH = "aaba03a84577d67ae9999e03d237b23645ecfc46fb5c5881c92499a91e3f1ea0";
-
-async function sha256Hex(s: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Access is gated at the EDGE (middleware HTTP Basic auth) before this page is
+// served, plus the admin Bearer key for the data — no client-side password here.
 
 interface UsageData {
   total_sessions_30d?: number;
@@ -55,29 +48,12 @@ export default function InternalDashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Password wall (keep randos out of the UI; the admin key is the real gate).
-  const [unlocked, setUnlocked] = useState(false);
-  const [pw, setPw] = useState("");
-  const [pwErr, setPwErr] = useState(false);
-
   useEffect(() => {
-    if (sessionStorage.getItem("unbrowse_internal_unlocked") === "1") setUnlocked(true);
     const k = localStorage.getItem("unbrowse_admin_key");
     if (k) setKey(k);
     const b = localStorage.getItem("unbrowse_api_base");
     if (b) setApiBase(b);
   }, []);
-
-  const tryUnlock = useCallback(async () => {
-    const ok = (await sha256Hex(pw)) === PW_HASH;
-    if (ok) {
-      sessionStorage.setItem("unbrowse_internal_unlocked", "1");
-      setUnlocked(true);
-      setPwErr(false);
-    } else {
-      setPwErr(true);
-    }
-  }, [pw]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,23 +76,6 @@ export default function InternalDashboard() {
       setLoading(false);
     }
   }, [apiBase, key, days]);
-
-  if (!unlocked) {
-    return (
-      <main className="mx-auto max-w-sm p-6 font-mono text-sm min-h-[60vh] flex flex-col justify-center">
-        <h1 className="text-lg font-bold mb-1">unbrowse · internal</h1>
-        <p className="text-gray-500 mb-4">restricted — password required</p>
-        <input
-          className="border px-2 py-1 rounded mb-2" type="password" autoFocus
-          placeholder="password" value={pw}
-          onChange={(e) => { setPw(e.target.value); setPwErr(false); }}
-          onKeyDown={(e) => { if (e.key === "Enter") void tryUnlock(); }}
-        />
-        <button className="bg-black text-white px-3 py-1 rounded" onClick={() => void tryUnlock()}>enter</button>
-        {pwErr && <div className="text-red-600 mt-2">nope.</div>}
-      </main>
-    );
-  }
 
   return (
     <main className="mx-auto max-w-5xl p-6 font-mono text-sm">

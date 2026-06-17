@@ -14,7 +14,32 @@ import {
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
+function unauthorized(): NextResponse {
+  return new NextResponse("Authentication required.", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="unbrowse internal", charset="UTF-8"' },
+  });
+}
+
 export function middleware(request: NextRequest) {
+  // Edge auth for the internal ops dashboard — a REAL server-side gate: the page
+  // bytes are never served without the credential, and the credential is NOT in
+  // the client bundle (it is a deploy-time var sourced from a GitHub secret).
+  // Fail-closed: if no credential is configured on the worker, /internal is denied.
+  if (request.nextUrl.pathname.startsWith("/internal")) {
+    const expected = process.env.INTERNAL_AUTH_PASSWORD;
+    const header = request.headers.get("authorization") ?? "";
+    let provided = "";
+    if (header.startsWith("Basic ")) {
+      try {
+        provided = atob(header.slice(6)).split(":").slice(1).join(":");
+      } catch {
+        provided = "";
+      }
+    }
+    if (!expected || provided !== expected) return unauthorized();
+  }
+
   const requestHeaders = new Headers(request.headers);
 
   const visitorId = request.cookies.get(VISITOR_ID_COOKIE)?.value ?? crypto.randomUUID();
