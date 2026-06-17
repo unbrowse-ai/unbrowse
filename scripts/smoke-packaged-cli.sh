@@ -106,7 +106,7 @@ for i in 1 2 3 4 5; do
   if HOME="$TMP_HOME" XDG_CONFIG_HOME="$TMP_HOME/.config" \
     UNBROWSE_DISABLE_AUTO_UPDATE=1 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 \
     UNBROWSE_URL="http://127.0.0.1:$PORT" \
-    "$BIN" health >/tmp/unbrowse-packaged-cli-health.json 2>&1; then
+    "$BIN" eval status >/tmp/unbrowse-packaged-cli-health.json 2>&1; then
     HEALTH_OK=true
     break
   fi
@@ -137,7 +137,7 @@ CLI_ENV=(
 
 # Redirect stderr separately — CLI prints [domain-cache] etc. to stderr which breaks JSON parsing
 set +e
-run_with_timeout 45 env "${CLI_ENV[@]}" "$BIN" go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>/tmp/unbrowse-packaged-cli-go.log
+run_with_timeout 45 env "${CLI_ENV[@]}" "$BIN" breath go "https://example.com" >/tmp/unbrowse-packaged-cli-go.json 2>/tmp/unbrowse-packaged-cli-go.log
 GO_CODE=$?
 set -e
 if [[ "$GO_CODE" -ne 0 ]]; then
@@ -149,7 +149,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]] && ! grep -q '"ok":true' /tmp/unbrowse-p
   BROWSER_AVAILABLE=false
 fi
 
-grep -q '"status":"ok"' /tmp/unbrowse-packaged-cli-health.json
+grep -q '"op_kind":"eval:status"' /tmp/unbrowse-packaged-cli-health.json
 
 if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
 
@@ -161,7 +161,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
   fi
 
   # eval must return real content — catches multi-broker tab-on-about:blank bug
-  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" eval --session "$SESSION_ID" "document.title" \
+  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" breath run-js --session "$SESSION_ID" "document.title" \
     >/tmp/unbrowse-packaged-cli-eval.json 2>/dev/null
   if grep -q '"error"' /tmp/unbrowse-packaged-cli-eval.json; then
     echo "[packaged-cli-smoke] FAIL: eval returned error after go success — tab likely not navigated" >&2
@@ -172,7 +172,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
   fi
 
   # snap must return a non-empty a11y tree
-  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" snap --session "$SESSION_ID" --filter interactive \
+  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" eval snap --session "$SESSION_ID" --filter interactive \
     >/tmp/unbrowse-packaged-cli-snap.txt 2>/dev/null
   if ! grep -q '\[e0\]' /tmp/unbrowse-packaged-cli-snap.txt; then
     echo "[packaged-cli-smoke] FAIL: snap returned empty a11y tree" >&2
@@ -182,7 +182,7 @@ if [[ "$BROWSER_AVAILABLE" == "true" ]]; then
 
   # close must succeed
   set +e
-  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" close --session "$SESSION_ID" \
+  run_with_timeout 30 env "${CLI_ENV[@]}" "$BIN" breath close --session "$SESSION_ID" \
     >/tmp/unbrowse-packaged-cli-close.json 2>/dev/null
   CLOSE_CODE=$?
   set -e

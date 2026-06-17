@@ -162,10 +162,10 @@ jobs:
         shell: pwsh
         run: |
           $env:HEADLESS = "true"
-          $result = & dist\unbrowse.exe health 2>&1 | Out-String
+          $result = & dist\unbrowse.exe eval status 2>&1 | Out-String
           Write-Host $result
-          if ($result -match '"status":"ok"') { Write-Host "PASS: unbrowse health" }
-          else { Write-Host "WARN: health output unexpected"; exit 1 }
+          if ($result -match '"op_kind":"eval:status"') { Write-Host "PASS: unbrowse eval status" }
+          else { Write-Host "WARN: status output unexpected"; exit 1 }
 
       - name: Test browser workflow (go + snap + close)
         shell: pwsh
@@ -173,17 +173,17 @@ jobs:
           $env:HEADLESS = "true"
 
           Write-Host "=== GO ==="
-          $go = & dist\unbrowse.exe go "https://example.com" 2>&1 | Out-String
+          $go = & dist\unbrowse.exe breath go "https://example.com" 2>&1 | Out-String
           Write-Host $go
 
           Start-Sleep -Seconds 3
 
           Write-Host "=== SNAP ==="
-          $snap = & dist\unbrowse.exe snap 2>&1 | Out-String
+          $snap = & dist\unbrowse.exe eval snap 2>&1 | Out-String
           Write-Host $snap
 
           Write-Host "=== CLOSE ==="
-          $close = & dist\unbrowse.exe close 2>&1 | Out-String
+          $close = & dist\unbrowse.exe breath close 2>&1 | Out-String
           Write-Host $close
 
           if ($go -match '"ok":true') { Write-Host "PASS: browser workflow" }
@@ -193,7 +193,7 @@ jobs:
         shell: pwsh
         run: |
           $env:HEADLESS = "true"
-          & dist\unbrowse.exe resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty 2>&1
+          & dist\unbrowse.exe eval resolve --intent "top stories" --url "https://news.ycombinator.com" --pretty 2>&1
 
       - name: Test install.ps1 syntax
         shell: pwsh
