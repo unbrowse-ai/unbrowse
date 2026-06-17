@@ -25,7 +25,6 @@ import { randomUUID } from "node:crypto";
 
 import {
   attach,
-  createBrowserContext,
   createTarget,
   spawnChrome,
 } from "../../cdp/index.js";
@@ -92,15 +91,18 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const wsEndpoint = typeof parsed.flags.ws === "string" ? parsed.flags.ws : undefined;
     const conn = wsEndpoint
       ? await attach(wsEndpoint)
-      : await spawnChrome({ headless: true, perContextProxy: true });
+      : await spawnChrome({ headless: true, perContextProxy: true, persist: true });
 
-    const ctx = await createBrowserContext(conn);
-    const target = await createTarget(conn, url, { browserContextId: ctx.browserContextId });
+    // Persistent browse session uses Chrome's DEFAULT browser context. An
+    // incognito context (createBrowserContext) is auto-disposed by Chrome the
+    // moment this CLI process disconnects, which orphans the tab and breaks
+    // re-attach from a separate `eval snap` / `act click` / `act close` call.
+    const target = await createTarget(conn, url, {});
 
     const sessionId = randomUUID();
     const rec: BrowseSessionRecord = {
       sessionId,
-      contextId: ctx.browserContextId,
+      contextId: "",
       targetId: target.targetId,
       chromeWsUrl: conn.endpoint,
       chromePid: conn.pid,
@@ -126,7 +128,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         op_kind: meta.op_kind,
         session_id: sessionId,
         target_id: target.targetId,
-        context_id: ctx.browserContextId,
+        context_id: "",
         chrome_ws_url: conn.endpoint,
         url,
         audit: {

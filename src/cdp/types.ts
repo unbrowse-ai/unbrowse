@@ -65,6 +65,15 @@ export interface ChromeLaunchOptions {
   extraArgs?: string[];
   /** --proxy-server=per-context when true (default); enables per-BrowserContext proxy. */
   perContextProxy?: boolean;
+  /**
+   * Persist Chrome across this process's exit (browse-session mode). Spawns
+   * Chrome DETACHED + unref'd via raw child_process so the parent's
+   * `process.exit()` does not reap it (puppeteer's launch always registers an
+   * exit-kill hook), and reads the DevTools endpoint from Chrome's own
+   * `DevToolsActivePort` file. This is what lets `act go` in one CLI call be
+   * re-attached by a SEPARATE `eval snap` / `act click` / `act close` call.
+   */
+  persist?: boolean;
 }
 
 // ─── L-network types ────────────────────────────────────────────────────────

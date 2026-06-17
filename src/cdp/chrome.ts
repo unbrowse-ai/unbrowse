@@ -8,7 +8,8 @@
 // is wired to the spawned Process so a `using conn = await spawnChrome(...)`
 // scope-exit kills the Chrome child cleanly.
 
-import { mkdtempSync, existsSync, mkdirSync } from "node:fs";
+import { mkdtempSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { spawn as spawnProcess } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -226,6 +227,12 @@ export async function spawnChrome(opts: ChromeLaunchOptions = {}): Promise<CDPCo
     extraArgs: opts.extraArgs,
   });
 
+  // Browse-session mode: persist Chrome across this CLI process's exit so a
+  // SEPARATE `eval snap` / `act click` / `act close` invocation can re-attach.
+  if (opts.persist) {
+    return spawnChromeDetached(chromeBin, args, userDataDir);
+  }
+
   let proc: Process;
   try {
     proc = launch({
@@ -291,6 +298,95 @@ export async function spawnChrome(opts: ChromeLaunchOptions = {}): Promise<CDPCo
     Object.assign(conn, { version: v.version, revision: v.revision });
   } catch {
     // Non-fatal — caller can still operate the connection.
+  }
+  return conn;
+}
+
+/**
+ * Read the DevTools ws endpoint from Chrome's own `DevToolsActivePort` file
+ * (written into the user-data-dir once CDP is listening). Line 1 is the port,
+ * line 2 is the browser ws path. Polled because the file appears a beat after
+ * the process starts. This is how we discover the endpoint of a DETACHED Chrome
+ * whose stdout/stderr we do not capture.
+ */
+async function readDevToolsEndpoint(userDataDir: string, timeoutMs: number): Promise<string> {
+  const portFile = join(userDataDir, "DevToolsActivePort");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const raw = readFileSync(portFile, "utf8").trim();
+      const nl = raw.indexOf("\n");
+      if (nl > 0) {
+        const port = raw.slice(0, nl).trim();
+        const path = raw.slice(nl + 1).trim();
+        if (port && path) return `ws://127.0.0.1:${port}${path}`;
+      }
+    } catch {
+      /* not written yet */
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error("DevToolsActivePort not written within timeout");
+}
+
+/**
+ * Spawn Chrome DETACHED so it OUTLIVES this CLI process. Unlike the puppeteer
+ * `launch()` path (which registers a `process.on('exit', () => kill)` hook that
+ * tears Chrome down when the parent calls `process.exit()`), this uses a raw
+ * detached + unref'd child and discovers the endpoint via `DevToolsActivePort`.
+ * The returned connection's `close()` kills the persisted Chrome (used by
+ * `act close`). This realizes `act go`'s "keep Chrome alive for re-attach" intent.
+ */
+async function spawnChromeDetached(
+  chromeBin: string,
+  args: string[],
+  userDataDir: string,
+): Promise<CDPConnection> {
+  const child = spawnProcess(chromeBin, args, { detached: true, stdio: "ignore" });
+  child.unref();
+  const pid = child.pid ?? 0;
+  const killPersisted = () => {
+    if (!pid) return;
+    // Kill the whole process group (detached → child is its own group leader),
+    // falling back to the bare pid.
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        /* already gone */
+      }
+    }
+  };
+
+  let wsEndpoint: string;
+  try {
+    wsEndpoint = await readDevToolsEndpoint(userDataDir, 30_000);
+  } catch (e) {
+    killPersisted();
+    throw new Error(`spawn_chrome_no_devtools_endpoint:${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let conn: CDPConnection;
+  try {
+    conn = await attachWithMeta(
+      wsEndpoint,
+      { chromeBin, pid, endpoint: wsEndpoint, version: "", revision: "" },
+      async () => {
+        killPersisted();
+      },
+    );
+  } catch (e) {
+    killPersisted();
+    throw new Error(`spawn_chrome_attach_failed:${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    const v = await getBrowserVersion(conn);
+    Object.assign(conn, { version: v.version, revision: v.revision });
+  } catch {
+    /* non-fatal */
   }
   return conn;
 }
