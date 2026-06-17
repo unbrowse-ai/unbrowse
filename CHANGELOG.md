@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.5.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.5.0-preview.1...v9.5.0) (2026-06-17)
+
+### Features
+
+* **execution:** wire Cloudflare challenge solver via Capzy (AntiCloudflareTask) ([675ba5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/675ba5c9ccd897ea1c66e2967cd8b839f5c72459))
+
+### Bug Fixes
+
+* **execution:** align Capzy CF solver to live-witnessed API contract ([7b2e324](https://github.com/unbrowse-ai/unbrowse-dev/commit/7b2e324ee87dbdbe04edef96652f219b31393948))
+
 ## [9.5.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.5.0-preview.0...v9.5.0-preview.1) (2026-06-17)
 
 ## [9.5.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.12...v9.5.0-preview.0) (2026-06-17)
