@@ -7,6 +7,7 @@ import {
   resolveInstallForToken,
   resolveInstallForAgent,
   linkAgentViaToken,
+  getAttributionStats,
 } from "../src/services/attribution-link.js";
 
 const env = {
@@ -76,5 +77,40 @@ describe("attribution-link — the funnel keystone join", () => {
     await recordAgentInstall(env, "agent_Z", "");
     expect(await resolveInstallForToken(env, "")).toBeNull();
     expect(await resolveInstallForAgent(env, "agent_Z")).toBeNull();
+  });
+
+  // Luke 15:4 — the lost edges that silently mis-attribute revenue.
+  it("first-write-wins: a token re-bound to a DIFFERENT install keeps the first (replay-safe)", async () => {
+    await recordTokenInstall(env, "tok_r", "install_first");
+    await recordTokenInstall(env, "tok_r", "install_second");
+    expect(await resolveInstallForToken(env, "tok_r")).toBe("install_first");
+  });
+
+  it("first-link-wins: an agent re-linked via a DIFFERENT token keeps its origin install", async () => {
+    await recordTokenInstall(env, "tok_a", "install_1");
+    await recordTokenInstall(env, "tok_b", "install_2");
+    expect(await linkAgentViaToken(env, "agent_R", "tok_a")).toBe("install_1");
+    expect(await linkAgentViaToken(env, "agent_R", "tok_b")).toBe("install_1"); // origin is fixed
+    expect(await resolveInstallForAgent(env, "agent_R")).toBe("install_1");
+  });
+
+  it("idempotent re-link returns the same install (re-registration safe)", async () => {
+    await recordTokenInstall(env, "tok_i", "install_i");
+    expect(await linkAgentViaToken(env, "agent_I", "tok_i")).toBe("install_i");
+    expect(await linkAgentViaToken(env, "agent_I", "tok_i")).toBe("install_i");
+  });
+
+  it("whitespace-only ids are rejected (no malformed KV keys)", async () => {
+    await recordTokenInstall(env, "   ", "install_w");
+    expect(await resolveInstallForToken(env, "   ")).toBeNull();
+  });
+
+  it("getAttributionStats counts linked agents + tokens (the coverage signal)", async () => {
+    await recordTokenInstall(env, "tok_s1", "install_s1");
+    await recordTokenInstall(env, "tok_s2", "install_s2");
+    await linkAgentViaToken(env, "agent_S1", "tok_s1");
+    const stats = await getAttributionStats(env);
+    expect(stats.linked_tokens).toBe(2);
+    expect(stats.linked_agents).toBe(1);
   });
 });
