@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.4.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.1-preview.0...v9.4.1) (2026-06-17)
+
+### Features
+
+* **privacy:** B1 auth-local-first — auth-bearing egress never crosses the terminating server tier ([36b9a65](https://github.com/unbrowse-ai/unbrowse-dev/commit/36b9a65b3b8425149beaad65183115de2ad05aa2))
+
+### Bug Fixes
+
+* **ci:** release smoke + Windows E2E use canonical verbs (three-verb collapse) ([7ff22fb](https://github.com/unbrowse-ai/unbrowse-dev/commit/7ff22fb515bf09cdeccebc535d14c37ee2e1cf8e))
+* **privacy:** B1 — Referer/Origin are not benign (adversarial audit finding) ([5f54a48](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f54a480a7df9b83e811fb757441baebe1a15e77))
+* **privacy:** B1 isAuthBearing fails safe on a Headers object + adversarial witnesses ([2fb4a8c](https://github.com/unbrowse-ai/unbrowse-dev/commit/2fb4a8c8c2d79a72d2ccc2be533963d88e6e3a73))
+
 ## [9.4.1-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.0...v9.4.1-preview.0) (2026-06-16)
 
 ### Bug Fixes
