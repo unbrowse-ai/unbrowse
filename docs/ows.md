@@ -59,3 +59,8 @@ A `warn` policy reports the failing reason but allows the action; a `deny` polic
 This is the OWS Core Types + the declarative policy engine + vault resolution, wired as the
 preferred wallet provider. Full OWS signing/funding flows are delegated to the `ows` CLI /
 SDK; unbrowse consumes the wallet identity and enforces policy at the resolve/execute seam.
+
+## See also
+
+- Developer wiring + acceptance criteria (AC-WAL) → [ows-integration.md](./ows-integration.md)
+- Wallet precedence in context → [architecture/AUTH.md](./architecture/AUTH.md#6-wallet-resolution-order-the-key-wraps-the-wallet)

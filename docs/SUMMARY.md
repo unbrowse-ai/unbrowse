@@ -2,6 +2,7 @@
 
 * [Unbrowse](README.md)
 * [Where This Goes](vision.md)
+* [Catalogue — all docs & code](CATALOGUE.md)
 
 ## Start Here
 
@@ -16,12 +17,26 @@
 * [Hole Contract and Legacy Route View](for-agents/resolve-and-execute.md)
 * [MCP Integration](for-agents/mcp-integration.md)
 * [When It Uses a Browser](for-agents/when-it-uses-a-browser.md)
+* [Search on Top](for-agents/search-on-top.md)
+* [Wallets and Payments](for-agents/wallets-and-payments.md)
 
 ## For Developers
 
 * [Integration Surfaces](for-developers/integration-surfaces.md)
 * [The Route Lifecycle](for-developers/the-route-lifecycle.md)
 * [SDK Quickstart](for-developers/sdk-quickstart.md)
+
+## Architecture
+
+* [Architecture — Start Here](architecture/README.md)
+* [System Overview](architecture/OVERVIEW.md)
+* [CLI & Local Engine](architecture/CLI.md)
+* [Backend](architecture/BACKEND.md)
+* [Frontend](architecture/FRONTEND.md)
+* [Security](architecture/SECURITY.md)
+* [Privacy & Data Handling](architecture/PRIVACY.md)
+* [Identity, Auth & Wallets](architecture/AUTH.md)
+* [Performance & Speed](architecture/PERFORMANCE.md)
 
 ## Concepts
 
