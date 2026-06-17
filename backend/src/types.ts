@@ -29,6 +29,10 @@ export interface Env {
   CAPZY_URL?: string;
   /** Per-solve toll (USD) charged to the agent on /v1/solve. Default 0.003. */
   SOLVE_SURCHARGE_USD?: string;
+  /** Shared secret that lets the password-gated internal dashboard READ the telemetry
+   *  feed (/v1/telemetry/issues) without the rotated __admin__ key. Same value as the
+   *  /internal edge-auth password. Read-only access to internal ops aggregates. */
+  INTERNAL_AUTH_PASSWORD?: string;
   /** Pin the web-search chain: "exa" | "ddg" | "off". Unset = auto (exa when keyed, else ddg). */
   WEB_SEARCH_PROVIDER?: string;
   /** Fallback embeddings host for the canonical-anchor seed (qwen3-embedding-8b). */
