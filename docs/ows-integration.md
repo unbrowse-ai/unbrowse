@@ -92,3 +92,6 @@ is skipped until its class-TTL cooldown expires rather than re-attempted every c
 open-standard primary; lobster.cash and pay.sh are the supported vendor rails. See also
 [docs/lobster-cash-integration.md](./lobster-cash-integration.md) and
 [docs/pay-sh-integration.md](./pay-sh-integration.md).
+
+For the user-facing concept guide (the "why OWS" + policy examples), see
+[ows.md](./ows.md).
