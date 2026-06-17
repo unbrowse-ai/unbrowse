@@ -73,7 +73,10 @@ describe("serverProxyFallback primitive — client points to the server", () => 
   it("POSTs /v1/proxy with proxy:residential + Bearer, parses recovered body", async () => {
     const out = await serverProxyFallback(
       { url: "https://example.com/page", method: "GET" },
-      { apiKey: "ubr_testkey", env: { UNBROWSE_API_URL: `http://127.0.0.1:${stubPort}` } as NodeJS.ProcessEnv },
+      // This witness asserts the RESIDENTIAL mode wire shape, so request it
+      // explicitly — the default is now mode="auto" (server-direct-first, free;
+      // see server-proxy-fallback.ts), not residential.
+      { apiKey: "ubr_testkey", mode: "residential", env: { UNBROWSE_API_URL: `http://127.0.0.1:${stubPort}` } as NodeJS.ProcessEnv },
     );
     expect(out).not.toBeNull();
     expect(out?.status).toBe(200);
