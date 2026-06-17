@@ -1,5 +1,7 @@
 # Changelog
 
+## [9.4.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.3...v9.4.4) (2026-06-17)
+
 ## [9.4.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.2...v9.4.3) (2026-06-17)
 
 ### Bug Fixes
