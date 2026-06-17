@@ -17,6 +17,7 @@
  */
 
 import { runBundleReplay, type SeedCookie } from "../sandbox/bundle-replay-client.js";
+import { solveCfViaCapzy, parseCapzyProxy } from "./capzy-cf-solve.js";
 
 // ---------------------------------------------------------------------------
 // extractCfBundleUrl
@@ -98,6 +99,38 @@ export interface SolveCfRetryResult {
 export async function solveCfAndRetry(
   input: SolveCfRetryInput,
 ): Promise<SolveCfRetryResult | null> {
+  // 0. Capzy-first: when a Capzy key is configured, solve via the managed
+  //    Cloudflare solver (returns cf_clearance, IP+UA-bound through the same
+  //    proxy). Falls through to the in-house bundle-replay on any miss.
+  if (process.env.UNBROWSE_CAPZY_KEY?.trim()) {
+    const viaCapzy = await solveCfViaCapzy({
+      websiteURL: input.url,
+      proxy: input.proxy ? parseCapzyProxy(input.proxy) : undefined,
+      timeoutMs: input.timeoutMs,
+    });
+    if (viaCapzy?.cf_clearance) {
+      const merged = mergeCookieJar(input.cookies ?? [], [
+        { name: "cf_clearance", value: viaCapzy.cf_clearance },
+      ]);
+      const cookieHeader = merged.map((c) => `${c.name}=${c.value}`).join("; ");
+      try {
+        const retry = await globalThis.fetch(input.url, {
+          method: "GET",
+          headers: {
+            ...(cookieHeader ? { cookie: cookieHeader } : {}),
+            // cf_clearance is bound to the UA that solved it — replay must match.
+            ...(viaCapzy.user_agent ? { "user-agent": viaCapzy.user_agent } : {}),
+          },
+        });
+        if (retry.status >= 200 && retry.status < 400) {
+          return { status: retry.status, html: await retry.text(), cookies: merged };
+        }
+      } catch {
+        /* fall through to bundle-replay */
+      }
+    }
+  }
+
   // 1. Extract the challenge bundle URL from the response body.
   const bundleUrl = extractCfBundleUrl(input.body, input.url);
   if (!bundleUrl) return null;
