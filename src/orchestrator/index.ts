@@ -2648,6 +2648,10 @@ export async function resolveAndExecute(
   options?: ExecutionOptions,
 ): Promise<OrchestratorResult> {
   const t0 = Date.now();
+  // Auto-walk recursion depth (the web-search→candidate pointer pipe). The walk
+  // only fires while this is 0; the inner resolve runs at depth 1, where the walk
+  // site is skipped — so the pipe is bounded to exactly one hop and cannot loop.
+  const walkDepth = options?.__walkDepth ?? 0;
   const timing: OrchestrationTiming = {
     search_ms: 0,
     get_skill_ms: 0,
@@ -4844,39 +4848,34 @@ export async function resolveAndExecute(
         // On any miss (ineligible/rejected/empty/error) we fall through to the
         // unchanged candidate leaf below — honest, never a fabricated walk.
         const topWalk = pickWalkTarget(raceContextUrl, exaHits);
-        if (topWalk?.url) {
+        if (topWalk?.url && walkDepth < 1) {
           try {
-            const doc = await fetchDirectDocument(topWalk.url);
-            if (doc && !doc.rejected) {
-              console.log(`[exa→walk] auto-walked top candidate ${topWalk.url} → direct-document (${doc.html_bytes}B)`);
-              const walkTrace: ExecutionTrace = {
-                trace_id: nanoid(),
-                skill_id: "direct-document",
-                endpoint_id: "direct-document",
-                started_at: new Date(t0).toISOString(),
-                completed_at: new Date().toISOString(),
-                success: true,
-                status_code: 200,
-              };
+            // Resolve the candidate POINTER through the SAME ladder (route-cache →
+            // marketplace → capture/reveng → direct-document). web-search is
+            // structurally unreachable at depth 1, so the pipe is one hop, no loop.
+            // Reaches the internal-API rung when the candidate is capturable.
+            const walked = await resolveAndExecute(
+              intent, params,
+              { url: topWalk.url, domain: registrableHost(topWalk.url) ?? undefined },
+              projection,
+              { ...(options ?? {}), __walkDepth: walkDepth + 1 },
+            );
+            if (walked && walked.source !== "exa" && !(walked.result as Record<string, unknown> | undefined)?.exec_unsupported) {
+              console.log(`[exa→walk] resolved candidate ${topWalk.url} via ${walked.source} (pointer pipe d${walkDepth + 1})`);
               return {
+                ...walked,
                 result: {
-                  ...doc,
-                  ...(webProvider && { web_search_provider: webProvider }),
+                  ...(walked.result as Record<string, unknown>),
                   walked_from: "exa-web-search",
                   exa_candidates: candidates,
                   run_plan: [
                     { step: "resolve", mode: "web-search", status: "hit", label: "fallback", error: null, source: webProvider ?? "exa" },
-                    { step: "walk", mode: "direct-document", status: "hit", label: "top-candidate", error: null, source: "direct-document" },
+                    { step: "walk", mode: walked.source, status: "hit", label: "top-candidate", error: null, source: walked.source },
                   ],
-                  decision_trace: decisionTrace,
                 },
-                trace: walkTrace,
-                source: "direct-document" as const,
-                skill: { skill_id: "direct-document", domain: registrableHost(topWalk.url) ?? "direct-document" } as unknown as SkillManifest,
-                timing: finalize("direct-document", null, "direct-document", undefined, walkTrace),
               };
             }
-            console.log(`[exa→walk] top candidate ${topWalk.url} rejected/empty — falling back to candidate leaf`);
+            console.log(`[exa→walk] candidate ${topWalk.url} produced no ladder rung — candidate leaf`);
           } catch (e) {
             console.log(`[exa→walk] walk error (${(e as Error).message}) — candidate leaf`);
           }
@@ -5981,38 +5980,33 @@ export async function resolveAndExecute(
         // fallback below on any miss. This is the path the bot-blocked Carousell
         // intent hits, so the one-shot fix lives here too.
         const topWalk = pickWalkTarget(context?.url, exaResults);
-        if (topWalk?.url) {
+        if (topWalk?.url && walkDepth < 1) {
           try {
-            const doc = await fetchDirectDocument(topWalk.url);
-            if (doc && !doc.rejected) {
-              console.log(`[exa→walk] auto-walked top candidate ${topWalk.url} → direct-document (${doc.html_bytes}B)`);
-              const walkTrace: ExecutionTrace = {
-                trace_id: nanoid(),
-                skill_id: "direct-document",
-                endpoint_id: "direct-document",
-                started_at: new Date().toISOString(),
-                completed_at: new Date().toISOString(),
-                success: true,
-                status_code: 200,
-              };
+            // Resolve the candidate POINTER through the SAME ladder, one hop,
+            // web-search unreachable at depth 1 (no loop). Reaches internal-API
+            // when capturable; direct-document otherwise.
+            const walked = await resolveAndExecute(
+              intent, params,
+              { url: topWalk.url, domain: registrableHost(topWalk.url) ?? undefined },
+              projection,
+              { ...(options ?? {}), __walkDepth: walkDepth + 1 },
+            );
+            if (walked && walked.source !== "exa" && !(walked.result as Record<string, unknown> | undefined)?.exec_unsupported) {
+              console.log(`[exa→walk] resolved candidate ${topWalk.url} via ${walked.source} (pointer pipe d${walkDepth + 1})`);
               return {
+                ...walked,
                 result: {
-                  ...doc,
-                  ...(serialWebProvider && { web_search_provider: serialWebProvider }),
+                  ...(walked.result as Record<string, unknown>),
                   walked_from: "exa-web-search",
                   exa_candidates: candidates,
                   run_plan: [
                     { step: "resolve", mode: "web-search", status: "hit", label: "fallback", error: null, source: serialWebProvider ?? "exa" },
-                    { step: "walk", mode: "direct-document", status: "hit", label: "top-candidate", error: null, source: "direct-document" },
+                    { step: "walk", mode: walked.source, status: "hit", label: "top-candidate", error: null, source: walked.source },
                   ],
                 },
-                trace: walkTrace,
-                source: "direct-document" as const,
-                skill: { skill_id: "direct-document", domain: registrableHost(topWalk.url) ?? "direct-document" } as unknown as SkillManifest,
-                timing: finalize("direct-document", null, "direct-document", undefined, walkTrace),
               };
             }
-            console.log(`[exa→walk] top candidate ${topWalk.url} rejected/empty — exa leaf`);
+            console.log(`[exa→walk] candidate ${topWalk.url} produced no ladder rung — exa leaf`);
           } catch (e) {
             console.log(`[exa→walk] walk error (${(e as Error).message}) — exa leaf`);
           }
