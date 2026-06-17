@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.5...v9.4.6) (2026-06-17)
+
+### Bug Fixes
+
+* **browse:** persist Chrome across CLI calls so go→snap→click→close works ([8860d9c](https://github.com/unbrowse-ai/unbrowse-dev/commit/8860d9ceb2977da1da847236e4da72767244123b))
+
 ## [9.4.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.4...v9.4.5) (2026-06-17)
 
 ### Bug Fixes
