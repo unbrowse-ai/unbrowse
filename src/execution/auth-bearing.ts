@@ -29,9 +29,13 @@
  * outside this set — cookies, api keys, csrf, bespoke `X-*` tokens, storage-derived
  * values — is treated as a credential and kept off the terminating server tier.
  */
+// NOTE: `referer` and `origin` are deliberately NOT benign — a Referer carries the
+// authenticated *source URL* (often a session token in the query string) and Origin
+// reveals the private app the user is on; both would leak to a terminating server.
+// A request bearing either is auth-bearing and stays off the server tier.
 const BENIGN_HEADER_KEYS: ReadonlySet<string> = new Set([
   "user-agent", "accept", "accept-language", "accept-encoding", "accept-charset",
-  "content-type", "content-length", "referer", "origin", "cache-control", "pragma",
+  "content-type", "content-length", "cache-control", "pragma",
   "connection", "host", "dnt", "upgrade-insecure-requests", "range", "te", "priority",
   "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "sec-fetch-user",
   "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-ch-ua-platform-version",
@@ -39,8 +43,8 @@ const BENIGN_HEADER_KEYS: ReadonlySet<string> = new Set([
   "sec-ch-ua-model", "viewport-width", "width", "downlink", "ect", "rtt", "save-data",
 ]);
 
-/** A credential-shaped value in any header (e.g. `Bearer eyJ...`, `Token abc`). */
-const CREDENTIAL_VALUE = /^(?:bearer|token)\s+\S/i;
+/** A credential-shaped value in any header — every standard HTTP auth scheme. */
+const CREDENTIAL_VALUE = /^(?:bearer|token|basic|digest|negotiate|aws4-hmac-sha256)\s+\S/i;
 
 export interface AuthBearingOpts {
   /**
