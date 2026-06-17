@@ -14,7 +14,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { isAuthBearing } from "../src/execution/auth-bearing";
-import { egressChain } from "../src/execution/egress-chain";
+import { egressChain, egressFetch } from "../src/execution/egress-chain";
 import { serverProxyFallback } from "../src/execution/server-proxy-fallback";
 
 // ── AC2: classifier witness ────────────────────────────────────────────────
@@ -54,6 +54,14 @@ describe("isAuthBearing classifier (B1 firmament)", () => {
   test("null / undefined headers are not auth-bearing", () => {
     expect(isAuthBearing(undefined)).toBe(false);
     expect(isAuthBearing(null)).toBe(false);
+  });
+
+  // Fail-safe on a Headers object (Object.entries(Headers) === [] would miss it).
+  test("a Headers object carrying a credential is auth-bearing (fails safe)", () => {
+    expect(isAuthBearing(new Headers({ Authorization: "Bearer secret", Cookie: "sid=abc" }))).toBe(true);
+  });
+  test("a Headers object with only benign headers is not auth-bearing", () => {
+    expect(isAuthBearing(new Headers({ "User-Agent": "Mozilla/5.0", Accept: "*/*" }))).toBe(false);
   });
 
   // Drift guard (Matt 7:24 — the sign the foundation still stands): these headers
@@ -153,5 +161,44 @@ describe("egress auth-exclusion: server tier never sees a credential", () => {
     );
     expect(served?.body).toBe("served-by-server");
     expect(hitServerProxy()).toBe(true);
+  });
+
+  // ── the other mouth: egressFetch (web-search adapter, a different caller) ──
+  test("egressFetch: an auth-bearing request never reaches /v1/proxy", async () => {
+    stubFetch();
+    await egressFetch("https://api.site.com/data", {
+      headers: { Authorization: "Bearer secret", Cookie: "sid=abc" },
+    });
+    expect(hitServerProxy()).toBe(false);
+  });
+
+  test("egressFetch: a non-auth request still reaches /v1/proxy (adapter positive control)", async () => {
+    stubFetch();
+    const res = await egressFetch("https://api.site.com/data", {
+      headers: { "User-Agent": "Mozilla/5.0", Accept: "*/*" },
+    });
+    expect(hitServerProxy()).toBe(true);
+    expect(res.headers.get("x-egress-tier")).toBe("server");
+  });
+
+  // ── adversarial: disguises / casing must fail SAFE (treated as auth) ──
+  test("adversarial: upper-cased credential header is still excluded", async () => {
+    stubFetch();
+    const out = await egressChain(
+      { url: "https://api.site.com/data", headers: { AUTHORIZATION: "Bearer secret" } },
+      { allowClientProxy: false },
+    );
+    expect(hitServerProxy()).toBe(false);
+    expect(out.authExcluded).toBe(true);
+  });
+
+  test("adversarial: a credential-shaped value inside a benign header is excluded", async () => {
+    stubFetch();
+    const out = await egressChain(
+      { url: "https://api.site.com/data", headers: { "Content-Type": "Bearer leaked-token" } },
+      { allowClientProxy: false },
+    );
+    expect(hitServerProxy()).toBe(false);
+    expect(out.authExcluded).toBe(true);
   });
 });
