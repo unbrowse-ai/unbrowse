@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.4.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.2...v9.4.3) (2026-06-17)
+
+### Bug Fixes
+
+* **ci:** Windows E2E resolve tolerates backend 426 (unsigned CI build) ([7c20bf1](https://github.com/unbrowse-ai/unbrowse-dev/commit/7c20bf14347bb73d2b645cb4c466ee921b27f6b5))
+* **client:** re-attach release-manifest attestation on backend calls (426 regression) ([5130f7f](https://github.com/unbrowse-ai/unbrowse-dev/commit/5130f7f056096c312abebab22674187b743ba520))
+
 ## [9.4.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.1...v9.4.2) (2026-06-17)
 
 ### Bug Fixes
