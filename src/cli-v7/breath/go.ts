@@ -97,7 +97,11 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     const wsEndpoint = typeof parsed.flags.ws === "string" ? parsed.flags.ws : undefined;
     const conn = wsEndpoint
       ? await attach(wsEndpoint)
-      : await spawnChrome({ headless: true, perContextProxy: true, persist: true });
+      // Default browser context (persist mode) cannot carry a per-context proxy
+      // — `--proxy-server=per-context` with no context-level proxy set makes
+      // Chrome fail every request with ERR_PROXY_CONNECTION_FAILED. Go direct;
+      // anti-bot/clean-IP egress is a separate global-proxy lever.
+      : await spawnChrome({ headless: true, perContextProxy: false, persist: true });
 
     // Persistent browse session uses Chrome's DEFAULT browser context. An
     // incognito context (createBrowserContext) is auto-disposed by Chrome the
