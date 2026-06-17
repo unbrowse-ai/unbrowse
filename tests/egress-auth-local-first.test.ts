@@ -31,11 +31,15 @@ describe("isAuthBearing classifier (B1 firmament)", () => {
     [{ "X-Amz-Date": "20260617" }, true, "vendor signing header is auth-bearing"],
     [{ Accept: "application/json" }, false, "Accept is benign"],
     [{ "User-Agent": "Mozilla/5.0" }, false, "User-Agent is benign"],
-    [{ Referer: "https://example.com" }, false, "Referer is benign"],
+    // Referer/Origin are NOT benign — they carry the authenticated source URL / private app identity.
+    [{ Referer: "https://mybank.com/dashboard?session=abc123" }, true, "Referer (authenticated source URL) is auth-bearing"],
+    [{ Origin: "https://internal-app.company.com" }, true, "Origin (private app identity) is auth-bearing"],
+    [{ "X-Custom": "Basic dXNlcjpwYXNzd29yZA==" }, true, "Basic-auth value in a header is auth-bearing"],
+    [{ "X-Custom": "Negotiate YIIZ..." }, true, "Negotiate/Kerberos value in a header is auth-bearing"],
     [
-      { "User-Agent": "Mozilla/5.0", Accept: "*/*", "Accept-Language": "en", Referer: "https://duckduckgo.com" },
+      { "User-Agent": "Mozilla/5.0 (compatible; unbrowse/1.0)", Accept: "text/html" },
       false,
-      "an anonymous public GET (only benign headers) stays eligible for the server tier",
+      "a real anonymous public GET (DDG sends only User-Agent + Accept) stays eligible for the server tier",
     ],
     [{}, false, "no headers"],
   ];
