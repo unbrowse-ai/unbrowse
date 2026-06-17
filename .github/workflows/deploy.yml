@@ -173,6 +173,27 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NEXT_PUBLIC_API_URL: ${{ steps.api-url.outputs.api_url }}
+      - name: Provision INTERNAL_AUTH_PASSWORD (internal dashboard edge gate)
+        # Real server-side gate for /internal (middleware Basic auth reads
+        # process.env.INTERNAL_AUTH_PASSWORD). Set as a Worker secret (persists,
+        # never in git/bundle). Skips cleanly if the repo secret is absent —
+        # then /internal fails CLOSED (denies all) by design.
+        if: steps.api-url.outputs.skip_frontend != '1'
+        run: |
+          if [ -z "$INTERNAL_AUTH_PASSWORD" ]; then
+            echo "::notice::INTERNAL_AUTH_PASSWORD repo secret not set; /internal fails closed (denies all)"
+            exit 0
+          fi
+          case "${GITHUB_REF_NAME}" in
+            staging)           ENVFLAG="--env staging" ;;
+            lewis/experiments) ENVFLAG="--env experiments" ;;
+            *)                 ENVFLAG="" ;;
+          esac
+          printf '%s' "$INTERNAL_AUTH_PASSWORD" | ./node_modules/.bin/wrangler secret put INTERNAL_AUTH_PASSWORD $ENVFLAG
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INTERNAL_AUTH_PASSWORD: ${{ secrets.INTERNAL_AUTH_PASSWORD }}
 
   publish-preview-cli:
     name: Publish Preview CLI (npm)
