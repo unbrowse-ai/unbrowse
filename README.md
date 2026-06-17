@@ -77,7 +77,7 @@ Each op produces a **pointer-only, wallet-signed receipt**: it points *at* value
 
 Receipts are Ed25519-signed today. Stronger authorization and provenance schemes are an active research direction; specifics will be detailed in a forthcoming whitepaper. The pointer-only invariant holds regardless. Full public surface — the hole contract, compatibility ops, the receipt shape, and the honest open/closed split — is in [docs/agent-internet-layer.md](./docs/agent-internet-layer.md).
 
-> The bare `unbrowse "task"` front door routes to the one-hole path; the three-verb CLI (`build`/`breath`/`eval`) is the explicit surface underneath. New integrations should target `unbrowse "task"`, `createHole().fill(...)`, or inspect the live bridge contract at `GET /v1/contract/surface`.
+> The bare `unbrowse "task"` front door routes to the one-hole path; the three-verb CLI (`build`/`act`/`eval`) is the explicit surface underneath. New integrations should target `unbrowse "task"`, `createHole().fill(...)`, or inspect the live bridge contract at `GET /v1/contract/surface`.
 
 ## Drop-in client adapters
 
@@ -208,7 +208,7 @@ For most MCP hosts the standard flow is `unbrowse_resolve` → `unbrowse_execute
 unbrowse eval status
 unbrowse mcp
 unbrowse eval resolve --intent "get trending searches" --url "https://google.com" --pretty
-unbrowse breath auth --url "https://calendar.google.com"
+unbrowse act auth --url "https://calendar.google.com"
 unbrowse eval skills
 unbrowse eval search --intent "get stock prices"
 ```
@@ -238,7 +238,7 @@ Auto-publish is off by default. `fetch` stays local unless you pass `--publish`.
 Unbrowse no longer self-updates at runtime. After each release, run:
 
 ```bash
-unbrowse breath upgrade
+unbrowse act upgrade
 ```
 
 Codex and Claude hosts also get a session-start update hint during `unbrowse build setup`, so newer releases are surfaced before the CLI drifts too far behind.

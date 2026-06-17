@@ -103,7 +103,7 @@ unbrowse health --pretty
 Resolve a task against a URL:
 
 ```bash
-unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse eval resolve --intent "get trending searches" --url "https://google.com" --pretty
 ```
 
 Search the marketplace without opening a browser:
@@ -115,7 +115,7 @@ unbrowse search --intent "get stock prices" --domain "finance.yahoo.com" --prett
 Open an auth flow when a site needs login:
 
 ```bash
-unbrowse auth "https://calendar.google.com"
+unbrowse act auth "https://calendar.google.com"
 ```
 
 Get one internet result from the shell:
