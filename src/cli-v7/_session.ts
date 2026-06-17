@@ -179,19 +179,122 @@ export async function mostRecentSession(): Promise<BrowseSessionRecord | null> {
   return newest;
 }
 
+/**
+ * True iff the OS process is alive. `kill(pid, 0)` probes existence WITHOUT
+ * sending a signal: it throws ESRCH when the process is gone, EPERM when it
+ * exists but we may not signal it (still alive). The persisted Chrome's pid is
+ * the liveness proxy for a browse session.
+ */
+export function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Most-recent session whose Chrome is still alive; prunes dead ones it passes. */
+async function mostRecentLiveSession(): Promise<BrowseSessionRecord | null> {
+  const recs: BrowseSessionRecord[] = [];
+  for await (const path of walkSessionFiles()) {
+    try {
+      recs.push(JSON.parse(await readFile(path, "utf8")) as BrowseSessionRecord);
+    } catch {
+      /* skip unreadable */
+    }
+  }
+  recs.sort((a, b) => b.createdAt - a.createdAt);
+  for (const rec of recs) {
+    if (isProcessAlive(rec.chromePid)) return rec;
+    // Dead Chrome → stale record; prune it (best-effort) and keep looking.
+    await deleteSessionRecord(rec.sessionId).catch(() => undefined);
+  }
+  return null;
+}
+
 export async function resolveSession(
   explicitId: string | undefined,
+  opts: { probeLive?: boolean } = {},
 ): Promise<BrowseSessionRecord> {
+  const probeLive = opts.probeLive ?? true;
+
   if (explicitId) {
-    return readSessionRecord(explicitId);
+    const rec = await readSessionRecord(explicitId);
+    if (probeLive && !isProcessAlive(rec.chromePid)) {
+      // Named session's Chrome is gone — prune + fail with a clean, actionable
+      // error instead of a raw ECONNREFUSED from the downstream CDP attach.
+      await deleteSessionRecord(rec.sessionId).catch(() => undefined);
+      const err = new Error("session_expired");
+      (err as Error & { code?: string }).code = "session_expired";
+      throw err;
+    }
+    return rec;
   }
-  const recent = await mostRecentSession();
+
+  const recent = probeLive ? await mostRecentLiveSession() : await mostRecentSession();
   if (!recent) {
     const err = new Error("no_active_session");
     (err as Error & { code?: string }).code = "no_active_session";
     throw err;
   }
   return recent;
+}
+
+/**
+ * Bound the persisted-Chrome footprint so `act go` without a matching
+ * `act close` cannot leak browsers indefinitely. Best-effort, never throws:
+ *   1. Delete every record whose Chrome pid is already dead (pure cleanup).
+ *   2. If more than `maxLive` browse sessions are still alive, SIGTERM the
+ *      Chrome of the OLDEST ones (least likely to be in active use) and delete
+ *      their records, down to the cap.
+ * Returns the number of records reaped. Call at the start of `act go`.
+ */
+export async function reapStaleSessions(
+  opts: { maxLive?: number } = {},
+): Promise<number> {
+  const envMax = Number.parseInt(process.env.UNBROWSE_MAX_BROWSE_SESSIONS ?? "", 10);
+  const maxLive = opts.maxLive ?? (Number.isInteger(envMax) && envMax > 0 ? envMax : 8);
+
+  const recs: BrowseSessionRecord[] = [];
+  for await (const path of walkSessionFiles()) {
+    try {
+      recs.push(JSON.parse(await readFile(path, "utf8")) as BrowseSessionRecord);
+    } catch {
+      /* skip unreadable */
+    }
+  }
+
+  let reaped = 0;
+  const live: BrowseSessionRecord[] = [];
+  for (const rec of recs) {
+    if (isProcessAlive(rec.chromePid)) {
+      live.push(rec);
+    } else {
+      await deleteSessionRecord(rec.sessionId).catch(() => undefined);
+      reaped++;
+    }
+  }
+
+  if (live.length > maxLive) {
+    // Oldest first; kill the overflow.
+    live.sort((a, b) => a.createdAt - b.createdAt);
+    for (const rec of live.slice(0, live.length - maxLive)) {
+      const shared = await anotherSessionUsesChrome(rec.chromePid, rec.sessionId);
+      if (!shared) {
+        try {
+          process.kill(rec.chromePid, "SIGTERM");
+        } catch {
+          /* already gone */
+        }
+      }
+      await deleteSessionRecord(rec.sessionId).catch(() => undefined);
+      reaped++;
+    }
+  }
+
+  return reaped;
 }
 
 /** Returns true iff any other session record references the same chrome pid. */

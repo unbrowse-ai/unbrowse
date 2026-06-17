@@ -30,6 +30,7 @@ import {
 } from "../../cdp/index.js";
 import type { ParsedV7Args } from "../args.js";
 import {
+  reapStaleSessions,
   writeSessionRecord,
   type BrowseSessionRecord,
 } from "../_session.js";
@@ -85,6 +86,11 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   }
 
   try {
+    // Bound the persisted-Chrome footprint before spawning a new one: prune
+    // dead-Chrome records and cap live browse sessions so `go` without a
+    // matching `close` cannot leak browsers indefinitely. Best-effort.
+    await reapStaleSessions().catch(() => undefined);
+
     // W5 surface: attach to a user-supplied ws endpoint or spawn a fresh
     // browser. The CDPConnection carries chromeBin/pid/endpoint as pointer
     // fields we persist below.

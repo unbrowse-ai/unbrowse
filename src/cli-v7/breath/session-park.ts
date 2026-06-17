@@ -179,7 +179,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   try {
     rec = explicitId
       ? await readSessionRecord(explicitId)
-      : await resolveSession(undefined);
+      : await resolveSession(undefined, { probeLive: false });
   } catch (err) {
     if (
       !explicitId &&

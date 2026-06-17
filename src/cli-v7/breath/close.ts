@@ -104,7 +104,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   try {
     rec = explicitId
       ? await readSessionRecord(explicitId)
-      : await resolveSession(undefined);
+      : await resolveSession(undefined, { probeLive: false });
   } catch (err) {
     // Explicit id miss is the load-bearing failure; no-active-session is
     // idempotent-ok for the no-arg form.
