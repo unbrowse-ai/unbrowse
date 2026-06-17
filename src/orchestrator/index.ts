@@ -968,6 +968,30 @@ function promoteResultSnapshot(
   });
 }
 
+/** #2 — index the walked candidate under the OUTER cacheKey so the next identical
+ *  call replays it instead of re-paying the web-search→walk cost. When the walk
+ *  landed on a real internal-API ROUTE, promote the route (skillRouteCache →
+ *  re-executed FRESH on the next resolve); otherwise snapshot the page result
+ *  (routeResultCache blob, TTL-bounded). The route graph IS the cache. Best-effort:
+ *  caching never blocks or fails the answer. */
+function persistWalkedRoute(scope: string, cacheKey: string, walked: OrchestratorResult): void {
+  try {
+    const skill = walked.skill;
+    if (!skill) return;
+    const endpointId = walked.trace?.endpoint_id;
+    const isReplayableRoute =
+      (walked.source === "marketplace" || walked.source === "route-cache" ||
+        walked.source === "live-capture" || walked.source === "direct-fetch") &&
+      !!skill.endpoints?.length;
+    if (isReplayableRoute) {
+      promoteLearnedSkill(scope, cacheKey, skill, endpointId, undefined);
+    }
+    promoteResultSnapshot(cacheKey, skill, endpointId, walked.result, walked.trace);
+  } catch {
+    /* caching is best-effort — never blocks the walked answer */
+  }
+}
+
 function buildCachedResultResponse(
   cached: {
     skill: SkillManifest;
@@ -4779,7 +4803,7 @@ export async function resolveAndExecute(
       // When quality fails on all three signals (max_score, hit_rate, rich_highlights),
       // discard the exa hits so the resolver falls through to the post-race serial
       // path (direct-document at L4530+, XHR-prioritised live capture).
-      if (exaHits.length > 0) {
+      if (walkDepth === 0 && exaHits.length > 0) {
         const intentTokens = (queryIntent || "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
         const stop = new Set(["get","the","for","from","with","and","any","all","new","top","top1","top10"]);
         const intentTokenSet = new Set(intentTokens.filter((t) => !stop.has(t)));
@@ -4811,7 +4835,7 @@ export async function resolveAndExecute(
           console.log(`[exa] raw-candidate mode (UNBROWSE_EXA_RAW=1): keeping ${exaHits.length} low-score hits for the agent to judge`);
         }
       }
-      if (exaHits.length > 0) {
+      if (walkDepth === 0 && exaHits.length > 0) {
         const richHit = pickAnswerHit(exaHits, raceProbeDomain);
         const candidates = exaHits.map((hit) => ({
           url: hit.url,
@@ -4862,6 +4886,11 @@ export async function resolveAndExecute(
             );
             if (walked && walked.source !== "exa" && !(walked.result as Record<string, unknown> | undefined)?.exec_unsupported) {
               console.log(`[exa→walk] resolved candidate ${topWalk.url} via ${walked.source} (pointer pipe d${walkDepth + 1})`);
+              // #2: index the walked route under the OUTER key so the next call replays it.
+              {
+                const wDom = context?.domain ?? (() => { try { return new URL(raceContextUrl).hostname; } catch { return null; } })();
+                persistWalkedRoute(clientScope, scopedCacheKey(clientScope, buildResolveCacheKey(wDom ?? null, intent, raceContextUrl)), walked);
+              }
               return {
                 ...walked,
                 result: {
@@ -5946,7 +5975,7 @@ export async function resolveAndExecute(
     }
     // Exa web search: when marketplace has no viable skills and Exa returned rich highlights,
     // synthesize an answer directly from the web excerpts — no browser needed.
-    if (viable.length === 0 && exaResults?.length) {
+    if (walkDepth === 0 && viable.length === 0 && exaResults?.length) {
       const richHit = pickAnswerHit(exaResults, requestedDomain);
       if (richHit) {
         console.log(`[exa] returning highlights answer from ${richHit.url} (${(richHit.highlights ?? []).join(" ").length} chars) + ${exaResults.length} ranked candidate(s)`);
@@ -5993,6 +6022,8 @@ export async function resolveAndExecute(
             );
             if (walked && walked.source !== "exa" && !(walked.result as Record<string, unknown> | undefined)?.exec_unsupported) {
               console.log(`[exa→walk] resolved candidate ${topWalk.url} via ${walked.source} (pointer pipe d${walkDepth + 1})`);
+              // #2: index the walked route under the OUTER key so the next call replays it.
+              persistWalkedRoute(clientScope, cacheKey, walked);
               return {
                 ...walked,
                 result: {
