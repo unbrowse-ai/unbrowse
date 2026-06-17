@@ -83,3 +83,93 @@ export async function getAttributionStats(env: Env): Promise<{ linked_agents: nu
   ]);
   return { linked_agents: agents.length, linked_tokens: tokens.length };
 }
+
+// KV prefixes owned elsewhere (kept as literals to avoid a circular import; the source of
+// truth is install-telemetry.ts INSTALL_EVENT_PREFIX + metrics.ts SESSION_PREFIX).
+const INSTALL_EVENT_PREFIX = "install-event:";
+const SESSION_PREFIX = "analytics:session:";
+
+export interface CohortRow {
+  variant: string;
+  installs: number;
+  registered: number;
+  active: number;
+  registration_rate: number;
+  activation_rate: number;
+}
+export interface CohortFunnel {
+  days: number;
+  totals: { installs: number; registered: number; active: number };
+  by_variant: CohortRow[];
+}
+
+const rate = (n: number, d: number): number => (d > 0 ? Math.round((n / d) * 1000) / 1000 : 0);
+
+/**
+ * The dominion view (break ③): join installs -> registered agents -> active usage by
+ * acquisition cohort (landing variant). Closes the chain the attribution-link layer binds —
+ * revenue can now be read per-cohort, not just per-agent. Pure listWithValues join.
+ */
+export async function getCohortFunnel(env: Env, days: number): Promise<CohortFunnel> {
+  const clampedDays = Math.max(1, Math.min(365, Math.trunc(Number.isFinite(days) ? days : 30)));
+  const cutoffMs = Date.now() - clampedDays * 86_400_000;
+  const kv = statsKV(env);
+  const [installEntries, agentEntries, sessionEntries] = await Promise.all([
+    kv.listWithValues(INSTALL_EVENT_PREFIX),
+    kv.listWithValues(AGENT_INSTALL_PREFIX),
+    kv.listWithValues(SESSION_PREFIX),
+  ]);
+
+  // install_id -> variant (windowed by install created_at)
+  const installVariant = new Map<string, string>();
+  const variantInstalls = new Map<string, Set<string>>();
+  for (const e of installEntries) {
+    try {
+      const ev = JSON.parse(e.value) as { install_id?: string; landing_variant_id?: string; created_at?: string };
+      if (!ev.install_id) continue;
+      if (ev.created_at && Date.parse(ev.created_at) < cutoffMs) continue;
+      const v = ev.landing_variant_id || "(unattributed)";
+      installVariant.set(ev.install_id, v);
+      (variantInstalls.get(v) ?? variantInstalls.set(v, new Set()).get(v)!).add(ev.install_id);
+    } catch {
+      /* skip */
+    }
+  }
+
+  // registered: attrib:agent value is the install_id
+  const variantRegistered = new Map<string, Set<string>>();
+  for (const a of agentEntries) {
+    const installId = (a.value || "").trim();
+    const v = installVariant.get(installId);
+    if (!v) continue;
+    (variantRegistered.get(v) ?? variantRegistered.set(v, new Set()).get(v)!).add(installId);
+  }
+
+  // active: sessions carrying install_id
+  const variantActive = new Map<string, Set<string>>();
+  for (const s of sessionEntries) {
+    try {
+      const ss = JSON.parse(s.value) as { install_id?: string };
+      const v = ss.install_id ? installVariant.get(ss.install_id) : undefined;
+      if (!v || !ss.install_id) continue;
+      (variantActive.get(v) ?? variantActive.set(v, new Set()).get(v)!).add(ss.install_id);
+    } catch {
+      /* skip */
+    }
+  }
+
+  const by_variant: CohortRow[] = Array.from(variantInstalls.entries())
+    .map(([variant, set]) => {
+      const installs = set.size;
+      const registered = variantRegistered.get(variant)?.size ?? 0;
+      const active = variantActive.get(variant)?.size ?? 0;
+      return { variant, installs, registered, active, registration_rate: rate(registered, installs), activation_rate: rate(active, installs) };
+    })
+    .sort((a, b) => b.installs - a.installs);
+
+  const totals = by_variant.reduce(
+    (acc, r) => ({ installs: acc.installs + r.installs, registered: acc.registered + r.registered, active: acc.active + r.active }),
+    { installs: 0, registered: 0, active: 0 },
+  );
+  return { days: clampedDays, totals, by_variant };
+}

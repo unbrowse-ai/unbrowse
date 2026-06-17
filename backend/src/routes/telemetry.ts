@@ -6,7 +6,7 @@ import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
 import { getLandingHomepageInstallAttribution } from "../services/landing-experiments.js";
 import { recordSurfaceError, loadSurfaceErrors, recordUsagePing, loadUsagePings } from "../services/issues.js";
-import { recordTokenInstall } from "../services/attribution-link.js";
+import { recordTokenInstall, getCohortFunnel } from "../services/attribution-link.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -222,9 +222,13 @@ telemetryRoutes.get("/telemetry/issues", optionalAuth, async (c) => {
     return c.json({ error: "admin or dashboard token required" }, 403);
   }
   const days = Number(c.req.query("days") ?? "7") || 7;
-  const [summary, usage] = await Promise.all([loadSurfaceErrors(c.env, days), loadUsagePings(c.env, days)]);
+  const [summary, usage, cohort] = await Promise.all([
+    loadSurfaceErrors(c.env, days),
+    loadUsagePings(c.env, days),
+    getCohortFunnel(c.env, days),
+  ]);
   c.header("Cache-Control", "no-store");
-  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary, usage });
+  return c.json({ ok: true, generated_at: new Date().toISOString(), days, ...summary, usage, cohort });
 });
 
 // ---------------------------------------------------------------------------
