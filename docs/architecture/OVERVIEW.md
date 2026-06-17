@@ -9,8 +9,11 @@
 > from paid executions are split deterministically among platform, site
 > owner, contributors, and first discoverer.
 
-> Generated 2026-06-10 from the code at monorepo v8.3.0-preview.2. Every claim
-> cites a real file path. Start at [README.md](./README.md) for reading paths.
+> Reviewed 2026-06-17 against build v9.4.12 (`src/build-info.generated.ts`).
+> Every claim cites a real file path. Start at [README.md](./README.md) for
+> reading paths, or [../CATALOGUE.md](../CATALOGUE.md) for the full repo index.
+> Cross-cutting detail lives in the deep-dives: [SECURITY](./SECURITY.md) ·
+> [PRIVACY](./PRIVACY.md) · [AUTH](./AUTH.md) · [PERFORMANCE](./PERFORMANCE.md).
 
 ## What Unbrowse is
 
@@ -104,6 +107,10 @@ shared cloud backend:
 - The CLI stores its key in `~/.unbrowse/config.json`
   (`src/client/index.ts`); the frontend stores it in `localStorage`
   (`frontend/src/lib/auth-context.tsx`).
+- The client also **gates before it spends**: `src/auth/pre-resolve-gate.ts`
+  blocks resolve for a personal/auth-shaped intent on a known login-walled host
+  with no fresh cookie, and `src/auth/stale-endpoints.ts` removes endpoints that
+  just returned 401/403 from future resolves. Full detail in [AUTH.md](./AUTH.md).
 
 ### 3. Money (four rails, one ledger)
 - **Stripe subscriptions** — checkout/portal/webhooks + usage metering and

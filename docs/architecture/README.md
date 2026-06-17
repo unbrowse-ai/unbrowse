@@ -1,18 +1,25 @@
 # Architecture Docs — Start Here
 
-> **At a glance** — six documents describing how Unbrowse actually works at
-> v8.3.0-preview.2, generated from the code with every claim citing a real
-> file path. Four describe the system (overview + one per surface); two
-> define what "correct" means (acceptance criteria + test specs).
+> **At a glance** — documents describing how Unbrowse actually works at
+> v9.4.12, generated from the code with every claim citing a real file path.
+> Four describe the system surfaces (overview + CLI/backend/frontend), four are
+> cross-cutting deep-dives (security, privacy, auth, performance), and two
+> define what "correct" means (acceptance criteria + test specs). For the full
+> repo index see [../CATALOGUE.md](../CATALOGUE.md).
 
 ## Pick your reading path
 
 | You want to… | Read |
 |---|---|
 | Get the whole system in 5 minutes | [OVERVIEW.md](./OVERVIEW.md) |
+| Find any doc or any code subsystem | [../CATALOGUE.md](../CATALOGUE.md) |
 | Work on the CLI, MCP server, SDK, or local capture/replay engine | [CLI.md](./CLI.md) |
 | Work on the API: routes, auth, keys, billing, marketplace | [BACKEND.md](./BACKEND.md) |
 | Work on the web UI or the public metrics dashboard | [FRONTEND.md](./FRONTEND.md) |
+| Understand anti-tamper, anti-bot, the trust graph, the x402 gate | [SECURITY.md](./SECURITY.md) |
+| Understand secret handling and the thin-client guarantee | [PRIVACY.md](./PRIVACY.md) |
+| Understand identity, keys, auth gating, wallet resolution | [AUTH.md](./AUTH.md) |
+| Understand why it's fast: caching, egress tiering, fast paths | [PERFORMANCE.md](./PERFORMANCE.md) |
 | Know what a subsystem must do before changing it | [ACCEPTANCE-CRITERIA.md](./ACCEPTANCE-CRITERIA.md) |
 | Write or find tests; see coverage and gaps | [TEST-SPECS.md](./TEST-SPECS.md) |
 
