@@ -2,7 +2,6 @@
 
 * [Unbrowse](README.md)
 * [Where This Goes](vision.md)
-* [Catalogue — all docs & code](CATALOGUE.md)
 
 ## Start Here
 
@@ -25,18 +24,6 @@
 * [Integration Surfaces](for-developers/integration-surfaces.md)
 * [The Route Lifecycle](for-developers/the-route-lifecycle.md)
 * [SDK Quickstart](for-developers/sdk-quickstart.md)
-
-## Architecture
-
-* [Architecture — Start Here](architecture/README.md)
-* [System Overview](architecture/OVERVIEW.md)
-* [CLI & Local Engine](architecture/CLI.md)
-* [Backend](architecture/BACKEND.md)
-* [Frontend](architecture/FRONTEND.md)
-* [Security](architecture/SECURITY.md)
-* [Privacy & Data Handling](architecture/PRIVACY.md)
-* [Identity, Auth & Wallets](architecture/AUTH.md)
-* [Performance & Speed](architecture/PERFORMANCE.md)
 
 ## Concepts
 
