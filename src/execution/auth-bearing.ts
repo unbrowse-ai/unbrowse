@@ -58,12 +58,19 @@ export interface AuthBearingOpts {
 
 /** True iff the request carries a credential/identity a terminating server tier could read. */
 export function isAuthBearing(
-  headers?: Record<string, string> | null,
+  headers?: Record<string, string> | Headers | null,
   opts: AuthBearingOpts = {},
 ): boolean {
   if (opts.sealedFill || opts.storageBound) return true;
   if (!headers) return false;
-  for (const [key, value] of Object.entries(headers)) {
+  // Fail SAFE on a Headers object: `Object.entries(new Headers(...))` is `[]`, so
+  // a plain entries() scan would silently miss a credential. Normalize a Headers
+  // instance (or any [key,value] iterable) to entries before classifying.
+  const entries: Iterable<[string, string]> =
+    typeof (headers as Headers).entries === "function" && typeof (headers as Headers).forEach === "function"
+      ? (headers as Headers).entries()
+      : Object.entries(headers as Record<string, string>);
+  for (const [key, value] of entries) {
     // Any header outside the benign generic-browser set is identity/credential-
     // bearing (cookies, api keys, csrf, custom X-* tokens, storage-derived values).
     if (!BENIGN_HEADER_KEYS.has(key.toLowerCase())) return true;
