@@ -56,6 +56,8 @@ export interface AnalyticsSessionSummary {
   variant_id?: string;
   experiment_id?: string;
   icp?: string;
+  /** Origin install (funnel break ②): lets usage be re-attributed to its acquisition cohort. */
+  install_id?: string;
 }
 
 interface StoredSessionSummary extends AnalyticsSessionSummary {

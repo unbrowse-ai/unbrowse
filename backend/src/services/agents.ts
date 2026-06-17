@@ -3,6 +3,8 @@ import { statsKV } from "./kv.js";
 import { CURRENT_TOS_VERSION } from "../tos.js";
 import { grantCredits } from "./credits.js";
 import { createLocalKey } from "./keys.js";
+import { linkAgentViaToken } from "./attribution-link.js";
+import { resolveLandingHomepageToken } from "./landing-experiments.js";
 
 const MAX_ACTIVITY_DAYS = 90;
 const agentWriteQueue = new Map<string, Promise<void>>();
@@ -137,6 +139,18 @@ export async function registerAgent(
     ...(attribution?.landing_token ? { landing_token: attribution.landing_token } : {}),
   };
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
+  // Funnel keystone (closes Step-1 break ①): decode the landing token → token_id, then
+  // bind agent → install_id (the link install time wrote). Lets usage + revenue be
+  // re-attributed to the acquisition cohort. Best-effort + idempotent — registration must
+  // NEVER fail on attribution wiring.
+  if (attribution?.landing_token) {
+    try {
+      const claims = await resolveLandingHomepageToken(env, attribution.landing_token);
+      if (claims?.token_id) await linkAgentViaToken(env, data.keyId, claims.token_id);
+    } catch {
+      /* attribution is best-effort; never block registration */
+    }
+  }
   if (normalizedWallet) {
     await statsKV(env).put(walletLookupKey(normalizedWallet), data.keyId);
   }

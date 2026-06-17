@@ -6,6 +6,7 @@ import { recordInstallTelemetry } from "../services/install-telemetry.js";
 import { recordWebTelemetry } from "../services/acquisition.js";
 import { getLandingHomepageInstallAttribution } from "../services/landing-experiments.js";
 import { recordSurfaceError, loadSurfaceErrors, recordUsagePing, loadUsagePings } from "../services/issues.js";
+import { recordTokenInstall } from "../services/attribution-link.js";
 
 export const telemetryRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -47,6 +48,7 @@ telemetryRoutes.post("/telemetry/events", async (c) => {
 
   const agentId = c.get("agent_id");
   const attribution = await getLandingHomepageInstallAttribution(c.env, body.install_id, body.landing_token);
+  if (attribution?.token_id) await recordTokenInstall(c.env, attribution.token_id, body.install_id);
   const stored = await recordFunnelEvent(c.env, {
     install_id: body.install_id,
     session_id: body.session_id,
@@ -87,6 +89,9 @@ telemetryRoutes.post("/telemetry/install", async (c) => {
 
   const agentId = c.get("agent_id");
   const attribution = await getLandingHomepageInstallAttribution(c.env, body.install_id, body.landing_token);
+  // Funnel keystone: bind landing token → install_id (first-write-wins) so registration
+  // can later resolve which install an agent came from. Best-effort.
+  if (attribution?.token_id) await recordTokenInstall(c.env, attribution.token_id, body.install_id);
   const stored = await recordInstallTelemetry(c.env, {
     install_id: body.install_id,
     source: body.source,
