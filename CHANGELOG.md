@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.7...v9.4.8) (2026-06-17)
+
+### Bug Fixes
+
+* **browse:** go direct on the default context — per-context proxy broke ALL rendering ([88c8a28](https://github.com/unbrowse-ai/unbrowse-dev/commit/88c8a285cb56c166f5299a14d5a7bef66a6af0a2))
+
 ## [9.4.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.4.6...v9.4.7) (2026-06-17)
 
 ### Bug Fixes
