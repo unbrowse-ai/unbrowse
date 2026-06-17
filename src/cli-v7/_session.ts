@@ -30,6 +30,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  rename,
   stat,
   unlink,
   writeFile,
@@ -37,7 +38,7 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 export interface BrowseSessionRecord {
   readonly sessionId: string;
@@ -84,8 +85,26 @@ function sessionPath(sessionId: string): string {
 export async function writeSessionRecord(rec: BrowseSessionRecord): Promise<string> {
   const path = sessionPath(rec.sessionId);
   await mkdir(join(path, ".."), { recursive: true });
-  // Pretty-printed for the (rare) human reader; the contents are pointer-only.
-  await writeFile(path, JSON.stringify(rec, null, 2) + "\n", { mode: 0o600 });
+  // Atomic write (no-torn-read race): write the full record to a unique temp
+  // file in the SAME dir, then rename() onto the final path. rename() is atomic
+  // on POSIX, so any concurrent reader (readSessionRecord / mostRecentSession /
+  // anotherSessionUsesChrome) sees EITHER the old complete file OR the new one —
+  // never a half-written JSON. The temp name is pid+random-unique so two
+  // concurrent writers never clobber each other's in-flight temp; same-dir keeps
+  // the rename on one filesystem (no EXDEV). Pretty-printed for the rare human
+  // reader; the contents are pointer-only.
+  const tmp = `${path}.tmp.${process.pid}.${randomBytes(6).toString("hex")}`;
+  await writeFile(tmp, JSON.stringify(rec, null, 2) + "\n", { mode: 0o600 });
+  try {
+    await rename(tmp, path);
+  } catch (err) {
+    try {
+      await unlink(tmp);
+    } catch {
+      /* best-effort temp cleanup */
+    }
+    throw err;
+  }
   return path;
 }
 
