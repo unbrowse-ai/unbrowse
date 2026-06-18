@@ -71,7 +71,7 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
-import { isListLikeIntent, schemaLooksLikeSingleItem } from "../values/cardinality.js";
+import { isListLikeIntent, schemaLooksLikeSingleItem, valueLooksLikeSingleItem } from "../values/cardinality.js";
 export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
 import { isPersistableYield } from "../values/yield-safety.js";
@@ -2461,7 +2461,28 @@ function inferPreferredEntityTokens(intent: string): string[] {
 }
 
 function isAcceptableIntentResult(result: unknown, intent: string): boolean {
-  return assessIntentResult(result, intent).verdict !== "fail";
+  if (assessIntentResult(result, intent).verdict === "fail") return false;
+  // Cardinality guard (Ezekiel 47:10): a list/search intent must not be
+  // satisfied by a single-item value. A dom_extraction endpoint that re-fetches
+  // a JS-rendered listing page (Carousell /food/q/) and harvests only the lazy
+  // page-level schema.org Product is one fish for a net — reject it so the ladder
+  // ESCALATES (browser render / internal-API capture) instead of accepting it,
+  // and so the poison is never promoted into the result snapshot cache.
+  if (isListLikeIntent(intent) && valueLooksLikeSingleItem(unwrapResultPayload(result))) return false;
+  return true;
+}
+
+// Strip the resolve/execute ENVELOPE (shortlist + routing metadata) so the
+// cardinality check sees the actual value, not the wrapper. A merged shortlist
+// (available_endpoints[]) is an array-of-objects that would otherwise mask a
+// single-item payload from valueLooksLikeSingleItem.
+function unwrapResultPayload(result: unknown): unknown {
+  if (result == null || typeof result !== "object" || Array.isArray(result)) return result;
+  const rec = { ...(result as Record<string, unknown>) };
+  for (const k of ["available_endpoints", "available_operations", "shortlist_for_judgment", "workflow_dag", "walked_from", "exa_candidates", "run_plan"]) {
+    delete rec[k];
+  }
+  return rec;
 }
 
 function candidateMatchesPreferredEntity(

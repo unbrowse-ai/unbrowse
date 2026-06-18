@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { assessIntentResult } from "../intent-match.js";
+import { valueLooksLikeSingleItem, isListLikeIntent } from "../values/cardinality.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cheerio v1.x doesn't export Element directly
 type CheerioEl = any;
@@ -45,7 +46,7 @@ interface SPAExtraction extends ExtractedStructure {
   type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
 }
 
-function extractHtmlMetadataFallback(html: string): Record<string, unknown> | null {
+function extractHtmlMetadataFallback(html: string, intent?: string): Record<string, unknown> | null {
   // Last-resort extractor that always returns SOMETHING when the main extractor
   // returns nothing. Pulls title, meta tags, JSON-LD blocks, and the first ~3KB
   // of textual body content. Used by SSR-but-JS-rendered pages (Threads,
@@ -79,7 +80,14 @@ function extractHtmlMetadataFallback(html: string): Record<string, unknown> | nu
         if (parsed && typeof parsed === "object") jsonLdBlocks.push(parsed);
       } catch { /* skip malformed */ }
     });
-    if (jsonLdBlocks.length > 0) out.json_ld = jsonLdBlocks;
+    // Cardinality guard (Ezekiel 47:10): even in the last-resort fallback, a
+    // list/search intent must not carry back a single-item JSON-LD (the lazy
+    // page-level Product on a listing page). ItemList / collections survive —
+    // valueLooksLikeSingleItem returns false for those.
+    const usableJsonLd = isListLikeIntent(intent)
+      ? jsonLdBlocks.filter((b) => !valueLooksLikeSingleItem(b))
+      : jsonLdBlocks;
+    if (usableJsonLd.length > 0) out.json_ld = usableJsonLd;
     const headings: string[] = [];
     $("h1, h2").each((_, el) => {
       const text = cleanText($(el).text());
@@ -2943,6 +2951,40 @@ function scoreSiteMetaJsonLdDemotion(structure: ExtractedStructure, intent: stri
   return -200;
 }
 
+// ---------------------------------------------------------------------------
+// scoreSingleItemListMismatch — single ITEM JSON-LD vs LIST_INTENT gate
+// ---------------------------------------------------------------------------
+// Cardinality invariant (Ezekiel 47:10, "the spreading of nets; their fish
+// after their kinds, exceeding many"): a LIST/SEARCH intent is a net that wants
+// MANY records; a single item is one fish. The sibling demotion above only
+// catches SITE-META types (Organization/WebSite). A lazy page-level
+// schema.org Product / single entity on a listing page (witnessed on Carousell
+// /food/q/: the SSR HTML carries only one `@type:Product` + AggregateOffer
+// while the 10,000+ listings render client-side) escapes it. This demotes any
+// single-item structure on a LIST_INTENT so it cannot win by default — the
+// caller then escalates the ladder (browser render / internal-API capture)
+// instead of returning one fish for a net.
+//
+// Falsifier carve-outs (must NOT demote — handled by valueLooksLikeSingleItem):
+//   - @type: ItemList / a collection container / any array-of-objects → a list.
+//   - repeated-elements / multi-record structures (element_count > 1).
+//   - DETAIL_INTENT (regex does not fire) — a single entity is correct there.
+function isSingleItemStructureForList(structure: ExtractedStructure, intent: string): boolean {
+  if (!TINY_RESULT_LIST_INTENT.test(intent.toLowerCase())) return false;
+  // repeated-elements is a collection by construction — never a single item.
+  if (structure.type === "repeated-elements") return false;
+  // valueLooksLikeSingleItem is the cardinality signal: it returns false for
+  // arrays, collection containers, and any array-of-objects payload (a list),
+  // and true only for a lone entity object (@type, or name+price). element_count
+  // is NOT a usable gate here — countDataElements sums leaf FIELDS, so a single
+  // Product with an image[] + nested offers already counts well above 1.
+  return valueLooksLikeSingleItem(structure.data);
+}
+
+function scoreSingleItemListMismatch(structure: ExtractedStructure, intent: string): number {
+  return isSingleItemStructureForList(structure, intent) ? -200 : 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // looksLikeTinyContentReadResult
@@ -3223,10 +3265,11 @@ export function extractFromDOM(html: string, intent: string, contextUrl?: string
     !(s.type === "repeated-elements" && looksLikeDegenerateRowArray(s.data)) &&
     !looksLikeConfigShape(s.data) &&
     !looksLikeEmptyContainer(s.data) &&
-    !(isListIntent && looksLikeSiteMetaJsonLd(s.data)));
+    !(isListIntent && looksLikeSiteMetaJsonLd(s.data)) &&
+    !isSingleItemStructureForList(s, intent));
 
   if (structures.length === 0) {
-    const fallback = extractHtmlMetadataFallback(html);
+    const fallback = extractHtmlMetadataFallback(html, intent);
     if (fallback) {
       return _finalize({ data: fallback, extraction_method: "html_metadata_fallback", confidence: 0.4 });
     }
@@ -3237,7 +3280,7 @@ export function extractFromDOM(html: string, intent: string, contextUrl?: string
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s) + scoreSiteMetaJsonLdDemotion(s, intent) + scoreTableIntentOverlapDemotion(s, intent, contextUrl, structures),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s) + scoreConfigShapeDemotion(s) + scoreDegenerateRowDemotion(s) + scoreDuplicateRowDemotion(s) + scoreEmptyContainerDemotion(s) + scoreSiteMetaJsonLdDemotion(s, intent) + scoreSingleItemListMismatch(s, intent) + scoreTableIntentOverlapDemotion(s, intent, contextUrl, structures),
   }));
   scored.sort((a, b) => b.score - a.score);
   const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
