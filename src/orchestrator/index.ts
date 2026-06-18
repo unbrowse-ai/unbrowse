@@ -71,7 +71,7 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
-import { isListLikeIntent, schemaLooksLikeSingleItem, valueLooksLikeSingleItem } from "../values/cardinality.js";
+import { cardinalityMatches, routeLooksLikeSingleItem, isListLikeIntent } from "../values/cardinality.js";
 export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
 import { isPersistableYield } from "../values/yield-safety.js";
@@ -876,39 +876,11 @@ function endpointHasNegativeTag(
   );
 }
 
-/**
- * Cardinality guard (Ezekiel 47:10 — "the spreading of nets; their fish after
- * their kinds, exceeding many"). A search/list intent is a *net* that wants many
- * pointers; a product/detail route yields a single fish. This detects single-item
- * (detail/product) routes so they lose to a search/listing route — or the DAG
- * walk — for list-shaped intents. Listing signals win over the trailing-id
- * heuristic (a category id like `/categories/food-1011/` is still a list).
- */
+/** Thin re-export of the shared route-cardinality predicate (lives in
+ *  src/values/cardinality.ts now — the common interface). Kept exported for the
+ *  orchestrator-cardinality tests and any in-tree caller. */
 export function looksLikeSingleItemRoute(endpoint: SkillManifest["endpoints"][number]): boolean {
-  const tmpl = endpoint.url_template ?? "";
-  let pathAndQuery = tmpl;
-  try {
-    const u = new URL(tmpl);
-    pathAndQuery = `${u.pathname}${u.search}`;
-  } catch {
-    /* keep raw template */
-  }
-  const lower = pathAndQuery.toLowerCase();
-  // Listing/collection path signals win outright — never a single item.
-  if (
-    /\/(?:search|q|categories?|browse|results?|listings|explore|discover|feed|catalog(?:ue)?|collections?|shop|all)\b/.test(lower) ||
-    /[?&](?:q|query|keyword|keywords|search|term|category|cat|page)=/.test(lower)
-  ) {
-    return false;
-  }
-  // Detail/product URL shapes → single item.
-  if (/\/(?:p|product|products|item|items|listing|detail|details|dp|pd|sku)\/[^/]+/.test(lower)) return true;
-  const lastSeg = lower.split("?")[0].replace(/\/+$/, "").split("/").pop() ?? "";
-  if (/-\d{3,}$/.test(lastSeg) || /^\d{3,}$/.test(lastSeg)) return true; // slug-<id> or bare numeric id
-  // A bare template hole with no detail signal → generic/list route, not a single item.
-  if (/\{[^}]+\}/.test(lower)) return false;
-  // Response-shape signal: a single schema.org record, not a collection.
-  return schemaLooksLikeSingleItem(endpoint.response_schema);
+  return routeLooksLikeSingleItem(endpoint);
 }
 
 export function isResolveUsableEndpointForIntent(
@@ -923,8 +895,9 @@ export function isResolveUsableEndpointForIntent(
   if (isFeedTimelineIntent(intent, contextUrl) && endpointHasNegativeTag(endpoint, "helper")) {
     return false;
   }
-  // Cardinality guard: a list/search intent must not be answered by a single-item route.
-  if (isSearchLikeIntent(intent, contextUrl) && looksLikeSingleItemRoute(endpoint)) {
+  // Cardinality gate (common interface): a list/search intent must not be
+  // answered by a single-item route.
+  if (!cardinalityMatches(intent, { kind: "route", route: endpoint }, { contextUrl })) {
     return false;
   }
   return true;
@@ -2468,7 +2441,7 @@ function isAcceptableIntentResult(result: unknown, intent: string): boolean {
   // page-level schema.org Product is one fish for a net — reject it so the ladder
   // ESCALATES (browser render / internal-API capture) instead of accepting it,
   // and so the poison is never promoted into the result snapshot cache.
-  if (isListLikeIntent(intent) && valueLooksLikeSingleItem(unwrapResultPayload(result))) return false;
+  if (!cardinalityMatches(intent, { kind: "value", value: unwrapResultPayload(result) })) return false;
   return true;
 }
 

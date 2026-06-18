@@ -4,6 +4,9 @@ import {
   valueLooksLikeSingleItem,
   schemaLooksLikeSingleItem,
   resolutionCardinalityMatches,
+  cardinalityMatches,
+  routeLooksLikeSingleItem,
+  urlPathLooksListLike,
 } from "../src/values/cardinality.js";
 
 const PRODUCT = {
@@ -72,5 +75,46 @@ describe("resolutionCardinalityMatches — the ledger-replay guard", () => {
   });
   it("accepts a single product for a single-item intent", () => {
     expect(resolutionCardinalityMatches("get the price of this product", PRODUCT)).toBe(true);
+  });
+});
+
+describe("cardinalityMatches — the common gate (value | schema | route)", () => {
+  const productRoute = { url_template: "https://x.com/p/risoles-123/", response_schema: { type: "object", properties: { "@type": {}, name: {}, offers: {} } } };
+  const listRoute = { url_template: "https://x.com/search/{q}" };
+
+  it("value subject: list intent rejects a single item, accepts a collection", () => {
+    expect(cardinalityMatches("find good food", { kind: "value", value: PRODUCT })).toBe(false);
+    expect(cardinalityMatches("find good food", { kind: "value", value: { results: [PRODUCT, PRODUCT] } })).toBe(true);
+  });
+  it("schema subject: list intent rejects a single-item schema", () => {
+    expect(cardinalityMatches("list products", { kind: "schema", schema: { type: "object", properties: { "@type": {}, name: {}, offers: {} } } })).toBe(false);
+    expect(cardinalityMatches("list products", { kind: "schema", schema: { type: "array", items: { type: "object" } } })).toBe(true);
+  });
+  it("route subject: list intent rejects a single-item route, accepts a listing route", () => {
+    expect(cardinalityMatches("find good food", { kind: "route", route: productRoute })).toBe(false);
+    expect(cardinalityMatches("find good food", { kind: "route", route: listRoute })).toBe(true);
+  });
+  it("detail intent admits anything (any subject kind)", () => {
+    expect(cardinalityMatches("get this product", { kind: "value", value: PRODUCT })).toBe(true);
+    expect(cardinalityMatches("get this product", { kind: "route", route: productRoute })).toBe(true);
+  });
+  it("contextUrl path can imply a list intent even when intent text is terse", () => {
+    // "get" alone is not list-like, but a /search/ context page is.
+    expect(cardinalityMatches("get them", { kind: "value", value: PRODUCT }, { contextUrl: "https://x.com/search/food" })).toBe(false);
+    expect(cardinalityMatches("get them", { kind: "value", value: PRODUCT }, { contextUrl: "https://x.com/p/item-1/" })).toBe(true);
+  });
+});
+
+describe("routeLooksLikeSingleItem + urlPathLooksListLike", () => {
+  it("detail routes are single items; listing routes are not", () => {
+    expect(routeLooksLikeSingleItem({ url_template: "https://x.com/p/risoles-123/" })).toBe(true);
+    expect(routeLooksLikeSingleItem({ url_template: "https://x.com/search/food" })).toBe(false);
+    expect(routeLooksLikeSingleItem({ url_template: "https://www.carousell.sg/food/q/" })).toBe(false);
+  });
+  it("urlPathLooksListLike detects search/results/category paths", () => {
+    expect(urlPathLooksListLike("https://x.com/search/food")).toBe(true);
+    expect(urlPathLooksListLike("https://x.com/categories/food-1011/")).toBe(true);
+    expect(urlPathLooksListLike("https://x.com/p/item-1/")).toBe(false);
+    expect(urlPathLooksListLike(undefined)).toBe(false);
   });
 });

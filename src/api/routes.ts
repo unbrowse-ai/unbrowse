@@ -7,6 +7,7 @@ import type { KuriHarEntry } from "../kuri/client.js";
 import { withDeadline } from "../lib/deadline.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
+import { cardinalityMatches } from "../values/cardinality.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../lib/indexer-core/index.js";
 import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from "../lib/indexer-core/capture-spool.js";
@@ -2296,11 +2297,20 @@ export async function registerRoutes(app: FastifyInstance) {
             execParams.endpoint_id = fromResolve.endpoint_id;
             recovered = true;
           } else if (errResult.available_endpoints?.length === 1) {
-            // Single-endpoint skills: just use it.
+            // Single-endpoint skills: just use it — UNLESS cardinality forbids it.
+            // A list/search intent must not be force-executed against a single-item
+            // route (the common cardinality gate); better an honest not-found than
+            // one fish for a net. Look up the full endpoint (the error shortlist
+            // carries only id+description; url_template/schema live on skill).
             const only = errResult.available_endpoints[0].endpoint_id;
-            console.log(`[exec] D7 single-endpoint skill: rewriting endpoint_id ${want} → ${only}`);
-            execParams.endpoint_id = only;
-            recovered = true;
+            const onlyEp = (skill.endpoints ?? []).find((e) => e.endpoint_id === only);
+            if (!onlyEp || cardinalityMatches(intent, { kind: "route", route: onlyEp }, { contextUrl: context_url })) {
+              console.log(`[exec] D7 single-endpoint skill: rewriting endpoint_id ${want} → ${only}`);
+              execParams.endpoint_id = only;
+              recovered = true;
+            } else {
+              console.log(`[exec] D7 single-endpoint skill: only endpoint ${only} is a single-item route for a list intent — not forcing (cardinality gate)`);
+            }
           }
         }
         // Try 4: semantic sibling-by-intent rank. When the agent's endpoint_id
