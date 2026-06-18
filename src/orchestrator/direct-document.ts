@@ -426,7 +426,7 @@ export function buildDirectDocumentResult(
     content_type: contentType,
     html_bytes: html.length,
     text_excerpt: bodyText.slice(0, MARKDOWN_BUDGET),
-    markdown: htmlToMarkdownSafe(html, bodyText),
+    markdown: htmlToMarkdownSafe(html, bodyText, intent),
     tables: extractTables(html),
     ...(routing_candidates.length > 0 ? { routing_candidates } : {}),
     extraction: {
@@ -615,7 +615,53 @@ function decompressIfNeeded(buf: Buffer, marker: string): string {
   return text;
 }
 
-function htmlToMarkdownSafe(html: string, fallbackText: string): string {
+// Query-focus: the single `unbrowse "<query>" --url` call already carries the
+// intent, so when a large page exceeds the budget, return the QUERY-RELEVANT
+// passage instead of head-truncating (which drops a deep answer — e.g. a W3C
+// spec's `atomicCompareExchangeWeak` signature sits past a 12k head-cut). Chunk
+// the full markdown, rank chunks by the intent's terms weighted by inverse
+// page-frequency (rare/specific query terms dominate over "the"/"of"), keep the
+// top chunks within budget, restored to document order for coherence. Pure +
+// lexical (no embedding — avoids the TS embedder parity issues). No intent or a
+// page that already fits → unchanged head-truncation.
+export function focusMarkdownToIntent(md: string, intent: string | undefined, budget: number): string {
+  if (md.length <= budget) return md;
+  if (process.env.UNBROWSE_QUERY_FOCUS === "0") return md.slice(0, budget); // A/B off-switch (baseline)
+  const terms = [...new Set((intent ?? "").toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? [])];
+  if (terms.length === 0) return md.slice(0, budget);
+  const chunks: string[] = [];
+  for (const block of md.split(/\n{2,}/)) {
+    if (block.length <= 1400) { if (block.trim()) chunks.push(block); continue; }
+    for (let i = 0; i < block.length; i += 1200) chunks.push(block.slice(i, i + 1400));
+  }
+  if (chunks.length === 0) return md.slice(0, budget);
+  const lower = chunks.map((c) => c.toLowerCase());
+  // inverse page-frequency weight per intent term (rare term in this page → discriminative)
+  const idf: Record<string, number> = {};
+  for (const t of terms) {
+    const df = lower.reduce((n, c) => n + (c.includes(t) ? 1 : 0), 0);
+    idf[t] = df === 0 ? 0 : Math.log(1 + chunks.length / df);
+  }
+  const scored = chunks.map((c, i) => {
+    let s = 0;
+    for (const t of terms) if (lower[i].includes(t)) s += idf[t];
+    return { i, c, s };
+  });
+  scored.sort((a, b) => b.s - a.s);
+  const picked: { i: number; c: string }[] = [];
+  let used = 0;
+  for (const x of scored) {
+    if (x.s <= 0) break;
+    if (used + x.c.length + 2 > budget) continue;
+    picked.push(x);
+    used += x.c.length + 2;
+  }
+  if (picked.length === 0) return md.slice(0, budget);
+  picked.sort((a, b) => a.i - b.i);
+  return picked.map((p) => p.c).join("\n\n");
+}
+
+function htmlToMarkdownSafe(html: string, fallbackText: string, intent?: string): string {
   try {
     // Lazy-require to keep module-init cheap and match the cli.ts pattern.
     const TurndownService = require("turndown");
@@ -631,9 +677,9 @@ function htmlToMarkdownSafe(html: string, fallbackText: string): string {
       .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
       .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
     const md = turndown.turndown(stripped).replace(/\n{3,}/g, "\n\n").trim();
-    return md.slice(0, MARKDOWN_BUDGET);
+    return focusMarkdownToIntent(md, intent, MARKDOWN_BUDGET);
   } catch {
-    return fallbackText.slice(0, MARKDOWN_BUDGET);
+    return focusMarkdownToIntent(fallbackText, intent, MARKDOWN_BUDGET);
   }
 }
 
