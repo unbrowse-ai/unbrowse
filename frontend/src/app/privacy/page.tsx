@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PapersBehind } from "@/components/papers-behind";
 
 export const metadata = {
   title: "Privacy & Data Sharing — unbrowse",
@@ -69,6 +70,12 @@ export default function PrivacyPage() {
             Credentials are stored in a local encrypted vault on your machine. When you replay
             a skill, your auth is injected locally — it never passes through our servers.
           </p>
+          <p>
+            This works through a <strong>zero-knowledge proof</strong>: Unbrowse can verify that you
+            hold a valid credential without ever seeing the credential itself. Your secret is
+            <em> proven, never revealed</em> — bound to your wallet and disclosed only under your
+            own signature.
+          </p>
         </Section>
 
         {/* Telemetry */}
@@ -131,6 +138,10 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
+      </div>
+
+      <div className="mt-16">
+        <PapersBehind theme="zk-privacy" intro="How this works cryptographically — credentials bound to your wallet by zero-knowledge proof, revealed only under your signature — is in the security paper." />
       </div>
 
       <div className="mt-16 pt-8 border-t border-border text-sm text-text-muted">

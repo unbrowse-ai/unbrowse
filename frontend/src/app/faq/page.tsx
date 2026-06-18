@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { PapersBehind } from "@/components/papers-behind";
 
 export const metadata: Metadata = {
   title: "FAQ — Unbrowse",
@@ -58,6 +59,10 @@ export default function FAQPage() {
               <p className="text-text-secondary leading-relaxed">{faq.a}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-12">
+          <PapersBehind intro="Want the full story? The economics and the privacy model each have a paper." />
         </div>
       </div>
     </div>
