@@ -19,6 +19,8 @@ import { verifyEd25519 } from "./zk-binding.js";
 
 /** Top (closest to the human) → bottom (closest to the wire). */
 export const LAYERS = ["screen", "browser", "cli", "os", "kernel", "packet"] as const;
+/** One descent layer — the vessel for routing a hole's producer to a layer. */
+export type DescentLayer = typeof LAYERS[number];
 import { GENESIS, sha256hex } from "./content-address.js"; // one source of truth (commandments #1/#6)
 
 export interface DescentRecord {
