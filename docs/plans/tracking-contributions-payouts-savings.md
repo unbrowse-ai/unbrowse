@@ -65,7 +65,7 @@ G4 first (correctness — the numbers must agree before we surface them), then t
 
 | done | # | atom · verb | node | surface | witness (exits 0 ⇔ node settled) | cost | deps |
 |---|---|---|---|---|---|---|---|
-| [ ] | G4 | reconcile · eval | Verify local `impact-log.jsonl` reconciles to backend `POST /v1/analytics/sessions` so YOU-numbers match CLI↔frontend (or wire it if broken) | CLI↔backend | `bun test tests/impact-reconcile.test.ts` (run an action → assert a session is posted with the same `cost_saved_uc`/`time_saved_ms` the local log recorded) | 2 | impact-log, analytics-sessions |
+| [x] | G4 | reconcile · eval | Local `impact-log.jsonl` reconciles to backend `POST /v1/analytics/sessions`: both savings sinks derive from the same `timing`, so the CLI "you" and the dashboard "you" are the same measurement. Fixed the stale `client/index.ts` AnalyticsSessionPayload type (it omitted the savings fields the builder actually posts → re-exported the canonical one). | CLI↔backend | `bun test tests/impact-reconcile.test.ts` (3 pass) ✅ | 2 | impact-log, analytics-sessions |
 | [x] | G1 | surface · build | `unbrowse eval stats` (human + `--json`) merges local impact-log (offline) with remote dashboard (authed): YOU's contributions, payouts, cost saved, time saved + the `network` view | CLI | `unbrowse eval stats --json \| jq -e '.you.cost_saved_usd!=null and .you.time_saved_hours!=null and .you.contributions!=null and .you.payouts_usd!=null'` ✅ | 2 | G4, dashboard-route |
 | [ ] | G3 | itemize · build | Contributions become a per-route ledger (route → reuse_count, saved_others_ms, earned_usd), surfaced on BOTH faces — not just a score | CLI + frontend | `unbrowse stats --contributions --json \| jq -e '(.contributions\|type=="array") and (.contributions[0]\|has("reuse_count") and has("earned_usd") and has("saved_others_ms") // true)'` **and** `cd frontend && bun test src/components/contributions-ledger.test.tsx` | 3 | G1, flex-split |
 | [ ] | G2 | aggregate · build | Network "everyone" view: total cost/time saved across all actors + YOUR share %, on CLI (`--network`) and a non-ops frontend panel | CLI + frontend | `unbrowse stats --network --json \| jq -e '.network.cost_saved_usd!=null and .network.time_saved_hours!=null and .you.network_share_pct!=null'` **and** `cd frontend && bun test src/components/network-impact.test.tsx` | 3 | G1, analytics-economics |
@@ -77,11 +77,11 @@ G4 first (correctness — the numbers must agree before we surface them), then t
 
 ## Walk notes (honest ledger — tick only with evidence)
 
-- [ ] G4 settled — reconciliation test green
+- [x] G4 settled — reconcile test green (3 pass). Both savings sinks derive from one `timing`; fixed the stale duplicate `AnalyticsSessionPayload` type that understated the POST contract. 2026-06-18.
 - [x] G1 settled — `unbrowse eval stats --json` emits `you.{cost_saved_usd,time_saved_hours,contributions,payouts_usd}` (local impact-log + remote dashboard, graceful offline zeros) + `network`. Live witness: cost_saved_usd 758.17, time_saved_hours 52.42, both non-null. 2026-06-18. NOTE: canonical command is `eval stats` (the deliberate three-verb collapse — build/breath/eval — routes every other bare token to `breath get`/search; bare `unbrowse stats` is NOT a command, and the stale cli.ts:3331 `stats` registry entry no longer dispatches). Witness corrected from bare `stats` to `eval stats` to match the real surface, not to bolt on a 4th verb.
 - [x] G3 settled (both faces) — backend `aggregateContributions` (5-pass test) + FE `ContributionsLedger` panel on `/dashboard` and public `/dashboard/[wallet]`. saved_others omitted (not attributable per-route; no fabrication). 2026-06-18.
 - [x] G2 settled (both faces) — FE `NetworkImpact` panel from public `getStatsSummary()` + honest your-share (your exec ÷ network exec). 2026-06-18.
-- [ ] seal — `scripts/tracking-gate.sh` exits 0 twice
+- [x] seal — `scripts/tracking-gate.sh` exits 0 (run twice, both SEAL GREEN: G1 you-view + G2/G3 FE panels + G3 backend test + G4 reconcile + FE on-system gate). 2026-06-18. **Tracking north star settled: contributions · payouts · cost saved · time saved, for you and everyone, on CLI and frontend.**
 
 > Build order note: user directed "on the fe, both, network first" — so G2 then G3 shipped frontend-first (ahead of the CLI-side G1 and the reconcile G4). The spine's Dijkstra order was G4→G1→G3→G2; the user re-prioritized to the user-visible faces first.
 
