@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { getConfiguredApiOrigin } from "@/lib/api-base";
+import { PapersBehind } from "@/components/papers-behind";
 
 // Per-request x402 model — no subscriptions. Discovery + internal-API routing are
 // free; paid execution settles over x402 (Solana/USDC) as a fair three-way split
@@ -77,6 +78,10 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+      <div className="mt-12">
+        <PapersBehind theme="economy" intro="Why the pricing and split work this way — proof of indexing, bonded slashable maintenance, trust tiers, and delta-based attribution — is laid out in the economics paper." />
+      </div>
     </main>
   );
 }

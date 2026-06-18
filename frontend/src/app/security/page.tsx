@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PapersBehind } from "@/components/papers-behind";
 
 const CANONICAL = "https://www.unbrowse.ai/security";
 const TITLE = "Security — vault architecture, scope, and responsible disclosure";
@@ -215,6 +216,8 @@ export default function SecurityPage() {
           </li>
         </ul>
       </section>
+
+      <PapersBehind theme="zk-privacy" intro="The architecture behind this — one Ed25519 wallet key signing every layer, credentials bound by zero-knowledge proof and revealed only under signature — is laid out in the security paper." />
     </div>
   );
 }
