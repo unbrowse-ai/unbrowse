@@ -55,6 +55,13 @@ describe("pickWalkTarget — prefer a deep page over a bare homepage", () => {
     ];
     expect(pickWalkTarget(req, ranked)).toBeNull();
   });
+  it("prefers a same-domain listing over a higher-scored off-domain page (the Google Play drift)", () => {
+    const ranked = [
+      { url: "https://play.google.com/store/apps/details?id=com.carousell", score: 0.95 }, // off-domain, higher score
+      { url: "https://www.carousell.sg/food/q/", score: 0.7 },                              // same-domain listing → must win
+    ];
+    expect(pickWalkTarget(req, ranked)?.url).toBe("https://www.carousell.sg/food/q/");
+  });
   it("picks a high-score off-domain deep page when no same-domain candidate exists", () => {
     const ranked = [
       { url: "https://authority.com/", score: 0.95 },     // off-domain homepage, high score

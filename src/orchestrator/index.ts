@@ -71,6 +71,8 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
+import { isListLikeIntent, schemaLooksLikeSingleItem } from "../values/cardinality.js";
+export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
 import { isPersistableYield } from "../values/yield-safety.js";
 import { getStoredAuth } from "../auth/index.js";
@@ -141,9 +143,11 @@ export function shouldAutoWalk(
 }
 
 /** Pick the candidate to auto-walk from a score-ranked list: the highest-scored
- *  one that passes {@link shouldAutoWalk}, preferring a DEEP page over a bare
- *  homepage ("/" rarely answers a specific intent — e.g. a "list food" query
- *  should walk a food listing, not carousell.sg). Returns null when none qualify. */
+ *  one that passes {@link shouldAutoWalk}, preferring (1) a candidate on the
+ *  REQUESTED registrable domain over an off-domain one — when the user said
+ *  `--url carousell.sg`, walk carousell's own food listing, not a high-ranked
+ *  play.google.com app page — then (2) a DEEP page over a bare homepage ("/"
+ *  rarely answers a specific intent). Returns null when none qualify. */
 export function pickWalkTarget<T extends { url: string; score?: number }>(
   requestedUrl: string | null | undefined,
   ranked: ReadonlyArray<T>,
@@ -154,7 +158,12 @@ export function pickWalkTarget<T extends { url: string; score?: number }>(
   const hasPath = (u: string): boolean => {
     try { return new URL(u).pathname.replace(/\/+$/, "").length > 0; } catch { return false; }
   };
-  return eligible.find((c) => hasPath(c.url)) ?? eligible[0];
+  // Stay on the user's explicit target domain when it offers any walkable candidate;
+  // only drift off-domain (e.g. an authoritative answer page) when it does not.
+  const reqReg = registrableHost(requestedUrl);
+  const sameDomain = reqReg ? eligible.filter((c) => registrableHost(c.url) === reqReg) : [];
+  const pool = sameDomain.length > 0 ? sameDomain : eligible;
+  return pool.find((c) => hasPath(c.url)) ?? pool[0];
 }
 
 /**
@@ -867,7 +876,42 @@ function endpointHasNegativeTag(
   );
 }
 
-function isResolveUsableEndpointForIntent(
+/**
+ * Cardinality guard (Ezekiel 47:10 — "the spreading of nets; their fish after
+ * their kinds, exceeding many"). A search/list intent is a *net* that wants many
+ * pointers; a product/detail route yields a single fish. This detects single-item
+ * (detail/product) routes so they lose to a search/listing route — or the DAG
+ * walk — for list-shaped intents. Listing signals win over the trailing-id
+ * heuristic (a category id like `/categories/food-1011/` is still a list).
+ */
+export function looksLikeSingleItemRoute(endpoint: SkillManifest["endpoints"][number]): boolean {
+  const tmpl = endpoint.url_template ?? "";
+  let pathAndQuery = tmpl;
+  try {
+    const u = new URL(tmpl);
+    pathAndQuery = `${u.pathname}${u.search}`;
+  } catch {
+    /* keep raw template */
+  }
+  const lower = pathAndQuery.toLowerCase();
+  // Listing/collection path signals win outright — never a single item.
+  if (
+    /\/(?:search|q|categories?|browse|results?|listings|explore|discover|feed|catalog(?:ue)?|collections?|shop|all)\b/.test(lower) ||
+    /[?&](?:q|query|keyword|keywords|search|term|category|cat|page)=/.test(lower)
+  ) {
+    return false;
+  }
+  // Detail/product URL shapes → single item.
+  if (/\/(?:p|product|products|item|items|listing|detail|details|dp|pd|sku)\/[^/]+/.test(lower)) return true;
+  const lastSeg = lower.split("?")[0].replace(/\/+$/, "").split("/").pop() ?? "";
+  if (/-\d{3,}$/.test(lastSeg) || /^\d{3,}$/.test(lastSeg)) return true; // slug-<id> or bare numeric id
+  // A bare template hole with no detail signal → generic/list route, not a single item.
+  if (/\{[^}]+\}/.test(lower)) return false;
+  // Response-shape signal: a single schema.org record, not a collection.
+  return schemaLooksLikeSingleItem(endpoint.response_schema);
+}
+
+export function isResolveUsableEndpointForIntent(
   endpoint: SkillManifest["endpoints"][number],
   intent?: string,
   contextUrl?: string,
@@ -877,6 +921,10 @@ function isResolveUsableEndpointForIntent(
     return false;
   }
   if (isFeedTimelineIntent(intent, contextUrl) && endpointHasNegativeTag(endpoint, "helper")) {
+    return false;
+  }
+  // Cardinality guard: a list/search intent must not be answered by a single-item route.
+  if (isSearchLikeIntent(intent, contextUrl) && looksLikeSingleItemRoute(endpoint)) {
     return false;
   }
   return true;
@@ -1079,7 +1127,7 @@ function withContextReplayEndpoint(
 }
 
 function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
-  if (/\b(search|find|lookup|browse|discover)\b/i.test(intent ?? "")) return true;
+  if (isListLikeIntent(intent)) return true;
   try {
     const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
     return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
