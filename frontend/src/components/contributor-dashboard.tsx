@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowLeft, Coins, Clock3, SearchCheck, Trophy, WalletCards, Network, Globe2, Gauge, Zap } from "lucide-react";
 import type { DashboardContribution, DashboardData, StatsSummary } from "@/lib/api";
+import { formatCompact, networkSharePct, shareBarWidth } from "@/lib/dashboard-metrics";
 
 export function ContributorDashboard({
   dashboard,
@@ -174,10 +175,9 @@ function NetworkImpact({
   isPrivate: boolean;
 }) {
   const networkExecutions = stats.executions ?? 0;
-  const sharePct = networkExecutions > 0 ? (youExecutions / networkExecutions) * 100 : 0;
+  const sharePct = networkSharePct(youExecutions, networkExecutions);
   const perf = stats.perf;
-  // bar floor: a non-zero share stays visible (≥1.5%) without misreporting the number
-  const barWidth = sharePct <= 0 ? 0 : Math.min(100, Math.max(sharePct, 1.5));
+  const barWidth = shareBarWidth(sharePct);
   return (
     <section className="mt-8 rounded-[28px] border border-border bg-surface-raised p-6">
       <p className="text-xs font-mono uppercase tracking-[0.24em] text-text-muted">Everyone</p>
@@ -322,13 +322,4 @@ function formatRatio(value: number | null | undefined, fallback = "Not enough da
 
 function formatInt(value: number | undefined): string {
   return String(value ?? 0);
-}
-
-// Compact display of large network counts (3,120,000 → "3.1M"). Display-only —
-// rounds for legibility, never invents a number.
-function formatCompact(value: number | undefined): string {
-  const n = value ?? 0;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
-  return String(n);
 }

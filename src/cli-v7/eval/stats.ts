@@ -33,34 +33,47 @@ import { postStateless } from "../_stateless.js";
 import { readImpactSummary, getImpactLogPath } from "../../impact-log.js";
 import { getAgentId, getMyDashboard } from "../../client/index.js";
 
-/** Build the "you" view — this agent's four ledger quantities. Cost-saved and
- *  time-saved come from the LOCAL impact log (work offline, no account). Payouts
- *  and the contributions count come from the remote dashboard when an agent_id is
- *  configured; absent auth they degrade to 0 (never null, never fabricated). */
-async function buildYouView(): Promise<Record<string, unknown>> {
-  const local = readImpactSummary();
-  const you: Record<string, unknown> = {
+export interface YouViewLocal {
+  total_cost_saved_uc: number;
+  total_time_saved_ms: number;
+  total_tokens_saved: number;
+  total_runs: number;
+}
+export interface YouViewDash {
+  contributions?: unknown[];
+  economics?: { total_earned_usd?: number };
+}
+
+/** Pure shaping of the "you" view — cost/time saved from the LOCAL impact log (offline,
+ *  no account); payouts + contributions count from the remote dashboard when present,
+ *  else degrade to 0 (never null, never fabricated). authenticated = we had a dashboard.
+ *  Extracted pure so the four-field contract + graceful degrade is unit-tested. */
+export function shapeYouView(local: YouViewLocal, dash: YouViewDash | null, impactLogPath: string): Record<string, unknown> {
+  return {
     cost_saved_usd: Math.round((local.total_cost_saved_uc / 1_000_000) * 1e6) / 1e6,
     time_saved_hours: Math.round((local.total_time_saved_ms / 3_600_000) * 1e4) / 1e4,
     tokens_saved: local.total_tokens_saved,
     total_runs: local.total_runs,
-    contributions: 0,
-    payouts_usd: 0,
-    authenticated: false,
-    impact_log_path: getImpactLogPath(),
+    contributions: dash?.contributions?.length ?? 0,
+    payouts_usd: dash?.economics?.total_earned_usd ?? 0,
+    authenticated: dash != null,
+    impact_log_path: impactLogPath,
   };
-  const agentId = getAgentId();
-  if (agentId) {
+}
+
+/** Build the "you" view: read local impact + (when an agent_id exists) the remote
+ *  dashboard, then shape. Remote failure degrades to local-only zeros. */
+async function buildYouView(): Promise<Record<string, unknown>> {
+  const local = readImpactSummary();
+  let dash: YouViewDash | null = null;
+  if (getAgentId()) {
     try {
-      const dash = await getMyDashboard();
-      you.contributions = dash.contributions?.length ?? 0;
-      you.payouts_usd = dash.economics?.total_earned_usd ?? 0;
-      you.authenticated = true;
+      dash = await getMyDashboard();
     } catch {
       // remote unreachable / unauthenticated — keep local-only zeros, stay non-null
     }
   }
-  return you;
+  return shapeYouView(local, dash, getImpactLogPath());
 }
 
 function resolveApiBase(): string {
