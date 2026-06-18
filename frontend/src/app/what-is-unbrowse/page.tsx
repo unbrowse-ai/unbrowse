@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PapersBehind } from "@/components/papers-behind";
 
 const TITLE = "What is Unbrowse?";
 const SUBTITLE =
@@ -389,6 +390,10 @@ export default function WhatIsUnbrowsePage() {
             .
           </p>
         </section>
+
+        <div className="mt-12 border-t border-border pt-8">
+          <PapersBehind intro="Three papers go deeper — the architecture, the security/privacy model, and the economics:" />
+        </div>
       </article>
     </div>
   );

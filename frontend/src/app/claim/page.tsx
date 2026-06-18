@@ -17,6 +17,7 @@ import {
   type OfficialEndpointInput,
   type TakedownStatus,
 } from "@/lib/claim-client";
+import { PapersBehind } from "@/components/papers-behind";
 
 // ---------------------------------------------------------------------------
 // Shared primitives
@@ -759,6 +760,11 @@ export default function ClaimPage() {
       <OptOutSection />
 
       <SubmitOfficialSection />
+
+      <PapersBehind
+        theme="economy"
+        intro="Binding a wallet to earn the owner share is the economy this page implements — proof of indexing, bonded maintenance, and delta-based attribution are laid out in full here."
+      />
 
       <footer className="space-y-2 border-t border-border pt-6 text-xs text-text-muted">
         <p>

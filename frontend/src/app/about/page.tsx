@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PapersBehind } from "@/components/papers-behind";
 
 const CANONICAL = "https://www.unbrowse.ai/about";
 const TITLE = "About Unbrowse — the team building the agentic web route graph";
@@ -177,6 +178,10 @@ export default function AboutPage() {
           </li>
         </ul>
       </section>
+
+      <div className="border-t border-border pt-8">
+        <PapersBehind intro="The architecture, security, and economics behind Unbrowse are written up in full:" />
+      </div>
 
       <section className="border-t border-border pt-8">
         <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-orange-500 mb-4">
