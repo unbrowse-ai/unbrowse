@@ -274,18 +274,32 @@ def _agent_outcome(intent, url, timeout=150):
     correctness can be agent/LLM-judged from the excerpt (harness collects, agent judges)."""
     rc, out, err = _run(["act", "get", intent, "--url", url], timeout=timeout)
     env = _parse_envelope(out)
-    r = env.get("result") if isinstance(env, dict) else {}
-    r = r if isinstance(r, dict) else {}
+    res = env.get("result") if isinstance(env, dict) else None
     source = env.get("source")
-    rejected = r.get("rejected") if "rejected" in r else None
-    data = r.get("data")
-    if isinstance(data, list):
-        content = " ".join(str(x) for x in data)
-    elif isinstance(data, str):
-        content = data
-    elif r:
-        content = json.dumps(r)
+    # A LIST-shaped result is a COLLECTION (e.g. {"type":"itemlist","data":[...]}) — exactly
+    # what a list/search intent should return. The prior parser coerced result to {} when it
+    # was a list, discarding genuinely-returned collections as false-negatives (witnessed:
+    # Hacker News `act get` returns 13.5KB of itemlist stories, scored uncovered). Count a
+    # non-empty collection as a covered outcome; harness collects, agent judges from excerpt.
+    if isinstance(res, list):
+        content = json.dumps(res)
+        rejected = False if res else None
+        r = {"collection_len": len(res), "items": res}
+    elif isinstance(res, dict):
+        r = res
+        rejected = r.get("rejected") if "rejected" in r else None
+        data = r.get("data")
+        if isinstance(data, list):
+            content = " ".join(str(x) for x in data)
+        elif isinstance(data, str):
+            content = data
+        elif r:
+            content = json.dumps(r)
+        else:
+            content = ""
     else:
+        r = {}
+        rejected = None
         content = ""
     # Coverage is the product's OWN judgment (direct-document already gates intent_mismatch
     # / thin / interstitial); for non-direct sources (exa/live-capture) a substantive body
