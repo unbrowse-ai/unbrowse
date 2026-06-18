@@ -120,7 +120,7 @@ export interface CohortFunnel {
 // and the raw ratio blows past 1 (the dashboard's "2200%"). Clamping keeps the
 // rate honest; the raw installs/registered/active counts still surface the
 // attribution gap (active >> installs ⇒ install attribution is under-recorded).
-const rate = (n: number, d: number): number => (d > 0 ? Math.min(1, Math.round((n / d) * 1000) / 1000) : 0);
+export const rate = (n: number, d: number): number => (d > 0 ? Math.min(1, Math.round((n / d) * 1000) / 1000) : 0);
 
 /** At install: remember which variant seeded an install, so register/session can resolve it. */
 export async function recordInstallVariant(env: Env, installId: string, variant: string): Promise<void> {
