@@ -607,6 +607,19 @@ jobs:
             exit 0
           fi
           exit "$STATUS"
+
+      - name: Undeprecate @unbrowse/sdk (clear legacy deprecation on all versions)
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: |
+          # @unbrowse/sdk is the actively-used local-binary SDK, not legacy. The
+          # package.json no longer carries a `deprecated` field so new publishes are
+          # clean, but PREVIOUSLY-published versions stay flagged until explicitly
+          # cleared. Undeprecate ALL versions every release (empty message = clear).
+          # Best-effort: a hiccup here must never fail the release.
+          npm deprecate "@unbrowse/sdk@*" "" 2>&1 | tee /tmp/undeprecate.log \
+            && echo "::notice::@unbrowse/sdk undeprecated (all versions)" \
+            || echo "::warning::npm deprecate (undeprecate) failed; see log above"
   deploy-backend:
     name: Deploy Backend (CF Worker)
     runs-on: ubuntu-latest
