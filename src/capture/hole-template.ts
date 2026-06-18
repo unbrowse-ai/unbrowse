@@ -19,6 +19,7 @@
  */
 import type { RawRequest } from "./index.js";
 import { boundTag, type BindingMap } from "./zk-bound-hole.js";
+import type { DescentLayer } from "../values/signed-descent.js";
 
 const REDACTED_TOKEN = "[REDACTED]";
 const BOUND_RE = /^\[bound:([0-9a-f]{16})\]$/;
@@ -56,6 +57,10 @@ export interface HoleDep {
 	producer: string;
 	/** the binding key carried across the edge (producer yield → this hole). */
 	binding: string;
+	/** which descent layer the producer sits at (screen→browser→cli→os→kernel→packet).
+	 *  When present, the edge is part of the cross-layer descent spine and is sealed
+	 *  under the one wallet root via signed-descent. Absent ⇒ same-layer DAG edge. */
+	layer?: DescentLayer;
 }
 
 export type HoleLocation =
