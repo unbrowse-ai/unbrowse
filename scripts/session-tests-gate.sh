@@ -37,5 +37,12 @@ run_fe src/lib/papers.test.ts                     "papers vessel: papersByTheme 
 bash scripts/papers-reflection-gate.sh >/dev/null 2>&1 && ok "papers reflected across FE surfaces + CLI (moat clean)" || bad "papers-reflection-gate.sh"
 bash scripts/cli-papers-docs-check.sh >/dev/null 2>&1 && ok "CLI eval stats docs block (zk-proof + x402)" || bad "cli-papers-docs-check.sh"
 
+# zk-invariant / hole signals (secrets wallet-bound client-side, no raw id leaves)
+run_root tests/holeify-attribution.test.ts   "holes: attribution ids → wallet-bound commitments (no raw id leaves)"
+run_root tests/zkbind-forge.test.ts           "holes: forged/raw-in-zkbind rejected; real commitment admitted"
+run_root tests/backfill-no-raw-secret.test.ts "holes: backfill wire body carries zero raw secrets, only commitments"
+run_be tests/zkbind-admission.test.ts         "holes: backend residual-secret gate admits commitment, rejects raw id"
+bash scripts/zk-invariant-gate.sh >/dev/null 2>&1 && ok "zk-invariant gate (secrets wallet-bound client-side)" || bad "zk-invariant-gate.sh"
+
 if [ "$fail" -eq 0 ]; then echo "SESSION-TESTS GREEN — every shipped behavior this session is covered + passing"; exit 0; fi
 echo "SESSION-TESTS RED"; exit 1
