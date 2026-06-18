@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.6.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.1...v9.6.2) (2026-06-18)
+
+### Bug Fixes
+
+* **extract:** cardinality guard at extraction + execution acceptance (down the DAG) ([718edf9](https://github.com/unbrowse-ai/unbrowse-dev/commit/718edf9e8b667a67b8c1b93297d845eb48c29366))
+
+### Refactoring
+
+* **cardinality:** one common gate (verify-shaped) + close execution-layer nodes ([9945c23](https://github.com/unbrowse-ai/unbrowse-dev/commit/9945c236fb0d8571dbae1630de79066531e8c439))
+
 ## [9.6.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.0...v9.6.1) (2026-06-18)
 
 ### Bug Fixes
