@@ -11,6 +11,7 @@ import { cardinalityMatches } from "../values/cardinality.js";
 import { INTERCEPTOR_SCRIPT, enrichPassiveCaptureRequests, injectInterceptor, collectInterceptedRequests, enableNetworkHeaderCapture, getCapturedNetworkHeadersAsRequests, type RawRequest } from "../capture/index.js";
 import { indexSkillLocally, mergeAgentReview, publishIndexedSkill, queueBackgroundIndex } from "../lib/indexer-core/index.js";
 import { getCaptureSpoolDir, writeCaptureSpool, type CaptureSpoolEnvelope } from "../lib/indexer-core/capture-spool.js";
+import { isIndexableDomain } from "../capture/indexable.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
@@ -2868,6 +2869,13 @@ export async function registerRoutes(app: FastifyInstance) {
         publishAfterIndex: publishDecision.publishQueued,
       },
     };
+    // Structural admission at the capture boundary: never spool a capture for a
+    // non-indexable domain (loopback, private IP, RFC-2606 reserved test domain,
+    // chrome error pseudo-host). This is what filled the queue with 313
+    // example.com + 41 chromewebdata envelopes that could never become real skills.
+    if (!isIndexableDomain(domain)) {
+      return { written: false, path: "", request_count: 0 };
+    }
     const path = await writeCaptureSpool(getCaptureSpoolDir(), envelope);
     return { written: true, path, request_count: requests.length };
   }
