@@ -420,6 +420,9 @@ export interface Env {
    */
   PLATFORM_SPONSOR_WALLET_ADDRESS?: string;
   PLATFORM_SPONSOR_WALLET_KEY?: string;
+  /** Wallet that wallet-less / anonymous contributions are attributed to, so the
+   *  index always grows even for web2/unregistered users (indexContributorAuth). */
+  UNBROWSE_GLOBAL_INDEX_WALLET?: string;
   /** Per-agent daily sponsor cap in USD (default 1.0). */
   SPONSOR_CAP_DAILY_USD?: string;
   /** Org-wide daily sponsor cap in USD (default 50.0). */

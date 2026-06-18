@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { mapPublishError } from "./publish-error-map.js";
 import type { Env } from "../types.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { bearerAuth, indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
 import { renderSkillMd, renderEmptyDomainMarkdown } from "../services/skillmd.js";
@@ -557,7 +557,7 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills -- publish/update
-skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
+skillRoutes.post("/skills", indexContributorAuth, requireSignedClient, async (c) => {
   const body = await c.req.json<Record<string, unknown> & {
     indexer_id?: string;
     endpoints?: unknown[];
@@ -721,7 +721,7 @@ skillRoutes.post("/skills", bearerAuth, requireSignedClient, async (c) => {
 });
 
 // PATCH /v1/skills/:id -- update skill metadata (e.g. base_price_usd)
-skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
+skillRoutes.patch("/skills/:id", indexContributorAuth, requireSignedClient, async (c) => {
   const skillId = c.req.param("id");
   if (!skillId) return c.json({ error: "skill id required" }, 400);
   const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null; visibility?: "public" | "private" }>();
@@ -782,7 +782,7 @@ skillRoutes.patch("/skills/:id", bearerAuth, requireSignedClient, async (c) => {
 });
 
 // PATCH /v1/skills/:id/endpoints/:eid -- update endpoint score/status/schema
-skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, requireSignedClient, async (c) => {
+skillRoutes.patch("/skills/:id/endpoints/:eid", indexContributorAuth, requireSignedClient, async (c) => {
   const skillId = c.req.param("id");
   const endpointId = c.req.param("eid");
   if (!skillId || !endpointId) return c.json({ error: "skill and endpoint ids required" }, 400);

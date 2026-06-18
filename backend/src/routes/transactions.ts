@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { recordTransaction, getConsumerTransactions, getCreatorTransactions, getTransactionSummary } from "../services/transactions.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 
 export const transactionRoutes = new Hono<{ Bindings: Env }>();
 
@@ -15,7 +15,7 @@ transactionRoutes.use("/transactions/*", rateLimit({ limit: 30, window: 60, pref
 // the authenticated agent_id, and we cap price_usd. Admins keep the
 // ability to back-fill (e.g. to import from x402 facilitator logs).
 const MAX_TRANSACTION_PRICE_USD = 100;
-transactionRoutes.post("/transactions", bearerAuth, requireSignedClient, async (c) => {
+transactionRoutes.post("/transactions", indexContributorAuth, requireSignedClient, async (c) => {
   try {
     const body = await c.req.json<{
       transaction_id: string;

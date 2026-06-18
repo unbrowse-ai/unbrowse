@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 import { execTokenGate } from "../middleware/exec-token.js";
 import type { RawRequest } from "../../../src/capture/index.js";
 import { obfuscateCaptureForReveng } from "../../../src/capture/obfuscate.js";
@@ -60,7 +60,7 @@ export function revengWithHoles(capture: RawRequest[]): {
   return { endpoints: extractEndpoints(safe), holes: safe.map(extractHoles) };
 }
 
-revengRoutes.post("/reveng", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+revengRoutes.post("/reveng", indexContributorAuth, requireSignedClient, execTokenGate(), async (c) => {
   let body: { capture?: unknown };
   try {
     body = await c.req.json();

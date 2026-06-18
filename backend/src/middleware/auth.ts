@@ -6,7 +6,7 @@ import { verifyReleaseManifest } from "../services/release-manifest.js";
 import { verifyLocalKey } from "../services/keys.js";
 import { lookupUserIdByKey } from "../services/accounts.js";
 
-type AuthEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
+type AuthEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string; anon_index_contribution?: boolean } };
 
 /** Timing-safe string comparison to prevent timing attacks on API key checks. */
 function safeCompare(a: string, b: string): boolean {
@@ -172,6 +172,32 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
         queueAgentActivity(c, result.keyId);
       }
     }
+  }
+  await next();
+}
+
+/** Stable attribution id when no agent identity and no env wallet is configured —
+ *  contributions still land in the index under this sentinel rather than being lost. */
+export const GLOBAL_INDEX_AGENT_ID = "__global_index__";
+
+/**
+ * Contribution-write auth — the bearer-OPTIONAL, wallet-is-the-real-auth pattern.
+ *
+ * Bearer/API-key is just the web2 convenience wrapper over identity; the real
+ * gate on these routes is the paired `requireSignedClient` (proves an official
+ * unbrowse client). So: if a valid key is present, attribute to that agent; if
+ * not, attribute the contribution to the GLOBAL INDEX WALLET (env
+ * UNBROWSE_GLOBAL_INDEX_WALLET, else the __global_index__ sentinel). Never 401s
+ * on a missing key — the index ALWAYS grows, a wallet-less user still contributes
+ * (credited to the global index). `anon_index_contribution` is set so handlers
+ * can tell a real agent from a global-index fallback when they need to.
+ */
+export async function indexContributorAuth(c: Context<AuthEnv>, next: Next) {
+  await optionalAuth(c, async () => {});
+  if (!c.get("agent_id")) {
+    const envWallet = (c.env as { UNBROWSE_GLOBAL_INDEX_WALLET?: string }).UNBROWSE_GLOBAL_INDEX_WALLET?.trim();
+    c.set("agent_id", envWallet && envWallet.length > 0 ? envWallet : GLOBAL_INDEX_AGENT_ID);
+    c.set("anon_index_contribution", true);
   }
   await next();
 }
