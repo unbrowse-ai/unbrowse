@@ -3,6 +3,7 @@ import { mapPublishError } from "./publish-error-map.js";
 import type { Env } from "../types.js";
 import { bearerAuth, indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 import { publishSkill, getSkill, getSkillByDomain, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema, invalidateSkillListCaches } from "../services/marketplace.js";
+import { invalidateDashboardCaches } from "../services/economics.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
 import { renderSkillMd, renderEmptyDomainMarkdown } from "../services/skillmd.js";
 import { listPopularSkills } from "../services/popularity.js";
@@ -718,6 +719,9 @@ skillRoutes.post("/skills", indexContributorAuth, requireSignedClient, async (c)
     const updated = syncSkillSplitConfig({ ...skill, contributors });
     await kv.put(`skill:${skill.skill_id}`, JSON.stringify(updated));
     skill = updated;
+    // Cloud-cache goes stale on change: a publish must refresh the contributor's
+    // dashboard + the leaderboard scan immediately, not after the TTL.
+    await invalidateDashboardCaches(c.env, indexerId);
   }
 
   // Return the full manifest so clients don't need a read-after-write round-trip
@@ -784,6 +788,9 @@ skillRoutes.patch("/skills/:id", indexContributorAuth, requireSignedClient, asyn
     );
     await invalidateSkillListCaches(c.env).catch(() => {});
   }
+  // Submitting a private route public (or vice-versa) must refresh the owner's
+  // dashboard cache immediately — the cloud cache goes stale on this change.
+  if (visibilityChangedTo) await invalidateDashboardCaches(c.env, c.get("agent_id"));
 
   return c.json(skill);
 });

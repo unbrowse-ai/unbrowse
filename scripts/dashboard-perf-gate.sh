@@ -28,6 +28,18 @@ grep -q "user.share_pointers ?? true" backend/src/services/accounts.ts \
   && ok "auto-publish to marketplace ON by default (share_pointers ?? true)" \
   || bad "auto-publish still defaults off"
 
+# 3b. opt-out STORES PRIVATE (submit later) instead of dropping the capture
+bun test tests/review-gate-predicate.test.ts >/dev/null 2>&1 \
+  && ok "opt-out stores private + submit-later (review-gate predicate)" \
+  || bad "private-store gate predicate failing"
+
+# 3c. cloud cache goes STALE on change — invalidation wired on the write paths
+grep -q "export async function invalidateDashboardCaches" backend/src/services/economics.ts \
+  && grep -q "invalidateDashboardCaches" backend/src/routes/skills.ts \
+  && grep -q "invalidateDashboardCaches" backend/src/routes/stats.ts \
+  && ok "dashboard cache invalidated on publish/visibility/execution (stale-on-change)" \
+  || bad "cache invalidation not wired on write paths"
+
 # 4. the changed backend files typecheck clean (beyond the repo's known cross-package noise)
 errs=$(cd backend && bunx tsc --noEmit 2>&1 | grep -E "services/economics\.ts|services/accounts\.ts|routes/dashboard\.ts" | grep -vE "rootDir|is not under|node:" | wc -l | tr -d ' ')
 [ "${errs:-0}" -eq 0 ] && ok "changed backend files typecheck clean" || bad "$errs tsc error(s) in changed files"

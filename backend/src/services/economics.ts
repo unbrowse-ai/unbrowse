@@ -5,7 +5,20 @@ import { getAgentFeeLedger } from "./fees.js";
 import { getAgentPerfLedger } from "./perf.js";
 import type { AgentPerfLedger } from "./perf.js";
 import { statsKV } from "./kv.js";
-import { getOrSetHttpCache } from "./http-cache.js";
+import { getOrSetHttpCache, deleteHttpCache } from "./http-cache.js";
+
+/**
+ * Bust the cloud (KV) caches that feed cost/dashboard/leaderboard reads, so they go
+ * STALE the moment the underlying data changes (a publish, a visibility flip, a new
+ * execution) instead of serving a TTL window of stale numbers. Cloud is the source of
+ * truth + the cache; this is the write-side invalidation that keeps it fresh. Private
+ * and public data are both cached and both invalidated here. Best-effort, never throws.
+ */
+export async function invalidateDashboardCaches(env: Env, agentId?: string): Promise<void> {
+  const keys = ["leaderboard:raw", "stats:summary"];
+  if (agentId) keys.push(`dashboard:me:${agentId}`, `dashboard:wallet:${agentId}`);
+  await Promise.allSettled(keys.map((k) => deleteHttpCache(env, k)));
+}
 import { getConsumerTransactions, getCreatorTransactions, type Transaction } from "./transactions.js";
 import type { CreatorLedger } from "./transactions.js";
 

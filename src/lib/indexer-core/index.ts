@@ -506,30 +506,38 @@ export async function publishIndexedSkill(indexed: IndexedSkillState): Promise<{
 export function shouldPublishAfterIndex(
   skill: { reviewed_at?: string; skill_id?: string },
   contribution: { share_pointers: boolean; auto_review?: boolean },
-): { publish: boolean; gate: "ok" | "share_pointers_off" | "awaiting_review" | "auto_review"; reason: string } {
+): { publish: boolean; visibility: "public" | "private"; gate: "ok" | "share_pointers_off" | "awaiting_review" | "auto_review"; reason: string } {
   if (!contribution.share_pointers) {
+    // Opt-out no longer DROPS the capture. It's stored PRIVATELY to the user's own
+    // account (visibility:"private") so it appears in their captured routes and can be
+    // submitted to the public marketplace later — for money — from the dashboard. We
+    // still publish (so the backend persists it under the user's agent), just private.
     return {
-      publish: false,
+      publish: true,
+      visibility: "private",
       gate: "share_pointers_off",
-      reason: "share_pointers=false (private mode). Run `unbrowse mode public` to opt back in and earn x402 rewards.",
+      reason: "private mode — stored privately to your account; submit it later from the dashboard to earn x402 rewards.",
     };
   }
   if (!skill.reviewed_at) {
     if (contribution.auto_review) {
       return {
         publish: true,
+        visibility: "public",
         gate: "auto_review",
         reason: "auto_review=true: heuristic + LLM-augmented descriptions accepted as-is.",
       };
     }
     return {
       publish: false,
+      visibility: "private",
       gate: "awaiting_review",
       reason: "awaiting review — call unbrowse_review to describe endpoints and publish, set auto_review=true via unbrowse_settings to skip review, or set share_pointers=false to stay private.",
     };
   }
   return {
     publish: true,
+    visibility: "public",
     gate: "ok",
     reason: "reviewed + share_pointers=true",
   };
@@ -559,7 +567,13 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   if (decision.gate === "auto_review") {
     console.error(`[capture-pipeline] auto_review — publishing ${indexed.skill.skill_id} (${indexed.domain}) without explicit review`);
   }
+  if (decision.gate === "share_pointers_off") {
+    console.error(`[capture-pipeline] private mode — storing ${indexed.skill.skill_id} (${indexed.domain}) privately to your account; submit later to earn`);
+  }
 
+  // Stamp the marketplace visibility from the gate so the published manifest is stored
+  // public or private accordingly (opt-out → private, submittable later for money).
+  indexed.skill.visibility = decision.visibility;
   const publishResult = await publishIndexedSkill(indexed);
   if (!publishResult.published && publishResult.publishStatus === "indexed") {
     console.error(`[capture-pipeline] no remote publish performed for ${indexed.domain}`);
