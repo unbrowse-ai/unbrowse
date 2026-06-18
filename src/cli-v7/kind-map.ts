@@ -672,6 +672,42 @@ export function lookupKindMap(verb: string, sub: string): KindMapEntry | undefin
   return KIND_MAP.find((e) => e.subcommand === key);
 }
 
+// Flat legacy command → verb, DERIVED from KIND_MAP (the second token of every
+// `subcommand`). Single source of truth so the allowlist cannot drift behind the
+// dispatch the way the old hand-maintained KNOWN_COMMANDS did (the misroute that
+// sent `settings`/`fetch`/`search`/`skills`/`spec`/`explain` into the one-hole
+// `get` fallback). Genuine collisions (the same action word under two verbs) are
+// resolved by the override below — the only one today is `skill`.
+const FLAT_VERB_OVERRIDES: Record<string, V7Verb> = {
+  // `unbrowse skill <id>` is the eval READ (get a SkillManifest); `build skill`
+  // is the create form. The flat alias resolves to the read.
+  skill: "eval",
+};
+let _flatVerbMap: Map<string, V7Verb> | null = null;
+function flatVerbMap(): Map<string, V7Verb> {
+  if (_flatVerbMap) return _flatVerbMap;
+  const m = new Map<string, V7Verb>();
+  for (const e of KIND_MAP) {
+    const parts = e.subcommand.split(" ");
+    if (parts.length !== 2) continue;
+    if (!m.has(parts[1])) m.set(parts[1], e.verb); // first wins; overrides fix collisions
+  }
+  for (const [k, v] of Object.entries(FLAT_VERB_OVERRIDES)) m.set(k, v);
+  return (_flatVerbMap = m);
+}
+
+/**
+ * The verb a flat legacy command routes to (build/breath/eval), or null when the
+ * token is NOT a known flat command — i.e. a genuine natural-language intent that
+ * should fall through to the one-hole `get` path. Multi-word input and the verbs
+ * themselves return null (verbs are handled by the verb dispatch, not here).
+ */
+export function flatCommandVerb(name: string): V7Verb | null {
+  if (!name || name.includes(" ")) return null;
+  if (name === "build" || name === "breath" || name === "eval") return null;
+  return flatVerbMap().get(name) ?? null;
+}
+
 /** Compile-time invariant: every op_kind is unique. */
 type _AssertUnique = AssertNoDuplicate<(typeof KIND_MAP)[number]["op_kind"]>;
 type AssertNoDuplicate<T extends string, Seen extends string = never> =

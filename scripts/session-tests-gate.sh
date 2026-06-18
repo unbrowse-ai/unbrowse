@@ -44,6 +44,7 @@ run_root tests/backfill-no-raw-secret.test.ts "holes: backfill wire body carries
 run_be tests/zkbind-admission.test.ts         "holes: backend residual-secret gate admits commitment, rejects raw id"
 bash scripts/zk-invariant-gate.sh >/dev/null 2>&1 && ok "zk-invariant gate (secrets wallet-bound client-side)" || bad "zk-invariant-gate.sh"
 run_root tests/hole-dep-routing.test.ts       "holes: P1 hole↔DAG bridge — a hole resolves its producer via the dep edge"
+ run_root tests/flat-command-routing.test.ts     "cli: flat commands route to their verb (no KNOWN_COMMANDS-drift misroute)"
 run_root tests/descent-spine.test.ts          "holes: P2 cross-layer spine — six layers sealed under one wallet root, stubs marked"
 run_root tests/hole-harness-publish-gate.test.ts "holes: P3 harness surfaces candidates; publish gated on the agent-mapped dep"
 run_root tests/spine-store.test.ts            "holes: P4 spine persist + replay by (domain,target); re-judge on miss/stale"

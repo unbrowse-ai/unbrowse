@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-method.js";
 import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
+import { flatCommandVerb } from "./cli-v7/kind-map.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { resolutionCardinalityMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
@@ -3937,8 +3938,22 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // Flat legacy command → its verb (build/breath/eval). Without this, every flat
+  // command (settings/fetch/search/skills/spec/explain/account/dashboard/...) falls
+  // through to the one-hole `breath get` path below and is run as a web-search/
+  // capture INTENT — the KNOWN_COMMANDS-drift misroute (`unbrowse settings` would
+  // browser-capture duckduckgo/settings). flatCommandVerb is derived from KIND_MAP
+  // so it cannot drift; a genuine natural-language intent returns null and falls
+  // through to `get`.
+  const flatVerb = flatCommandVerb(command);
+  if (flatVerb) {
+    const { runV7 } = await import("./cli-v7/index.js");
+    await runV7([process.argv[0], process.argv[1], flatVerb, command, ...process.argv.slice(3)]);
+    return;
+  }
+
   // Bare natural-language intent — the headline front door. `unbrowse "find X"`
-  // (any first token that is not a verb or launcher entrypoint) routes to the
+  // (any first token that is not a verb, launcher, or flat command) routes to the
   // one-hole `breath get` path, which figures out the rest on its own: web
   // search, direct fetch, route-graph replay, adapter, browser capture, cookies/
   // HAR, and indexing. The structured verbs (build/breath/eval) stay the
