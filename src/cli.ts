@@ -14,6 +14,7 @@ import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-met
 import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
+import { resolutionCardinalityMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
@@ -809,7 +810,10 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   // byte-identical. Skipped under stateless / explicit-endpoint / dry-run / force-capture.
   if (resolveCacheSafe(flags)) {
     const cachedHit = peekResolution<Record<string, unknown>>(resolveCacheKeyFor(flags, intent), resolveCacheTtlMs());
-    if (cachedHit) {
+    // Cardinality guard (Ezekiel 47:10): a list/search intent must not replay a
+    // single-item value. A poisoned row (a product detail cached under a list
+    // intent) is treated as a miss so the orchestrator recomputes a real list.
+    if (cachedHit && resolutionCardinalityMatches(intent, cachedHit.result ?? (cachedHit as Record<string, unknown>).data)) {
       const replay = markResolveCacheReplay(cachedHit);
       const hostType = detectTelemetryHostType();
       if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
@@ -1100,7 +1104,13 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     // Store the FINAL result so a repeated identical resolve hits the fast path above
     // (clean results only; skipped for the unsafe/stateless cases). This is the exact
     // object printed, so the warm fast-path output is byte-identical.
-    if (resolveCacheSafe(flags) && isResolveSuccessResult(result)) {
+    // Cardinality guard (Ezekiel 47:10): never persist a single-item value under a
+    // list/search intent — that is exactly the poison the peek above has to reject.
+    if (
+      resolveCacheSafe(flags) &&
+      isResolveSuccessResult(result) &&
+      resolutionCardinalityMatches(intent, (result as Record<string, unknown>).result ?? (result as Record<string, unknown>).data)
+    ) {
       storeResolution(resolveCacheKeyFor(flags, intent), result, resolveCacheTtlMs());
     }
 
