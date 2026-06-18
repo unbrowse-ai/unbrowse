@@ -106,7 +106,10 @@ export async function listKeysForUser(env: Env, userId: string): Promise<string[
 export async function getAccountPreferences(env: Env, userId: string): Promise<AccountPreferences> {
   const user = await getUserById(env, userId);
   if (!user) throw new Error("user_not_found");
-  return { share_pointers: user.share_pointers ?? false };
+  // Auto-publish to marketplace is ON by default for everyone (flywheel volume): a
+  // user who never touched the toggle shares captures publicly. Opt out by setting it
+  // false. (Matches the CLI's contribution defaults — share_pointers true by default.)
+  return { share_pointers: user.share_pointers ?? true };
 }
 
 export async function setAccountPreferences(env: Env, userId: string, prefs: Partial<AccountPreferences>): Promise<AccountPreferences> {

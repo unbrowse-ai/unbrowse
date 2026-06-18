@@ -5,6 +5,7 @@ import { getAgentFeeLedger } from "./fees.js";
 import { getAgentPerfLedger } from "./perf.js";
 import type { AgentPerfLedger } from "./perf.js";
 import { statsKV } from "./kv.js";
+import { getOrSetHttpCache } from "./http-cache.js";
 import { getConsumerTransactions, getCreatorTransactions, type Transaction } from "./transactions.js";
 import type { CreatorLedger } from "./transactions.js";
 
@@ -140,14 +141,27 @@ function parseValueMap<T>(entries: Array<{ name: string; value: string }>, parse
   return map;
 }
 
+type RawEntries = Array<{ name: string; value: string }>;
+
+// The 4 full KV scans below are the dashboard + leaderboard hot path (O(all agents +
+// all txns + all perf) per call). Cache the RAW scan (JSON-serializable) for 30s so
+// every dashboard/leaderboard read in that window shares ONE scan instead of each
+// re-scanning. (Durable fix is incremental per-agent rollups; this is the read-cache.)
+async function loadLeaderboardRaw(env: Env): Promise<{ profilesRaw: RawEntries; creatorRaw: RawEntries; attributionRaw: RawEntries; perfRaw: RawEntries }> {
+  return getOrSetHttpCache(env, "leaderboard:raw", 30, async () => {
+    const kv = statsKV(env);
+    const [profilesRaw, creatorRaw, attributionRaw, perfRaw] = await Promise.all([
+      kv.listWithValues("agent:"),
+      kv.listWithValues("tx:creator:"),
+      kv.listWithValues("attribution:indexer:"),
+      kv.listWithValues("perf:agent:"),
+    ]);
+    return { profilesRaw, creatorRaw, attributionRaw, perfRaw };
+  });
+}
+
 async function loadLeaderboardState(env: Env): Promise<LeaderboardState> {
-  const kv = statsKV(env);
-  const [profilesRaw, creatorRaw, attributionRaw, perfRaw] = await Promise.all([
-    kv.listWithValues("agent:"),
-    kv.listWithValues("tx:creator:"),
-    kv.listWithValues("attribution:indexer:"),
-    kv.listWithValues("perf:agent:"),
-  ]);
+  const { profilesRaw, creatorRaw, attributionRaw, perfRaw } = await loadLeaderboardRaw(env);
 
   return {
     profiles: profilesRaw

@@ -39,7 +39,12 @@ publicDashboardRoutes.get("/dashboard/wallet/:walletAddress", async (c) => {
 
 dashboardRoutes.get("/dashboard/me", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
-  const dashboard = await buildDashboard(c.env, agentId);
-  if (!dashboard) return c.json({ error: "Agent profile not found" }, 404);
-  return c.json(dashboard);
+  // Per-agent cache (45s) — a dashboard payload is plain JSON; this makes repeated
+  // views instant instead of re-running buildDashboard's leaderboard scan each load.
+  // (The public /dashboard/wallet path is already cached the same way.)
+  const cached = await getOrSetHttpCache(c.env, `dashboard:me:${agentId}`, 45, async () => ({
+    dashboard: await buildDashboard(c.env, agentId),
+  }));
+  if (!cached.dashboard) return c.json({ error: "Agent profile not found" }, 404);
+  return c.json(cached.dashboard);
 });
