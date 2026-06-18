@@ -32,5 +32,10 @@ run_sdk test/bridge-default.test.ts               "SDK spawn always-activates th
 # Frontend dashboard pure logic
 run_fe src/lib/dashboard-metrics.test.ts          "FE network-impact: share ratio, bar clamp, compact format"
 
+# Papers reflection (zk-privacy + economy story on FE + CLI)
+run_fe src/lib/papers.test.ts                     "papers vessel: papersByTheme zk→Crypto, economy→Maintenance"
+bash scripts/papers-reflection-gate.sh >/dev/null 2>&1 && ok "papers reflected across FE surfaces + CLI (moat clean)" || bad "papers-reflection-gate.sh"
+bash scripts/cli-papers-docs-check.sh >/dev/null 2>&1 && ok "CLI eval stats docs block (zk-proof + x402)" || bad "cli-papers-docs-check.sh"
+
 if [ "$fail" -eq 0 ]; then echo "SESSION-TESTS GREEN — every shipped behavior this session is covered + passing"; exit 0; fi
 echo "SESSION-TESTS RED"; exit 1
