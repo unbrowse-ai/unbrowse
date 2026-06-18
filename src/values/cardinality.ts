@@ -147,6 +147,51 @@ export function urlPathLooksListLike(contextUrl?: string): boolean {
   }
 }
 
+/** A page's path-template if it is an ENTITY-DETAIL pointer — a path carrying a
+ *  variable id/slug segment (`/p/risoles-138534`, `/product/{id}`, a uuid, a
+ *  `-12345` suffix). Returns null for fixed-category nav (`/store/apps`). The id
+ *  segment is masked so sibling item links collapse to one template. */
+export function entityPointerTemplate(href: string): string | null {
+  let path = href;
+  try {
+    path = new URL(href, "https://_").pathname;
+  } catch {
+    path = href.split("?")[0];
+  }
+  const segs = path.split("/").filter(Boolean);
+  if (segs.length === 0) return null;
+  const shape: string[] = [];
+  let hasId = false;
+  for (const s of segs) {
+    const low = s.toLowerCase();
+    if (/\d{3,}/.test(low) || low.length > 30 || /^[0-9a-f-]{8,}$/.test(low) || /-\d{2,}$/.test(low)) {
+      shape.push("{id}");
+      hasId = true;
+    } else {
+      shape.push(low);
+    }
+  }
+  return hasId ? shape.slice(0, 3).join("/") : null;
+}
+
+/** Structural collection signal (the net, Ezekiel 47:10): do these link hrefs
+ *  form a NET OF POINTERS to entity detail pages? A listing page links to many
+ *  same-template detail holes (each with a variable id); a nav/landing page links
+ *  to a few fixed-category pages. True when the largest same-template
+ *  entity-pointer group meets `min`. A list intent satisfied by such a page is
+ *  STRUCTURALLY answered — a brittle token-overlap gate must not reject it. */
+export function linksFormEntityCollection(hrefs: Iterable<string>, min = 4): boolean {
+  const groups = new Map<string, number>();
+  for (const href of hrefs) {
+    const t = entityPointerTemplate(href);
+    if (!t) continue;
+    const n = (groups.get(t) ?? 0) + 1;
+    if (n >= min) return true;
+    groups.set(t, n);
+  }
+  return false;
+}
+
 /** The subject of a cardinality check, tagged by what it is. One union so the
  *  gate is polymorphic over the three things a DAG node ever holds. */
 export type CardinalitySubject =

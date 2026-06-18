@@ -1,7 +1,7 @@
 import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { resolveProxyUrl } from "../execution/proxy-fetch.js";
-import { isListLikeIntent } from "../values/cardinality.js";
+import { isListLikeIntent, linksFormEntityCollection } from "../values/cardinality.js";
 import { deriveSearchRouteTemplates, fillSearchRoute } from "../execution/search-forms.js";
 
 export interface DirectDocumentTable {
@@ -381,16 +381,29 @@ export function buildDirectDocumentResult(
       const hits = intentTokens.filter((tok) => haystack.includes(tok));
       const hitRate = hits.length / intentTokens.length;
       if (hitRate < 0.34) {
-        return {
-          rejected: true,
-          reason: "intent_mismatch",
-          evidence: {
-            intent_tokens: intentTokens,
-            response_token_hits: hits,
-            response_token_hit_rate: hitRate,
-            html_bytes: html.length,
-          },
-        };
+        // Structural override (CLAUDE.md "generalize / don't let a heuristic
+        // over-reject"): a LIST intent on a page that IS a collection — a net of
+        // entity-detail pointers (Carousell /food/q/ links 18× /p/{id}) — is
+        // STRUCTURALLY answered. The token gate flaps at its boundary on verbose
+        // intents ("…listings with titles and prices") whose words aren't on the
+        // page; don't reject a real listing over that. The collection is the answer.
+        const isCollection =
+          isListLikeIntent(intent) &&
+          linksFormEntityCollection(
+            Array.from(html.matchAll(/href\s*=\s*["']([^"']+)["']/gi), (m) => m[1]),
+          );
+        if (!isCollection) {
+          return {
+            rejected: true,
+            reason: "intent_mismatch",
+            evidence: {
+              intent_tokens: intentTokens,
+              response_token_hits: hits,
+              response_token_hit_rate: hitRate,
+              html_bytes: html.length,
+            },
+          };
+        }
       }
     }
   }
