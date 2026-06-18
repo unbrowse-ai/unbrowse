@@ -176,6 +176,17 @@ export async function handler(
         you,
         network: body,
         summary: body,
+        // The economy + privacy story behind these numbers, surfaced for the agent —
+        // per-use x402 micropayments + site-owner payouts (Unbrowse Maintenance
+        // Network), and credentials bound to your wallet by zero-knowledge proof,
+        // revealed only under signature (Crypto Was All You Needed). Public-tier
+        // pointers — the WHAT, read the papers for the rest.
+        docs: {
+          how_it_pays: "https://unbrowse.ai/how-unbrowse-pays",
+          economy: "per-use x402 micropayments; bind a wallet to a domain you own to earn the owner share — paper: Unbrowse Maintenance Network",
+          privacy: "credentials are bound to your wallet by zero-knowledge proof and revealed only under signature — paper: Crypto Was All You Needed",
+          papers: "https://unbrowse.ai/papers",
+        },
         audit_emit: auditEmit,
       },
       opts,
