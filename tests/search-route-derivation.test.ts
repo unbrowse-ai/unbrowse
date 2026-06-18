@@ -1,5 +1,20 @@
 import { describe, it, expect } from "bun:test";
 import { deriveSearchRouteTemplates, fillSearchRoute } from "../src/execution/search-forms.js";
+import { linksFormEntityCollection, entityPointerTemplate } from "../src/values/cardinality.js";
+
+describe("linksFormEntityCollection — a listing page is a net of pointers", () => {
+  it("a page with many same-template item links IS a collection", () => {
+    const listing = Array.from({ length: 18 }, (_, i) => `/p/item-${1000 + i}/`);
+    expect(linksFormEntityCollection(listing)).toBe(true);
+  });
+  it("fixed-category nav is NOT a collection", () => {
+    expect(linksFormEntityCollection(["/store/apps", "/store/games", "/electronics", "/cars"])).toBe(false);
+  });
+  it("entityPointerTemplate masks ids, ignores fixed nav", () => {
+    expect(entityPointerTemplate("/p/risoles-1385340565/")).toBe("p/{id}");
+    expect(entityPointerTemplate("/store/apps")).toBeNull();
+  });
+});
 
 // "Define the pipes all the way down": a JS-SPA search box isn't a <form>, but the
 // site exposes its search route in its own links. A repeated sibling-link pattern
