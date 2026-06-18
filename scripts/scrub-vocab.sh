@@ -64,7 +64,11 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     s/rules_for_identity/identity_rules/g; s/establishment_query/discovery_query/g; s/recall_episode/recall_route/g;
     # identifier-safe single tokens (these appear in TYPE names + identifiers, not just prose,
     # so a multi-word replacement would inject a space and break the code that must compile)
-    s/zero[- ]?knowledge/commitmentBound/gi; s/zk[- ]?proof/commitmentProof/gi;
+    # NOTE: "zero-knowledge" is NO LONGER scrubbed — the "Crypto Was All You Needed" paper
+    # is published (subtitle "...Zero-Knowledge Privacy"), so it is a released public WHAT
+    # (matches leak-guard, which dropped it from the ZK strip-list). The construction HOW —
+    # zk-proof scheme, nullifier — stays scrubbed.
+    s/zk[- ]?proof/commitmentProof/gi;
     s/nullifier/commitmentTag/gi; s/privacy[- ]?ip/private/gi;
     # --- EBM / energy-model framing: the hidden scoring/learning mechanism -> secular.
     # The product uses energy-based ranking; the public surface calls it confidence/ranking
