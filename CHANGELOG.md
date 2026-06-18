@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.7.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.2...v9.7.0) (2026-06-18)
+
+### Features
+
+* **capture:** structural SPA-listing recognition — decode-to-records, not URL allowlists ([f3ae7c4](https://github.com/unbrowse-ai/unbrowse-dev/commit/f3ae7c4db5054a026e5f6ca5765e9416ad05b5c2))
+
 ## [9.6.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.1...v9.6.2) (2026-06-18)
 
 ### Bug Fixes
