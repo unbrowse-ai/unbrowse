@@ -1,5 +1,7 @@
 # Changelog
 
+## [9.9.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.3...v9.9.0) (2026-06-18)
+
 ## [9.9.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.2...v9.9.0-preview.3) (2026-06-18)
 
 ### Features
