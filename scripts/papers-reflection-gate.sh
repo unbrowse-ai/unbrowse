@@ -40,6 +40,25 @@ grep -qE 'PapersBehind|/papers|papers behind this' frontend/src/app/faq/page.tsx
   && ok "papers referenced on faq + how-unbrowse-pays" \
   || bad "papers not referenced on both faq and how-unbrowse-pays"
 
+# 5b. economy surfaced on /claim (the earn page) via PapersBehind theme="economy"
+grep -q 'PapersBehind' frontend/src/app/claim/page.tsx \
+  && grep -q 'theme="economy"' frontend/src/app/claim/page.tsx \
+  && ok "economy surfaced on claim (PapersBehind theme=economy)" \
+  || bad "economy not surfaced on claim page"
+
+# 5c. foundational explainers carry the full paper set
+grep -q 'PapersBehind' frontend/src/app/about/page.tsx \
+  && grep -q 'PapersBehind' frontend/src/app/what-is-unbrowse/page.tsx \
+  && ok "papers surfaced on about + what-is-unbrowse" \
+  || bad "papers not surfaced on both about and what-is-unbrowse"
+
+# 5d. CLI main help footer points to how-it-pays + privacy + papers
+grep -q 'how-unbrowse-pays' src/cli.ts \
+  && grep -q 'unbrowse.ai/privacy' src/cli.ts \
+  && grep -q 'unbrowse.ai/papers' src/cli.ts \
+  && ok "CLI main help footer links how-it-pays + privacy + papers" \
+  || bad "CLI main help footer missing papers/economy/privacy pointers"
+
 # 6. CLI resolve emits a docs block with how_it_pays + economy + privacy + papers keys
 grep -q 'docs:' src/cli-v7/eval/stats.ts \
   && grep -q 'how_it_pays' src/cli-v7/eval/stats.ts \

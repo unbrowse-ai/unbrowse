@@ -3470,6 +3470,11 @@ function printHelp(): void {
     "",
     "Run `unbrowse <verb> --help` for the full capability list.",
     "",
+    "Learn more (the WHAT behind the runtime — read the papers for the rest):",
+    "  How it pays   https://unbrowse.ai/how-unbrowse-pays   per-use x402 micropayments; bind a wallet to a domain you own to earn the owner share (paper: Unbrowse Maintenance Network)",
+    "  Privacy       https://unbrowse.ai/privacy             credentials bound to your wallet by zero-knowledge proof, revealed only under signature (paper: Crypto Was All You Needed)",
+    "  Papers        https://unbrowse.ai/papers",
+    "",
   ];
 
   process.stdout.write(lines.join("\n") + "\n");
