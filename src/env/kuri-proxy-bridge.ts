@@ -41,6 +41,12 @@
  */
 
 import { resolveEgressProxy } from "../execution/proxy-fetch.js";
+// The python auth-proxy forwarder is BAKED INTO THE BINARY: bun inlines this file's
+// text at build/bundle time (verified dev + `bun build --target node`), so there is
+// no sibling .py to locate on disk and nothing to add to the npm `files` list. The
+// prior path-walk made the bridge "unavailable" on any install where the .py wasn't
+// packaged. Single source of truth stays scripts/local-proxy-auth-forwarder.py.
+import FORWARDER_PY from "../../scripts/local-proxy-auth-forwarder.py" with { type: "text" };
 
 /**
  * Happy-path proxy-bridge logs are diagnostic noise on the user's terminal —
@@ -126,34 +132,22 @@ function spawnAuthForwarder(upstreamUrl: string): string | null {
     const path = require("node:path") as typeof import("node:path");
     const fs = require("node:fs") as typeof import("node:fs");
 
-    // Locate scripts/local-proxy-auth-forwarder.py: walk up from this
-    // file until we find a `scripts/` directory containing it. The
-    // bridge module ships under src/env/, so the script is two dirs up.
-    let here = __dirname;
-    let scriptPath: string | null = null;
-    for (let i = 0; i < 6; i++) {
-      const candidate = path.join(here, "scripts", "local-proxy-auth-forwarder.py");
-      if (fs.existsSync(candidate)) {
-        scriptPath = candidate;
-        break;
-      }
-      const parent = path.dirname(here);
-      if (parent === here) break;
-      here = parent;
-    }
-    if (!scriptPath) {
-      process.stderr.write("[kuri-proxy] could not locate local-proxy-auth-forwarder.py; auth-proxy bridge unavailable.\n");
+    // Materialize the BAKED-IN forwarder source to a temp file python3 can run.
+    // No disk-locate, no packaging dependency — FORWARDER_PY is inlined in the
+    // bundle. (This is the fix for "auth-proxy bridge unavailable": the script
+    // was never shipped in the npm `files` whitelist, so the old path-walk failed
+    // on every installed binary.)
+    const os = require("node:os") as typeof import("node:os");
+    const scriptPath = path.join(os.tmpdir(), `unbrowse-proxy-forwarder-${process.pid}-${Date.now()}.py`);
+    try {
+      fs.writeFileSync(scriptPath, FORWARDER_PY, { mode: 0o600 });
+    } catch (e) {
+      process.stderr.write(`[kuri-proxy] could not materialize embedded forwarder: ${e instanceof Error ? e.message : String(e)}; auth-proxy bridge unavailable.\n`);
       return null;
     }
 
-    // Probe — confirm python3 + script can parse the URL before
-    // backgrounding. spawnSync with a 1s timeout, --help-like dry-run
-    // via empty stdin. Skipped here; rely on background spawn's
-    // ready-line as the probe.
-
     // File-based ready signal — more reliable than racing the
     // child's stdout pipe across the bun/node runtime boundary.
-    const os = require("node:os") as typeof import("node:os");
     const readyFile = path.join(os.tmpdir(), `kuri-proxy-forwarder-${process.pid}-${Date.now()}.ready`);
     try { fs.unlinkSync(readyFile); } catch { /* not present yet */ }
 
@@ -179,8 +173,11 @@ function spawnAuthForwarder(upstreamUrl: string): string | null {
       spawnSync("sh", ["-c", "sleep 0.1"]);
     }
 
-    // Best-effort cleanup of the ready file (forwarder doesn't need it after start)
+    // Best-effort cleanup of the ready file + the materialized script (python3 has
+    // already loaded the source into memory by the time it reports ready, so on
+    // Unix the open inode survives the unlink).
     try { fs.unlinkSync(readyFile); } catch { /* ignore */ }
+    try { fs.unlinkSync(scriptPath); } catch { /* ignore */ }
 
     if (!port) {
       try { if (child.pid) process.kill(child.pid, "SIGTERM"); } catch { /* ignore */ }
