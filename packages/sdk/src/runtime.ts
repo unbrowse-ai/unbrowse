@@ -227,12 +227,21 @@ async function spawnUnbrowseRuntimeInternal(
   // 3. Spawn via Node's child_process (cross-runtime; Bun shims this).
   //    Lazy import keeps the connect-only path tree-shakeable.
   const childProcess = await import("node:child_process");
+  const inherited = sanitizeEnv(process.env);
   const env: Record<string, string> = {
-    ...sanitizeEnv(process.env),
+    ...inherited,
     ...(opts.env ?? {}),
     PORT: String(port),
     HOST: "127.0.0.1",
   };
+  // Always activate the auth-proxy bridge when spawning via the SDK — same default
+  // as the CLI. "auto" makes the runtime attempt the bridge and degrade safely to
+  // direct egress when no proxy creds resolve (so this never re-introduces the
+  // v9.3.4 ERR_TUNNEL breakage of forcing a proxy default). An explicit
+  // UNBROWSE_KURI_PROXY=0/false from the caller still wins as the emergency disable.
+  if (env.UNBROWSE_KURI_PROXY == null || env.UNBROWSE_KURI_PROXY === "") {
+    env.UNBROWSE_KURI_PROXY = "auto";
+  }
 
   // `unbrowse-wrapper.mjs` is a node script; the global `unbrowse` binary
   // may be a wrapper or a compiled single-binary. Pass `serve` as argv[0]
