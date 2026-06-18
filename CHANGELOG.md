@@ -1,5 +1,28 @@
 # Changelog
 
+## [9.9.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.2...v9.9.0-preview.3) (2026-06-18)
+
+### Features
+
+* **backfill:** publish local-cache captures to the backend when the shape matches ([2e92bec](https://github.com/unbrowse-ai/unbrowse-dev/commit/2e92bec0b04a07f31bed0ad505716dcf81568a05))
+* **holes:** attribution ids → wallet-bound commitments via the standard interface (P0) ([92d4049](https://github.com/unbrowse-ai/unbrowse-dev/commit/92d4049d6dbf34a724cccf9d16a68916cbd3a289))
+* **holes:** P1 — bridge the capture hole to the operation DAG (cross-layer dep edge) ([3ab6806](https://github.com/unbrowse-ai/unbrowse-dev/commit/3ab680686fe82642fda1ad6968bf08d2b441dd31))
+* **holes:** P2 — route the hole-dep chain into a signed six-layer descent spine ([b0e2b97](https://github.com/unbrowse-ai/unbrowse-dev/commit/b0e2b975a9ac8d8a31893a5121877df50468b92c))
+* **holes:** P3 CLI surfaces candidates + publish gate, P4 spine persist/replay — spine complete ([c553916](https://github.com/unbrowse-ai/unbrowse-dev/commit/c553916f2c9c6057243028a1b876feb8779c42ba))
+* **papers:** reflect zk-privacy + economy across security/privacy/billing/faq (land) ([be4e827](https://github.com/unbrowse-ai/unbrowse-dev/commit/be4e827d75856346069da94dffe3c0799e9b20a2))
+* **papers:** reflect zk-privacy + economy on claim/about/what-is + CLI help footer (better) ([857f65e](https://github.com/unbrowse-ai/unbrowse-dev/commit/857f65e08f6fc2b7d7f17d0ed7a2ff70196ceb07))
+* **papers:** surface zk-privacy + economy/payments on the money page + CLI ([c19590c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c19590c86caaa65455d8b90a8c149fe83f3dea62))
+
+### Bug Fixes
+
+* **backfill:** only send what LANDS — clean junk endpoints, count remote, pace ([1c94a7d](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c94a7dfc740637f8611e0ab620ced42dad64c0e))
+* **holes:** fail-closed zkbind admission — a forged prefix can't smuggle a secret (P0 hardening) ([80afad0](https://github.com/unbrowse-ai/unbrowse-dev/commit/80afad0151c18141682fb1b9e9d3b5a2c1c1a290))
+* **leak-guard:** guard the public website surface; release zero-knowledge (paper shipped) ([fad4d42](https://github.com/unbrowse-ai/unbrowse-dev/commit/fad4d423e36f264072474947527691135f0261a3))
+
+### Refactoring
+
+* **papers:** shared papers source + reusable PapersBehind vessel (firmament) ([54c66cf](https://github.com/unbrowse-ai/unbrowse-dev/commit/54c66cf027af0b151a800e6363fd31481087ce92))
+
 ## [9.9.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.1...v9.9.0-preview.2) (2026-06-18)
 
 ### Features
