@@ -20,6 +20,19 @@ export interface DashboardTransaction {
   created_at: string;
 }
 
+/** A per-route contribution: a route this agent published, aggregated over every
+ *  paid reuse by others. reuse_count + earned_usd are real (counted from creator
+ *  payout transactions); "saved for others" is deliberately omitted — it is not
+ *  attributable per-route without new storage, and inventing it would break the
+ *  honest-metric rule. */
+export interface DashboardContribution {
+  skill_id: string;
+  endpoint_id?: string;
+  reuse_count: number;
+  earned_usd: number;
+  last_used_at: string;
+}
+
 export interface DashboardPayload {
   profile: AgentProfile;
   economics: {
@@ -55,6 +68,7 @@ export interface DashboardPayload {
     position: number | null;
   };
   recent_transactions: DashboardTransaction[];
+  contributions: DashboardContribution[];
 }
 
 export interface LeaderboardEntry {
@@ -273,6 +287,10 @@ export async function buildDashboard(env: Env, agentId: string): Promise<Dashboa
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 8);
 
+  const contributions = aggregateContributions(
+    creator.transactions.map((tx) => normalizeDashboardTransaction(tx, "earned")),
+  );
+
   const rankIndex = leaderboard.findIndex((entry) => entry.agent_id === agentId);
   const baselineTimeMs = perf && perf.total_baseline_ms > 0 ? perf.total_baseline_ms : null;
   const actualTimeMs = perf && perf.total_actual_ms > 0 ? perf.total_actual_ms : null;
@@ -317,5 +335,35 @@ export async function buildDashboard(env: Env, agentId: string): Promise<Dashboa
       position: rankIndex >= 0 ? rankIndex + 1 : null,
     },
     recent_transactions: recentTransactions,
+    contributions,
   };
+}
+
+/** Group an agent's creator payout transactions by route (skill_id) into a per-route
+ *  contributions ledger: how many times others paid to reuse it, and total earned.
+ *  Top 20 by earnings. All values counted from real transactions — nothing invented. */
+export function aggregateContributions(earnedTransactions: DashboardTransaction[]): DashboardContribution[] {
+  const bySkill = new Map<string, DashboardContribution>();
+  for (const tx of earnedTransactions) {
+    const existing = bySkill.get(tx.skill_id);
+    if (existing) {
+      existing.reuse_count += 1;
+      existing.earned_usd = round6(existing.earned_usd + tx.amount_usd);
+      if (new Date(tx.created_at).getTime() > new Date(existing.last_used_at).getTime()) {
+        existing.last_used_at = tx.created_at;
+        if (tx.endpoint_id) existing.endpoint_id = tx.endpoint_id;
+      }
+    } else {
+      bySkill.set(tx.skill_id, {
+        skill_id: tx.skill_id,
+        endpoint_id: tx.endpoint_id,
+        reuse_count: 1,
+        earned_usd: round6(tx.amount_usd),
+        last_used_at: tx.created_at,
+      });
+    }
+  }
+  return [...bySkill.values()]
+    .sort((a, b) => b.earned_usd - a.earned_usd || b.reuse_count - a.reuse_count)
+    .slice(0, 20);
 }

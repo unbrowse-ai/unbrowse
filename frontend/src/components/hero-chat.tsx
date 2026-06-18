@@ -414,7 +414,7 @@ export function HeroChat() {
         <button
           type="submit"
           disabled={status === "loading" || !prompt.trim()}
-          className="shrink-0 rounded-sm bg-orange-500 px-4 py-1.5 font-mono text-xs font-medium text-white transition-all hover:bg-orange-600 active:translate-y-px disabled:opacity-40 disabled:cursor-default cursor-pointer"
+          className="shrink-0 rounded-sm bg-orange-500 px-4 py-1.5 font-mono text-xs font-medium text-white transition-colors hover:bg-orange-600 active:translate-y-px disabled:opacity-40 disabled:cursor-default cursor-pointer"
         >
           {status === "loading" ? "…" : "Ask"}
         </button>
