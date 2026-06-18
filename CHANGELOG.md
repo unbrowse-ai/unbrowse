@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.9.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.1...v9.9.0-preview.2) (2026-06-18)
+
+### Features
+
+* opt-out stores routes PRIVATELY (submit later for money) + cloud cache stale-on-change ([cc5bd18](https://github.com/unbrowse-ai/unbrowse-dev/commit/cc5bd18ab8acbe9bb3611124f643c8589ebd11d2))
+
+### Performance
+
+* **dashboard)+feat(account:** cache dashboard reads; auto-publish ON by default ([bbcd6a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/bbcd6a6d2d9b24af9a65b926660d24beb7039f00))
+
 ## [9.9.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.0...v9.9.0-preview.1) (2026-06-18)
 
 ## [9.9.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.8.0...v9.9.0-preview.0) (2026-06-18)
