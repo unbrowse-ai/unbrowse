@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.9.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.8.0...v9.9.0-preview.0) (2026-06-18)
+
+### Features
+
+* **auth:** attribute anon contributions to the existing infra-fee wallet (PAYMENT_RECIPIENT) ([742964e](https://github.com/unbrowse-ai/unbrowse-dev/commit/742964e1eda2259aaaf0189612d56a54d097a79d))
+* **auth:** bearer optional on contribution routes — publish always, attribute wallet-less to global index ([dc831c0](https://github.com/unbrowse-ai/unbrowse-dev/commit/dc831c0602609db17b5784c58b3254cae3e8df97))
+* **resolve:** query-focus the page to the relevant passage (exa-rag 0.333→0.400, n=30) ([ed058db](https://github.com/unbrowse-ai/unbrowse-dev/commit/ed058db13dcb801bfcd65b185ff8a3ef666aeacf))
+* **sdk:** track latest unbrowse (v9), always-activate bridge via SDK, fix build ([aaa67b9](https://github.com/unbrowse-ai/unbrowse-dev/commit/aaa67b97a51833ce0b474c943773d5f70b8794b1))
+* **tracking:** contributions·payouts·cost-saved·time-saved for you + everyone (CLI + FE) ([c6c765e](https://github.com/unbrowse-ai/unbrowse-dev/commit/c6c765e766fa28385c00ce4d29422dec5221ca16))
+* **tracking:** G4 reconcile + seal — you-numbers agree across CLI and FE ([ffe0beb](https://github.com/unbrowse-ai/unbrowse-dev/commit/ffe0beb385f2b9a12ad2e622ea7847a267543745))
+
+### Bug Fixes
+
+* **auth:** GET-scope the /skills list bearer guard so it stops shadowing publish ([425ca80](https://github.com/unbrowse-ai/unbrowse-dev/commit/425ca80a58f068784ddd1616b5039d6be0e74b4e))
+* **bench:** count list-shaped collection results as covered (Axis-A false-negative) ([08ce3f2](https://github.com/unbrowse-ai/unbrowse-dev/commit/08ce3f2988fac63b3f84d39fe41438f7d592a146))
+* **index:** structural admission gate — passive indexing stops capturing junk ([9cc13c3](https://github.com/unbrowse-ai/unbrowse-dev/commit/9cc13c3be6aed8748412bb229fda81da47cf1fee))
+* **kuri-proxy:** bake the auth-proxy forwarder into the binary (no sibling .py to ship) ([e6fef71](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6fef714498fcd42c57a0f8966ff3ceb585e20d7))
+* **leak-guard:** scrub moat vocab from the baked-in forwarder (.py ships in bundle now) ([807da52](https://github.com/unbrowse-ai/unbrowse-dev/commit/807da5207bda22f0e7f532c0d4f316e84edb216f))
+* **resolve:** stop the false cli_timeout — outer deadline must cover live-capture ([#838](https://github.com/unbrowse-ai/unbrowse-dev/issues/838)) ([8d501b4](https://github.com/unbrowse-ai/unbrowse-dev/commit/8d501b43570a82a8a10c0874b22c1e9f5730ed6a))
+* **sdk+analytics:** undeprecate @unbrowse/sdk; clamp funnel conversion rate ≤100% ([0b10fff](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b10fff0309cfb45feee107bb062a9c9d9e3cccf))
+
 ## [9.8.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.7.0...v9.8.0) (2026-06-18)
 
 ### Features
