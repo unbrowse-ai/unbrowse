@@ -34,6 +34,15 @@ grep -q "export async function indexContributorAuth" backend/src/middleware/auth
   && ok "indexContributorAuth: optional bearer + infra-fee/global-index fallback" \
   || bad "indexContributorAuth middleware missing or no index-wallet fallback"
 
+# 3b. No router-level `.use` bearerAuth guard shadows the bearer-optional POST /skills.
+#     The publicSkillRoutes /skills guard (GET list dump) must short-circuit non-GET,
+#     else it 401s the publish POST before indexContributorAuth runs.
+if grep -A2 'publicSkillRoutes.use("/skills"' backend/src/routes/skills.ts | grep -q 'method !== "GET"'; then
+  ok "GET-list bearer guard does not shadow POST /skills publish"
+else
+  bad "publicSkillRoutes /skills guard still gates POST (shadows indexContributorAuth)"
+fi
+
 # 4. The env wallet is a typed binding.
 grep -q "UNBROWSE_GLOBAL_INDEX_WALLET" backend/src/types.ts \
   && ok "UNBROWSE_GLOBAL_INDEX_WALLET typed in Env" || bad "env wallet not typed"

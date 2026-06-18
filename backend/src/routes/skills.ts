@@ -46,7 +46,12 @@ export const publicSkillRoutes = new Hono<SkillRouteEnv>();
 
 // Skills list: card view is public (trimmed payload, edge-cached, safe for homepage).
 // Full list still requires auth to prevent unauthenticated 30MB dumps.
+// SCOPED TO GET: this `.use("/skills")` matches all methods, but POST /skills
+// (publish) is the bearer-OPTIONAL contribution route handled by skillRoutes with
+// indexContributorAuth — gating it here with bearerAuth would 401 wallet-less
+// publishes before they ever reach that handler (the silent-publish-failure bug).
 publicSkillRoutes.use("/skills", async (c, next) => {
+  if (c.req.method !== "GET") return next();
   if (c.req.query("view") === "card") {
     return rateLimit({ limit: 120, window: 60, prefix: "skills-card" })(c, next);
   }
