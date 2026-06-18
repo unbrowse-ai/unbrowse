@@ -3,6 +3,7 @@ import type { Env, OrchestrationTiming } from "../types.js";
 import { bearerAuth, optionalAuth } from "../middleware/auth.js";
 import { recordExecution, recordFeedback, recordReflectionOutcome, getServerReliability } from "../services/scoring.js";
 import { recordPerf, getPerf, recordAgentPerf } from "../services/perf.js";
+import { invalidateDashboardCaches } from "../services/economics.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
@@ -330,6 +331,9 @@ statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
+    // A new execution changes this agent's savings + the leaderboard — bust the
+    // cloud cache so the dashboard reflects it immediately (stale-on-change).
+    c.executionCtx.waitUntil(invalidateDashboardCaches(c.env, agentId));
   }
   // Tier 1 attribution: credit the indexer if execution succeeded.
   // SECURITY: the indexer to credit is ALWAYS derived from the STORED skill (the
