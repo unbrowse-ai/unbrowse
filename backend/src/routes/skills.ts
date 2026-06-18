@@ -1,4 +1,4 @@
-import { Hono, type Context } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { mapPublishError } from "./publish-error-map.js";
 import type { Env } from "../types.js";
 import { bearerAuth, indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
@@ -50,7 +50,8 @@ export const publicSkillRoutes = new Hono<SkillRouteEnv>();
 // (publish) is the bearer-OPTIONAL contribution route handled by skillRoutes with
 // indexContributorAuth — gating it here with bearerAuth would 401 wallet-less
 // publishes before they ever reach that handler (the silent-publish-failure bug).
-publicSkillRoutes.use("/skills", async (c, next) => {
+// Exported so the GET-only scoping is unit-tested (tests/skills-list-guard.test.ts).
+export const skillsListAuthGuard = async (c: Context<SkillRouteEnv>, next: Next): Promise<Response | void> => {
   if (c.req.method !== "GET") return next();
   if (c.req.query("view") === "card") {
     return rateLimit({ limit: 120, window: 60, prefix: "skills-card" })(c, next);
@@ -58,7 +59,8 @@ publicSkillRoutes.use("/skills", async (c, next) => {
   return bearerAuth(c, async () => {
     await rateLimit({ limit: 60, window: 60, prefix: "skills-list" })(c, next);
   });
-});
+};
+publicSkillRoutes.use("/skills", skillsListAuthGuard);
 
 // GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
