@@ -1542,16 +1542,41 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
       } else if (explicitEndpointId || !bestEndpoint || endpointIsSafeToAutoExecute(bestEndpoint)) {
         runPlan.push({ step: "execute", mode: "direct_api", status: "started", endpoint_id: endpointToExecute });
         const resolvedSource = typeof result.source === "string" ? result.source : undefined;
-        result = await withPendingNotice(
+        const deferralResult = result; // the resolve shortlist, before execute overwrites it
+        const executed = await withPendingNotice(
           api("POST", `/v1/skills/${skillId}/execute`, execBody(endpointToExecute)) as Promise<Record<string, unknown>>,
           "Executing best endpoint...",
         );
-        if (resolvedSource && typeof result.source !== "string") result.source = resolvedSource;
-        runPlan[runPlan.length - 1] = {
-          ...runPlan[runPlan.length - 1],
-          status: isResolveSuccessResult(result) ? "complete" : "error",
-          error: resolveResultError(result) ?? null,
-        };
+        // Cardinality guard (Ezekiel 47:10): a list/search intent must not accept a
+        // single-item execution result. An endpoint URL can look like a listing
+        // (carousell.sg/food/q/) while its dom_extraction harvests only the lazy
+        // page-level schema.org Product. Don't return one fish for a net — keep the
+        // honest route shortlist so the agent escalates, never a fabricated single item.
+        if (
+          !explicitEndpointId &&
+          isResolveSuccessResult(executed) &&
+          !resolutionCardinalityMatches(intent, (executed as Record<string, unknown>).result ?? (executed as Record<string, unknown>).data)
+        ) {
+          runPlan[runPlan.length - 1] = {
+            ...runPlan[runPlan.length - 1],
+            status: "skipped",
+            reason: "cardinality_mismatch_single_item",
+          };
+          deferralResult.next_action = {
+            title: "List intent returned a single item",
+            command: `unbrowse execute --skill ${skillId} --endpoint ${endpointToExecute}`,
+            why: "Auto-execute yielded a single item for a list/search intent; the page's listings are likely JS-rendered behind an internal API. Returning the route shortlist instead of one item.",
+          };
+          result = deferralResult;
+        } else {
+          result = executed;
+          if (resolvedSource && typeof result.source !== "string") result.source = resolvedSource;
+          runPlan[runPlan.length - 1] = {
+            ...runPlan[runPlan.length - 1],
+            status: isResolveSuccessResult(result) ? "complete" : "error",
+            error: resolveResultError(result) ?? null,
+          };
+        }
       } else {
         runPlan.push({
           step: "execute",
