@@ -65,7 +65,9 @@ export function isCaptureSpoolEnvelope(value: unknown): value is CaptureSpoolEnv
 }
 
 /** Atomic write: tmp then rename — the final path always observes either the
- *  whole envelope or nothing (mirrors queue-store.writeJob). */
+ *  whole envelope or nothing (mirrors queue-store.writeJob). Pure storage
+ *  primitive — admission (isIndexableDomain) is enforced by callers at the
+ *  capture boundary, not here, so spool-mechanic tests can use fixture domains. */
 export async function writeCaptureSpool(
   spoolDir: string,
   envelope: CaptureSpoolEnvelope,

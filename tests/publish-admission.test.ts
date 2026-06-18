@@ -6,7 +6,7 @@ function makeEndpoint(overrides: Partial<EndpointDescriptor> = {}): EndpointDesc
   return {
     endpoint_id: "ep-1",
     method: "GET",
-    url_template: "https://www.example.com/api/items?page={page}",
+    url_template: "https://www.acme-corp.com/api/items?page={page}",
     description: "List items",
     idempotency: "safe",
     verification_status: "verified",
@@ -33,7 +33,7 @@ function makeSkill(overrides: Partial<SkillManifest> = {}): SkillManifest {
     schema_version: "1",
     name: "Example",
     intent_signature: "list items",
-    domain: "www.example.com",
+    domain: "www.acme-corp.com",
     description: "Example skill",
     owner_type: "marketplace",
     execution_type: "http",
@@ -57,8 +57,8 @@ describe("selectMarketplacePublishEndpoints", () => {
         }),
         makeEndpoint({
           endpoint_id: "canonical-doc",
-          url_template: "https://www.example.com/company/acme",
-          trigger_url: "https://www.example.com/company/acme?trk=feed",
+          url_template: "https://www.acme-corp.com/company/acme",
+          trigger_url: "https://www.acme-corp.com/company/acme?trk=feed",
           response_schema: undefined,
           semantic: undefined,
           description: "Captured page artifact",
@@ -66,23 +66,23 @@ describe("selectMarketplacePublishEndpoints", () => {
         }),
         makeEndpoint({
           endpoint_id: "fragile-graphql",
-          url_template: "https://www.example.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.3f8416d6f4c842cfb515",
-          trigger_url: "https://www.example.com/feed/",
+          url_template: "https://www.acme-corp.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.3f8416d6f4c842cfb515",
+          trigger_url: "https://www.acme-corp.com/feed/",
           reliability_score: 0.72,
         }),
         makeEndpoint({
           endpoint_id: "noise-auth",
-          url_template: "https://www.example.com/api/auth/refresh",
+          url_template: "https://www.acme-corp.com/api/auth/refresh",
         }),
         makeEndpoint({
           endpoint_id: "failed",
-          url_template: "https://www.example.com/api/items/{id}",
+          url_template: "https://www.acme-corp.com/api/items/{id}",
           verification_status: "failed",
         }),
         makeEndpoint({
           endpoint_id: "ws",
           method: "WS",
-          url_template: "wss://www.example.com/ws",
+          url_template: "wss://www.acme-corp.com/ws",
           response_schema: undefined,
           semantic: undefined,
         }),
@@ -116,8 +116,8 @@ describe("selectMarketplacePublishEndpoints", () => {
       endpoints: [
         makeEndpoint({
           endpoint_id: "page-only",
-          url_template: "https://www.example.com/company/acme",
-          trigger_url: "https://www.example.com/company/acme",
+          url_template: "https://www.acme-corp.com/company/acme",
+          trigger_url: "https://www.acme-corp.com/company/acme",
           response_schema: undefined,
           semantic: undefined,
           description: "Captured page artifact",
@@ -136,7 +136,7 @@ describe("selectMarketplacePublishEndpoints", () => {
       endpoints: [
         makeEndpoint({
           endpoint_id: "durable-graphql",
-          url_template: "https://www.example.com/voyager/api/graphql?queryId=feedDashMain.abcdef1234567890",
+          url_template: "https://www.acme-corp.com/voyager/api/graphql?queryId=feedDashMain.abcdef1234567890",
           reliability_score: 0.94,
         }),
       ],
@@ -154,26 +154,26 @@ describe("selectMarketplacePublishEndpoints", () => {
     const search = makeEndpoint({
       endpoint_id: "search-items",
       description: "Search items",
-      url_template: "https://www.example.com/api/items/search?q={q}",
+      url_template: "https://www.acme-corp.com/api/items/search?q={q}",
       semantic: { action_kind: "search", resource_kind: "item", example_fields: ["items[].id"] },
     });
     const detail = makeEndpoint({
       endpoint_id: "item-detail",
       description: "Get item detail",
-      url_template: "https://www.example.com/api/items/{item_id}",
+      url_template: "https://www.acme-corp.com/api/items/{item_id}",
       semantic: { action_kind: "detail", resource_kind: "item", example_fields: ["id"] },
     });
     const submit = makeEndpoint({
       endpoint_id: "item-submit",
       method: "POST",
       description: "Submit item update",
-      url_template: "https://www.example.com/api/items/{item_id}/submit",
+      url_template: "https://www.acme-corp.com/api/items/{item_id}/submit",
       semantic: { action_kind: "update", resource_kind: "item", example_fields: ["ok"] },
     });
     const noise = makeEndpoint({
       endpoint_id: "analytics-noise",
       description: "Analytics beacon",
-      url_template: "https://www.example.com/api/analytics/beacon",
+      url_template: "https://www.acme-corp.com/api/analytics/beacon",
     });
     const skill = makeSkill({
       endpoints: [search, detail, submit, noise],
@@ -310,8 +310,8 @@ describe("G1 phantom-endpoint admission gate", () => {
   test("admits a legit DOM-extracted list endpoint with array-of-items shape", () => {
     const legit = makeEndpoint({
       endpoint_id: "legit-list",
-      url_template: "https://shop.example.com/products",
-      trigger_url: "https://shop.example.com/products",
+      url_template: "https://shop.acme-corp.com/products",
+      trigger_url: "https://shop.acme-corp.com/products",
       dom_extraction: { extraction_method: "dom-fallback" } as any,
       description: "Product list page",
       response_schema: {
@@ -327,7 +327,7 @@ describe("G1 phantom-endpoint admission gate", () => {
         example_fields: ["products[].name", "products[].price"],
       },
     });
-    const skill = makeSkill({ domain: "shop.example.com", endpoints: [legit] });
+    const skill = makeSkill({ domain: "shop.acme-corp.com", endpoints: [legit] });
     const selection = selectMarketplacePublishEndpoints(skill);
     // The phantom gate must not fire — the existing dom-fallback-only
     // post-filter will still drop a single-endpoint dom skill, but that's a
@@ -414,7 +414,7 @@ describe("captured_error_response admission gate", () => {
   test("admits legit endpoint that happens to include a status:'success' field", () => {
     const legit = makeEndpoint({
       endpoint_id: "legit-with-status-ok",
-      url_template: "https://api.example.com/items",
+      url_template: "https://api.acme-corp.com/items",
       response_schema: {
         type: "object",
         properties: {
@@ -429,7 +429,7 @@ describe("captured_error_response admission gate", () => {
         example_response_compact: { status: "ok", items: [{ id: 1 }] } as any,
       },
     });
-    const skill = makeSkill({ domain: "api.example.com", endpoints: [legit] });
+    const skill = makeSkill({ domain: "api.acme-corp.com", endpoints: [legit] });
     const selection = selectMarketplacePublishEndpoints(skill);
     expect(selection.stats.by_reason.captured_error_response).toBe(0);
   });
@@ -439,7 +439,7 @@ describe("captured_error_response admission gate", () => {
     // Only the schema being purely error-shaped triggers the filter.
     const partialFail = makeEndpoint({
       endpoint_id: "partial-fail-with-content",
-      url_template: "https://api.example.com/search",
+      url_template: "https://api.acme-corp.com/search",
       response_schema: {
         type: "object",
         properties: {
@@ -452,7 +452,7 @@ describe("captured_error_response admission gate", () => {
         example_response_compact: { results: [], status: "fail" } as any,
       },
     });
-    const skill = makeSkill({ domain: "api.example.com", endpoints: [partialFail] });
+    const skill = makeSkill({ domain: "api.acme-corp.com", endpoints: [partialFail] });
     const selection = selectMarketplacePublishEndpoints(skill);
     expect(selection.stats.by_reason.captured_error_response).toBe(0);
   });

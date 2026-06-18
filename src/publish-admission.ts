@@ -1,4 +1,5 @@
 import { getRegistrableDomain } from "./domain.js";
+import { isIndexableUrl } from "./capture/indexable.js";
 import type { EndpointDescriptor, SkillManifest } from "./types/index.js";
 
 export type PublishAdmissionReason =
@@ -7,6 +8,7 @@ export type PublishAdmissionReason =
   | "verification_failed"
   | "low_reliability"
   | "off_domain"
+  | "not_indexable_host"
   | "noise"
   | "fragile_graphql"
   | "no_durable_signal"
@@ -63,6 +65,7 @@ function freshReasonCounts(): Record<PublishAdmissionReason, number> {
     verification_failed: 0,
     low_reliability: 0,
     off_domain: 0,
+    not_indexable_host: 0,
     noise: 0,
     fragile_graphql: 0,
     no_durable_signal: 0,
@@ -337,6 +340,13 @@ function rejectionReason(skill: SkillManifest, endpoint: EndpointDescriptor): Pu
   }
   if (endpoint.reliability_score < MIN_PUBLISH_RELIABILITY) return "low_reliability";
   if (!isSkillDomainEndpoint(skill, endpoint)) return "off_domain";
+  // Structural gate (defense-in-depth beside the capture-spool domain gate): an
+  // endpoint that isn't an externally-reachable real HTTP(S) URL is never
+  // replayable by another agent — loopback/private-IP/reserved-domain/non-http.
+  // Runs AFTER the scheme/domain reasons so it only adds NEW rejections (e.g. a
+  // skill whose own domain is localhost/example.com, or a stray
+  // `http://127.0.0.1:64322/...` endpoint that survived the domain scope check).
+  if (!isIndexableUrl(endpoint.url_template)) return "not_indexable_host";
   if (isLikelyNoiseEndpoint(endpoint)) return "noise";
   if (isFragileGraphqlEndpoint(endpoint) && !isVerifiedDurable(endpoint)) return "fragile_graphql";
   if (isPhantomDocumentEndpoint(endpoint)) return "phantom_endpoint";
