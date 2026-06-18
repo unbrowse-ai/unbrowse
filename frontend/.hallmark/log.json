@@ -1,6 +1,14 @@
 [
  {
   "date": "2026-06-18",
+  "scope": "tracking dashboard G4 (reconcile) + SEAL (whole-goal gate)",
+  "component": "src/client/index.ts (AnalyticsSessionPayload re-export of canonical type) + tests/impact-reconcile.test.ts + scripts/tracking-gate.sh",
+  "lever": "prove local impact-log ⇄ backend analytics-session reconcile — both savings sinks derive from the same `timing`; fix the stale duplicate AnalyticsSessionPayload type in client/index.ts that omitted time_saved_ms/cost_saved_uc the builder actually posts; add the seal gate that runs every node witness",
+  "witness": "bun test tests/impact-reconcile.test.ts 3 pass; scripts/tracking-gate.sh SEAL GREEN twice (G1 you-view + G2/G3 FE panels + G3 backend test + G4 reconcile + FE on-system gate)",
+  "brief": "tracking north star SETTLED: contributions·payouts·cost-saved·time-saved, you + everyone, CLI + FE. All four plan nodes green on two witnesses."
+ },
+ {
+  "date": "2026-06-18",
   "scope": "tracking dashboard G1 (CLI you-view) + gate1 fix (transition-all)",
   "component": "src/cli-v7/eval/stats.ts (buildYouView) + src/client/index.ts (getMyDashboard) + frontend page.tsx/hero-chat.tsx (transition-all -> transition-colors)",
   "lever": "extend `unbrowse eval stats --json` to emit you.{cost_saved_usd,time_saved_hours,contributions,payouts_usd} from local impact-log (offline) + remote /v1/dashboard/me (authed, graceful zero degrade) alongside network summary; fix 4 pre-existing transition-all -> scoped transition-colors so the on-system gate goes green",

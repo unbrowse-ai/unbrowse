@@ -1853,17 +1853,13 @@ export interface ExecutionPayload {
   indexer_id?: string;
 }
 
-export interface AnalyticsSessionPayload {
-  session_id: string;
-  started_at: string;
-  completed_at?: string;
-  trace_version?: string;
-  api_calls: number;
-  discovery_queries?: number;
-  cached_skill_calls?: number;
-  fresh_index_calls?: number;
-  browser_mode?: "default" | "replaced" | "manual" | "unknown";
-}
+// Canonical shape lives in ../analytics-session.ts (it carries the savings fields —
+// time_saved_ms / cost_saved_uc / tokens_saved — that buildAnalyticsSessionPayload
+// actually posts). Re-export it instead of keeping a stale duplicate that omitted
+// them: the omission silently understated the /v1/analytics/sessions contract, so
+// the local impact-log and the backend session record could read as mismatched
+// even though both derive from the same `timing`.
+export type { AnalyticsSessionPayload } from "../analytics-session.js";
 
 /**
  * Build the POST body for /v1/stats/execution.
