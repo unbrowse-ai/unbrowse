@@ -102,9 +102,12 @@ SENSITIVE_KEYWORDS_COVENANT=(
 # feature (SHA-256 tamper-evidence) is a DIFFERENT, public thing and is NOT
 # listed here, so it is unaffected. These terms are specific on purpose (no bare
 # "zk") to avoid false positives on unrelated identifiers.
+# ZK construction internals — the HOW stays private. NOTE: "zero-knowledge" /
+# "zero knowledge" are NO LONGER stripped: the "Crypto Was All You Needed" paper
+# is published (subtitle: "...Zero-Knowledge Privacy across the Agent Stack"), so
+# the term is a released public WHAT. The construction (nullifier, zk-hash, the
+# zk-proof scheme, the internal zk-proofs.md doc) remains denied — that is the HOW.
 SENSITIVE_KEYWORDS_ZK=(
-  "zero-knowledge"
-  "zero knowledge"
   "zk-proof"
   "zk proof"
   "zkhash"
@@ -147,6 +150,13 @@ PUBLIC_PATHS=(
   "packages/skill/package.json"
   "README.md"
   "docs/"
+  # The public website is the most public surface of all — guard the served
+  # surfaces (pages + their imports) so a moat term can never reach the browser
+  # silently. Scoped to app/components/lib; frontend/src/skills is local Hallmark
+  # tooling, never imported into a route, so it is not a public surface.
+  "frontend/src/app"
+  "frontend/src/components"
+  "frontend/src/lib"
 )
 
 LEAK_COUNT=0
