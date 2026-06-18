@@ -41,9 +41,22 @@ function applyBinding<T extends { bound?: string }>(c: T, bindings?: BindingMap)
 }
 
 export type HoleKind = "secret" | "id";
-/** Where the client sources the fill: its local vault (auth/secret) or its LLM
- *  (a free identifier/parameter the agent decides). */
-export type FillSource = "vault" | "llm";
+/** Where the client sources the fill: its local vault (auth/secret), its LLM
+ *  (a free identifier/parameter the agent decides), or a producer operation at the
+ *  layer below whose yield fills this hole (`dep` — the cross-layer dependency edge). */
+export type FillSource = "vault" | "llm" | "dep";
+
+/** The routing edge to the next layer's hole: which producer operation's yield fills
+ *  THIS hole, and under which binding key. This is what connects a request-skeleton
+ *  hole to the operation DAG (resolveHoleBinding) and, transitively, down the descent
+ *  ladder — the "string of deps all the way down". Recorded on the hole so the agent's
+ *  judged map persists and replays; absent for vault/llm holes. */
+export interface HoleDep {
+	/** producer endpoint_id (the operation at the layer below that yields the value). */
+	producer: string;
+	/** the binding key carried across the edge (producer yield → this hole). */
+	binding: string;
+}
 
 export type HoleLocation =
 	| { in: "header"; name: string }
@@ -57,11 +70,15 @@ export interface Hole {
 	/** the field name the client recognises (e.g. "authorization", "api_key"). */
 	name: string;
 	kind: HoleKind;
-	/** vault for secrets/auth, llm for free ids/params. */
+	/** vault for secrets/auth, llm for free ids/params, dep for a lower-layer producer. */
 	fill: FillSource;
 	/** when wallet-bound, the [bound:<hex>] commitment proving the slot is bound
 	 *  to the owner's wallet (see wallet-bind.ts). */
 	bound?: string;
+	/** the routing edge to the producer at the layer below (set when this hole is
+	 *  filled by another operation's yield, not the vault/llm). The agent-judged
+	 *  cross-layer dependency; see resolveHoleDep in graph-core/hole-binding.ts. */
+	dep?: HoleDep;
 }
 
 export interface HoleTemplate {

@@ -53,5 +53,17 @@ print("CLI-PAPERS-DOCS GREEN")
 sys.exit(0)
 PYEOF
 
-timeout 70 bun src/cli.ts eval stats --json 2>/dev/null | python3 "$PYCHECK"
-exit ${PIPESTATUS[1]}
+# `eval stats` emits the docs block only on the backend-success path, so a transient
+# /v1/stats/summary timeout (common under a heavy gate run) would falsely redden this
+# witness. The docs block itself is static + correct; tolerate a network blip with a
+# bounded retry — green on the first run that reaches the backend, fail only if all do.
+for attempt in 1 2 3; do
+  # pipefail is set, so $? of the command-substitution assignment is the pipeline's
+  # status (python's, or bun's if it failed first). PIPESTATUS does NOT apply here.
+  out="$(timeout 70 bun src/cli.ts eval stats --json 2>/dev/null | python3 "$PYCHECK")"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then echo "$out"; exit 0; fi
+  [ "$attempt" -lt 3 ] && sleep 2
+done
+echo "$out"
+exit "$rc"

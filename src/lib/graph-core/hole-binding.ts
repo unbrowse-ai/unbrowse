@@ -95,6 +95,52 @@ export function selectHoleProducer(
   return search.find((id) => provides(id).includes(param)) ?? null;
 }
 
+/**
+ * Bridge — connect a request-skeleton HOLE (src/capture/hole-template.ts) to the
+ * operation DAG. The hole's `name` is the binding key; resolveHoleBinding decides
+ * which producer at the layer below yields it. This is the edge the Explore map
+ * flagged missing (hole↔DAG was PAPER-ONLY): a hole filled not from vault/llm but
+ * from another operation's output — the first thread of the cross-layer dep spine.
+ * Type-only import of Hole/HoleDep keeps this one-directional (no runtime cycle).
+ */
+import type { Hole, HoleDep } from "../../capture/hole-template.js";
+
+/** Resolve which producer fills `hole` (by its name) on `consumerId`, via the DAG. */
+export function resolveHoleDep(
+  hole: Pick<Hole, "name">,
+  consumerId: string,
+  graph: BindingGraph,
+  yields: Record<string, Record<string, unknown>>,
+  order?: string[],
+): ResolvedBinding | null {
+  return resolveHoleBinding(hole.name, consumerId, graph, yields, order);
+}
+
+/**
+ * Route a set of holes against the DAG: for each hole whose name a producer yields,
+ * stamp the routing edge (`dep` + fill="dep") and collect the fill value. Holes with
+ * no producer are left untouched (they stay vault/llm). Returns the annotated holes
+ * (NEW objects; input not mutated) + the fills map keyed by hole.name — the agent's
+ * judged map, made concrete and persistable.
+ */
+export function routeHoles(
+  holes: Hole[],
+  consumerId: string,
+  graph: BindingGraph,
+  yields: Record<string, Record<string, unknown>>,
+  order?: string[],
+): { holes: Hole[]; fills: Record<string, unknown> } {
+  const fills: Record<string, unknown> = {};
+  const out = holes.map((h) => {
+    const r = resolveHoleBinding(h.name, consumerId, graph, yields, order);
+    if (!r) return h;
+    const dep: HoleDep = { producer: r.producer, binding: h.name };
+    fills[h.name] = r.value;
+    return { ...h, fill: "dep" as const, dep };
+  });
+  return { holes: out, fills };
+}
+
 /** Minimal shape of the skill's operation_graph this adapter reads (endpoint_id-keyed, not op-id). */
 interface OpGraphLike {
   operations?: Array<{ operation_id?: string; endpoint_id?: string; requires?: unknown; provides?: unknown }>;
