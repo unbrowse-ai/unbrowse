@@ -940,9 +940,16 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       // routinely exceed the 38s default; setting the env to e.g. 75000
       // gives them honest room rather than misclassifying as cli_timeout).
       const envOverride = Number(process.env.UNBROWSE_API_TIMEOUT_MS);
+      // Floor the outer deadline at the orchestrator's live-capture ceiling
+      // (UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS, default 120s) + margin. The old
+      // budget_ms+30s (=38s default) abandoned a cold browser capture mid-flight
+      // and emitted a false cli_timeout (#838 tail) for a resolve the orchestrator
+      // would have completed at ~90-120s. Fast paths are unaffected — this is only
+      // the upper cap, and a pending notice keeps the user informed meanwhile.
+      const liveCaptureCeilingMs = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS) || 120_000;
       const cliTimeoutMs = Number.isFinite(envOverride) && envOverride > 0
         ? envOverride
-        : (typeof body.budget_ms === "number" ? body.budget_ms : 8000) + 30_000;
+        : Math.max((typeof body.budget_ms === "number" ? body.budget_ms : 8000) + 30_000, liveCaptureCeilingMs + 20_000);
       return withPendingNotice(
         api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
         message,
@@ -1482,9 +1489,12 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
     const body = resolveBody();
     // UNBROWSE_API_TIMEOUT_MS env override — see resolveOnce for rationale.
     const envOverride = Number(process.env.UNBROWSE_API_TIMEOUT_MS);
+    // See resolveOnce: floor at the live-capture ceiling so a cold capture isn't
+    // abandoned at 38s with a false cli_timeout (#838 tail). Cap only; fast paths fast.
+    const liveCaptureCeilingMs = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS) || 120_000;
     const cliTimeoutMs = Number.isFinite(envOverride) && envOverride > 0
       ? envOverride
-      : (typeof body.budget_ms === "number" ? body.budget_ms : 8_000) + 30_000;
+      : Math.max((typeof body.budget_ms === "number" ? body.budget_ms : 8_000) + 30_000, liveCaptureCeilingMs + 20_000);
     let result = await withPendingNotice(
       api("POST", "/v1/intent/resolve", body, { timeoutMs: cliTimeoutMs }) as Promise<Record<string, unknown>>,
       "Still working. Searching cached routes...",
