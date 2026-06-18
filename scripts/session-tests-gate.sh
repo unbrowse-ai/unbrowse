@@ -45,6 +45,8 @@ run_be tests/zkbind-admission.test.ts         "holes: backend residual-secret ga
 bash scripts/zk-invariant-gate.sh >/dev/null 2>&1 && ok "zk-invariant gate (secrets wallet-bound client-side)" || bad "zk-invariant-gate.sh"
 run_root tests/hole-dep-routing.test.ts       "holes: P1 hole↔DAG bridge — a hole resolves its producer via the dep edge"
 run_root tests/descent-spine.test.ts          "holes: P2 cross-layer spine — six layers sealed under one wallet root, stubs marked"
+run_root tests/hole-harness-publish-gate.test.ts "holes: P3 harness surfaces candidates; publish gated on the agent-mapped dep"
+run_root tests/spine-store.test.ts            "holes: P4 spine persist + replay by (domain,target); re-judge on miss/stale"
 
 if [ "$fail" -eq 0 ]; then echo "SESSION-TESTS GREEN — every shipped behavior this session is covered + passing"; exit 0; fi
 echo "SESSION-TESTS RED"; exit 1
