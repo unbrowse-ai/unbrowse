@@ -1,12 +1,10 @@
-# @unbrowse/sdk (v6 legacy)
+# @unbrowse/sdk
 
 TypeScript SDK for Unbrowse — the local agent browser that spawns the `unbrowse` binary and talks to it over a local Unix socket.
 
-> **For new code, use [`@unbrowse/client`](../sdk-v2/) instead.** It is a thin HTTP-first SDK that hits `beta-api.unbrowse.ai` directly, runs in browsers + edge runtimes, has zero runtime deps, and never spawns a binary. This v6 package stays published and supported for users who specifically need the local-binary path (passive HAR capture against new domains the marketplace hasn't covered yet).
+> **Sibling package:** [`@unbrowse/client`](../sdk-v2/) is a thin HTTP-first SDK that hits `beta-api.unbrowse.ai` directly, runs in browsers + edge runtimes, has zero runtime deps, and never spawns a binary. Reach for it when you want the HTTP path; reach for this package when you want the **local-binary** path (passive HAR capture against new domains the marketplace hasn't covered yet, fully local execution). Both are supported.
 
 The SDK auto-spawns the `unbrowse` binary if it isn't already running, so a single `await Unbrowse.local()` is all you need to go from `npm install` to your first resolve.
-
-Current version: **8.2.0**.
 
 > The SDK (this package) is MIT-licensed. The `unbrowse` runtime binary it talks to is distributed via npm. See [`OPEN-SOURCE-NOTICE.md`](../../docs/OPEN-SOURCE-NOTICE.md).
 ## Install

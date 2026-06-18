@@ -113,7 +113,14 @@ export interface CohortFunnel {
   by_variant: CohortRow[];
 }
 
-const rate = (n: number, d: number): number => (d > 0 ? Math.round((n / d) * 1000) / 1000 : 0);
+// A funnel conversion rate is bounded [0,1] by definition. Clamp the upper end:
+// `active`/`registered` are deduped against their OWN install_id pings, but many
+// activity flows bump "active" under the UNATTRIBUTED variant without ever having
+// recorded an "installs" ping for that install_id — so active can exceed installs
+// and the raw ratio blows past 1 (the dashboard's "2200%"). Clamping keeps the
+// rate honest; the raw installs/registered/active counts still surface the
+// attribution gap (active >> installs ⇒ install attribution is under-recorded).
+const rate = (n: number, d: number): number => (d > 0 ? Math.min(1, Math.round((n / d) * 1000) / 1000) : 0);
 
 /** At install: remember which variant seeded an install, so register/session can resolve it. */
 export async function recordInstallVariant(env: Env, installId: string, variant: string): Promise<void> {
