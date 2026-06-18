@@ -1,3 +1,62 @@
+// ---------------------------------------------------------------------------
+// Search-ROUTE discovery — the page defines its own search pipe via its links.
+// ---------------------------------------------------------------------------
+// A JS-SPA search box is often not a <form> (so detectSearchForms misses it),
+// but the site still exposes its search/listing route in its OWN links: a
+// repeated sibling-link pattern where exactly ONE path segment varies across
+// many links is a parameterized search route — the {query} hole. Carousell's
+// homepage links /jbl/q/, /garmin/q/, /portable-aircon/q/ → "/{query}/q/"; fill
+// {query}=food → /food/q/ (the food listing). This is the pipe "all the way
+// down": entry page → search-route hole → listing collection → item pointers.
+// General + structural (CLAUDE.md "never a hard filter"): no per-site allowlist,
+// no keyword list — the page's link structure defines the pipe; the agent judges
+// which template + fills the query.
+
+export interface SearchRouteTemplate {
+  /** Path with exactly one `{query}` hole, e.g. `/{query}/q/` or `/search/{query}`. */
+  template: string;
+  /** Example query values observed in the varying slot (evidence for the judge). */
+  samples: string[];
+  /** Distinct values seen in the slot — the confidence that this is a search route. */
+  count: number;
+}
+
+/** Derive search/listing ROUTE templates from a page's own links. Groups links by
+ *  shape with one segment masked to `{query}`; a shape with many DISTINCT
+ *  query-like values in that slot is a search route. Returns highest-confidence
+ *  first. Pure over the HTML — no network, no allowlist. */
+export function deriveSearchRouteTemplates(html: string, minDistinct = 4): SearchRouteTemplate[] {
+  const hrefs = new Set<string>();
+  for (const m of html.matchAll(/href\s*=\s*["'](\/[^"'?#\s]+)["']/gi)) hrefs.add(m[1]);
+  const groups = new Map<string, Set<string>>();
+  for (const h of hrefs) {
+    const segs = h.split("/").filter(Boolean);
+    if (segs.length < 1 || segs.length > 4) continue;
+    for (let i = 0; i < segs.length; i++) {
+      const val = segs[i];
+      // The varying slot must look like a query token (word/slug) — not an id
+      // (those are entity-detail pointers, a different pipe) and not a file.
+      if (!/^[a-z][a-z0-9-]{1,40}$/i.test(val) || /\d{3,}/.test(val) || /\.[a-z0-9]{1,5}$/i.test(val)) continue;
+      const shape = segs.map((s, j) => (j === i ? "{query}" : s)).join("/");
+      const trailing = h.endsWith("/") ? "/" : "";
+      const key = `/${shape}${trailing}`;
+      if (!groups.has(key)) groups.set(key, new Set());
+      groups.get(key)!.add(val.toLowerCase());
+    }
+  }
+  const out: SearchRouteTemplate[] = [];
+  for (const [template, vals] of groups) {
+    if (vals.size >= minDistinct) out.push({ template, samples: [...vals].slice(0, 5), count: vals.size });
+  }
+  return out.sort((a, b) => b.count - a.count);
+}
+
+/** Fill a derived search-route template's `{query}` hole against an origin. */
+export function fillSearchRoute(origin: string, template: string, query: string): string {
+  const slug = encodeURIComponent(query.trim().toLowerCase());
+  return origin.replace(/\/+$/, "") + template.replace("{query}", slug);
+}
+
 export interface SearchFormField {
   name: string;
   type: "text" | "select" | "radio" | "checkbox" | "date" | "hidden";

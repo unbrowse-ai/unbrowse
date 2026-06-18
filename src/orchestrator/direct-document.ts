@@ -1,6 +1,8 @@
 import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { resolveProxyUrl } from "../execution/proxy-fetch.js";
+import { isListLikeIntent } from "../values/cardinality.js";
+import { deriveSearchRouteTemplates, fillSearchRoute } from "../execution/search-forms.js";
 
 export interface DirectDocumentTable {
   caption?: string;
@@ -39,10 +41,27 @@ export interface DirectDocumentResult {
   /** The page rendered to markdown — the resolved VALUE of the HTML hole. */
   markdown: string;
   tables: DirectDocumentTable[];
+  /** Routing candidates the JUDGE (agent) can walk when this page is the entry,
+   *  not the listing: the site's OWN search pipe, derived from its links and
+   *  filled with the intent's query. The agent picks/refines + resolves one —
+   *  surfaced, never forced (CLAUDE.md "judge the routing, don't force pipes").
+   *  Absent for non-list intents or pages with no derivable search route. */
+  routing_candidates?: SearchRouteCandidate[];
   extraction: {
     source: "direct-document";
     rejected: false;
   };
+}
+
+export interface SearchRouteCandidate {
+  /** The filled, walkable URL (e.g. https://www.carousell.sg/food/q/). */
+  url: string;
+  /** The route template with the {query} hole (the reusable pipe). */
+  template: string;
+  /** The query term filled into the hole (from the intent). */
+  query: string;
+  /** Example query values seen on the page — evidence for the judge. */
+  samples: string[];
 }
 
 /**
@@ -377,6 +396,12 @@ export function buildDirectDocumentResult(
   }
 
   const { url_template, input_params, path_params, query } = extractHtmlHoles(url);
+  // Surface the site's OWN search pipe for a list/search intent: derive the
+  // search-route template from this page's links, fill {query} with the intent's
+  // query term, and hand the candidates to the agent to judge + walk. The page
+  // defines the pipe; the agent routes. (No-op for non-list intents or pages with
+  // no derivable search route.)
+  const routing_candidates = buildSearchRouteCandidates(html, url, intent);
   return {
     rejected: false,
     title,
@@ -390,11 +415,42 @@ export function buildDirectDocumentResult(
     text_excerpt: bodyText.slice(0, MARKDOWN_BUDGET),
     markdown: htmlToMarkdownSafe(html, bodyText),
     tables: extractTables(html),
+    ...(routing_candidates.length > 0 ? { routing_candidates } : {}),
     extraction: {
       source: "direct-document",
       rejected: false,
     },
   };
+}
+
+const QUERY_STOPWORDS = new Set(
+  ("resolve unbrowse execute run walk go fetch open view want need please " + // unbrowse/command verbs
+   "find search browse list lookup discover show get me a an the on of for in to " +
+   "with and or all my your this that some good best top new latest cheap near").split(" "),
+);
+
+/** The intent's query term(s) — content words minus list-verbs and the site name.
+ *  "find good food on carousell" + carousell.sg → "food". */
+function intentQueryTerm(intent: string, url: string): string {
+  let domTokens = new Set<string>();
+  try { domTokens = new Set(new URL(url).hostname.toLowerCase().split(/[.-]/)); } catch { /* relative */ }
+  const toks = (intent.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? [])
+    .filter((t) => !QUERY_STOPWORDS.has(t) && !domTokens.has(t));
+  return [...new Set(toks)].join(" ").trim();
+}
+
+function buildSearchRouteCandidates(html: string, url: string, intent?: string): SearchRouteCandidate[] {
+  if (!intent || !isListLikeIntent(intent)) return [];
+  const queryTerm = intentQueryTerm(intent, url);
+  if (!queryTerm) return [];
+  let origin = "";
+  try { origin = new URL(url).origin; } catch { return []; }
+  return deriveSearchRouteTemplates(html).slice(0, 3).map((t) => ({
+    url: fillSearchRoute(origin, t.template, queryTerm),
+    template: t.template,
+    query: queryTerm,
+    samples: t.samples,
+  }));
 }
 
 export const buildBloombergDirectDocumentResult = buildDirectDocumentResult;
