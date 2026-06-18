@@ -9,7 +9,7 @@
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { isBackfillableManifest, dedupeBackfill, type BackfillCandidate } from "../src/lib/backfill.js";
+import { isBackfillableManifest, cleanBackfillManifest, dedupeBackfill, type BackfillCandidate } from "../src/lib/backfill.js";
 import { publishSkill } from "../src/marketplace/index.js";
 
 const APPLY = process.argv.includes("--apply");
@@ -41,15 +41,24 @@ if (!APPLY) {
   process.exit(0);
 }
 
-let published = 0, failed = 0;
+let landed = 0, failed = 0, noEndpoints = 0, done = 0;
 for (const m of unique) {
+  const cleaned = cleanBackfillManifest(m); // strip junk endpoints; null ⇒ nothing publishable
+  if (!cleaned) { noEndpoints++; continue; }
   try {
-    await publishSkill(m as unknown as Parameters<typeof publishSkill>[0]);
-    published++;
-    if (published % 10 === 0) console.error(`[backfill] published ${published}/${unique.length}...`);
+    const r = await publishSkill(cleaned as unknown as Parameters<typeof publishSkill>[0]);
+    if ((r as { published_remotely?: boolean }).published_remotely === false) {
+      failed++;
+      console.error(`[backfill] not-landed ${m.skill_id} (${m.domain}) — remote rejected, local-cached only`);
+    } else {
+      landed++;
+    }
   } catch (err) {
     failed++;
     console.error(`[backfill] FAILED ${m.skill_id} (${m.domain}): ${(err as Error)?.message ?? err}`);
   }
+  done++;
+  if (done % 5 === 0) console.error(`[backfill] ${done}/${unique.length} (landed ${landed})...`);
+  await new Promise((res) => setTimeout(res, 600)); // pace under the /skills rate limit
 }
-console.error(`[backfill] DONE — published ${published} · failed ${failed} · skipped(malformed) ${malformed}`);
+console.error(`[backfill] DONE — landed(remote) ${landed} · failed ${failed} · no-publishable-endpoints ${noEndpoints} · skipped(malformed) ${malformed}`);
