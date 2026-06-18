@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.8.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.7.0...v9.8.0) (2026-06-18)
+
+### Features
+
+* **resolve:** surface the site's own search pipe for the judge to route ([894cdc6](https://github.com/unbrowse-ai/unbrowse-dev/commit/894cdc67c85dc9de53ad941212e2e0517e10e2a9))
+
+### Bug Fixes
+
+* **resolve:** a list intent on a real collection isn't rejected by the token gate ([80d9f01](https://github.com/unbrowse-ai/unbrowse-dev/commit/80d9f0185840b384298570a8d2a5c056ca837886))
+
 ## [9.7.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.2...v9.7.0) (2026-06-18)
 
 ### Features
