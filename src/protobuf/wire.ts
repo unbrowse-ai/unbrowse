@@ -20,9 +20,29 @@ export function isProtobufContentType(contentType?: string): boolean {
   return ct.includes("protobuf") || ct.includes("x-protobuf") || ct.includes("proto;") || ct.includes("proto+");
 }
 
+// CHEAP, NON-LOAD-BEARING HINT ONLY. The real admission signal is structural —
+// does the body DECODE to protobuf records (see decodesToProtobufRecords, used by
+// the reverse-engineer admission/scoring). Per CLAUDE.md "generalize — never a
+// hard filter when a structural signal exists": this URL/content-type sniff just
+// short-circuits the cheap path; a proto response at ANY url (e.g. Carousell's
+// `/ds/filter-search-proto/`) is still admitted because its bytes decode.
 export function isProtobufLikeEndpoint(url: string, contentType?: string): boolean {
   if (isProtobufContentType(contentType)) return true;
-  return /\/(field-data-proto|proto|protobuf)(\/|$|-)/i.test(url);
+  return /[-/](proto|protobuf)(\/|$|-)/i.test(url);
+}
+
+/** Structural protobuf signal: the body actually decodes to ≥1 protobuf record,
+ *  independent of URL or content-type. This is the generalization that replaces
+ *  URL-token allowlists for admission. Cheap-gated by the caller (skip when the
+ *  body is already JSON/HTML/empty). */
+export function decodesToProtobufRecords(body: string | Uint8Array | ArrayBuffer | undefined, contentType?: string): boolean {
+  if (body == null) return false;
+  try {
+    const decoded = decodeProtobufBody(body, contentType);
+    return !!decoded?.protobuf_decoded && decoded.records.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function decodeProtobufBody(body: string | Uint8Array | ArrayBuffer, contentType?: string): ProtobufDecodeResult | null {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { extractEndpoints } from "../backend/src/services/reverse-engineer/index.js";
 import { executeSkill } from "../src/execution/index.js";
-import { decodeProtobufBody } from "../src/protobuf/wire.js";
+import { decodeProtobufBody, isProtobufLikeEndpoint } from "../src/protobuf/wire.js";
 import type { RawRequest } from "../src/capture/index.js";
 import type { SkillManifest } from "../src/types/index.js";
 
@@ -127,5 +127,78 @@ describe("protobuf wire decoding", () => {
     const result = out.result as Record<string, any>;
     expect(result.protobuf_decoded).toBe(true);
     expect(result.records[0].title_like).toBe("Beige Cream V-Neck");
+  });
+});
+
+// The Carousell listing-API blind spot (learned-problem:
+// product-issue-carousell-search-api-missed): the real search call is
+// `/ds/filter-search-proto/` — `proto` is HYPHEN-prefixed, not slash-prefixed,
+// so the old `/\/proto/` recognizer missed it and only the slash-bounded
+// `/field-data-proto/` rec-widget got captured. The fix recognises `proto`
+// after a hyphen too. This is the client+backend hole-recognition widening.
+function makeFilterSearchProtoRequest(body: string): RawRequest {
+  return {
+    url: "https://www.carousell.sg/ds/filter-search-proto/4.0/search/",
+    method: "POST",
+    request_headers: { accept: "application/x-protobuf" },
+    request_body: JSON.stringify({ query: "homemade food" }),
+    response_status: 200,
+    response_headers: { "content-type": "application/x-protobuf" },
+    response_body: body,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+describe("isProtobufLikeEndpoint — hyphen-bounded proto tokens", () => {
+  it("recognises slash- AND hyphen-prefixed proto path tokens", () => {
+    expect(isProtobufLikeEndpoint("https://x/ds/field-data-proto/cf/4.0/search/")).toBe(true);
+    expect(isProtobufLikeEndpoint("https://www.carousell.sg/ds/filter-search-proto/4.0/search/")).toBe(true);
+    expect(isProtobufLikeEndpoint("https://x/api/protobuf")).toBe(true);
+    expect(isProtobufLikeEndpoint("https://x/v1/list-proto-feed")).toBe(true);
+  });
+  it("does NOT false-match protocol / prototype / unrelated words", () => {
+    expect(isProtobufLikeEndpoint("https://x/api/protocol/handshake")).toBe(false);
+    expect(isProtobufLikeEndpoint("https://x/js/prototype.min.js")).toBe(false);
+    expect(isProtobufLikeEndpoint("https://x/photos/cryptobeach")).toBe(false);
+  });
+  it("still honours an explicit protobuf content-type", () => {
+    expect(isProtobufLikeEndpoint("https://x/anything", "application/x-protobuf")).toBe(true);
+  });
+});
+
+describe("extractEndpoints admits the hyphen-prefixed proto search API", () => {
+  it("captures /ds/filter-search-proto/ as the listing endpoint (was missed)", () => {
+    const body = `base64:${Buffer.from(listingPayload()).toString("base64")}`;
+    const endpoints = extractEndpoints([makeFilterSearchProtoRequest(body)], undefined, {
+      pageUrl: "https://www.carousell.sg/food/q/",
+      intent: "find good food listings with titles and prices",
+    });
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0]?.url_template).toContain("/ds/filter-search-proto/");
+    expect(endpoints[0]?.response_schema?.properties?.records).toBeDefined();
+  });
+
+  // The generalization (CLAUDE.md "never a hard filter"): admission is STRUCTURAL —
+  // a body that decodes to protobuf records is admitted even when the URL carries
+  // NO proto/api token and NO declared protobuf content-type. Zero allowlist.
+  it("admits a proto-decoding body at a URL with no proto/api token (structural)", () => {
+    const body = `base64:${Buffer.from(listingPayload()).toString("base64")}`;
+    const req: RawRequest = {
+      url: "https://www.carousell.sg/ds/cf/4.0/results/",
+      method: "POST",
+      request_headers: {},
+      request_body: JSON.stringify({ query: "homemade food" }),
+      response_status: 200,
+      response_headers: { "content-type": "application/octet-stream" }, // NOT a proto content-type
+      response_body: body,
+      timestamp: new Date().toISOString(),
+    };
+    const endpoints = extractEndpoints([req], undefined, {
+      pageUrl: "https://www.carousell.sg/food/q/",
+      intent: "find good food listings with titles and prices",
+    });
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0]?.url_template).toContain("/ds/cf/4.0/results/");
+    expect(endpoints[0]?.response_schema?.properties?.records).toBeDefined();
   });
 });

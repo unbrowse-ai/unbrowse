@@ -38,6 +38,31 @@ exhausted (iterations stop moving the real number), not when described.
 
 graph: `.claude/superpattern/exa.graph.json` · framework: `claude`
 
+## Standing rule: generalize — never a hard filter when a structural signal exists (MECHANICAL)
+
+Prefer **structural / semantic recognition** over enumerated hard filters (allowlist
+regexes, keyword maps, per-site/per-token pattern lists). A hard filter is a
+maintenance debt and a blind spot: it works for the cases you listed and silently
+fails the next one (e.g. `/ds/filter-search-proto/` slipping past a `/\/proto/`
+allowlist; a `search|explore` scroll trigger missing `/food/q/`). The metapattern is
+**holes → values/pointers**, so recognize by the *shape of the thing*, not by a name
+you hard-coded:
+
+- "Is this an API / data response?" → does the body **decode to structured records /
+  a collection**? (not: does the URL contain `/api/`).
+- "Should I keep stimulating capture?" → I have a list intent but **no
+  collection-shaped response yet** (cardinality), so scroll/wait. (not: does the URL
+  match `search|explore`).
+- "Is this the right route for the intent?" → the **cardinality gate**
+  (`src/values/cardinality.ts` `cardinalityMatches`) — a net wants many fish — not a
+  per-host endpoint list.
+
+When a hard filter is genuinely unavoidable (a true protocol constant, a security
+denylist), say so explicitly and keep it minimal. Otherwise: route the decision through
+the one shared structural interface (the cardinality/collection-shape gate), so every
+new case is recognized for free. **The test:** adding support for a new site/shape
+should require *zero* new entries in any allowlist.
+
 ## Local runtime authority
 
 The target architecture is a stateless `unbrowse` binary. CLI and MCP calls must execute in-process and must not auto-spawn a local Fastify daemon. `unbrowse serve` is only an explicit foreground compatibility facade; keep `--no-auto-start`, `MCP_SERVER_MODE`, and `UNBROWSE_SERVE_IDLE_MS` visible in debugging notes so any intentional compatibility run is obvious and bounded. If an old external daemon is already holding the port, stop that external process before trusting local runtime evidence.

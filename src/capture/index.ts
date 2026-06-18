@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
 import { extractAuthHeaders, extractGraphQLOperationName, isReplayCriticalHeader, isSensitiveHeader } from "../values/header-classify.js";
+import { isListLikeIntent, urlPathLooksListLike } from "../values/cardinality.js";
 import { storeCredential } from "../vault/index.js";
 import { setLastVendorBlock } from "./process-vendor-signal.js";
 import type { BrowserAccessConfig } from "../runtime/browser-access.js";
@@ -442,6 +443,15 @@ function extractRouteHint(url: string): string | null {
     }
   } catch { /* bad URL */ }
   return null;
+}
+
+/** Phase-5 scroll-stimulus decision. Lazy listing XHRs only fire on scroll, so
+ *  stimulate whenever the intent or the context-URL path is list/collection-shaped
+ *  — the shared cardinality signal, NOT a `search|explore` URL allowlist or an
+ *  enumerated entity-word list (CLAUDE.md "generalize — never a hard filter").
+ *  Pure + exported so the trigger is deterministically witnessable without kuri. */
+export function shouldScrollStimulate(captureUrl?: string, intent?: string): boolean {
+  return isListLikeIntent(intent) || urlPathLooksListLike(captureUrl);
 }
 
 export function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
@@ -1456,16 +1466,13 @@ async function waitForContentReady(
     }
   }
 
-  // Phase 5: generic SPA stimulus via scroll
-  const lowerIntent = intent?.toLowerCase() ?? "";
-  if (
-    captureUrl &&
-    responseBodies &&
-    (
-      /search|explore|trending|tabs|discover/i.test(captureUrl) ||
-      /\b(person|people|profile|profiles|user|users|member|members|company|companies|organization|organisations|business|post|posts|tweet|tweets|status|statuses)\b/.test(lowerIntent)
-    )
-  ) {
+  // Phase 5: generic SPA stimulus via scroll. Lazy-loaded listing XHRs only fire
+  // on scroll. Trigger on the shared cardinality signal — a list/search intent
+  // (by text or by context-URL path) — NOT a hard `search|explore` URL allowlist
+  // or an enumerated entity-word list (CLAUDE.md "generalize — never a hard
+  // filter"). This is what makes Carousell's `/food/q/` listing XHR fire so the
+  // backend reverse-engineer can see it.
+  if (captureUrl && responseBodies && shouldScrollStimulate(captureUrl, intent)) {
     try {
       const before = responseBodies.size;
       await kuri.evaluate(tabId, "window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2)))");
