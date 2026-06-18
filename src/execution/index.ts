@@ -37,6 +37,7 @@ import type { CaptureResult, RawRequest } from "../capture/index.js";
 import { revengServerFirst } from "../capture/reveng-server-first.js";
 import { extractAuthHeaders } from "../values/header-classify.js";
 import { resolveLocalStorageForReplay } from "../values/storage-hole-bindings.js";
+import { cardinalityMatches } from "../values/cardinality.js";
 import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
 import { deriveSealKey } from "../values/signer.js";
 import { scanBundlesForRoutes } from "../capture/bundle-scanner.js";
@@ -7830,7 +7831,14 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
 
   const ranked = rankEndpoints(endpoints, intent, skillDomain, contextUrl);
   if (ranked.length === 0) throw new Error("All endpoints are disabled");
-  return ranked[0].endpoint;
+  // Cardinality gate (common interface): for a list/search intent, prefer the
+  // highest-ranked endpoint that is NOT a single-item route — execution must not
+  // re-introduce a single-item endpoint the resolve layer would have filtered.
+  // Fall back to the top pick only when every candidate is single-item.
+  const preferred = ranked.find((r) =>
+    cardinalityMatches(intent, { kind: "route", route: r.endpoint }, { contextUrl }),
+  );
+  return (preferred ?? ranked[0]).endpoint;
 }
 
 /** Detect if a string response is HTML rather than JSON/plaintext */
