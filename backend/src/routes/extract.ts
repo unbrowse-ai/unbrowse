@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 import { execTokenGate } from "../middleware/exec-token.js";
 import { extractFromDOM, type ExtractionResult } from "@unbrowse/extraction-core";
 
@@ -30,7 +30,7 @@ extractRoutes.use("/extract/refine", rateLimit({ limit: 60, window: 60, prefix: 
 // Sibling of /v1/search/rank (the ranking half of the same server-move):
 // both are deterministic server-side processors behind the exec-token
 // gate, both keep a local client fallback so offline never hard-fails.
-extractRoutes.post("/extract/refine", bearerAuth, requireSignedClient, execTokenGate(), async (c) => {
+extractRoutes.post("/extract/refine", indexContributorAuth, requireSignedClient, execTokenGate(), async (c) => {
   let body: { html?: string; intent?: string; contextUrl?: string };
   try {
     body = await c.req.json();

@@ -4,7 +4,7 @@ import { searchIntent, searchIntentInDomain, searchIntentResolve, searchEndpoint
 import { webSearch } from "../services/web-search/index.js";
 import { getOrComputeSemantic } from "../services/semantic-cache.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
+import { indexContributorAuth, requireSignedClient, optionalAuth } from "../middleware/auth.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import {
   respondWithFlexTerms,
@@ -319,7 +319,7 @@ searchRoutes.post("/search", optionalAuth, signedClientIfAuthed, async (c) => {
   }
 });
 
-searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, async (c) => {
+searchRoutes.post("/search/domain", indexContributorAuth, requireSignedClient, async (c) => {
   const { intent, domain, k } = await c.req.json<{ intent: string; domain: string; k?: number }>();
   if (!intent || !domain) return c.json({ error: "intent and domain required" }, 400);
   try {
@@ -344,7 +344,7 @@ searchRoutes.post("/search/domain", bearerAuth, requireSignedClient, async (c) =
   }
 });
 
-searchRoutes.post("/search/resolve", bearerAuth, requireSignedClient, async (c) => {
+searchRoutes.post("/search/resolve", indexContributorAuth, requireSignedClient, async (c) => {
   const { intent, domain, domain_k, global_k } = await c.req.json<{
     intent: string;
     domain?: string;
@@ -471,7 +471,7 @@ searchRoutes.post("/search/endpoints", optionalAuth, signedClientIfAuthed, async
 // per-domain registry, no second LLM — pure evidence-derived signals.
 // The client keeps a full local ranker as a degraded fallback for when
 // this route is unreachable, so offline resolve never hard-fails.
-searchRoutes.post("/search/rank", bearerAuth, requireSignedClient, async (c) => {
+searchRoutes.post("/search/rank", indexContributorAuth, requireSignedClient, async (c) => {
   let body: RankRequest;
   try {
     body = await c.req.json<RankRequest>();

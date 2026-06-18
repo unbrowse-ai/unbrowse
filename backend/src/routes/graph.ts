@@ -4,7 +4,7 @@ import { resolveChain, predictNext, recordSession, recordNegative, checkCredits,
 import { augmentEndpointsSemantic, type AugmentRequest } from "../services/semantic-augment.js";
 import type { GraphNode, GraphEdge } from "../services/graph.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { bearerAuth, requireSignedClient } from "../middleware/auth.js";
+import { bearerAuth, indexContributorAuth, requireSignedClient } from "../middleware/auth.js";
 import { recordGraphFee, type GraphOperation } from "../services/fees.js";
 import { ingestEdgeOutcomes, projectConfidences, type EdgeOutcomeSignal } from "../services/graph-confidence.js";
 
@@ -39,7 +39,7 @@ graphRoutes.get("/graph/health", async (c) => {
 });
 
 // POST /v1/graph/edges — upsert DAG edges for a domain
-graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/edges", indexContributorAuth, requireSignedClient, async (c) => {
   const { domain, node, edges } = await c.req.json<{
     domain: string;
     node: GraphNode;
@@ -72,7 +72,7 @@ graphRoutes.post("/graph/edges", bearerAuth, requireSignedClient, async (c) => {
 // NOT a 4xx/5xx on augmentation failure. The client treats an empty
 // list and a transport error identically (fall back), and a non-2xx
 // would only add noise to client logs for an optional enrichment.
-graphRoutes.post("/graph/augment-semantic", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/augment-semantic", indexContributorAuth, requireSignedClient, async (c) => {
   let req: AugmentRequest;
   try {
     req = await c.req.json<AugmentRequest>();
@@ -100,7 +100,7 @@ graphRoutes.post("/graph/augment-semantic", bearerAuth, requireSignedClient, asy
 // per-edge aggregate counters live server-side only; a forked client never
 // sees them. When `outcomes` is empty the call is a read-only projection
 // (used at resolve to overlay the latest cross-user confidence).
-graphRoutes.post("/graph/confidence", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/confidence", indexContributorAuth, requireSignedClient, async (c) => {
   const { domain, outcomes, edge_ids } = await c.req.json<{
     domain: string;
     outcomes?: EdgeOutcomeSignal[];
@@ -136,7 +136,7 @@ graphRoutes.post("/graph/confidence", bearerAuth, requireSignedClient, async (c)
 });
 
 // POST /v1/graph/chain — resolve prerequisite chain for a target endpoint
-graphRoutes.post("/graph/chain", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/chain", indexContributorAuth, requireSignedClient, async (c) => {
   const { domain, target_endpoint_id, available_bindings } = await c.req.json<{
     domain: string;
     target_endpoint_id: string;
@@ -155,7 +155,7 @@ graphRoutes.post("/graph/chain", bearerAuth, requireSignedClient, async (c) => {
 });
 
 // GET /v1/graph/predict/:domain — get co-occurrence predictions
-graphRoutes.get("/graph/predict/:domain", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.get("/graph/predict/:domain", indexContributorAuth, requireSignedClient, async (c) => {
   const domain = c.req.param("domain");
   const from = c.req.query("from");
   const k = parseInt(c.req.query("k") ?? "5", 10);
@@ -173,7 +173,7 @@ graphRoutes.get("/graph/predict/:domain", bearerAuth, requireSignedClient, async
 });
 
 // POST /v1/graph/session — record session action for co-occurrence learning
-graphRoutes.post("/graph/session", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/session", indexContributorAuth, requireSignedClient, async (c) => {
   const { session_id, action } = await c.req.json<{
     session_id: string;
     action: {
@@ -199,7 +199,7 @@ graphRoutes.post("/graph/session", bearerAuth, requireSignedClient, async (c) =>
 });
 
 // POST /v1/graph/negative — record a negative example
-graphRoutes.post("/graph/negative", bearerAuth, requireSignedClient, async (c) => {
+graphRoutes.post("/graph/negative", indexContributorAuth, requireSignedClient, async (c) => {
   const { domain, intent_pattern, endpoint_id } = await c.req.json<{
     domain: string;
     intent_pattern: string;
