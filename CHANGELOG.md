@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.6.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.6.0...v9.6.1) (2026-06-18)
+
+### Bug Fixes
+
+* **resolve:** cardinality guard — a list intent never resolves to a single item ([da624e1](https://github.com/unbrowse-ai/unbrowse-dev/commit/da624e17d624c59e1b84f789338c185b67810923))
+
 ## [9.6.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.5.0...v9.6.0) (2026-06-17)
 
 ### Features
