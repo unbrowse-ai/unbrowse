@@ -243,7 +243,7 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "9.9.0-preview.3",
+      "version": "9.9.0",
       "devDependencies": {
         "@types/node": "^22.10.0",
         "typescript": "^6.0.2",
@@ -276,7 +276,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "9.9.0-preview.3",
+      "version": "9.9.0",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },
@@ -3986,8 +3986,6 @@
     "@unbrowse/sdk/@types/node": ["@types/node@22.19.21", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-VMeFBSCKQKmm2swI2kW51SFusDqekC6q9trBCvJ/JliDchFSuoYYKN7yVNjPthP1HKZcx3U1gI/wTcEBjEFKTA=="],
 
     "@unbrowse/sdk/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
-
-    "@unbrowse/sdk/unbrowse": ["unbrowse@9.8.0", "", { "dependencies": { "@fastify/cors": "^11.2.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-Z3GTzZdb+cInkwo2vTcIiOHiob7RTXVtU3TcQkn8m7QI9gbM0YjcP4QQ2hYYoODCargvUbnsLbQWobH9eWGHOA=="],
 
     "@wagmi/connectors/@base-org/account": ["@base-org/account@2.4.0", "", { "dependencies": { "@coinbase/cdp-sdk": "^1.0.0", "@noble/hashes": "1.4.0", "clsx": "1.2.1", "eventemitter3": "5.0.1", "idb-keyval": "6.2.1", "ox": "0.6.9", "preact": "10.24.2", "viem": "^2.31.7", "zustand": "5.0.3" } }, "sha512-A4Umpi8B9/pqR78D1Yoze4xHyQaujioVRqqO3d6xuDFw9VRtjg6tK3bPlwE0aW+nVH/ntllCpPa2PbI8Rnjcug=="],
 
