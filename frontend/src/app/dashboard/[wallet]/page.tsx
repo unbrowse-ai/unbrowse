@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getDashboardByWallet, type DashboardData } from "@/lib/api";
+import { getDashboardByWallet, getStatsSummary, type DashboardData, type StatsSummary } from "@/lib/api";
 import { ContributorDashboard } from "@/components/contributor-dashboard";
 import { normalizeWalletAddress, storeRecentWallet } from "@/lib/wallet-dashboard";
 
@@ -11,6 +11,7 @@ export default function WalletDashboardPage() {
   const params = useParams<{ wallet: string }>();
   const walletAddress = normalizeWalletAddress(decodeURIComponent(params.wallet));
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [stats, setStats] = useState<StatsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -19,6 +20,11 @@ export default function WalletDashboardPage() {
 
     setLoading(true);
     setError(null);
+    getStatsSummary()
+      .then((summary) => {
+        if (!cancelled) setStats(summary);
+      })
+      .catch(() => {});
     getDashboardByWallet(walletAddress)
       .then((data) => {
         if (cancelled) return;
@@ -58,7 +64,7 @@ export default function WalletDashboardPage() {
     );
   }
 
-  return <ContributorDashboard dashboard={dashboard} walletAddress={walletAddress} />;
+  return <ContributorDashboard dashboard={dashboard} walletAddress={walletAddress} stats={stats ?? undefined} />;
 }
 
 function StateFrame({

@@ -2291,6 +2291,17 @@ export async function getCreatorEarnings(agentId: string): Promise<{
   return api("GET", `/v1/transactions/creator/${agentId}`);
 }
 
+/** This agent's full contributor dashboard (GET /v1/dashboard/me, authed). Only the
+ *  fields the CLI `eval stats` "you" view reads are typed here; the payload carries
+ *  more (savings, rank, recent_transactions). */
+export async function getMyDashboard(): Promise<{
+  economics: { total_earned_usd: number };
+  savings: { cost_saved_usd: number | null; time_saved_hours: number | null };
+  contributions?: Array<{ skill_id: string; reuse_count: number; earned_usd: number }>;
+}> {
+  return api("GET", "/v1/dashboard/me");
+}
+
 /** Set the base price for a skill (requires auth as skill owner). */
 export async function setSkillPrice(skillId: string, priceUsd: number): Promise<unknown> {
   return api("PATCH", `/v1/skills/${skillId}`, { base_price_usd: priceUsd });

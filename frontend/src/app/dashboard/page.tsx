@@ -10,12 +10,14 @@ import {
   getAccountPreferences,
   getAccountSkills,
   getMyDashboard,
+  getStatsSummary,
   setSkillVisibility,
   updateAccountPreferences,
   type AccountMe,
   type AccountPreferences,
   type DashboardData,
   type SkillManifest,
+  type StatsSummary,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -24,6 +26,7 @@ export default function DashboardPage() {
   const { isAuthenticated, agentName, logout } = useAuth();
   const [wallet, setWallet] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [stats, setStats] = useState<StatsSummary | null>(null);
   const [accountMe, setAccountMe] = useState<AccountMe | null>(null);
   const [prefs, setPrefs] = useState<AccountPreferences | null>(null);
   const [prefsBusy, setPrefsBusy] = useState(false);
@@ -41,11 +44,13 @@ export default function DashboardPage() {
     Promise.all([
       getMyDashboard(),
       getAccountMe().catch(() => null),
+      getStatsSummary().catch(() => null),
     ])
-      .then(async ([dash, me]) => {
+      .then(async ([dash, me, summary]) => {
         if (cancelled) return;
         setDashboard(dash);
         setAccountMe(me);
+        setStats(summary);
         if (me) {
           const [nextPrefs, mySkills] = await Promise.all([
             getAccountPreferences().catch(() => null),
@@ -293,6 +298,7 @@ export default function DashboardPage() {
           dashboard={dashboard}
           walletAddress={dashboard.profile.wallet_address ?? dashboard.profile.agent_id}
           view="private"
+          stats={stats ?? undefined}
         />
       )}
     </div>

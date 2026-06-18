@@ -151,7 +151,7 @@ export default function Home() {
               className="group inline-flex items-center gap-2.5
                          text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
                          border-b border-[rgba(255,122,32,0.3)] pb-1.5
-                         hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-all cursor-pointer"
+                         hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-colors cursor-pointer"
             >
               <Github className="w-3.5 h-3.5" />
               <span>Free, open source, runs locally</span>
@@ -346,7 +346,7 @@ export default function Home() {
               </div>
 
               {/* Cost - Spans 1 col */}
-              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
                 <div className="mb-3 flex items-center gap-2 text-orange-500">
                   <IconScript size={16} />
                   <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Tokens</span>
@@ -368,7 +368,7 @@ export default function Home() {
               </div>
 
             {/* Reverse Engineer - Spans 1 col */}
-            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
               <div className="mb-3 flex items-center gap-2 text-orange-500">
                 <IconCompass size={16} />
                 <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Discovery</span>
@@ -388,7 +388,7 @@ export default function Home() {
             </div>
 
             {/* Security - Spans 2 cols */}
-            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-all overflow-hidden md:col-span-2 hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden md:col-span-2 hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
               <div className="relative z-10 flex-1">
                 <div className="mb-3 flex items-center gap-2 text-orange-500">
                   <IconSeal size={16} />

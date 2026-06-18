@@ -1,5 +1,29 @@
 [
  {
+  "date": "2026-06-18",
+  "scope": "tracking dashboard G1 (CLI you-view) + gate1 fix (transition-all)",
+  "component": "src/cli-v7/eval/stats.ts (buildYouView) + src/client/index.ts (getMyDashboard) + frontend page.tsx/hero-chat.tsx (transition-all -> transition-colors)",
+  "lever": "extend `unbrowse eval stats --json` to emit you.{cost_saved_usd,time_saved_hours,contributions,payouts_usd} from local impact-log (offline) + remote /v1/dashboard/me (authed, graceful zero degrade) alongside network summary; fix 4 pre-existing transition-all -> scoped transition-colors so the on-system gate goes green",
+  "witness": "live: `eval stats --json` you-view all 4 fields non-null (cost_saved_usd 758.17, time_saved_hours 52.42); bun build src/cli.ts OK; frontend hallmark-gate GATE GREEN (gate1-4 all ok)",
+  "brief": "plan node G1 settled (canonical command is eval stats per three-verb collapse; bare stats stays search-by-design). G4 reconcile remains."
+ },
+ {
+  "date": "2026-06-18",
+  "scope": "tracking dashboard G3 — per-route contributions ledger (backend + frontend)",
+  "component": "backend economics.ts (aggregateContributions + DashboardContribution + contributions field on /dashboard/me & public /dashboard/wallet) + frontend api.ts type + contributor-dashboard.tsx (ContributionsLedger panel)",
+  "lever": "aggregate the agent's existing creator payout transactions by skill_id into {reuse_count, earned_usd, last_used_at}; no new storage, no fabricated metric (saved_others omitted — not attributable per-route). Surfaced on both dashboard faces as an on-system panel.",
+  "witness": "backend bun test tests/contributions-ledger.test.ts 5 pass (groups/sums/latest-wins/sort/top-20/empty=[]); economics.ts tsc CLEAN; frontend tsc 0 in changed files; self slop-check 0 transition-all/0 hover-scale/0 token-bypass",
+  "brief": "plan node G3 shipped both layers; data is real (counted from payouts). G1 (CLI unbrowse stats) + G4 (reconcile) remain, not FE."
+ },
+ {
+  "date": "2026-06-18",
+  "scope": "frontend tracking dashboard (hallmark, network 'everyone' view)",
+  "component": "contributor-dashboard.tsx (NetworkImpact section + formatCompact) + dashboard/page.tsx + dashboard/[wallet]/page.tsx",
+  "lever": "add on-system 'Network impact' section: real network aggregates from getStatsSummary() (executions, tokens saved, domains, marketplace hit-rate, avg time saved) + honest your-share = your executions / network executions; additive, reuses MetricCard/Panel, no backend change, no fabricated metric (locked design.md ban honored)",
+  "witness": "frontend tsc 0 in changed files; self slop-check 0 transition-all / 0 hover-scale / 0 inline-hex token-bypass / eyebrow stacked; hallmark-gate gate2/3/4 GREEN (gate1 pre-existing RED from page.tsx+hero-chat.tsx, untouched by this build)",
+  "brief": "plan node G2 (network everyone view) shipped on FE for /dashboard + public /dashboard/[wallet]; G3 contributions ledger queued (needs a backend per-route field first)"
+ },
+ {
   "date": "2026-06-05",
   "scope": "dead-code removal (amen, gated)",
   "component": "src/chrome-prim/ (7 files)",

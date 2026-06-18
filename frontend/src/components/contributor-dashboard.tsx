@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowLeft, Coins, Clock3, SearchCheck, Trophy, WalletCards } from "lucide-react";
-import type { DashboardData } from "@/lib/api";
+import { ArrowLeft, Coins, Clock3, SearchCheck, Trophy, WalletCards, Network, Globe2, Gauge, Zap } from "lucide-react";
+import type { DashboardContribution, DashboardData, StatsSummary } from "@/lib/api";
 
 export function ContributorDashboard({
   dashboard,
   walletAddress,
   view = "public",
+  stats,
 }: {
   dashboard: DashboardData;
   walletAddress: string;
   view?: "public" | "private";
+  stats?: StatsSummary;
 }) {
   const isPrivate = view === "private";
   return (
@@ -54,6 +56,14 @@ export function ContributorDashboard({
           <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Time saved" value={formatHours(dashboard.savings.time_saved_hours, "Not enough data yet")} unavailableText="Not enough data yet" />
           <MetricCard icon={<Trophy className="h-4 w-4" />} label="Cost saved" value={formatUsdNullable(dashboard.savings.cost_saved_usd)} unavailableText="Not enough data yet" />
         </div>
+
+        {stats ? (
+          <NetworkImpact stats={stats} youExecutions={dashboard.activity.total_executions} isPrivate={isPrivate} />
+        ) : null}
+
+        {dashboard.contributions ? (
+          <ContributionsLedger contributions={dashboard.contributions} isPrivate={isPrivate} />
+        ) : null}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section>
@@ -154,6 +164,107 @@ function MetricCard({
   );
 }
 
+function NetworkImpact({
+  stats,
+  youExecutions,
+  isPrivate,
+}: {
+  stats: StatsSummary;
+  youExecutions: number;
+  isPrivate: boolean;
+}) {
+  const networkExecutions = stats.executions ?? 0;
+  const sharePct = networkExecutions > 0 ? (youExecutions / networkExecutions) * 100 : 0;
+  const perf = stats.perf;
+  // bar floor: a non-zero share stays visible (≥1.5%) without misreporting the number
+  const barWidth = sharePct <= 0 ? 0 : Math.min(100, Math.max(sharePct, 1.5));
+  return (
+    <section className="mt-8 rounded-[28px] border border-border bg-surface-raised p-6">
+      <p className="text-xs font-mono uppercase tracking-[0.24em] text-text-muted">Everyone</p>
+      <h2 className="mt-2 text-2xl font-semibold">Network impact</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
+        What the whole network has done — and {isPrivate ? "your" : "this wallet's"} share of it. Every
+        number is measured, not estimated.
+      </p>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon={<Network className="h-4 w-4" />} label="Executions" value={formatCompact(stats.executions)} />
+        <MetricCard icon={<Zap className="h-4 w-4" />} label="Tokens saved" value={perf ? formatCompact(perf.total_tokens_saved) : "—"} unavailableText="—" />
+        <MetricCard icon={<Globe2 className="h-4 w-4" />} label="Domains mapped" value={formatCompact(stats.domains)} />
+        <MetricCard icon={<Gauge className="h-4 w-4" />} label="Marketplace hit-rate" value={perf ? `${perf.marketplace_hit_rate}%` : "—"} unavailableText="—" />
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-orange-500/20 bg-orange-500/10 p-5">
+        <p className="text-xs font-mono uppercase tracking-[0.24em] text-orange-500">{isPrivate ? "Your share" : "Wallet share"}</p>
+        <p className="mt-3 text-sm text-text-secondary">
+          {isPrivate ? "You ran" : "Ran"} <span className="font-semibold text-text-primary">{formatCompact(youExecutions)}</span> of{" "}
+          <span className="font-semibold text-text-primary">{formatCompact(networkExecutions)}</span> network executions
+          {" · "}
+          <span className="font-semibold text-orange-500">{sharePct.toFixed(sharePct > 0 && sharePct < 1 ? 2 : 1)}%</span>
+        </p>
+        <div
+          className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-sunken"
+          role="progressbar"
+          aria-valuenow={Math.round(sharePct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Share of network executions"
+        >
+          <div className="h-full rounded-full bg-orange-500" style={{ width: `${barWidth}%` }} />
+        </div>
+        {perf ? (
+          <p className="mt-4 text-xs font-mono uppercase tracking-[0.18em] text-text-muted">
+            Avg time saved across network · {perf.avg_time_saved_pct}%
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ContributionsLedger({
+  contributions,
+  isPrivate,
+}: {
+  contributions: DashboardContribution[];
+  isPrivate: boolean;
+}) {
+  return (
+    <section className="mt-8 rounded-[28px] border border-border bg-surface p-6">
+      <p className="text-xs font-mono uppercase tracking-[0.24em] text-text-muted">{isPrivate ? "Your routes" : "Routes"}</p>
+      <h2 className="mt-2 text-2xl font-semibold">Contributions</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
+        Routes {isPrivate ? "you" : "this wallet"} published, ranked by paid reuse. Reuse counts and
+        earnings are tallied from real payouts.
+      </p>
+      {contributions.length ? (
+        <div className="mt-5 space-y-3">
+          {contributions.map((c) => (
+            <div key={c.skill_id} className="rounded-2xl border border-border bg-surface-sunken px-4 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-text-primary">{c.skill_id}</p>
+                  <p className="mt-1 text-xs font-mono uppercase tracking-[0.18em] text-text-muted">
+                    reused {formatInt(c.reuse_count)}×{c.endpoint_id ? ` • ${c.endpoint_id}` : ""}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-semibold text-orange-500">{formatUsd(c.earned_usd)}</p>
+                  <p className="mt-1 text-xs text-text-muted">last {new Date(c.last_used_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5">
+          <Unavailable copy={isPrivate ? "No published routes have been reused yet. Index a site to start contributing." : "No published routes reused yet."} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
   return (
     <section className="rounded-[28px] border border-border bg-surface p-6">
@@ -211,4 +322,13 @@ function formatRatio(value: number | null | undefined, fallback = "Not enough da
 
 function formatInt(value: number | undefined): string {
   return String(value ?? 0);
+}
+
+// Compact display of large network counts (3,120,000 → "3.1M"). Display-only —
+// rounds for legibility, never invents a number.
+function formatCompact(value: number | undefined): string {
+  const n = value ?? 0;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return String(n);
 }

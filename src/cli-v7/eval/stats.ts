@@ -30,6 +30,38 @@ import {
 import { lookupKindMap } from "../kind-map.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { postStateless } from "../_stateless.js";
+import { readImpactSummary, getImpactLogPath } from "../../impact-log.js";
+import { getAgentId, getMyDashboard } from "../../client/index.js";
+
+/** Build the "you" view — this agent's four ledger quantities. Cost-saved and
+ *  time-saved come from the LOCAL impact log (work offline, no account). Payouts
+ *  and the contributions count come from the remote dashboard when an agent_id is
+ *  configured; absent auth they degrade to 0 (never null, never fabricated). */
+async function buildYouView(): Promise<Record<string, unknown>> {
+  const local = readImpactSummary();
+  const you: Record<string, unknown> = {
+    cost_saved_usd: Math.round((local.total_cost_saved_uc / 1_000_000) * 1e6) / 1e6,
+    time_saved_hours: Math.round((local.total_time_saved_ms / 3_600_000) * 1e4) / 1e4,
+    tokens_saved: local.total_tokens_saved,
+    total_runs: local.total_runs,
+    contributions: 0,
+    payouts_usd: 0,
+    authenticated: false,
+    impact_log_path: getImpactLogPath(),
+  };
+  const agentId = getAgentId();
+  if (agentId) {
+    try {
+      const dash = await getMyDashboard();
+      you.contributions = dash.contributions?.length ?? 0;
+      you.payouts_usd = dash.economics?.total_earned_usd ?? 0;
+      you.authenticated = true;
+    } catch {
+      // remote unreachable / unauthenticated — keep local-only zeros, stay non-null
+    }
+  }
+  return you;
+}
 
 function resolveApiBase(): string {
   return (
@@ -49,8 +81,9 @@ export async function handler(
     helpExit(
       "eval stats",
       {
-        summary: "Marketplace + earnings stats summary (from /v1/stats/summary).",
-        usage: "unbrowse eval stats [--fresh]",
+        summary:
+          "Your ledger + the network's: `you` (cost saved, time saved, contributions, payouts — local impact log + your dashboard) and `network` (everyone, from /v1/stats/summary).",
+        usage: "unbrowse eval stats [--fresh] [--json]",
         flags: [
           {
             name: "--fresh",
@@ -117,6 +150,8 @@ export async function handler(
       errorHint: post.errorHint,
     };
 
+    const you = await buildYouView();
+
     emit(
       {
         ok: status >= 200 && status < 300,
@@ -125,6 +160,8 @@ export async function handler(
         api_base: base,
         status_code: status,
         fresh,
+        you,
+        network: body,
         summary: body,
         audit_emit: auditEmit,
       },

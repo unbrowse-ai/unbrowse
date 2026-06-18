@@ -297,6 +297,14 @@ export interface DashboardTransaction {
   created_at: string;
 }
 
+export interface DashboardContribution {
+  skill_id: string;
+  endpoint_id?: string;
+  reuse_count: number;
+  earned_usd: number;
+  last_used_at: string;
+}
+
 export interface DashboardData {
   profile: AgentProfile;
   economics: {
@@ -332,6 +340,9 @@ export interface DashboardData {
     position: number | null;
   };
   recent_transactions: DashboardTransaction[];
+  /** Per-route contributions ledger: routes you published, aggregated over paid reuse.
+   *  Optional for back-compat with cached payloads from before this field shipped. */
+  contributions?: DashboardContribution[];
 }
 
 interface StoredAuth {
