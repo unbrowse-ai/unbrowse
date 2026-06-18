@@ -8,7 +8,7 @@ HTTP proxy. Chrome's --proxy-server flag rejects URLs with inline auth
 accepts unauthenticated traffic on localhost and injects the
 Proxy-Authorization header before forwarding to the upstream.
 
-Substrate role: this is the L0 wedge that closes the kuri-proxy auth
+Role: this is the local wedge that closes the kuri-proxy auth
 gap. The bridge spawns one of these per kuri session, Chrome connects
 to the localhost port without auth, every request flows through with
 the upstream creds added at the forwarder layer.
