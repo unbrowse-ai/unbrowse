@@ -29,9 +29,10 @@ done
 #    index wallet (env) so wallet-less contributions still land.
 grep -q "export async function indexContributorAuth" backend/src/middleware/auth.ts \
   && grep -q "UNBROWSE_GLOBAL_INDEX_WALLET" backend/src/middleware/auth.ts \
+  && grep -q "PAYMENT_RECIPIENT" backend/src/middleware/auth.ts \
   && grep -q "GLOBAL_INDEX_AGENT_ID" backend/src/middleware/auth.ts \
-  && ok "indexContributorAuth: optional bearer + global-index-wallet fallback" \
-  || bad "indexContributorAuth middleware missing or no global-index fallback"
+  && ok "indexContributorAuth: optional bearer + infra-fee/global-index fallback" \
+  || bad "indexContributorAuth middleware missing or no index-wallet fallback"
 
 # 4. The env wallet is a typed binding.
 grep -q "UNBROWSE_GLOBAL_INDEX_WALLET" backend/src/types.ts \

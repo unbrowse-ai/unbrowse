@@ -195,8 +195,16 @@ export const GLOBAL_INDEX_AGENT_ID = "__global_index__";
 export async function indexContributorAuth(c: Context<AuthEnv>, next: Next) {
   await optionalAuth(c, async () => {});
   if (!c.get("agent_id")) {
-    const envWallet = (c.env as { UNBROWSE_GLOBAL_INDEX_WALLET?: string }).UNBROWSE_GLOBAL_INDEX_WALLET?.trim();
-    c.set("agent_id", envWallet && envWallet.length > 0 ? envWallet : GLOBAL_INDEX_AGENT_ID);
+    // Prefer an explicit global-index wallet; else reuse the already-configured
+    // infra-fee wallet (PAYMENT_RECIPIENT, set in every wrangler env), so anon
+    // contributions credit a real wallet out of the box with no new config; else
+    // the sentinel. The contribution lands either way.
+    const env = c.env as { UNBROWSE_GLOBAL_INDEX_WALLET?: string; PAYMENT_RECIPIENT?: string };
+    const indexWallet =
+      env.UNBROWSE_GLOBAL_INDEX_WALLET?.trim() ||
+      env.PAYMENT_RECIPIENT?.trim() ||
+      GLOBAL_INDEX_AGENT_ID;
+    c.set("agent_id", indexWallet);
     c.set("anon_index_contribution", true);
   }
   await next();
