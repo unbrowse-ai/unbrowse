@@ -22,8 +22,19 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+\b/
 const CREDIT_CARD_PATTERN = /\b(?:\d[ -]*?){13,19}\b/g;
 const LONG_ID_PATTERN = /\b[A-Za-z0-9_-]{20,}\b/g;
 
+/** A wallet-bound commitment (zkbind:y.root.sig) — one-way point + signature, never
+ *  the credential. The SAFE form a secret takes on the wire, not a leak. */
+function isBoundCommitment(value: string): boolean {
+  if (!value.startsWith("zkbind:")) return false;
+  const parts = value.slice("zkbind:".length).split(".");
+  return parts.length === 3 && parts.every((p) => p.length > 0);
+}
+
 export function looksLikeSecret(key: string, value: unknown): boolean {
   if (typeof value !== "string" || value.length < 8) return false;
+  // A wallet-bound commitment is secret-free by construction — admit the standard
+  // hole interface by design, not reject it by the entropy regex.
+  if (isBoundCommitment(value)) return false;
   if (SECRET_KEY_PATTERNS.test(key)) return true;
   return SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value));
 }

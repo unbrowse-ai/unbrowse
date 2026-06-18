@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { isBackfillableManifest, cleanBackfillManifest, dedupeBackfill, type BackfillCandidate } from "../src/lib/backfill.js";
+import { holeifyEndpointAttribution } from "../src/capture/zk-bound-hole.js";
 import { publishSkill } from "../src/marketplace/index.js";
 
 const APPLY = process.argv.includes("--apply");
@@ -45,6 +46,10 @@ let landed = 0, failed = 0, noEndpoints = 0, done = 0;
 for (const m of unique) {
   const cleaned = cleanBackfillManifest(m); // strip junk endpoints; null ⇒ nothing publishable
   if (!cleaned) { noEndpoints++; continue; }
+  // Standard interface: identity/attribution ids → wallet-bound commitments (zkbind),
+  // so attribution survives to the shared marketplace without shipping raw submitter
+  // ids (the residual-secret-leak rejection). The raw id never crosses the wire.
+  cleaned.endpoints = await holeifyEndpointAttribution(cleaned.endpoints);
   try {
     const r = await publishSkill(cleaned as unknown as Parameters<typeof publishSkill>[0]);
     if ((r as { published_remotely?: boolean }).published_remotely === false) {
