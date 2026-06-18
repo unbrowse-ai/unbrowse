@@ -39,7 +39,7 @@ import { writeDebugTrace } from "../../../../src/debug-trace.js";
 import { buildQueryBindingMap } from "../../../../src/template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys, inferDescriptionParams } from "./description-prompt.js";
 import { isRscPayload, extractRscDataEndpoints } from "../../../../src/capture/rsc.js";
-import { decodeProtobufBody, isProtobufLikeEndpoint } from "../../../../src/protobuf/wire.js";
+import { decodeProtobufBody, isProtobufLikeEndpoint, decodesToProtobufRecords } from "../../../../src/protobuf/wire.js";
 import { I18N_CONFIG_PATHS } from "../../../../src/lib/ranking-core/filters/noise-patterns.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -763,9 +763,11 @@ function scoreRequest(req: RawRequest): number {
     try { JSON.parse(stripJsonPrefix(req.response_body)); score += 4; } catch { /* not JSON */ }
   }
   // Protobuf is common for real marketplace/search APIs. Reward it enough to
-  // beat JSON-LD metadata when the URL is data-shaped; the decoder below will
-  // decide whether the body is usable.
-  if (isProtobufLikeEndpoint(req.url, ct)) score += 4;
+  // beat JSON-LD metadata. Structural signal (generalize, never a hard filter):
+  // reward when the URL/content-type hints proto OR the body actually decodes to
+  // protobuf records — the latter catches proto APIs at any URL. Decode-test only
+  // for non-JSON bodies to stay cheap.
+  if (isProtobufLikeEndpoint(req.url, ct) || (!ct.includes("application/json") && decodesToProtobufRecords(req.response_body, ct))) score += 4;
   // Penalise long URLs — but only the path, not query params (GraphQL endpoints
   // have long variables/features query strings that inflate the URL length)
   try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
@@ -835,8 +837,15 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       continue;
     }
     const responseContentType = getResponseContentType(req);
-    const protobufLike = isProtobufLikeEndpoint(req.url, responseContentType);
-    if (!hasAdmissibleParsedBody(req.response_body) && !protobufLike) {
+    const bodyIsParsable = hasAdmissibleParsedBody(req.response_body);
+    // Structural admission (generalize, never a hard filter): a response whose
+    // BYTES decode to ≥1 protobuf record is a data API regardless of URL token —
+    // catches `/ds/filter-search-proto/` and any other hyphenated/unknown proto
+    // convention without an allowlist. Decode-test only runs for non-JSON/HTML
+    // bodies (this branch), so it stays cheap.
+    const protobufLike = isProtobufLikeEndpoint(req.url, responseContentType)
+      || (!bodyIsParsable && decodesToProtobufRecords(req.response_body, responseContentType));
+    if (!bodyIsParsable && !protobufLike) {
       // API endpoints may have large/truncated/missing response bodies.
       // Admit them anyway if the URL pattern is clearly an API endpoint.
       //
@@ -995,25 +1004,26 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
 
     const isGet = req.method === "GET";
     const responseContentType = getResponseContentType(req);
-    const protobufLike = isProtobufLikeEndpoint(req.url, responseContentType);
-    const protobufSample = req.response_body && protobufLike
-      ? decodeProtobufBody(req.response_body, responseContentType)
-      : null;
 
     // Infer response schema from the CAPTURED body only. A synthetic body was
     // fabricated for admission survival, not observed from the wire, so it is
     // not evidence of the endpoint's response shape; inferring a schema from it
     // creates a fake contract that makes the real response "drift".
+    //
+    // Decode by what the bytes ARE, not by a URL/content-type allowlist
+    // (CLAUDE.md "generalize — never a hard filter"): try JSON first, then fall
+    // back to a structural protobuf decode. So a proto listing API at ANY url
+    // (Carousell's `/ds/filter-search-proto/`, or octet-stream with no token)
+    // still yields a real records schema.
     let response_schema = undefined;
-    if (protobufSample) {
-      response_schema = inferSchema([protobufSample]);
-    } else if (req.response_body && !req.synthetic_body) {
+    let protobufSample: ReturnType<typeof decodeProtobufBody> = null;
+    if (req.response_body && !req.synthetic_body) {
       try {
-        const cleaned = stripJsonPrefix(req.response_body);
-        const parsed = JSON.parse(cleaned);
+        const parsed = JSON.parse(stripJsonPrefix(req.response_body));
         response_schema = inferSchema([parsed]);
       } catch {
-        // not valid JSON, skip schema inference
+        protobufSample = decodeProtobufBody(req.response_body, responseContentType);
+        if (protobufSample?.protobuf_decoded) response_schema = inferSchema([protobufSample]);
       }
     }
 
