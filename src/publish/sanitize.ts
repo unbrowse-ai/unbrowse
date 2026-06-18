@@ -23,18 +23,28 @@ const CREDIT_CARD_PATTERN = /\b(?:\d[ -]*?){13,19}\b/g;
 const LONG_ID_PATTERN = /\b[A-Za-z0-9_-]{20,}\b/g;
 
 /** A wallet-bound commitment (zkbind:y.root.sig) — one-way point + signature, never
- *  the credential. The SAFE form a secret takes on the wire, not a leak. */
+ *  the credential. The SAFE form a secret takes on the wire, not a leak. Shape is
+ *  checked STRICTLY so a secret-shaped value cannot masquerade as a binding: y is a
+ *  MODP-group hex point (≤512 hex), root is a 32-byte ed25519 pubkey (64 hex), sig is
+ *  a 64-byte ed25519 signature (128 hex). A JWT / base64 / base58 secret fails the
+ *  hex+length gate. (Full sig verification is verifyHoleAttested at admission.) */
 function isBoundCommitment(value: string): boolean {
   if (!value.startsWith("zkbind:")) return false;
   const parts = value.slice("zkbind:".length).split(".");
-  return parts.length === 3 && parts.every((p) => p.length > 0);
+  if (parts.length !== 3) return false;
+  const [y, root, sig] = parts;
+  const isHex = (s: string): boolean => s.length > 0 && /^[0-9a-f]+$/i.test(s);
+  return isHex(y) && y.length >= 8 && y.length <= 512
+    && isHex(root) && root.length === 64
+    && isHex(sig) && sig.length === 128;
 }
 
 export function looksLikeSecret(key: string, value: unknown): boolean {
   if (typeof value !== "string" || value.length < 8) return false;
-  // A wallet-bound commitment is secret-free by construction — admit the standard
-  // hole interface by design, not reject it by the entropy regex.
-  if (isBoundCommitment(value)) return false;
+  // The zkbind: prefix is a CLAIM of a wallet-bound commitment. Honor it only if the
+  // commitment is well-formed (secret-free by construction); a malformed zkbind is a
+  // forgery smuggling a secret behind the prefix — fail closed and flag it.
+  if (value.startsWith("zkbind:")) return !isBoundCommitment(value);
   if (SECRET_KEY_PATTERNS.test(key)) return true;
   return SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value));
 }
