@@ -36,6 +36,8 @@
       "bun test tests/path-params.test.ts tests/utils.test.ts"
     ],
     "after:bump": [
+      "bun install",
+      "git add bun.lock",
       "bun scripts/generate-release-notes.ts --version ${version}",
       "bun scripts/append-coverage-to-notes.ts",
       "bun scripts/release-announce.ts --write",

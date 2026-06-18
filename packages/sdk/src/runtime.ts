@@ -227,21 +227,12 @@ async function spawnUnbrowseRuntimeInternal(
   // 3. Spawn via Node's child_process (cross-runtime; Bun shims this).
   //    Lazy import keeps the connect-only path tree-shakeable.
   const childProcess = await import("node:child_process");
-  const inherited = sanitizeEnv(process.env);
-  const env: Record<string, string> = {
-    ...inherited,
+  const env = applyBridgeDefault({
+    ...sanitizeEnv(process.env),
     ...(opts.env ?? {}),
     PORT: String(port),
     HOST: "127.0.0.1",
-  };
-  // Always activate the auth-proxy bridge when spawning via the SDK — same default
-  // as the CLI. "auto" makes the runtime attempt the bridge and degrade safely to
-  // direct egress when no proxy creds resolve (so this never re-introduces the
-  // v9.3.4 ERR_TUNNEL breakage of forcing a proxy default). An explicit
-  // UNBROWSE_KURI_PROXY=0/false from the caller still wins as the emergency disable.
-  if (env.UNBROWSE_KURI_PROXY == null || env.UNBROWSE_KURI_PROXY === "") {
-    env.UNBROWSE_KURI_PROXY = "auto";
-  }
+  });
 
   // `unbrowse-wrapper.mjs` is a node script; the global `unbrowse` binary
   // may be a wrapper or a compiled single-binary. Pass `serve` as argv[0]
@@ -377,6 +368,20 @@ function findOnPath(name: string): string | null {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Always activate the auth-proxy bridge when spawning via the SDK — same default as
+ * the CLI. "auto" makes the runtime attempt the bridge and degrade safely to direct
+ * egress when no proxy creds resolve (so it never re-introduces the v9.3.4 ERR_TUNNEL
+ * breakage of forcing a proxy default). An explicit UNBROWSE_KURI_PROXY (incl. "0"/
+ * "false" — the emergency disable) is preserved. Pure + exported for unit tests.
+ */
+export function applyBridgeDefault(env: Record<string, string>): Record<string, string> {
+  if (env.UNBROWSE_KURI_PROXY == null || env.UNBROWSE_KURI_PROXY === "") {
+    return { ...env, UNBROWSE_KURI_PROXY: "auto" };
+  }
+  return env;
 }
 
 function sanitizeEnv(env: NodeJS.ProcessEnv): Record<string, string> {
