@@ -76,6 +76,61 @@ export async function zkBindKnownSecrets(secrets: string[], walletPubkey: string
   return map;
 }
 
+/**
+ * Holeify identity/attribution values (e.g. corroboration `submitter_agent_ids`)
+ * into wallet-bound commitments. A raw agent-id / wallet-pubkey is secret-SHAPED
+ * (high-entropy) — publishing it raw both leaks identity and trips the backend's
+ * residual-secret gate. The standard interface is the same one used for every
+ * secret slot: replace the value with `boundTag(bind(value))` = `zkbind:y.root.sig`
+ * (one-way y = g^x, wallet-signed; the raw value never crosses the wire). The
+ * commitment is still PROVABLE attribution — the holder can later `proveHole` it
+ * under signature — but reveals nothing. Already-bound tags pass through unchanged;
+ * empty/non-string entries are dropped. Dedupes by bound point.
+ */
+export async function holeifyIds(ids: unknown): Promise<string[]> {
+  if (!Array.isArray(ids)) return [];
+  const enc = new TextEncoder();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (typeof id !== "string" || id.length === 0) continue;
+    const tag = parseBoundTag(id) ? id : boundTag(await bind(enc.encode(id)));
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+  }
+  return out;
+}
+
+/**
+ * Holeify the attribution fields on each endpoint's `corroboration` so a manifest
+ * can be published/backfilled to the SHARED marketplace without shipping raw
+ * submitter ids. Returns NEW endpoints (no mutation); endpoints without
+ * corroboration pass through untouched. This is the wallet-bind step the backfill
+ * runs between shape-cleaning and publish.
+ */
+export async function holeifyEndpointAttribution<T>(endpoints: T[]): Promise<T[]> {
+  const out: T[] = [];
+  for (const ep of endpoints) {
+    if (!ep || typeof ep !== "object") { out.push(ep); continue; }
+    const e = ep as Record<string, unknown>;
+    const corr = e.corroboration;
+    if (!corr || typeof corr !== "object") { out.push(ep); continue; }
+    const c = corr as Record<string, unknown>;
+    const submitter = await holeifyIds(c.submitter_agent_ids);
+    const verified = await holeifyIds(c.verified_release_submitter_ids);
+    out.push({
+      ...e,
+      corroboration: {
+        ...c,
+        submitter_agent_ids: submitter.length > 0 ? submitter : undefined,
+        verified_release_submitter_ids: verified.length > 0 ? verified : undefined,
+      },
+    } as T);
+  }
+  return out;
+}
+
 /** Backend: confirm the wallet really bound this slot (signed y) — checkable with
  *  NO secret and NO proof. Rejects an unbound or forged-signature hole. */
 export function verifyHoleAttested(hole: Hole): boolean {
