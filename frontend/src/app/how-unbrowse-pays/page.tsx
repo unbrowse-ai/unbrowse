@@ -293,6 +293,26 @@ export default function HowUnbrowsePays() {
         </p>
       </section>
 
+      <section className="space-y-3">
+        <h2 className="text-xl font-medium text-text-primary">The papers behind this</h2>
+        <p className="text-sm leading-relaxed text-text-muted">
+          This page is the short version. The economics — proof of indexing, bonded,
+          slashable maintenance, trust tiers, and delta-based attribution — are laid out
+          in{" "}
+          <a href="/unbrowse-maintenance-network.pdf" target="_blank" rel="noopener" className="underline hover:text-text-secondary">
+            Unbrowse Maintenance Network
+          </a>
+          . How your credentials stay private — bound to your wallet by zero-knowledge
+          proof and revealed only under signature, content-addressed and sealed at every
+          layer an agent touches — is in{" "}
+          <a href="/crypto-was-all-you-needed.pdf" target="_blank" rel="noopener" className="underline hover:text-text-secondary">
+            Crypto Was All You Needed
+          </a>
+          . All of them:{" "}
+          <Link href="/papers" className="underline hover:text-text-secondary">/papers</Link>.
+        </p>
+      </section>
+
       <footer className="space-y-2 border-t border-border pt-6 text-xs text-text-muted">
         <p>
           Own a domain? You can{" "}
