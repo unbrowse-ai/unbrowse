@@ -43,6 +43,7 @@ run_root tests/zkbind-forge.test.ts           "holes: forged/raw-in-zkbind rejec
 run_root tests/backfill-no-raw-secret.test.ts "holes: backfill wire body carries zero raw secrets, only commitments"
 run_be tests/zkbind-admission.test.ts         "holes: backend residual-secret gate admits commitment, rejects raw id"
 bash scripts/zk-invariant-gate.sh >/dev/null 2>&1 && ok "zk-invariant gate (secrets wallet-bound client-side)" || bad "zk-invariant-gate.sh"
+run_root tests/hole-dep-routing.test.ts       "holes: P1 hole↔DAG bridge — a hole resolves its producer via the dep edge"
 
 if [ "$fail" -eq 0 ]; then echo "SESSION-TESTS GREEN — every shipped behavior this session is covered + passing"; exit 0; fi
 echo "SESSION-TESTS RED"; exit 1
