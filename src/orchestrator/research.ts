@@ -349,16 +349,12 @@ function bestSentences(text: string, query: string, n: number): string {
   const sents = prose.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
   if (sents.length <= n) return sents.join(" ").trim();
   const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []))];
-  const scored = sents.map((s, i) => {
-    const low = s.toLowerCase();
-    return { s, i, hits: terms.reduce((a, t) => a + (low.includes(t) ? 1 : 0), 0) };
-  });
-  const top = scored
-    .slice()
-    .sort((a, b) => b.hits - a.hits || a.i - b.i)
-    .slice(0, n)
-    .sort((a, b) => a.i - b.i); // restore reading order
-  return top.map((x) => x.s).join(" ").trim();
+  // ONE scoring core: a citation's quote is ranked by the SAME BM25+MMR as the answer
+  // (not a second naive ranker). Restore reading order for a readable quote.
+  const picked = rankSentencesMMR(sents, terms, n);
+  if (!picked.length) return sents.slice(0, n).join(" ").trim(); // no query-term match -> lead sentences
+  const order = new Map(sents.map((s, i) => [s, i]));
+  return picked.slice().sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)).join(" ").trim();
 }
 
 /** Turn focused markdown into plain prose: unwrap [label](url) -> label, drop heading
