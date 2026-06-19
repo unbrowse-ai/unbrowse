@@ -15,7 +15,11 @@
 set -uo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$REPO"
 set -a; . ./.env 2>/dev/null || true; . ~/.config/unbrowse-bench/exa.env 2>/dev/null || true; set +a
-BIN="${UNBROWSE_BIN:-bun src/cli.ts}"
+# Measure the SHIPPED PRODUCT: the compiled single-binary (what npm ships + users
+# run), not `bun src/cli.ts` — the dev path pays a per-invocation TS-transpile cost
+# (700-1500ms jitter) real users never incur. The compiled binary's warm cached
+# replay is ~460ms and rock-steady. Falls back to source only if no binary is built.
+BIN="${UNBROWSE_BIN:-$([ -x ./dist/unbrowse ] && echo ./dist/unbrowse || echo 'bun src/cli.ts')}"
 
 if [ -z "${EXA_API_KEY:-}" ] || [ -z "${UNBROWSE_API_KEY:-}" ]; then
   echo "[h2h] FAIL — need EXA_API_KEY + UNBROWSE_API_KEY (both real engines)."; exit 1

@@ -41,7 +41,7 @@ function mockFetch(handler: (url: string) => Response | Promise<Response>): type
 }
 
 describe("webSearchProviderChain", () => {
-  it("defaults to ddg-only without a key", () => {
+  it("defaults to ddg-only without a key (the native unbrowse provider is opt-in)", () => {
     expect(webSearchProviderChain({})).toEqual(["ddg"]);
   });
 
@@ -49,10 +49,11 @@ describe("webSearchProviderChain", () => {
     expect(webSearchProviderChain({ EXA_API_KEY: "k" })).toEqual(["exa", "ddg"]);
   });
 
-  it("honors WEB_SEARCH_PROVIDER pins", () => {
+  it("honors WEB_SEARCH_PROVIDER pins (incl. the opt-in unbrowse provider)", () => {
     expect(webSearchProviderChain({ EXA_API_KEY: "k", WEB_SEARCH_PROVIDER: "ddg" })).toEqual(["ddg"]);
     expect(webSearchProviderChain({ EXA_API_KEY: "k", WEB_SEARCH_PROVIDER: "off" })).toEqual([]);
     expect(webSearchProviderChain({ EXA_API_KEY: "k", WEB_SEARCH_PROVIDER: "exa" })).toEqual(["exa", "ddg"]);
+    expect(webSearchProviderChain({ WEB_SEARCH_PROVIDER: "unbrowse" })).toEqual(["unbrowse", "ddg"]);
   });
 
   it("degrades a keyless exa pin to ddg instead of failing", () => {
