@@ -95,3 +95,67 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           INTERNAL_AUTH_PASSWORD: ${{ secrets.INTERNAL_AUTH_PASSWORD }}
+
+  # Host-adapted mirror of .github/workflows/deploy.yml `publish-preview-cli`.
+  # Follows GitHub: ONLY the experiments channel ships a preview CLI to npm
+  # (under the non-default `experiments` dist-tag, versioned <base>-experiments.<sha>,
+  # default backend = the experiments Worker). A `deploy-staging-*` tag deploys the
+  # backend only — same split as GitHub. No setup-bun/setup-node/setup-zig: the host
+  # has bun/node/npm and the kuri binaries are VENDORED (no zig at pack time);
+  # NODE_EXTRA_CA_CERTS is set at the runner env (the env block above also carries it).
+  publish-preview-cli:
+    name: Publish Preview CLI (npm) — experiments channel
+    needs: [deploy-backend]
+    runs-on: [self-hosted, macos-arm64]
+    if: ${{ startsWith(github.ref_name, 'deploy-experiments-') || github.ref_name == 'lewis/experiments' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - run: bun --version
+      - run: bun install --frozen-lockfile
+
+      - name: Set preview backend URL + version
+        env:
+          EXPERIMENTS_API_URL: ${{ secrets.EXPERIMENTS_API_URL }}
+        run: |
+          API_URL="${EXPERIMENTS_API_URL:-https://unbrowse-backend-experiments.lewis-6d8.workers.dev}"
+          echo "UNBROWSE_BUILD_DEFAULT_BACKEND_URL=${API_URL}" >> "$GITHUB_ENV"
+          BASE_VERSION=$(node -p 'require("./packages/skill/package.json").version')
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | head -c 7)
+          PREVIEW_VERSION="${BASE_VERSION}-experiments.${SHORT_SHA}"
+          echo "PREVIEW_VERSION=${PREVIEW_VERSION}" >> "$GITHUB_ENV"
+          node -e "const fs=require('fs');const v='${PREVIEW_VERSION}';for(const f of ['package.json','packages/skill/package.json']){const p=JSON.parse(fs.readFileSync(f,'utf8'));p.version=v;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');}const vj=JSON.parse(fs.readFileSync('version.json','utf8'));vj.version=v;fs.writeFileSync('version.json',JSON.stringify(vj,null,2)+'\n');"
+          echo "preview CLI version = ${PREVIEW_VERSION}; default backend = ${API_URL}"
+
+      - name: Resolve npm token
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+          NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
+        run: |
+          TOKEN="${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}"
+          if [ -z "$TOKEN" ]; then
+            echo "no npm token configured; skipping preview publish"
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "NODE_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Publish preview CLI (npm dist-tag experiments — never latest)
+        if: ${{ steps.npm-auth.outputs.skip_publish != '1' }}
+        working-directory: packages/skill
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: |
+          NPMRC="$(mktemp)"
+          printf '//registry.npmjs.org/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" > "$NPMRC"
+          export npm_config_userconfig="$NPMRC"
+          # npm pack runs prepack (build runtime/sdk/manifest onto disk); publish ships
+          # those artifacts with --ignore-scripts (skips prepublishOnly assert), exactly as GitHub does.
+          npm pack
+          npm publish --tag experiments --ignore-scripts
+          rm -f "$NPMRC"
+          echo "Published unbrowse@${PREVIEW_VERSION} (dist-tag: experiments)"
