@@ -3,7 +3,10 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, doExtract, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, sweepCache, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { mkdtempSync, writeFileSync, readdirSync, utimesSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 function assertHonestEmpty(r: ResearchAnswer) {
   expect(r.answer).toBe("");
@@ -55,6 +58,34 @@ describe("extract primitive — Tavily /extract parity (network-free contract)",
   it("no urls -> empty results, never fabricated", async () => {
     expect(await doExtract([])).toEqual({ results: [] });
     expect(await doExtract(["", "   "])).toEqual({ results: [] });
+  });
+});
+
+describe("read-cache boundary — sweepCache evicts oldest past the cap (network-free)", () => {
+  it("keeps at most maxEntries, evicting the oldest", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ub-sweep-"));
+    const N = 20, CAP = 12;
+    for (let i = 0; i < N; i++) {
+      const p = join(dir, `e${String(i).padStart(3, "0")}.json`);
+      writeFileSync(p, "{}");
+      const t = new Date((i + 1) * 1000); // e000 oldest ... e019 newest, by mtime
+      utimesSync(p, t, t);
+    }
+    const evicted = sweepCache(dir, CAP);
+    const left = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+    expect(evicted).toBe(N - CAP);
+    expect(left.length).toBe(CAP);
+    // the NEWEST CAP survive; the oldest (e000..) are gone
+    expect(left[0]).toBe(`e${String(N - CAP).padStart(3, "0")}.json`);
+    expect(left).toContain("e019.json");
+    expect(left).not.toContain("e000.json");
+  });
+
+  it("no-op under the cap", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ub-sweep2-"));
+    for (let i = 0; i < 5; i++) writeFileSync(join(dir, `e${i}.json`), "{}");
+    expect(sweepCache(dir, 10)).toBe(0);
+    expect(readdirSync(dir).filter((f) => f.endsWith(".json")).length).toBe(5);
   });
 });
 
