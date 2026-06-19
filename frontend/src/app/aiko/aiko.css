@@ -1,0 +1,345 @@
+/* Aiko landing — scoped dark editorial brand (the "new skin", Step 2 firmament).
+   Brand sourced from the live aiko-v4-lite site: warm near-black surfaces, one
+   orange accent (#ff6b1a) used sparingly, bone/cream ink, mono micro-labels.
+   Scoped under .aiko-root so Aiko's dark theme never leaks into the orange/white
+   unbrowse site shell, regardless of the site's light/dark toggle. */
+
+.aiko-root {
+  --a-bg: #0e0a06;
+  --a-bg-2: #14100a;
+  --a-card: #1b1610;
+  --a-card-2: #221c14;
+  --a-border: rgba(255, 107, 26, 0.16);
+  --a-border-strong: rgba(255, 107, 26, 0.34);
+  --a-ink: #efe7d6;
+  --a-ink-muted: #b3a892;
+  --a-ink-faint: #8a8070;
+  --a-accent: #ff6b1a;
+  --a-accent-warm: #ffb060;
+  --a-accent-ink: #1a0d00;
+
+  position: relative;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  font-family: var(--font-google-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* warm crown glow at the top, like the real site */
+.aiko-root::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 70vh;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 107, 26, 0.16) 0%, transparent 62%);
+  z-index: 0;
+}
+
+.aiko-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 64rem;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.aiko-section {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--a-border);
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+}
+.aiko-section--flush { border-top: 0; }
+
+.aiko-eyebrow {
+  display: inline-block;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--a-accent-warm);
+}
+
+.aiko-h1 {
+  font-family: var(--font-display, "Google Sans Display"), system-ui, sans-serif;
+  font-weight: 400;
+  font-size: clamp(2.75rem, 7vw, 5.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  color: var(--a-ink);
+  text-wrap: balance;
+  margin: clamp(1.5rem, 3vw, 2rem) 0 0;
+}
+.aiko-h1 em { font-style: normal; color: var(--a-accent); }
+
+.aiko-h2 {
+  font-family: var(--font-display, "Google Sans Display"), system-ui, sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--a-ink);
+  text-wrap: balance;
+  margin: 0;
+}
+
+.aiko-lede {
+  font-size: clamp(1.05rem, 1.6vw, 1.375rem);
+  line-height: 1.5;
+  color: var(--a-ink-muted);
+  max-width: 40ch;
+  margin: clamp(1.25rem, 2.5vw, 1.75rem) 0 0;
+}
+
+.aiko-kicker {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--a-ink-muted);
+  max-width: 52ch;
+}
+
+/* CTAs */
+.aiko-ctarow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+}
+.aiko-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 0.6rem;
+  background: var(--a-accent);
+  color: var(--a-accent-ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: background 150ms ease, transform 100ms ease;
+}
+.aiko-cta:hover { background: var(--a-accent-warm); }
+.aiko-cta:active { transform: translateY(1px); }
+.aiko-cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 0.25rem;
+  color: var(--a-ink);
+  font-weight: 500;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-color: var(--a-border-strong);
+  text-decoration-thickness: 1px;
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+.aiko-cta-ghost:hover { color: var(--a-accent-warm); }
+
+/* proof chips */
+.aiko-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.65rem;
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+}
+.aiko-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--a-border);
+  border-radius: 2rem;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--a-ink-muted);
+  background: rgba(255, 255, 255, 0.012);
+}
+.aiko-chip svg { color: var(--a-accent-warm); }
+
+/* cards / grids */
+.aiko-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: clamp(2rem, 4vw, 3rem);
+  background: var(--a-border);
+  border: 1px solid var(--a-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+@media (min-width: 48rem) {
+  .aiko-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .aiko-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.aiko-cell {
+  background: var(--a-card);
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  min-width: 0;
+}
+.aiko-cell__n {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--a-accent-warm);
+  text-transform: uppercase;
+}
+.aiko-cell__t {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--a-ink);
+  margin: 0.6rem 0 0.4rem;
+}
+.aiko-cell__b {
+  font-size: 0.93rem;
+  line-height: 1.55;
+  color: var(--a-ink-muted);
+  margin: 0;
+}
+
+/* offer band */
+.aiko-offer {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--a-border-strong);
+  border-radius: 1rem;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 107, 26, 0.1) 0%, transparent 60%),
+    var(--a-card);
+  padding: clamp(1.75rem, 4vw, 3rem);
+  text-align: center;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+.aiko-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  margin: 1rem 0 0.25rem;
+}
+.aiko-price__old {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 1.5rem;
+  color: var(--a-ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--a-accent);
+}
+.aiko-price__new {
+  font-family: var(--font-display, "Google Sans Display"), system-ui, sans-serif;
+  font-size: clamp(3rem, 7vw, 4.5rem);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--a-ink);
+  letter-spacing: -0.03em;
+}
+.aiko-price__per { font-size: 1.1rem; color: var(--a-ink-muted); }
+.aiko-save {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 2rem;
+  background: var(--a-accent);
+  color: var(--a-accent-ink);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* notch demo */
+.aiko-notch {
+  margin: clamp(2rem, 4vw, 3rem) auto 0;
+  max-width: 30rem;
+  background: #0b0b0b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.25rem;
+  padding: 0.75rem;
+  box-shadow: 0 30px 80px -40px rgba(255, 107, 26, 0.4);
+}
+.aiko-notch__bar {
+  width: 4.5rem;
+  height: 1.4rem;
+  margin: 0 auto 0.6rem;
+  background: #000;
+  border-radius: 0 0 0.7rem 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+}
+.aiko-notch__eye {
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 50%;
+  background: #fff;
+}
+.aiko-bubble {
+  margin: 0 0 0.55rem auto;
+  width: fit-content;
+  max-width: 85%;
+  background: #1f2937;
+  color: #e6edf3;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.9rem;
+  font-size: 0.9rem;
+}
+.aiko-notch__input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #121212;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  padding: 0.7rem 0.9rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+.aiko-notch__send {
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--a-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--a-accent-ink);
+  flex-shrink: 0;
+}
+
+/* faq */
+.aiko-faq { margin-top: clamp(1.5rem, 3vw, 2.25rem); }
+.aiko-faq__item {
+  border-top: 1px solid var(--a-border);
+  padding-block: 1.25rem;
+}
+.aiko-faq__q { font-size: 1.05rem; font-weight: 600; color: var(--a-ink); margin: 0; }
+.aiko-faq__a { font-size: 0.95rem; line-height: 1.6; color: var(--a-ink-muted); margin: 0.5rem 0 0; max-width: 60ch; }
+
+/* closing statement */
+.aiko-statement {
+  border-top: 1px solid var(--a-border);
+  padding-block: clamp(4rem, 8vw, 6rem);
+  text-align: center;
+}
+.aiko-statement__line {
+  font-family: var(--font-display, "Google Sans Display"), system-ui, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--a-ink);
+  margin: 0 0 2rem;
+}
+
+.aiko-microcopy {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--a-ink-faint);
+  margin-top: 0.9rem;
+}

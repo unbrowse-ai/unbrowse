@@ -57,6 +57,7 @@ export function Navbar() {
 
         {/* Desktop nav links — 5 primary items */}
         <div className="hidden md:flex items-center gap-1">
+          <NavLink href="/aiko">Aiko</NavLink>
           <NavLink href="/how-unbrowse-pays">How Unbrowse pays</NavLink>
 
           <a
@@ -236,6 +237,9 @@ export function Navbar() {
           className="md:hidden border-t border-white/8 bg-black/40 backdrop-blur-md"
         >
           <div className="px-6 py-4 space-y-0.5">
+            <MobileNavLink href="/aiko" onClick={() => setMobileOpen(false)}>
+              Aiko
+            </MobileNavLink>
             <MobileNavLink href="/how-unbrowse-pays" onClick={() => setMobileOpen(false)}>
               How Unbrowse pays
             </MobileNavLink>
