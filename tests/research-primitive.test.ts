@@ -30,6 +30,13 @@ describe("research primitive — honest-empty contract (network-free)", () => {
     // must yield an empty answer (not a hallucinated one).
     assertHonestEmpty(await doResearch("who founded Stripe", { numResults: 0 }));
   });
+
+  it("an empty result carries a diagnostic note — never a silent blank", async () => {
+    expect((await doResearch("")).note).toBe("empty query");
+    const zero = await doResearch("who founded Stripe", { numResults: 0 });
+    assertHonestEmpty(zero);
+    expect((zero.note ?? "").length).toBeGreaterThan(0); // says WHY it is empty
+  });
 });
 
 describe("research primitive — invariants any non-empty result must satisfy", () => {
