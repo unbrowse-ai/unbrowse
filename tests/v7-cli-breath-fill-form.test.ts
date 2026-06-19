@@ -177,7 +177,7 @@ describe("v7-cli fill-form kind-map binding (W32-B)", () => {
     expect(meta!.op_kind).toBe("breath:fill_form");
     expect(meta!.op_class).toBe("actuate");
     expect(meta!.action).toBe("fill_form");
-    expect(meta!.mcp_tool).toBe("unbrowse_fill_form");
+    expect(meta!.mcp_tool).toBe("unbrowse_breath_fill_form");
   });
 
   it("breath fill-form --help emits op_kind=actuate_fill_form", async () => {
@@ -186,7 +186,7 @@ describe("v7-cli fill-form kind-map binding (W32-B)", () => {
     const out = JSON.parse(res.stdout);
     expect(out.help).toBe(true);
     expect(out.op_kind).toBe("breath:fill_form");
-    expect(out.mcp_tool).toBe("unbrowse_fill_form");
+    expect(out.mcp_tool).toBe("unbrowse_breath_fill_form");
   });
 
   it("formSlotEnumExpression JSON-encodes the selector (no injection break)", () => {

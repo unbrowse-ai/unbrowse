@@ -3,7 +3,7 @@
  *
  * 1:1 mapping (kind-map.ts row "breath session-restore"):
  *   CLI subcommand  : breath session-restore
- *   MCP tool        : unbrowse_session_restore
+ *   MCP tool        : unbrowse_breath_session_restore
  *   Op kind   : breath:session_restore
  *   Verb            : breath
  *

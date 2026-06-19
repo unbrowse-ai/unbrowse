@@ -3,7 +3,7 @@
  *
  * 1:1 mapping (kind-map.ts row "breath session-park"):
  *   CLI subcommand  : breath session-park
- *   MCP tool        : unbrowse_session_park
+ *   MCP tool        : unbrowse_breath_session_park
  *   Op kind   : breath:session_park
  *   Verb            : breath
  *
