@@ -16,29 +16,29 @@ const cmds = (ctx: Parameters<typeof projectSurface>[0]) => projectSurface(ctx).
 describe("surface-projector — the dynamic surface over the superpattern tree", () => {
   it("no session: surfaces discovery + entry, NOT browse verbs", () => {
     const c = cmds({ sessionOpen: false });
-    expect(c).toContain("get");
-    expect(c).toContain("search");
-    expect(c).toContain("resolve");
-    expect(c).toContain("go");      // entry
-    expect(c).toContain("execute"); // replay a resolved endpoint
-    expect(c).not.toContain("snap");
-    expect(c).not.toContain("click");
-    expect(c).not.toContain("submit");
+    expect(c).toContain("breath get");
+    expect(c).toContain("eval search");
+    expect(c).toContain("eval resolve");
+    expect(c).toContain("breath go");      // entry
+    expect(c).toContain("breath execute"); // replay a resolved endpoint
+    expect(c).not.toContain("eval snap");
+    expect(c).not.toContain("breath click");
+    expect(c).not.toContain("breath submit");
   });
 
   it("session open: surfaces browse verbs, drops re-entry", () => {
     const c = cmds({ sessionOpen: true });
-    expect(c).toContain("snap");
-    expect(c).toContain("click");
-    expect(c).toContain("submit");
-    expect(c).toContain("type");   // a real browse verb in the model
-    expect(c).toContain("search"); // discovery still available
-    expect(c).not.toContain("go");  // already inside — no re-entry
+    expect(c).toContain("eval snap");
+    expect(c).toContain("breath click");
+    expect(c).toContain("breath submit");
+    expect(c).toContain("breath type");   // a real browse verb in the model
+    expect(c).toContain("eval search"); // discovery still available
+    expect(c).not.toContain("breath go");  // already inside — no re-entry
   });
 
   it("auth required: the auth verb surfaces with its sealed domain hole, regardless of phase", () => {
     const surf = projectSurface({ sessionOpen: true, authRequired: true });
-    const auth = surf.find((s) => s.command === "auth");
+    const auth = surf.find((s) => s.command === "breath auth");
     expect(auth).toBeDefined();
     expect(auth!.auth).toBe("sealed");
     expect(auth!.holes).toContain("domain");
@@ -59,8 +59,8 @@ describe("surface-projector — the dynamic surface over the superpattern tree",
     const verbs = projectedVerbs({ sessionOpen: false });
     expect(verbs.every((v) => ["build", "breath", "eval"].includes(v))).toBe(true);
     const holes = projectedHoles({ sessionOpen: false });
-    expect(holes.search).toEqual(["intent"]);   // the LLM fills `intent`
-    expect(holes.execute).toEqual(["endpoint", "params"]);
+    expect(holes["eval search"]).toEqual(["intent"]);   // the LLM fills `intent`
+    expect(holes["breath execute"]).toEqual(["endpoint", "params"]);
   });
 
   it("LOSSLESS: the union of all projections = the whole superpattern tree (nothing hidden forever)", () => {

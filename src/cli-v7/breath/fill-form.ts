@@ -6,7 +6,7 @@
  *
  * 1:1 mapping (kind-map.ts row "breath fill-form"):
  *   CLI subcommand  : breath fill-form
- *   MCP tool        : unbrowse_fill_form
+ *   MCP tool        : unbrowse_breath_fill_form
  *   Op kind         : breath:fill_form  (op_class: actuate, action: fill_form)
  *   Verb            : breath
  *

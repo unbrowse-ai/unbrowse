@@ -143,7 +143,7 @@ describe("v7.2.0-preview.0 kind-map registration", () => {
     const meta = lookupKindMap("breath", "session-park");
     expect(meta).toBeDefined();
     expect(meta?.op_kind).toBe("breath:session_park");
-    expect(meta?.mcp_tool).toBe("unbrowse_session_park");
+    expect(meta?.mcp_tool).toBe("unbrowse_breath_session_park");
     expect(meta?.verb).toBe("breath");
   });
 
@@ -151,7 +151,7 @@ describe("v7.2.0-preview.0 kind-map registration", () => {
     const meta = lookupKindMap("breath", "session-restore");
     expect(meta).toBeDefined();
     expect(meta?.op_kind).toBe("breath:session_restore");
-    expect(meta?.mcp_tool).toBe("unbrowse_session_restore");
+    expect(meta?.mcp_tool).toBe("unbrowse_breath_session_restore");
     expect(meta?.verb).toBe("breath");
   });
 

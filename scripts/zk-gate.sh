@@ -40,7 +40,11 @@ NODES=(
   "iq-ledger:tests/iq-ledger.test.ts"                   # the ledger-of-resolutions backed by IQLabs on-chain signed table rows — append-only, hash-chained, preserves git-style signed history of past values
   "standards-registry:tests/standards-registry.test.ts" # unbrowse as the kv-cache layer in front of every agent standard (MCP/MCP-registry, ACP, A2A, OpenAI/Anthropic tools, skills.sh) — pluggable cached registry layers, failure-isolated
   "live-registry-adapters:tests/live-registry-adapters.test.ts" # the standards layers wired to the REAL endpoints (official MCP registry verified live; A2A/x402-bazaar/skills.sh/agentskills.dev), fetch-injected + failure-isolated
-  "resolution-tier:tests/resolution-tier.test.ts"      # tier selection — resolution cache routes to the R2+IQ remote tier when creds present, local fs otherwise; uncacheable never persisted
+  # RETIRED 2026-06-20: resolution-tier was DELIBERATELY DELETED in commit 2c2867a7 ("chore(prune):
+  # delete 3 dead dormant modules ... wire or delete, never park as dormant-by-design", John 15:2) —
+  # src/values/resolution-tier.ts + its test had 0 production imports, no remote backend. The gate's
+  # demand for it was stale: it tracked a node the owner intentionally pruned as dead speculative code.
+  # Re-add ONLY when a real caller wires remote-tier (R2+IQ) selection into the resolve path.
   "surface-projector:tests/surface-projector.test.ts"  # the CLI surface is a CONTEXT PROJECTION of the superpattern verb tree — expose only the verbs+holes the moment needs (LLM fills them), lossless in union, minimal per phase
   "search-with-standards:tests/search-with-standards.test.ts" # unified find-anything — route-graph search merged with the standards-registry (MCP/A2A/skills), standards-half cached + failure-isolated
   "async-resolution:tests/async-resolution.test.ts"   # the remote-tier core (resolveAsync + content-addressing + ttl + docker-rebuild) tested directly, not just via the R2/IQ adapters

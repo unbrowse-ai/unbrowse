@@ -1,0 +1,92 @@
+# Gitea-native deploy — runs on the self-hosted mac-mini runner (macos-arm64).
+#
+# Why this exists separately from .github/workflows/deploy.yml: the GitHub
+# workflow targets `ubuntu-latest`, but the only ONLINE gitea runner
+# (`mac-mini-kuri`) is `self-hosted`/`macos-arm64` host-mode. The CF Worker
+# deploy is node/wrangler-based, so it runs natively on the mini with no Docker.
+#
+# Scope (honest): STAGING + experiments only. The prod (`main`) path in the
+# GitHub workflow has a staging-first manifest gate that requires the
+# cross-platform release artifacts; that still belongs on GitHub Actions / the
+# RunPod ephemeral runner. This workflow proves gitea can deploy the backend to
+# the safe (staging) target with the secrets that live on this box.
+name: Deploy (gitea / mac-mini)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [staging, "lewis/experiments"]
+
+concurrency:
+  group: gitea-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend (CF Worker) — staging/experiments
+    runs-on: [self-hosted, macos-arm64]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+        working-directory: .
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+
+      - name: Compute deploy identity vars
+        id: vars
+        working-directory: .
+        run: |
+          VERSION=$(node -e "console.log(require('./version.json').version)")
+          BUILD_SHA="${GITHUB_SHA}"
+          DEPLOYED_AT=$(date -u +%FT%TZ)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "build_sha=${BUILD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "deployed_at=${DEPLOYED_AT}" >> "$GITHUB_OUTPUT"
+          echo "deploy identity v=${VERSION} sha=${BUILD_SHA:0:8} at=${DEPLOYED_AT}"
+
+      - name: Deploy backend worker (env from branch)
+        run: |
+          WRANGLER_VARS="--var UNBROWSE_VERSION:${{ steps.vars.outputs.version }} --var UNBROWSE_BUILD_SHA:${{ steps.vars.outputs.build_sha }} --var UNBROWSE_DEPLOYED_AT:${{ steps.vars.outputs.deployed_at }}"
+          case "${GITHUB_REF_NAME}" in
+            "lewis/experiments")
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env experiments $WRANGLER_VARS ;;
+            *)
+              # default (incl. staging + workflow_dispatch): deploy the staging worker — never prod from gitea
+              ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging $WRANGLER_VARS ;;
+          esac
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Provision CAPZY_KEY secret (captcha /v1/solve tier)
+        run: |
+          if [ -z "$CAPZY_KEY" ]; then
+            echo "CAPZY_KEY not set; skipping /v1/solve provisioning (route 503s solver_unconfigured)"; exit 0
+          fi
+          ENVFLAG="--env staging"; [ "${GITHUB_REF_NAME}" = "lewis/experiments" ] && ENVFLAG="--env experiments"
+          printf '%s' "$CAPZY_KEY" | ./node_modules/.bin/wrangler secret put CAPZY_KEY --config wrangler.ci.toml $ENVFLAG
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CAPZY_KEY: ${{ secrets.CAPZY_KEY }}
+
+      - name: Provision INTERNAL_AUTH_PASSWORD (dashboard telemetry read)
+        run: |
+          if [ -z "$INTERNAL_AUTH_PASSWORD" ]; then
+            echo "INTERNAL_AUTH_PASSWORD not set; dashboard read stays __admin__-only"; exit 0
+          fi
+          ENVFLAG="--env staging"; [ "${GITHUB_REF_NAME}" = "lewis/experiments" ] && ENVFLAG="--env experiments"
+          printf '%s' "$INTERNAL_AUTH_PASSWORD" | ./node_modules/.bin/wrangler secret put INTERNAL_AUTH_PASSWORD --config wrangler.ci.toml $ENVFLAG
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INTERNAL_AUTH_PASSWORD: ${{ secrets.INTERNAL_AUTH_PASSWORD }}
