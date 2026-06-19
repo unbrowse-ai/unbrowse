@@ -86,9 +86,40 @@ export function hostFromUrl(url: string | null | undefined): string | null {
 
 export type CookieFreshness = {
   fresh: boolean;
-  source: "chrome" | "firefox" | "none" | "locked" | "error";
+  source: "chrome" | "firefox" | "browser" | "none" | "locked" | "error";
   reason: string;
 };
+
+/**
+ * Multi-browser harvest fallback (2026-06-20).
+ *
+ * `check_cookie_freshness.py` only inspects Chrome + Firefox. A user whose live
+ * session lives in any OTHER daily-driver browser (Dia, Arc, Brave, Edge, Vivaldi,
+ * Opera, Chromium) would read as source="none" and get bounced to an interactive
+ * auth-capture — even though the runtime can already harvest that session
+ * (scanAllBrowserSessions decrypts every Chromium browser's keychain store).
+ *
+ * Pure: given the python probe result + a session scanner, upgrade a "none" verdict
+ * to fresh=true when the daily-driver browser holds a session-grade cookie set.
+ * `fresh`/`locked`/`error` verdicts pass through unchanged (don't override a real hit
+ * or a "freshness unknown, attempt anyway" signal).
+ */
+export function applyHarvestFallback(
+  base: CookieFreshness,
+  domain: string,
+  scan: (domain: string) => { browser: string; sessionCookies: number } | null,
+): CookieFreshness {
+  if (base.source !== "none") return base;
+  const session = scan(domain);
+  if (session && session.sessionCookies > 0) {
+    return {
+      fresh: true,
+      source: "browser",
+      reason: `live session harvested from ${session.browser} (${session.sessionCookies} session cookies)`,
+    };
+  }
+  return base;
+}
 
 /** Locate scripts/check_cookie_freshness.py from this module's location.
  *  Walks up from src/auth/ to repo root; safe to run from either ESM or
@@ -114,11 +145,38 @@ function findCookieFreshnessScript(): string | null {
  *  rule. Errors return source="error" with fresh=false. */
 export function hasFreshCookieForHost(
   host: string,
-  opts?: { script_path?: string; python_bin?: string; timeout_ms?: number },
+  opts?: {
+    script_path?: string;
+    python_bin?: string;
+    timeout_ms?: number;
+    /** Injectable multi-browser session scanner (default: findBestBrowserSession). */
+    session_scan?: (domain: string) => { browser: string; sessionCookies: number } | null;
+  },
 ): CookieFreshness {
+  // Default scanner sweeps every Chromium-family browser + Firefox and decrypts
+  // their cookie stores (Dia/Arc/Brave/Edge/... not just Chrome). Lazy require so
+  // callers that pass their own scanner never load the cookie decryptor.
+  const scan =
+    opts?.session_scan ??
+    ((domain: string) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { findBestBrowserSession } = require("./browser-cookies.js") as typeof import("./browser-cookies.js");
+        const best = findBestBrowserSession(domain);
+        return best ? { browser: best.browser, sessionCookies: best.sessionCookies } : null;
+      } catch {
+        return null;
+      }
+    });
+
   const scriptPath = opts?.script_path ?? findCookieFreshnessScript();
   if (!scriptPath) {
-    return { fresh: false, source: "error", reason: "check_cookie_freshness.py not found" };
+    // No python probe — still try the multi-browser harvest before giving up.
+    return applyHarvestFallback(
+      { fresh: false, source: "none", reason: "check_cookie_freshness.py not found" },
+      host,
+      scan,
+    );
   }
   const pythonBin = opts?.python_bin ?? "python3";
   const timeout = opts?.timeout_ms ?? 3000;
@@ -133,12 +191,24 @@ export function hasFreshCookieForHost(
       source?: string;
       reason?: string;
     };
-    return {
+    const base: CookieFreshness = {
       fresh: row.fresh === true,
       source: (row.source as CookieFreshness["source"]) ?? "error",
       reason: row.reason ?? "",
     };
+    // Chrome/Firefox said "none" — sweep the user's other daily-driver browsers
+    // before bouncing them to an interactive login.
+    return applyHarvestFallback(base, host, scan);
   } catch (err) {
+    // Python probe unavailable/failed. Still give the multi-browser harvest a
+    // chance: a definite session beats an "unknown". No session -> keep "error"
+    // (the anti-skip rule lets the caller attempt rather than bounce).
+    const upgraded = applyHarvestFallback(
+      { fresh: false, source: "none", reason: "" },
+      host,
+      scan,
+    );
+    if (upgraded.fresh) return upgraded;
     return {
       fresh: false,
       source: "error",
