@@ -18,6 +18,7 @@
 
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
+import { appendEvent, readEvents, listPartitions } from "./event-ledger.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -56,11 +57,17 @@ export interface FeeSummary {
 
 // ─── Key helpers ──────────────────────────────────────────────────────────────
 
-function feeLedgerKey(agentId: string): string {
-  return `fees:agent:${agentId}`;
-}
+// Append-only event rows; each charge is a distinct key (no lost update on the
+// CAS-free KV). The per-agent ledger is a PROJECTION (fold) over these rows —
+// never a mutated accumulator blob. Mirrors route-ledger / attribution.
+const EVENT_PREFIX = "fees:event:"; // fees:event:<agent>:<uuid>
 
-const FEES_INDEX_KEY = "fees:agents:index";
+export interface FeeEvent {
+  agent_id: string;
+  operation: GraphOperation;
+  cost_uc: number;
+  timestamp: string;
+}
 
 // ─── Service functions ────────────────────────────────────────────────────────
 
@@ -74,47 +81,42 @@ export async function recordGraphFee(
   operation: GraphOperation,
 ): Promise<AgentFeeLedger> {
   const kv = statsKV(env);
-  const key = feeLedgerKey(agentId);
-  const now = new Date().toISOString();
   const cost = GRAPH_OPERATION_COST_UC[operation];
-
-  const raw = await kv.get(key) as string | null;
-  let ledger: AgentFeeLedger;
-
-  if (raw) {
-    try { ledger = JSON.parse(raw) as AgentFeeLedger; } catch {
-      ledger = emptyLedger(agentId, now);
-    }
-  } else {
-    ledger = emptyLedger(agentId, now);
-    // First charge: add to index so getFeesSummary can enumerate
-    await addAgentToIndex(kv, agentId);
-  }
-
-  ledger.total_charged_uc += cost;
-  ledger.by_operation[operation] = (ledger.by_operation[operation] ?? 0) + cost;
-  ledger.event_count++;
-  ledger.last_charged_at = now;
-
-  await kv.put(key, JSON.stringify(ledger));
-  return ledger;
+  const ev: FeeEvent = { agent_id: agentId, operation, cost_uc: cost, timestamp: new Date().toISOString() };
+  // Distinct key per charge (uuid) → concurrent charges never overwrite each other.
+  await appendEvent(kv, EVENT_PREFIX, agentId, crypto.randomUUID(), ev);
+  return (await getAgentFeeLedger(env, agentId))!; // projected ledger (non-null: just appended)
 }
 
-/** Read the fee ledger for a specific agent. Returns null if no fees recorded. */
+/** Read the fee ledger for a specific agent — a PROJECTION (fold) over the
+ *  append-only event rows. Returns null if no fees recorded. */
 export async function getAgentFeeLedger(
   env: Env,
   agentId: string,
 ): Promise<AgentFeeLedger | null> {
-  const raw = await statsKV(env).get(feeLedgerKey(agentId)) as string | null;
-  if (!raw) return null;
-  try { return JSON.parse(raw) as AgentFeeLedger; } catch { return null; }
+  const events = await readEvents<FeeEvent>(statsKV(env), EVENT_PREFIX, agentId);
+  if (events.length === 0) return null;
+  events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  const by_operation: Record<GraphOperation, number> = { search: 0, chain: 0, predict: 0, session: 0, negative: 0 };
+  let total_charged_uc = 0;
+  for (const e of events) {
+    total_charged_uc += e.cost_uc;
+    by_operation[e.operation] = (by_operation[e.operation] ?? 0) + e.cost_uc;
+  }
+  return {
+    agent_id: agentId,
+    total_charged_uc,
+    by_operation,
+    event_count: events.length,
+    first_charged_at: events[0].timestamp,
+    last_charged_at: events[events.length - 1].timestamp,
+  };
 }
 
 /** Aggregate fee summary across all agents. */
 export async function getFeesSummary(env: Env): Promise<FeeSummary> {
-  const kv = statsKV(env);
-  const indexRaw = await kv.get(FEES_INDEX_KEY) as string | null;
-  const agentIds: string[] = indexRaw ? (JSON.parse(indexRaw) as string[]) : [];
+  const agentIds = await listAgentIds(env);
 
   const summary: FeeSummary = {
     total_agents_charged: agentIds.length,
@@ -143,27 +145,10 @@ export async function getFeesSummary(env: Env): Promise<FeeSummary> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function emptyLedger(agentId: string, now: string): AgentFeeLedger {
-  return {
-    agent_id: agentId,
-    total_charged_uc: 0,
-    by_operation: { search: 0, chain: 0, predict: 0, session: 0, negative: 0 },
-    event_count: 0,
-    first_charged_at: now,
-    last_charged_at: now,
-  };
-}
-
-async function addAgentToIndex(
-  kv: ReturnType<typeof statsKV>,
-  agentId: string,
-): Promise<void> {
-  const raw = await kv.get(FEES_INDEX_KEY) as string | null;
-  const ids: string[] = raw ? (JSON.parse(raw) as string[]) : [];
-  if (!ids.includes(agentId)) {
-    ids.push(agentId);
-    await kv.put(FEES_INDEX_KEY, JSON.stringify(ids));
-  }
+/** List every agent id with fee events (for summaries) — derived from the event
+ *  keyspace, no separate (race-prone) index blob. */
+async function listAgentIds(env: Env): Promise<string[]> {
+  return listPartitions<FeeEvent>(statsKV(env), EVENT_PREFIX, (e) => e.agent_id);
 }
 
 /**
