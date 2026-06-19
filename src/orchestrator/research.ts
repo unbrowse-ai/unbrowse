@@ -79,6 +79,9 @@ export interface ResearchAnswer {
   answer: string;
   citations: ResearchCitation[];
   results: ResearchResult[];
+  /** When the answer is empty, WHY — so an empty result is never a silent failure
+   *  (distinguishes empty query / rate-limited search / no results / unreadable sources). */
+  note?: string;
 }
 
 export interface ResearchOptions {
@@ -96,17 +99,25 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   const q = (query ?? "").trim();
   const numResults = opts.numResults ?? 5;
   const budget = opts.perSourceBudget ?? 1200;
-  const empty: ResearchAnswer = { query: q, answer: "", citations: [], results: [] };
-  if (!q) return empty;
+  const emptyWith = (note: string): ResearchAnswer => ({ query: q, answer: "", citations: [], results: [], note });
+  if (!q) return emptyWith("empty query");
 
-  // 1. SEARCH — resolve ranked URL pointers (native DDG SERP; throws on non-2xx).
-  let hits: Awaited<ReturnType<typeof ddgSearch>>;
-  try {
-    hits = await ddgSearch(q, numResults);
-  } catch {
-    return empty; // SERP unavailable -> honest empty, not a fabricated answer.
+  // 1. SEARCH — resolve ranked URL pointers (native DDG SERP). One retry with a short backoff
+  //    absorbs transient rate-limiting; a persistent empty is surfaced (not silently blank).
+  let hits: Awaited<ReturnType<typeof ddgSearch>> = [];
+  let serpError = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      hits = await ddgSearch(q, numResults);
+      if (hits.length) break;
+    } catch {
+      serpError = true;
+    }
+    if (attempt === 0 && !hits.length) await new Promise((r) => setTimeout(r, 600));
   }
-  if (!hits.length) return empty;
+  if (!hits.length) {
+    return emptyWith(serpError ? "search unavailable (possibly rate-limited)" : "no search results (search may be rate-limited)");
+  }
 
   // 2. READ — the SAME read step `extract` exposes (readSource), per pointer, concurrently;
   //    then focus each source's value to the intent. One read path, not two.
@@ -120,7 +131,7 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
     }),
   );
   const sources = fetched.filter((x): x is NonNullable<typeof x> => x !== null);
-  if (!sources.length) return empty;
+  if (!sources.length) return emptyWith("no readable sources fetched");
 
   // 3. SYNTHESIZE — extractive cited answer: the leading focused excerpts from the
   //    highest-scoring sources, each attributed. (A model-backed synthesis is a later
@@ -130,7 +141,7 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   const cited = sources
     .map((s) => ({ s, quote: bestSentences(s.focused, q, 2) }))
     .filter((x) => x.quote.trim().length > 0);
-  if (!cited.length) return empty; // every fetched page was chrome-only -> honest empty.
+  if (!cited.length) return emptyWith("sources fetched but no quotable prose"); // every fetched page was chrome-only -> honest empty.
 
   const citations: ResearchCitation[] = cited.map(({ s, quote }) => ({ url: s.url, title: s.title, quote }));
   const results: ResearchResult[] = cited.map(({ s }) => ({
