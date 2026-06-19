@@ -15,6 +15,10 @@ name: Gitea Mini Deploy
 on:
   workflow_dispatch:
   push:
+    # Tag push is the trigger that demonstrably fires on the self-hosted gitea
+    # (the release flow runs from v* tags); branch-push / API-dispatch do not
+    # materialize runs on this instance. A `deploy-staging-*` tag cuts a deploy.
+    tags: ["deploy-staging-*", "deploy-experiments-*"]
     branches: [staging, "lewis/experiments"]
 
 concurrency:
