@@ -658,7 +658,40 @@ export function focusMarkdownToIntent(md: string, intent: string | undefined, bu
   }
   if (picked.length === 0) return md.slice(0, budget);
   picked.sort((a, b) => a.i - b.i);
-  return picked.map((p) => p.c).join("\n\n");
+  const focused = picked.map((p) => p.c).join("\n\n");
+  // RECOMP (arXiv:2310.04408): extractive query-focused SENTENCE compression. With
+  // coverage maxed the reader drowns in distractor sentences, so keep only the
+  // query-relevant sentences within budget (structural relevance by the same intent
+  // terms + idf — not a hardcoded synonym map). A/B: UNBROWSE_RECOMP=1 enables;
+  // default off = chunk-level baseline. Graded by the n>=30 bench A/B, not asserted.
+  if (process.env.UNBROWSE_RECOMP === "1") return recompSentences(focused, terms, idf, budget);
+  return focused;
+}
+
+/** RECOMP extractive compressor: split focused text into sentences, score each by the
+ *  intent terms' inverse-page-frequency, keep the top within budget, restore order.
+ *  Pure + lexical (no embedder). Falls back to the input if it is a single sentence or
+ *  nothing scores. */
+export function recompSentences(text: string, terms: string[], idf: Record<string, number>, budget: number): string {
+  const sents = text.split(/(?<=[.!?])\s+|\n+/).filter((s) => s.trim().length > 0);
+  if (sents.length <= 1) return text.slice(0, budget);
+  const lower = sents.map((s) => s.toLowerCase());
+  const scored = sents.map((s, i) => {
+    let sc = 0;
+    for (const t of terms) if (lower[i].includes(t)) sc += idf[t] ?? 0;
+    return { i, s, sc };
+  });
+  scored.sort((a, b) => b.sc - a.sc);
+  const keep: { i: number; s: string }[] = [];
+  let used = 0;
+  for (const x of scored) {
+    if (x.sc <= 0) break;
+    if (used + x.s.length + 1 > budget) continue;
+    keep.push(x); used += x.s.length + 1;
+  }
+  if (keep.length === 0) return text.slice(0, budget);
+  keep.sort((a, b) => a.i - b.i);
+  return keep.map((p) => p.s).join(" ");
 }
 
 function htmlToMarkdownSafe(html: string, fallbackText: string, intent?: string): string {
