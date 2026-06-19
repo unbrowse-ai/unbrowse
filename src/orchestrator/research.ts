@@ -90,9 +90,42 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
     content: s.focused,
     score: s.score,
   }));
-  const answer = citations.map((c) => c.quote).join(" ").slice(0, budget * 2);
+  // Cross-source synthesis: pool every prose sentence from every cited source, rank by
+  // query-term relevance across the whole set, dedup, and keep the best few. A fact stated
+  // by a lower-ranked source still surfaces over a top source's title line.
+  const answer = synthesizeAnswer(cited.map((c) => c.s.focused), q, 3) || citations[0].quote;
 
   return { query: q, answer, citations, results };
+}
+
+/** Cross-source synthesis: pool prose sentences from all sources, rank by query-term
+ *  relevance over the whole set, dedup near-duplicates, return the best N joined. Only
+ *  sentences that actually mention a query term qualify (so titles/chrome with 0 hits are
+ *  excluded), keeping the answer fact-bearing and grounded in the fetched text. */
+function synthesizeAnswer(focusedTexts: string[], query: string, n: number): string {
+  const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []))];
+  if (!terms.length) return "";
+  const pool: { s: string; hits: number }[] = [];
+  for (const text of focusedTexts) {
+    const sents = cleanProse(text).match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+    for (const s of sents) {
+      const low = s.toLowerCase();
+      const hits = terms.reduce((a, t) => a + (low.includes(t) ? 1 : 0), 0);
+      if (hits > 0) pool.push({ s, hits });
+    }
+  }
+  if (!pool.length) return "";
+  pool.sort((a, b) => b.hits - a.hits || a.s.length - b.s.length);
+  const picked: string[] = [];
+  const seen = new Set<string>();
+  for (const { s } of pool) {
+    const key = s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(s);
+    if (picked.length >= n) break;
+  }
+  return picked.join(" ").trim();
 }
 
 /** The N most query-relevant prose sentences of a focused excerpt — the quotable kernel
@@ -135,6 +168,8 @@ export function cleanProse(md: string): string {
     line = line.replace(/\[\s*\]\([^)]*\)/g, " "); // empty-label links [](url)
     line = line.replace(/\]\([^\s)]*\)?/g, " "); // orphan "](url" from a budget-truncated link
     line = line.replace(/https?:\/\/\S+/g, " "); // bare/cruft URLs
+    line = line.replace(/\S*#ref\d+\)?/g, " "); // truncated url-anchor fragments (#ref41179))
+    line = line.replace(/\s+\)/g, " "); // orphan close-paren left by a stripped link
     line = line.replace(/^#{1,6}\s*/, "").replace(/[*_`>|]+/g, " ").replace(/\s+/g, " ").trim();
     if (!line) continue;
     const letters = (line.match(/[a-zA-Z]/g) ?? []).length;
