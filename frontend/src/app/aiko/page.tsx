@@ -10,10 +10,9 @@
  * not leak into the orange/white unbrowse shell. */
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
   ArrowRight, Check, Eye, KeyRound, Terminal, Sparkles,
-  Inbox, Calendar, Globe, CreditCard, ShieldCheck, MessageSquare,
+  Inbox, Calendar, Globe, CreditCard, ShieldCheck,
 } from "lucide-react";
 import { AikoWaitlistForm } from "@/components/aiko/waitlist-form";
 import { SubscribeButton } from "@/components/aiko/subscribe-button";
@@ -163,11 +162,6 @@ export default function AikoLandingPage() {
             <span className="aiko-notch__send"><ArrowRight className="w-3.5 h-3.5" /></span>
           </div>
         </div>
-        <p style={{ textAlign: "center", marginTop: "1.25rem" }}>
-          <Link className="aiko-cta-ghost" href="/aiko/chat">
-            <MessageSquare className="w-4 h-4" /> Try a taste of her in your browser
-          </Link>
-        </p>
       </section>
 
       {/* What she does */}
