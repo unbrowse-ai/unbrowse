@@ -16,7 +16,8 @@ import {
   Inbox, Calendar, Globe, CreditCard, ShieldCheck, MessageSquare,
 } from "lucide-react";
 import { AikoWaitlistForm } from "@/components/aiko/waitlist-form";
-import { AIKO_PRICE, getAikoCheckoutUrl, isAikoCheckoutLive } from "@/lib/aiko/offer";
+import { SubscribeButton } from "@/components/aiko/subscribe-button";
+import { AIKO_PRICE } from "@/lib/aiko/offer";
 import "./aiko.css";
 
 const CANONICAL = "https://www.unbrowse.ai/aiko";
@@ -70,22 +71,11 @@ const FAQ = [
   { q: "What if I am not ready to subscribe?", a: "Join the waitlist with your email and we will hold your early-bird seat. You will be first in line when the next round opens." },
 ];
 
-function SubscribeCta({ href, label, external }: { href: string; label: string; external: boolean }) {
-  return (
-    <a className="aiko-cta" href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
-      {label} <ArrowRight className="w-4 h-4" />
-    </a>
-  );
-}
-
 export default function AikoLandingPage() {
-  const checkoutUrl = getAikoCheckoutUrl();
-  const live = isAikoCheckoutLive();
-  // Until a real live checkout is wired, never send a buyer to a test link that
-  // cannot charge them — route them to the waitlist instead. Flips automatically
-  // the moment NEXT_PUBLIC_AIKO_PAYMENT_LINK is set to the live link.
-  const subscribeHref = live ? checkoutUrl : "#waitlist";
-  const subscribeLabel = live ? "Subscribe early, 50% off" : "Lock my early-bird seat";
+  // Subscribe starts the LIVE early-bird checkout: a $100/mo subscription charged
+  // upfront (via /api/aiko-checkout -> Stripe Checkout Session). That payment is
+  // what claims the seat.
+  const subscribeLabel = "Subscribe early, 50% off";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -119,7 +109,7 @@ export default function AikoLandingPage() {
           she works out the path and brings back the finished result.
         </p>
         <div className="aiko-ctarow">
-          <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+          <SubscribeButton label={subscribeLabel} />
           <a className="aiko-cta-ghost" href="#waitlist">Not ready? Join the waitlist</a>
         </div>
         <div className="aiko-chips">
@@ -214,12 +204,9 @@ export default function AikoLandingPage() {
             goes back up when the early seats are gone.
           </p>
           <div className="aiko-ctarow" style={{ justifyContent: "center" }}>
-            <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+            <SubscribeButton label={subscribeLabel} />
             <a className="aiko-cta-ghost" href="#waitlist">Just keep me posted</a>
           </div>
-          {!live && (
-            <p className="aiko-microcopy">Early-bird checkout opens at launch. Join the list now to lock your ${AIKO_PRICE.earlyBirdMonthly}/month seat.</p>
-          )}
         </div>
       </section>
 
@@ -252,7 +239,7 @@ export default function AikoLandingPage() {
       <section className="aiko-statement aiko-wrap">
         <p className="aiko-statement__line">Hire her. Don&apos;t learn her.</p>
         <div className="aiko-ctarow" style={{ justifyContent: "center" }}>
-          <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+          <SubscribeButton label={subscribeLabel} />
           <a className="aiko-cta-ghost" href="#waitlist">Join the waitlist</a>
         </div>
         <p className="aiko-microcopy" style={{ display: "flex", gap: "0.4rem", justifyContent: "center", alignItems: "center" }}>
