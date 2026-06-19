@@ -4,6 +4,7 @@ import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
 import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
 import { verifyReleaseManifest } from "../services/release-manifest.js";
 import { verifyLocalKey } from "../services/keys.js";
+import { authBySignature } from "../services/auth-signature.js";
 import { lookupUserIdByKey } from "../services/accounts.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string; anon_index_contribution?: boolean } };
@@ -41,20 +42,39 @@ async function verifyKey(env: Env, key: string): Promise<{ valid: boolean; keyId
   return { valid: true, keyId: result.keyId };
 }
 
-export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+/**
+ * Shared post-resolution tail for BOTH the api-key path and the signature path:
+ * ToS gate → set agent_id + user_id → record activity → next(). Returns a Response
+ * to short-circuit (ToS not accepted), or undefined once next() has run. Extracted
+ * so signature auth and key auth converge on identical downstream behavior.
+ */
+async function finalizeAuth(c: Context<AuthEnv>, next: Next, keyId: string): Promise<Response | undefined> {
+  const profile = await ensureAgentProfile(c.env, keyId);
+  if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
     return c.json({
-      error: "Missing or invalid Authorization header",
-      message: "Sign up at unbrowse.ai to get an API key.",
-    }, 401);
+      error: "tos_update_required",
+      message: "The Terms of Service have been updated. Please accept the new terms to continue.",
+      current_tos_version: CURRENT_TOS_VERSION,
+      accepted_version: profile.tos_accepted_version ?? null,
+      tos_summary: TOS_SUMMARY,
+      tos_url: "https://unbrowse.ai/terms",
+    }, 403);
   }
-  const token = authHeader.slice(7);
+  c.set("agent_id", keyId);
+  try {
+    const userId = await lookupUserIdByKey(c.env, keyId);
+    if (userId) c.set("user_id", userId);
+  } catch {
+    // Anonymous keys never have a user_id; lookup failures must not break authed requests.
+  }
+  queueAgentActivity(c, keyId);
+  await next();
+  return undefined;
+}
 
-  // Nuclear kill-switch (2026-05-18 security rotation): if ALL_KEYS_REVOKED is
-  // set, every key — including admin tokens that came from the env — is rejected
-  // with a re-register pointer. Reversible by clearing the env var. See
-  // types.ts::Env.ALL_KEYS_REVOKED for the rotation policy.
+export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
+  // Nuclear kill-switch (2026-05-18 security rotation) — hoisted to the top so it
+  // gates EVERY auth path (signature + key + admin). Reversible by clearing the env var.
   const allKeysRevoked = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
   if (allKeysRevoked === "1" || allKeysRevoked === "true") {
     return c.json({
@@ -65,6 +85,32 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
       rotated_at: "2026-05-18T00:00:00.000Z",
     }, 401);
   }
+
+  // web3-PK signature auth (ADDITIVE, first-class identity root). A wallet-signature
+  // trio authenticates as the SAME agent_id the bound key has; absent or invalid →
+  // fall through to the bearer-key path (which 401s if no key). The existing key path
+  // below is unchanged — signature is a new root *alongside* it, not a replacement.
+  const sigWallet = c.req.header("X-Unbrowse-Wallet");
+  const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+  const sigSig = c.req.header("X-Unbrowse-Signature");
+  if (sigWallet && sigTs && sigSig) {
+    const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+    if (sig) {
+      const r = await finalizeAuth(c, next, sig.agent_id);
+      if (r) return r;
+      return;
+    }
+    // signature present but unverified → fall through to key/anon, do not hard-fail here.
+  }
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({
+      error: "Missing or invalid Authorization header",
+      message: "Sign up at unbrowse.ai to get an API key.",
+    }, 401);
+  }
+  const token = authHeader.slice(7);
 
   // Legacy admin key (backward compat for existing CLI installs)
   if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
@@ -87,27 +133,8 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
   }
 
-  const profile = await ensureAgentProfile(c.env, result.keyId);
-  if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
-    return c.json({
-      error: "tos_update_required",
-      message: "The Terms of Service have been updated. Please accept the new terms to continue.",
-      current_tos_version: CURRENT_TOS_VERSION,
-      accepted_version: profile.tos_accepted_version ?? null,
-      tos_summary: TOS_SUMMARY,
-      tos_url: "https://unbrowse.ai/terms",
-    }, 403);
-  }
-
-  c.set("agent_id", result.keyId);
-  try {
-    const userId = await lookupUserIdByKey(c.env, result.keyId);
-    if (userId) c.set("user_id", userId);
-  } catch {
-    // Anonymous keys never have a user_id; lookup failures must not break authed requests.
-  }
-  queueAgentActivity(c, result.keyId);
-  await next();
+  const r = await finalizeAuth(c, next, result.keyId);
+  if (r) return r;
 }
 
 /** Verify bearer token without checking ToS version. Used for /agents/accept-tos and /agents/me. */

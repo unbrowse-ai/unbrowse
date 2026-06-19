@@ -142,6 +142,7 @@ export async function revokeLocalKey(env: Env, keyId: string): Promise<boolean> 
     }
   }
   await kv.delete(`${KEYFUND_PREFIX}${keyId}`);
+  await clearKeyWallet(env, keyId); // also drop the wallet binding + its reverse index
   return true;
 }
 
@@ -174,6 +175,61 @@ export async function setKeyFunding(env: Env, keyId: string, funding: KeyFunding
 
 export async function clearKeyFunding(env: Env, keyId: string): Promise<void> {
   await statsKV(env).delete(`${KEYFUND_PREFIX}${keyId}`);
+}
+
+// --- web3-PK binding: the api_key (web2 wrapper) ↔ wallet pubkey (the root) ---
+// Additive + backward-compatible (clones the keyfund: pattern): a key with no
+// keypub: record is simply "unbound" (null), exactly like an unfunded key — the
+// request path is untouched, so existing keys + agent_ids are unaffected. The
+// reverse index pubkey:<pubkey> → keyId lets the signature-auth path (a later
+// increment) resolve the SAME agent_id as the bound key, so the PK is the root
+// and the key is its wrapper, not a separate identity.
+const KEYPUB_PREFIX = "keypub:";   // keypub:<keyId>  -> { wallet_pubkey, bound_at }
+const PUBKEY_PREFIX = "pubkey:";   // pubkey:<pubkey> -> keyId  (reverse index)
+
+export interface KeyWalletBinding { wallet_pubkey: string; bound_at: string }
+
+export async function getKeyWallet(env: Env, keyId: string): Promise<KeyWalletBinding | null> {
+  const raw = await statsKV(env).get(`${KEYPUB_PREFIX}${keyId}`) as string | null;
+  if (!raw) return null;
+  try { return JSON.parse(raw) as KeyWalletBinding; } catch { return null; }
+}
+
+/**
+ * Bind a wallet pubkey to a key. Returns the binding, or null if the pubkey is
+ * already owned by a DIFFERENT key (hijack prevention).
+ *
+ * Threat (found in the judgement-step audit): a raw last-writer-wins put on the
+ * reverse index would let key A claim key B's pubkey, so B's signatures resolve to
+ * A's agent — identity hijack. So a pubkey already bound elsewhere is refused here
+ * (defense-in-depth). The bind ROUTE must ADDITIONALLY prove pubkey control via a
+ * signature challenge — this primitive guard is the second line, not the first.
+ */
+export async function setKeyWallet(env: Env, keyId: string, walletPubkey: string): Promise<KeyWalletBinding | null> {
+  const kv = statsKV(env);
+  const existingOwner = await keyIdForPubkey(env, walletPubkey);
+  if (existingOwner && existingOwner !== keyId) return null; // pubkey already owned → refuse hijack
+  // Rebinding this key to a new pubkey: drop its stale reverse index first.
+  const prior = await getKeyWallet(env, keyId);
+  if (prior && prior.wallet_pubkey !== walletPubkey) {
+    await kv.delete(`${PUBKEY_PREFIX}${prior.wallet_pubkey}`);
+  }
+  const rec: KeyWalletBinding = { wallet_pubkey: walletPubkey, bound_at: new Date().toISOString() };
+  await kv.put(`${KEYPUB_PREFIX}${keyId}`, JSON.stringify(rec));
+  await kv.put(`${PUBKEY_PREFIX}${walletPubkey}`, keyId); // reverse index for signature-auth
+  return rec;
+}
+
+/** Resolve the agent (keyId) bound to a wallet pubkey — the signature-auth path's lookup. */
+export async function keyIdForPubkey(env: Env, walletPubkey: string): Promise<string | null> {
+  return (await statsKV(env).get(`${PUBKEY_PREFIX}${walletPubkey}`)) as string | null;
+}
+
+export async function clearKeyWallet(env: Env, keyId: string): Promise<void> {
+  const kv = statsKV(env);
+  const existing = await getKeyWallet(env, keyId);
+  await kv.delete(`${KEYPUB_PREFIX}${keyId}`);
+  if (existing) await kv.delete(`${PUBKEY_PREFIX}${existing.wallet_pubkey}`);
 }
 
 /**
