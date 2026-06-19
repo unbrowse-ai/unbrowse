@@ -113,6 +113,26 @@ jobs:
         with:
           clean: true
       - run: bash scripts/ensure-submodules.sh submodules/kuri
+      # macOS host CANNOT cross-compile the Linux kuri binaries (curl-impersonate
+      # static libs won't link) — rebuilding here writes BROKEN placeholder stubs.
+      # The repo already ships REAL committed binaries for all 5 platforms in
+      # packages/skill/vendor/kuri. shouldRebuildVendoredKuri() only rebuilds when
+      # manifest.source_sha != submodule HEAD, so pin the submodule to the vendored
+      # sha → the committed binaries are used verbatim, no compile. (GitHub rebuilds
+      # because it runs on Linux; the mini uses the vendored set instead.)
+      - name: Use vendored kuri (pin submodule to manifest sha — no macOS cross-compile)
+        run: |
+          KURI_SHA=$(node -p "require('./packages/skill/vendor/kuri/manifest.json').source_sha")
+          echo "vendored kuri source_sha=$KURI_SHA; pinning submodules/kuri to match (use committed binaries)"
+          git -C submodules/kuri fetch --depth 1 origin "$KURI_SHA" 2>/dev/null \
+            || git -C submodules/kuri fetch origin "$KURI_SHA" 2>/dev/null \
+            || git -C submodules/kuri fetch --tags --prune origin 2>/dev/null || true
+          if git -C submodules/kuri checkout -q "$KURI_SHA" 2>/dev/null; then
+            echo "pinned submodules/kuri to $(git -C submodules/kuri rev-parse HEAD)"
+          else
+            echo "WARN: could not pin to $KURI_SHA; removing build.zig so prepack uses vendored binaries (sourceDir=null path)"
+            rm -f submodules/kuri/build.zig
+          fi
       - run: bun --version
       - run: bun install --frozen-lockfile
 
