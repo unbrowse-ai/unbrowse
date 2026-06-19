@@ -640,7 +640,7 @@ export const KIND_MAP = [
     op_class: "observe",
     action: "research",
     mcp_tool: "unbrowse_eval_research",
-    summary: "Research a question on the open web (search -> extract -> synthesized cited answer).",
+    summary: "Research a question: the full resolve->read->ground walk (search -> extract* -> synthesized cited answer). The deep end of the same pipeline `search` and `extract` expose.",
   },
   {
     subcommand: "eval extract",
@@ -649,7 +649,7 @@ export const KIND_MAP = [
     op_class: "observe",
     action: "extract",
     mcp_tool: "unbrowse_eval_extract",
-    summary: "Extract clean content from one or more URLs (batch fetch -> markdown), Tavily /extract parity.",
+    summary: "Extract clean content from one or more URLs (the READ step of research, exposed in batch; a URL hole -> its markdown value). Tavily /extract parity.",
   },
   {
     subcommand: "eval inspect",
