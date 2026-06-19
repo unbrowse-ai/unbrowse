@@ -4,7 +4,7 @@
 // page-markdown VALUES; synthesis grounds a cited answer. No external research API, no model
 // call required (extractive synthesis keeps it native + dependency-free).
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { ddgSearch } from "../lib/ddg-search.js";
@@ -15,6 +15,7 @@ import { fetchDirectDocument, focusMarkdownToIntent } from "./direct-document.js
 // sources. On by default with a conservative TTL; disable with UNBROWSE_RESEARCH_CACHE=0.
 const CACHE_ON = process.env.UNBROWSE_RESEARCH_CACHE !== "0";
 const CACHE_TTL_MS = Number(process.env.UNBROWSE_RESEARCH_CACHE_TTL_MS ?? 900_000) || 900_000;
+const CACHE_MAX = Number(process.env.UNBROWSE_RESEARCH_CACHE_MAX ?? 500) || 500;
 function cacheDir(): string {
   const base = process.env.UNBROWSE_RESEARCH_CACHE_DIR || join(homedir() || tmpdir(), ".cache", "unbrowse", "research");
   try { mkdirSync(base, { recursive: true }); } catch { /* best-effort */ }
@@ -34,7 +35,27 @@ function cacheRead(url: string): ExtractedDoc | null {
 }
 function cacheWrite(url: string, doc: ExtractedDoc): void {
   if (!CACHE_ON || !doc.ok) return;
-  try { writeFileSync(cachePath(url), JSON.stringify({ ...doc, cached: false })); } catch { /* best-effort */ }
+  try {
+    writeFileSync(cachePath(url), JSON.stringify({ ...doc, cached: false }));
+    sweepCache(cacheDir(), CACHE_MAX); // bound the store: a cache without eviction is an unbounded hole
+  } catch { /* best-effort */ }
+}
+
+/** Evict oldest entries so the read-cache never grows past `maxEntries` (newest kept).
+ *  Exported so the boundary is witnessable. No-op when under cap. */
+export function sweepCache(dir: string, maxEntries: number): number {
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    if (files.length <= maxEntries) return 0;
+    const withMtime = files.map((f) => {
+      const p = join(dir, f);
+      try { return { p, m: statSync(p).mtimeMs }; } catch { return { p, m: 0 }; }
+    });
+    withMtime.sort((a, b) => a.m - b.m); // oldest first
+    const evict = withMtime.slice(0, withMtime.length - maxEntries);
+    for (const e of evict) { try { unlinkSync(e.p); } catch { /* race ok */ } }
+    return evict.length;
+  } catch { return 0; }
 }
 
 export interface ResearchCitation {
