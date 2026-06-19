@@ -22,31 +22,38 @@ import "./aiko.css";
 const CANONICAL = "https://www.unbrowse.ai/aiko";
 
 export const metadata: Metadata = {
-  title: "Aiko, an employee for your Mac",
+  title: "Aiko, she already knows how you work",
   description:
-    "Aiko is an employee for your Mac. Tell her the outcome, she works out the path and brings back the finished result. Early subscribers lock in 50% off: $100/month instead of $200.",
+    "Aiko lives on your Mac, so your files, mail and calendar are already hers. You never paste your context. She just has it, and does the work. Early subscribers lock in 50% off: $100/month instead of $200.",
   alternates: { canonical: CANONICAL },
   keywords: [
     "Aiko", "AI assistant for Mac", "AI employee", "personal AI assistant",
     "macOS assistant", "early access", "waitlist", "50% off",
   ],
   openGraph: {
-    title: "Aiko, an employee for your Mac",
+    title: "Aiko, she already knows how you work",
     description:
-      "Tell her the outcome, she works out the path and brings back the finished result. Early subscribers lock in 50% off.",
+      "Aiko lives on your Mac, so your context is already hers. You never explain yourself. She just does the work. Early subscribers lock in 50% off.",
     url: CANONICAL,
     siteName: "Unbrowse",
     type: "website",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Aiko, an employee for your Mac" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Aiko, she already knows how you work" }],
   },
   twitter: {
     card: "summary_large_image",
     site: "@getFoundry",
-    title: "Aiko, an employee for your Mac",
-    description: "Early subscribers lock in 50% off: $100/month instead of $200.",
+    title: "Aiko, she already knows how you work",
+    description: "She lives on your Mac, so your context is already hers. Early subscribers lock in 50% off.",
     images: ["/og-image.png"],
   },
 };
+
+const PILLARS = [
+  { icon: Eye, t: "She has your context", b: "You never paste your files, your calendar, your last ten emails. She lives on your Mac, so it is already hers. She just knows." },
+  { icon: Sparkles, t: "She learns how you work", b: "She does not make you teach her. She watches what you actually do, and the thing you repeat every week becomes one sentence." },
+  { icon: Check, t: "She does the work", b: "Most AI answers. Aiko does the work. She books it, sends it, buys it, and asks only before the one step that cannot be undone." },
+  { icon: ShieldCheck, t: "It stays on your Mac", b: "One app, nothing to set up. She reads your screen on your machine, and your files and emails never leave it." },
+];
 
 const HOW = [
   { n: "01", t: "Say the outcome", b: "Tell her what you need in plain words. No setup, no prompts to tune. “Clear my inbox.” “Find me dog leashes on Carousell.”" },
@@ -81,7 +88,7 @@ export default function AikoLandingPage() {
     "@type": "Product",
     name: "Aiko",
     description:
-      "Aiko is an employee for your Mac. Tell her the outcome, she works out the path and brings back the finished result.",
+      "Aiko lives on your Mac, so your context is already hers. You never explain yourself; she just does the work.",
     brand: { "@type": "Brand", name: "Aiko" },
     offers: {
       "@type": "Offer",
@@ -99,13 +106,16 @@ export default function AikoLandingPage() {
 
       {/* Hero */}
       <section className="aiko-section aiko-section--flush aiko-wrap" style={{ paddingTop: "clamp(4.5rem, 10vw, 7.5rem)" }}>
-        <span className="aiko-eyebrow">An employee for your Mac</span>
+        <span className="aiko-eyebrow">She already has your context</span>
         <h1 className="aiko-h1">
-          Stop setting up <em>tools</em>. Hire her.
+          She already knows how <em>you</em> work.
         </h1>
         <p className="aiko-lede">
-          Aiko arrives as one app and lives in your notch. Tell her the outcome,
-          she works out the path and brings back the finished result.
+          Aiko lives on your Mac, so your files, mail and calendar are already
+          hers. You never paste your context. She just has it, and does the work.
+        </p>
+        <p className="aiko-kicker" style={{ marginTop: "0.85rem", maxWidth: "44ch" }}>
+          Every other AI makes you bring the context. Aiko is the context.
         </p>
         <div className="aiko-ctarow">
           <SubscribeButton label={subscribeLabel} />
@@ -116,6 +126,29 @@ export default function AikoLandingPage() {
           <span className="aiko-chip"><KeyRound className="w-3.5 h-3.5" /> No keys to copy</span>
           <span className="aiko-chip"><Eye className="w-3.5 h-3.5" /> Sees your screen</span>
           <span className="aiko-chip"><ShieldCheck className="w-3.5 h-3.5" /> Runs on your Mac</span>
+        </div>
+      </section>
+
+      {/* The inversion — four pillars */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">The difference</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>
+          You don&apos;t learn her. She learns you.
+        </h2>
+        <p className="aiko-kicker" style={{ marginTop: "1.25rem" }}>
+          You don&apos;t open Aiko and explain your life. She already lives it with you.
+        </p>
+        <div className="aiko-grid aiko-grid--2">
+          {PILLARS.map((p) => {
+            const Icon = p.icon;
+            return (
+              <div className="aiko-cell" key={p.t}>
+                <Icon className="w-5 h-5" style={{ color: "var(--a-accent-warm)" }} />
+                <h3 className="aiko-cell__t" style={{ marginTop: "0.75rem" }}>{p.t}</h3>
+                <p className="aiko-cell__b">{p.b}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 
