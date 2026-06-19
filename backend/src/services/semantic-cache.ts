@@ -90,6 +90,38 @@ async function embed(query: string, nebiusKey: string): Promise<number[] | null>
   return Array.isArray(v) && v.length === EMBED_DIMS ? v : null;
 }
 
+/** Content-addressed embedding cache — the worst uncached recompute on the web-search
+ *  hot path. embed(query) is a pure function of the query (EMBED_MODEL + EMBED_DIMS are
+ *  constants), so its vector is cached under sha256(query): L0 in-isolate, then qdkv
+ *  (EmergentKV) cross-isolate. A repeated/reworded-seen query — and every prior MISS —
+ *  skips the ~2s Nebius call. Write-through is fire-and-forget (never blocks the lookup).
+ *  Caches at the same pointer→value boundary as the rest of the contract design.
+ *
+ *  Single-flight: concurrent identical queries share ONE in-flight embed (the
+ *  thundering herd) — without it, N simultaneous misses each pay the ~2s call. */
+const _embInflight = new Map<string, Promise<number[] | null>>();
+export async function embedCached(query: string, nebiusKey: string, edbKey: string): Promise<number[] | null> {
+  const key = `embcache:${EMBED_DIMS}:${await hashQuery(query)}`;
+  const mem = l0Get(key);
+  if (mem) return mem.value as number[];
+  const flying = _embInflight.get(key);
+  if (flying) return flying; // coalesce concurrent identical queries onto one embed
+  const work = (async (): Promise<number[] | null> => {
+    const raw = await qdkvGet(key, edbKey);
+    if (raw) {
+      try {
+        const v = JSON.parse(raw) as number[];
+        if (Array.isArray(v) && v.length === EMBED_DIMS) { l0Put(key, v); return v; }
+      } catch { /* corrupt row → recompute */ }
+    }
+    const vec = await embed(query, nebiusKey);
+    if (vec) { l0Put(key, vec); void qdkvSet(key, JSON.stringify(vec), edbKey).catch(() => {}); }
+    return vec;
+  })();
+  _embInflight.set(key, work);
+  try { return await work; } finally { _embInflight.delete(key); }
+}
+
 async function vectorNearest(
   vector: number[],
   edbKey: string,
@@ -212,7 +244,7 @@ export async function getOrComputeSemantic<T>(
   // L2: fuzzy match — embed + vector nearest-neighbour, for REWORDED queries.
   let vector: number[] | null = null;
   try {
-    vector = await embed(query, nebiusKey);
+    vector = await embedCached(query, nebiusKey, edbKey);
     if (vector) {
       const hit = await vectorNearest(vector, edbKey, ns);
       if (hit && hit.score >= threshold(env)) {

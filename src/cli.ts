@@ -819,7 +819,8 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const replay = markResolveCacheReplay(cachedHit);
       const hostType = detectTelemetryHostType();
       if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
-        await ensureCliInstallTracked(hostType);
+        // Fire-and-forget: even gated, awaiting it stalled the WARM cache-hit fast path.
+        void ensureCliInstallTracked(hostType).catch(() => {});
       }
       addDirectDocumentAgentGuidance(replay, {
         intent,
@@ -1114,7 +1115,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     output(result, !!flags.pretty);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await recordFunnelTelemetryEvent("resolve_failed", {
+    void recordFunnelTelemetryEvent("resolve_failed", {
       source: "cli",
       hostType,
       properties: {
@@ -1370,13 +1371,16 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
 
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
-  await ensureCliInstallTracked(hostType);
-  await recordFunnelTelemetryEvent("cli_invoked", {
+  // Fire-and-forget: telemetry is a side-channel, never on the value path. Awaiting
+  // these (postTelemetry has a 5s timeout) stalled `run` up to 3×5s when no backend
+  // was reachable, before the resolve even started.
+  void ensureCliInstallTracked(hostType).catch(() => {});
+  void recordFunnelTelemetryEvent("cli_invoked", {
     source: "cli",
     hostType,
     properties: { command: verb },
-  });
-  await recordFunnelTelemetryEvent("resolve_started", {
+  }).catch(() => {});
+  void recordFunnelTelemetryEvent("resolve_started", {
     source: "cli",
     hostType,
     properties: {
@@ -1387,7 +1391,7 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
       has_url: true,
       auto_execute: true,
     },
-  });
+  }).catch(() => {});
 
   const cliKv = (flags as Record<string, unknown>)._params as Record<string, string> | undefined;
   const extraParams = {
@@ -1858,7 +1862,7 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
     }), !!flags.pretty);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await recordFunnelTelemetryEvent("resolve_failed", {
+    void recordFunnelTelemetryEvent("resolve_failed", {
       source: "cli",
       hostType,
       properties: {
@@ -2004,13 +2008,14 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   const endpointId = (flags.endpoint ?? flags["endpoint-id"]) as string | undefined;
   maybeShowContributionNotice();
   const hostType = detectTelemetryHostType();
-  await ensureCliInstallTracked(hostType);
-  await recordFunnelTelemetryEvent("cli_invoked", {
+  // Fire-and-forget (see cmdRun): telemetry must not block execute by up to 3×5s.
+  void ensureCliInstallTracked(hostType).catch(() => {});
+  void recordFunnelTelemetryEvent("cli_invoked", {
     source: "cli",
     hostType,
     properties: { command: "execute" },
-  });
-  await recordFunnelTelemetryEvent("resolve_started", {
+  }).catch(() => {});
+  void recordFunnelTelemetryEvent("resolve_started", {
     source: "cli",
     hostType,
     properties: {
@@ -2021,7 +2026,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       skill_id: skillId,
       endpoint_id: endpointId ?? null,
     },
-  });
+  }).catch(() => {});
 
   if (flags.curl) {
     die("--curl has been removed. Use `unbrowse execute` to run endpoints through Unbrowse.");
@@ -2109,7 +2114,9 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     }
 
     if (isResolveSuccessResult(result)) {
-      await recordFunnelTelemetryEvent("resolve_completed", {
+      // Fire-and-forget: this ran BEFORE output() — awaiting it delayed printing the
+      // ready result by up to 5s. The result must print first.
+      void recordFunnelTelemetryEvent("resolve_completed", {
         source: "cli",
         hostType,
         properties: {
@@ -2120,7 +2127,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
           skill_id: skillId,
           endpoint_id: endpointId ?? null,
         },
-      });
+      }).catch(() => {});
     }
 
     // Strip metadata bloat
@@ -2216,7 +2223,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     output(result, !!flags.pretty);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await recordFunnelTelemetryEvent("resolve_failed", {
+    void recordFunnelTelemetryEvent("resolve_failed", {
       source: "cli",
       hostType,
       properties: {
@@ -2406,7 +2413,10 @@ export async function cmdSearch(flags: Record<string, string | boolean>): Promis
   }
   const domain = telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined);
   if (intent) {
-    await recordFunnelTelemetryEvent("search_started", {
+    // Fire-and-forget: telemetry must NEVER block the search result. Awaiting it
+    // stalled warm cache-hit searches by up to 2×5s (postTelemetry's timeout)
+    // when no backend was reachable. Best-effort, errors swallowed.
+    void recordFunnelTelemetryEvent("search_started", {
       source: "cli",
       hostType,
       properties: {
@@ -2416,7 +2426,7 @@ export async function cmdSearch(flags: Record<string, string | boolean>): Promis
         url: typeof flags.url === "string" ? flags.url : null,
         ...attrProps,
       },
-    });
+    }).catch(() => {});
   }
   let resultCount = 0;
   try {
@@ -2431,7 +2441,7 @@ export async function cmdSearch(flags: Record<string, string | boolean>): Promis
     }
     await cmdResolve(flags);
     if (intent) {
-      await recordFunnelTelemetryEvent("search_completed", {
+      void recordFunnelTelemetryEvent("search_completed", {
         source: "cli",
         hostType,
         properties: {
@@ -2441,11 +2451,11 @@ export async function cmdSearch(flags: Record<string, string | boolean>): Promis
           result_count: resultCount,
           ...attrProps,
         },
-      });
+      }).catch(() => {});
     }
   } catch (err) {
     if (intent) {
-      await recordFunnelTelemetryEvent("search_failed", {
+      void recordFunnelTelemetryEvent("search_failed", {
         source: "cli",
         hostType,
         properties: {
@@ -2454,7 +2464,7 @@ export async function cmdSearch(flags: Record<string, string | boolean>): Promis
           error: err instanceof Error ? err.message : String(err),
           ...attrProps,
         },
-      });
+      }).catch(() => {});
     }
     throw err;
   }
@@ -2608,11 +2618,11 @@ export async function cmdSetup(flags: Record<string, string | boolean>): Promise
     info("Trying your first resolve...");
     const demoUrl = "https://jsonplaceholder.typicode.com";
     const demoIntent = "list all posts";
-    await recordFunnelTelemetryEvent("resolve_started", {
+    void recordFunnelTelemetryEvent("resolve_started", {
       source: "setup",
       hostType,
       properties: { command: "guided-first-resolve", intent: demoIntent, url: demoUrl },
-    });
+    }).catch(() => {}); // fire-and-forget: don't add ~5s to the first-resolve onboarding
 
     const resolveResult = await api("POST", "/v1/intent/resolve", {
       intent: demoIntent,
@@ -2622,11 +2632,11 @@ export async function cmdSetup(flags: Record<string, string | boolean>): Promise
     }) as Record<string, unknown>;
 
     if (isResolveSuccessResult(resolveResult)) {
-      await recordFunnelTelemetryEvent("resolve_completed", {
+      void recordFunnelTelemetryEvent("resolve_completed", {
         source: "setup",
         hostType,
         properties: { command: "guided-first-resolve", intent: demoIntent, url: demoUrl, source: resolveResult.source },
-      });
+      }).catch(() => {});
       const endpoints = resolveResult.available_endpoints as Array<Record<string, unknown>> | undefined;
       if (endpoints && endpoints.length > 0) {
         info(`Found ${endpoints.length} API endpoint${endpoints.length > 1 ? "s" : ""} on ${demoUrl}:`);

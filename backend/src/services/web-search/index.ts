@@ -20,10 +20,11 @@ import type { Env } from "../../types.js";
 import type { WebResult } from "./types.js";
 import { ddgSearch } from "./providers/ddg.js";
 import { exaSearch } from "./providers/exa.js";
+import { unbrowseSearch } from "./providers/unbrowse.js";
 
 export type { WebResult } from "./types.js";
 
-export type WebSearchProviderName = "exa" | "ddg";
+export type WebSearchProviderName = "exa" | "unbrowse" | "ddg";
 
 export interface WebSearchOutcome {
   /** Engine that actually produced the results; null when every provider came up empty. */
@@ -38,10 +39,16 @@ export function webSearchProviderChain(env: ProviderEnv): WebSearchProviderName[
   const pin = (env.WEB_SEARCH_PROVIDER ?? "").toLowerCase().trim();
   if (pin === "off") return [];
   if (pin === "ddg") return ["ddg"];
+  if (pin === "unbrowse") return ["unbrowse", "ddg"];
   if (pin === "exa" && !env.EXA_API_KEY) {
     console.error("[web-search] WEB_SEARCH_PROVIDER=exa but EXA_API_KEY unset — degrading to ddg");
     return ["ddg"];
   }
+  // Default: exa when keyed, else keyless DDG. The native `unbrowse` provider is
+  // OPT-IN (WEB_SEARCH_PROVIDER=unbrowse), NOT default: a live A/B showed its
+  // BM25-over-stripped-HTML highlights do not beat DDG's own snippet and cost
+  // ~2x latency (per-query fetch+extract). Making it default would regress speed
+  // for no consistent quality gain — it needs a real readability extractor first.
   return env.EXA_API_KEY ? ["exa", "ddg"] : ["ddg"];
 }
 
@@ -55,6 +62,8 @@ async function runProvider(
   switch (name) {
     case "exa":
       return exaSearch(env.EXA_API_KEY as string, query, numResults, fetchImpl);
+    case "unbrowse":
+      return unbrowseSearch(query, numResults, fetchImpl);
     case "ddg":
       return ddgSearch(query, numResults, fetchImpl);
   }
