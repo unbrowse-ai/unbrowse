@@ -33,6 +33,13 @@
 			"service": "frontend"
 		}
 	],
+	"kv_namespaces": [
+		{
+			// Aiko early-bird waitlist captures (see src/app/api/aiko-waitlist/route.ts)
+			"binding": "AIKO_WAITLIST",
+			"id": "ad995a351a1e4c62b1cd7a221e483cfe"
+		}
+	],
 	"env": {
 		"staging": {
 			"workers_dev": true,

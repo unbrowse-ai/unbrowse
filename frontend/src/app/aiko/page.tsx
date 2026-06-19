@@ -1,29 +1,264 @@
-/* /aiko — Aiko, the grounded assistant. Backed by the Aiko endpoint
- * (OpenAI-compatible) which grounds every external fact through unbrowse's
- * route graph (free, keyless DDG) and answers from what it finds — showing
- * the unbrowse source under each answer. The same endpoint + unbrowse the CLI
- * uses, on the web. */
+/* /aiko — Aiko product landing + early-bird waitlist.
+ *
+ * Aiko is an employee for your Mac: tell her the outcome, she works out the
+ * path and brings back the finished result. This page sells the 50%-off
+ * early-bird subscription ($200/mo regular, $100/mo for early subscribers) and
+ * captures a waitlist email for those not ready to subscribe today.
+ *
+ * Copy, brand, voice and pricing are sourced from the live aiko-v4-lite site.
+ * Dark editorial brand is scoped under .aiko-root (see ./aiko.css) so it does
+ * not leak into the orange/white unbrowse shell. */
 
 import type { Metadata } from "next";
-import { AikoChat } from "@/components/aiko-chat";
+import Link from "next/link";
+import {
+  ArrowRight, Check, Eye, KeyRound, Terminal, Sparkles,
+  Inbox, Calendar, Globe, CreditCard, ShieldCheck, MessageSquare,
+} from "lucide-react";
+import { AikoWaitlistForm } from "@/components/aiko/waitlist-form";
+import { AIKO_PRICE, getAikoCheckoutUrl, isAikoCheckoutLive } from "@/lib/aiko/offer";
+import "./aiko.css";
+
+const CANONICAL = "https://www.unbrowse.ai/aiko";
 
 export const metadata: Metadata = {
-  title: "Aiko — grounded by unbrowse",
+  title: "Aiko, an employee for your Mac",
   description:
-    "Ask anything. Aiko grounds every answer through unbrowse's route graph — searching the live web for free, then answering from what it found, and showing you the source.",
+    "Aiko is an employee for your Mac. Tell her the outcome, she works out the path and brings back the finished result. Early subscribers lock in 50% off: $100/month instead of $200.",
+  alternates: { canonical: CANONICAL },
+  keywords: [
+    "Aiko", "AI assistant for Mac", "AI employee", "personal AI assistant",
+    "macOS assistant", "early access", "waitlist", "50% off",
+  ],
+  openGraph: {
+    title: "Aiko, an employee for your Mac",
+    description:
+      "Tell her the outcome, she works out the path and brings back the finished result. Early subscribers lock in 50% off.",
+    url: CANONICAL,
+    siteName: "Unbrowse",
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Aiko, an employee for your Mac" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@getFoundry",
+    title: "Aiko, an employee for your Mac",
+    description: "Early subscribers lock in 50% off: $100/month instead of $200.",
+    images: ["/og-image.png"],
+  },
 };
 
-export default function AikoPage() {
+const HOW = [
+  { n: "01", t: "Say the outcome", b: "Tell her what you need in plain words. No setup, no prompts to tune. “Clear my inbox.” “Find me dog leashes on Carousell.”" },
+  { n: "02", t: "She works the path", b: "She figures out the steps, reads what is on your screen, moves across your inbox, calendar and files, and reaches the web for you." },
+  { n: "03", t: "She brings it back", b: "The finished result, not a list of links. She pauses for your nod only on the one step that cannot be undone: send, pay, book." },
+];
+
+const DOES = [
+  { icon: Inbox, t: "Clears your inbox", b: "Reads, sorts, drafts and replies across email, so the morning pile is handled before you sit down." },
+  { icon: Calendar, t: "Runs your calendar", b: "Finds the time, books it, reschedules the conflict, and tells the people who need to know." },
+  { icon: Globe, t: "Reaches the web for you", b: "Researches, compares and pulls what you asked for, without you opening twelve tabs." },
+  { icon: Eye, t: "Sees your screen, on-device", b: "She reads what you are already looking at. Your files and emails stay on your Mac." },
+  { icon: CreditCard, t: "Pays for the paid stuff", b: "Buys access to the services a job needs, on the spot, so you are never blocked." },
+  { icon: Sparkles, t: "Learns what you do twice", b: "Work she has done before becomes a routine she runs on her own, so the second time is one sentence." },
+];
+
+const FAQ = [
+  { q: "Do I need to be technical?", a: "No. There is no terminal, no keys to copy, no setup wizard. You drag her to Applications, answer three questions, and she is working in about a minute." },
+  { q: "Is my data safe?", a: "Aiko reads your screen on-device with a local model. Your files and emails stay on your Mac. She asks before the one irreversible step: sending, paying or booking." },
+  { q: "What does the 50% off mean?", a: `Aiko is $${AIKO_PRICE.regularMonthly}/month. Early subscribers lock in $${AIKO_PRICE.earlyBirdMonthly}/month for as long as the subscription stays active. That price is only for the early group.` },
+  { q: "What if I am not ready to subscribe?", a: "Join the waitlist with your email and we will hold your early-bird seat. You will be first in line when the next round opens." },
+];
+
+function SubscribeCta({ href, label, external }: { href: string; label: string; external: boolean }) {
   return (
-    <main className="relative mx-auto flex min-h-[100dvh] max-w-3xl flex-col justify-center px-5 py-24 text-center sm:px-8">
-      <h1 className="mb-3 text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-        Ask <span className="text-orange-500">Aiko</span>
-      </h1>
-      <p className="mx-auto mb-8 max-w-xl text-[15px] leading-relaxed text-text-secondary">
-        A grounded assistant — it answers by searching the live web through unbrowse&apos;s
-        route graph for free, then shows you the source it grounded on.
-      </p>
-      <AikoChat />
-    </main>
+    <a className="aiko-cta" href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+      {label} <ArrowRight className="w-4 h-4" />
+    </a>
+  );
+}
+
+export default function AikoLandingPage() {
+  const checkoutUrl = getAikoCheckoutUrl();
+  const live = isAikoCheckoutLive();
+  // Until a real live checkout is wired, never send a buyer to a test link that
+  // cannot charge them — route them to the waitlist instead. Flips automatically
+  // the moment NEXT_PUBLIC_AIKO_PAYMENT_LINK is set to the live link.
+  const subscribeHref = live ? checkoutUrl : "#waitlist";
+  const subscribeLabel = live ? "Subscribe early, 50% off" : "Lock my early-bird seat";
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "Aiko",
+    description:
+      "Aiko is an employee for your Mac. Tell her the outcome, she works out the path and brings back the finished result.",
+    brand: { "@type": "Brand", name: "Aiko" },
+    offers: {
+      "@type": "Offer",
+      price: String(AIKO_PRICE.earlyBirdMonthly),
+      priceCurrency: AIKO_PRICE.currency,
+      url: CANONICAL,
+      availability: "https://schema.org/PreOrder",
+      description: `Early-bird 50% off: $${AIKO_PRICE.earlyBirdMonthly}/month (regular $${AIKO_PRICE.regularMonthly}/month).`,
+    },
+  };
+
+  return (
+    <div className="aiko-root">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* Hero */}
+      <section className="aiko-section aiko-section--flush aiko-wrap" style={{ paddingTop: "clamp(4.5rem, 10vw, 7.5rem)" }}>
+        <span className="aiko-eyebrow">An employee for your Mac</span>
+        <h1 className="aiko-h1">
+          Stop setting up <em>tools</em>. Hire her.
+        </h1>
+        <p className="aiko-lede">
+          Aiko arrives as one app and lives in your notch. Tell her the outcome,
+          she works out the path and brings back the finished result.
+        </p>
+        <div className="aiko-ctarow">
+          <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+          <a className="aiko-cta-ghost" href="#waitlist">Not ready? Join the waitlist</a>
+        </div>
+        <div className="aiko-chips">
+          <span className="aiko-chip"><Terminal className="w-3.5 h-3.5" /> No terminal</span>
+          <span className="aiko-chip"><KeyRound className="w-3.5 h-3.5" /> No keys to copy</span>
+          <span className="aiko-chip"><Eye className="w-3.5 h-3.5" /> Sees your screen</span>
+          <span className="aiko-chip"><ShieldCheck className="w-3.5 h-3.5" /> Runs on your Mac</span>
+        </div>
+      </section>
+
+      {/* 9:15am pain */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">It is 9:15am</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>
+          You open your laptop. 47 new emails, three threads, a calendar conflict.
+        </h2>
+        <p className="aiko-kicker" style={{ marginTop: "1.25rem" }}>
+          It is 9:15am and you have not started your actual job. You would hire a
+          person for this if you could justify it. Aiko is that hire, for your Mac.
+          Most tools answer. Aiko does the work.
+        </p>
+      </section>
+
+      {/* How it works */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">How she works</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>Hire her. Don&apos;t learn her.</h2>
+        <div className="aiko-grid aiko-grid--3">
+          {HOW.map((s) => (
+            <div className="aiko-cell" key={s.n}>
+              <span className="aiko-cell__n">{s.n}</span>
+              <h3 className="aiko-cell__t">{s.t}</h3>
+              <p className="aiko-cell__b">{s.b}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Notch demo */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">She lives in your notch</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>One sentence. She takes it from there.</h2>
+        <div className="aiko-notch" aria-hidden="true">
+          <div className="aiko-notch__bar">
+            <span className="aiko-notch__eye" />
+            <span className="aiko-notch__eye" />
+          </div>
+          <div className="aiko-bubble">find me dog leashes on carousell</div>
+          <div className="aiko-notch__input">
+            <span>Talk to Aiko, or type&#8230;</span>
+            <span className="aiko-notch__send"><ArrowRight className="w-3.5 h-3.5" /></span>
+          </div>
+        </div>
+        <p style={{ textAlign: "center", marginTop: "1.25rem" }}>
+          <Link className="aiko-cta-ghost" href="/aiko/chat">
+            <MessageSquare className="w-4 h-4" /> Try a taste of her in your browser
+          </Link>
+        </p>
+      </section>
+
+      {/* What she does */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">One body, across all of it</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>What she handles</h2>
+        <div className="aiko-grid aiko-grid--3">
+          {DOES.map((d) => {
+            const Icon = d.icon;
+            return (
+              <div className="aiko-cell" key={d.t}>
+                <Icon className="w-5 h-5" style={{ color: "var(--a-accent-warm)" }} />
+                <h3 className="aiko-cell__t" style={{ marginTop: "0.75rem" }}>{d.t}</h3>
+                <p className="aiko-cell__b">{d.b}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Offer band */}
+      <section className="aiko-section aiko-wrap" id="pricing">
+        <div className="aiko-offer">
+          <span className="aiko-eyebrow">Early-bird, while seats last</span>
+          <div className="aiko-price">
+            <span className="aiko-price__old">${AIKO_PRICE.regularMonthly}</span>
+            <span className="aiko-price__new">${AIKO_PRICE.earlyBirdMonthly}</span>
+            <span className="aiko-price__per">/month</span>
+          </div>
+          <div><span className="aiko-save">Save {AIKO_PRICE.discountPct}% for life of subscription</span></div>
+          <p className="aiko-kicker" style={{ margin: "1.25rem auto 0", maxWidth: "44ch" }}>
+            Aiko is ${AIKO_PRICE.regularMonthly} a month. Subscribe in the early group and you
+            lock in ${AIKO_PRICE.earlyBirdMonthly} a month, for as long as you stay. The price
+            goes back up when the early seats are gone.
+          </p>
+          <div className="aiko-ctarow" style={{ justifyContent: "center" }}>
+            <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+            <a className="aiko-cta-ghost" href="#waitlist">Just keep me posted</a>
+          </div>
+          {!live && (
+            <p className="aiko-microcopy">Early-bird checkout opens at launch. Join the list now to lock your ${AIKO_PRICE.earlyBirdMonthly}/month seat.</p>
+          )}
+        </div>
+      </section>
+
+      {/* Waitlist */}
+      <section className="aiko-section aiko-wrap" id="waitlist">
+        <span className="aiko-eyebrow">Hold my seat</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>Not ready today? Get on the list.</h2>
+        <p className="aiko-kicker" style={{ margin: "1.25rem 0 1.75rem" }}>
+          Drop your email and we will hold your early-bird seat. You will be first
+          in line when the next round of 50% off opens.
+        </p>
+        <AikoWaitlistForm />
+      </section>
+
+      {/* FAQ */}
+      <section className="aiko-section aiko-wrap">
+        <span className="aiko-eyebrow">Before you ask</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>Questions</h2>
+        <div className="aiko-faq">
+          {FAQ.map((f) => (
+            <div className="aiko-faq__item" key={f.q}>
+              <p className="aiko-faq__q">{f.q}</p>
+              <p className="aiko-faq__a">{f.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Statement */}
+      <section className="aiko-statement aiko-wrap">
+        <p className="aiko-statement__line">Hire her. Don&apos;t learn her.</p>
+        <div className="aiko-ctarow" style={{ justifyContent: "center" }}>
+          <SubscribeCta href={subscribeHref} label={subscribeLabel} external={live} />
+          <a className="aiko-cta-ghost" href="#waitlist">Join the waitlist</a>
+        </div>
+        <p className="aiko-microcopy" style={{ display: "flex", gap: "0.4rem", justifyContent: "center", alignItems: "center" }}>
+          <Check className="w-3.5 h-3.5" /> Secure checkout. Cancel anytime.
+        </p>
+      </section>
+    </div>
   );
 }
