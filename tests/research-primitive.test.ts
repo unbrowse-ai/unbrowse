@@ -3,7 +3,7 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, doExtract, doMap, doCrawl, sweepCache, rankSentencesMMR, searchWithFallback, mapLimit, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, doMap, doCrawl, sweepCache, rankSentencesMMR, searchWithFallback, mapLimit, isGrounded, type ResearchAnswer } from "../src/orchestrator/research.js";
 import { mkdtempSync, writeFileSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -159,21 +159,50 @@ describe("SERP resilience — direct→fallback when rate-limited (network-free)
   });
 });
 
+describe("faithfulness guard — isGrounded rejects synth drift beyond the sources (network-free)", () => {
+  const sources = [{ content: "Stripe was founded by Patrick Collison and John Collison in 2010 in Palo Alto." }];
+
+  it("accepts an answer whose terms are in the sources", () => {
+    expect(isGrounded("Stripe was founded by the Collison brothers in Palo Alto.", sources)).toBe(true);
+  });
+
+  it("rejects an answer with invented facts not in the sources", () => {
+    expect(isGrounded("Stripe was acquired by Google for fifty billion dollars in Tokyo.", sources)).toBe(false);
+  });
+
+  it("an ungrounded synthImpl is discarded -> extractive answer kept (no fabrication reaches output)", async () => {
+    const r = await doResearch("who founded Stripe", {
+      numResults: 1,
+      searchImpl: async () => [{ url: "https://en.wikipedia.org/wiki/Stripe,_Inc.", score: 1 } as any],
+      synthImpl: () => "Stripe was secretly founded on the planet Mars by aliens in the year 3000.",
+    });
+    if (r.citations.length) {
+      expect(r.answer).not.toContain("Mars"); // the fabrication was rejected by the faithfulness gate
+      expect(r.answer.length).toBeGreaterThan(0); // extractive floor held
+    } else {
+      expect((r.note ?? "").length).toBeGreaterThan(0);
+    }
+  }, 90_000);
+});
+
 describe("synthesis seam — pluggable ground step, extractive floor preserved (network-free)", () => {
   const injectedSerp = async () => [{ url: "https://en.wikipedia.org/wiki/Stripe,_Inc.", score: 1 } as any];
 
-  it("a configured synthImpl overrides the answer AND receives only the fetched sources", async () => {
+  it("a configured synthImpl (grounded) overrides the answer AND receives only the fetched sources", async () => {
     let sawSources: any[] = [];
+    // A GROUNDED synth answer (built from the source the synthImpl is handed) — the faithfulness
+    // gate accepts it, so we can verify the seam was used. (Ungrounded output is rejected — see
+    // the faithfulness-guard suite.)
     const r = await doResearch("who founded Stripe", {
       numResults: 1,
       searchImpl: injectedSerp,
-      synthImpl: (sources) => { sawSources = sources; return "MODEL_ANSWER_TOKEN"; },
+      synthImpl: (sources) => { sawSources = sources; return (sources[0]?.content || "").slice(0, 120); },
     });
     if (r.citations.length) {
-      expect(r.answer).toBe("MODEL_ANSWER_TOKEN"); // the seam was used
-      expect(sawSources.length).toBeGreaterThan(0); // grounded: it got the real fetched sources
+      expect(sawSources.length).toBeGreaterThan(0); // it got the real fetched sources
       const urls = new Set(r.results.map((x) => x.url));
       for (const s of sawSources) expect(urls.has(s.url)).toBe(true); // only fetched sources, no fabrication
+      expect(r.answer).toBe((sawSources[0]?.content || "").slice(0, 120)); // the grounded seam output was used
     } else {
       expect((r.note ?? "").length).toBeGreaterThan(0); // throttle/no-read -> honest note
     }
