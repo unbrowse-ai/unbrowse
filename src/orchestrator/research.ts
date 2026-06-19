@@ -89,6 +89,37 @@ export interface ResearchOptions {
   numResults?: number;
   /** Per-source focused-excerpt budget in chars. Default 1200. */
   perSourceBudget?: number;
+  /** Override the SERP resolver (injection seam for tests / alternate engines). */
+  searchImpl?: (query: string, numResults: number) => Promise<DdgHit[]>;
+}
+
+type DdgHit = Awaited<ReturnType<typeof ddgSearch>>[number];
+
+/** Try the primary SERP; if it returns empty or throws (e.g. rate-limited), fall through to the
+ *  secondary (e.g. the same search via a residential proxy). The resilience seam that keeps a
+ *  throttled direct IP from zeroing research. Exported so the fallback control flow is witnessable. */
+export async function searchWithFallback(
+  primary: () => Promise<DdgHit[]>,
+  secondary: () => Promise<DdgHit[]>,
+): Promise<DdgHit[]> {
+  try { const r = await primary(); if (r.length) return r; } catch { /* fall through */ }
+  try { return await secondary(); } catch { return []; }
+}
+
+/** A fetch that egresses through UNBROWSE_WEB_PROXY (bun's `proxy` option) — the clean-IP rung
+ *  for a throttled DDG. Returns the plain fetch when no proxy is configured (fallback = no-op). */
+function proxiedFetch(): typeof fetch {
+  const proxy = process.env.UNBROWSE_WEB_PROXY;
+  if (!proxy) return fetch;
+  return ((url: string, init?: RequestInit) => fetch(url, { ...(init ?? {}), proxy } as RequestInit & { proxy: string })) as typeof fetch;
+}
+
+/** Resilient SERP: ddgSearch direct, falling back to a proxied egress on empty/throttle. */
+async function resolveSerp(query: string, numResults: number): Promise<DdgHit[]> {
+  return searchWithFallback(
+    () => ddgSearch(query, numResults),
+    () => (process.env.UNBROWSE_WEB_PROXY ? ddgSearch(query, numResults, proxiedFetch()) : Promise.resolve([])),
+  );
 }
 
 /**
@@ -102,13 +133,14 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   const emptyWith = (note: string): ResearchAnswer => ({ query: q, answer: "", citations: [], results: [], note });
   if (!q) return emptyWith("empty query");
 
-  // 1. SEARCH — resolve ranked URL pointers (native DDG SERP). One retry with a short backoff
-  //    absorbs transient rate-limiting; a persistent empty is surfaced (not silently blank).
-  let hits: Awaited<ReturnType<typeof ddgSearch>> = [];
+  // 1. SEARCH — resolve ranked URL pointers (DDG direct -> proxied fallback on throttle). One
+  //    retry with backoff absorbs transient rate-limiting; a persistent empty is surfaced.
+  const search = opts.searchImpl ?? resolveSerp;
+  let hits: DdgHit[] = [];
   let serpError = false;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      hits = await ddgSearch(q, numResults);
+      hits = await search(q, numResults);
       if (hits.length) break;
     } catch {
       serpError = true;
