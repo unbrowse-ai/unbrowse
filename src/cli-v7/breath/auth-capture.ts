@@ -220,7 +220,11 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   let target;
   try {
     const interactiveHeadless = Boolean(0);
-    conn = await spawnChrome({ headless: interactiveHeadless, perContextProxy: true });
+    // Interactive auth = the user logging into their OWN account from their OWN
+    // machine. Spawn DIRECT: routing a login through a residential exit IP both
+    // (a) trips new-location security checks and (b) used to hard-fail the whole
+    // flow when the per-context proxy literal poisoned Chrome (ERR_PROXY_CONNECTION_FAILED).
+    conn = await spawnChrome({ headless: interactiveHeadless, perContextProxy: false });
     const ctx = await createBrowserContext(conn);
     target = await createTarget(conn, loginUrl, { browserContextId: ctx.browserContextId });
 

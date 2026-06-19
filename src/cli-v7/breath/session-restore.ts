@@ -240,7 +240,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       wsHint && (await probeExistingCdp(wsHint).catch(() => false)) ? wsHint : undefined;
     const conn = aliveWs
       ? await attach(aliveWs)
-      : await spawnChrome({ headless: true, perContextProxy: true });
+      : await spawnChrome({ headless: true, perContextProxy: false });
     const ctx = await createBrowserContext(conn);
     const target = await createTarget(conn, row.targetUrl, {
       browserContextId: ctx.browserContextId,
