@@ -634,6 +634,15 @@ export const KIND_MAP = [
     summary: "Search the marketplace/route graph for endpoints matching a query.",
   },
   {
+    subcommand: "eval research",
+    verb: "eval",
+    op_kind: "eval:research",
+    op_class: "observe",
+    action: "research",
+    mcp_tool: "unbrowse_eval_research",
+    summary: "Research a question on the open web (search -> extract -> synthesized cited answer).",
+  },
+  {
     subcommand: "eval inspect",
     verb: "eval",
     op_kind: "eval:inspect",

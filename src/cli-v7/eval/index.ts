@@ -31,6 +31,7 @@ import { handler as authInventoryHandler } from "./auth-inventory.js";
 import { handler as specHandler } from "./spec.js";
 import { handler as explainHandler } from "./explain.js";
 import { handler as searchHandler } from "./search.js";
+import { handler as researchHandler } from "./research.js";
 import { handler as inspectHandler } from "./inspect.js";
 import { handler as accountHandler } from "./account.js";
 import { handler as configHandler } from "./config.js";
@@ -57,6 +58,7 @@ const TABLE: Record<string, VerbHandler> = {
   spec: specHandler,
   explain: explainHandler,
   search: searchHandler,
+  research: researchHandler,
   inspect: inspectHandler,
   account: accountHandler,
   config: configHandler,
