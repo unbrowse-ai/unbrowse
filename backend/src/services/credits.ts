@@ -13,6 +13,7 @@
 
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
+import { appendEvent, readEvents } from "./event-ledger.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,20 @@ function creditBalanceKey(agentId: string): string {
 }
 
 const POOL_KEY = "credits:pool";
+
+// Append-only credit events; the balance is a PROJECTION (fold) over them — never
+// a mutated blob. Distinct key per event → concurrent earns/debits never lose a
+// charge on the CAS-free KV (a lost debit = money the agent spent but wasn't
+// billed). Legacy `credits:agent:<id>` blobs are read as a FROZEN baseline so
+// pre-migration balances are preserved and compose with subsequent events.
+const EVENT_PREFIX = "credits:event:"; // credits:event:<agent>:<uuid>
+
+type CreditEventKind = "grant" | "earn" | "consume";
+interface CreditEvent { agent_id: string; kind: CreditEventKind; amount_uc: number; timestamp: string }
+
+async function appendCreditEvent(kv: ReturnType<typeof statsKV>, ev: CreditEvent): Promise<void> {
+  await appendEvent(kv, EVENT_PREFIX, ev.agent_id, crypto.randomUUID(), ev);
+}
 
 // ─── Service functions ────────────────────────────────────────────────────────
 
@@ -108,27 +123,20 @@ export async function grantCredits(
   const grant = amount_uc ?? pool.per_agent_cap_uc;
   if (grant <= 0 || pool.remaining_uc < grant) return null;
 
-  const now = new Date().toISOString();
-  const balance: CreditBalance = {
-    agent_id,
-    granted_uc: grant,
-    earned_uc: existing?.earned_uc ?? 0,
-    consumed_uc: existing?.consumed_uc ?? 0,
-    balance_uc: grant + (existing?.earned_uc ?? 0) - (existing?.consumed_uc ?? 0),
-    is_self_sustaining: false,
-    created_at: existing?.created_at ?? now,
-    updated_at: now,
-  };
+  // Append-only grant event → the balance projection picks it up; idempotency is
+  // enforced above (existing.granted_uc > 0).
+  await appendCreditEvent(kv, { agent_id, kind: "grant", amount_uc: grant, timestamp: new Date().toISOString() });
 
-  // Update pool
+  // Pool budget tracking (soft cap). This stays a read-modify-write on POOL_KEY —
+  // a known residual of the SAME bug class (concurrent grants can under-count the
+  // budget → minor over-grant, never agent money loss). Atomic budget enforcement
+  // needs CAS/reservation; tracked as a separate lever.
   pool.total_granted_uc += grant;
   pool.remaining_uc = pool.total_budget_uc - pool.total_granted_uc;
   pool.grants_count++;
-
-  await kv.put(creditBalanceKey(agent_id), JSON.stringify(balance));
   await kv.put(POOL_KEY, JSON.stringify(pool));
 
-  return balance;
+  return (await getBalance(env, agent_id))!;
 }
 
 /**
@@ -151,13 +159,12 @@ export async function debitCredits(
     return { success: false, remaining_balance_uc: balance.balance_uc };
   }
 
-  balance.consumed_uc += amount_uc;
-  balance.balance_uc = balance.granted_uc + balance.earned_uc - balance.consumed_uc;
-  balance.is_self_sustaining = balance.earned_uc > balance.consumed_uc;
-  balance.updated_at = new Date().toISOString();
-
-  await kv.put(creditBalanceKey(agent_id), JSON.stringify(balance));
-  return { success: true, remaining_balance_uc: balance.balance_uc };
+  // Append-only consume → never silently drops a charge under concurrency. The
+  // balance-check above is best-effort: concurrent debits can drive the balance
+  // NEGATIVE (overdraft), but every charge is still recorded (no money loss).
+  // Atomic overdraft-prevention needs CAS/reservation — a separate lever.
+  await appendCreditEvent(kv, { agent_id, kind: "consume", amount_uc, timestamp: new Date().toISOString() });
+  return { success: true, remaining_balance_uc: balance.balance_uc - amount_uc };
 }
 
 /**
@@ -170,20 +177,9 @@ export async function creditEarnings(
   amount_uc: number,
 ): Promise<CreditBalance> {
   const kv = statsKV(env);
-  const now = new Date().toISOString();
-  let balance = await getBalance(env, agent_id);
-
-  if (!balance) {
-    balance = emptyBalance(agent_id, now);
-  }
-
-  balance.earned_uc += amount_uc;
-  balance.balance_uc = balance.granted_uc + balance.earned_uc - balance.consumed_uc;
-  balance.is_self_sustaining = balance.earned_uc > balance.consumed_uc;
-  balance.updated_at = now;
-
-  await kv.put(creditBalanceKey(agent_id), JSON.stringify(balance));
-  return balance;
+  // Append-only earn event → concurrent earns conserve all (no lost update).
+  await appendCreditEvent(kv, { agent_id, kind: "earn", amount_uc, timestamp: new Date().toISOString() });
+  return (await getBalance(env, agent_id))!;
 }
 
 /**
@@ -194,9 +190,40 @@ export async function getBalance(
   env: Env,
   agent_id: string,
 ): Promise<CreditBalance | null> {
-  const raw = await statsKV(env).get(creditBalanceKey(agent_id)) as string | null;
-  if (!raw) return null;
-  try { return JSON.parse(raw) as CreditBalance; } catch { return null; }
+  const kv = statsKV(env);
+  // Legacy blob = frozen pre-migration baseline; new events compose on top of it.
+  let granted = 0, earned = 0, consumed = 0, created = "";
+  let hasBaseline = false;
+  const legacyRaw = await kv.get(creditBalanceKey(agent_id)) as string | null;
+  if (legacyRaw) {
+    try {
+      const l = JSON.parse(legacyRaw) as CreditBalance;
+      granted = l.granted_uc; earned = l.earned_uc; consumed = l.consumed_uc; created = l.created_at;
+      hasBaseline = true;
+    } catch { /* corrupt legacy blob — ignore */ }
+  }
+
+  const events = await readEvents<CreditEvent>(kv, EVENT_PREFIX, agent_id);
+  if (!hasBaseline && events.length === 0) return null;
+  events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  for (const e of events) {
+    if (e.kind === "grant") granted += e.amount_uc;
+    else if (e.kind === "earn") earned += e.amount_uc;
+    else consumed += e.amount_uc;
+  }
+  if (!created) created = events[0].timestamp;
+  const updated = events.length ? events[events.length - 1].timestamp : created;
+
+  return {
+    agent_id,
+    granted_uc: granted,
+    earned_uc: earned,
+    consumed_uc: consumed,
+    balance_uc: granted + earned - consumed,
+    is_self_sustaining: earned > consumed,
+    created_at: created,
+    updated_at: updated,
+  };
 }
 
 /**
@@ -227,17 +254,3 @@ export async function checkSelfSustaining(
   };
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function emptyBalance(agentId: string, now: string): CreditBalance {
-  return {
-    agent_id: agentId,
-    granted_uc: 0,
-    earned_uc: 0,
-    consumed_uc: 0,
-    balance_uc: 0,
-    is_self_sustaining: false,
-    created_at: now,
-    updated_at: now,
-  };
-}

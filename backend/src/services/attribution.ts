@@ -19,6 +19,7 @@
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
 import { creditEarnings } from "./credits.js";
+import { sha256hex, readEvents, listPartitions } from "./event-ledger.js";
 
 // ─── Fee parameters ───────────────────────────────────────────────────────────
 
@@ -76,11 +77,21 @@ export interface AttributionSummary {
 
 // ─── Key helpers ──────────────────────────────────────────────────────────────
 
-function ledgerKey(indexerId: string): string {
-  return `attribution:indexer:${indexerId}`;
+// Append-only event-log keys, content-addressed on execution_id: each distinct
+// execution gets a distinct key (no lost update on the CAS-free KV), and a replay
+// of the same execution is an idempotent no-op write to the same key. Balances are
+// a PROJECTION over these rows — never a mutated accumulator blob.
+const EVENT_PREFIX = "attribution:event:"; // attribution:event:<indexer>:<sha256(execution_id)>
+const SLASH_PREFIX = "attribution:slash:"; // attribution:slash:<indexer>:<sha256(execution_id)>
+
+async function eventKey(indexerId: string, executionId: string): Promise<string> {
+  return `${EVENT_PREFIX}${indexerId}:${await sha256hex(executionId)}`;
+}
+async function slashKey(indexerId: string, executionId: string): Promise<string> {
+  return `${SLASH_PREFIX}${indexerId}:${await sha256hex(executionId)}`;
 }
 
-const ATTRIBUTION_INDEX_KEY = "attribution:indexers:index";
+interface SlashEvent { execution_id: string; slash_delta: number; timestamp: string }
 
 // ─── Core logic ───────────────────────────────────────────────────────────────
 
@@ -115,37 +126,23 @@ export async function recordAttribution(
   const fullEvent: AttributionEvent = { ...event, delta_score, fee_allocated_uc, timestamp: now };
 
   const kv = statsKV(env);
-  const key = ledgerKey(event.indexer_id);
-  const raw = await kv.get(key) as string | null;
+  const key = await eventKey(event.indexer_id, event.execution_id);
 
-  let ledger: IndexerAttributionLedger;
-  if (raw) {
-    try { ledger = JSON.parse(raw) as IndexerAttributionLedger; } catch {
-      ledger = emptyLedger(event.indexer_id, now);
-    }
+  // Idempotent append: if this execution is already recorded it's a replay —
+  // return the stored event and do NOT re-credit. Distinct executions get
+  // distinct keys, so concurrent records never overwrite each other (no lost
+  // update on the CAS-free KV). The balance is projected by getIndexerLedger.
+  const existing = await kv.get(key) as string | null;
+  if (existing) {
+    try { return JSON.parse(existing) as AttributionEvent; } catch { /* corrupt — rewrite below */ }
   } else {
-    ledger = emptyLedger(event.indexer_id, now);
-    await addIndexerToIndex(kv, event.indexer_id);
-  }
-
-  ledger.total_credited_uc += fee_allocated_uc;
-  ledger.total_credited_usd = ledger.total_credited_uc / 1_000_000;
-  ledger.execution_count++;
-  ledger.cumulative_delta += delta_score;
-  ledger.avg_delta = ledger.cumulative_delta / ledger.execution_count;
-  ledger.last_attributed_at = now;
-
-  await kv.put(key, JSON.stringify(ledger));
-
-  // Credit earnings to the indexer's credit balance (best-effort)
-  if (env.CREDITS_ENABLED === "1") {
-    try {
-      await creditEarnings(env, event.indexer_id, fee_allocated_uc);
-    } catch {
-      // Credit ledger may not exist yet — don't fail attribution
+    // Credit earnings only on the FIRST observation of this execution (best-effort).
+    if (env.CREDITS_ENABLED === "1") {
+      try { await creditEarnings(env, event.indexer_id, fee_allocated_uc); } catch { /* ledger may not exist yet */ }
     }
   }
 
+  await kv.put(key, JSON.stringify(fullEvent));
   return fullEvent;
 }
 
@@ -196,51 +193,65 @@ export async function recordFailureAttribution(
   event: { execution_id: string; skill_id: string; endpoint_id: string; indexer_id: string; next_best_score: number },
 ): Promise<{ slash_delta: number }> {
   const kv = statsKV(env);
-  const key = ledgerKey(event.indexer_id);
-  const raw = await kv.get(key) as string | null;
-  if (!raw) return { slash_delta: 0 }; // nothing accumulated yet — nothing to slash
-
-  let ledger: IndexerAttributionLedger;
-  try { ledger = JSON.parse(raw) as IndexerAttributionLedger; } catch { return { slash_delta: 0 }; }
+  const ledger = await getIndexerLedger(env, event.indexer_id);
+  if (!ledger || ledger.execution_count === 0) return { slash_delta: 0 }; // no history — nothing to slash
 
   const { slash_delta } = computeSlashAdjustment(event.next_best_score, ledger.execution_count);
   if (slash_delta === 0) return { slash_delta: 0 };
 
-  ledger.cumulative_delta = Math.max(0, ledger.cumulative_delta + slash_delta);
-  ledger.slashed_count = (ledger.slashed_count ?? 0) + 1;
-  ledger.avg_delta = ledger.execution_count > 0 ? ledger.cumulative_delta / ledger.execution_count : 0;
-  ledger.last_attributed_at = new Date().toISOString();
-  await kv.put(key, JSON.stringify(ledger));
+  // Append an idempotent slash event; the projection folds it into cumulative_delta.
+  const key = await slashKey(event.indexer_id, event.execution_id);
+  if (await kv.get(key)) return { slash_delta }; // this failure already slashed
+  const slashEvent: SlashEvent = { execution_id: event.execution_id, slash_delta, timestamp: new Date().toISOString() };
+  await kv.put(key, JSON.stringify(slashEvent));
   return { slash_delta };
 }
 
-/** Read the attribution ledger for a specific indexer. */
+/** Read the attribution ledger for a specific indexer — a PROJECTION (fold) over
+ *  the append-only credit + slash event rows. No mutated blob; concurrency-safe. */
 export async function getIndexerLedger(
   env: Env,
   indexerId: string,
 ): Promise<IndexerAttributionLedger | null> {
-  const raw = await statsKV(env).get(ledgerKey(indexerId)) as string | null;
-  if (!raw) return null;
-  try { return JSON.parse(raw) as IndexerAttributionLedger; } catch { return null; }
+  const kv = statsKV(env);
+  const events = await readEvents<AttributionEvent>(kv, EVENT_PREFIX, indexerId);
+  if (events.length === 0) return null;
+  events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  const slashes = await readEvents<SlashEvent>(kv, SLASH_PREFIX, indexerId);
+  let slashSum = 0;
+  for (const s of slashes) slashSum += s.slash_delta;
+  const slashedCount = slashes.length;
+
+  let total_credited_uc = 0, creditDelta = 0;
+  for (const e of events) { total_credited_uc += e.fee_allocated_uc; creditDelta += e.delta_score; }
+  const cumulative_delta = Math.max(0, creditDelta + slashSum);
+  const last = slashes.length
+    ? [events[events.length - 1].timestamp, ...slashes.map((s) => s.timestamp)].sort().pop()!
+    : events[events.length - 1].timestamp;
+
+  return {
+    indexer_id: indexerId,
+    total_credited_uc,
+    total_credited_usd: total_credited_uc / 1_000_000,
+    execution_count: events.length,
+    cumulative_delta,
+    avg_delta: cumulative_delta / events.length,
+    slashed_count: slashedCount || undefined,
+    first_attributed_at: events[0].timestamp,
+    last_attributed_at: last,
+  };
 }
 
-/** List every indexer id that has an attribution ledger (for payout sweeps). */
+/** List every indexer id with attribution events (for payout sweeps) — derived
+ *  from the event keyspace, no separate (race-prone) index blob. */
 export async function listIndexerIds(env: Env): Promise<string[]> {
-  const raw = await statsKV(env).get(ATTRIBUTION_INDEX_KEY) as string | null;
-  if (!raw) return [];
-  try {
-    const ids = JSON.parse(raw) as string[];
-    return Array.isArray(ids) ? ids : [];
-  } catch {
-    return [];
-  }
+  return listPartitions<AttributionEvent>(statsKV(env), EVENT_PREFIX, (e) => e.indexer_id);
 }
 
 /** Aggregate attribution summary across all indexed routes. */
 export async function getAttributionSummary(env: Env): Promise<AttributionSummary> {
-  const kv = statsKV(env);
-  const indexRaw = await kv.get(ATTRIBUTION_INDEX_KEY) as string | null;
-  const indexerIds: string[] = indexRaw ? (JSON.parse(indexRaw) as string[]) : [];
+  const indexerIds = await listIndexerIds(env);
 
   const summary: AttributionSummary = {
     total_indexers_credited: indexerIds.length,
@@ -270,29 +281,3 @@ export async function getAttributionSummary(env: Env): Promise<AttributionSummar
   return summary;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function emptyLedger(indexerId: string, now: string): IndexerAttributionLedger {
-  return {
-    indexer_id: indexerId,
-    total_credited_uc: 0,
-    total_credited_usd: 0,
-    execution_count: 0,
-    cumulative_delta: 0,
-    avg_delta: 0,
-    first_attributed_at: now,
-    last_attributed_at: now,
-  };
-}
-
-async function addIndexerToIndex(
-  kv: ReturnType<typeof statsKV>,
-  indexerId: string,
-): Promise<void> {
-  const raw = await kv.get(ATTRIBUTION_INDEX_KEY) as string | null;
-  const ids: string[] = raw ? (JSON.parse(raw) as string[]) : [];
-  if (!ids.includes(indexerId)) {
-    ids.push(indexerId);
-    await kv.put(ATTRIBUTION_INDEX_KEY, JSON.stringify(ids));
-  }
-}
