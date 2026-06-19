@@ -55,5 +55,17 @@ print("  op_kind=%s links=%d" % (d.get("op_kind"), len(d.get("links", []))))
 sys.exit(0 if ok else 1)
 ' || { echo "[research-gate] FAIL — map did not satisfy the contract"; exit 1; }
 
-echo "[research-gate] PASS — research+extract+map primitives witnessed (unit + live answer + batch extract + link map)"
+echo "[research-gate] 5/5 — live crawl (unbrowse crawl, Tavily /crawl parity, bounded)"
+COUT="$(timeout 150 bun src/cli.ts crawl "https://en.wikipedia.org/wiki/Stripe,_Inc." --max-pages 3 --json 2>/dev/null | grep -E '^\{' | tail -1)"
+echo "$COUT" | python3 -c '
+import sys, json
+try: d = json.loads(sys.stdin.read())
+except Exception as e: print("[research-gate] FAIL — crawl no JSON:", str(e)[:60]); sys.exit(1)
+pages = d.get("pages", [])
+ok = d.get("op_kind") == "eval:crawl" and len(pages) >= 1 and all(p.get("ok") for p in pages)
+print("  op_kind=%s pages=%d all_ok=%s" % (d.get("op_kind"), len(pages), all(p.get("ok") for p in pages)))
+sys.exit(0 if ok else 1)
+' || { echo "[research-gate] FAIL — crawl did not satisfy the contract"; exit 1; }
+
+echo "[research-gate] PASS — research+extract+map+crawl witnessed (full Tavily-parity suite, native)"
 exit 0

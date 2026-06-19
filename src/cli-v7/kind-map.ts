@@ -661,6 +661,15 @@ export const KIND_MAP = [
     summary: "Map a URL's outgoing links (a URL hole -> its POINTERS; the pointers face of the read that `extract` resolves to a value). Tavily /map parity.",
   },
   {
+    subcommand: "eval crawl",
+    verb: "eval",
+    op_kind: "eval:crawl",
+    op_class: "observe",
+    action: "crawl",
+    mcp_tool: "unbrowse_eval_crawl",
+    summary: "Crawl a seed URL one hop (map ∘ extract*, same-domain, page-capped): read the seed + its same-site links. Tavily /crawl parity.",
+  },
+  {
     subcommand: "eval inspect",
     verb: "eval",
     op_kind: "eval:inspect",
