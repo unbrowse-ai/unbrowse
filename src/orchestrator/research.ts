@@ -3,8 +3,39 @@
 // (ground). The query is a HOLE; search resolves ranked URL POINTERS; fetch resolves the
 // page-markdown VALUES; synthesis grounds a cited answer. No external research API, no model
 // call required (extractive synthesis keeps it native + dependency-free).
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir, homedir } from "node:os";
 import { ddgSearch } from "../lib/ddg-search.js";
 import { fetchDirectDocument, focusMarkdownToIntent } from "./direct-document.js";
+
+// Read cache for the per-source fetch (the ~18s cost of the resolve→read→ground walk). A repeat
+// read of the same URL within TTL is served from disk → research/extract get near-instant on warm
+// sources. On by default with a conservative TTL; disable with UNBROWSE_RESEARCH_CACHE=0.
+const CACHE_ON = process.env.UNBROWSE_RESEARCH_CACHE !== "0";
+const CACHE_TTL_MS = Number(process.env.UNBROWSE_RESEARCH_CACHE_TTL_MS ?? 900_000) || 900_000;
+function cacheDir(): string {
+  const base = process.env.UNBROWSE_RESEARCH_CACHE_DIR || join(homedir() || tmpdir(), ".cache", "unbrowse", "research");
+  try { mkdirSync(base, { recursive: true }); } catch { /* best-effort */ }
+  return base;
+}
+function cachePath(url: string): string {
+  return join(cacheDir(), createHash("sha256").update(url).digest("hex").slice(0, 32) + ".json");
+}
+function cacheRead(url: string): ExtractedDoc | null {
+  if (!CACHE_ON) return null;
+  try {
+    const p = cachePath(url);
+    if (Date.now() - statSync(p).mtimeMs > CACHE_TTL_MS) return null; // stale
+    const doc = JSON.parse(readFileSync(p, "utf8")) as ExtractedDoc;
+    return doc && doc.ok ? { ...doc, cached: true } : null;
+  } catch { return null; }
+}
+function cacheWrite(url: string, doc: ExtractedDoc): void {
+  if (!CACHE_ON || !doc.ok) return;
+  try { writeFileSync(cachePath(url), JSON.stringify({ ...doc, cached: false })); } catch { /* best-effort */ }
+}
 
 export interface ResearchCitation {
   url: string;
@@ -103,6 +134,8 @@ export interface ExtractedDoc {
   /** The full page markdown before prose-cleaning — Tavily.raw_content parity. */
   raw_content: string;
   ok: boolean;
+  /** True when this read was served from the warm read-cache (perf signal). */
+  cached?: boolean;
 }
 
 /**
@@ -112,10 +145,14 @@ export interface ExtractedDoc {
  * (consumes it per source) go through THIS one function — they are one read path, not two.
  */
 export async function readSource(url: string): Promise<ExtractedDoc | null> {
+  const warm = cacheRead(url); // perf: warm read-cache hit -> skip the ~18s fetch
+  if (warm) return warm;
   try {
     const doc = await fetchDirectDocument(url);
     if (!doc || !doc.markdown) return null;
-    return { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true };
+    const out: ExtractedDoc = { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true, cached: false };
+    cacheWrite(url, out);
+    return out;
   } catch {
     return null;
   }
