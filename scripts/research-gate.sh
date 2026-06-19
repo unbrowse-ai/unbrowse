@@ -44,5 +44,16 @@ print("  op_kind=%s results=%d ok=%s content>50=%s" % (d.get("op_kind"), len(r),
 sys.exit(0 if (ok and good) else 1)
 ' || { echo "[research-gate] FAIL — extract did not satisfy the contract"; exit 1; }
 
-echo "[research-gate] PASS — native research+extract primitives witnessed (unit + live grounded answer + batch extract)"
+echo "[research-gate] 4/4 — live map (unbrowse map, Tavily /map parity)"
+MOUT="$(timeout 60 bun src/cli.ts map "https://en.wikipedia.org/wiki/Stripe,_Inc." --json 2>/dev/null | grep -E '^\{' | tail -1)"
+echo "$MOUT" | python3 -c '
+import sys, json
+try: d = json.loads(sys.stdin.read())
+except Exception as e: print("[research-gate] FAIL — map no JSON:", str(e)[:60]); sys.exit(1)
+ok = d.get("op_kind") == "eval:map" and isinstance(d.get("links"), list) and len(d["links"]) >= 3
+print("  op_kind=%s links=%d" % (d.get("op_kind"), len(d.get("links", []))))
+sys.exit(0 if ok else 1)
+' || { echo "[research-gate] FAIL — map did not satisfy the contract"; exit 1; }
+
+echo "[research-gate] PASS — research+extract+map primitives witnessed (unit + live answer + batch extract + link map)"
 exit 0

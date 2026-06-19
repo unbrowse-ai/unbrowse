@@ -652,6 +652,15 @@ export const KIND_MAP = [
     summary: "Extract clean content from one or more URLs (the READ step of research, exposed in batch; a URL hole -> its markdown value). Tavily /extract parity.",
   },
   {
+    subcommand: "eval map",
+    verb: "eval",
+    op_kind: "eval:map",
+    op_class: "observe",
+    action: "map",
+    mcp_tool: "unbrowse_eval_map",
+    summary: "Map a URL's outgoing links (a URL hole -> its POINTERS; the pointers face of the read that `extract` resolves to a value). Tavily /map parity.",
+  },
+  {
     subcommand: "eval inspect",
     verb: "eval",
     op_kind: "eval:inspect",
