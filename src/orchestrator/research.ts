@@ -98,6 +98,38 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   return { query: q, answer, citations, results };
 }
 
+export interface ExtractedDoc {
+  url: string;
+  title: string;
+  /** Clean prose (markdown/nav cruft stripped) — Tavily-style extracted content. */
+  content: string;
+  /** The full page markdown before prose-cleaning — Tavily.raw_content parity. */
+  raw_content: string;
+  ok: boolean;
+}
+
+/**
+ * doExtract — Tavily `/extract` parity, native: fetch each URL via unbrowse's own document
+ * path and return clean content + raw markdown per URL. Batch + concurrent; a URL that fails
+ * comes back `ok:false` with empty content (honest, never fabricated).
+ */
+export async function doExtract(urls: string[]): Promise<{ results: ExtractedDoc[] }> {
+  const list = (urls ?? []).map((u) => (u ?? "").trim()).filter(Boolean);
+  if (!list.length) return { results: [] };
+  const results = await Promise.all(
+    list.map(async (url): Promise<ExtractedDoc> => {
+      try {
+        const doc = await fetchDirectDocument(url);
+        if (!doc || !doc.markdown) return { url, title: "", content: "", raw_content: "", ok: false };
+        return { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true };
+      } catch {
+        return { url, title: "", content: "", raw_content: "", ok: false };
+      }
+    }),
+  );
+  return { results };
+}
+
 /** Cross-source synthesis: pool prose sentences from all sources, rank by query-term
  *  relevance over the whole set, dedup near-duplicates, return the best N joined. Only
  *  sentences that actually mention a query term qualify (so titles/chrome with 0 hits are

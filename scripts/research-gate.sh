@@ -29,5 +29,20 @@ print("  op_kind=%s cites=%d grounded=%s answered=%s" % (d.get("op_kind"), len(c
 sys.exit(0 if (ok and grounded and answered) else 1)
 ' || { echo "[research-gate] FAIL — live e2e did not satisfy the contract"; exit 1; }
 
-echo "[research-gate] PASS — native research primitive witnessed (unit + live grounded cited answer)"
+echo "[research-gate] 3/3 — live extract (unbrowse extract, Tavily /extract parity)"
+EOUT="$(timeout 60 bun src/cli.ts extract "https://en.wikipedia.org/wiki/Stripe,_Inc." --json 2>/dev/null | grep -E '^\{' | tail -1)"
+echo "$EOUT" | python3 -c '
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+except Exception as e:
+    print("[research-gate] FAIL — extract no JSON:", str(e)[:60]); sys.exit(1)
+ok = d.get("op_kind") == "eval:extract"
+r = d.get("results", [])
+good = len(r) == 1 and r[0].get("ok") is True and len((r[0].get("content") or "")) > 50
+print("  op_kind=%s results=%d ok=%s content>50=%s" % (d.get("op_kind"), len(r), (r[0].get("ok") if r else None), good))
+sys.exit(0 if (ok and good) else 1)
+' || { echo "[research-gate] FAIL — extract did not satisfy the contract"; exit 1; }
+
+echo "[research-gate] PASS — native research+extract primitives witnessed (unit + live grounded answer + batch extract)"
 exit 0

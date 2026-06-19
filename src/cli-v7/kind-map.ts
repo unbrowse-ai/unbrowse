@@ -643,6 +643,15 @@ export const KIND_MAP = [
     summary: "Research a question on the open web (search -> extract -> synthesized cited answer).",
   },
   {
+    subcommand: "eval extract",
+    verb: "eval",
+    op_kind: "eval:extract",
+    op_class: "observe",
+    action: "extract",
+    mcp_tool: "unbrowse_eval_extract",
+    summary: "Extract clean content from one or more URLs (batch fetch -> markdown), Tavily /extract parity.",
+  },
+  {
     subcommand: "eval inspect",
     verb: "eval",
     op_kind: "eval:inspect",

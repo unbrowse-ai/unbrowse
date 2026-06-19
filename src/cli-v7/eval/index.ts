@@ -32,6 +32,7 @@ import { handler as specHandler } from "./spec.js";
 import { handler as explainHandler } from "./explain.js";
 import { handler as searchHandler } from "./search.js";
 import { handler as researchHandler } from "./research.js";
+import { handler as extractHandler } from "./extract.js";
 import { handler as inspectHandler } from "./inspect.js";
 import { handler as accountHandler } from "./account.js";
 import { handler as configHandler } from "./config.js";
@@ -59,6 +60,7 @@ const TABLE: Record<string, VerbHandler> = {
   explain: explainHandler,
   search: searchHandler,
   research: researchHandler,
+  extract: extractHandler,
   inspect: inspectHandler,
   account: accountHandler,
   config: configHandler,
