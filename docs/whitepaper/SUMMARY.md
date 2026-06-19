@@ -15,6 +15,7 @@
 ## Reference
 
 * [Marketplace and Maintenance](network-layer.md)
+* [Credential Sovereignty](credential-sovereignty.md)
 * [Key Concepts](key-concepts.md)
 * [System Today](system-today.md)
 * [Paper vs Product Status](paper-vs-product.md)
