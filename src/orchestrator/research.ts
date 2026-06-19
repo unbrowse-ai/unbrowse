@@ -153,15 +153,13 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
 
   // 2. READ — the SAME read step `extract` exposes (readSource), per pointer, concurrently;
   //    then focus each source's value to the intent. One read path, not two.
-  const fetched = await Promise.all(
-    hits.slice(0, numResults).map(async (h) => {
-      const doc = await readSource(h.url); // shared with doExtract
-      if (!doc) return null; // a single source failing must not sink the research.
-      const focused = focusMarkdownToIntent(doc.raw_content, q, budget);
-      if (!focused.trim()) return null;
-      return { url: doc.url, title: doc.title || h.title || h.url, focused, score: h.score };
-    }),
-  );
+  const fetched = await mapLimit(hits.slice(0, numResults), FETCH_CONCURRENCY, async (h) => {
+    const doc = await readSource(h.url); // shared with doExtract
+    if (!doc) return null; // a single source failing must not sink the research.
+    const focused = focusMarkdownToIntent(doc.raw_content, q, budget);
+    if (!focused.trim()) return null;
+    return { url: doc.url, title: doc.title || h.title || h.url, focused, score: h.score };
+  });
   const sources = fetched.filter((x): x is NonNullable<typeof x> => x !== null);
   if (!sources.length) return emptyWith("no readable sources fetched");
 
@@ -249,6 +247,24 @@ export async function readSource(url: string): Promise<ExtractedDoc | null> {
   }
 }
 
+const FETCH_CONCURRENCY = Math.max(1, Number(process.env.UNBROWSE_RESEARCH_CONCURRENCY ?? 5) || 5);
+
+/** Concurrency-bounded map: run `fn` over `items` with at most `limit` in flight — cast the net
+ *  in measure (politeness + anti-self-throttle) instead of a `Promise.all` flood. Order preserved.
+ *  Exported so the bound is witnessable. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length || 1) }, worker));
+  return out;
+}
+
 export interface MappedLink { url: string; text: string }
 
 /**
@@ -285,10 +301,8 @@ export async function doMap(url: string): Promise<{ url: string; links: MappedLi
 export async function doExtract(urls: string[]): Promise<{ results: ExtractedDoc[] }> {
   const list = (urls ?? []).map((u) => (u ?? "").trim()).filter(Boolean);
   if (!list.length) return { results: [] };
-  const results = await Promise.all(
-    list.map(async (url): Promise<ExtractedDoc> =>
-      (await readSource(url)) ?? { url, title: "", content: "", raw_content: "", ok: false },
-    ),
+  const results = await mapLimit(list, FETCH_CONCURRENCY, async (url): Promise<ExtractedDoc> =>
+    (await readSource(url)) ?? { url, title: "", content: "", raw_content: "", ok: false },
   );
   return { results };
 }

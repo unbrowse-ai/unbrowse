@@ -3,7 +3,7 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, doExtract, doMap, doCrawl, sweepCache, rankSentencesMMR, searchWithFallback, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, doMap, doCrawl, sweepCache, rankSentencesMMR, searchWithFallback, mapLimit, type ResearchAnswer } from "../src/orchestrator/research.js";
 import { mkdtempSync, writeFileSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -115,6 +115,22 @@ describe("answer synthesis — BM25 + MMR beats naive term-count (network-free, 
   it("never emits the same sentence twice (exact-dup guard)", () => {
     const out = rankSentencesMMR([FACT, FACT, FACT], terms, 3);
     expect(out.length).toBe(1);
+  });
+});
+
+describe("bounded fetch concurrency — mapLimit casts the net in measure (network-free)", () => {
+  it("never exceeds the cap, preserves order, covers all items", async () => {
+    let inFlight = 0, peak = 0;
+    const items = Array.from({ length: 20 }, (_, i) => i);
+    const out = await mapLimit(items, 5, async (x) => {
+      inFlight++; peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return x * 2;
+    });
+    expect(peak).toBeLessThanOrEqual(5);
+    expect(peak).toBeGreaterThan(1); // genuinely concurrent, not serial
+    expect(out).toEqual(items.map((x) => x * 2)); // order preserved + all covered
   });
 });
 
