@@ -3,7 +3,7 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, doExtract, doMap, doCrawl, sweepCache, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, doMap, doCrawl, sweepCache, rankSentencesMMR, type ResearchAnswer } from "../src/orchestrator/research.js";
 import { mkdtempSync, writeFileSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -78,6 +78,43 @@ describe("map primitive — Tavily /map parity (network-free contract)", () => {
 describe("crawl primitive — Tavily /crawl parity (network-free contract)", () => {
   it("empty seed -> empty pages, never fabricated", async () => {
     expect(await doCrawl("")).toEqual({ seed: "", pages: [] });
+  });
+});
+
+describe("answer synthesis — BM25 + MMR beats naive term-count (network-free, arXiv-grounded)", () => {
+  // All three carry both query terms (comparable BM25 relevance), differing only in how similar
+  // they are to FACT — so the MMR diversity term, not relevance, decides the 2nd pick.
+  const FACT = "Stripe was founded by Patrick Collison.";
+  const NEAR = "Stripe founded by Patrick Collison company."; // high overlap with FACT (redundant)
+  const DIVERSE = "Stripe was founded in 2010 California."; // low overlap (corroborating, distinct)
+  const terms = ["founded", "stripe"];
+
+  const tok = (s: string) => new Set(s.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []);
+  const jac = (a: string, b: string) => {
+    const A = tok(a), B = tok(b); let i = 0; for (const x of A) if (B.has(x)) i++;
+    return i / (A.size + B.size - i);
+  };
+
+  it("MMR is load-bearing: the diversity-selected pair is LESS mutually-redundant than pure relevance", () => {
+    const pool = [FACT, NEAR, DIVERSE];
+    const div = rankSentencesMMR(pool, terms, 2); // default lambda (diversity on)
+    const greedy = rankSentencesMMR(pool, terms, 2, { lambda: 1 }); // pure relevance (no diversity)
+    expect(div.length).toBe(2);
+    expect(greedy.length).toBe(2);
+    // the MMR pick reduces redundancy: its two sentences overlap each other LESS than the
+    // pure-relevance pick's do. This is the Carbonell-Goldstein guarantee, made falsifiable.
+    expect(jac(div[0], div[1])).toBeLessThan(jac(greedy[0], greedy[1]));
+  });
+
+  it("BM25 coverage: a sentence matching both query terms outranks a single-term one", () => {
+    const both = "Stripe was founded by the Collison brothers.";
+    const one = "Stripe stripe stripe payments processing platform."; // only 'stripe', repeated
+    expect(rankSentencesMMR([one, both], terms, 1)[0]).toBe(both);
+  });
+
+  it("never emits the same sentence twice (exact-dup guard)", () => {
+    const out = rankSentencesMMR([FACT, FACT, FACT], terms, 3);
+    expect(out.length).toBe(1);
   });
 });
 

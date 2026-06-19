@@ -268,27 +268,77 @@ export async function doExtract(urls: string[]): Promise<{ results: ExtractedDoc
 function synthesizeAnswer(focusedTexts: string[], query: string, n: number): string {
   const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []))];
   if (!terms.length) return "";
-  const pool: { s: string; hits: number }[] = [];
+  const pool: string[] = [];
   for (const text of focusedTexts) {
     const sents = cleanProse(text).match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
-    for (const s of sents) {
-      const low = s.toLowerCase();
-      const hits = terms.reduce((a, t) => a + (low.includes(t) ? 1 : 0), 0);
-      if (hits > 0) pool.push({ s, hits });
+    pool.push(...sents);
+  }
+  return rankSentencesMMR(pool, terms, n).join(" ").trim();
+}
+
+/** Tokenize to lowercase word terms (>=3 chars), the unit BM25/MMR score over. */
+function termsOf(s: string): string[] {
+  return (s.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []);
+}
+
+/**
+ * Select the N maximally-relevant, minimally-redundant sentences — Okapi BM25 relevance
+ * (TF-saturation k1 + length-norm b + idf over the pool) × MMR diversity (Carbonell &
+ * Goldstein 1998: greedily pick argmax λ·rel − (1−λ)·maxSimToPicked). This is the two-witness
+ * ground: corroborating-but-distinct evidence beats one fact repeated. Deterministic, native.
+ */
+export function rankSentencesMMR(
+  sentences: string[],
+  queryTerms: string[],
+  n: number,
+  opts: { k1?: number; b?: number; lambda?: number } = {},
+): string[] {
+  const k1 = opts.k1 ?? 1.5, b = opts.b ?? 0.75, lambda = opts.lambda ?? 0.7;
+  const qset = new Set(queryTerms);
+  const docs = sentences.map((s) => ({ s, t: termsOf(s) }));
+  const cand = docs.filter((d) => d.t.some((t) => qset.has(t))); // must touch the query
+  if (!cand.length) return [];
+  const avglen = cand.reduce((a, d) => a + d.t.length, 0) / cand.length;
+  // idf over the candidate pool (rarer query term in the pool => more discriminating).
+  const df: Record<string, number> = {};
+  for (const t of qset) df[t] = cand.filter((d) => d.t.includes(t)).length;
+  const N = cand.length;
+  const idf = (t: string) => Math.log(1 + (N - (df[t] || 0) + 0.5) / ((df[t] || 0) + 0.5));
+  const bm25 = (d: { t: string[] }) => {
+    let sc = 0;
+    for (const t of qset) {
+      const tf = d.t.filter((x) => x === t).length;
+      if (!tf) continue;
+      sc += idf(t) * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (d.t.length / (avglen || 1))));
     }
+    return sc;
+  };
+  const sim = (a: string[], bb: string[]) => {
+    const A = new Set(a), B = new Set(bb);
+    let inter = 0;
+    for (const x of A) if (B.has(x)) inter++;
+    const uni = A.size + B.size - inter;
+    return uni ? inter / uni : 0; // Jaccard
+  };
+  const scored = cand.map((d) => ({ ...d, rel: bm25(d) })).filter((d) => d.rel > 0);
+  const picked: typeof scored = [];
+  const pickedKeys = new Set<string>();
+  while (picked.length < n && scored.length) {
+    let best = -1, bestI = -1;
+    for (let i = 0; i < scored.length; i++) {
+      const d = scored[i];
+      const key = d.s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60);
+      if (pickedKeys.has(key)) continue; // exact-ish dup guard
+      const maxSim = picked.reduce((m, p) => Math.max(m, sim(d.t, p.t)), 0);
+      const mmr = lambda * d.rel - (1 - lambda) * maxSim * (picked.length ? Math.max(...picked.map((p) => p.rel)) : 1);
+      if (mmr > best) { best = mmr; bestI = i; }
+    }
+    if (bestI < 0) break;
+    const chosen = scored.splice(bestI, 1)[0];
+    pickedKeys.add(chosen.s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60));
+    picked.push(chosen);
   }
-  if (!pool.length) return "";
-  pool.sort((a, b) => b.hits - a.hits || a.s.length - b.s.length);
-  const picked: string[] = [];
-  const seen = new Set<string>();
-  for (const { s } of pool) {
-    const key = s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    picked.push(s);
-    if (picked.length >= n) break;
-  }
-  return picked.join(" ").trim();
+  return picked.map((p) => p.s);
 }
 
 /** The N most query-relevant prose sentences of a focused excerpt — the quotable kernel
