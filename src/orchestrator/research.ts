@@ -190,6 +190,31 @@ export async function readSource(url: string): Promise<ExtractedDoc | null> {
   }
 }
 
+export interface MappedLink { url: string; text: string }
+
+/**
+ * doMap — Tavily `/map` parity, native: resolve a URL hole to its POINTERS (the outgoing
+ * absolute links on the page), via the same cached `readSource`. The pointers face of the
+ * read (extract = the value face). Honest-empty on a failed/linkless page.
+ */
+export async function doMap(url: string): Promise<{ url: string; links: MappedLink[] }> {
+  const u = (url ?? "").trim();
+  if (!u) return { url: "", links: [] };
+  const doc = await readSource(u);
+  if (!doc) return { url: u, links: [] };
+  const links: MappedLink[] = [];
+  const seen = new Set<string>();
+  const re = /\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(doc.raw_content)) !== null) {
+    const href = m[2];
+    if (seen.has(href)) continue;
+    seen.add(href);
+    links.push({ url: href, text: m[1].replace(/\s+/g, " ").trim() });
+  }
+  return { url: doc.url, links };
+}
+
 /**
  * doExtract — Tavily `/extract` parity = `readSource` exposed in batch. A URL that fails comes
  * back `ok:false` with empty content (honest, never fabricated).
