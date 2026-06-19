@@ -56,18 +56,15 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   }
   if (!hits.length) return empty;
 
-  // 2. EXTRACT — resolve page-markdown values for the top-k pointers, concurrently.
+  // 2. READ — the SAME read step `extract` exposes (readSource), per pointer, concurrently;
+  //    then focus each source's value to the intent. One read path, not two.
   const fetched = await Promise.all(
     hits.slice(0, numResults).map(async (h) => {
-      try {
-        const doc = await fetchDirectDocument(h.url);
-        if (!doc || !doc.markdown) return null;
-        const focused = focusMarkdownToIntent(doc.markdown, q, budget);
-        if (!focused.trim()) return null;
-        return { url: doc.url || h.url, title: doc.title || h.title || h.url, focused, score: h.score };
-      } catch {
-        return null; // a single source failing must not sink the research.
-      }
+      const doc = await readSource(h.url); // shared with doExtract
+      if (!doc) return null; // a single source failing must not sink the research.
+      const focused = focusMarkdownToIntent(doc.raw_content, q, budget);
+      if (!focused.trim()) return null;
+      return { url: doc.url, title: doc.title || h.title || h.url, focused, score: h.score };
     }),
   );
   const sources = fetched.filter((x): x is NonNullable<typeof x> => x !== null);
@@ -109,23 +106,32 @@ export interface ExtractedDoc {
 }
 
 /**
- * doExtract — Tavily `/extract` parity, native: fetch each URL via unbrowse's own document
- * path and return clean content + raw markdown per URL. Batch + concurrent; a URL that fails
- * comes back `ok:false` with empty content (honest, never fabricated).
+ * readSource — THE shared read step of the resolve→read→ground walk: resolve one URL hole to
+ * its value (clean content + raw markdown) via unbrowse's own document path. Returns null on
+ * failure (never throws, never fabricates). Both `extract` (exposes it) and `research`
+ * (consumes it per source) go through THIS one function — they are one read path, not two.
+ */
+export async function readSource(url: string): Promise<ExtractedDoc | null> {
+  try {
+    const doc = await fetchDirectDocument(url);
+    if (!doc || !doc.markdown) return null;
+    return { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * doExtract — Tavily `/extract` parity = `readSource` exposed in batch. A URL that fails comes
+ * back `ok:false` with empty content (honest, never fabricated).
  */
 export async function doExtract(urls: string[]): Promise<{ results: ExtractedDoc[] }> {
   const list = (urls ?? []).map((u) => (u ?? "").trim()).filter(Boolean);
   if (!list.length) return { results: [] };
   const results = await Promise.all(
-    list.map(async (url): Promise<ExtractedDoc> => {
-      try {
-        const doc = await fetchDirectDocument(url);
-        if (!doc || !doc.markdown) return { url, title: "", content: "", raw_content: "", ok: false };
-        return { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true };
-      } catch {
-        return { url, title: "", content: "", raw_content: "", ok: false };
-      }
-    }),
+    list.map(async (url): Promise<ExtractedDoc> =>
+      (await readSource(url)) ?? { url, title: "", content: "", raw_content: "", ok: false },
+    ),
   );
   return { results };
 }
