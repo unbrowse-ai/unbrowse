@@ -145,7 +145,7 @@ export interface ProxyDispatchResult {
   /** True iff the proxy was actually attached on the call. */
   dispatched: boolean;
   /** Surface-level reason when not dispatched. */
-  skipped_reason?: "creds_missing" | "runtime_unsupported";
+  skipped_reason?: "creds_missing" | "runtime_unsupported" | "proxy_dead_fellback_raw";
 }
 
 /** Build the IProyal proxy URL from env. Returns undefined when creds are
@@ -195,7 +195,10 @@ export function resolveProxyUrl(env: NodeJS.ProcessEnv = process.env): string | 
  * `fetch` fell through to a cryptic "No matching skill found". The default is
  * removed: proxying is now strictly opt-in.
  */
-export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function resolveEgressProxy(
+  env: NodeJS.ProcessEnv = process.env,
+  failureDir?: string,
+): string | undefined {
   const direct = env.UNBROWSE_DIRECT_EGRESS?.trim().toLowerCase();
   if (direct === "1" || direct === "true" || direct === "yes") return undefined;
 
@@ -203,7 +206,21 @@ export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string
   if (explicit) return explicit;
 
   const iproyal = resolveProxyUrl(env);
-  if (iproyal) return iproyal;
+  if (iproyal) {
+    // Health-gated ladder (2026-06-20): try the proxy, but fall back to RAW
+    // (direct) the moment it has recently DIED. A proxy connection failure is
+    // recorded as a `structural` failure against the proxy host (see
+    // proxiedFetchOnce), so this peek skips a known-dead proxy and egress goes
+    // direct instead of hard-failing. `failureKey` normalizes to the proxy host,
+    // so the creds-bearing URL and a bare host:port share one cooldown key.
+    const cooldown = peekFailure(iproyal, "proxy", failureDir);
+    // structural = provider dead; transient = connection refused / timeout. Both
+    // mean "the proxy can't carry this request right now" -> degrade to RAW.
+    // antibot (the exit IP got challenged by a target) is a per-target axis, not
+    // a dead proxy, so it does NOT force raw here.
+    if (cooldown === "structural" || cooldown === "transient") return undefined;
+    return iproyal;
+  }
 
   // No baked default. ProxyKingdom (or any x402 proxy) is opt-in ONLY via an
   // explicit UNBROWSE_PROXYKINGDOM_URL. Absent it, egress is DIRECT.
@@ -213,7 +230,7 @@ export function resolveEgressProxy(env: NodeJS.ProcessEnv = process.env): string
   // provider returned NO_AVAILABLE_KEYS / 503-dead recently), don't keep routing captures
   // through a known-dead proxy — fail-fast to direct egress until the cooldown expires.
   // (antibot/transient cooldowns do NOT disable the proxy: a fresh IP may still help.)
-  if (peekFailure(override, "proxy") === "structural") return undefined;
+  if (peekFailure(override, "proxy", failureDir) === "structural") return undefined;
   return override;
 }
 
@@ -254,8 +271,15 @@ export async function proxiedFetchOnce(
   }
 
   // Node: undici ProxyAgent via dispatcher. Lazy import keeps bun bundles slim.
+  let ProxyAgent: typeof import("undici").ProxyAgent;
   try {
-    const { ProxyAgent } = (await import("undici")) as typeof import("undici");
+    ({ ProxyAgent } = (await import("undici")) as typeof import("undici"));
+  } catch {
+    // undici not installed and not on bun — surface honestly (NOT a proxy death).
+    const response = await fetch(url, init);
+    return { response, dispatch: { dispatched: false, skipped_reason: "runtime_unsupported" } };
+  }
+  try {
     const dispatcher = new ProxyAgent(proxyUrl);
     const response = await fetch(url, {
       ...init,
@@ -263,10 +287,16 @@ export async function proxiedFetchOnce(
       dispatcher,
     });
     return { response, dispatch: { dispatched: true } };
-  } catch {
-    // undici not installed and not on bun — surface honestly.
+  } catch (err) {
+    // The proxy DIED mid-request (ECONNREFUSED / tunnel failed / timeout). Record a
+    // structural failure so resolveEgressProxy's health gate degrades the NEXT call
+    // to raw instead of re-dialing a dead proxy, then fall back to RAW for THIS call.
+    recordFailure(proxyUrl, "structural", "proxy");
     const response = await fetch(url, init);
-    return { response, dispatch: { dispatched: false, skipped_reason: "runtime_unsupported" } };
+    return {
+      response,
+      dispatch: { dispatched: false, skipped_reason: "proxy_dead_fellback_raw" },
+    };
   }
 }
 

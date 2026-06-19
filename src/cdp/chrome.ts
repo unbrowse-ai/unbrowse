@@ -179,11 +179,16 @@ export function buildChromeArgs(opts: {
   }
   if (opts.proxy) {
     args.push(`--proxy-server=${opts.proxy}`);
-  } else if (opts.perContextProxy !== false) {
-    // Per-context proxy mode: enable only when no global proxy is set.
-    // Chrome supports `--proxy-server=per-context` as a magic value.
-    args.push("--proxy-server=per-context");
   }
+  // else: RAW (direct). The old `--proxy-server=per-context` branch was REMOVED
+  // (2026-06-20). Standard Chrome-for-Testing does NOT support `per-context` as a
+  // magic value — it treats the literal string as a proxy host, so a context with
+  // no per-context proxy set (the common case for `auth-capture` / `session-restore`,
+  // which create a context WITHOUT a proxy) failed EVERY navigation with
+  // ERR_PROXY_CONNECTION_FAILED. The flag poisoned the browser instead of enabling
+  // proxying. Per-context proxying, when genuinely needed, is set on the context via
+  // Target.createBrowserContext({proxyServer: <REAL url>}) — never this launch flag.
+  // `opts.perContextProxy` is now a no-op kept for call-site compatibility.
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
   return args;
 }
