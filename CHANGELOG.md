@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.10.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.1...v9.10.0-preview.0) (2026-06-19)
+
+### Features
+
+* **aiko:** re-lead landing on the context-inversion positioning (she already knows how you work) ([304da77](https://github.com/unbrowse-ai/unbrowse-dev/commit/304da77991fb80f8253db1e83cfe707204fe1a99))
+* **rag:** RECOMP serve-side sentence compression behind UNBROWSE_RECOMP (the Step-3 seed) ([a0b78a3](https://github.com/unbrowse-ai/unbrowse-dev/commit/a0b78a3bd8e5d76f0646008c645f251021848d63))
+* **research:** BM25 + MMR answer synthesis (arXiv-grounded, native) ([7c0cb4b](https://github.com/unbrowse-ai/unbrowse-dev/commit/7c0cb4b4993fd7e34b45087d82f25f0e513ffb48))
+* **research:** cross-source answer synthesis + cruft strip ([66f32bf](https://github.com/unbrowse-ai/unbrowse-dev/commit/66f32bfc31949f235dbb22cba22efe1946c3a91f))
+* **research:** faithfulness guard on synthesis (no drift beyond sources) ([b9fbdd0](https://github.com/unbrowse-ai/unbrowse-dev/commit/b9fbdd04bafff60df142a15ed34fbd969a8ec2f2))
+* **research:** honest non-silent failure + SERP retry (no silent blanks) ([a839ab3](https://github.com/unbrowse-ai/unbrowse-dev/commit/a839ab33ae3732cc7ec7e508235124dac719d8b1))
+* **research:** native `unbrowse crawl` + relative-link map (full Tavily parity) ([31d72ea](https://github.com/unbrowse-ai/unbrowse-dev/commit/31d72eaf2e5e2de135f3fd577725d9a19d38bb34))
+* **research:** native `unbrowse extract` (Tavily /extract parity) ([2096a91](https://github.com/unbrowse-ai/unbrowse-dev/commit/2096a916c04d95843b0a834a9ea01d3d86ad6680))
+* **research:** native `unbrowse map` (Tavily /map parity) ([f2a1229](https://github.com/unbrowse-ai/unbrowse-dev/commit/f2a1229d0fb7607faaa5afaf05cf57149a5187eb))
+* **research:** native unbrowse research primitive (Tavily parity) ([c742422](https://github.com/unbrowse-ai/unbrowse-dev/commit/c742422b2ca5b5ba34be54445c38ec89a9f23b4e))
+* **research:** optional grounded model synthesis (extractive floor preserved) ([7f61680](https://github.com/unbrowse-ai/unbrowse-dev/commit/7f616804fd1fcc7d27e267048d84eda361591a55))
+* **research:** SERP resilience — direct→proxied fallback on throttle ([a470c32](https://github.com/unbrowse-ai/unbrowse-dev/commit/a470c32fa1395cf7f69cc643e1186f59999897db))
+
+### Performance
+
+* **research:** bound the read-cache (sweepCache evicts oldest past cap) ([092f541](https://github.com/unbrowse-ai/unbrowse-dev/commit/092f5410a4b31638a05da93eaf8b38668afb101e))
+* **research:** bounded fetch concurrency (mapLimit, anti-self-throttle) ([8f6b893](https://github.com/unbrowse-ai/unbrowse-dev/commit/8f6b89344ccdc6972fd8e1d4237bed8b7afd80d0))
+* **research:** warm read-cache on readSource (the per-source fetch cost) ([7930029](https://github.com/unbrowse-ai/unbrowse-dev/commit/79300290592f62b20a473d3ac01a2acd0e843abc))
+
+### Refactoring
+
+* **research:** bind search/extract/research to ONE resolve→read→ground core ([02b63e0](https://github.com/unbrowse-ai/unbrowse-dev/commit/02b63e02fdd3ed1a15e8afec8832df3eb4224dbe))
+* **research:** one scoring core — citations rank by BM25+MMR too ([c843a83](https://github.com/unbrowse-ai/unbrowse-dev/commit/c843a8361bd697b4f0d86ebc4b62d0a0ccbb9394))
+
 ## [9.9.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.3...v9.9.0) (2026-06-18)
 
 ## [9.9.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.0-preview.2...v9.9.0-preview.3) (2026-06-18)
