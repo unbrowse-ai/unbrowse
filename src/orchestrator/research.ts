@@ -158,6 +158,33 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   return { query: q, answer, citations, results };
 }
 
+/**
+ * doCrawl — Tavily `/crawl` parity, native = `map ∘ extract*` bounded: map the seed's
+ * pointers, keep same-domain links (politeness + relevance), and read each (cached). One hop,
+ * page-capped — never an unbounded walk. Reuses doMap + readSource; honest-empty on a dead seed.
+ */
+export async function doCrawl(seed: string, opts: { maxPages?: number } = {}): Promise<{ seed: string; pages: ExtractedDoc[] }> {
+  const s = (seed ?? "").trim();
+  const maxPages = Math.max(1, Math.min(opts.maxPages ?? 5, 20));
+  if (!s) return { seed: "", pages: [] };
+  let host = "";
+  try { host = new URL(s).host; } catch { return { seed: s, pages: [] }; }
+  const { links } = await doMap(s);
+  const sameDomain: string[] = [];
+  const seen = new Set<string>([s]);
+  for (const l of links) {
+    try {
+      if (new URL(l.url).host !== host) continue; // same-domain only (bounded, polite)
+    } catch { continue; }
+    if (seen.has(l.url)) continue;
+    seen.add(l.url);
+    sameDomain.push(l.url);
+    if (sameDomain.length >= maxPages) break;
+  }
+  const { results } = await doExtract([s, ...sameDomain]);
+  return { seed: s, pages: results.filter((r) => r.ok) };
+}
+
 export interface ExtractedDoc {
   url: string;
   title: string;
@@ -204,13 +231,17 @@ export async function doMap(url: string): Promise<{ url: string; links: MappedLi
   if (!doc) return { url: u, links: [] };
   const links: MappedLink[] = [];
   const seen = new Set<string>();
-  const re = /\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;
+  const re = /\[([^\]]*)\]\(([^)\s]+)\)/g; // any href; relative links resolved against the page URL
   let m: RegExpExecArray | null;
   while ((m = re.exec(doc.raw_content)) !== null) {
-    const href = m[2];
-    if (seen.has(href)) continue;
-    seen.add(href);
-    links.push({ url: href, text: m[1].replace(/\s+/g, " ").trim() });
+    const raw = m[2];
+    if (/^(#|mailto:|javascript:|tel:|data:)/i.test(raw)) continue; // anchors/non-navigational
+    let abs: string;
+    try { abs = new URL(raw, doc.url).toString(); } catch { continue; }
+    if (!/^https?:\/\//i.test(abs)) continue;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    links.push({ url: abs, text: m[1].replace(/\s+/g, " ").trim() });
   }
   return { url: doc.url, links };
 }

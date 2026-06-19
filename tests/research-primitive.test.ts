@@ -3,7 +3,7 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, doExtract, doMap, sweepCache, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, doMap, doCrawl, sweepCache, type ResearchAnswer } from "../src/orchestrator/research.js";
 import { mkdtempSync, writeFileSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -72,6 +72,12 @@ describe("map primitive — Tavily /map parity (network-free contract)", () => {
   it("empty url -> empty links, never fabricated", async () => {
     expect(await doMap("")).toEqual({ url: "", links: [] });
     expect(await doMap("   ")).toEqual({ url: "", links: [] });
+  });
+});
+
+describe("crawl primitive — Tavily /crawl parity (network-free contract)", () => {
+  it("empty seed -> empty pages, never fabricated", async () => {
+    expect(await doCrawl("")).toEqual({ seed: "", pages: [] });
   });
 });
 
