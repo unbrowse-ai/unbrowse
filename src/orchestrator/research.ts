@@ -156,6 +156,29 @@ async function modelSynth(sources: { url: string; title: string; content: string
 }
 
 /**
+ * isGrounded — faithfulness guard (the two-witness principle applied to synthesis): an emitted
+ * answer must be corroborated by the fetched sources. Returns true iff most of the answer's
+ * content terms actually appear in the source text. Guards ANY synthImpl (model or custom)
+ * against drift/fabrication beyond what was read — the no-fabrication invariant, enforced.
+ */
+export function isGrounded(answer: string, sources: { content: string }[], minOverlap = 0.6): boolean {
+  const ans = answer.trim();
+  if (!ans) return false;
+  const terms = [...new Set(ans.toLowerCase().match(/[a-z][a-z0-9]{3,}/g) ?? [])]
+    .filter((t) => !STOPWORDS.has(t));
+  if (!terms.length) return true; // numbers/punctuation only -> nothing to fabricate
+  const hay = sources.map((s) => s.content || "").join(" ").toLowerCase();
+  const present = terms.filter((t) => hay.includes(t)).length;
+  return present / terms.length >= minOverlap;
+}
+
+const STOPWORDS = new Set(
+  ("the and for that with this from were was are has have had its their they them then than what when " +
+   "which who whom whose into onto over under about above below been being also some such only very more most " +
+   "other these those will would shall should could there here your you our out off per via etc inc").split(/\s+/),
+);
+
+/**
  * doResearch — search -> extract -> synthesized cited answer, natively.
  * Honest-empty: if no source fetches, answer="" and citations=[] (never fabricated).
  */
@@ -222,7 +245,9 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
   let answer = extractive;
   try {
     const got = await synth(results, q);
-    if (got && got.trim()) answer = got.trim();
+    // Faithfulness gate: accept a synth answer ONLY if it is grounded in the fetched sources;
+    // otherwise keep the (source-built, never-fabricated) extractive answer.
+    if (got && got.trim() && isGrounded(got, results)) answer = got.trim();
   } catch { /* graceful: keep the extractive answer */ }
 
   return { query: q, answer, citations, results };
