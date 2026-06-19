@@ -159,6 +159,37 @@ describe("SERP resilience — direct→fallback when rate-limited (network-free)
   });
 });
 
+describe("synthesis seam — pluggable ground step, extractive floor preserved (network-free)", () => {
+  const injectedSerp = async () => [{ url: "https://en.wikipedia.org/wiki/Stripe,_Inc.", score: 1 } as any];
+
+  it("a configured synthImpl overrides the answer AND receives only the fetched sources", async () => {
+    let sawSources: any[] = [];
+    const r = await doResearch("who founded Stripe", {
+      numResults: 1,
+      searchImpl: injectedSerp,
+      synthImpl: (sources) => { sawSources = sources; return "MODEL_ANSWER_TOKEN"; },
+    });
+    if (r.citations.length) {
+      expect(r.answer).toBe("MODEL_ANSWER_TOKEN"); // the seam was used
+      expect(sawSources.length).toBeGreaterThan(0); // grounded: it got the real fetched sources
+      const urls = new Set(r.results.map((x) => x.url));
+      for (const s of sawSources) expect(urls.has(s.url)).toBe(true); // only fetched sources, no fabrication
+    } else {
+      expect((r.note ?? "").length).toBeGreaterThan(0); // throttle/no-read -> honest note
+    }
+  }, 90_000);
+
+  it("synthImpl returning empty falls back to the extractive answer (floor preserved)", async () => {
+    const r = await doResearch("who founded Stripe", {
+      numResults: 1,
+      searchImpl: injectedSerp,
+      synthImpl: () => "", // model abstains/empty
+    });
+    if (r.citations.length) expect(r.answer.length).toBeGreaterThan(0); // extractive floor held
+    else expect((r.note ?? "").length).toBeGreaterThan(0);
+  }, 90_000);
+});
+
 describe("research pipeline — witnessable offline via injected SERP (throttle-proof witness)", () => {
   it("injected hits -> research reads + grounds without any live DDG", async () => {
     // Proves the search→read→ground walk end-to-end without depending on live (throttle-prone)

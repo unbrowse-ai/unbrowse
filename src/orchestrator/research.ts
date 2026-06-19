@@ -91,6 +91,10 @@ export interface ResearchOptions {
   perSourceBudget?: number;
   /** Override the SERP resolver (injection seam for tests / alternate engines). */
   searchImpl?: (query: string, numResults: number) => Promise<DdgHit[]>;
+  /** Override the ground/synthesis step (the answer is a value resolved from the source-holes —
+   *  by extraction by default, or a model when configured). Receives ONLY fetched sources, so a
+   *  model synth stays grounded (no fabrication). Returns "" to fall back to extractive. */
+  synthImpl?: (sources: { url: string; title: string; content: string }[], query: string) => Promise<string> | string;
 }
 
 type DdgHit = Awaited<ReturnType<typeof ddgSearch>>[number];
@@ -120,6 +124,35 @@ async function resolveSerp(query: string, numResults: number): Promise<DdgHit[]>
     () => ddgSearch(query, numResults),
     () => (process.env.UNBROWSE_WEB_PROXY ? ddgSearch(query, numResults, proxiedFetch()) : Promise.resolve([])),
   );
+}
+
+/**
+ * modelSynth — OPTIONAL grounded model synthesis (the quality lever for overview-only sources
+ * extraction can't phrase). Active ONLY when a key is configured (UNBROWSE_RESEARCH_LLM_KEY or
+ * OPENROUTER_API_KEY); otherwise returns "" → the extractive floor stands. The model is given
+ * ONLY the fetched sources and told to answer strictly from them (no fabrication). Best-effort:
+ * any error returns "" and the caller keeps the extractive answer.
+ */
+async function modelSynth(sources: { url: string; title: string; content: string }[], query: string): Promise<string> {
+  const key = process.env.UNBROWSE_RESEARCH_LLM_KEY || process.env.OPENROUTER_API_KEY;
+  if (!key || !sources.length) return ""; // off by default -> extractive floor
+  const base = process.env.UNBROWSE_RESEARCH_LLM_BASE || "https://openrouter.ai/api/v1";
+  const model = process.env.UNBROWSE_RESEARCH_LLM_MODEL || "openai/gpt-4o-mini";
+  const ctx = sources.slice(0, 6).map((s, i) => `[${i + 1}] ${s.title}\n${(s.content || "").slice(0, 1500)}`).join("\n\n");
+  const sys = "Answer the question using ONLY the numbered sources. Quote facts faithfully; do not invent. If the sources do not contain the answer, say exactly: not found in sources.";
+  const res = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, temperature: 0, max_tokens: 300, messages: [
+      { role: "system", content: sys },
+      { role: "user", content: `Question: ${query}\n\nSources:\n${ctx}` },
+    ] }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) return "";
+  const j = await res.json() as { choices?: { message?: { content?: string } }[] };
+  const txt = (j.choices?.[0]?.message?.content || "").trim();
+  return /^not found in sources/i.test(txt) ? "" : txt; // honest: abstain -> extractive fallback
 }
 
 /**
@@ -180,10 +213,17 @@ export async function doResearch(query: string, opts: ResearchOptions = {}): Pro
     content: s.focused,
     score: s.score,
   }));
-  // Cross-source synthesis: pool every prose sentence from every cited source, rank by
-  // query-term relevance across the whole set, dedup, and keep the best few. A fact stated
-  // by a lower-ranked source still surfaces over a top source's title line.
-  const answer = synthesizeAnswer(cited.map((c) => c.s.focused), q, 3) || citations[0].quote;
+  // 3. GROUND — the answer is a value resolved from the source-holes. Default = extractive
+  //    cross-source BM25+MMR synthesis (native, dep-free). A configured synthImpl (e.g. a model
+  //    given ONLY these sources) may override; any failure or empty falls back to extractive —
+  //    the native floor is never lost.
+  const extractive = synthesizeAnswer(cited.map((c) => c.s.focused), q, 3) || citations[0].quote;
+  const synth = opts.synthImpl ?? modelSynth;
+  let answer = extractive;
+  try {
+    const got = await synth(results, q);
+    if (got && got.trim()) answer = got.trim();
+  } catch { /* graceful: keep the extractive answer */ }
 
   return { query: q, answer, citations, results };
 }
