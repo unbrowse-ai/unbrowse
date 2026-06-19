@@ -3,7 +3,7 @@
 // really-fetched sources; empty query or zero fetched sources -> honest empty, never invented.
 // Network-free contract tests run always; the live grounding test is env-gated (UNBROWSE_LIVE=1).
 import { describe, it, expect } from "bun:test";
-import { doResearch, type ResearchAnswer } from "../src/orchestrator/research.js";
+import { doResearch, doExtract, type ResearchAnswer } from "../src/orchestrator/research.js";
 
 function assertHonestEmpty(r: ResearchAnswer) {
   expect(r.answer).toBe("");
@@ -48,6 +48,13 @@ describe("research primitive — invariants any non-empty result must satisfy", 
     const resultUrls = new Set(sample.results.map((r) => r.url));
     for (const c of sample.citations) expect(resultUrls.has(c.url)).toBe(true);
     for (const c of sample.citations) expect(sample.answer).toContain(c.quote);
+  });
+});
+
+describe("extract primitive — Tavily /extract parity (network-free contract)", () => {
+  it("no urls -> empty results, never fabricated", async () => {
+    expect(await doExtract([])).toEqual({ results: [] });
+    expect(await doExtract(["", "   "])).toEqual({ results: [] });
   });
 });
 
