@@ -4,6 +4,14 @@
    Scoped under .aiko-root so Aiko's dark theme never leaks into the orange/white
    unbrowse site shell, regardless of the site's light/dark toggle. */
 
+/* On the Aiko route, paint the whole page (and the gaps around the scoped dark
+   theme — the navbar seam and the footer's top-margin) dark, so a light site
+   theme never leaks a white band. Dark mode already looks right; this only fixes
+   light mode. */
+body:has(.aiko-root) {
+  background: #0e0a06 !important;
+}
+
 .aiko-root {
   --a-bg: #0e0a06;
   --a-bg-2: #14100a;
