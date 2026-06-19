@@ -10,7 +10,7 @@
 # cross-platform release artifacts; that still belongs on GitHub Actions / the
 # RunPod ephemeral runner. This workflow proves gitea can deploy the backend to
 # the safe (staging) target with the secrets that live on this box.
-name: Deploy (gitea / mac-mini)
+name: Gitea Mini Deploy
 
 on:
   workflow_dispatch:
