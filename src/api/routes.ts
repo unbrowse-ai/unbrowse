@@ -1220,7 +1220,8 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
 
-      await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
+      // U-1 (P0): fire-and-forget — never block the resolve response on telemetry (~2s/call).
+      void recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
         discovery_queries: 1,
       })).catch(() => {});
 
@@ -2419,7 +2420,8 @@ export async function registerRoutes(app: FastifyInstance) {
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
-          await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
+          // U-1 (P0): fire-and-forget — telemetry must not block the response.
+          void recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
             discovery_queries: 1,
           })).catch(() => {});
           const recovered = attachAgentOutcomeHints({
@@ -2442,7 +2444,8 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
 
-      await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
+      // U-1 (P0): fire-and-forget — telemetry must not block the execute response.
+      void recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
         discovery_queries: 0,
       })).catch(() => {});
 
