@@ -1,5 +1,49 @@
 # Changelog
 
+## [9.10.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.10.0-preview.0...v9.10.0) (2026-06-20)
+
+### Features
+
+* **auth:** web3-PK as first-class identity root (signature auth, additive + hijack-hardened) ([#849](https://github.com/unbrowse-ai/unbrowse-dev/issues/849)) ([fe77706](https://github.com/unbrowse-ai/unbrowse-dev/commit/fe77706788b41589ca118b1fc14cc00066f2e083))
+* **cli:** native 'unbrowse contract declare/status' — /contract native end-to-end ([abd24dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/abd24dd58deb06fea50a32c1e5f60c79c474243b))
+* **contract:** CLI /contract declare signs with the unbrowse wallet (one-key-signs-every-layer) ([b151995](https://github.com/unbrowse-ai/unbrowse-dev/commit/b151995cef4c265bfbff543e8924801ffdb35e09))
+* **contract:** collapse /contract into the agent's natural interface — execute auto-declares ([c497632](https://github.com/unbrowse-ai/unbrowse-dev/commit/c4976327f3ebecd7def00ca23004be92e71495cf))
+* **contract:** gate secrets out of declares — enforce 'ledger holds shape+pointers, never raw values' ([192b841](https://github.com/unbrowse-ai/unbrowse-dev/commit/192b841edb1057d68c7ac7153b529b90c0ee8cfe))
+* **contract:** zk declare — port reference NIZK to TS, KAT-proven against binding.py (additive) ([09be238](https://github.com/unbrowse-ai/unbrowse-dev/commit/09be23898325b26d4bcbd76a1c3513c463e8732d))
+* **core:** CLI signs+canonicalizes via the Zig WASM core (convergence step 4 — 'sign embed') ([1396066](https://github.com/unbrowse-ai/unbrowse-dev/commit/1396066e9a46339364e57a08574c7a1adbce9399))
+* **core:** fold zk verify into the Zig WASM core (convergence step 3 — 'it gets zk'ed away') ([7e1da02](https://github.com/unbrowse-ai/unbrowse-dev/commit/7e1da02d1fb2cff9d8474239335954aeba9cec75))
+* **core:** reembed /contract signed — verify through unbrowse-core WASM (convergence step 2) ([e983cc3](https://github.com/unbrowse-ai/unbrowse-dev/commit/e983cc3a0cd340bba71f0bd3644ffe7b9d5a1ddc))
+* **core:** rewire backend canonicalize → unbrowse-core Zig WASM (convergence step 1) ([d9df29d](https://github.com/unbrowse-ai/unbrowse-dev/commit/d9df29d290f4851c4467c0b2a0f4940b13bc9cbc))
+* **core:** rewire backend energyScore → WASM core (convergence module realized in live path) ([0c64a56](https://github.com/unbrowse-ai/unbrowse-dev/commit/0c64a5646bce423a36cac59f5408d7c97472c1ff))
+* **delegation:** end-to-end usability — session-key discovery endpoint + SDK setupDelegation() ([d5151dc](https://github.com/unbrowse-ai/unbrowse-dev/commit/d5151dc4171bd9bf44b2fbb28cd7ef03de1dfe89))
+* **design:** fill energy/settle/admitPayment gaps + adversarial hardening (Step 5) ([84e508f](https://github.com/unbrowse-ai/unbrowse-dev/commit/84e508ff84dba82cb722833f4fc7b2525356e396))
+* **design:** wire energy/settle/admitPayment + declare-on-resolve into live path (gated) ([3f5fd11](https://github.com/unbrowse-ai/unbrowse-dev/commit/3f5fd117cced4b0e704d520a662d68e61d261bc3))
+* **index:** add /v1/skills/from-routes — the client flywheel's missing half ([7131480](https://github.com/unbrowse-ai/unbrowse-dev/commit/713148010629b94671186baa47f84ea010fe0f48)), closes [#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2)
+* **index:** passive auto-index — /reveng auto-publishes captured endpoints ([3a4a6ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/3a4a6ce03b79bb057c5de948ee969113f5421272))
+* **pay+rank:** remove escape-hatch flag + platform-pays hack; honest deposit-funded wallet-keys + real energy ordering ([9f611b0](https://github.com/unbrowse-ai/unbrowse-dev/commit/9f611b000230652f10daf67e8dbb1ee6627337c9))
+* **pay:** non-custodial delegated-session-key funding lane (designed→built→tested) ([f84bc2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/f84bc2b312cbc5e8e82ea34b90ed7bc421c59403))
+
+### Bug Fixes
+
+* **accounts:** setAccountPreferences default matches get (share_pointers ?? true) ([8d53d6f](https://github.com/unbrowse-ai/unbrowse-dev/commit/8d53d6fd6ab8e379e6b12804e27cf49c208afcbd))
+* **auth-gate:** consult the multi-browser harvest before forcing interactive login ([d38ef67](https://github.com/unbrowse-ai/unbrowse-dev/commit/d38ef677820f528a45ca3f9508c18a72a364b714))
+* **cli:** U-1 telemetry no longer blocks resolve + U-3 honor UNBROWSE_HOME ([7f1d8ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/7f1d8ceabb7514813a2d03e877eb54fe0f5040fd))
+* **from-routes:** annotate map callback as RawRequest (type widening) ([0033fad](https://github.com/unbrowse-ai/unbrowse-dev/commit/0033fad2c76c425a38802c7dcb8772250de75e4d))
+* **index:** route bm25 index through EmergentDB + slim index docs ([b598b55](https://github.com/unbrowse-ai/unbrowse-dev/commit/b598b55775efdb570ee06e044777df221976092a))
+* **ledger:** unify economic ledgers on append-only event-log + projection ([#847](https://github.com/unbrowse-ai/unbrowse-dev/issues/847)) ([1167b42](https://github.com/unbrowse-ai/unbrowse-dev/commit/1167b42cffb1620c3232546f09237234f0a69a0c))
+* **proxy:** remove per-context launch poison; default raw with health-gated proxy->raw fallback ([4cc54e7](https://github.com/unbrowse-ai/unbrowse-dev/commit/4cc54e7f0fa72dcb781f9832ee20e4cc1b64d5b8))
+* **storage:** finish EmergentDB port — migrate remaining 15 raw env.STATS_KV sites ([2817cb8](https://github.com/unbrowse-ai/unbrowse-dev/commit/2817cb8c01542d64cdd3e6af3bea967e3b2a0ede))
+* **tests+ratelimit:** clear pre-existing failures (1 real bug) + delegation design ([c6bd19c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c6bd19c342cadb3a366d67c525be24c0c49c151b))
+
+### Performance
+
+* **cli:** eliminate hot-path telemetry stalls + embedding cache (beats Exa latency) ([#848](https://github.com/unbrowse-ai/unbrowse-dev/issues/848)) ([7d74a7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/7d74a7e10606ef56da0257e896f67c2c26f363d7))
+
+### Refactoring
+
+* **cli:** make 'unbrowse contract' /contract-shaped (goal-only, no verbs) ([65dcc34](https://github.com/unbrowse-ai/unbrowse-dev/commit/65dcc3446f554de86812fe0ae46751474754d981))
+* **cli:** merge 'unbrowse contract' into the root — a bare goal IS a contract ([239bcae](https://github.com/unbrowse-ai/unbrowse-dev/commit/239bcae94a3bd9fa1c42045448df93e3f998f1be))
+
 ## [9.10.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.9.1...v9.10.0-preview.0) (2026-06-19)
 
 ### Features
