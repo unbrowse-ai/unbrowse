@@ -123,14 +123,16 @@ describe("unbrowse contract — native CLI command", () => {
       return new Response("not found", { status: 404 });
     }) as typeof fetch);
 
-    await runHandler(parsed(["declare", "test claim from amen"], { action: "agent-judges" }));
+    // Goal-only (/contract shape): a bare claim declares — no `declare` verb, no
+    // --action flag; the verb rides in the leading token (none here → declare).
+    await runHandler(parsed(["the route resolves clean — two witnesses"]));
 
     expect(exitCode).toBe(0);
     const out = JSON.parse(stdout.trim());
     expect(out.ok).toBe(true);
     expect(out.id).toBe("row-abc123");
     expect(out.verb).toBe("declare");
-    expect(out.plan).toBe("test claim from amen");
+    expect(out.plan).toBe("the route resolves clean — two witnesses");
 
     // The wire body is wallet-signed + well-formed.
     expect(captured).toBeDefined();
@@ -143,8 +145,8 @@ describe("unbrowse contract — native CLI command", () => {
       declare_signature?: string;
       ts?: string;
     };
-    expect(body.plan).toBe("test claim from amen");
-    expect(body.action).toBe("agent-judges");
+    expect(body.plan).toBe("the route resolves clean — two witnesses");
+    expect(body.action).toBe("declare"); // bare claim → declare (the build verb has no prefix)
     expect(typeof body.wallet_identity).toBe("string");
     expect(body.wallet_identity!.length).toBe(64); // 32-byte ed25519 pubkey, hex
     expect(typeof body.declare_signature).toBe("string");
@@ -162,6 +164,32 @@ describe("unbrowse contract — native CLI command", () => {
     };
     const ok = await verifyDeclareSignature(canonical, body.declare_signature!);
     expect(ok).toBe(true);
+  });
+
+  test("goal-only verb: a leading token (satisfied:<id>) derives the action", async () => {
+    let captured: Record<string, unknown> | undefined;
+    installHarness((async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? new URL(input) : new URL(input.toString());
+      if (url.pathname === "/v1/contract/declare") {
+        captured = init?.body ? JSON.parse(init.body as string) : {};
+        return new Response(JSON.stringify({ id: "row-eval-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    await runHandler(parsed(["satisfied:row-xyz — gate exit 0"]));
+
+    expect(exitCode).toBe(0);
+    const out = JSON.parse(stdout.trim());
+    expect(out.verb).toBe("declare");
+    expect(out.action).toBe("satisfied"); // verb derived from the leading token, no --action flag
+    expect(out.plan).toBe("satisfied:row-xyz — gate exit 0"); // the plan IS the whole goal (aiko grammar)
+    const body = captured as { plan: string; action: string };
+    expect(body.action).toBe("satisfied");
+    expect(body.plan).toBe("satisfied:row-xyz — gate exit 0");
   });
 
   test("status: handler GETs the projection and prints it", async () => {
@@ -187,7 +215,7 @@ describe("unbrowse contract — native CLI command", () => {
     expect(out.rows).toEqual([{ wave: 0 }]);
   });
 
-  test("missing verb → usage error (EX_USAGE)", async () => {
+  test("missing goal → usage error (EX_USAGE)", async () => {
     installHarness((async () => new Response("nope", { status: 500 })) as typeof fetch);
     let stderr = "";
     const realErr = process.stderr.write.bind(process.stderr);
@@ -200,7 +228,7 @@ describe("unbrowse contract — native CLI command", () => {
       process.stderr.write = realErr;
     }
     expect(exitCode).toBe(64); // EX_USAGE
-    expect(stderr).toContain("contract_verb_required");
+    expect(stderr).toContain("goal_required");
   });
 });
 
