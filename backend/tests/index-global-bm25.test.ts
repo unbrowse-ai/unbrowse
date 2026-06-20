@@ -1,5 +1,6 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { indexEndpoints, hashToInt } from "../src/services/discovery";
+import { clearKVCacheForTests } from "../src/services/kv";
 
 // Witness for the BM25 global index: indexEndpoints writes the per-domain BM25 key AND
 // merges into the SHARDED global index (16 shards by hash(skillId), + a legacy single
@@ -8,10 +9,20 @@ import { indexEndpoints, hashToInt } from "../src/services/discovery";
 
 function fakeKV() {
   const m = new Map<string, string>();
+  // FallbackKV namespaces CF-KV keys as `${ns}:${key}` (ns=skills-v2/stats) so the
+  // shared STATS_KV binding can't collide between skillsKV and statsKV. These tests
+  // assert the LOGICAL key shape (per-domain + sharded global), so present a
+  // namespace-transparent store: strip the leading ns prefix on read/write.
+  const strip = (k: string): string => {
+    for (const p of ["skills-v2:", "stats:", "staging-skills-v3:", "staging-stats:"]) {
+      if (k.startsWith(p)) return k.slice(p.length);
+    }
+    return k;
+  };
   return {
     store: m,
-    get: async (k: string) => (m.has(k) ? m.get(k)! : null),
-    put: async (k: string, v: string) => { m.set(k, v); },
+    get: async (k: string) => { const s = strip(k); return m.has(s) ? m.get(s)! : null; },
+    put: async (k: string, v: string) => { m.set(strip(k), v); },
   };
 }
 
@@ -33,6 +44,7 @@ const globalShardKeysUsed = (store: Map<string, string>) =>
 
 const realFetch = globalThis.fetch;
 beforeEach(() => {
+  clearKVCacheForTests(); // reset the module-level EdbKV index cache so tests don't pollute each other
   globalThis.fetch = (async () => new Response(JSON.stringify({ ok: true }), {
     status: 200, headers: { "content-type": "application/json" },
   })) as typeof fetch;
