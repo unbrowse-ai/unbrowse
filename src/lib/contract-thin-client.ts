@@ -16,6 +16,7 @@
  */
 
 import type { LocalCapabilityDispatcher } from "./local-capabilities";
+import { canonicalizeViaWasm, signViaWasm } from "./core-wasm";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirror backend/src/routes/contract.ts request/response.
@@ -44,6 +45,13 @@ export interface ThinClientDeclareRequest {
 export interface ThinClientSigner {
   getWalletPubkey(): Promise<Uint8Array>;
   signBytes(message: Uint8Array): Promise<{ signature: Uint8Array }>;
+  /**
+   * Optional: run `fn` with the raw 64-byte Ed25519 SecretKey (seed||pubkey)
+   * loaded transiently (zeroed after). Present on the real unbrowse signer so
+   * the declare can route SIGN through the one Zig WASM core; absent on test
+   * stubs, in which case signing stays on `signBytes`. Never retain the buffer.
+   */
+  withSecretKey?<T>(fn: (sk64: Uint8Array) => T): T;
 }
 
 export interface ThinClientIterateRequest {
@@ -189,16 +197,19 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 /**
- * Canonical declare body — byte-for-byte identical to the backend's
- * `canonicalizeDeclareBody` (backend/src/services/declare-signature.ts).
+ * Pure-TS canonical declare body — the FALLBACK. PREFER the Zig WASM core
+ * (`canonicalizeViaWasm` in ./core-wasm) which is the ONE canonical
+ * implementation shared with the backend's verifier; this TS path runs only
+ * when the wasm can't load (unsupported runtime, missing/corrupt module).
+ *
  * The backend emits keys in this fixed object-literal order (plan, action,
  * parent_id, agent, wallet_identity, ts) — NOT a runtime sort — and uses
- * `null` (never undefined / omitted) for an absent parent_id or agent. We
- * reproduce that exact insertion order + null-coercion so the bytes the CLI
- * signs equal the bytes the server verifies. Any drift here breaks the
- * signature silently, so this MUST stay in lockstep with the backend.
+ * `null` (never undefined / omitted) for an absent parent_id or agent. The Zig
+ * core re-serializes in this same order, so all three (CLI WASM, CLI TS,
+ * backend) emit byte-identical bytes — the invariant that makes a CLI-signed
+ * declare verify on the backend.
  */
-function canonicalizeDeclareBody(body: {
+function canonicalizeDeclareBodyTs(body: {
   plan: string;
   action: string;
   parent_id: string | null;
@@ -217,6 +228,23 @@ function canonicalizeDeclareBody(body: {
 }
 
 /**
+ * Canonicalize the declare body through the SINGLE Zig WASM core, falling back
+ * to the pure-TS emitter on any wasm fault. This kills the CLI's OWN duplicate
+ * byte-emitter as the load-bearing path: the bytes the CLI signs now come from
+ * the same core the backend canonicalizes/verifies with.
+ */
+function canonicalizeDeclareBody(body: {
+  plan: string;
+  action: string;
+  parent_id: string | null;
+  agent: string | null;
+  wallet_identity: string;
+  ts: string;
+}): string {
+  return canonicalizeViaWasm(body) ?? canonicalizeDeclareBodyTs(body);
+}
+
+/**
  * Lazily load the real unbrowse signer (src/values/signer.ts) so the thin
  * client never imports keychain machinery unless an opts.signer override is
  * absent AND a declare actually needs to sign. Returns null when the signer
@@ -225,7 +253,11 @@ function canonicalizeDeclareBody(body: {
 async function defaultSigner(): Promise<ThinClientSigner | null> {
   try {
     const mod = await import("../values/signer.js");
-    return { getWalletPubkey: mod.getWalletPubkey, signBytes: mod.signBytes };
+    return {
+      getWalletPubkey: mod.getWalletPubkey,
+      signBytes: mod.signBytes,
+      withSecretKey: mod.withSecretKey,
+    };
   } catch {
     return null;
   }
@@ -300,10 +332,27 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
             wallet_identity,
             ts,
           });
-          const signed = await signer.signBytes(new TextEncoder().encode(canonical));
+          const canonicalBytes = new TextEncoder().encode(canonical);
+          // SIGN through the ONE Zig WASM core when the signer can expose the
+          // raw 64-byte SecretKey in-process (real unbrowse signer). The secret
+          // is loaded transiently inside withSecretKey and zeroed on return —
+          // it never leaves that scope. On ANY wasm fault (signViaWasm → null)
+          // OR a signer without withSecretKey (test stub) we fall back to the
+          // node:crypto signer.signBytes, so signing NEVER breaks. Ed25519 is
+          // RFC-8032 — both signatures verify identically on the backend.
+          let declare_signature: string | null = null;
+          if (typeof signer.withSecretKey === "function") {
+            declare_signature = signer.withSecretKey((sk64) =>
+              signViaWasm(canonicalBytes, sk64),
+            );
+          }
+          if (declare_signature === null) {
+            const signed = await signer.signBytes(canonicalBytes);
+            declare_signature = bytesToHex(signed.signature);
+          }
           signedExtras = {
             wallet_identity,
-            declare_signature: bytesToHex(signed.signature),
+            declare_signature,
             ts,
             agent,
           };
