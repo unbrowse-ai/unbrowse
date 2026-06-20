@@ -24,7 +24,7 @@ env:
 jobs:
   build-kuri-win-x64:
     name: Build Kuri Windows Broker (windows-gnu)
-    runs-on: windows-latest
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:
@@ -99,7 +99,7 @@ jobs:
   # when a target binary is already present on disk).
   build-kuri-vendor:
     name: Build Kuri Vendor (shared, cached)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-kuri-win-x64
     permissions:
       contents: read
@@ -149,7 +149,7 @@ jobs:
   # per-shard manifest would diverge).
   build-cli-binary:
     name: Build CLI Binary (${{ matrix.target }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-kuri-vendor
     permissions:
       contents: read
@@ -204,7 +204,7 @@ jobs:
 
   upload-release-assets:
     name: Upload CLI Release Assets
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-cli-binary
     permissions:
       contents: write
@@ -284,7 +284,7 @@ jobs:
 
   sync-public-tree:
     name: Sync Public Docs + Packages
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: upload-release-assets
     permissions:
       contents: read
@@ -340,7 +340,7 @@ jobs:
 
   verify-release-assets:
     name: Verify CLI Release Assets
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: upload-release-assets
     permissions:
       contents: read
@@ -358,7 +358,7 @@ jobs:
 
   publish-cli:
     name: Publish CLI (npm)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [verify-release-assets]
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
@@ -506,7 +506,7 @@ jobs:
 
   publish-sdk:
     name: Publish SDK (npm)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: publish-cli
     permissions:
       contents: read
@@ -622,7 +622,7 @@ jobs:
             || echo "::warning::npm deprecate (undeprecate) failed; see log above"
   deploy-backend:
     name: Deploy Backend (CF Worker)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: publish-cli
     defaults:
       run:
@@ -663,7 +663,7 @@ jobs:
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: publish-cli
     defaults:
       run:
