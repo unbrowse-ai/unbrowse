@@ -1,4 +1,5 @@
 import type { Env } from "../types.js";
+import { statsKV } from "./kv.js";
 
 // --- Types ---
 
@@ -47,13 +48,13 @@ export interface DemoOutputs {
 const JOB_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 async function getJob(env: Env, jobId: string): Promise<DemoJob | null> {
-  const raw = await env.STATS_KV.get(`demo:${jobId}`);
+  const raw = await statsKV(env).get(`demo:${jobId}`) as string | null;
   if (!raw) return null;
   return JSON.parse(raw) as DemoJob;
 }
 
 async function putJob(env: Env, job: DemoJob): Promise<void> {
-  await env.STATS_KV.put(`demo:${job.job_id}`, JSON.stringify(job), {
+  await statsKV(env).put(`demo:${job.job_id}`, JSON.stringify(job), {
     expirationTtl: JOB_TTL_SECONDS,
   });
 }
