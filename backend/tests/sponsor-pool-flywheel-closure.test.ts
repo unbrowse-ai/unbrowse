@@ -7,8 +7,18 @@
  * balance is sufficient.
  *
  * Per CLAUDE.md "Never mock in tests" — we hit the real
- * addSponsorPoolCredits / drawFromSponsorPool against an in-memory KV
- * stand-in (same pattern as sponsor-stripe-integration.test.ts).
+ * addSponsorPoolCredits / drawFromSponsorPool against the in-memory
+ * LocalKV that statsKV() returns under ENVIRONMENT="local-dev" (same
+ * pattern as sponsor-stripe-integration.test.ts).
+ *
+ * NOTE: an earlier version of makeEnv() only passed a raw STATS_KV
+ * KVNamespace and omitted ENVIRONMENT. That made statsKV() throw
+ * "EMERGENTDB_API_KEY is required" — statsKV() never reads env.STATS_KV
+ * directly (it only wraps an EdbKV in FallbackKV when the EmergentDB key
+ * is present); the only no-key in-memory path is ENVIRONMENT="local-dev"
+ * → LocalKV. The sponsor-pool.ts kvGet/kvPut doc-comment claiming a raw
+ * STATS_KV fallback is inaccurate, but the code is production-correct, so
+ * the fix belongs here in the test env, not in the service.
  */
 
 import { describe, expect, test, beforeEach } from "bun:test";
@@ -21,24 +31,12 @@ import {
 import type { Env } from "../src/types.js";
 import { clearKVCacheForTests } from "../src/services/kv.js";
 
-function makeMemoryKv(): KVNamespace {
-  const store = new Map<string, string>();
-  return {
-    get: async (key: string) => store.get(key) ?? null,
-    put: async (key: string, value: string) => {
-      store.set(key, value);
-    },
-    delete: async (key: string) => {
-      store.delete(key);
-    },
-    list: async () => ({ keys: [], list_complete: true, cacheStatus: null }),
-    getWithMetadata: async () => ({ value: null, metadata: null, cacheStatus: null }),
-  } as unknown as KVNamespace;
-}
-
 function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
-    STATS_KV: makeMemoryKv(),
+    // local-dev makes statsKV() return an in-memory LocalKV (no
+    // EMERGENTDB_API_KEY needed). beforeEach's clearKVCacheForTests()
+    // resets the shared LocalKV store so tests stay isolated.
+    ENVIRONMENT: "local-dev",
     ...overrides,
   } as unknown as Env;
 }

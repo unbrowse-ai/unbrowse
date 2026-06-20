@@ -161,6 +161,11 @@ describe("skills publish — server-authoritative secret sanitization", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456",
+        // Distinct client IP per test (keyed off the per-test `domain`) so the
+        // module-level per-IP publish rate limiter — rl:publish:<ip>, shared
+        // across the whole `bun test` process — does not collapse every
+        // non-admin publish into one "unknown" bucket and 429 later suites.
+        "cf-connecting-ip": `10.0.2.${domain.length}-${domain}`,
         "Content-Type": "application/json",
         ...signedReleaseHeaders(),
       },
@@ -205,6 +210,11 @@ describe("skills publish — server-authoritative secret sanitization", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456",
+        // Distinct client IP per test (keyed off the per-test `domain`) so the
+        // module-level per-IP publish rate limiter — rl:publish:<ip>, shared
+        // across the whole `bun test` process — does not collapse every
+        // non-admin publish into one "unknown" bucket and 429 later suites.
+        "cf-connecting-ip": `10.0.2.${domain.length}-${domain}`,
         "Content-Type": "application/json",
         ...signedReleaseHeaders(),
       },
@@ -229,6 +239,11 @@ describe("skills publish — server-authoritative secret sanitization", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456",
+        // Distinct client IP per test (keyed off the per-test `domain`) so the
+        // module-level per-IP publish rate limiter — rl:publish:<ip>, shared
+        // across the whole `bun test` process — does not collapse every
+        // non-admin publish into one "unknown" bucket and 429 later suites.
+        "cf-connecting-ip": `10.0.2.${domain.length}-${domain}`,
         "Content-Type": "application/json",
         ...signedReleaseHeaders(),
       },

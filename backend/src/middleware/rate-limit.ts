@@ -47,6 +47,16 @@ export function rateLimit(opts: RateLimitOptions) {
 
 export function agentRateLimit(opts: RateLimitOptions) {
   return async (c: Context<AuthedEnv>, next: Next) => {
+    // This middleware is registered BEFORE the route's auth handler resolves
+    // `agent_id`, so `c.get("agent_id")` is undefined here for the admin path.
+    // Resolve the admin bypass directly from the bearer token (the same
+    // `token === API_KEY ⇒ __admin__` rule the publish handler applies) so the
+    // marketplace-seed admin path is never rate-limited.
+    const auth = c.req.header("Authorization");
+    if (auth?.startsWith("Bearer ") && c.env.API_KEY && auth.slice(7).trim() === c.env.API_KEY) {
+      await next();
+      return;
+    }
     const agentId = c.get("agent_id");
     if (agentId === "__admin__") { await next(); return; }
     const identity = agentId || getIp(c);
