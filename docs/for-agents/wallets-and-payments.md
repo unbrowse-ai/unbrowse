@@ -1,4 +1,4 @@
-# Wallets & payments — bring your own wallet (Wallet Standard)
+# Wallets & payments — two ways to pay (wallet signature or a bound API key)
 
 Unbrowse priced calls (search-on-top, route execution) settle **per request via
 [x402](https://www.x402.org)** in USDC on Solana. Unbrowse never holds your keys:
@@ -38,26 +38,40 @@ The skill describes *what* to pay and *why*; the wallet decides *how*. We do not
 prescribe a currency, token, or method beyond the x402 requirement, and we do not
 call wallet operations by name — execution is the wallet's.
 
-## Optional: the Unbrowse default wallet (just pay via API)
+## Two ways to pay
 
-For web2 users who would rather not run a wallet at all, there's an **opt-in**
-default: a Wallet Standard wallet whose signing is delegated to the Unbrowse
-server, authorized by your API key. You never handle a seed phrase.
+A priced call can be satisfied in **either** of two ways — both resolve to the
+same question (*who is the payer-of-record*) through one admission boundary. See
+the [x402 Payment API](../api/x402.md) for the full contract.
+
+**(a) Wallet signature** — sign the x402 authorization (Solana USDC) and present
+it in the `X-PAYMENT` header on the retry. The signer is the payer-of-record.
+This is the path the Wallet Standard examples above walk, and it works today.
+
+**(b) A bound API key** — an API key is a web2 wrapper around a wallet. Bind a
+key to a wallet and the key *authenticates* the request while the bound wallet is
+recognized as the payer-of-record:
 
 ```ts
-import { makeUnbrowseWallet, walletStandardPay } from "unbrowse/sdk/wallet-standard";
+import { Unbrowse } from "unbrowse/sdk";
 
-const wallet = makeUnbrowseWallet({ apiKey: process.env.UNBROWSE_API_KEY!, address, publicKey });
-const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY, pay: walletStandardPay(wallet) });
+const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
 ```
 
-It is optional and never forced: omit it and bring lobster.cash or any other
-wallet. It exists only so "just let me pay via the API" is one line.
-
-> Status: the client adapter is shipped; the server signing endpoint it calls
-> (`/v1/wallet/sign`) is being wired (`wallet-sign-backend` in the plan). Until
-> that lands, bring a Wallet Standard wallet (lobster.cash, Phantom, …) — those
-> work today. This default activates once the signing endpoint is deployed.
+> Status: two ways an API key pays from a wallet, both real:
+> - **Prepaid (shipped).** Bind the key to a wallet, deposit USDC once
+>   (`POST /v1/account/keys/:id/deposit` — a single signature), and the key then
+>   pays per call from that prepaid balance with **no per-call signature**. The
+>   platform custodies the *deposited balance* (not the wallet key); the unspent
+>   remainder is an IOU.
+> - **Non-custodial delegated (built, activating).** The wallet keeps its funds in
+>   its *own* on-chain escrow and grants a **cap-bounded, expiring, revocable**
+>   session key; the key draws per call within the cap, the funds never leaving your
+>   custody. Built and tested; it activates once the operator configures the
+>   delegation key and your escrow + session-key registration are on-chain — until
+>   then, pay via mode (a) or the prepaid lane.
+>
+> See [x402 Payment API](../api/x402.md) for the precise per-lane scope.
 
 ## x402 facilitator
 
