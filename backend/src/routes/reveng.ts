@@ -178,7 +178,7 @@ revengRoutes.post("/skills/from-routes", indexContributorAuth, requireSignedClie
   if (routes.length > 5000) return c.json({ error: "too many routes (max 5000)" }, 413);
   const rawRequests: RawRequest[] = routes
     .filter((r) => typeof r.url === "string" || typeof r.final_url === "string")
-    .map((r) => ({
+    .map((r): RawRequest => ({
       url: (r.final_url || r.url) as string,
       method: (r.method || "GET").toUpperCase(),
       request_headers: {},
