@@ -35,6 +35,7 @@ import {
   verifySpawnAttestation,
   LEGACY_WINDOW_ENDS,
 } from "../lib/attestation";
+import { looksLikeSecret } from "../services/publish-sanitize";
 
 // ---------------------------------------------------------------------------
 // Request / response shapes — the wire contract between thin client and cloud.
@@ -344,6 +345,20 @@ export async function handleDeclare(
 ): Promise<DeclareResponse> {
   if (!req.plan || !req.action) {
     throw new Error("DeclareRequest requires both plan and action");
+  }
+  // PRE-WRITE secret-reject guard. A declare row carries SHAPE + POINTERS,
+  // never a raw secret string. The global-mirror only email-redacts; a
+  // secret-shaped token in plan/action/learning would land verbatim on the
+  // IQ ledger. We REJECT rather than redact: the CLI signs the canonical
+  // body, so server-side mutation would invalidate the signature — a clean
+  // rejection keeps the signed body intact. Field text fields only; the
+  // signed identity/pointer fields are not secret-bearing.
+  const fields = req as unknown as Record<string, unknown>;
+  for (const field of ["plan", "action", "learning", "reason"] as const) {
+    const text = fields[field];
+    if (typeof text === "string" && valueLooksLikeSecret(text)) {
+      throw new DeclareSecretRejection(field);
+    }
   }
   const id = generateContractId();
   // Visibility coercion: anonymous declares (no wallet_identity) are
@@ -968,6 +983,51 @@ export function handleContractSurface(): ContractSurfaceResponse {
 // Local helpers — no I/O.
 // ---------------------------------------------------------------------------
 
+/**
+ * Typed rejection for a secret-shaped substring in a declare text field.
+ * The route handler maps it to a 400 `{ error: "secret_in_declare", field }`
+ * envelope (see executeDeclare). A distinct class keeps the secret-reject
+ * path distinguishable from generic 400s without string-matching messages.
+ */
+export class DeclareSecretRejection extends Error {
+  readonly field: string;
+  constructor(field: string) {
+    super(`secret_in_declare: ${field}`);
+    this.name = "DeclareSecretRejection";
+    this.field = field;
+  }
+}
+
+/**
+ * Value-only secret-shape check over a free-text declare field. Tokenizes
+ * the text on whitespace and on `=`/`"` boundaries (so `key="sk-…"` is split
+ * out) and asks the publish-sanitizer's `looksLikeSecret` whether any token
+ * is a clear secret shape (long high-entropy base64/hex, `sk-`, `Bearer …`,
+ * `AKIA…`, `ghp_…`, JWT, etc.). `looksLikeSecret("", token)` runs ONLY the
+ * value patterns (empty key never matches a key pattern), so this reuses the
+ * one shared structural heuristic rather than a fresh enumerated list.
+ *
+ * Tuned to NOT false-positive on normal intent prose: every secret value
+ * pattern is `^`-anchored and demands 20+ contiguous high-entropy chars or a
+ * known credential prefix. Intent prose tokens like `list`, `quotes`,
+ * `intent="list`, `domain=quotes.toscrape.com`, `settlement=settled` are
+ * short and/or contain `.`/`-`/`"` boundaries that split them below the
+ * threshold — none reach the 20-char anchored shapes. `Bearer …` itself is
+ * matched on the joined text (it spans a space), so the raw string is also
+ * checked directly.
+ */
+export function valueLooksLikeSecret(text: string): boolean {
+  if (typeof text !== "string" || text.length < 8) return false;
+  // `Bearer <token>` / `Basic <token>` span a space — the underlying value
+  // patterns are `^`-anchored, so check the raw string AND every `Bearer`/
+  // `Basic` occurrence inside it (so a credential header embedded mid-prose
+  // still fires, not only one that leads the string).
+  if (looksLikeSecret("", text)) return true;
+  if (/\b(Bearer|Basic)\s+\S{8,}/i.test(text)) return true;
+  const tokens = text.split(/[\s="'`,;()<>{}[\]]+/).filter(Boolean);
+  return tokens.some((t) => looksLikeSecret("", t));
+}
+
 function generateContractId(): string {
   // 8-hex ID matching contract_core.py's shape. Replace with a real
   // cryptographic source in the bound implementation; this is the
@@ -1276,6 +1336,9 @@ async function executeDeclare(
 
     return c.json(result);
   } catch (err) {
+    if (err instanceof DeclareSecretRejection) {
+      return c.json({ error: "secret_in_declare", field: err.field }, 400);
+    }
     if (isStatsKVBindingMissingError(err)) {
       return c.json(buildStatsKVMissingEnvelope({ route: "/v1/contract/declare" }), 503);
     }
