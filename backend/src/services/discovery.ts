@@ -1,6 +1,7 @@
 import type { Env } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
+import { skillsKV } from "./kv.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 import { webSearchWithProvider, type WebResult, type WebSearchOutcome } from "./web-search/index.js";
 
@@ -200,7 +201,7 @@ function globalReadKeys(env: Env): string[] {
 
 /** Search the global BM25 index across all shards + the legacy key, dedup by id, score. */
 async function bm25SearchGlobal(env: Env, query: string, k: number): Promise<SearchResult> {
-  const raws = await Promise.all(globalReadKeys(env).map((key) => env.STATS_KV.get(key).catch(() => null)));
+  const raws = await Promise.all(globalReadKeys(env).map((key) => (skillsKV(env).get(key) as Promise<string | null>).catch(() => null)));
   const docs: Bm25Doc[] = [];
   const seen = new Set<string>();
   for (const raw of raws) {
@@ -233,7 +234,19 @@ export async function indexEndpoints(
       text: `${ep.description} [${ep.method} ${path}]`,
       metadata: {
         title: ep.description ?? "",
-        content: JSON.stringify({ ...meta, skill_id: skillId, endpoint_id: ep.endpoint_id }),
+        // SLIM projection: index docs carry ONLY the derived fields the search/resolve
+        // read-path consumes (audited) — NOT the full `meta` blob (which can inline captured
+        // samples/schemas and blow the qdkv value cap). Raw content is never indexed.
+        content: JSON.stringify({
+          skill_id: skillId,
+          endpoint_id: ep.endpoint_id,
+          name: meta.name,
+          domain: meta.domain,
+          subdomain: meta.subdomain,
+          avg_reliability: meta.avg_reliability,
+          verified_ratio: meta.verified_ratio,
+          updated_at: meta.updated_at,
+        }),
         tags: [meta.domain, meta.subdomain].filter(Boolean),
         source_url: String(meta.domain ?? ""),
       },
@@ -244,20 +257,20 @@ export async function indexEndpoints(
   // reliable lexical index that carries /v1/search when the EmergentDB graph is degraded.
   const bm25Docs = items.map((item) => ({ id: item.id, text: item.text, metadata: item.metadata }));
   type Bm25Doc = (typeof bm25Docs)[number];
-  await env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs));
+  await skillsKV(env).put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs));
 
   // Merge into the GLOBAL index so global /v1/search finds this skill. SHARDED by
   // hash(skillId) — all of this publish's docs share the skillId, so they land in ONE
   // shard: a single read-modify-write of ~1/Nth the global data (was the whole 25MB-bound
   // key). Dedup by id so a re-publish ACCUMULATES into its shard rather than overwriting.
   const shardKey = globalShardKey(env, shardForId(skillId));
-  const existingShard = await env.STATS_KV.get(shardKey)
+  const existingShard = await (skillsKV(env).get(shardKey) as Promise<string | null>)
     .then((raw) => (raw ? (JSON.parse(raw) as Bm25Doc[]) : []))
     .catch(() => [] as Bm25Doc[]);
   const merged = new Map<string, Bm25Doc>();
   for (const doc of existingShard) merged.set(doc.id, doc);
   for (const doc of bm25Docs) merged.set(doc.id, doc);
-  await env.STATS_KV.put(shardKey, JSON.stringify(Array.from(merged.values())));
+  await skillsKV(env).put(shardKey, JSON.stringify(Array.from(merged.values())));
 
   // Graph insert is now BEST-EFFORT enrichment (degraded substrate; KV above is authoritative).
   await Promise.all([
@@ -321,7 +334,7 @@ export function bm25Score(docs: Bm25Doc[], query: string, k: number): SearchResu
 /** Load BM25 index from KV and score against query. Returns [] if no index. */
 async function bm25Search(env: Env, domain: string, query: string, k: number): Promise<SearchResult> {
   try {
-    const raw = await env.STATS_KV.get(`bm25-idx:${domain}`);
+    const raw = await skillsKV(env).get(`bm25-idx:${domain}`) as string | null;
     if (!raw) return [];
     const docs = JSON.parse(raw) as Bm25Doc[];
     return bm25Score(docs, query, k);
@@ -721,11 +734,11 @@ async function removeFromBm25Index(
   ];
   await Promise.all(keys.map(async (key) => {
     try {
-      const raw = await env.STATS_KV.get(key);
+      const raw = await skillsKV(env).get(key) as string | null;
       if (!raw) return;
       const docs = JSON.parse(raw) as Bm25Doc[];
       const filtered = docs.filter((doc) => keep(doc.id));
-      if (filtered.length !== docs.length) await env.STATS_KV.put(key, JSON.stringify(filtered));
+      if (filtered.length !== docs.length) await skillsKV(env).put(key, JSON.stringify(filtered));
     } catch { /* corrupt key — a future write self-heals; never throw from a delete */ }
   }));
   // Removing docs from the index must also invalidate cached search results, or
