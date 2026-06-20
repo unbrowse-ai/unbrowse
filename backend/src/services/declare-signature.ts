@@ -22,6 +22,8 @@
  * its receptor. Mismatched signal = ignored. Same shape here.
  */
 
+import { canonicalizeViaWasm } from "./core-wasm";
+
 /** Canonical signed body — stable JSON projection of declare-write inputs. */
 export interface CanonicalDeclareBody {
   plan: string;
@@ -33,10 +35,14 @@ export interface CanonicalDeclareBody {
 }
 
 /**
- * Serialize the canonical signed body. Keys are emitted in fixed order so
+ * Pure-TS canonicalization — the FALLBACK. Keys are emitted in fixed order so
  * client and server agree on the exact bytes being signed.
+ *
+ * This is byte-for-byte identical to the Zig core's `canonicalize` (proven by
+ * backend/tests/core-wasm-conformance.test.ts), and is what runs whenever the
+ * WASM core can't be loaded (unsupported runtime, missing/corrupt module).
  */
-export function canonicalizeDeclareBody(body: CanonicalDeclareBody): string {
+export function canonicalizeDeclareBodyTs(body: CanonicalDeclareBody): string {
   return JSON.stringify({
     plan: body.plan,
     action: body.action,
@@ -45,6 +51,18 @@ export function canonicalizeDeclareBody(body: CanonicalDeclareBody): string {
     wallet_identity: body.wallet_identity,
     ts: body.ts,
   });
+}
+
+/**
+ * Serialize the canonical signed body. PREFERS the single Zig WASM core (the
+ * canonical implementation) and silently falls back to the pure-TS impl on any
+ * WASM load/run failure — so a missing or unsupported wasm never breaks a
+ * declare. Because the wasm bytes are byte-identical to the TS output, every
+ * existing signature still verifies regardless of which path produced them.
+ */
+export function canonicalizeDeclareBody(body: CanonicalDeclareBody): string {
+  const viaWasm = canonicalizeViaWasm(body);
+  return viaWasm ?? canonicalizeDeclareBodyTs(body);
 }
 
 function hexToBytes(hex: string): Uint8Array {

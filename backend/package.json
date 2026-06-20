@@ -6,6 +6,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "deploy:ci": "wrangler deploy --config wrangler.ci.toml",
+    "build:core-wasm": "bash scripts/build-core-wasm.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
