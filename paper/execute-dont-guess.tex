@@ -15,7 +15,11 @@
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
-\title{\textbf{Execute, Don't Guess}\\
+\title{\textbf{Execute, Don't Guess}\footnote{The title is an instruction to the
+model, not a slogan about it. A small model asked to \emph{be} the answer guesses;
+asked to \emph{produce} it --- write the program, retrieve the fact --- it can
+execute. The paper is about that distinction, and tries not to make more of it than
+it is.}\\
 \large Reproduced-Win Benchmarks for Small-Model Tool Routing}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}
@@ -26,9 +30,9 @@
 \maketitle
 
 \begin{abstract}
-We report a benchmark protocol in which a published number is admissible only if a
-command re-runs it green, honest negatives are recorded alongside wins, and no claim
-ships whose witness cannot be located and run. Applied to a 0.8B-parameter
+We report a benchmark protocol with one unglamorous rule: a published number is
+admissible only if a command re-runs it green, honest negatives are recorded
+alongside wins, and no claim ships whose witness cannot be located and run. Applied to a 0.8B-parameter
 tool-routing agent, the protocol yields nine reproduced wins and five honest
 negatives. On the task classes the architecture targets --- writing correct code,
 retrieving unknowable facts, following settled procedures, and routing to distilled

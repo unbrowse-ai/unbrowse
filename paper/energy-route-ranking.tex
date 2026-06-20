@@ -44,7 +44,8 @@ baseline across two seeds; a closed-loop learned ranker reaches a cold-cell
 \textbf{AUC of 0.750} against $0.5$ chance; the runtime-embedded head scores
 \textbf{0.83 warm / 0.64 cold}; and a content-addressed cache yields a
 \textbf{92$\times$ mean speedup} on a reuse micro-benchmark. We are equally
-explicit about where the method gives nothing: energy-reranking a free-form
+explicit about where the method gives nothing, because a ranker that wins everywhere
+is usually a ranker that has not been measured carefully: energy-reranking a free-form
 language model's own generations is indistinguishable from random
 (lift $+0.000$), and on a public 101-route retrieval set a plain keyword
 baseline beats the energy ranker. The honest boundary is the contribution: a
