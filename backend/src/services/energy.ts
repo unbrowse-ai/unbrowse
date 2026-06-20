@@ -29,6 +29,8 @@
  * energy (energy-based-model convention).
  */
 
+import { energyScoreViaWasm } from "./core-wasm";
+
 type Candidate = { id: number; text: string };
 type Evidence = { dense: number };
 
@@ -73,14 +75,19 @@ function lexicalWitness(intent: string, candidate: Candidate): number {
 const MATCH_THRESHOLD = 0.5;
 
 /**
- * energyScore — the unified proxy-energy surface.
+ * energyScoreTs — the pure-TS reference implementation of the unified
+ * proxy-energy surface. This is the FALLBACK leg: `energyScore` below prefers
+ * the Zig WASM core (`energyScoreViaWasm`) and only calls this when the wasm is
+ * unavailable. Kept exported so the conformance witness can assert the WASM and
+ * TS legs are bit-identical (ε=0), and so any caller that needs the TS leg
+ * directly (tests) can reach it.
  *
  * @param intent     the user's intent string.
  * @param candidate  {id, text} — the route candidate (SearchResult identity
  *                   reduced to the text the lexical witness scores).
  * @param evidence   {dense} — the dense/structural witness in [0,1].
  */
-export function energyScore(
+export function energyScoreTs(
   intent: string,
   candidate: Candidate,
   evidence: Evidence,
@@ -125,4 +132,26 @@ export function energyScore(
   const agree = lexSaysMatch === denseSaysMatch;
 
   return { energy, witnesses: [lex, dense], agree };
+}
+
+/**
+ * energyScore — the unified proxy-energy surface (WASM-preferred).
+ *
+ * Sources the energy ordering from the SINGLE unbrowse-core Zig WASM
+ * (`energyScoreViaWasm`), falling back to the pure-TS `energyScoreTs` on ANY
+ * wasm fault (wasm unavailable, missing export, run failure — all return null,
+ * never throw). The Zig port is a bit-for-bit (ε=0) match of `energyScoreTs`
+ * (witnessed by the conformance tests), so the live resolve ranking is
+ * UNCHANGED — this only moves the energy ordering onto the one core.
+ *
+ * Signature is identical to the prior `energyScore` so every caller is
+ * unchanged.
+ */
+export function energyScore(
+  intent: string,
+  candidate: Candidate,
+  evidence: Evidence,
+): EnergyResult {
+  const w = energyScoreViaWasm(intent, candidate, evidence);
+  return w === null ? energyScoreTs(intent, candidate, evidence) : w;
 }
