@@ -30,6 +30,7 @@ interface CoreExports {
   memory: WebAssembly.Memory;
   alloc(len: number): number;
   canonicalize(ptr: number, len: number): bigint;
+  fuse_score(ptr: number, len: number): bigint;
   verify(pkPtr: number, sigPtr: number, msgPtr: number, msgLen: number): number;
   zk_verify(
     yPtr: number,
@@ -140,6 +141,108 @@ export function canonicalizeViaWasm(body: CanonicalDeclareBody): string | null {
     // Copy out before any further alloc could move/reuse the buffer.
     const out = new Uint8Array(core.memory.buffer.slice(outPtr, outPtr + outLen));
     return new TextDecoder().decode(out);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The (intent, candidate, evidence) inputs the energy scorer consumes — the
+ * SAME shape `energyScore` in energy.ts takes. Duplicated structurally here (not
+ * imported) so this bridge module depends only on the wasm ABI, not on the TS
+ * energy impl.
+ */
+type EnergyCandidate = { id: number; text: string };
+type EnergyEvidence = { dense: number };
+interface EnergyResultWasm {
+  energy: number;
+  witnesses: [number, number];
+  agree: boolean;
+}
+
+/**
+ * Encode the energy input to the JSON shape the WASM `fuse_score` export
+ * parses (see wasm.zig EnergyInput): `{ intent, candidate: { text }, dense }`.
+ * JSON has no NaN/Infinity literal, so the three IEEE specials pass as the
+ * string sentinels the Zig side decodes; an absent/undefined dense omits the
+ * field entirely (== TS `evidence.dense === undefined`). This mirrors exactly
+ * how unbrowse-core/test/energy-conformance.test.ts builds `wasmInput`.
+ */
+function energyToInputJson(
+  intent: string,
+  candidate: EnergyCandidate,
+  evidence: EnergyEvidence | undefined,
+): string {
+  const base: {
+    intent: string;
+    candidate: { text: string };
+    dense?: number | string;
+  } = { intent, candidate: { text: candidate.text } };
+  const d = evidence?.dense;
+  if (typeof d === "number") {
+    if (Number.isNaN(d)) base.dense = "NaN";
+    else if (d === Infinity) base.dense = "Infinity";
+    else if (d === -Infinity) base.dense = "-Infinity";
+    else base.dense = d;
+  }
+  // d === undefined => omit `dense` entirely (TS absent / NaN-guard default 0).
+  return JSON.stringify(base);
+}
+
+/**
+ * Score an (intent, candidate, evidence) triple via the Zig WASM `fuse_score`
+ * core. Returns the `{ energy, witnesses, agree }` result, or `null` on ANY
+ * failure (wasm not loadable, missing `fuse_score` export, alloc/run failure,
+ * malformed JSON out). The caller MUST treat `null` as "use the TS fallback" —
+ * the resolve energy-ordering never breaks on a wasm fault. NEVER throws.
+ *
+ * The Zig port is a bit-for-bit (ε=0) match of energy.ts `energyScore`
+ * (witnessed by unbrowse-core/test/energy-conformance.test.ts), so the live
+ * ranking is unchanged: this only sources the ordering from the one core.
+ */
+export function energyScoreViaWasm(
+  intent: string,
+  candidate: EnergyCandidate,
+  evidence: EnergyEvidence | undefined,
+): EnergyResultWasm | null {
+  const core = loadCore();
+  if (!core || typeof core.fuse_score !== "function") return null;
+  try {
+    const input = new TextEncoder().encode(
+      energyToInputJson(intent, candidate, evidence),
+    );
+    const ptr = core.alloc(input.length || 1);
+    if (!ptr) return null;
+    if (input.length) new Uint8Array(core.memory.buffer, ptr, input.length).set(input);
+
+    const packed = core.fuse_score(ptr, input.length);
+    const outPtr = Number(packed >> 32n);
+    const outLen = Number(packed & 0xffffffffn);
+    if (outPtr === 0) return null; // Zig returns 0 on parse/alloc failure.
+
+    // Copy out before any further alloc could move/reuse the buffer.
+    const out = new Uint8Array(core.memory.buffer.slice(outPtr, outPtr + outLen));
+    const parsed = JSON.parse(new TextDecoder().decode(out)) as {
+      energy?: unknown;
+      witnesses?: unknown;
+      agree?: unknown;
+    };
+    // Validate the ABI shape; a malformed JSON out is a failure, not a result.
+    if (
+      typeof parsed.energy !== "number" ||
+      !Array.isArray(parsed.witnesses) ||
+      parsed.witnesses.length !== 2 ||
+      typeof parsed.witnesses[0] !== "number" ||
+      typeof parsed.witnesses[1] !== "number" ||
+      typeof parsed.agree !== "boolean"
+    ) {
+      return null;
+    }
+    return {
+      energy: parsed.energy,
+      witnesses: [parsed.witnesses[0], parsed.witnesses[1]],
+      agree: parsed.agree,
+    };
   } catch {
     return null;
   }
