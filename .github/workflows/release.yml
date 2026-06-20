@@ -118,14 +118,22 @@ jobs:
           key: kuri-vendor-${{ runner.os }}-${{ steps.kuri.outputs.sha }}-${{ hashFiles('packages/skill/scripts/build-kuri-binaries.mjs') }}
       - name: Restore Windows Kuri broker
         uses: actions/download-artifact@v3
+        # download-artifact@v3 can HANG on gitea (docker cp), which wedges the job.
+        # Bound it + tolerate failure; the stage step below falls back to building.
+        timeout-minutes: 5
+        continue-on-error: true
         with:
           name: kuri-win-x64
           path: /tmp/kuri-win-x64
       - name: Stage Windows Kuri broker into vendor tree
         run: |
-          mkdir -p packages/skill/vendor/kuri/win-x64
-          cp /tmp/kuri-win-x64/kuri.exe packages/skill/vendor/kuri/win-x64/kuri.exe
-          test -s packages/skill/vendor/kuri/win-x64/kuri.exe
+          if [ -s /tmp/kuri-win-x64/kuri.exe ]; then
+            mkdir -p packages/skill/vendor/kuri/win-x64
+            cp /tmp/kuri-win-x64/kuri.exe packages/skill/vendor/kuri/win-x64/kuri.exe
+            echo "staged pre-built win-x64 broker ($(wc -c < packages/skill/vendor/kuri/win-x64/kuri.exe) bytes)"
+          else
+            echo "win-x64 artifact unavailable (download skipped/timed out) — build-kuri-binaries will cross-compile it"
+          fi
       - uses: mlugg/setup-zig@v2
         with:
           version: "0.16.0"
@@ -400,6 +408,9 @@ jobs:
       # artifact is somehow unavailable the build step still rebuilds.
       - name: Restore shared Kuri vendor binaries
         uses: actions/download-artifact@v3
+        # Bound the download: it can hang on gitea (docker cp). On timeout the
+        # build step below rebuilds the vendor binaries from source.
+        timeout-minutes: 5
         continue-on-error: true
         with:
           name: kuri-vendor
