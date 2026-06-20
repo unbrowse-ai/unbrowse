@@ -30,6 +30,8 @@
  *   - verify: ed25519 verify(root, sig, utf8(y_hex)) AND g^s == (t * y^e) mod p.
  */
 
+import { zkVerifyViaWasm } from "./core-wasm";
+
 // RFC 3526 group 14 (2048-bit MODP). p safe prime, q = (p-1)/2, generator g=2.
 // Hex copied verbatim from binding.py.
 const P = BigInt(
@@ -200,11 +202,13 @@ function randBelow(bound: bigint): bigint {
 }
 
 /**
- * True iff the proof shows knowledge of the bound credential AND the wallet
- * signed the binding — without the credential ever being transmitted. The
- * ed25519 verify uses the SAME Web Crypto path as declare-signature.ts.
+ * Pure-TS verify (the FALLBACK): true iff the proof shows knowledge of the
+ * bound credential AND the wallet signed the binding — without the credential
+ * ever being transmitted. The ed25519 verify uses the SAME Web Crypto path as
+ * declare-signature.ts. Kept as `verifyBindingTs` so the WASM-preferred
+ * `verifyBinding` can fall back to it on any wasm fault.
  */
-export async function verifyBinding(binding: ZkBinding, proof: ZkProof): Promise<boolean> {
+export async function verifyBindingTs(binding: ZkBinding, proof: ZkProof): Promise<boolean> {
   try {
     const y = BigInt(binding.y);
     const t = BigInt(proof.t);
@@ -220,6 +224,32 @@ export async function verifyBinding(binding: ZkBinding, proof: ZkProof): Promise
   } catch {
     return false;
   }
+}
+
+/**
+ * Verify a zk credential binding — WASM-PREFERRED, mirroring the verify-rewire
+ * that already landed for ed25519 (`verifyDeclareSignature`). The verification
+ * is two independent legs and BOTH must hold:
+ *
+ *   1. ed25519 wallet-sig leg — the wallet really bound this y (verify over
+ *      utf8(y_hex)). The WASM `zk_verify` ABI carries no root/sig, so this leg
+ *      ALWAYS runs in TS (Web Crypto), exactly as before. No security check is
+ *      lifted out of TS.
+ *   2. Schnorr / Fiat-Shamir algebra leg — `g^s == t * y^e (mod p)`. This is
+ *      the big-integer leg "zk'ed away" into the one Zig core via
+ *      `zkVerifyViaWasm`; on any wasm fault (`null`) it falls back to the pure-TS
+ *      `verifyBindingTs` algebra (which also re-runs leg 1 — harmless, the
+ *      ed25519 verify is cheap and deterministic).
+ *
+ * `zkVerifyViaWasm` returning `null` means "wasm unavailable" → full TS
+ * fallback. A wasm fault never breaks a declare.
+ */
+export async function verifyBinding(binding: ZkBinding, proof: ZkProof): Promise<boolean> {
+  const w = zkVerifyViaWasm(binding, proof);
+  if (w === null) return verifyBindingTs(binding, proof);
+  // Schnorr leg via the core; ed25519 wallet-sig leg stays in TS (Web Crypto).
+  if (!w) return false;
+  return await verifyWalletSig(binding.root, binding.sig, enc.encode(binding.y));
 }
 
 /** ed25519 verify — same Web Crypto path declare-signature.ts uses. */
