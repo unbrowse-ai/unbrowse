@@ -163,6 +163,10 @@ function buildFfiForTarget(target, outDir) {
     execFileSync("zig", ["build", "ffi", "-Doptimize=ReleaseFast", `-Dtarget=${target.zigTarget}`, "--prefix", prefixDir], {
       cwd: sourceDir,
       stdio: "inherit",
+      // A cross-compile that HANGS (vs fails fast) would block the whole release
+      // job forever. Bound it; on timeout execFileSync throws and we fall back.
+      timeout: 240000,
+      killSignal: "SIGKILL",
     });
     const name = ffiLibName(target.zigTarget);
     const built = path.join(prefixDir, "lib", name);
@@ -252,6 +256,13 @@ for (const target of supportedTargets) {
     execFileSync("zig", zigArgs, {
       cwd: sourceDir,
       stdio: "inherit",
+      // Bound the compile: a non-native cross-compile (e.g. x86_64-macos from an
+      // arm64 host) can HANG instead of failing, which would wedge the whole
+      // release job indefinitely. On timeout, SIGKILL + fall to the placeholder
+      // path the manifest already expects for these targets. Native builds finish
+      // well under this; only a genuine hang trips it.
+      timeout: 420000,
+      killSignal: "SIGKILL",
     });
   } catch (e) {
     rmSync(prefixDir, { recursive: true, force: true });
