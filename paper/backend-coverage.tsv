@@ -197,3 +197,12 @@ services/fair-compensation	crypto
 services/graph-checkpoint	maintenance
 services/graph-store	maintenance
 routes/solve	out-of-scope
+middleware/payment-admission	crypto
+services/auth-signature	crypto
+services/core-wasm	crypto
+services/declare-zk	crypto
+services/delegation-ledger	crypto
+services/delegation-settlement	crypto
+services/energy	energy-ranking
+services/event-ledger	crypto
+services/settle	crypto
