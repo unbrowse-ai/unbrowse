@@ -491,3 +491,155 @@ export async function registerSessionKey(
   const txSignature = await sendFlexTx(params.rpc as never, params.signer, built.instructions);
   return { txSignature };
 }
+
+// ─── setupDelegation: compose the non-custodial delegation lane end-to-end ──
+
+/**
+ * Minimal Unbrowse client contract `setupDelegation` needs — just the
+ * authenticated `request` method. The real `Unbrowse` class satisfies this
+ * structurally; tests can pass a mock. We depend on the interface (not the
+ * concrete class) to keep `flex.ts` free of a `client.ts` import cycle.
+ */
+export interface DelegationClientLike {
+  request<T>(method: string, path: string, body?: unknown): Promise<T>;
+}
+
+/** Backend response for the platform's delegation session pubkey. */
+export interface DelegationSessionKeyResponse {
+  session_key_address: string;
+  ready: boolean;
+}
+
+/** Arguments for `setupDelegation`. */
+export interface SetupDelegationParams {
+  /** The api key id to bind the delegation to (the `:keyId` path segment). */
+  keyId: string;
+  /** µ-USDC atomic amount to deposit into the user's escrow, base10 string. */
+  amountToFund: string;
+  /** Total delegated cap (µ¢ ceiling for the rolling cap ledger), base10 string. */
+  cap: string;
+  /** Slot height after which the delegation/session key is dead, base10 string. */
+  expiresAtSlot: string;
+  /** The escrow owner's wallet address (base58). */
+  walletAddress: string;
+  /** The Flex facilitator address (base58). */
+  facilitatorAddress: string;
+  /** USDC mint (defaults to mainnet USDC). */
+  mint?: string;
+  /** Revocation grace period for the registered session key. */
+  revocationGracePeriodSlots?: number;
+  /**
+   * The escrow owner's `@solana/kit` TransactionSigner. Used ONLY locally to
+   * sign the escrow create/fund + session-key registration — NEVER sent to
+   * the backend. The wallet private key never leaves the user.
+   */
+  signer: TransactionSignerOpaque;
+  /** The caller's `@solana/kit` RPC client. */
+  rpc: unknown;
+}
+
+/** Structured result of a completed delegation setup. */
+export interface SetupDelegationResult {
+  /** The user's escrow PDA (funds live here, owner = the user's wallet). */
+  escrowAddress: string;
+  /** The platform's session key now registered (bounded) against the escrow. */
+  sessionKeyAddress: string;
+  /** Total delegated cap bound to the api key (µ¢, base10 string). */
+  cap: string;
+  /** Slot height after which the delegation expires (base10 string). */
+  expiresAtSlot: string;
+  /** Tx signature of the escrow create+fund (user-signed). */
+  fundTxSignature: string;
+  /** Tx signature of the session-key registration (user-signed). */
+  registerTxSignature: string;
+}
+
+/**
+ * Enable the non-custodial delegation lane end-to-end (design §3, steps a→c).
+ *
+ * Composes the existing Flex primitives + the backend bind route so a user
+ * can let their `api_key` pay x402 challenges from their OWN escrow without
+ * the platform ever custodying funds or the wallet key:
+ *
+ *  1. GET the platform's delegation session pubkey
+ *     (`GET /v1/account/delegation/session-key` → `{ session_key_address, ready }`).
+ *     Throws if the platform isn't ready to delegate.
+ *  2. `fundEscrow(...)` — the user's wallet signs to create+fund their OWN
+ *     escrow PDA. Funds stay with the user.
+ *  3. `registerSessionKey(...)` — the user's wallet registers the PLATFORM's
+ *     session key (from step 1) against that escrow, cap-bounded + expiring.
+ *  4. POST `/v1/account/keys/:keyId/delegation` to bind it to the api key.
+ *
+ * The wallet `signer` is used ONLY in steps 2 and 3 (local signing). It is
+ * never passed to the backend — the platform only ever receives the escrow
+ * address, the platform's own session-key pubkey, the cap, and the expiry.
+ */
+export async function setupDelegation(
+  client: DelegationClientLike,
+  params: SetupDelegationParams,
+): Promise<SetupDelegationResult> {
+  if (!params.keyId) throw new Error("flex.setupDelegation: keyId required");
+  if (!params.signer || !params.rpc) {
+    throw new Error(
+      "flex.setupDelegation: requires_signer — caller must supply " +
+        "`signer` (TransactionSigner) and `rpc` (kit RPC client) so the " +
+        "user's wallet can sign the escrow + session-key registration locally.",
+    );
+  }
+
+  // ── Step 1: GET the platform's delegation session pubkey ──────────────────
+  const session = await client.request<DelegationSessionKeyResponse>(
+    "GET",
+    "/v1/account/delegation/session-key",
+  );
+  if (!session?.ready || !session.session_key_address) {
+    throw new Error(
+      "flex.setupDelegation: platform delegation session key is not ready " +
+        `(ready=${session?.ready}). Cannot register a delegation without it.`,
+    );
+  }
+  const sessionKeyAddress = session.session_key_address;
+
+  // ── Step 2: user's wallet creates + funds its OWN escrow (signs locally) ──
+  const { escrowAddress, txSignature: fundTxSignature } = await fundEscrow({
+    walletAddress: params.walletAddress,
+    facilitatorAddress: params.facilitatorAddress,
+    amountUsdc: params.amountToFund,
+    mint: params.mint,
+    signer: params.signer,
+    rpc: params.rpc,
+  });
+
+  // ── Step 3: user's wallet registers the PLATFORM session key (signs locally)
+  const { txSignature: registerTxSignature } = await registerSessionKey({
+    walletAddress: params.walletAddress,
+    escrowAddress,
+    sessionKeyAddress,
+    expiresAtSlot: params.expiresAtSlot,
+    revocationGracePeriodSlots: params.revocationGracePeriodSlots,
+    signer: params.signer,
+    rpc: params.rpc,
+  });
+
+  // ── Step 4: bind the delegation to the api key (no signer crosses here) ───
+  await client.request<unknown>(
+    "POST",
+    `/v1/account/keys/${encodeURIComponent(params.keyId)}/delegation`,
+    {
+      wallet: params.walletAddress,
+      escrow: escrowAddress,
+      session_key_address: sessionKeyAddress,
+      cap_uc: params.cap,
+      expires_at_slot: params.expiresAtSlot,
+    },
+  );
+
+  return {
+    escrowAddress,
+    sessionKeyAddress,
+    cap: params.cap,
+    expiresAtSlot: params.expiresAtSlot,
+    fundTxSignature,
+    registerTxSignature,
+  };
+}

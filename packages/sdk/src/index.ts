@@ -24,15 +24,20 @@ export {
   fundEscrow,
   payAndRetryFlex,
   registerSessionKey,
+  setupDelegation,
   USDC_MINT_DEVNET,
   USDC_MINT_MAINNET,
 } from "./flex.js";
 export type {
   BuiltFlexTx,
+  DelegationClientLike,
+  DelegationSessionKeyResponse,
   FlexAuthorization,
   FlexFundEscrowParams,
   FlexRegisterSessionKeyParams,
   FlexWalletLike,
+  SetupDelegationParams,
+  SetupDelegationResult,
   TransactionSignerOpaque,
 } from "./flex.js";
 export type {

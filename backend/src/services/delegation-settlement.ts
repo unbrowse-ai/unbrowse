@@ -30,9 +30,40 @@ import type { Env } from "../types.js";
 import type { FlexSplit } from "./flex.js";
 import {
   signFlexAuthorizationAgainstEscrow,
+  decodeSecretKeyBytes,
   type SponsorFlexInjections,
 } from "./sponsor-flex.js";
 import { recordDelegationDraw, delegationRemaining } from "./delegation-ledger.js";
+
+/**
+ * Derive the platform's DELEGATION session-key PUBLIC key (base58 Ed25519
+ * address) from the held secret — the same decode the signer uses
+ * (`decodeSecretKeyBytes`), then the standard Solana keypair layout
+ * (64 bytes = 32-byte seed || 32-byte pubkey) with the pubkey as the trailing
+ * 32 bytes. This is the value a user registers to their OWN escrow so the
+ * platform can later sign bounded draws against it.
+ *
+ * NEVER returns the secret — only the derived public key. Returns null when the
+ * lane isn't configured (no secret) or the secret can't be decoded to a 64-byte
+ * keypair.
+ */
+export async function getDelegationSessionKeyAddress(env: Env): Promise<string | null> {
+  const rawSecret = env.FLEX_DELEGATION_SESSION_KEY_SECRET?.trim();
+  if (!rawSecret) return null;
+  try {
+    const secret = await decodeSecretKeyBytes(rawSecret);
+    // Solana keypair = 32-byte seed || 32-byte pubkey; the pubkey is the
+    // trailing 32 bytes (mirrors wallet-signer.ts).
+    if (secret.length < 64) return null;
+    const pub = secret.slice(32, 64);
+    const { default: bs58 } = (await import("bs58")) as unknown as {
+      default: { encode: (b: Uint8Array) => string };
+    };
+    return bs58.encode(pub);
+  } catch {
+    return null;
+  }
+}
 
 export interface DelegationSettleParams {
   /** The api-key id (the delegated funding record's key + the cap-ledger key). */
