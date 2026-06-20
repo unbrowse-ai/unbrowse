@@ -753,6 +753,27 @@ export function flatCommandVerb(name: string): V7Verb | null {
   return flatVerbMap().get(name) ?? null;
 }
 
+/**
+ * Recognize a /contract attestation goal at the root: `unbrowse "satisfied:<id> …"`,
+ * `"died:<id> …"`, `"status:<id>"`, etc. The aiko verb closure (build/run/eval/prune
+ * = declare/iterate/satisfied/died, + the validate/signed/status reads) rides in the
+ * goal's LEADING TOKEN. This is the contract substrate's own grammar — not a per-site
+ * allowlist — so recognizing it is structural, not a hard filter.
+ *
+ * Why this exists: `unbrowse contract` is goal-only and so is the root front door
+ * (`unbrowse "<goal>"` → resolve+execute, which auto-declares — a TASK goal is already
+ * a contract). The only piece not yet at the root is the explicit ATTESTATION (a
+ * substrate op, not a task). This recognizer routes those through the root so
+ * `unbrowse "satisfied:<id> — proof"` works WITHOUT a separate `contract` subcommand —
+ * the merge of `unbrowse contract` into `unbrowse` itself. A plain task goal returns
+ * false and falls through to the resolve+execute front door (which still auto-declares).
+ */
+export function looksLikeContractGoal(firstArg: string): boolean {
+  return /^(declare|iterate|satisfied|died|validate|signed|status)\s*:/i.test(
+    (firstArg ?? "").trimStart(),
+  );
+}
+
 /** Compile-time invariant: every op_kind is unique. */
 type _AssertUnique = AssertNoDuplicate<(typeof KIND_MAP)[number]["op_kind"]>;
 type AssertNoDuplicate<T extends string, Seen extends string = never> =

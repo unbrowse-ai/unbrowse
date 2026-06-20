@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-method.js";
 import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
-import { flatCommandVerb } from "./cli-v7/kind-map.js";
+import { flatCommandVerb, looksLikeContractGoal } from "./cli-v7/kind-map.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { resolutionCardinalityMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
@@ -3959,6 +3959,17 @@ async function main(): Promise<void> {
   if (flatVerb) {
     const { runV7 } = await import("./cli-v7/index.js");
     await runV7([process.argv[0], process.argv[1], flatVerb, command, ...process.argv.slice(3)]);
+    return;
+  }
+
+  // /contract merged into the root: a contract-grammar leading token
+  // (`unbrowse "satisfied:<id> — proof"`, `"died:<id> …"`, `"status:<id>"`) routes to
+  // the goal-only contract handler — no separate `contract` subcommand needed. A plain
+  // TASK goal returns false here and falls through to `breath get` below, which
+  // resolves+executes AND auto-declares (resolve ≡ declare), so a task is ALSO a contract.
+  if (looksLikeContractGoal(process.argv[2] ?? "")) {
+    const { runV7 } = await import("./cli-v7/index.js");
+    await runV7([process.argv[0], process.argv[1], "eval", "contract", ...process.argv.slice(2)]);
     return;
   }
 
