@@ -229,6 +229,97 @@ describe("L6 API key wrapping x402 (funding binding)", () => {
   });
 });
 
+// Deposit-funded wallet balance: the wallet tops up the key (one x402), the key
+// SPENDS that balance. The platform never pays for the call, never holds the key.
+describe("L6 wallet-key DEPOSIT (money-IN: wallet → key balance, x402-gated)", () => {
+  // env carrying the platform treasury USDC ATA so the deposit 402 can be authored.
+  const depositEnv: Env = {
+    ...baseEnv,
+    FLEX_PLATFORM_RECIPIENT_USDC_ATA: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+  };
+
+  async function walletBoundKey(email: string): Promise<{ key: string; keyId: string }> {
+    const { key } = await magicLinkBoundKey(email);
+    const created = await req("/v1/account/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ name: "wallet-key" }),
+      env: depositEnv,
+    });
+    const c = (await created.json()) as { keyId: string };
+    const bind = await req(`/v1/account/keys/${c.keyId}/funding`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ kind: "wallet", wallet: "So1WalletAddrForDeposit11111" }),
+      env: depositEnv,
+    });
+    expect(bind.status).toBe(200);
+    return { key, keyId: c.keyId };
+  }
+
+  it("deposit requires a wallet-bound key (a credit/unbound key is 400)", async () => {
+    const { key } = await magicLinkBoundKey("dep-nowallet@example.com");
+    const created = await req("/v1/account/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ name: "k" }),
+      env: depositEnv,
+    });
+    const c = (await created.json()) as { keyId: string };
+    const dep = await req(`/v1/account/keys/${c.keyId}/deposit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ amount_usd: 1 }),
+      env: depositEnv,
+    });
+    expect(dep.status).toBe(400);
+    expect(((await dep.json()) as { error: string }).error).toBe("wallet_binding_required");
+  });
+
+  it("deposit with NO X-PAYMENT returns a 402 exact-scheme envelope priced to the platform treasury", async () => {
+    const { key, keyId } = await walletBoundKey("dep-402@example.com");
+    const dep = await req(`/v1/account/keys/${keyId}/deposit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ amount_usd: 2.5 }),
+      env: depositEnv,
+    });
+    expect(dep.status).toBe(402);
+    const terms = (await dep.json()) as {
+      accepts: Array<{ scheme: string; amount: string; payTo: string; asset: string }>;
+    };
+    expect(terms.accepts[0].scheme).toBe("exact");
+    expect(terms.accepts[0].amount).toBe(String(2_500_000)); // 2.5 USDC in µ-units
+    expect(terms.accepts[0].payTo).toBe(depositEnv.FLEX_PLATFORM_RECIPIENT_USDC_ATA);
+  });
+
+  it("a deposit credits balance_uc, then a wallet-key with balance SPENDS it; zero-balance falls to 402-not-platform", async () => {
+    // (a) deposit credits balance_uc (service-level; settled-payment side-effect).
+    const { keyId } = await walletBoundKey("dep-spend@example.com");
+    const { creditKeyWalletBalance } = await import("../src/services/keys.js");
+    const credited = await creditKeyWalletBalance(depositEnv, keyId, 1_000_000);
+    expect(credited.ok).toBe(true);
+    if (credited.ok) expect(credited.balance_uc).toBe(1_000_000);
+
+    // (b) a wallet-key WITH balance settles a call by debiting it (the always-on
+    // lane, no flag) — exactly the path skills.ts execute now takes.
+    const spend = await debitKeyFunding(depositEnv, keyId, 400_000);
+    expect(spend.ok).toBe(true);
+    if (spend.ok) expect(spend.remaining_uc).toBe(600_000);
+
+    // (c) drain the balance, then a zero-balance wallet-key is INSUFFICIENT (never
+    // the platform pays) -> the call falls through to the per-call 402.
+    const drain = await debitKeyFunding(depositEnv, keyId, 600_000);
+    expect(drain.ok).toBe(true);
+    const empty = await debitKeyFunding(depositEnv, keyId, 1);
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) {
+      expect(empty.reason).toBe("insufficient");
+      expect(empty.remaining_uc).toBe(0);
+    }
+  });
+});
+
 describe("L4 encrypted cookie vault", () => {
   function seedKeyDirect() {
     return magicLinkBoundKey("vault@example.com");
@@ -432,15 +523,20 @@ describe("L6 execute-path: credit-budget auto-debit (debitKeyFunding)", () => {
     expect(after?.kind === "credit" && after.budget_uc).toBe(0);
   });
 
-  it("does not debit a key with no credit binding (so it falls through to 402)", async () => {
+  it("does not debit a key with no binding, nor a wallet key with no deposited balance (both fall through to 402)", async () => {
     const none = await debitKeyFunding(baseEnv, "NOKEY", 100);
     expect(none.ok).toBe(false);
-    if (!none.ok) expect(none.reason).toBe("no_credit_binding");
+    if (!none.ok) expect(none.reason).toBe("no_balance_binding");
 
+    // A wallet-bound key with NO deposit yet has an empty spendable balance ->
+    // insufficient, never the platform pays; the caller signs a per-call 402.
     await setKeyFunding(baseEnv, "WKEY", { kind: "wallet", wallet: "0xWalletAddressLong" });
     const wallet = await debitKeyFunding(baseEnv, "WKEY", 100);
     expect(wallet.ok).toBe(false);
-    if (!wallet.ok) expect(wallet.reason).toBe("no_credit_binding");
+    if (!wallet.ok) {
+      expect(wallet.reason).toBe("insufficient");
+      expect(wallet.remaining_uc).toBe(0);
+    }
   });
 });
 

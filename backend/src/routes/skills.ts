@@ -420,81 +420,36 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         if (blockResp) return blockResp;
       }
 
-      // L6 (API key wrapping x402): a key bound to a prepaid credit budget
-      // auto-pays here via a KV decrement instead of getting a 402, so calls
-      // authenticated by that key never need a per-call X-PAYMENT signature.
-      // Wallet-bound keys are NOT settled here -- they continue down the Flex
-      // facilitator path below exactly as before (on-chain settlement needs
-      // the signed envelope, not a KV write).
+      // L6 (API key wrapping x402): a key bound to a SPENDABLE BALANCE auto-pays
+      // here via a KV decrement instead of getting a 402, so calls authenticated
+      // by that key never need a per-call X-PAYMENT signature. Two lanes share
+      // the SAME always-on debit path (no flag):
+      //   - kind:"credit": a prepaid credit budget (budget_uc).
+      //   - kind:"wallet" with balance_uc > 0: a wallet DEPOSITED USDC into this
+      //     key's balance (one x402 top-up via POST .../deposit), and the key now
+      //     SPENDS that balance. The platform NEVER pays for a wallet-bound key,
+      //     and NEVER holds the user's wallet key — it only debits the balance the
+      //     wallet itself funded. When the balance can't cover the call (or the
+      //     wallet has no balance yet), this does NOTHING and falls through to the
+      //     existing 402 (the caller signs per-call), exactly as an unfunded key.
       if (candidateAgentId && candidateAgentId !== "__admin__") {
         const { getKeyFunding, debitKeyFunding } = await import("../services/keys.js");
         const funding = await getKeyFunding(c.env, candidateAgentId);
-        if (funding?.kind === "credit") {
+        if (funding) {
           const priceUc = Math.round(priceResult.price_usd * 1_000_000);
           const debit = await debitKeyFunding(c.env, candidateAgentId, priceUc);
           if (debit.ok) {
-            c.header("X-Unbrowse-Billing", `key-credit consumed_uc=${priceUc} remaining_uc=${debit.remaining_uc}`);
+            // Lane label stays observable per binding kind: credit-budget vs
+            // wallet-deposited balance. Both debit the SAME path; only the
+            // funding source differs (and a wallet-key NEVER touches the
+            // platform sponsor escrow).
+            const lane = funding.kind === "wallet" ? "key-wallet" : "key-credit";
+            c.header("X-Unbrowse-Billing", `${lane} consumed_uc=${priceUc} remaining_uc=${debit.remaining_uc}`);
             keyFundedAdmit = true;
           }
-          // insufficient budget / no binding -> fall through to sponsor + Flex 402.
+          // insufficient balance -> fall through to sponsor + Flex 402.
         }
-      }
-
-      // api-key→wallet settlement lane (DEFAULT-OFF, gated by
-      // UNBROWSE_KEY_WALLET_SETTLE — mirrors DISBURSE_ENABLED's default-deny on
-      // fund movement). When the gate is unset/"0" (default), a wallet-bound key
-      // does NOTHING here and falls through to the existing sponsor + Flex 402
-      // path EXACTLY as before. When the gate is "1" AND admitPayment recognised
-      // the api-key→wallet lane with a real payer-of-record, we settle the call
-      // by minting a Flex authorization through the EXISTING sponsor-escrow
-      // facilitator path (`sendSponsorFlexPayment`) — no new signing code. The
-      // bound wallet is the payer-of-record recorded on the ledger row; the
-      // authorization is signed by the platform sponsor session key against the
-      // sponsor escrow (the platform does not hold the user's wallet key).
-      if (
-        !keyFundedAdmit &&
-        c.env.UNBROWSE_KEY_WALLET_SETTLE === "1" &&
-        admission?.lane === "api-key" &&
-        admission.payerWallet &&
-        candidateAgentId &&
-        candidateAgentId !== "__admin__"
-      ) {
-        const { sendSponsorFlexPayment } = await import("../services/sponsor-flex.js");
-        const { computeFlexSplits } = await import("../services/flex.js");
-        const { platformRecipientUsdcAta } = await import("../services/flex-facilitator.js");
-        try {
-          const platformAta = platformRecipientUsdcAta(c.env);
-          const splits = computeFlexSplits(skill, platformAta);
-          const amountUc = BigInt(Math.max(1, Math.round(priceResult.price_usd * 1_000_000)));
-          const flexResult = await sendSponsorFlexPayment(c.env, {
-            agentId: candidateAgentId,
-            skillId: skill.skill_id,
-            splits,
-            amountUc,
-          });
-          if (flexResult.ok && flexResult.authorization_id) {
-            c.header(
-              "X-Unbrowse-Billing",
-              `key-wallet payer=${admission.payerWallet} authorization_id=${flexResult.authorization_id}`,
-            );
-            keyFundedAdmit = true;
-            schedule(c, recordTransaction(c.env, {
-              transaction_id: `keywallet-${Date.now()}-${skill.skill_id.slice(0, 8)}`,
-              consumer_id: candidateAgentId,
-              creator_id: recipient,
-              skill_id: skill.skill_id,
-              price_usd: priceResult.price_usd,
-              payment_proof: `flex-authorization:${flexResult.authorization_id}`,
-            }).catch((err) => console.warn(`[key-wallet] ledger write failed: ${(err as Error).message}`)));
-          } else {
-            // Settlement unavailable (escrow/session key not configured, or
-            // facilitator declined) -> fall through to the unchanged 402.
-            console.warn(`[key-wallet] settlement declined: ${flexResult.reason ?? "unknown"}`);
-          }
-        } catch (err) {
-          // Any failure leaves keyFundedAdmit false -> unchanged 402 fall-through.
-          console.warn(`[key-wallet] settlement threw: ${(err as Error).message}`);
-        }
+        // no binding -> fall through to sponsor + Flex 402, exactly as an unfunded key.
       }
 
       if (!keyFundedAdmit && candidateAgentId && candidateAgentId !== "__admin__") {

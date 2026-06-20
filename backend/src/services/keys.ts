@@ -149,7 +149,14 @@ export async function revokeLocalKey(env: Env, keyId: string): Promise<boolean> 
 // --- L6: API key wrapping x402 ---
 
 export type KeyFunding =
-  | { kind: "wallet"; wallet: string; bound_at: string }
+  // A wallet-bound key. `wallet` is the owner-of-record (refund/payout target).
+  // `balance_uc` is a SPENDABLE BALANCE (µ¢) the wallet DEPOSITED into this key
+  // via a one-time x402 top-up (POST .../deposit). The key SPENDS this balance on
+  // every later call through the same debit path as kind:"credit" — the platform
+  // never pays for the call and never holds the wallet key. Optional + defaults
+  // to 0 so a pre-existing wallet binding (no deposit yet) is backward-compatible:
+  // it simply has no spendable balance and falls through to the per-call 402.
+  | { kind: "wallet"; wallet: string; balance_uc?: number; bound_at: string }
   | { kind: "credit"; budget_uc: number; bound_at: string };
 
 // Distributive Omit so the discriminated union keeps its per-variant fields
@@ -233,29 +240,77 @@ export async function clearKeyWallet(env: Env, keyId: string): Promise<void> {
 }
 
 /**
- * Debit a credit-budget-bound key by amountUc (micro-cents). Returns
- * { ok:true, remaining_uc } when the budget covered it (budget decremented),
- * or { ok:false, reason } when the key has no credit binding or the budget
- * is insufficient (budget left untouched). Wallet-bound keys are not debited
- * here -- they pay via the Flex facilitator path, not a KV decrement.
+ * Credit a wallet-bound key's spendable balance by amountUc (micro-cents). This
+ * is money-IN: the wallet has DEPOSITED USDC (verified by a confirmed x402 at the
+ * deposit route) and the platform records the paid amount as the key's balance.
+ * The key then SPENDS this balance on later calls via debitKeyFunding.
+ *
+ * Idempotent on the binding shape: requires an existing kind:"wallet" binding
+ * (the deposit funds an already-bound wallet key). Returns the new balance, or
+ * { ok:false } when the key has no wallet binding (deposit must target a bound
+ * wallet key). The platform NEVER holds the wallet's private key — it only adds
+ * to a balance the wallet itself funded.
+ */
+export async function creditKeyWalletBalance(
+  env: Env,
+  keyId: string,
+  amountUc: number,
+): Promise<{ ok: true; balance_uc: number; wallet: string } | { ok: false; reason: "no_wallet_binding" | "invalid_amount" }> {
+  if (!Number.isFinite(amountUc) || amountUc <= 0) {
+    return { ok: false, reason: "invalid_amount" };
+  }
+  const funding = await getKeyFunding(env, keyId);
+  if (!funding || funding.kind !== "wallet") {
+    return { ok: false, reason: "no_wallet_binding" };
+  }
+  const balance_uc = (funding.balance_uc ?? 0) + Math.floor(amountUc);
+  const next: KeyFunding = { kind: "wallet", wallet: funding.wallet, balance_uc, bound_at: funding.bound_at };
+  await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(next));
+  return { ok: true, balance_uc, wallet: funding.wallet };
+}
+
+/**
+ * Debit a balance-bearing key by amountUc (micro-cents). Two lanes share this
+ * single always-on debit path (no flag):
+ *   - kind:"credit"  → debits budget_uc.
+ *   - kind:"wallet"  → debits the wallet-DEPOSITED balance_uc (the wallet topped
+ *                      it up via a one-time x402; the key now spends it). The
+ *                      platform never pays — it only spends down a balance the
+ *                      wallet funded.
+ * Returns { ok:true, remaining_uc } when the balance covered it (decremented), or
+ * { ok:false, reason } when the key has no spendable binding or the balance is
+ * insufficient (balance left untouched -> caller falls through to the per-call 402).
  */
 export async function debitKeyFunding(
   env: Env,
   keyId: string,
   amountUc: number,
-): Promise<{ ok: true; remaining_uc: number } | { ok: false; reason: "no_credit_binding" | "insufficient"; remaining_uc: number }> {
+): Promise<{ ok: true; remaining_uc: number } | { ok: false; reason: "no_balance_binding" | "insufficient"; remaining_uc: number }> {
   if (!Number.isFinite(amountUc) || amountUc < 0) {
-    return { ok: false, reason: "no_credit_binding", remaining_uc: 0 };
+    return { ok: false, reason: "no_balance_binding", remaining_uc: 0 };
   }
   const funding = await getKeyFunding(env, keyId);
-  if (!funding || funding.kind !== "credit") {
-    return { ok: false, reason: "no_credit_binding", remaining_uc: 0 };
+  if (!funding) {
+    return { ok: false, reason: "no_balance_binding", remaining_uc: 0 };
   }
-  if (funding.budget_uc < amountUc) {
-    return { ok: false, reason: "insufficient", remaining_uc: funding.budget_uc };
+
+  if (funding.kind === "credit") {
+    if (funding.budget_uc < amountUc) {
+      return { ok: false, reason: "insufficient", remaining_uc: funding.budget_uc };
+    }
+    const remaining = funding.budget_uc - amountUc;
+    const next: KeyFunding = { kind: "credit", budget_uc: remaining, bound_at: funding.bound_at };
+    await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(next));
+    return { ok: true, remaining_uc: remaining };
   }
-  const remaining = funding.budget_uc - amountUc;
-  const next: KeyFunding = { kind: "credit", budget_uc: remaining, bound_at: funding.bound_at };
+
+  // kind:"wallet" — debit the wallet-deposited spendable balance.
+  const balance = funding.balance_uc ?? 0;
+  if (balance < amountUc) {
+    return { ok: false, reason: "insufficient", remaining_uc: balance };
+  }
+  const remaining = balance - amountUc;
+  const next: KeyFunding = { kind: "wallet", wallet: funding.wallet, balance_uc: remaining, bound_at: funding.bound_at };
   await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(next));
   return { ok: true, remaining_uc: remaining };
 }

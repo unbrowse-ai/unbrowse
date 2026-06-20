@@ -21,15 +21,16 @@ function normalizeDomain(env: Env, domain: string): string {
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
 /**
- * Settlement confidence signal — an ADDITIVE field on the resolve response.
+ * Settlement confidence signal — an ENGAGED field on the resolve response.
  *
  * The flat RRF/composite ranking is an ORDERER: it always returns its top-k,
  * even when nothing actually covers the intent (settle.ts's complaint). This
- * carrier runs energy.ts + settle.ts over the already-ranked shortlist and
- * surfaces the two-witness quorum verdict WITHOUT removing any result. A
- * low-quorum resolve is FLAGGED (`escalate: true`), never dropped — the caller
- * still gets the same shortlist it always got, plus this confidence to decide
- * whether to trust the top hit or fall back to browse.
+ * carrier runs energy.ts + settle.ts over the shortlist, RE-ORDERS the shortlist
+ * by energy (lowest energy first), and surfaces the two-witness quorum verdict.
+ * No result is dropped — the caller still gets the full shortlist — but the order
+ * is now energy-decided and a low-quorum resolve is FLAGGED with an ACTIONABLE
+ * `recommended_action` so the agent knows to fall back to browse rather than
+ * trusting a least-bad top hit as if it were confident.
  */
 export interface ResolveConfidence {
   /** True iff the lowest-energy candidate cleared the two-witness quorum + coverage. */
@@ -40,6 +41,14 @@ export interface ResolveConfidence {
   reason: string;
   /** Id of the candidate that settled (when settled); null on escalation. */
   settled_id?: string | number | null;
+  /**
+   * The action the agent should take given the verdict. "use_top" when settled
+   * (trust the energy-ordered top hit); "browse" when escalated (no quorum / no
+   * coverage — drive a fresh browse instead of trusting the shortlist).
+   */
+  recommended_action: "use_top" | "browse";
+  /** Human-readable low-confidence marker; present only on escalation. */
+  note?: string;
 }
 
 export interface ResolvedSearchResult {
@@ -49,7 +58,8 @@ export interface ResolvedSearchResult {
   exa_results?: WebResult[]; // wire-compat field name; populated by the provider chain (services/web-search/)
   /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance for the wire. */
   web_search_provider?: string;
-  /** ADDITIVE settlement signal (energy.ts + settle.ts). Never removes results. */
+  /** ENGAGED settlement signal (energy.ts + settle.ts). Re-orders the shortlist by
+   *  energy and carries an actionable recommended_action. Never removes results. */
   confidence?: ResolveConfidence;
 }
 
@@ -464,35 +474,84 @@ function candidateText(metadata: Record<string, unknown>): string {
   return `${name} ${title}`.trim();
 }
 
+/** Energy of one search row vs the intent (energy = -score; lower = better match).
+ *  The dense witness is the row's own composite/RRF score (already in [0,1] post
+ *  rescore); the lexical witness is recomputed from the candidate text vs intent. */
+function rowEnergy(intent: string, row: { id: number; score: number; metadata: Record<string, unknown> }) {
+  return energyScore(
+    intent,
+    { id: row.id, text: candidateText(row.metadata) },
+    { dense: typeof row.score === "number" ? row.score : 0 },
+  );
+}
+
 /**
- * Compute the ADDITIVE settlement confidence over an already-ranked resolve.
+ * Re-order a result list by energy (lowest energy = best match, first). DETERMINISTIC:
+ * a NaN energy sorts LAST, and equal energies keep their original relative order
+ * (stable tie-break via the captured index). Pure on the input array's element
+ * identities — returns a NEW array, same rows.
+ */
+function orderByEnergy(
+  intent: string,
+  rows: SearchResult,
+): SearchResult {
+  return rows
+    .map((row, idx) => ({ row, idx, energy: rowEnergy(intent, row).energy }))
+    .sort((a, b) => {
+      const an = Number.isNaN(a.energy), bn = Number.isNaN(b.energy);
+      if (an && bn) return a.idx - b.idx;       // both garbage → original order
+      if (an) return 1;                          // NaN sorts last
+      if (bn) return -1;
+      if (a.energy !== b.energy) return a.energy - b.energy; // lower energy first
+      return a.idx - b.idx;                      // stable tie-break
+    })
+    .map((e) => e.row);
+}
+
+/**
+ * ENGAGE the energy ranking + settlement on the resolve shortlist.
  *
- * Pure, non-destructive: reads the existing shortlist (domain ∪ global), scores
- * each row's lexical/dense witnesses via energyScore, and runs settleOrEscalate
- * to derive the two-witness quorum verdict. Returns the confidence signal only —
- * it NEVER re-orders or drops a result (the caller's shortlist is untouched).
- * The dense witness is the row's own composite/RRF score (already in [0,1] post
- * rescore); the lexical witness is recomputed from the candidate text vs intent.
+ * RE-ORDERS `resolved.domain_results` and `resolved.global_results` IN PLACE by
+ * energy (lowest energy first), so the order the caller sees is energy-decided
+ * rather than raw RRF/composite order. NEVER drops a result — the full shortlist
+ * stays. Then runs settleOrEscalate over the combined (energy-ordered) shortlist
+ * to derive the two-witness quorum verdict, and returns an ACTIONABLE confidence:
+ * on escalation the response clearly says "low confidence, consider browsing"
+ * (recommended_action: "browse") instead of silently presenting a least-bad top
+ * hit as confident.
  */
 export function computeResolveConfidence(
   intent: string,
   resolved: ResolvedSearchResult,
 ): ResolveConfidence {
+  // 1. Re-order each list by energy (lowest first), in place on the response.
+  resolved.domain_results = orderByEnergy(intent, resolved.domain_results);
+  resolved.global_results = orderByEnergy(intent, resolved.global_results);
+
+  // 2. Settle over the combined, now energy-ordered shortlist.
   const rows = [...resolved.domain_results, ...resolved.global_results];
   const candidates: SettleCandidate[] = rows.map((row) => {
-    const { energy, witnesses, agree } = energyScore(
-      intent,
-      { id: row.id, text: candidateText(row.metadata) },
-      { dense: typeof row.score === "number" ? row.score : 0 },
-    );
+    const { energy, witnesses, agree } = rowEnergy(intent, row);
     return { id: row.id, energy, witnesses, agree };
   });
   const verdict = settleOrEscalate(candidates);
+
+  if (verdict.escalate) {
+    return {
+      settled: false,
+      escalate: true,
+      reason: verdict.reason,
+      settled_id: null,
+      recommended_action: "browse",
+      note: "low confidence — no two-witness quorum over the indexed shortlist; consider browsing",
+    };
+  }
   return {
-    settled: !verdict.escalate,
-    escalate: verdict.escalate,
+    settled: true,
+    escalate: false,
     reason: verdict.reason,
     settled_id: verdict.settled?.id ?? null,
+    recommended_action: "use_top",
   };
 }
 
@@ -585,7 +644,8 @@ export async function searchIntentResolve(
       skipped_global: false,
       ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
     };
-    // ADDITIVE: attach the energy/settlement confidence. Never drops a result.
+    // ENGAGED: energy-order the shortlist + attach the actionable settlement
+    // confidence (recommended_action). Re-orders in place; never drops a result.
     resolved.confidence = computeResolveConfidence(intent, resolved);
     console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} web=${exa_results.length} provider=${webOutcome.provider ?? "none"}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
