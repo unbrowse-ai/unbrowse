@@ -509,6 +509,18 @@ export interface Env {
   FLEX_SPONSOR_ESCROW_ADDRESS?: string;
   SPONSOR_USE_FLEX_SPLIT?: string;
   /**
+   * Flex DELEGATION session key — the platform-held Ed25519 secret used to sign
+   * Flex authorizations against a USER's escrow on the non-custodial delegated
+   * funding lane. Mirrors FLEX_SPONSOR_SESSION_KEY_SECRET exactly (same
+   * platform-held model), but the escrow it signs against is the user's (from
+   * the delegated funding record), NOT the platform sponsor escrow. The user
+   * registered THIS key's PUBKEY to their escrow at delegation setup; the
+   * platform holds only the secret. When unset, the delegated lane is not
+   * configured and falls through to the per-call 402.
+   * SECRET: set via `wrangler secret put FLEX_DELEGATION_SESSION_KEY_SECRET`.
+   */
+  FLEX_DELEGATION_SESSION_KEY_SECRET?: string;          // secret
+  /**
    * Semantic-augmentation model (server-side, v6.16+). The endpoint
    * skeleton-enrichment LLM call moved server-side so the prompt + model
    * are configurable without a client release. Falls back to

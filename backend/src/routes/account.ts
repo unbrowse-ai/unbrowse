@@ -15,7 +15,9 @@ import {
   getKeyMeta,
   getKeyFunding,
   setKeyFunding,
+  setKeyDelegation,
   clearKeyFunding,
+  clearKeyWallet,
   creditKeyWalletBalance,
   type KeyFundingInput,
 } from "../services/keys.js";
@@ -265,6 +267,87 @@ accountRoutes.delete("/account/keys/:keyId/funding", async (c) => {
     return c.json({ error: "not_found", message: "No such key on this account." }, 404);
   }
   await clearKeyFunding(c.env, keyId);
+  return c.json({ ok: true, keyId, funding: null });
+});
+
+// --- Non-custodial delegated funding lane (design: bench/design-gaps/delegation-design.md) ---
+//
+// Phase-1 foundation: pure binding/admin. NO x402, NO payment, NO signing, NO
+// fund movement. The wallet itself created+funded the escrow and registered the
+// session key on-chain (steps a/b in §3); these routes only RECORD the bounded,
+// expiring delegation against the key so a later phase can sign within the cap.
+
+// POST /v1/account/keys/:keyId/delegation -- bind a non-custodial delegation.
+// Owner-auth via the same userOwnsKey guard the funding routes use; the wallet
+// claim is additionally hijack-hardened inside setKeyDelegation (refuses a
+// wallet already owned by another key).
+accountRoutes.post("/account/keys/:keyId/delegation", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+
+  let body: {
+    wallet?: unknown;
+    escrow?: unknown;
+    session_key_address?: unknown;
+    cap_uc?: unknown;
+    expires_at_slot?: unknown;
+  };
+  try {
+    body = JSON.parse(await c.req.text()) as typeof body;
+  } catch {
+    return c.json({ error: "invalid_input", message: "Body must be valid JSON." }, 400);
+  }
+
+  const wallet = typeof body.wallet === "string" ? body.wallet.trim() : "";
+  const escrow = typeof body.escrow === "string" ? body.escrow.trim() : "";
+  const sessionKey = typeof body.session_key_address === "string" ? body.session_key_address.trim() : "";
+  const expiresAtSlot = typeof body.expires_at_slot === "string" ? body.expires_at_slot.trim() : "";
+  if (!wallet || !escrow || !sessionKey || !expiresAtSlot) {
+    return c.json(
+      {
+        error: "invalid_input",
+        message: "wallet, escrow, session_key_address, expires_at_slot must be non-empty strings.",
+      },
+      400,
+    );
+  }
+  if (typeof body.cap_uc !== "number" || !Number.isFinite(body.cap_uc) || body.cap_uc <= 0) {
+    return c.json({ error: "invalid_input", message: "cap_uc must be a positive number (micro-cents)." }, 400);
+  }
+
+  const bound = await setKeyDelegation(c.env, keyId, {
+    wallet,
+    escrow,
+    session_key_address: sessionKey,
+    cap_uc: Math.floor(body.cap_uc),
+    expires_at_slot: expiresAtSlot,
+  });
+  if (!bound) {
+    // The wallet is already owned by a DIFFERENT key — hijack refusal.
+    return c.json(
+      { error: "wallet_already_bound", message: "That wallet is already bound to another key." },
+      409,
+    );
+  }
+  return c.json({ keyId, funding: bound });
+});
+
+// DELETE /v1/account/keys/:keyId/delegation -- revoke the delegation binding
+// (revocation path 2). Clears the funding record AND the wallet ownership index
+// the delegation bind wrote, so the wallet is free to be re-delegated.
+accountRoutes.delete("/account/keys/:keyId/delegation", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+  await clearKeyFunding(c.env, keyId);
+  await clearKeyWallet(c.env, keyId);
   return c.json({ ok: true, keyId, funding: null });
 });
 

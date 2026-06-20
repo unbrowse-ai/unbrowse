@@ -157,7 +157,26 @@ export type KeyFunding =
   // to 0 so a pre-existing wallet binding (no deposit yet) is backward-compatible:
   // it simply has no spendable balance and falls through to the per-call 402.
   | { kind: "wallet"; wallet: string; balance_uc?: number; bound_at: string }
-  | { kind: "credit"; budget_uc: number; bound_at: string };
+  | { kind: "credit"; budget_uc: number; bound_at: string }
+  // A DELEGATED (non-custodial) key. The funds NEVER touch the platform: they
+  // live in the user's own on-chain Flex escrow PDA. What the platform holds is
+  // a bounded, expiring, on-chain-revocable session key that can sign Flex
+  // authorizations against THAT escrow — capability, not custody. The on-chain
+  // session key caps each authorization (`maxAmount`); `cap_uc` is the OFF-chain
+  // rolling ceiling over the SUM of draws (enforced by the delegation-cap ledger,
+  // services/delegation-ledger.ts) so many small bounded authorizations can't
+  // collectively exceed what the user delegated. `expires_at_slot` mirrors the
+  // session key's on-chain expiry. Additive + backward-compatible: a key with no
+  // delegated record is simply unbound, exactly like wallet/credit.
+  | {
+      kind: "delegated";
+      wallet: string;              // owner-of-record (the escrow owner)
+      escrow: string;              // user's escrow PDA — the funds source
+      session_key_address: string; // the delegated session key registered to the escrow
+      cap_uc: number;              // total delegated cap (rolling ledger ceiling, µ¢)
+      expires_at_slot: string;     // mirrors the on-chain session-key expiry slot
+      bound_at: string;
+    };
 
 // Distributive Omit so the discriminated union keeps its per-variant fields
 // (a plain Omit<Union, K> collapses to the common keys only).
@@ -182,6 +201,50 @@ export async function setKeyFunding(env: Env, keyId: string, funding: KeyFunding
 
 export async function clearKeyFunding(env: Env, keyId: string): Promise<void> {
   await statsKV(env).delete(`${KEYFUND_PREFIX}${keyId}`);
+}
+
+/**
+ * Bind a NON-CUSTODIAL delegated funding record to a key: the key may sign Flex
+ * authorizations against the USER's own escrow within `cap_uc`, until
+ * `expires_at_slot`. Mirrors the wallet-funding bind path (writes the same
+ * KEYFUND_PREFIX record), but is HIJACK-HARDENED the same way the wallet binding
+ * is: it routes the wallet claim through `setKeyWallet`, which refuses to bind a
+ * wallet pubkey already owned by a DIFFERENT key (so key A can't delegate against
+ * key B's wallet). Returns the record, or null when the wallet is already owned
+ * elsewhere — the caller surfaces that as a refusal, exactly like the PK bind.
+ *
+ * Phase-1 NOTE: this is pure binding/admin — it writes the delegation record and
+ * the wallet ownership index. It does NOT sign, move funds, or settle anything;
+ * the escrow draw + settle is Phase 2.
+ */
+export async function setKeyDelegation(
+  env: Env,
+  keyId: string,
+  delegation: {
+    wallet: string;
+    escrow: string;
+    session_key_address: string;
+    cap_uc: number;
+    expires_at_slot: string;
+  },
+): Promise<KeyFunding | null> {
+  // Hijack-hardening: reuse the same ownership guard the wallet bind uses. A
+  // wallet already owned by another key is refused before any delegation record
+  // is written (defense-in-depth; the bind ROUTE additionally owner-auths).
+  const wallet = delegation.wallet.trim();
+  const bound = await setKeyWallet(env, keyId, wallet);
+  if (!bound) return null; // wallet owned by a different key → refuse hijack
+  const rec: KeyFunding = {
+    kind: "delegated",
+    wallet,
+    escrow: delegation.escrow.trim(),
+    session_key_address: delegation.session_key_address.trim(),
+    cap_uc: Math.floor(delegation.cap_uc),
+    expires_at_slot: delegation.expires_at_slot.trim(),
+    bound_at: new Date().toISOString(),
+  };
+  await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(rec));
+  return rec;
 }
 
 // --- web3-PK binding: the api_key (web2 wrapper) ↔ wallet pubkey (the root) ---
@@ -302,6 +365,14 @@ export async function debitKeyFunding(
     const next: KeyFunding = { kind: "credit", budget_uc: remaining, bound_at: funding.bound_at };
     await statsKV(env).put(`${KEYFUND_PREFIX}${keyId}`, JSON.stringify(next));
     return { ok: true, remaining_uc: remaining };
+  }
+
+  // kind:"delegated" — NON-CUSTODIAL: the funds are in the user's on-chain
+  // escrow, not a prepaid KV balance. The always-on debit lane never touches it;
+  // settlement is the escrow-signing path (Phase 2). Here it simply has no
+  // prepaid balance to debit, so it falls through like an unfunded key.
+  if (funding.kind === "delegated") {
+    return { ok: false, reason: "no_balance_binding", remaining_uc: 0 };
   }
 
   // kind:"wallet" — debit the wallet-deposited spendable balance.

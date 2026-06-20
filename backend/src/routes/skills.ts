@@ -452,6 +452,70 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         // no binding -> fall through to sponsor + Flex 402, exactly as an unfunded key.
       }
 
+      // NON-CUSTODIAL delegated lane: when admission resolved `lane:"delegated"`,
+      // settle by signing a Flex authorization AGAINST THE USER'S ESCROW (from
+      // the delegation record) within the cap, reusing the sponsor-flex signing
+      // core. Source of funds = the user's escrow, NEVER the treasury; splits are
+      // the VERBATIM backend-computed 402 terms (never recomputed beyond the one
+      // canonical computeFlexSplits the 402 itself emits). On ANY failure
+      // (expiry, cap exhausted, sign error) this does NOTHING and falls through
+      // to the existing 402, exactly like an exhausted prepaid balance.
+      if (
+        !keyFundedAdmit &&
+        admission?.lane === "delegated" &&
+        admission.delegation &&
+        candidateAgentId &&
+        candidateAgentId !== "__admin__"
+      ) {
+        try {
+          const { settleDelegatedCall, delegationLaneReady } = await import(
+            "../services/delegation-settlement.js"
+          );
+          if (delegationLaneReady(c.env)) {
+            const { computeFlexSplits } = await import("../services/flex.js");
+            const { platformRecipientUsdcAta } = await import("../services/flex-facilitator.js");
+            // VERBATIM 402 terms: the SAME split computation the Flex 402 emits.
+            const splits = computeFlexSplits(skill, platformRecipientUsdcAta(c.env));
+            const priceUc = Math.round(priceResult.price_usd * 1_000_000);
+            // Current slot for the expiry gate (placeholder when no RPC, same as
+            // the 402 path's currentSolanaSlot fallback).
+            let currentSlot = 100_000n;
+            const rpcUrl = c.env.CASCADE_RPC_URL?.trim();
+            if (rpcUrl) {
+              try {
+                const kit = await import("@solana/kit");
+                const rpc = kit.createSolanaRpc(rpcUrl);
+                const slot = await rpc.getSlot().send();
+                currentSlot = typeof slot === "bigint" ? slot : BigInt(slot as unknown as number);
+              } catch (err) {
+                console.warn(`[delegation] currentSlot RPC failed: ${(err as Error).message}`);
+              }
+            }
+            const settled = await settleDelegatedCall(c.env, {
+              keyId: candidateAgentId,
+              escrow: admission.delegation.escrow,
+              capUc: admission.delegation.cap_uc,
+              expiresAtSlot: admission.delegation.expires_at_slot,
+              priceUc,
+              splits,
+              currentSlot,
+            });
+            if (settled.ok) {
+              // Observability billing header: lane=delegated, escrow (user's),
+              // authorization_id. The source is the user's escrow, never treasury.
+              c.header(
+                "X-Unbrowse-Billing",
+                `delegated escrow=${settled.escrow} authorization_id=${settled.authorization_id} consumed_uc=${settled.settled_uc} remaining_uc=${settled.remaining_uc}`,
+              );
+              keyFundedAdmit = true;
+            }
+            // !settled.ok -> fall through to the existing 402 (expiry/cap/sign).
+          }
+        } catch (err) {
+          console.warn(`[delegation] settle threw, falling through to 402: ${(err as Error).message}`);
+        }
+      }
+
       if (!keyFundedAdmit && candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
         // sponsorAcceptsForPriceUsd builds a minimal accepts[] for the
