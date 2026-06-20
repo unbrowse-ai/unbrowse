@@ -24,7 +24,8 @@ import type {
   SatisfiedCellMatch,
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
-import { verifyDeclareSignature, type CanonicalDeclareBody } from "../services/declare-signature";
+import { verifyDeclareSignature, canonicalizeDeclareBody, type CanonicalDeclareBody } from "../services/declare-signature";
+import { verifyBinding, type ZkBinding, type ZkProof } from "../services/declare-zk";
 import { kvLedger } from "../services/contract-ledger-kv";
 import {
   compileAikoPromptToTreeWithTimeout,
@@ -65,6 +66,27 @@ export interface DeclareRequest {
   wallet_identity?: string;
   /** Ed25519 signature over the canonical declare body, signed by wallet_identity. */
   declare_signature?: string;
+  /**
+   * OPTIONAL zero-knowledge credential binding (paper/reference/zk/binding.py
+   * port — `declare-zk.ts`). When present, the declare additionally proves
+   * knowledge of a wallet-bound credential, bound to THIS declare body (ctx =
+   * the canonical declare bytes), without revealing the credential. The
+   * backend verifyBinding()s it and REJECTS (400 invalid_zk_binding) on failure.
+   *
+   * Backward-compat: when ABSENT, the existing Ed25519 declare_signature path is
+   * UNCHANGED — resolve/execute/publish auto-declares keep working with no zk.
+   * The zk is additive, never mandatory.
+   */
+  zk_binding?: {
+    /** g^x mod p as a Python-style hex string ("0x"-prefixed). */
+    y: string;
+    /** ed25519 signature (hex) over utf8(y), by the binding root wallet. */
+    sig: string;
+    /** Schnorr/Fiat-Shamir proof {t, s, ctx}. ctx must equal the canonical body. */
+    proof: { t: string; s: string; ctx: string };
+    /** Optional explicit binding root pubkey (hex). Defaults to wallet_identity. */
+    root?: string;
+  };
 }
 export interface DeclareResponse {
   id: string;
@@ -1226,6 +1248,13 @@ async function verifyDeclareAuth(req: DeclareRequest): Promise<DeclareAuthResult
  *   5. Response envelope carries the parent row + children + the three
  *      doctrine chains (empty today — honest gap) + admission_evidence.
  */
+/** Lowercase hex of a byte array (for the zk-binding ctx comparison). */
+function bytesToHexLocal(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += b.toString(16).padStart(2, "0");
+  return s;
+}
+
 async function executeDeclare(
   c: Context<ContractRouteEnv>,
   req: DeclareRequest,
@@ -1256,6 +1285,51 @@ async function executeDeclare(
       case "anonymous":
         req.agent = "anonymous";
         break;
+    }
+
+    // ─── Optional zero-knowledge credential-binding gate ──────────
+    //
+    // ADDITIVE. When `zk_binding` is present, the declare additionally
+    // proves knowledge of a wallet-bound credential, bound to THIS
+    // declare body (ctx = the canonical declare bytes — the same bytes
+    // declare-signature canonicalizes). verifyBinding (Schnorr/FS NIZK +
+    // ed25519 wallet-sig over y) must hold, and the proof's ctx must equal
+    // the canonical body. On any failure → 400 invalid_zk_binding.
+    //
+    // When ABSENT, this block is a no-op: the existing Ed25519
+    // declare_signature path is unchanged (backward-compat — auto-declares
+    // from resolve/execute/publish keep working with no zk).
+    if (req.zk_binding) {
+      const canonicalCtxBody: CanonicalDeclareBody = {
+        plan: req.plan,
+        action: req.action,
+        parent_id: req.parent_id ?? null,
+        agent: req.agent ?? null,
+        wallet_identity: req.wallet_identity ?? "",
+        ts: (req as { ts?: string }).ts ?? new Date().toISOString(),
+      };
+      const expectedCtxHex = bytesToHexLocal(
+        new TextEncoder().encode(canonicalizeDeclareBody(canonicalCtxBody)),
+      );
+      const binding: ZkBinding = {
+        y: req.zk_binding.y,
+        root: req.zk_binding.root ?? req.wallet_identity ?? "",
+        sig: req.zk_binding.sig,
+      };
+      const proof: ZkProof = req.zk_binding.proof;
+      const ctxMatches = proof.ctx === expectedCtxHex;
+      const ok = ctxMatches && (await verifyBinding(binding, proof));
+      if (!ok) {
+        return c.json(
+          {
+            error: "invalid_zk_binding",
+            detail: ctxMatches
+              ? "zk proof did not verify against the binding"
+              : "zk proof ctx does not equal the canonical declare body",
+          },
+          400,
+        );
+      }
     }
 
     // ─── Wave 2b: attestation gate ────────────────────────────────
