@@ -82,7 +82,9 @@ export async function autoIndexFromReveng(
   env: Env,
   endpoints: EndpointDescriptor[],
   agentId: string,
-): Promise<void> {
+): Promise<{ published_skills: string[]; indexed_endpoints: number }> {
+  const published_skills: string[] = [];
+  let indexed_endpoints = 0;
   const byDomain = new Map<string, EndpointDescriptor[]>();
   for (const ep of endpoints) {
     let host: string;
@@ -112,11 +114,14 @@ export async function autoIndexFromReveng(
         lifecycle: "active" as const,
       };
       if (!validateSkillManifest(draft).valid) continue;
-      await publishSkill(env, draft, { submitter_agent_id: agentId, transport: "auto-reveng" });
+      const skill = await publishSkill(env, draft, { submitter_agent_id: agentId, transport: "auto-reveng" });
+      published_skills.push(skill.skill_id);
+      indexed_endpoints += draft.endpoints.length;
     } catch (err) {
       console.warn(`[reveng] auto-index ${domain} skipped: ${(err as Error).message}`);
     }
   }
+  return { published_skills, indexed_endpoints };
 }
 
 revengRoutes.post("/reveng", indexContributorAuth, requireSignedClient, execTokenGate(), async (c) => {
@@ -151,5 +156,54 @@ revengRoutes.post("/reveng", indexContributorAuth, requireSignedClient, execToke
   } catch (err) {
     console.error("[reveng] extract failed:", (err as Error).message);
     return c.json({ error: "reveng failed", degraded: true }, 500);
+  }
+});
+
+/**
+ * /v1/skills/from-routes — the client flywheel's missing other half. The CLI's
+ * `publishObservedRoutes` (fed by `act fetch --publish` / UNBROWSE_PUBLISH_OBSERVED_ROUTES)
+ * POSTs the routes it observed during a fetch/run here; this turns them into
+ * endpoint specs (the SAME obfuscate→extractEndpoints pass as /reveng) and publishes
+ * the confident ones — so the route graph grows from ordinary usage WITHOUT a browser
+ * capture session. Until now this endpoint did not exist (the client POSTed to a 404),
+ * so observed routes were silently dropped and the index never filled from usage.
+ * Same safety chain + communal/takedown gates as /reveng's auto-index.
+ */
+type ObservedRoute = { url?: string; final_url?: string; method?: string; status?: number; content_type?: string; body_excerpt?: string };
+revengRoutes.post("/skills/from-routes", indexContributorAuth, requireSignedClient, execTokenGate(), async (c) => {
+  let body: { routes?: ObservedRoute[]; target_origin?: string; intent?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: "invalid json" }, 400); }
+  const routes = Array.isArray(body.routes) ? body.routes : [];
+  if (routes.length === 0) return c.json({ ok: true, indexed_count: 0, reason: "no routes" });
+  if (routes.length > 5000) return c.json({ error: "too many routes (max 5000)" }, 413);
+  const rawRequests: RawRequest[] = routes
+    .filter((r) => typeof r.url === "string" || typeof r.final_url === "string")
+    .map((r) => ({
+      url: (r.final_url || r.url) as string,
+      method: (r.method || "GET").toUpperCase(),
+      request_headers: {},
+      response_status: typeof r.status === "number" ? r.status : 200,
+      response_headers: r.content_type ? { "content-type": r.content_type } : {},
+      response_body: r.body_excerpt,
+      timestamp: new Date().toISOString(),
+    }));
+  try {
+    const endpoints = revengObfuscatedCapture(rawRequests); // obfuscate (strip secrets) + extractEndpoints
+    if (endpoints.length === 0) {
+      return c.json({ ok: true, indexed_count: 0, total_endpoints: 0, reason: "no api-like endpoints in routes" });
+    }
+    const agentId = (c.get("agent_id") as string | undefined) ?? "__anon__";
+    const result = await autoIndexFromReveng(c.env, endpoints, agentId);
+    return c.json({
+      ok: true,
+      skill_id: result.published_skills[0],
+      published_skills: result.published_skills,
+      indexed_count: result.indexed_endpoints,
+      total_endpoints: endpoints.length,
+      publish_status: result.published_skills.length > 0 ? "published" : "skipped",
+    });
+  } catch (err) {
+    console.error("[skills/from-routes] failed:", (err as Error).message);
+    return c.json({ error: "from_routes failed", degraded: true }, 500);
   }
 });
