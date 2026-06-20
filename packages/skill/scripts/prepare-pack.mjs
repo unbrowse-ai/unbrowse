@@ -33,15 +33,19 @@ execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-bi
 
 const sharedArgs = ["build", "--target", "node", "--format", "esm", "--packages", "external"];
 
+// cli.ts + mcp.ts import the Zig WASM core (src/lib/core-wasm.ts → ../wasm/unbrowse_core.wasm),
+// so bun emits TWO files (the .js + the .wasm asset). --outfile forbids multiple outputs
+// ("cannot write multiple output files without an output directory"); --outdir emits the .js
+// at its entry name (cli.js / mcp.js) PLUS the hashed .wasm alongside, which the .js references.
 execFileSync(
   "bun",
-  [...sharedArgs, path.join(sourceDir, "cli.ts"), "--outfile", path.join(distDir, "cli.js")],
+  [...sharedArgs, path.join(sourceDir, "cli.ts"), "--outdir", distDir],
   { cwd: packageRoot, stdio: "inherit" },
 );
 
 execFileSync(
   "bun",
-  [...sharedArgs, path.join(sourceDir, "mcp.ts"), "--outfile", path.join(distDir, "mcp.js")],
+  [...sharedArgs, path.join(sourceDir, "mcp.ts"), "--outdir", distDir],
   { cwd: packageRoot, stdio: "inherit" },
 );
 
