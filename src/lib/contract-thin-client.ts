@@ -30,6 +30,20 @@ export interface ThinClientDeclareRequest {
   action: string;
   parent_id?: string;
   learning?: string;
+  /** Writer identity claimed for this declare. When a wallet is present
+   *  this is the signed `agent` field; absent → null in the canonical body. */
+  agent?: string;
+}
+
+/**
+ * The unbrowse wallet signer surface this client needs to bind a declare to
+ * the same one-key-signs-every-layer identity the rest of the CLI uses
+ * (src/values/signer.ts). Injectable so tests can point at a hermetic wallet
+ * (UNBROWSE_WALLET_DIR) or supply a stub; defaults to the real signer.
+ */
+export interface ThinClientSigner {
+  getWalletPubkey(): Promise<Uint8Array>;
+  signBytes(message: Uint8Array): Promise<{ signature: Uint8Array }>;
 }
 
 export interface ThinClientIterateRequest {
@@ -153,6 +167,9 @@ export interface ThinClientOptions {
   dispatcher?: LocalCapabilityDispatcher;
   /** Optional fetch implementation (testing). Defaults to globalThis.fetch. */
   fetchImpl?: typeof fetch;
+  /** Optional wallet signer (testing). Defaults to the unbrowse signer
+   *  (src/values/signer.ts) loaded lazily so offline use never needs a key. */
+  signer?: ThinClientSigner;
 }
 
 export interface ThinClient {
@@ -161,6 +178,57 @@ export interface ThinClient {
   status(id: string): Promise<ThinClientStatusResponse>;
   planForIntent(intent: string, limit?: number): Promise<ThinClientPlanMatch[]>;
   surface(): Promise<ThinClientContractSurface>;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Canonical declare body — byte-for-byte identical to the backend's
+ * `canonicalizeDeclareBody` (backend/src/services/declare-signature.ts).
+ * The backend emits keys in this fixed object-literal order (plan, action,
+ * parent_id, agent, wallet_identity, ts) — NOT a runtime sort — and uses
+ * `null` (never undefined / omitted) for an absent parent_id or agent. We
+ * reproduce that exact insertion order + null-coercion so the bytes the CLI
+ * signs equal the bytes the server verifies. Any drift here breaks the
+ * signature silently, so this MUST stay in lockstep with the backend.
+ */
+function canonicalizeDeclareBody(body: {
+  plan: string;
+  action: string;
+  parent_id: string | null;
+  agent: string | null;
+  wallet_identity: string;
+  ts: string;
+}): string {
+  return JSON.stringify({
+    plan: body.plan,
+    action: body.action,
+    parent_id: body.parent_id,
+    agent: body.agent,
+    wallet_identity: body.wallet_identity,
+    ts: body.ts,
+  });
+}
+
+/**
+ * Lazily load the real unbrowse signer (src/values/signer.ts) so the thin
+ * client never imports keychain machinery unless an opts.signer override is
+ * absent AND a declare actually needs to sign. Returns null when the signer
+ * module can't be loaded — the declare path then stays unsigned (offline-safe).
+ */
+async function defaultSigner(): Promise<ThinClientSigner | null> {
+  try {
+    const mod = await import("../values/signer.js");
+    return { getWalletPubkey: mod.getWalletPubkey, signBytes: mod.signBytes };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -201,10 +269,67 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
 
   return {
     async declare(req) {
-      const result = await call<ThinClientDeclareRequest, { id: string }>(
+      // Bind the declare to the unbrowse wallet identity (one-key-signs-
+      // every-layer). Mirror src/cli-v7/eval/resolve.ts:128 — pubkey →
+      // hex(wallet_identity), sign the canonical body, attach both. The
+      // backend's verifyDeclareSignature (declare-signature.ts) verifies
+      // Ed25519 over the EXACT canonical bytes built here.
+      //
+      // Backward-compat: if no wallet is configured / the signer is
+      // unavailable (getWalletPubkey throws, keychain absent, offline),
+      // fall back to the current UNSIGNED POST so offline use never breaks.
+      let signedExtras:
+        | { wallet_identity: string; declare_signature: string; ts: string; agent: string | null }
+        | undefined;
+      try {
+        const signer = opts.signer ?? (await defaultSigner());
+        if (signer) {
+          const pubkeyBytes = await signer.getWalletPubkey();
+          const wallet_identity = bytesToHex(pubkeyBytes);
+          // ts is part of the signed body AND must be echoed in the request,
+          // or the server defaults to its own clock and the sig won't verify
+          // (backend contract.ts verifyDeclareAuth reads req.ts).
+          const ts = new Date().toISOString();
+          const parent_id = req.parent_id ?? null;
+          const agent = req.agent ?? null;
+          const canonical = canonicalizeDeclareBody({
+            plan: req.plan,
+            action: req.action,
+            parent_id,
+            agent,
+            wallet_identity,
+            ts,
+          });
+          const signed = await signer.signBytes(new TextEncoder().encode(canonical));
+          signedExtras = {
+            wallet_identity,
+            declare_signature: bytesToHex(signed.signature),
+            ts,
+            agent,
+          };
+        }
+      } catch {
+        // No usable wallet → stay on the unsigned legacy path.
+        signedExtras = undefined;
+      }
+
+      const wireBody = signedExtras
+        ? {
+            plan: req.plan,
+            action: req.action,
+            ...(req.parent_id !== undefined ? { parent_id: req.parent_id } : {}),
+            ...(req.learning !== undefined ? { learning: req.learning } : {}),
+            ...(signedExtras.agent !== null ? { agent: signedExtras.agent } : {}),
+            wallet_identity: signedExtras.wallet_identity,
+            declare_signature: signedExtras.declare_signature,
+            ts: signedExtras.ts,
+          }
+        : req;
+
+      const result = await call<unknown, { id: string }>(
         "/v1/contract/declare",
         "POST",
-        req,
+        wireBody,
       );
       return { id: result.id };
     },
