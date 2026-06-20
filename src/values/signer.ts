@@ -86,7 +86,21 @@ function keychainEnabled(): boolean {
 // O(1) after the first call. The PRIVKEY is NEVER cached — every sign()
 // re-reads it from the store, uses it within a try/finally, and zeros the
 // buffer on exit.
+//
+// Keyed by the ACTIVE wallet dir: production never switches dirs, so this is a
+// no-op there, but an in-process wallet-dir switch (a test using
+// UNBROWSE_WALLET_DIR, a profile swap) must NOT return a pubkey derived from a
+// different seed than the one sign()/withSecretKey() now reads — otherwise the
+// wallet_identity and signature disagree and the declare fails to verify.
 let pubkeyCache: Uint8Array | null = null;
+let pubkeyCacheDir: string | null = null;
+function readPubkeyCache(): Uint8Array | null {
+  return pubkeyCacheDir === walletDir() ? pubkeyCache : null;
+}
+function writePubkeyCache(pub: Uint8Array): void {
+  pubkeyCache = pub;
+  pubkeyCacheDir = walletDir();
+}
 
 // ─── Storage backend ────────────────────────────────────────────────────────
 
@@ -321,6 +335,36 @@ export function withRootSeed<T>(fn: (seed: Uint8Array) => T): T {
 }
 
 /**
+ * Run `fn` with the 64-byte Ed25519 SecretKey (seed(32) || pubkey(32)) loaded
+ * transiently, then zero it — same Mt 6:6 posture as sign()/withRootSeed(). The
+ * 64-byte encoding is exactly what `std.crypto.sign.Ed25519.SecretKey` (and the
+ * unbrowse-core WASM `sign` export) expect, so a caller can route a signature
+ * through the one Zig core WITHOUT the raw key ever leaving this scope. `fn`
+ * MUST NOT retain the buffer; it is zeroed before this function returns.
+ *
+ * The seed is loaded via ensureWalletKey() and zeroed in finally; the assembled
+ * 64-byte key is zeroed too. This is the single in-process exposure of the raw
+ * secret needed for WASM-side signing — it never touches disk, logs, or memory
+ * beyond one call.
+ */
+export function withSecretKey<T>(fn: (sk64: Uint8Array) => T): T {
+  const seed = ensureWalletKey();
+  let sk64: Uint8Array | null = null;
+  try {
+    const pub = privkeyToPubkey(seed); // 32-byte pubkey
+    sk64 = new Uint8Array(64);
+    sk64.set(seed, 0);
+    sk64.set(pub, 32);
+    // Cache the pubkey for getWalletPubkey() callers (same as sign()).
+    writePubkeyCache(pub);
+    return fn(sk64);
+  } finally {
+    if (sk64) safeZero(sk64);
+    safeZero(seed);
+  }
+}
+
+/**
  * Sign the v7.0 fill receipt fragment with the x402-wallet-bound Ed25519
  * key.
  *
@@ -355,7 +399,7 @@ export async function sign(
     const signature = new Uint8Array(sigBuf);
     const walletPubkey = privkeyToPubkey(seed);
     // Cache the pubkey for getWalletPubkey() callers.
-    pubkeyCache = walletPubkey;
+    writePubkeyCache(walletPubkey);
     return { signature, walletPubkey };
   } finally {
     // Heb 4:13 — nothing hid; the privkey is zeroed before the function
@@ -388,7 +432,7 @@ export async function signBytes(message: Uint8Array): Promise<Signature> {
     const sigBuf = nodeSign(null, message, privKeyObject);
     const signature = new Uint8Array(sigBuf);
     const walletPubkey = privkeyToPubkey(seed);
-    pubkeyCache = walletPubkey;
+    writePubkeyCache(walletPubkey);
     return { signature, walletPubkey };
   } finally {
     safeZero(seed);
@@ -401,11 +445,12 @@ export async function signBytes(message: Uint8Array): Promise<Signature> {
  * Idempotent: same value on every call.
  */
 export async function getWalletPubkey(): Promise<Uint8Array> {
-  if (pubkeyCache) return pubkeyCache;
+  const cached = readPubkeyCache();
+  if (cached) return cached;
   const seed = ensureWalletKey();
   try {
     const pubkey = privkeyToPubkey(seed);
-    pubkeyCache = pubkey;
+    writePubkeyCache(pubkey);
     return pubkey;
   } finally {
     safeZero(seed);
