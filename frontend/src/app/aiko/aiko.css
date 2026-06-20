@@ -351,3 +351,93 @@ body:has(.aiko-root) {
   color: var(--a-ink-faint);
   margin-top: 0.9rem;
 }
+
+/* Comparison table — ported from aiko-v4-lite. Scrolls horizontally on
+   narrow viewports; the Aiko column is warm-tinted to draw the eye. */
+.aiko-cmp {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  overflow-x: auto;
+  border: 1px solid var(--a-border);
+  -webkit-overflow-scrolling: touch;
+}
+.aiko-cmp__table {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, 1.5fr) repeat(5, minmax(5.5rem, 1fr));
+  min-width: 42rem;
+  gap: 1px;
+  background: var(--a-border);
+}
+.aiko-cmp__h,
+.aiko-cmp__f,
+.aiko-cmp__c {
+  background: var(--a-card);
+  padding: 0.72rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.aiko-cmp__h {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--a-ink-muted);
+}
+.aiko-cmp__f {
+  color: var(--a-ink);
+  font-weight: 600;
+}
+.aiko-cmp__c {
+  color: var(--a-ink-muted);
+}
+.aiko-cmp__h--aiko,
+.aiko-cmp__c--aiko {
+  background: rgba(255, 107, 26, 0.1);
+  color: var(--a-ink);
+  font-weight: 600;
+}
+.aiko-cmp__h--aiko {
+  color: var(--a-accent-warm);
+}
+
+/* Access-layer partners strip — ported from aiko-v4-lite PaymentAccessStrip.
+   Scoped under .aiko-root so it never leaks into the unbrowse shell. */
+.aiko-root .aiko-partners {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 640px) { .aiko-root .aiko-partners { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .aiko-root .aiko-partners { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.aiko-root .aiko-partners__cell {
+  min-height: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 1rem 0.75rem;
+  border: 1px solid var(--a-border);
+  border-radius: 0.6rem;
+  background: var(--a-card);
+}
+.aiko-root .aiko-partners__img {
+  max-height: 32px; max-width: 100%;
+  object-fit: contain;
+  filter: grayscale(1) brightness(1.7) contrast(1.05);
+  opacity: 0.92;
+}
+.aiko-root .aiko-partners__svg { height: auto; color: var(--a-ink); }
+.aiko-root .aiko-partners__name {
+  font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--a-ink-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.aiko-root .aiko-partners__proof {
+  margin-top: 0.75rem; list-style: none; padding: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem;
+}
+@media (max-width: 640px) { .aiko-root .aiko-partners__proof { grid-template-columns: 1fr; } }
+.aiko-root .aiko-partners__proof li {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.875rem; color: var(--a-ink-muted);
+  border: 1px solid var(--a-border); border-radius: 0.5rem;
+  padding: 0.55rem 0.85rem;
+}
