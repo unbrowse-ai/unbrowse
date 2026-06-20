@@ -360,7 +360,11 @@ jobs:
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: [verify-release-assets]
+    # Decoupled from upload/verify-release-assets: those push platform tarballs to
+    # the github.com release (for binary distribution) and touch a billing-locked
+    # github account. The npm package only needs the Kuri vendor binaries, so the
+    # publish skips the fragile github-release layers and runs right after vendor.
+    needs: [build-kuri-vendor]
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       package_version: ${{ steps.pkg.outputs.version }}
@@ -476,33 +480,26 @@ jobs:
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
 
-      - name: Resolve public release token
-        if: steps.version-check.outputs.skip_publish != '1'
-        env:
-          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
-        run: |
-          if [ -z "${SKILL_REPO_TOKEN:-}" ]; then
-            echo "::error::Missing SKILL_REPO_TOKEN; cannot upload tarball or dispatch the OIDC publish."
-            exit 1
-          fi
-          echo "::add-mask::$SKILL_REPO_TOKEN"
-          echo "GH_TOKEN=$SKILL_REPO_TOKEN" >> "$GITHUB_ENV"
-
-      - name: Attach tarball to public release + dispatch OIDC publish
+      - name: Publish to npm (direct — github OIDC publish is billing-locked)
         id: publish-result
         if: steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
         env:
-          TAG: ${{ github.ref_name }}
-          PUBLIC_REPO: unbrowse-ai/unbrowse
+          # setup-node wrote an .npmrc that reads NODE_AUTH_TOKEN. The getfoundry
+          # automation token (gitea secret) publishes directly. Provenance is NOT
+          # used: npm rejects it from a private source repo (E422), and the public
+          # OIDC path runs on a billing-locked github account.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           TARBALL="${{ steps.pack.outputs.tarball }}"
-          # The OIDC publish workflow downloads exactly this asset name.
-          gh release upload "$TAG" --repo "$PUBLIC_REPO" "$TARBALL" --clobber
-          echo "::notice::Uploaded ${TARBALL} to ${PUBLIC_REPO} release ${TAG}"
-          # Dispatch the public OIDC publish now that the tarball is attached (race-free).
-          gh workflow run release.yml --repo "$PUBLIC_REPO" -f tag="$TAG"
-          echo "::notice::Dispatched OIDC npm publish for ${TAG} on ${PUBLIC_REPO}"
+          # Fail fast + clear if the token is invalid, instead of a cryptic publish error.
+          WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
+          if [ "$WHO" != "getfoundry" ]; then
+            echo "::error::NPM_TOKEN does not authenticate as getfoundry (whoami=$WHO) — cannot publish ${TARBALL}."
+            exit 1
+          fi
+          echo "::notice::Publishing ${TARBALL} to npm as ${WHO} (no provenance)"
+          npm publish "$TARBALL" --access public
           echo "published=1" >> "$GITHUB_OUTPUT"
 
   publish-sdk:
