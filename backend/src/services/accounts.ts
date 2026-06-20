@@ -121,5 +121,7 @@ export async function setAccountPreferences(env: Env, userId: string, prefs: Par
   const updated: UserRecord = { ...user };
   if (prefs.share_pointers !== undefined) updated.share_pointers = prefs.share_pointers;
   await statsKV(env).put(`${ACCT_PREFIX}${user.email}`, JSON.stringify(updated));
-  return { share_pointers: updated.share_pointers ?? false };
+  // Default MUST match getAccountPreferences (?? true) — a set that omits the field
+  // returns the same default a later get would, so set/get never disagree.
+  return { share_pointers: updated.share_pointers ?? true };
 }
