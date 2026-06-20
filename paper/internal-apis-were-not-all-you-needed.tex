@@ -536,9 +536,12 @@ roadmap as a changelog --- we separate what runs in the product, what is availab
 as runnable, tested reference code, and where deployment still stops. Running in
 the product today:
 \begin{itemize}[leftmargin=1.4em]
-\item The live three-way split: every paid execution settles to the
-indexer, the domain owner, and the platform in one transaction over
-x402~\cite{x402}.
+\item The three-way split across the indexer, the domain owner, and the
+platform: computed on every paid execution and settled --- atomically in one
+x402~\cite{x402} transaction on devnet, and custodially on mainnet today, where
+the platform collects and the contributor and owner cuts are disbursed from the
+attribution ledger (the trustless on-chain split program is devnet-only, pending
+its mainnet deployment).
 \item Fair-launched FDRY: supply placed on a public pool at launch with no
 pre-sale, team allocation, or insider round.
 \item Platform-fee collection on settled executions.
