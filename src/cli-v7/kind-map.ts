@@ -696,6 +696,15 @@ export const KIND_MAP = [
     mcp_tool: null,
     summary: "Read or write local config keys; local-only.",
   },
+  {
+    subcommand: "eval contract",
+    verb: "eval",
+    op_kind: "eval:contract",
+    op_class: "observe",
+    action: "contract",
+    mcp_tool: null,
+    summary: "Declare a truth claim (wallet-signed) or read its projection: `contract declare <text>` / `contract status <id>`.",
+  },
 ] as const satisfies readonly KindMapEntry[];
 
 export type V7Subcommand = (typeof KIND_MAP)[number]["subcommand"];
