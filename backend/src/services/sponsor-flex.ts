@@ -165,6 +165,64 @@ export async function sendSponsorFlexPayment(
     return { ok: false, reason: "non_positive_amount" };
   }
 
+  // Delegate to the parameterized signing core, pinned to the SPONSOR escrow +
+  // SPONSOR session-key secret. The same core signs against a USER escrow on
+  // the delegated lane — only the escrow + secret differ.
+  return signFlexAuthorizationAgainstEscrow(
+    env,
+    {
+      escrow: env.FLEX_SPONSOR_ESCROW_ADDRESS!,
+      sessionKeySecret: env.FLEX_SPONSOR_SESSION_KEY_SECRET!,
+      splits: params.splits,
+      amountUc: params.amountUc,
+    },
+    injections,
+  );
+}
+
+/**
+ * Parameterized Flex-authorization signing core. EXTRACTED from
+ * `sendSponsorFlexPayment` so the SAME serialize + Ed25519-sign machinery can be
+ * pointed at an ARBITRARY escrow + session-key secret, not only the sponsor's.
+ *
+ * The sponsor path (above) calls this with the sponsor escrow + sponsor secret.
+ * The non-custodial DELEGATED lane (`delegation-settlement.ts`) calls it with
+ * the USER's escrow + the platform-held DELEGATION session-key secret — the user
+ * registered that key's PUBKEY to their escrow at setup, so the platform signs
+ * FOR the user's escrow within the cap, never moving principal beyond the
+ * verbatim splits it is handed.
+ *
+ * `splits` are passed in VERBATIM and never recomputed here. `expiresAtSlotOverride`
+ * (optional) pins the authorization expiry to the delegation's expiry slot; when
+ * absent the standard refund-timeout math (currentSlot + refundTimeout) applies.
+ *
+ * Operational failures never throw — `{ ok:false, reason }`.
+ */
+export async function signFlexAuthorizationAgainstEscrow(
+  env: Env,
+  params: {
+    escrow: string;
+    sessionKeySecret: string;
+    splits: FlexSplit[];
+    amountUc: bigint;
+    /** Pin the authorization expiry slot (delegated lane = delegation expiry). */
+    expiresAtSlotOverride?: bigint;
+  },
+  injections?: SponsorFlexInjections,
+): Promise<SponsorFlexResult> {
+  if (!params.escrow?.trim()) {
+    return { ok: false, reason: "escrow_not_configured" };
+  }
+  if (!params.sessionKeySecret?.trim()) {
+    return { ok: false, reason: "session_key_not_configured" };
+  }
+  if (!params.splits || params.splits.length === 0) {
+    return { ok: false, reason: "empty_splits" };
+  }
+  if (params.amountUc <= 0n) {
+    return { ok: false, reason: "non_positive_amount" };
+  }
+
   try {
     // Lazy-load the Solana SDK + Flex SDK (or use injected mocks).
     const kit = injections?._kit ?? (await import("@solana/kit"));
@@ -184,11 +242,18 @@ export async function sendSponsorFlexPayment(
     // and amount bounds and throws on contract violations — let those bubble
     // out to the catch below so the result is `{ ok: false, reason: ... }`.
     const draft = await buildFlexAuthorization(env, {
-      agentEscrow: env.FLEX_SPONSOR_ESCROW_ADDRESS!,
+      agentEscrow: params.escrow,
       maxAmountUc: params.amountUc,
       splits: params.splits,
       currentSlot,
     });
+
+    // Pin the expiry to the delegation slot when supplied (the delegated lane
+    // signs an authorization that cannot outlive the on-chain session key).
+    const expiresAtSlot =
+      params.expiresAtSlotOverride !== undefined
+        ? params.expiresAtSlotOverride.toString(10)
+        : draft.expiresAtSlot;
 
     // Serialize for Ed25519 signing. The SDK requires every field as either
     // `Address` or `bigint`; the draft stores them as strings (decimal) so
@@ -199,7 +264,7 @@ export async function sendSponsorFlexPayment(
       mint: kit.address(draft.mint),
       maxAmount: BigInt(draft.maxAmount),
       authorizationId: BigInt(draft.authorizationId),
-      expiresAtSlot: BigInt(draft.expiresAtSlot),
+      expiresAtSlot: BigInt(expiresAtSlot),
       splits: draft.splits.map((s) => ({
         recipient: kit.address(s.recipient),
         bps: s.bps,
@@ -211,16 +276,9 @@ export async function sendSponsorFlexPayment(
     // to skip the Web Crypto path entirely.
     let signature: Uint8Array;
     if (injections?._signMessage) {
-      signature = await injections._signMessage(
-        messageBytes,
-        env.FLEX_SPONSOR_SESSION_KEY_SECRET!,
-      );
+      signature = await injections._signMessage(messageBytes, params.sessionKeySecret);
     } else {
-      signature = await signMessageWithSessionKey(
-        flex,
-        messageBytes,
-        env.FLEX_SPONSOR_SESSION_KEY_SECRET!,
-      );
+      signature = await signMessageWithSessionKey(flex, messageBytes, params.sessionKeySecret);
     }
 
     if (signature.length !== 64) {

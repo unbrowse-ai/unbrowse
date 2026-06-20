@@ -32,7 +32,7 @@ import type { Context } from "hono";
 import type { Env } from "../types.js";
 import type { KeyFunding } from "../services/keys.js";
 
-export type PaymentLane = "wallet" | "api-key" | "credit" | "sponsor" | "none";
+export type PaymentLane = "wallet" | "api-key" | "credit" | "delegated" | "sponsor" | "none";
 
 export interface PaymentAdmission {
   /** True iff a payer/lane was identified that the gated path can settle. */
@@ -41,6 +41,17 @@ export interface PaymentAdmission {
   payerWallet: string | null;
   /** Which admission lane recognised the payer. */
   lane: PaymentLane;
+  /**
+   * On the `delegated` lane only: the on-chain facts the gated execute path
+   * needs to settle against the USER's escrow (never recomputed here — pure
+   * detection). Absent on every other lane.
+   */
+  delegation?: {
+    escrow: string;              // user's escrow PDA — the funds source
+    session_key_address: string; // the delegated session key registered to it
+    cap_uc: number;              // total delegated cap (rolling ledger ceiling)
+    expires_at_slot: string;     // on-chain session-key expiry slot
+  };
 }
 
 // Context here is intentionally permissive: admitPayment is called from routes
@@ -149,6 +160,30 @@ export async function admitPayment(c: AdmissionContext): Promise<PaymentAdmissio
       const bound = validWallet(funding.wallet);
       if (bound) {
         return { admitted: true, payerWallet: bound, lane: "api-key" };
+      }
+    }
+    if (funding?.kind === "delegated") {
+      // The key wraps a NON-CUSTODIAL delegation → the user's wallet is the
+      // payer-of-record (like the wallet lane), but settlement is the
+      // escrow-signing path (gated, downstream), NOT a prepaid KV debit. Pure
+      // detection: surface the escrow/cap/expiry so the gated execute path can
+      // sign a Flex authorization against the USER's escrow within the cap. We
+      // never sign here. A blank/whitespace wallet or escrow is a corrupt
+      // binding and must NOT be admitted — fall through rather than surface it.
+      const bound = validWallet(funding.wallet);
+      const escrow = validWallet(funding.escrow);
+      if (bound && escrow) {
+        return {
+          admitted: true,
+          payerWallet: bound,
+          lane: "delegated",
+          delegation: {
+            escrow,
+            session_key_address: funding.session_key_address,
+            cap_uc: funding.cap_uc,
+            expires_at_slot: funding.expires_at_slot,
+          },
+        };
       }
     }
     if (funding?.kind === "credit") {
