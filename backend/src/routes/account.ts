@@ -29,6 +29,7 @@ import {
   type DomainTakedownRecord,
 } from "../services/domain-claim.js";
 import { getAgent } from "../services/agents.js";
+import { getDelegationSessionKeyAddress } from "../services/delegation-settlement.js";
 
 type AccountEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -349,6 +350,20 @@ accountRoutes.delete("/account/keys/:keyId/delegation", async (c) => {
   await clearKeyFunding(c.env, keyId);
   await clearKeyWallet(c.env, keyId);
   return c.json({ ok: true, keyId, funding: null });
+});
+
+// GET /v1/account/delegation/session-key -- discovery for the non-custodial
+// delegation lane. Returns the PLATFORM's delegation session-key PUBLIC address
+// so a user can register it to their OWN escrow before binding a delegation.
+// Light auth only (same bearer guard as the rest of /account/*): this is a read
+// of a PUBLIC key — the address is derived from the held secret, the secret is
+// NEVER returned or logged. When the lane isn't configured: {ready:false}, 200.
+accountRoutes.get("/account/delegation/session-key", async (c) => {
+  const address = await getDelegationSessionKeyAddress(c.env);
+  if (!address) {
+    return c.json({ ready: false, reason: "delegation_not_configured" });
+  }
+  return c.json({ session_key_address: address, ready: true });
 });
 
 const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
