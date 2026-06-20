@@ -7,6 +7,11 @@ import type { RawRequest } from "../../../src/capture/index.js";
 import { obfuscateCaptureForReveng } from "../../../src/capture/obfuscate.js";
 import { extractEndpoints } from "../services/reverse-engineer/index.js";
 import { extractHoles, type HoleTemplate } from "../../../src/capture/hole-template.js";
+import { publishSkill } from "../services/marketplace.js";
+import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
+import { aiScrubEndpoints } from "../services/ai-scrub.js";
+import { validateSkillManifest } from "../services/validator.js";
+import type { EndpointDescriptor } from "../types.js";
 
 export const revengRoutes = new Hono<{ Bindings: Env }>();
 
@@ -60,6 +65,60 @@ export function revengWithHoles(capture: RawRequest[]): {
   return { endpoints: extractEndpoints(safe), holes: safe.map(extractHoles) };
 }
 
+/**
+ * PASSIVE auto-index — the route graph grows from usage, not from a deliberate
+ * publish. After a capture is reverse-engineered into endpoint specs (already
+ * secret-stripped by the obfuscation pass — "no secret to see"), publish them so
+ * a later resolve finds them, with NO explicit /skills call. Confidence is
+ * intrinsic: extractEndpoints already dropped non-API / non-positive-score
+ * requests, so what arrives here IS the confident set. Defense-in-depth: re-run
+ * the SAME server-authoritative publish sanitizer + AI-scrub the /skills route
+ * uses before anything enters the public marketplace — a residual-leak domain is
+ * SKIPPED, never published. Best-effort + fire-and-forget (never blocks the
+ * response). Attribution: the capturing agent (Tier-1 indexer). Communal-domain
+ * + takedown/ownership gates inside publishSkill remain the reactive remedy.
+ */
+export async function autoIndexFromReveng(
+  env: Env,
+  endpoints: EndpointDescriptor[],
+  agentId: string,
+): Promise<void> {
+  const byDomain = new Map<string, EndpointDescriptor[]>();
+  for (const ep of endpoints) {
+    let host: string;
+    try { host = new URL(ep.url_template).hostname.replace(/^www\./, ""); } catch { continue; }
+    if (!host) continue;
+    const arr = byDomain.get(host) ?? [];
+    arr.push(ep);
+    byDomain.set(host, arr);
+  }
+  for (const [domain, eps] of byDomain) {
+    try {
+      // Server-authoritative safety chain — IDENTICAL to /skills, never trust the
+      // (already-obfuscated) input. A residual leak skips the domain entirely.
+      const { endpoints: scrubbed } = enforcePublishSanitization(eps as unknown[]);
+      if (detectResidualSecretLeak(scrubbed).length > 0) continue;
+      const ai = await aiScrubEndpoints(scrubbed, env);
+      if (ai.rejected) continue;
+      const draft = {
+        schema_version: "1",
+        name: domain,
+        intent_signature: domain,
+        domain,
+        description: `Routes auto-indexed from a live capture of ${domain}.`,
+        owner_type: "agent" as const,
+        execution_type: "http" as const,
+        endpoints: ai.endpoints as unknown as EndpointDescriptor[],
+        lifecycle: "active" as const,
+      };
+      if (!validateSkillManifest(draft).valid) continue;
+      await publishSkill(env, draft, { submitter_agent_id: agentId, transport: "auto-reveng" });
+    } catch (err) {
+      console.warn(`[reveng] auto-index ${domain} skipped: ${(err as Error).message}`);
+    }
+  }
+}
+
 revengRoutes.post("/reveng", indexContributorAuth, requireSignedClient, execTokenGate(), async (c) => {
   let body: { capture?: unknown };
   try {
@@ -77,6 +136,17 @@ revengRoutes.post("/reveng", indexContributorAuth, requireSignedClient, execToke
   }
   try {
     const { endpoints, holes } = revengWithHoles(capture as RawRequest[]);
+    // PASSIVE auto-index: grow the route graph from THIS capture (off the response
+    // path, best-effort). The capturing agent is the Tier-1 indexer; the safety
+    // chain + communal/takedown gates inside autoIndexFromReveng/publishSkill apply.
+    const agentId = c.get("agent_id") as string | undefined;
+    if (agentId && endpoints.length > 0) {
+      // Start it now (best-effort); register with waitUntil so the Worker stays
+      // alive until it finishes. c.executionCtx THROWS when absent (tests / some
+      // runtimes) — guard the access so the route never 500s on its account.
+      const indexing = autoIndexFromReveng(c.env, endpoints, agentId).catch(() => {});
+      try { c.executionCtx.waitUntil(indexing); } catch { /* no ExecutionContext — runs detached */ }
+    }
     return c.json({ endpoints, holes, count: endpoints.length });
   } catch (err) {
     console.error("[reveng] extract failed:", (err as Error).message);
