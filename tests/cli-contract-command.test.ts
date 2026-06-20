@@ -248,3 +248,24 @@ describe("contract is registered in the eval subcommand table", () => {
     expect(flatCommandVerb("contract")).toBe("eval");
   });
 });
+
+// Merge witness: `unbrowse contract` collapsed into the root `unbrowse "<goal>"`. A
+// contract-grammar leading token routes to the contract handler; a plain task goal
+// falls through to the resolve+execute front door (which auto-declares anyway).
+describe("unbrowse contract merged into the root (looksLikeContractGoal)", () => {
+  test("contract-grammar leading tokens are recognized as attestations", async () => {
+    const { looksLikeContractGoal } = await import("../src/cli-v7/kind-map");
+    expect(looksLikeContractGoal("satisfied:row-1 — gate exit 0")).toBe(true);
+    expect(looksLikeContractGoal("died:row-2 — superseded")).toBe(true);
+    expect(looksLikeContractGoal("status:row-3")).toBe(true);
+    expect(looksLikeContractGoal("iterate:row-4 — wave 2")).toBe(true);
+    expect(looksLikeContractGoal("declare:something")).toBe(true);
+  });
+  test("a plain task goal is NOT an attestation (falls through to resolve+execute)", async () => {
+    const { looksLikeContractGoal } = await import("../src/cli-v7/kind-map");
+    expect(looksLikeContractGoal("find the top posts on r/webscraping")).toBe(false);
+    expect(looksLikeContractGoal("post a tweet about the launch")).toBe(false);
+    expect(looksLikeContractGoal("status report for Q3")).toBe(false); // "status report" ≠ "status:"
+    expect(looksLikeContractGoal("")).toBe(false);
+  });
+});
