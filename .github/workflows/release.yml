@@ -41,16 +41,17 @@ jobs:
           version: "0.16.0"
       - name: Build Windows Kuri broker
         working-directory: submodules/kuri
-        shell: pwsh
+        shell: bash
         run: |
           zig build -Dtarget=x86_64-windows-gnu
-          if (-not (Test-Path zig-out\bin\kuri.exe)) {
-            Write-Error "kuri.exe not produced by Windows GNU build"
-            exit 1
-          }
-          Get-ChildItem zig-out\bin\kuri*.exe
-          (Get-FileHash zig-out\bin\kuri.exe -Algorithm SHA256).Hash
+          test -f zig-out/bin/kuri.exe || { echo "kuri.exe not produced by Windows GNU build"; exit 1; }
+          ls -la zig-out/bin/kuri*.exe
+          shasum -a 256 zig-out/bin/kuri.exe
       - name: Smoke Windows Kuri broker
+        # Cross-compiled on a non-Windows self-hosted runner: a win-x64 .exe cannot
+        # execute here, so the run-and-/health smoke is valid only on a NATIVE Windows
+        # runner. Skip it elsewhere — the build verified the artifact exists + hashed it.
+        if: runner.os == 'Windows'
         working-directory: submodules/kuri
         shell: pwsh
         run: |
