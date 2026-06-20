@@ -69,8 +69,9 @@ export interface SettingsFile {
 
 function resolveHome(override?: string): string {
   if (override) return override;
-  // Honor a runtime $HOME override (some tests / sandboxes set $HOME mid-process).
-  return process.env.HOME ?? homedir();
+  // U-3: honor UNBROWSE_HOME (unbrowse-specific home override; was documented but ignored),
+  // then a runtime $HOME override (some tests / sandboxes set $HOME mid-process), then OS home.
+  return process.env.UNBROWSE_HOME ?? process.env.HOME ?? homedir();
 }
 
 function legacySettingsPath(home?: string): string {
