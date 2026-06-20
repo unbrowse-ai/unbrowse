@@ -192,6 +192,20 @@ describe("thin-client foundation — wire surface end-to-end", () => {
     const client = createThinClient({
       baseUrl: "https://api.test.local",
       fetchImpl,
+      // This test exercises the ANONYMOUS (unsigned) wire path — declare →
+      // iterate → status with a public-visibility row. Inject a no-wallet
+      // signer so the declare stays unsigned (the wallet-bound signed path is
+      // covered by tests/thin-client-declare-signature.test.ts). Without this,
+      // a real wallet would sign → visibility=lineage → status read returns
+      // the synthetic-empty "pending" (correct lineage gating), not "active".
+      signer: {
+        getWalletPubkey: async () => {
+          throw new Error("anonymous path: no wallet");
+        },
+        signBytes: async () => {
+          throw new Error("anonymous path: no wallet");
+        },
+      },
     });
 
     const { id } = await client.declare({
