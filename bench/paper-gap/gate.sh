@@ -39,10 +39,11 @@ if git grep -qiE "devnet-only" scripts/flex-devnet-settle.mjs 2>/dev/null && ! g
   check "flex-settlement" HOLDS "FLEX program devnet-only; no mainnet settlement path"
 else check "flex-settlement" CLOSED "a FLEX mainnet path appeared — verify settlement"; fi
 
-# Gap 4 — runtime DAG / composite cache FLAG-OFF: gated behind UNBROWSE_LOCAL_CACHES.
+# Gap 4 — composite DISK-TIER persist FLAG-OFF (UNBROWSE_LOCAL_CACHES). NOTE: only the
+# local-disk tier is off; the MAIN in-memory + KV replay is ON by default (orchestrator !=="0").
 if git grep -qE 'UNBROWSE_LOCAL_CACHES.*!==.*"1"|UNBROWSE_LOCAL_CACHES.*!= *.1.' src/ 2>/dev/null; then
-  check "runtime-dag-cache" HOLDS "composite cache default-OFF behind UNBROWSE_LOCAL_CACHES"
-else check "runtime-dag-cache" UNKNOWN "UNBROWSE_LOCAL_CACHES guard not found — re-check default"; fi
+  check "composite-disk-tier" HOLDS "composite DISK-TIER default-OFF (UNBROWSE_LOCAL_CACHES !==1); main in-mem+KV replay ON by default (!==0)"
+else check "composite-disk-tier" UNKNOWN "UNBROWSE_LOCAL_CACHES guard not found — re-check default"; fi
 
 echo "── paper-gap gate ── HOLDS=$holds CLOSED=$closed UNKNOWN=$unknown"
 if [ "$closed" -gt 0 ]; then
