@@ -16,6 +16,7 @@ import {
   getKeyFunding,
   setKeyFunding,
   clearKeyFunding,
+  creditKeyWalletBalance,
   type KeyFundingInput,
 } from "../services/keys.js";
 import { listSkills, getSkill, invalidateSkillListCaches } from "../services/marketplace.js";
@@ -265,6 +266,119 @@ accountRoutes.delete("/account/keys/:keyId/funding", async (c) => {
   }
   await clearKeyFunding(c.env, keyId);
   return c.json({ ok: true, keyId, funding: null });
+});
+
+const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+// POST /v1/account/keys/:keyId/deposit -- x402-gated wallet → key-balance top-up.
+//
+// Money-IN: the caller's WALLET pays USDC (signs ONE x402), and on a confirmed
+// payment the platform credits this key's spendable `balance_uc`. The key then
+// SPENDS that balance on every later call (the always-on debit lane in
+// debitKeyFunding) — the platform never pays for the call and never holds the
+// user's wallet key.
+//
+// Flow (standard x402 facilitated payment, reusing the EXISTING verify/settle
+// path — no hand-written tx code):
+//   1. No X-PAYMENT header  -> 402 with an exact-scheme accept entry priced at
+//      `amount_usd`, paid to the platform treasury USDC ATA.
+//   2. X-PAYMENT present     -> handleFlexPaymentAuthorized verifies + settles
+//      the on-chain payment (exact lane via PayAI), then the executeFn credits
+//      `balance_uc` by the paid amount and returns the new balance.
+//
+// Requires the key to already carry a kind:"wallet" funding binding (the wallet
+// recorded as owner-of-record); deposit funds that bound wallet key.
+accountRoutes.post("/account/keys/:keyId/deposit", async (c) => {
+  const userId = c.get("user_id");
+  if (!userId) return accountRequired(c);
+  const keyId = c.req.param("keyId");
+  if (!keyId || !(await userOwnsKey(c, userId, keyId))) {
+    return c.json({ error: "not_found", message: "No such key on this account." }, 404);
+  }
+
+  // The deposit only makes sense for a wallet-bound key (the balance belongs to
+  // a wallet of record). Bind the wallet first via POST .../funding {kind:"wallet"}.
+  const funding = await getKeyFunding(c.env, keyId);
+  if (!funding || funding.kind !== "wallet") {
+    return c.json({
+      error: "wallet_binding_required",
+      message: "Deposit requires a wallet-bound key. Bind a wallet first via POST /v1/account/keys/:keyId/funding {kind:'wallet'}.",
+    }, 400);
+  }
+
+  let body: { amount_usd?: unknown };
+  try {
+    body = JSON.parse(await c.req.text()) as typeof body;
+  } catch {
+    return c.json({ error: "invalid_input", message: "Body must be valid JSON." }, 400);
+  }
+  const amountUsd = typeof body.amount_usd === "number" ? body.amount_usd : NaN;
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+    return c.json({ error: "invalid_input", message: "amount_usd must be a positive number." }, 400);
+  }
+  const amountUc = Math.round(amountUsd * 1_000_000);
+
+  const { platformRecipientUsdcAta } = await import("../services/flex-facilitator.js");
+  let platformAta: string;
+  try {
+    platformAta = platformRecipientUsdcAta(c.env);
+  } catch (err) {
+    return c.json({ error: "deposit_unavailable", reason: (err as Error).message }, 503);
+  }
+
+  const paymentHeader = c.req.header("X-PAYMENT");
+  if (!paymentHeader) {
+    // No proof yet — return the 402 with an exact-scheme accept entry the wallet
+    // signs (USDC → platform treasury ATA), priced at the requested amount.
+    const { PAYAI_FEEPAYER_DEFAULT } = await import("../services/flex-route-helpers.js");
+    const feePayer = c.env.PAYAI_FEEPAYER_PUBKEY?.trim() || PAYAI_FEEPAYER_DEFAULT;
+    const terms = {
+      x402Version: 2 as const,
+      error: "Payment Required",
+      resource: {
+        url: c.req.url,
+        description: `Deposit $${amountUsd.toFixed(6)} into key ${keyId} balance`,
+        mimeType: "application/json",
+      },
+      accepts: [
+        {
+          scheme: "exact" as const,
+          network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          amount: String(Math.max(1, amountUc)),
+          asset: USDC_MINT_MAINNET,
+          payTo: platformAta,
+          maxTimeoutSeconds: 300,
+          extra: { feePayer, facilitator: "https://facilitator.payai.network" },
+        },
+      ],
+    };
+    return c.json(terms, 402, { "X-Payment-Required": JSON.stringify(terms) });
+  }
+
+  // X-PAYMENT present — verify + settle the on-chain payment via the EXISTING
+  // facilitated path, then credit the key balance on confirmed settlement.
+  const { handleFlexPaymentAuthorized } = await import("../services/flex-route-helpers.js");
+  return handleFlexPaymentAuthorized(c, paymentHeader, {
+    executeFn: async () => {
+      const credited = await creditKeyWalletBalance(c.env, keyId, amountUc);
+      if (!credited.ok) {
+        return new Response(
+          JSON.stringify({ error: "credit_failed", reason: credited.reason }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          keyId,
+          deposited_uc: amountUc,
+          balance_uc: credited.balance_uc,
+          wallet: credited.wallet,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
 });
 
 // GET /v1/account/skills

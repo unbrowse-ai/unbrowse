@@ -509,20 +509,6 @@ export interface Env {
   FLEX_SPONSOR_ESCROW_ADDRESS?: string;
   SPONSOR_USE_FLEX_SPLIT?: string;
   /**
-   * api-key→wallet settlement gate (DEFAULT-OFF, mirrors DISBURSE_ENABLED).
-   * When unset/"0" (default), a bearer key bound to a wallet
-   * (getKeyFunding {kind:"wallet"}) is NOT settled at admission — it falls
-   * through to the existing 402 (Flex envelope), EXACTLY as today. When "1",
-   * the admitted api-key→wallet lane settles the call by minting a Flex
-   * authorization through the EXISTING sponsor-escrow facilitator path
-   * (`sendSponsorFlexPayment`); the bound wallet is the payer-of-record on the
-   * ledger row. No new transaction-signing code — it reuses the sponsor-Flex
-   * machinery. Requires the sponsor escrow + session key to be configured
-   * (same prerequisites as SPONSOR_USE_FLEX_SPLIT) for settlement to succeed;
-   * if they are not, the lane degrades to the same 402 fall-through.
-   */
-  UNBROWSE_KEY_WALLET_SETTLE?: string;
-  /**
    * Semantic-augmentation model (server-side, v6.16+). The endpoint
    * skeleton-enrichment LLM call moved server-side so the prompt + model
    * are configurable without a client release. Falls back to

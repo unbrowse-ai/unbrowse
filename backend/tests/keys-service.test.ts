@@ -19,6 +19,7 @@ import {
   setKeyFunding,
   getKeyFunding,
   debitKeyFunding,
+  creditKeyWalletBalance,
 } from "../src/services/keys.js";
 import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
 import { bearerAuth } from "../src/middleware/auth.js";
@@ -115,12 +116,52 @@ describe("debitKeyFunding (AC-FUND-2 credit lane)", () => {
     }
   });
 
-  it("refuses keys with no credit binding (wallet-bound keys are not KV-debited)", async () => {
-    const { keyId } = await createLocalKey(ENV, "wallet-bound");
+  it("refuses keys with no binding at all (unfunded key falls through to per-call 402)", async () => {
+    const { keyId } = await createLocalKey(ENV, "unfunded");
+    const res = await debitKeyFunding(ENV, keyId, 100);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("no_balance_binding");
+  });
+
+  it("a wallet-bound key with ZERO deposited balance is insufficient (never the platform pays) -> 402", async () => {
+    const { keyId } = await createLocalKey(ENV, "wallet-bound-empty");
     await setKeyFunding(ENV, keyId, { kind: "wallet", wallet: "So1Wallet111" });
     const res = await debitKeyFunding(ENV, keyId, 100);
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toBe("no_credit_binding");
+    if (!res.ok) {
+      expect(res.reason).toBe("insufficient");
+      expect(res.remaining_uc).toBe(0);
+    }
+  });
+
+  it("a wallet-bound key SPENDS its DEPOSITED balance (always-on, no flag, no platform pays)", async () => {
+    const { keyId } = await createLocalKey(ENV, "wallet-bound-funded");
+    await setKeyFunding(ENV, keyId, { kind: "wallet", wallet: "So1Wallet222" });
+    // (a) a deposit credits balance_uc...
+    const dep = await creditKeyWalletBalance(ENV, keyId, 1000);
+    expect(dep.ok).toBe(true);
+    if (dep.ok) {
+      expect(dep.balance_uc).toBe(1000);
+      expect(dep.wallet).toBe("So1Wallet222");
+    }
+    // (b) ...and a wallet-key with balance settles a call by debiting it.
+    const first = await debitKeyFunding(ENV, keyId, 600);
+    expect(first).toEqual({ ok: true, remaining_uc: 400 });
+    // ...and over-spend is refused, balance untouched.
+    const second = await debitKeyFunding(ENV, keyId, 600);
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(second.reason).toBe("insufficient");
+      expect(second.remaining_uc).toBe(400);
+    }
+  });
+
+  it("creditKeyWalletBalance refuses a key with no wallet binding (deposit must target a bound wallet key)", async () => {
+    const { keyId } = await createLocalKey(ENV, "credit-key");
+    await setKeyFunding(ENV, keyId, { kind: "credit", budget_uc: 500 });
+    const res = await creditKeyWalletBalance(ENV, keyId, 100);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("no_wallet_binding");
   });
 });
 
