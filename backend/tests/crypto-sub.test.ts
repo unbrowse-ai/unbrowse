@@ -31,27 +31,20 @@ import {
   type CryptoSubPlan,
 } from "../src/services/crypto-sub.js";
 import { KV_KEYS } from "../src/services/stripe.js";
-import { clearKVCacheForTests } from "../src/services/kv.js";
+import { clearKVCacheForTests, statsKV } from "../src/services/kv.js";
 import type { Env } from "../src/types.js";
 
-function makeMemoryKv(): KVNamespace {
-  const store = new Map<string, string>();
-  return {
-    get: async (key: string) => store.get(key) ?? null,
-    put: async (key: string, value: string) => {
-      store.set(key, value);
-    },
-    delete: async (key: string) => {
-      store.delete(key);
-    },
-    list: async () => ({ keys: [], list_complete: true, cacheStatus: null }),
-    getWithMetadata: async () => ({ value: null, metadata: null, cacheStatus: null }),
-  } as unknown as KVNamespace;
-}
-
+// Seed/read KV through the SAME statsKV(env) the service uses (CLAUDE.md
+// "Never mock in tests"). Under ENVIRONMENT="local-dev" statsKV() returns the
+// in-memory LocalKV — the canonical no-EMERGENTDB_API_KEY path. An earlier
+// version of makeEnv() passed a raw STATS_KV KVNamespace and omitted
+// ENVIRONMENT, which made statsKV() throw "EMERGENTDB_API_KEY is required":
+// statsKV() never reads env.STATS_KV directly (it only wraps an EdbKV in
+// FallbackKV when the EmergentDB key is present). Mirrors the sibling fix in
+// sponsor-pool-flywheel-closure.test.ts / the meter-on-execute.test.ts pattern.
 function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
-    STATS_KV: makeMemoryKv(),
+    ENVIRONMENT: "local-dev",
     STRIPE_PRICE_BASE: "price_base_test",
     STRIPE_PRICE_PRO_MONTHLY: "price_pro_test",
     ...overrides,
@@ -109,8 +102,8 @@ describe("crypto-sub conflict detection (firmament invariant)", () => {
 
   test("returns null when existing sub is inactive (canceled)", async () => {
     const env = makeEnv();
-    await env.STATS_KV.put(KV_KEYS.userCustomer("user_x"), "cus_123");
-    await env.STATS_KV.put(
+    await statsKV(env).put(KV_KEYS.userCustomer("user_x"), "cus_123");
+    await statsKV(env).put(
       KV_KEYS.customerSub("cus_123"),
       JSON.stringify({ status: "canceled" }),
     );
@@ -120,8 +113,8 @@ describe("crypto-sub conflict detection (firmament invariant)", () => {
 
   test("refuses with 'stripe_sub_active' when active Stripe sub exists", async () => {
     const env = makeEnv();
-    await env.STATS_KV.put(KV_KEYS.userCustomer("user_s"), "cus_456");
-    await env.STATS_KV.put(
+    await statsKV(env).put(KV_KEYS.userCustomer("user_s"), "cus_456");
+    await statsKV(env).put(
       KV_KEYS.customerSub("cus_456"),
       JSON.stringify({ status: "active" }),
     );
@@ -132,8 +125,8 @@ describe("crypto-sub conflict detection (firmament invariant)", () => {
 
   test("refuses with 'stripe_sub_active' for trialing Stripe sub too", async () => {
     const env = makeEnv();
-    await env.STATS_KV.put(KV_KEYS.userCustomer("user_t"), "cus_789");
-    await env.STATS_KV.put(
+    await statsKV(env).put(KV_KEYS.userCustomer("user_t"), "cus_789");
+    await statsKV(env).put(
       KV_KEYS.customerSub("cus_789"),
       JSON.stringify({ status: "trialing" }),
     );
@@ -143,8 +136,8 @@ describe("crypto-sub conflict detection (firmament invariant)", () => {
 
   test("refuses with 'crypto_sub_active' when crypto sub already active", async () => {
     const env = makeEnv();
-    await env.STATS_KV.put(KV_KEYS.userCustomer("user_c"), "crypto-user_c");
-    await env.STATS_KV.put(
+    await statsKV(env).put(KV_KEYS.userCustomer("user_c"), "crypto-user_c");
+    await statsKV(env).put(
       KV_KEYS.customerSub("crypto-user_c"),
       JSON.stringify({ status: "active" }),
     );
@@ -172,17 +165,17 @@ describe("crypto-sub activation writes canonical STRIPE_SUB_CACHE", () => {
     expect(result.cache.quota).toBe(200_000); // base default
 
     // KV side-effects observable via read-back
-    const userRow = await env.STATS_KV.get(KV_KEYS.userCustomer("user_a"));
+    const userRow = await statsKV(env).get(KV_KEYS.userCustomer("user_a"));
     expect(userRow).toBe("crypto-user_a");
 
-    const subRow = await env.STATS_KV.get(KV_KEYS.customerSub("crypto-user_a"));
+    const subRow = await statsKV(env).get(KV_KEYS.customerSub("crypto-user_a"));
     expect(subRow).not.toBeNull();
     const parsedSub = JSON.parse(subRow as string);
     expect(parsedSub.status).toBe("active");
     expect(parsedSub.quota).toBe(200_000);
 
     // Reverse index for webhook customer.id → user_id resolution
-    const reverseRow = await env.STATS_KV.get(KV_KEYS.customerUser("crypto-user_a"));
+    const reverseRow = await statsKV(env).get(KV_KEYS.customerUser("crypto-user_a"));
     expect(reverseRow).toBe("user_a");
   });
 

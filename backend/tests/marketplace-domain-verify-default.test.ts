@@ -152,6 +152,11 @@ describe("marketplace publishSkill — domain verification default ON", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456", // non-admin, non-registered → submitter_agent_id stays undefined
+        // Distinct client IP per test so the module-level per-IP publish rate
+        // limiter (rl:publish:<ip>, shared across the whole `bun test` process)
+        // does not collapse every non-admin publish into one "unknown" bucket
+        // and 429 later-running suites. Mirrors real clients having distinct IPs.
+        "cf-connecting-ip": `10.0.0.${domain.length}-${domain}`,
         "Content-Type": "application/json",
         ...signedReleaseHeaders(env),
       },
@@ -193,6 +198,7 @@ describe("marketplace publishSkill — domain verification default ON", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456", // non-admin
+        "cf-connecting-ip": "10.0.1.1", // distinct IP → own rate-limit bucket
         "Content-Type": "application/json",
         ...signedReleaseHeaders(env),
       },
@@ -211,6 +217,7 @@ describe("marketplace publishSkill — domain verification default ON", () => {
       method: "POST",
       headers: {
         Authorization: "Bearer alpha123456",
+        "cf-connecting-ip": "10.0.1.2", // distinct IP → own rate-limit bucket
         "Content-Type": "application/json",
         ...signedReleaseHeaders(env),
       },
@@ -240,7 +247,7 @@ describe("marketplace publishSkill — reserved-domain gate flag", () => {
     const env = makeEnv({ REQUIRE_DOMAIN_VERIFICATION: "0" }); // isolate the reserved gate
     const res = await app.fetch(new Request("http://local.test/v1/skills", {
       method: "POST",
-      headers: { Authorization: "Bearer alpha123456", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
+      headers: { Authorization: "Bearer alpha123456", "cf-connecting-ip": "10.0.1.3", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
       body: JSON.stringify(publishPayload("stripe.com")),
     }), env);
     expect(res.status).toBe(403);
@@ -252,7 +259,7 @@ describe("marketplace publishSkill — reserved-domain gate flag", () => {
     const env = makeEnv({ REQUIRE_DOMAIN_VERIFICATION: "0", RESERVED_DOMAIN_GATE: "0" } as Partial<Env>);
     const res = await app.fetch(new Request("http://local.test/v1/skills", {
       method: "POST",
-      headers: { Authorization: "Bearer alpha123456", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
+      headers: { Authorization: "Bearer alpha123456", "cf-connecting-ip": "10.0.1.4", "Content-Type": "application/json", ...signedReleaseHeaders(env) },
       body: JSON.stringify(publishPayload("stripe.com")),
     }), env);
     expect(res.status).toBe(201);

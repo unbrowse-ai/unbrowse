@@ -19,19 +19,17 @@ import {
 
 const SECRET = "test-release-signing-secret-32chars-fixture";
 
-class FakeKV {
-  store = new Map<string, string>();
-  async get(key: string): Promise<string | null> { return this.store.get(key) ?? null; }
-  async put(key: string, value: string): Promise<void> { this.store.set(key, value); }
-  async delete(key: string): Promise<void> { this.store.delete(key); }
-}
-
 function makeEnv(overrides: Record<string, unknown> = {}): any {
   return {
     RELEASE_MANIFEST_SIGNING_SECRET: SECRET,
     UNBROWSE_BUILD_SHA: "abc1234567890abcdef1234567890abcdef12345",
     UNBROWSE_DEPLOYED_AT: "2026-05-22T03:45:00Z",
-    STATS_KV: new FakeKV() as any,
+    // statsKV() is EmergentDB-primary since the kv-fallback-pipe migration
+    // (commit 793a2472); ENVIRONMENT=local-dev routes it to the in-memory
+    // LocalKV so the build-registry get/put run with no network and no
+    // EMERGENTDB_API_KEY. (The bare STATS_KV binding this test originally
+    // injected is no longer honored as a standalone store.)
+    ENVIRONMENT: "local-dev",
     ...overrides,
   };
 }

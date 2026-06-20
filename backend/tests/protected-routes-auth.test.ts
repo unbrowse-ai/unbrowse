@@ -118,16 +118,24 @@ describe("protected route auth", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("rejects unauthenticated skill publish", async () => {
+  it("gates unauthenticated unsigned skill publish (426 client_update_required)", async () => {
+    // STALE-TEST CORRECTION (was: expected 401 "Missing or invalid Authorization
+    // header"). Commit dc831c06 ("feat(auth): bearer optional on contribution
+    // routes — publish always, attribute wallet-less to global index")
+    // deliberately switched POST /v1/skills from `bearerAuth` to
+    // `indexContributorAuth`: publish no longer hard-requires a bearer key — an
+    // anonymous request is attributed to the global-index wallet so the index
+    // always grows. The remaining gate for an unauthenticated, unsigned client is
+    // `requireSignedClient`, which 426s when no signed release manifest is present.
     const res = await app.fetch(new Request("http://local.test/v1/skills", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(publishPayload("auth-required.example.com")),
     }), env);
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(426);
     expect(await res.json()).toEqual(expect.objectContaining({
-      error: "Missing or invalid Authorization header",
+      error: "client_update_required",
     }));
   });
 

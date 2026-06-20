@@ -124,12 +124,16 @@ describe("/v1/account/preferences", () => {
     expect(res.status).toBe(401);
   });
 
-  it("3. GET with account-bound key returns share_pointers: false default", async () => {
+  it("3. GET with account-bound key returns share_pointers: true default", async () => {
+    // Default flipped false -> true in commit bbcd6a6d ("auto-publish ON by
+    // default for everyone" — flywheel volume). getAccountPreferences now
+    // returns share_pointers ?? true; this assertion tracks that intentional
+    // product change (was previously written against the old `false` default).
     const { key } = await magicLinkBoundKey("alice-prefs@example.com");
     const res = await getReq("/v1/account/preferences", { Authorization: `Bearer ${key}` });
     expect(res.status).toBe(200);
     const body = await res.json() as { share_pointers: boolean };
-    expect(body.share_pointers).toBe(false);
+    expect(body.share_pointers).toBe(true);
   });
 
   it("4. PATCH share_pointers: true persists, GET reflects it", async () => {
@@ -185,8 +189,13 @@ describe("/v1/account/preferences", () => {
     const a = await magicLinkBoundKey("user-a-prefs@example.com");
     const b = await magicLinkBoundKey("user-b-prefs@example.com");
 
+    // Set the two users to OPPOSITE values to prove independence. The default
+    // is now `true` for everyone (commit bbcd6a6d, auto-publish ON), so B must
+    // be explicitly toggled off rather than relying on a `false` default.
     const setA = await patchReq("/v1/account/preferences", { share_pointers: true }, { Authorization: `Bearer ${a.key}` });
     expect(setA.status).toBe(200);
+    const setB = await patchReq("/v1/account/preferences", { share_pointers: false }, { Authorization: `Bearer ${b.key}` });
+    expect(setB.status).toBe(200);
 
     const getA = await getReq("/v1/account/preferences", { Authorization: `Bearer ${a.key}` });
     expect((await getA.json() as { share_pointers: boolean }).share_pointers).toBe(true);
