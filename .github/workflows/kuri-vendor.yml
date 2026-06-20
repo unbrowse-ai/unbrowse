@@ -83,7 +83,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-${{ matrix.platform }}
           path: ${{ steps.locate.outputs.bin_path }}
