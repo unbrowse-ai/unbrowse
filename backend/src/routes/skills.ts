@@ -32,6 +32,8 @@ import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/p
 import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
 import { aiScrubEndpoints } from "../services/ai-scrub.js";
 import { admitPayment } from "../middleware/payment-admission.js";
+import { handleDeclare, ledgerForRequest } from "./contract.js";
+import type { ContractLedger } from "../services/contract-ledger.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -41,6 +43,62 @@ function schedule(c: Context, task: Promise<unknown>): void {
   } catch {
     void task;
   }
+}
+
+/**
+ * Declare-on-execute — the EXECUTE-path mirror of search.ts's `declareResolve`.
+ * Collapses `/contract` into the agent's natural interface: the act of
+ * executing a skill IS a witnessed truth-claim, so an agent never needs to
+ * call a contract verb. Fire-and-forget ledger append (via `schedule` →
+ * waitUntil), authenticated agents only, fully swallowed — a ledger error
+ * NEVER fails an execute.
+ *
+ * The plan is the ROUTE SHAPE only — skill_id + status (+ endpoint_id when a
+ * specific endpoint was named). No url-filled values, no params, no response
+ * bodies, no secrets. This is what `valueLooksLikeSecret` (the declare secret
+ * gate) expects: shape + outcome, exactly like resolve's `intent=…`.
+ */
+export function buildExecuteDeclarePlan(args: {
+  skillId: string;
+  endpointId?: string;
+  status: "ok" | "error";
+}): string {
+  return [
+    `execute skill=${args.skillId}`,
+    args.endpointId ? ` endpoint=${args.endpointId}` : "",
+    ` status=${args.status}`,
+  ].join("");
+}
+
+/**
+ * Ledger-taking core (test seam). Swallows any ledger error so the caller's
+ * `schedule(...)` fire-and-forget never rejects. Exported under a `…ForTest`
+ * name so the witness can drive it against a mock ledger directly.
+ */
+export async function declareExecuteForTest(
+  ledger: ContractLedger,
+  args: { skillId: string; endpointId?: string; status: "ok" | "error" },
+): Promise<void> {
+  try {
+    await handleDeclare(
+      {
+        plan: buildExecuteDeclarePlan(args),
+        action: "agent-executes",
+        visibility: "lineage",
+      },
+      ledger,
+      { admission: "legacy-anonymous" },
+    );
+  } catch {
+    /* ledger write is best-effort — never fail an execute on a declare error */
+  }
+}
+
+async function declareExecute(
+  env: Env | undefined,
+  args: { skillId: string; endpointId?: string; status: "ok" | "error" },
+): Promise<void> {
+  await declareExecuteForTest(ledgerForRequest(env), args);
 }
 
 // Public read routes -- auth required for list, rate-limited
@@ -612,6 +670,17 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
 
   // Backfill proof_summary on legacy skills that were stored before this field existed.
   if (!skill.proof_summary) skill.proof_summary = summarizeSkillProofs(skill.endpoints);
+  // Declare-on-execute: record the execute as a declared truth-claim in the
+  // contract ledger — but ONLY for authenticated agents, off the hot path
+  // (schedule → waitUntil), and never failing the execute on a ledger error.
+  // Plan is the route SHAPE only (skill_id + status), never values/params/
+  // secrets. This is the EXECUTE mirror of search.ts's declare-on-resolve;
+  // it deliberately fires on the non-settlement path so the witnessed declare
+  // is never entangled with payment/settlement.
+  const execAgentId = c.get("agent_id");
+  if (execAgentId && execAgentId !== "anonymous") {
+    schedule(c, declareExecute(c.env, { skillId: skill.skill_id, status: "ok" }));
+  }
   return c.json(skill);
 });
 
