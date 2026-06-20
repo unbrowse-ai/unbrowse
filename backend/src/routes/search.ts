@@ -16,6 +16,7 @@ import { recordTransaction } from "../services/transactions.js";
 import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
 import { rankEndpointsServer, type RankRequest } from "../services/rank.js";
 import { orderResolvedResults } from "../services/bible-anchor.js";
+import { handleDeclare, ledgerForRequest } from "./contract.js";
 import {
   withCache,
   resolveCacheKey,
@@ -48,6 +49,35 @@ function schedule<T, E extends { Bindings: Env }>(c: Context<E>, task: Promise<T
 
 function chargeSearchFee(env: Env, agentId: string): void {
   recordGraphFee(env, agentId, "search").catch(() => {});
+}
+
+/**
+ * G4 declare-on-resolve — fire-and-forget ledger append recording a resolve as
+ * a declared truth-claim. Uses the same ledger.append shape as
+ * skill-contract-persist (declareParent → handleDeclare). Off the hot path
+ * (called via schedule) and fully swallowed: a ledger error NEVER fails resolve.
+ */
+async function declareResolve(
+  env: Env,
+  intent: string,
+  domain: string | undefined,
+  result: { confidence?: { reason?: string } },
+): Promise<void> {
+  try {
+    const ledger = ledgerForRequest(env);
+    const reason = result?.confidence?.reason ?? "unknown";
+    await handleDeclare(
+      {
+        plan: `resolve intent="${intent}"${domain ? ` domain=${domain}` : ""} settlement=${reason}`,
+        action: "agent-judges",
+        visibility: "lineage",
+      },
+      ledger,
+      { admission: "legacy-anonymous" },
+    );
+  } catch {
+    /* ledger write is best-effort — never fail a resolve on a declare error */
+  }
 }
 
 function shouldRequireSearchPayment(_env: Env): boolean {
@@ -415,6 +445,13 @@ searchRoutes.post("/search/resolve", indexContributorAuth, requireSignedClient, 
     const value = c.env.BIBLE_ANCHOR_ORDER === "1"
       ? await orderResolvedResults(c.env, cacheResult.value as Parameters<typeof orderResolvedResults>[1])
       : cacheResult.value;
+    // G4 declare-on-resolve: record the resolve as a declared truth-claim in the
+    // contract ledger — but ONLY for authenticated agents, off the hot path
+    // (schedule → waitUntil), and never failing the resolve on a ledger error.
+    // The shortlist already returned above is unaffected.
+    if (agentId && agentId !== "anonymous") {
+      schedule(c, declareResolve(c.env, intent, domain, value as { confidence?: { reason?: string } }));
+    }
     return c.json(value);
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);

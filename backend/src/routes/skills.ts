@@ -31,6 +31,7 @@ import {
 import { verifyEndpointProofsInPlace, summarizeSkillProofs } from "../services/proof-verifier.js";
 import { enforcePublishSanitization, detectResidualSecretLeak } from "../services/publish-sanitize.js";
 import { aiScrubEndpoints } from "../services/ai-scrub.js";
+import { admitPayment } from "../middleware/payment-admission.js";
 
 type SkillRouteEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string } };
 
@@ -399,6 +400,17 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       // sponsor the first call from the platform wallet. Anonymous callers
       // (no agent_id) skip sponsor and get standard 402.
       const candidateAgentId = c.get("agent_id");
+
+      // Unified admission classification (observability + the lane decision).
+      // PURE DETECTION — admitPayment never moves funds; settlement for each
+      // lane stays exactly where it already is below. We surface the resolved
+      // lane on a response header so the split branches are observable as one
+      // decision, and reuse `admission` for the gated api-key→wallet branch.
+      const admission = await admitPayment(c).catch(() => null);
+      if (admission) {
+        c.header("X-Unbrowse-Admission", `lane=${admission.lane} admitted=${admission.admitted}`);
+      }
+
       // P0.3 soft-block: existing v6.15-era agents without complete Flex
       // onboarding get a 402 + X-Flex-Onboarding-Required BEFORE any sponsor
       // or Flex payment terms get processed.
@@ -427,6 +439,64 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
           // insufficient budget / no binding -> fall through to sponsor + Flex 402.
         }
       }
+
+      // api-key→wallet settlement lane (DEFAULT-OFF, gated by
+      // UNBROWSE_KEY_WALLET_SETTLE — mirrors DISBURSE_ENABLED's default-deny on
+      // fund movement). When the gate is unset/"0" (default), a wallet-bound key
+      // does NOTHING here and falls through to the existing sponsor + Flex 402
+      // path EXACTLY as before. When the gate is "1" AND admitPayment recognised
+      // the api-key→wallet lane with a real payer-of-record, we settle the call
+      // by minting a Flex authorization through the EXISTING sponsor-escrow
+      // facilitator path (`sendSponsorFlexPayment`) — no new signing code. The
+      // bound wallet is the payer-of-record recorded on the ledger row; the
+      // authorization is signed by the platform sponsor session key against the
+      // sponsor escrow (the platform does not hold the user's wallet key).
+      if (
+        !keyFundedAdmit &&
+        c.env.UNBROWSE_KEY_WALLET_SETTLE === "1" &&
+        admission?.lane === "api-key" &&
+        admission.payerWallet &&
+        candidateAgentId &&
+        candidateAgentId !== "__admin__"
+      ) {
+        const { sendSponsorFlexPayment } = await import("../services/sponsor-flex.js");
+        const { computeFlexSplits } = await import("../services/flex.js");
+        const { platformRecipientUsdcAta } = await import("../services/flex-facilitator.js");
+        try {
+          const platformAta = platformRecipientUsdcAta(c.env);
+          const splits = computeFlexSplits(skill, platformAta);
+          const amountUc = BigInt(Math.max(1, Math.round(priceResult.price_usd * 1_000_000)));
+          const flexResult = await sendSponsorFlexPayment(c.env, {
+            agentId: candidateAgentId,
+            skillId: skill.skill_id,
+            splits,
+            amountUc,
+          });
+          if (flexResult.ok && flexResult.authorization_id) {
+            c.header(
+              "X-Unbrowse-Billing",
+              `key-wallet payer=${admission.payerWallet} authorization_id=${flexResult.authorization_id}`,
+            );
+            keyFundedAdmit = true;
+            schedule(c, recordTransaction(c.env, {
+              transaction_id: `keywallet-${Date.now()}-${skill.skill_id.slice(0, 8)}`,
+              consumer_id: candidateAgentId,
+              creator_id: recipient,
+              skill_id: skill.skill_id,
+              price_usd: priceResult.price_usd,
+              payment_proof: `flex-authorization:${flexResult.authorization_id}`,
+            }).catch((err) => console.warn(`[key-wallet] ledger write failed: ${(err as Error).message}`)));
+          } else {
+            // Settlement unavailable (escrow/session key not configured, or
+            // facilitator declined) -> fall through to the unchanged 402.
+            console.warn(`[key-wallet] settlement declined: ${flexResult.reason ?? "unknown"}`);
+          }
+        } catch (err) {
+          // Any failure leaves keyFundedAdmit false -> unchanged 402 fall-through.
+          console.warn(`[key-wallet] settlement threw: ${(err as Error).message}`);
+        }
+      }
+
       if (!keyFundedAdmit && candidateAgentId && candidateAgentId !== "__admin__") {
         const { maybeSponsor } = await import("../middleware/sponsor.js");
         // sponsorAcceptsForPriceUsd builds a minimal accepts[] for the

@@ -4,6 +4,8 @@ import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
 import { skillsKV } from "./kv.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 import { webSearchWithProvider, type WebResult, type WebSearchOutcome } from "./web-search/index.js";
+import { energyScore } from "./energy.js";
+import { settleOrEscalate, type SettleCandidate } from "./settle.js";
 
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
@@ -17,6 +19,29 @@ function normalizeDomain(env: Env, domain: string): string {
 }
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+
+/**
+ * Settlement confidence signal — an ADDITIVE field on the resolve response.
+ *
+ * The flat RRF/composite ranking is an ORDERER: it always returns its top-k,
+ * even when nothing actually covers the intent (settle.ts's complaint). This
+ * carrier runs energy.ts + settle.ts over the already-ranked shortlist and
+ * surfaces the two-witness quorum verdict WITHOUT removing any result. A
+ * low-quorum resolve is FLAGGED (`escalate: true`), never dropped — the caller
+ * still gets the same shortlist it always got, plus this confidence to decide
+ * whether to trust the top hit or fall back to browse.
+ */
+export interface ResolveConfidence {
+  /** True iff the lowest-energy candidate cleared the two-witness quorum + coverage. */
+  settled: boolean;
+  /** True iff the caller should treat the shortlist as low-confidence / fall back. */
+  escalate: boolean;
+  /** Why: "settled" | "empty" | "no_quorum" | "below_coverage". */
+  reason: string;
+  /** Id of the candidate that settled (when settled); null on escalation. */
+  settled_id?: string | number | null;
+}
+
 export interface ResolvedSearchResult {
   domain_results: SearchResult;
   global_results: SearchResult;
@@ -24,6 +49,8 @@ export interface ResolvedSearchResult {
   exa_results?: WebResult[]; // wire-compat field name; populated by the provider chain (services/web-search/)
   /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance for the wire. */
   web_search_provider?: string;
+  /** ADDITIVE settlement signal (energy.ts + settle.ts). Never removes results. */
+  confidence?: ResolveConfidence;
 }
 
 function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
@@ -422,6 +449,53 @@ export function rescoreWithComposite(
     .sort((a, b) => b.score - a.score);
 }
 
+/** Candidate text for the lexical witness: the indexed description (title) plus
+ *  the skill name parsed from the content blob. Both are what the agent reads. */
+function candidateText(metadata: Record<string, unknown>): string {
+  const meta = (metadata && typeof metadata === "object") ? metadata : {};
+  const title = typeof meta.title === "string" ? meta.title : "";
+  let name = "";
+  if (typeof meta.content === "string") {
+    try {
+      const parsed = JSON.parse(meta.content) as { name?: unknown };
+      if (typeof parsed.name === "string") name = parsed.name;
+    } catch { /* non-JSON content — title alone carries the witness */ }
+  }
+  return `${name} ${title}`.trim();
+}
+
+/**
+ * Compute the ADDITIVE settlement confidence over an already-ranked resolve.
+ *
+ * Pure, non-destructive: reads the existing shortlist (domain ∪ global), scores
+ * each row's lexical/dense witnesses via energyScore, and runs settleOrEscalate
+ * to derive the two-witness quorum verdict. Returns the confidence signal only —
+ * it NEVER re-orders or drops a result (the caller's shortlist is untouched).
+ * The dense witness is the row's own composite/RRF score (already in [0,1] post
+ * rescore); the lexical witness is recomputed from the candidate text vs intent.
+ */
+export function computeResolveConfidence(
+  intent: string,
+  resolved: ResolvedSearchResult,
+): ResolveConfidence {
+  const rows = [...resolved.domain_results, ...resolved.global_results];
+  const candidates: SettleCandidate[] = rows.map((row) => {
+    const { energy, witnesses, agree } = energyScore(
+      intent,
+      { id: row.id, text: candidateText(row.metadata) },
+      { dense: typeof row.score === "number" ? row.score : 0 },
+    );
+    return { id: row.id, energy, witnesses, agree };
+  });
+  const verdict = settleOrEscalate(candidates);
+  return {
+    settled: !verdict.escalate,
+    escalate: verdict.escalate,
+    reason: verdict.reason,
+    settled_id: verdict.settled?.id ?? null,
+  };
+}
+
 export async function searchIntentInDomain(
   env: Env,
   intent: string,
@@ -511,6 +585,8 @@ export async function searchIntentResolve(
       skipped_global: false,
       ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
     };
+    // ADDITIVE: attach the energy/settlement confidence. Never drops a result.
+    resolved.confidence = computeResolveConfidence(intent, resolved);
     console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} web=${exa_results.length} provider=${webOutcome.provider ?? "none"}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
     if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
@@ -552,6 +628,8 @@ export async function searchIntentResolve(
     skipped_global,
     ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
   };
+  // ADDITIVE: attach the energy/settlement confidence. Never drops a result.
+  resolved.confidence = computeResolveConfidence(intent, resolved);
   if (domain_results.length > 0 || global_results.length > 0 || exa_results.length > 0) {
     cachePut(env, ckey, JSON.stringify(resolved));
   }
