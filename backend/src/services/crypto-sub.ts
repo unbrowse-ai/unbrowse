@@ -70,11 +70,7 @@ function quotaForPlan(env: Env, plan: CryptoSubPlan): number {
 // raw STATS_KV fallback so unit tests can drive in-memory KV) ─────────────
 
 async function kvGet(env: Env, key: string): Promise<string | null> {
-  try {
-    return (await statsKV(env).get(key)) as string | null;
-  } catch {
-    return (await env.STATS_KV.get(key)) as string | null;
-  }
+  return (await statsKV(env).get(key)) as string | null;
 }
 
 async function kvPut(
@@ -83,18 +79,10 @@ async function kvPut(
   value: string,
   options?: { expirationTtl?: number },
 ): Promise<void> {
-  try {
-    if (options?.expirationTtl != null) {
-      await statsKV(env).put(key, value, options);
-    } else {
-      await statsKV(env).put(key, value);
-    }
-  } catch {
-    if (options?.expirationTtl != null) {
-      await env.STATS_KV.put(key, value, options);
-    } else {
-      await env.STATS_KV.put(key, value);
-    }
+  if (options?.expirationTtl != null) {
+    await statsKV(env).put(key, value, options);
+  } else {
+    await statsKV(env).put(key, value);
   }
 }
 

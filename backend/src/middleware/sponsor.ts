@@ -197,12 +197,7 @@ function todayUtc(now: Date): string {
  * EMERGENTDB_API_KEY isn't set. */
 async function readSpend(env: Env, key: string): Promise<number> {
   try {
-    let raw: string | null = null;
-    try {
-      raw = (await statsKV(env).get(key)) as string | null;
-    } catch {
-      raw = await env.STATS_KV.get(key);
-    }
+    const raw = (await statsKV(env).get(key)) as string | null;
     if (!raw) return 0;
     const n = Number.parseInt(raw, 10);
     return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -217,12 +212,7 @@ async function readSpend(env: Env, key: string): Promise<number> {
  */
 async function writeSpend(env: Env, key: string, valueUc: number): Promise<void> {
   try {
-    try {
-      await statsKV(env).put(key, String(valueUc));
-      return;
-    } catch {
-      await env.STATS_KV.put(key, String(valueUc));
-    }
+    await statsKV(env).put(key, String(valueUc));
   } catch (err) {
     console.warn(`[sponsor] failed to write spend rollup ${key}: ${(err as Error).message}`);
   }
@@ -231,12 +221,7 @@ async function writeSpend(env: Env, key: string, valueUc: number): Promise<void>
 /** Internal: append a ledger row. */
 async function writeLedgerRow(env: Env, row: SponsorLedgerRow): Promise<void> {
   try {
-    try {
-      await statsKV(env).put(`sponsor:ledger:${row.ledger_id}`, JSON.stringify(row));
-      return;
-    } catch {
-      await env.STATS_KV.put(`sponsor:ledger:${row.ledger_id}`, JSON.stringify(row));
-    }
+    await statsKV(env).put(`sponsor:ledger:${row.ledger_id}`, JSON.stringify(row));
   } catch (err) {
     console.warn(`[sponsor] failed to write ledger row ${row.ledger_id}: ${(err as Error).message}`);
   }
@@ -571,11 +556,7 @@ export async function recordProxySurcharge(
   // Idempotency: if the ledger row already exists, surface it without
   // re-incrementing the counter.
   let existingRaw: string | null = null;
-  try {
-    existingRaw = (await statsKV(env).get(ledgerKey)) as string | null;
-  } catch {
-    existingRaw = await env.STATS_KV.get(ledgerKey);
-  }
+  existingRaw = (await statsKV(env).get(ledgerKey)) as string | null;
   if (existingRaw) {
     try {
       return JSON.parse(existingRaw) as SponsorLedgerRow;
@@ -649,12 +630,7 @@ export async function getProxyConsent(
   env: Env,
   agentId: string,
 ): Promise<"yes" | "no"> {
-  let raw: string | null = null;
-  try {
-    raw = (await statsKV(env).get(proxyConsentKey(agentId))) as string | null;
-  } catch {
-    raw = await env.STATS_KV.get(proxyConsentKey(agentId));
-  }
+  const raw = (await statsKV(env).get(proxyConsentKey(agentId))) as string | null;
   return raw === "yes" ? "yes" : "no";
 }
 
@@ -664,12 +640,7 @@ export async function putProxyConsent(
   agentId: string,
   consent: "yes" | "no",
 ): Promise<void> {
-  try {
-    await statsKV(env).put(proxyConsentKey(agentId), consent);
-    return;
-  } catch {
-    await env.STATS_KV.put(proxyConsentKey(agentId), consent);
-  }
+  await statsKV(env).put(proxyConsentKey(agentId), consent);
 }
 
 // Test-only: reset module state between tests.

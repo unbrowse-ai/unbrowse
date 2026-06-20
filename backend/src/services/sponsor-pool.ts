@@ -40,19 +40,11 @@ import { statsKV } from "./kv.js";
  * the same `get / put` interface for our purposes.
  */
 async function kvGet(env: Env, key: string): Promise<string | null> {
-  try {
-    return (await statsKV(env).get(key)) as string | null;
-  } catch {
-    return (await env.STATS_KV.get(key)) as string | null;
-  }
+  return (await statsKV(env).get(key)) as string | null;
 }
 
 async function kvPut(env: Env, key: string, value: string): Promise<void> {
-  try {
-    await statsKV(env).put(key, value);
-  } catch {
-    await env.STATS_KV.put(key, value);
-  }
+  await statsKV(env).put(key, value);
 }
 
 const POOL_BALANCE_KEY = "sponsor:pool:balance:uc";

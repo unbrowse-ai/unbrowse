@@ -43,6 +43,10 @@
 // `unbrowse update`. No silent degradation.
 
 import type { Env } from "../types.js";
+import { statsKV } from "./kv.js";
+
+/** Fields statsKV(env) reads (the EmergentDB-backed stats store + CF fallback). */
+type StatsKvEnv = Pick<Env, "STATS_KV" | "EMERGENTDB_API_KEY" | "EMERGENTDB_MAX_VALUE_BYTES" | "ENVIRONMENT">;
 
 const encoder = new TextEncoder();
 
@@ -92,12 +96,12 @@ export function buildRegistryKey(buildSha: string, deployedAt: string): string {
 }
 
 export async function registerBuild(
-  env: Pick<Env, "STATS_KV">,
+  env: StatsKvEnv,
   build_sha: string,
   deployed_at: string,
   meta: { version?: string; channel?: string; registered_by?: string } = {},
 ): Promise<void> {
-  await env.STATS_KV.put(
+  await statsKV(env).put(
     buildRegistryKey(build_sha, deployed_at),
     JSON.stringify({ build_sha, deployed_at, ...meta, registered_at: new Date().toISOString() }),
     { expirationTtl: 90 * 24 * 3600 },
@@ -105,7 +109,7 @@ export async function registerBuild(
 }
 
 export async function isBuildRegistered(
-  env: Pick<Env, "STATS_KV" | "UNBROWSE_BUILD_SHA" | "UNBROWSE_DEPLOYED_AT">,
+  env: StatsKvEnv & Pick<Env, "UNBROWSE_BUILD_SHA" | "UNBROWSE_DEPLOYED_AT">,
   build_sha: string,
   deployed_at: string,
 ): Promise<boolean> {
@@ -115,12 +119,12 @@ export async function isBuildRegistered(
   if (env.UNBROWSE_BUILD_SHA === build_sha && env.UNBROWSE_DEPLOYED_AT === deployed_at) {
     return true;
   }
-  const row = await env.STATS_KV.get(buildRegistryKey(build_sha, deployed_at));
+  const row = await statsKV(env).get(buildRegistryKey(build_sha, deployed_at)) as string | null;
   return row !== null;
 }
 
 export async function issueExecToken(
-  env: Pick<Env, "RELEASE_MANIFEST_SIGNING_SECRET" | "STATS_KV" | "UNBROWSE_BUILD_SHA" | "UNBROWSE_DEPLOYED_AT">,
+  env: StatsKvEnv & Pick<Env, "RELEASE_MANIFEST_SIGNING_SECRET" | "UNBROWSE_BUILD_SHA" | "UNBROWSE_DEPLOYED_AT">,
   params: { agent_id: string; build_sha: string; deployed_at: string; ttl_seconds?: number },
 ): Promise<IssueResult> {
   if (!env.RELEASE_MANIFEST_SIGNING_SECRET) {
