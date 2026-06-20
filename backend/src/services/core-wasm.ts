@@ -31,6 +31,16 @@ interface CoreExports {
   alloc(len: number): number;
   canonicalize(ptr: number, len: number): bigint;
   verify(pkPtr: number, sigPtr: number, msgPtr: number, msgLen: number): number;
+  zk_verify(
+    yPtr: number,
+    yLen: number,
+    tPtr: number,
+    tLen: number,
+    sPtr: number,
+    sLen: number,
+    ctxPtr: number,
+    ctxLen: number,
+  ): number;
 }
 
 // `undefined` = not yet attempted; `null` = attempted and failed (cache the
@@ -191,6 +201,79 @@ export function verifyViaWasm(
     if (msg.length) new Uint8Array(core.memory.buffer, msgPtr, msg.length).set(msg);
 
     return core.verify(pkPtr, sigPtr, msgPtr, msg.length) === 1;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify the SCHNORR / Fiat-Shamir algebra leg of a zk credential binding via
+ * the Zig WASM `zk_verify` export — `g^s == t * y^e (mod p)` with the FS
+ * challenge `e` recomputed from `(G, y, t, ctx)` inside the core. This is the
+ * SAME big-integer algebra the TS `verifyBinding` runs, lifted into the one
+ * core (proven byte-identical to paper/reference/zk/binding.py both directions
+ * by unbrowse-core/test/conformance.test.ts).
+ *
+ * IMPORTANT — this is the ALGEBRA LEG ONLY. The WASM `zk_verify` ABI takes
+ * `(y, t, s, ctx)`; it does NOT carry the binding `root`/`sig`, so it does NOT
+ * check the ed25519 wallet-signature leg ("this y belongs to this wallet").
+ * The caller (`verifyBinding` in declare-zk.ts) keeps the wallet-sig leg in TS
+ * (Web Crypto) and ANDs it with this result, so no security check is dropped.
+ *
+ * `binding.y` and `proof.{t,s}` are Python-style hex strings ("0x"-prefixed);
+ * `proof.ctx` is raw `ctx.hex()` (no 0x). All four are passed to the core as
+ * the exact ascii bytes the conformance test passes, since the core re-parses
+ * them with the same hex/decimal logic as the reference.
+ *
+ * Returns the boolean Schnorr result, or `null` on ANY load/instantiate/run
+ * failure (wasm unavailable, missing `zk_verify` export, alloc failure). The
+ * caller MUST treat `null` as "use the TS fallback" — verification never breaks
+ * on a wasm fault. NEVER throws.
+ */
+export function zkVerifyViaWasm(
+  binding: { y: string },
+  proof: { t: string; s: string; ctx: string },
+): boolean | null {
+  const core = loadCore();
+  if (!core || typeof core.zk_verify !== "function") return null;
+  try {
+    const enc = new TextEncoder();
+    const yB = enc.encode(binding.y);
+    const tB = enc.encode(proof.t);
+    const sB = enc.encode(proof.s);
+    const ctxB = enc.encode(proof.ctx);
+
+    // Lay each ascii string into linear memory via the bump allocator. A
+    // zero-length field (e.g. empty ctx) still needs a valid pointer; alloc(1)
+    // keeps the pointer non-zero without writing.
+    const lay = (bytes: Uint8Array): number | null => {
+      const ptr = core.alloc(bytes.length || 1);
+      if (!ptr) return null;
+      if (bytes.length) new Uint8Array(core.memory.buffer, ptr, bytes.length).set(bytes);
+      return ptr;
+    };
+
+    const yPtr = lay(yB);
+    if (yPtr === null) return null;
+    const tPtr = lay(tB);
+    if (tPtr === null) return null;
+    const sPtr = lay(sB);
+    if (sPtr === null) return null;
+    const ctxPtr = lay(ctxB);
+    if (ctxPtr === null) return null;
+
+    return (
+      core.zk_verify(
+        yPtr,
+        yB.length,
+        tPtr,
+        tB.length,
+        sPtr,
+        sB.length,
+        ctxPtr,
+        ctxB.length,
+      ) === 1
+    );
   } catch {
     return null;
   }
