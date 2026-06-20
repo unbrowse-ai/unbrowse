@@ -22,7 +22,7 @@
  * its receptor. Mismatched signal = ignored. Same shape here.
  */
 
-import { canonicalizeViaWasm } from "./core-wasm";
+import { canonicalizeViaWasm, verifyViaWasm } from "./core-wasm";
 
 /** Canonical signed body — stable JSON projection of declare-write inputs. */
 export interface CanonicalDeclareBody {
@@ -76,13 +76,15 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 /**
- * Verify an ed25519 signature over the canonical declare body. Returns true
- * iff the signature is valid for the given pubkey + body. Catches any
- * Web Crypto exception (malformed key, malformed signature, length mismatch)
- * and returns false rather than throwing — the caller treats unverified the
- * same as unsigned (auto-coerce path).
+ * Verify an ed25519 signature over the canonical declare body — Web Crypto
+ * (CF Workers native Ed25519). Returns true iff the signature is valid for the
+ * given pubkey + body. Catches any Web Crypto exception (malformed key,
+ * malformed signature, length mismatch) and returns false rather than throwing.
+ *
+ * This is the FALLBACK path; the public `verifyDeclareSignature` prefers the
+ * single Zig WASM core's `verify` export and only lands here on a wasm fault.
  */
-export async function verifyDeclareSignature(
+export async function verifyDeclareSignatureWebCrypto(
   body: CanonicalDeclareBody,
   signatureHex: string,
 ): Promise<boolean> {
@@ -104,4 +106,24 @@ export async function verifyDeclareSignature(
   } catch {
     return false;
   }
+}
+
+/**
+ * Verify an ed25519 signature over the canonical declare body. PREFERS the
+ * single Zig WASM core's `verify` export (the canonical implementation) and
+ * silently falls back to the Web Crypto path on any WASM load/run failure — so
+ * a missing or unsupported wasm never breaks verification. Ed25519 is RFC-8032,
+ * so both paths accept the identical signature bytes; a WASM-verified declare
+ * and a Web-Crypto-verified declare are the same truth.
+ *
+ * Kept async so the public signature is unchanged for every caller, even though
+ * the WASM `verify` is synchronous.
+ */
+export async function verifyDeclareSignature(
+  body: CanonicalDeclareBody,
+  signatureHex: string,
+): Promise<boolean> {
+  const canonical = canonicalizeDeclareBody(body);
+  const w = verifyViaWasm(canonical, signatureHex, body.wallet_identity);
+  return w === null ? await verifyDeclareSignatureWebCrypto(body, signatureHex) : w;
 }

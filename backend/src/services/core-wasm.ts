@@ -30,6 +30,7 @@ interface CoreExports {
   memory: WebAssembly.Memory;
   alloc(len: number): number;
   canonicalize(ptr: number, len: number): bigint;
+  verify(pkPtr: number, sigPtr: number, msgPtr: number, msgLen: number): number;
 }
 
 // `undefined` = not yet attempted; `null` = attempted and failed (cache the
@@ -129,6 +130,67 @@ export function canonicalizeViaWasm(body: CanonicalDeclareBody): string | null {
     // Copy out before any further alloc could move/reuse the buffer.
     const out = new Uint8Array(core.memory.buffer.slice(outPtr, outPtr + outLen));
     return new TextDecoder().decode(out);
+  } catch {
+    return null;
+  }
+}
+
+function hexToBytesOrNull(hex: string): Uint8Array | null {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (clean.length % 2 !== 0) return null;
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const b = parseInt(clean.substring(i * 2, i * 2 + 2), 16);
+    if (Number.isNaN(b)) return null;
+    out[i] = b;
+  }
+  return out;
+}
+
+/**
+ * Verify an ed25519 signature via the Zig WASM `verify` export.
+ *
+ * `canonicalBytes` are the exact signed message bytes (the canonical declare
+ * projection); `sigHex` is the 64-byte hex signature; `pubHex` is the 32-byte
+ * hex public key (= wallet_identity). Returns the boolean result, or `null` on
+ * ANY load/instantiate/run failure (wasm unavailable, missing `verify` export,
+ * malformed hex, wrong byte lengths). The caller MUST treat `null` as "use the
+ * Web Crypto fallback" — verification never breaks on a wasm fault.
+ *
+ * Ed25519 is RFC-8032: the WASM (std.crypto) and Web Crypto produce/accept the
+ * identical signature bytes, so a Web-Crypto-signed declare verifies here too.
+ */
+export function verifyViaWasm(
+  canonicalBytes: Uint8Array | string,
+  sigHex: string,
+  pubHex: string,
+): boolean | null {
+  const core = loadCore();
+  if (!core || typeof core.verify !== "function") return null;
+  try {
+    const pub = hexToBytesOrNull(pubHex);
+    if (!pub || pub.length !== 32) return null;
+    const sig = hexToBytesOrNull(sigHex);
+    if (!sig || sig.length !== 64) return null;
+    const msg =
+      typeof canonicalBytes === "string"
+        ? new TextEncoder().encode(canonicalBytes)
+        : canonicalBytes;
+
+    // Lay all three inputs into linear memory via the bump allocator.
+    const pkPtr = core.alloc(pub.length);
+    if (!pkPtr) return null;
+    new Uint8Array(core.memory.buffer, pkPtr, pub.length).set(pub);
+
+    const sigPtr = core.alloc(sig.length);
+    if (!sigPtr) return null;
+    new Uint8Array(core.memory.buffer, sigPtr, sig.length).set(sig);
+
+    const msgPtr = core.alloc(msg.length || 1);
+    if (!msgPtr) return null;
+    if (msg.length) new Uint8Array(core.memory.buffer, msgPtr, msg.length).set(msg);
+
+    return core.verify(pkPtr, sigPtr, msgPtr, msg.length) === 1;
   } catch {
     return null;
   }
