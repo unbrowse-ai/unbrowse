@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload artifacts (judge bundle + raw evidence)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: bench-gate-${{ steps.run.outputs.run_id }}
           path: |

@@ -84,7 +84,7 @@ jobs:
           }
           Write-Host "PASS: Windows Kuri broker reached /health"
       - name: Upload Windows Kuri broker
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-win-x64
           path: submodules/kuri/zig-out/bin/kuri.exe
@@ -117,7 +117,7 @@ jobs:
           path: packages/skill/vendor/kuri
           key: kuri-vendor-${{ runner.os }}-${{ steps.kuri.outputs.sha }}-${{ hashFiles('packages/skill/scripts/build-kuri-binaries.mjs') }}
       - name: Restore Windows Kuri broker
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: kuri-win-x64
           path: /tmp/kuri-win-x64
@@ -135,7 +135,7 @@ jobs:
       - name: Build Kuri vendor binaries
         run: node packages/skill/scripts/build-kuri-binaries.mjs
       - name: Upload kuri-vendor artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-vendor
           path: packages/skill/vendor/kuri
@@ -180,7 +180,7 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - name: Restore shared Kuri vendor binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: kuri-vendor
           path: packages/skill/vendor/kuri
@@ -196,7 +196,7 @@ jobs:
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
       - name: Upload binary tarball artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: cli-binary-${{ matrix.target }}
           path: dist/unbrowse-*-${{ matrix.target }}.tar.gz
@@ -247,7 +247,7 @@ jobs:
           echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
       - name: Download all CLI binary tarballs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           pattern: cli-binary-*
           path: dist
@@ -395,7 +395,7 @@ jobs:
       # turning its former ~17min cross-compile into a hash-only no-op. If the
       # artifact is somehow unavailable the build step still rebuilds.
       - name: Restore shared Kuri vendor binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         continue-on-error: true
         with:
           name: kuri-vendor

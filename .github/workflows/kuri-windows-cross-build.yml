@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-windows-cross-build-log
           path: submodules/kuri/build.log
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload kuri.exe (only when cross-link succeeded)
         if: steps.cross_build.outputs.produced_exe == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-win-x64
           path: submodules/kuri/zig-out/bin/kuri.exe
@@ -258,7 +258,7 @@ jobs:
 
       - name: Upload native MSVC build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-windows-native-msvc-log
           path: submodules/kuri/build-msvc.log
@@ -267,7 +267,7 @@ jobs:
 
       - name: Upload kuri.exe (native MSVC, with curl-impersonate)
         if: steps.msvc_build.outputs.produced_exe == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kuri-win-x64-msvc
           path: |
