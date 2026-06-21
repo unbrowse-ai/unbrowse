@@ -6,7 +6,7 @@
  * a chain. Also proves resolveAsync runs end-to-end through the IQ ledger.
  */
 import { describe, expect, it } from "bun:test";
-import { iqLedger, type IqClient } from "../src/values/iq-ledger.js";
+import { iqLedger, resolutionLedgerFromEnv, type IqClient } from "../src/values/iq-ledger.js";
 import { intentKey, contentPointer, recordHash, GENESIS, resolveAsync, type AsyncBlobStore } from "../src/values/async-resolution.js";
 
 // stub on-chain table: append-only rows, each write "signed" with a deterministic sig
@@ -83,5 +83,41 @@ describe("iq-ledger — signed, append-only history of past values", () => {
     const warm = await resolveAsync("intent X", recompute, store, ledger);
     expect(warm.cached).toBe(true); expect(runs).toBe(1); // ledger hit + blob replay, no recompute
     expect(warm.value).toBe("resolved value");
+  });
+});
+
+describe("resolutionLedgerFromEnv — backend selector (presence-of-config, fail-closed to local)", () => {
+  it("returns null when the IQ env is absent (caller keeps its local path)", async () => {
+    const ledger = await resolutionLedgerFromEnv({});
+    expect(ledger).toBeNull();
+  });
+
+  it("returns an on-chain AsyncResolutionLedger when RPC+signer+db/table are configured", async () => {
+    // A format-valid (throwaway) signer secret + complete env — builds the client
+    // WITHOUT touching the chain (Connection + Keypair are local; no RPC call until
+    // append/find). Proves the selector picks the IQ backend when configured.
+    const { Keypair } = await import("@solana/web3.js");
+    const secret = JSON.stringify(Array.from(Keypair.generate().secretKey));
+    const ledger = await resolutionLedgerFromEnv({
+      SOLANA_RPC_URL: "https://api.mainnet-beta.solana.com",
+      IQ_SIGNER_SECRET_KEY: secret,
+      IQ_DB_ROOT_ID: "ubz-contracts",
+      IQ_TABLE_SEED: "resolutions",
+    });
+    expect(ledger).not.toBeNull();
+    expect(typeof ledger!.append).toBe("function");
+    expect(typeof ledger!.history).toBe("function");
+    expect(typeof ledger!.find).toBe("function");
+  });
+
+  it("returns null when env is partial (e.g. RPC + signer but no table id)", async () => {
+    const { Keypair } = await import("@solana/web3.js");
+    const secret = JSON.stringify(Array.from(Keypair.generate().secretKey));
+    const ledger = await resolutionLedgerFromEnv({
+      SOLANA_RPC_URL: "https://api.mainnet-beta.solana.com",
+      IQ_SIGNER_SECRET_KEY: secret,
+      // IQ_DB_ROOT_ID / IQ_TABLE_SEED missing → not configured → null
+    });
+    expect(ledger).toBeNull();
   });
 });

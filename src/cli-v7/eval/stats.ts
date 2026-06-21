@@ -10,7 +10,9 @@
  * Fetches `${UNBROWSE_API_URL || beta-api.unbrowse.ai}/v1/stats/summary`
  * and surfaces the raw response. Honors `--fresh` by attaching
  * `Cache-Control: no-cache` (so any CDN / KV cache between the CLI and
- * the worker is bypassed). Read-only; no audit POSTs.
+ * the worker is bypassed). Read-only; no audit POSTs. (Wallet-first
+ * auto-registration lives on the hot path — resolve + api 401/403 — not here,
+ * so stats stays a fast reporter.)
  *
  * Stateless verification (Day-6 Dominion W6-EVAL-4, 2026-05-28):
  *   - `--fresh` sets `Cache-Control: no-cache`; the stats endpoint is
@@ -66,6 +68,10 @@ export function shapeYouView(local: YouViewLocal, dash: YouViewDash | null, impa
 async function buildYouView(): Promise<Record<string, unknown>> {
   const local = readImpactSummary();
   let dash: YouViewDash | null = null;
+  // Read-only + fast: `eval stats` reports, it does NOT register. Wallet-first
+  // auto-registration happens on the hot path (resolve + api 401/403 via
+  // ensureUsableKey/backfillWalletBinding), so by the time you check stats after
+  // any resolve, the dashboard already reflects the wallet identity.
   if (getAgentId()) {
     try {
       dash = await getMyDashboard();
@@ -131,6 +137,14 @@ export async function handler(
       } catch {
         body = { error: "non_json_response", status };
       }
+    } catch (e) {
+      // The `network` summary is unreachable/aborted (slow link, offline, or
+      // CPU/network contention pushing the cold fetch past the 10s abort). The
+      // `you` view is LOCAL and offline-first, so DEGRADE — never crash to a
+      // rc=1 empty stdout. Emit the local you-view with a null-ish network so
+      // a reader (and the tracking-gate G1 witness) always gets the 4 fields.
+      status = 0;
+      body = { error: "stats_summary_unreachable", name: (e as Error)?.name ?? "Error" };
     } finally {
       clearTimeout(t);
     }
@@ -138,30 +152,38 @@ export async function handler(
     // W24.2 — sig-keyed eval-read audit row. readKind=stats is a pure
     // backend summary; no Chrome tab, no URL. byteCount is the summary
     // JSON size for forensic correlation.
-    const post = await postStateless({
-      namespace: "audit",
-      route: "/v1/audit/eval-read",
-      body: {
-        readKind: "stats" as const,
-        byteCount: JSON.stringify(body).length,
-      },
-      signableFields: [
-        "sessionId",
-        "urlHash",
-        "readKind",
-        "byteCount",
-        "selectorHash",
-        "nonce",
-      ],
-    });
-    const auditEmit = {
-      ok: post.ok,
-      cacheKey: post.cacheKey,
-      receiptId: post.receiptId,
-      httpStatus: post.httpStatus,
-      bindingMissing: post.bindingMissing,
-      errorHint: post.errorHint,
-    };
+    // Best-effort telemetry: a failing/unsignable audit POST (offline, no
+    // wallet, unreachable backend) must NEVER suppress the stats output, which
+    // is the command's real product. Degrade, don't crash.
+    let auditEmit: Record<string, unknown>;
+    try {
+      const post = await postStateless({
+        namespace: "audit",
+        route: "/v1/audit/eval-read",
+        body: {
+          readKind: "stats" as const,
+          byteCount: JSON.stringify(body).length,
+        },
+        signableFields: [
+          "sessionId",
+          "urlHash",
+          "readKind",
+          "byteCount",
+          "selectorHash",
+          "nonce",
+        ],
+      });
+      auditEmit = {
+        ok: post.ok,
+        cacheKey: post.cacheKey,
+        receiptId: post.receiptId,
+        httpStatus: post.httpStatus,
+        bindingMissing: post.bindingMissing,
+        errorHint: post.errorHint,
+      };
+    } catch (e) {
+      auditEmit = { ok: false, error: "audit_emit_failed", name: (e as Error)?.name ?? "Error" };
+    }
 
     const you = await buildYouView();
 
