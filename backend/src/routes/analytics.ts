@@ -25,12 +25,21 @@ import {
   recordSessionSummary,
   saveRevenuePricing,
 } from "../services/metrics.js";
-import { bearerAuth } from "../middleware/auth.js";
+import { bearerAuth, optionalAuth } from "../middleware/auth.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 // All analytics routes require auth; scope it to the analytics prefix only.
-analyticsRoutes.use("/analytics/*", bearerAuth);
+// The session WRITE path (POST /analytics/sessions) accepts anonymous via optionalAuth so
+// unregistered CLI installs' usage actually LANDS on the /internal dashboard (a bearer-gated
+// write 401'd them and the client fire-and-forget-swallowed it → /internal looked empty
+// despite many installs). Every other /analytics/* surface (admin reads) stays bearer-gated.
+analyticsRoutes.use("/analytics/*", async (c, next) => {
+  if (c.req.method === "POST" && c.req.path.endsWith("/analytics/sessions")) {
+    return optionalAuth(c, next);
+  }
+  return bearerAuth(c, next);
+});
 
 function setAnalyticsHeaders(c: { header(name: string, value: string): void }): void {
   c.header("Cache-Control", "private, no-store");
