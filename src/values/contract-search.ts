@@ -152,12 +152,53 @@ export function ollamaEmbedder(env: Record<string, string | undefined> = process
 }
 
 /**
+ * Nebius embedder over Qwen3-Embedding-8B with an explicit `dimensions: 1536` request, so the
+ * vector matches what the EmergentDB vector store is locked to (mirrors backend/bible-anchor.ts +
+ * semantic-cache.ts — same model + dims as the rest of the system). FALLS BACK to OpenRouter's
+ * `qwen/qwen3-embedding-8b` when Nebius is absent/limited. Returns null when neither key is set.
+ * This is the 1536-dim path the emergent RAG tier needs when a funded OpenAI key is unavailable.
+ */
+export function nebiusEmbedder(env: Record<string, string | undefined> = process.env): Embedder | null {
+  const nk = env.NEBIUS_API_KEY?.trim();
+  const ork = env.OPENROUTER_API_KEY?.trim();
+  if (!nk && !ork) return null;
+  const DIM = 1536;
+  async function viaProvider(url: string, key: string, model: string, dimsParam: boolean, text: string): Promise<number[] | null> {
+    const body: Record<string, unknown> = { model, input: text };
+    if (dimsParam) body.dimensions = DIM; else body.encoding_format = "float";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: Array<{ embedding?: number[] }> };
+    const v = data.data?.[0]?.embedding;
+    return Array.isArray(v) && v.length === DIM ? v : null;
+  }
+  return {
+    async embed(text: string) {
+      if (nk) {
+        const v = await viaProvider("https://api.tokenfactory.nebius.com/v1/embeddings", nk, "Qwen/Qwen3-Embedding-8B", true, text);
+        if (v) return v;
+      }
+      if (ork) {
+        const v = await viaProvider("https://openrouter.ai/api/v1/embeddings", ork, "qwen/qwen3-embedding-8b", false, text);
+        if (v) return v;
+      }
+      throw new Error("nebius/openrouter embeddings: no 1536-dim vector returned");
+    },
+  };
+}
+
+/**
  * Resolve the best AVAILABLE real (semantic) embedder for the live path, no funded-cloud
  * dependency: try the funded OpenAI key first (1536-dim, EmergentDB-native) by actually
- * embedding a probe; on any failure (no key, exhausted quota) fall back to the LOCAL ollama
- * model — a working semantic embedder beats a blocked premium one. Returns null only when
- * neither a funded cloud key nor a local daemon answers (then the offline hashEmbedder bears
- * the load). Fallbacks are visible: the caller sees which provider answered.
+ * embedding a probe; then Nebius/OpenRouter (also 1536-dim, the EmergentDB-locked dim);
+ * only then the LOCAL ollama model (768-dim — fine for the in-memory cosine store, NOT for
+ * the 1536-locked emergent vector store). Returns null only when none answer (then the
+ * offline hashEmbedder bears the load). Fallbacks are visible: the caller sees the provider.
  */
 export async function resolveLiveEmbedder(
   env: Record<string, string | undefined> = process.env,
@@ -165,6 +206,10 @@ export async function resolveLiveEmbedder(
   const oai = openAiEmbedder(env);
   if (oai) {
     try { await oai.embed("probe"); return { embed: oai, provider: "openai" }; } catch { /* unfunded/quota → fall through */ }
+  }
+  const neb = nebiusEmbedder(env);
+  if (neb) {
+    try { await neb.embed("probe"); return { embed: neb, provider: "nebius" }; } catch { /* limited/absent → fall through */ }
   }
   const ol = ollamaEmbedder(env);
   try { await ol.embed("probe"); return { embed: ol, provider: "ollama" }; } catch { /* no local daemon */ }

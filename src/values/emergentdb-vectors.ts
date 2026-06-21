@@ -63,6 +63,37 @@ export async function searchVectors(query: number[], k = 10, namespace?: string)
   return { results: parsed.results ?? [], count: parsed.count ?? 0, namespace: parsed.namespace ?? "default" };
 }
 
+/**
+ * Single-key KV write over qdkv (POST /qdkv/set). The write half the cache tier
+ * needs: a contract resolution is content-addressed by its id and stored here so
+ * recall is O(1) without re-resolving. Throws on non-2xx so a failed cache write
+ * is never silent (a silent failure would mask a degraded cache as a cold miss).
+ */
+export async function kvSet(key: string, value: string): Promise<void> {
+  const res = await fetch(`${EMERGENTDB_BASE}/qdkv/set`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+    signal: AbortSignal.timeout(timeoutMs()),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new EmergentDBVectorError(`qdkv/set ${res.status}: ${text.slice(0, 200)}`);
+  }
+}
+
+/** Single-key KV read over qdkv (GET /qdkv/get/<key>). Returns null when absent. */
+export async function kvGet(key: string): Promise<string | null> {
+  const res = await fetch(`${EMERGENTDB_BASE}/qdkv/get/${encodeURIComponent(key)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey()}` },
+    signal: AbortSignal.timeout(timeoutMs()),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { found?: boolean; value?: string | null };
+  return data.found ? (data.value ?? null) : null;
+}
+
 /** Batch KV read over qdkv. Returns fullKey -> value|null. Mirrors backend/kv.ts. */
 export async function kvMget(keys: string[]): Promise<Record<string, string | null>> {
   if (keys.length === 0) return {};
