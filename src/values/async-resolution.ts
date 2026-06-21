@@ -16,7 +16,7 @@
  * recomputes + stores the blob + appends a signed resolution row. Pure over the injected
  * store + ledger, so both adapters are fully testable with stub clients (no network).
  */
-import type { Pointer, Resolution } from "./resolution-ledger.js";
+import type { Pointer, Resolution, ResolutionRecord } from "./resolution-ledger.js";
 // One source of truth (commandment #1/#6): the content-addressing + hash-chain core,
 // imported for local use AND re-exported so existing importers (iq-ledger, standards,
 // tier, tests) keep working unchanged.
