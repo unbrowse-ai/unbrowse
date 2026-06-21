@@ -68,8 +68,12 @@ export interface EgressOpts {
 }
 
 /** A status that means "this egress path is blocked / dead — try the next tier." */
-function isBlock(status: number): boolean {
-  return status === 0 || status === 401 || status === 403 || status === 429 || status >= 500;
+export function isBlock(status: number): boolean {
+  // 402 Payment Required = this egress path is dead (an exhausted/unfunded residential proxy
+  // account returns it, witnessed live 2026-06-21) — escalate to the next tier, never treat the
+  // 402 page as a served body. A genuinely-402 upstream still surfaces as the final outcome once
+  // every tier is exhausted (the response is IP-independent), so no served answer is lost.
+  return status === 0 || status === 401 || status === 402 || status === 403 || status === 429 || status >= 500;
 }
 
 /** A tier's result is blocked if the status is a block OR the body is a soft-block (opt-in). */
