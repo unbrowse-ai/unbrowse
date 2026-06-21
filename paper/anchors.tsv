@@ -30,6 +30,9 @@ sealed-unless-revealed	paper/reference/ledger/sealed_cache.py
 no unsigned action crosses	paper/reference/layers/gate.py
 proof of indexing	paper/reference/network/proof_of_indexing.py
 bonding, challenge, and slashing	paper/reference/network/bonding.py
+proof-of-indexing economy	src/values/proof-indexing-economy.ts
+proof-indexing-economy.test.ts	tests/proof-indexing-economy.test.ts
+proof-indexing-economy-gate.sh	bench/jespa/proof-indexing-economy-gate.sh
 Merkle-root checkpoint	paper/reference/ledger/checkpoint.py
 Sybil resistance	paper/reference/network/sybil.py
 ERC-8004	paper/reference/network/erc8004.py
