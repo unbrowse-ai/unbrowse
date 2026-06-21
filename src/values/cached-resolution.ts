@@ -20,6 +20,7 @@ import {
 } from "./resolution-ledger.js";
 import { principalScope } from "../runtime/principal-scope.js";
 import { resolutionLedgerFromEnv } from "./iq-ledger.js";
+import { snapshotDrifted, invalidationPointer } from "./route-snapshot.js";
 import type { AsyncResolutionLedger } from "./async-resolution.js";
 
 export function defaultResolutionCacheDir(): string {
@@ -187,4 +188,23 @@ export async function mirrorResolutionToChain(
     process.stderr.write(`iq-mirror: on-chain append deferred — ${(e as Error)?.message ?? String(e)}\n`);
     return { mirrored: false };
   }
+}
+
+/**
+ * Bind cache-invalidation to the IQ ledger. When a route's input-shape snapshot has DRIFTED
+ * from the recorded one, record a `cache_invalidated` event to the SAME IQ on-chain table as
+ * resolutions — so the ledger shows resolve → invalidate → re-resolve, browsable via
+ * `scripts/iq-ledger.mjs`. No-ops when there is no drift (first-resolve or unchanged shape).
+ * Fail-open (rides mirrorResolutionToChain): never blocks resolution.
+ */
+export async function recordCacheInvalidation(
+  key: string,
+  prevSnapshot: string | undefined | null,
+  currentSnapshot: string,
+  reason: string,
+  opts?: { principal?: string; ledger?: AsyncResolutionLedger | null },
+): Promise<{ invalidated: boolean }> {
+  if (!snapshotDrifted(prevSnapshot, currentSnapshot)) return { invalidated: false };
+  const res = await mirrorResolutionToChain(key, invalidationPointer(currentSnapshot, reason), opts);
+  return { invalidated: res.mirrored };
 }
