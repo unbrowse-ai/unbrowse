@@ -10,7 +10,10 @@ fail(){ echo "[ebm-loop] FAIL: $*"; exit 1; }
 ok(){ echo "[ebm-loop] ok: $*"; }
 
 # 1. intent is wired into the live scoring call site (was dropped → dead features)
-grep -qE 'routeEnergy\([^)]*,[[:space:]]*intent[[:space:]]*\)' src/execution/index.ts \
+# NB: .* not [^)]* — the call casts an arg ((ep as {...}).source) carrying an inner ')', so a
+# [^)]* regex false-negatives even though intent IS the final arg (index.ts:7045). The real
+# condition is "intent is the last argument to routeEnergy"; .* spans the inner paren.
+grep -qE 'routeEnergy\(.*,[[:space:]]*intent[[:space:]]*\)' src/execution/index.ts \
   || fail "src/execution/index.ts no longer passes intent into routeEnergy (dead n-gram features)"
 ok "intent wired into the live ranker call site"
 
