@@ -1,6 +1,6 @@
 {
   "repo_url": "~/.claude/skills/contract/libcontract",
-  "built_at": "2026-06-21T23:04:40.796Z",
+  "built_at": "2026-06-21T23:33:35.939Z",
   "binaries": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
@@ -24,7 +24,8 @@
     },
     "win-x64": {
       "zig_target": "x86_64-windows",
-      "source": "placeholder"
+      "sha256": "dc022ca2ef829bb27b1a8991560954433d499196a93050f7d8834062d4fb20ca",
+      "source": "pre-staged"
     }
   }
 }
