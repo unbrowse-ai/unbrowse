@@ -52,15 +52,20 @@ if [ ! -f ./config.sh ]; then
   tar xzf r.tar.gz && rm r.tar.gz
 fi
 REMOTE
-  # register an EPHEMERAL runner (one job then self-removes); token piped via stdin (never in args)
-  log "registering ephemeral runner ..."
+  # register the runner; token piped via stdin (never in args).
+  # EPHEMERAL=1 (default) -> one job then self-removes (single-job workflows).
+  # EPHEMERAL=0 -> PERSISTENT runner that serially carries a MULTI-job workflow
+  #               (release.yml is 10 self-hosted jobs; an ephemeral runner would
+  #               vanish after job 1, stalling the other 9 — the documented gap).
+  local eph_flag="--ephemeral"; [ "${EPHEMERAL:-1}" = "0" ] && eph_flag=""
+  log "registering runner (ephemeral=${EPHEMERAL:-1}) ..."
   gh api -X POST "repos/$REPO/actions/runners/registration-token" --jq .token 2>/dev/null | \
     pod_ssh "$ip" "$port" "RT=\$(cat); cd ~/actions-runner && RUNNER_ALLOW_RUNASROOT=1 ./config.sh \
       --url https://github.com/$REPO --token \"\$RT\" --name eph-$pid --labels $LABELS \
-      --ephemeral --unattended --replace && \
+      $eph_flag --unattended --replace && \
       ( setsid bash -c 'RUNNER_ALLOW_RUNASROOT=1 ./run.sh >runner.log 2>&1' </dev/null >/dev/null 2>&1 & ) && \
       sleep 3 && echo 'runner-launched'" >&2
-  log "ephemeral runner eph-$pid started"
+  log "runner eph-$pid started (ephemeral=${EPHEMERAL:-1})"
   echo "$pid"
 }
 

@@ -8,7 +8,7 @@ The SDK auto-spawns the `unbrowse` binary if it isn't already running, so a sing
 
 > The SDK (this package) is MIT-licensed. The `unbrowse` runtime binary it talks to is distributed via npm. See [`OPEN-SOURCE-NOTICE.md`](../../docs/OPEN-SOURCE-NOTICE.md).
 
-Current version: **9.10.0**.
+Current version: **9.12.0**.
 
 ## Install
 
