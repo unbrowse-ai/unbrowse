@@ -7,6 +7,7 @@ import {
   recordOrchestrationPerf,
   recordRoutingTelemetry,
   searchIntentResolve,
+  searchIntentInDomain,
 } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
@@ -4602,6 +4603,15 @@ export async function resolveAndExecute(
         findLocalSkill: () => localSnapshot,
         knownSkillId,
         clientScope,
+        // Resolve a published skill BY HOST for cold domains (issue #454): the backend
+        // domain search returns ranked candidates for the host; map the top one's metadata
+        // to a skill_id and fetch its manifest. Fail-open (no candidate / search down → null
+        // → the by-host racer simply loses, never a doomed hostname-as-skill_id lookup).
+        marketplaceByHost: async (host, intent, scope) => {
+          const results = await searchIntentInDomain(intent, host, 1).catch(() => []);
+          const sid = results[0] ? extractSkillId(results[0].metadata) : null;
+          return sid ? await getSkill(sid, scope) : null;
+        },
       }),
       new Promise<{ winner: null; tried: []; ms: number }>((resolve) =>
         setTimeout(() => resolve({ winner: null, tried: [], ms: budgetMs + 250 }), budgetMs + 250),
