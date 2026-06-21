@@ -127,6 +127,24 @@ export function registrableHost(u: string | null | undefined): string | null {
   try { return new URL(u).hostname.replace(/^www\./, "").split(".").slice(-2).join("."); } catch { return null; }
 }
 
+/** Anchor search hits to the target's registrable domain (issue #840): in a resolve-to-target
+ *  query an off-domain API-doc that matches the intent JARGON (bmo.com → docs.nex.ai) passes a
+ *  token-relevance gate but is site-irrelevant — fabricated coverage. Drop hits whose registrable
+ *  domain differs from the target's; subdomains of the target are kept (api.bmo.com → bmo.com).
+ *  When no target domain is given, returns all hits unchanged (a general web search legitimately
+ *  goes off-site). Pure + exported for unit tests. */
+export function anchorHitsToDomain<T extends { url: string }>(
+  hits: ReadonlyArray<T>,
+  targetDomain: string | null | undefined,
+): T[] {
+  const targetReg = registrableHost(targetDomain) ?? registrableHost(`https://${targetDomain ?? ""}`);
+  if (!targetReg) return [...hits];
+  return hits.filter((h) => {
+    const reg = registrableHost(h.url) ?? registrableHost(`https://${h.url}`);
+    return reg === targetReg;
+  });
+}
+
 /** Auto-walk gate (the web-search→direct-document DAG edge): walk the top
  *  candidate only when it is high-confidence — same registrable domain as the
  *  requested URL, or score >= minScore. Keeps the one-hop walk from chasing a
@@ -4885,6 +4903,18 @@ export async function resolveAndExecute(
           exaHits = [];
         } else if (exaRaw && !(maxScore > 0 || bestHitRate >= 0.34 || hasRichHit)) {
           console.log(`[exa] raw-candidate mode (UNBROWSE_EXA_RAW=1): keeping ${exaHits.length} low-score hits for the agent to judge`);
+        }
+      }
+      // Domain-anchor the exa/web hits (issue #840): when resolving against an explicit
+      // target domain, drop hits that aren't on that registrable domain — an off-domain
+      // API-doc that matched the intent jargon is site-irrelevant (bmo.com → docs.nex.ai).
+      // All-off-domain → exaHits=[] → honest fall-through to capture, not fabricated coverage.
+      // Skipped in raw mode (UNBROWSE_EXA_RAW=1, where a research agent judges recall itself).
+      if (raceProbeDomain && exaHits.length > 0 && process.env.UNBROWSE_EXA_RAW !== "1") {
+        const before = exaHits.length;
+        exaHits = anchorHitsToDomain(exaHits, raceProbeDomain);
+        if (exaHits.length < before) {
+          console.log(`[exa] domain-anchor (#840): kept ${exaHits.length}/${before} hit(s) on ${raceProbeDomain}; dropped ${before - exaHits.length} off-domain`);
         }
       }
       if (walkDepth === 0 && exaHits.length > 0) {

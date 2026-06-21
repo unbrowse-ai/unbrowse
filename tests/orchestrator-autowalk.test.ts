@@ -1,5 +1,29 @@
 import { describe, it, expect } from "bun:test";
-import { registrableHost, shouldAutoWalk, pickWalkTarget } from "../src/orchestrator/index.js";
+import { registrableHost, shouldAutoWalk, pickWalkTarget, anchorHitsToDomain } from "../src/orchestrator/index.js";
+
+describe("anchorHitsToDomain (issue #840 — drop off-domain API-doc leak)", () => {
+  const hits = [
+    { url: "https://docs.nex.ai/rest-api-design", title: "REST API design" }, // off-domain leak
+    { url: "https://api.bmo.com/accounts", title: "accounts" },               // on-domain (subdomain)
+    { url: "https://www.bmo.com/banking", title: "banking" },                 // on-domain
+    { url: "https://medium.com/rest-api", title: "generic" },                 // off-domain leak
+  ];
+  it("keeps only same-registrable-domain hits when a target domain is given", () => {
+    const out = anchorHitsToDomain(hits, "bmo.com").map((h) => h.url);
+    expect(out).toEqual(["https://api.bmo.com/accounts", "https://www.bmo.com/banking"]);
+  });
+  it("accepts a bare host target (no scheme)", () => {
+    expect(anchorHitsToDomain(hits, "www.bmo.com").length).toBe(2);
+  });
+  it("returns ALL hits unchanged when no target (general web search goes off-site)", () => {
+    expect(anchorHitsToDomain(hits, null).length).toBe(4);
+    expect(anchorHitsToDomain(hits, undefined).length).toBe(4);
+  });
+  it("returns empty when every hit is off-domain (honest fall-through, not fabricated coverage)", () => {
+    const offOnly = [{ url: "https://docs.nex.ai/x" }, { url: "https://medium.com/y" }];
+    expect(anchorHitsToDomain(offOnly, "bmo.com")).toEqual([]);
+  });
+});
 
 describe("registrableHost", () => {
   it("strips www + returns eTLD+1-ish (incl .sg)", () => {
