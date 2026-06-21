@@ -106,9 +106,12 @@ Run against the **npm-installed shipped CLI** via `UNBROWSE_BIN`; two-witness ga
 UNBROWSE_BIN=$(which unbrowse) bash bench/capability/gate_all.sh
 # the real cloned Exa run
 python3 bench/exa/score_extraction.py
+<<<<<<< HEAD
 # Axis-D security leak-scan (deterministic, zero-tolerance gate)
 python3 bench/capability/test_audit_security.py   # red+green witness
 python3 bench/capability/audit_security.py --artifacts <jsonl> --secrets <file> --gate
+=======
+>>>>>>> origin/main
 # crypto/IQ ledger layer (signed + zk + resolve→IQ wire)
 bun test tests/iq-ledger.test.ts tests/iq-mirror-resolution.test.ts \
          tests/iq-sealed-value.test.ts tests/iq-cold-hydrate.test.ts \
