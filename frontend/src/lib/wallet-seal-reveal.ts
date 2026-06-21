@@ -43,6 +43,10 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
+function bytesToHex(u: Uint8Array): string {
+  return Array.from(u).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function ab(u: Uint8Array): ArrayBuffer {
   return u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
 }
@@ -63,6 +67,27 @@ async function hkdf(ikm: Uint8Array, salt: string, info: string): Promise<Uint8A
 export async function deriveX25519Privkey(signMessage: SignMessage): Promise<Uint8Array> {
   const sig = await signMessage(new TextEncoder().encode(KEY_DERIVE_MSG));
   return hkdf(sig, KEY_DERIVE_SALT, KEY_DERIVE_INFO);
+}
+
+/** The wallet's X25519 public key — the address a value is sealed TO. */
+export async function deriveX25519Pubkey(signMessage: SignMessage): Promise<Uint8Array> {
+  return x25519.getPublicKey(await deriveX25519Privkey(signMessage));
+}
+
+/**
+ * Seal a value TO a wallet's X25519 public key (the dhEncrypt side, mirroring the SDK). In
+ * production this happens SERVER-SIDE; exposed here only so a self-contained demo can seal +
+ * reveal in one browser without a backend. Ephemeral sender key + AES-256-GCM, same scheme.
+ */
+export async function sealToPubkey(recipientPub: Uint8Array, value: string): Promise<SealedEnvelope> {
+  const senderPriv = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  const senderPub = x25519.getPublicKey(senderPriv);
+  const shared = x25519.getSharedSecret(senderPriv, recipientPub);
+  const aesKey = await hkdf(shared, DH_HKDF_SALT, DH_HKDF_INFO);
+  const key = await subtle().importKey("raw", ab(aesKey), "AES-GCM", false, ["encrypt"]);
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct = await subtle().encrypt({ name: "AES-GCM", iv: ab(iv) }, key, ab(new TextEncoder().encode(value)));
+  return { senderPub: bytesToHex(senderPub), iv: bytesToHex(iv), ciphertext: bytesToHex(new Uint8Array(ct)) };
 }
 
 /** Reveal a sealed envelope with an already-derived X25519 private key. */
