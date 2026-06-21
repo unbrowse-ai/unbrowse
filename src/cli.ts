@@ -15,6 +15,7 @@ import { extractAuthHeader } from "./lib/extract-auth-header.js";
 import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } from "./env/kuri-proxy-bridge.js";
 import { flatCommandVerb, looksLikeContractGoal } from "./cli-v7/kind-map.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
+import { resolutionContractVerdict } from "./values/resolution-contract.js";
 import { resolutionCardinalityMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { cmdCookies } from "./cli-cookies.js";
@@ -1097,6 +1098,26 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
     if (skill?.skill_id && trace) {
       (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
+    }
+
+    // /contract-native: render this routing decision as the substrate's OWN three-shape
+    // (interpret → verify → adjudicate) and attach the verdict to the result, so a resolve no
+    // longer emits an opaque payload — it CARRIES its interpret/verify/adjudicate verdict. Pure +
+    // fail-open (same discipline as the IQ on-chain mirror — evidence, never a blocker).
+    if (isResolveSuccessResult(result)) {
+      const r = result as Record<string, unknown>;
+      const winnerEndpoints =
+        (skill?.endpoints as unknown[] | undefined) ??
+        (r.available_endpoints as unknown[] | undefined) ??
+        (r.result ? [{ used: true }] : undefined);
+      const verdict = await resolutionContractVerdict({
+        intent,
+        skill: { skill_id: (skill?.skill_id as string | undefined) ?? (r.skill_id as string | undefined), endpoints: winnerEndpoints },
+      });
+      r._contract = verdict;
+      process.stderr.write(
+        `contract: resolution ${verdict.terminal ? "terminal (interpret/verify/adjudicate)" : "frontier=" + verdict.frontier}\n`,
+      );
     }
 
     // Store the FINAL result so a repeated identical resolve hits the fast path above
