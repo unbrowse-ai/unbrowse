@@ -2716,15 +2716,44 @@ export async function tryHttpFetch(
       redirect: "follow",
     });
     clearTimeout(timeout);
-    if (res.status !== 200) return null;
-    const ct = res.headers.get("content-type") ?? "";
-    if (!ct.includes("text/html") && !ct.includes("application/xhtml")) return null;
-    const html = await res.text();
-    if (!html || html.length < 1024) return null;
-    return { html, final_url: res.url || url };
+    if (res.status === 200) {
+      const ct = res.headers.get("content-type") ?? "";
+      if (ct.includes("text/html") || ct.includes("application/xhtml")) {
+        const html = await res.text();
+        if (html && html.length >= 1024) return { html, final_url: res.url || url };
+      }
+    }
+    // Local fetch was blocked (CF 403/429), an anomaly page, or non-HTML. Before bouncing to the
+    // fingerprinted browser — which an IP-fingerprint bot-wall (ProductHunt's Cloudflare) blocks
+    // by design — climb the egress ladder: clean server IP → iProyal residential. egressChain's
+    // B1 firmament keeps auth-bearing requests off the TLS-terminating server tier, so captured
+    // creds never leak. Fail-open: any error falls through to the browser, never worse than today.
+    return await escalateSsrViaEgress(url, headers);
   } catch {
     return null;
   }
+}
+
+/** SSR egress escalation — route a blocked plain-fetch through the residential ladder before
+ *  surrendering to the browser. Returns served HTML or null (→ browser fallback). Never throws. */
+async function escalateSsrViaEgress(
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ html: string; final_url: string } | null> {
+  try {
+    const { egressChain } = await import("./egress-chain.js");
+    const out = await egressChain({ url, method: "GET", headers, timeoutMs: 12_000 }, { skipLocal: true });
+    if (out && !out.blocked && out.status === 200 && out.body && out.body.length >= 1024) {
+      // body sniff: only a real HTML document counts as served (the ladder returns text, no ct).
+      if (/<(?:!doctype|html|head|body)\b/i.test(out.body.slice(0, 1024))) {
+        console.log(`[ssr-fast] egress ladder served via ${out.tier} tier (local fetch was blocked)`);
+        return { html: out.body, final_url: url };
+      }
+    }
+  } catch {
+    /* egress ladder unavailable — fall through to the browser path */
+  }
+  return null;
 }
 
 /** When extraction returns "multiple" candidates, pick the best one's data to avoid duplicates */
