@@ -4,14 +4,31 @@ import { join } from "path";
 import { homedir } from "os";
 import { log } from "../logger.js";
 import { sealToWallet, revealForWallet, type WalletSealed } from "../trust/sealed-cache.js";
+import { deriveSealKey as deriveWalletSealKey } from "../values/signer.js";
 
-/** The holder's wallet secret, if configured (UNBROWSE_WALLET_SECRET). When set,
- *  credential VALUES are sealed to the wallet at rest — the vault file/keychain
- *  then holds only opaque ciphertext + a content-hash, openable only by the
- *  holder. Absent → the existing keytar/local-AES behaviour, unchanged. */
+/** The sealing secret for vault credentials at rest. DEFAULT-ON, no escape hatch:
+ *  with zero configuration, the secret is derived from the local wallet
+ *  (`signer.deriveSealKey` — a stable, holder-only HKDF over the wallet seed), so
+ *  every credential VALUE is sealed to the wallet at rest and the vault file/keychain
+ *  holds only opaque ciphertext. `UNBROWSE_WALLET_SECRET` still takes PRECEDENCE
+ *  (preserves any vault already sealed under an explicit secret). Returns null only
+ *  when the wallet seal-key genuinely cannot be derived — surfaced via an evidence
+ *  line (never silent), and the prior local-AES-at-rest path bears the load.
+ *  Tradeoff (accepted, surfaced): a wallet rotation orphans creds sealed under the old
+ *  key — they return null on read → the caller re-auths (graceful, no corruption). */
+let cachedSealSecret: string | null | undefined; // undefined = not yet computed this process
 function getWalletSecret(): string | null {
-  const v = process.env.UNBROWSE_WALLET_SECRET?.trim();
-  return v ? v : null;
+  const explicit = process.env.UNBROWSE_WALLET_SECRET?.trim();
+  if (explicit) return explicit;
+  if (cachedSealSecret !== undefined) return cachedSealSecret;
+  try {
+    const key = deriveWalletSealKey();
+    cachedSealSecret = Buffer.from(key).toString("hex");
+  } catch (e) {
+    log("vault", `wallet seal-key underivable (${(e as Error)?.message ?? String(e)}) — credentials stored under local-AES at rest, not wallet-sealed`);
+    cachedSealSecret = null;
+  }
+  return cachedSealSecret;
 }
 
 type KeytarClient = {
@@ -334,7 +351,10 @@ export async function getCredential(account: string): Promise<string | null> {
       try {
         return (await revealForWallet(parsed.sealed, walletSecret, account)) as string;
       } catch {
-        return null; // not the sealing wallet, or tampered
+        // Sealed under a different wallet key (rotation) or tampered → cannot open.
+        // Graceful: return null so the caller re-auths. Surfaced, never silent.
+        log("vault", `sealed credential for ${account} could not be opened under the current wallet (rotated?) — re-auth needed`);
+        return null;
       }
     }
     if (parsed.value && parsed.stored_at) {
