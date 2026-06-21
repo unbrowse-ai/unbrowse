@@ -324,3 +324,6 @@ bench/index20k/artifacts-905/
 bench/index20k/results-905.jsonl
 bench/index20k/sweep-905.log
 bench/webagent/vendor/
+
+# fractal build-attestation: per-machine witness state (lineage minted by CI/release)
+attest/
