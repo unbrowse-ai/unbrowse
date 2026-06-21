@@ -8,7 +8,18 @@ import { test, expect } from "bun:test";
 import iq from "@iqlabs-official/solana-sdk";
 import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
-import { sealForWallet, revealForWallet, type SignMessage } from "../src/values/iq-sealed-value.js";
+import { sealForWallet, revealForWallet, sealValueOnChain, revealValueOnChain, type SignMessage, type OnChainIO } from "../src/values/iq-sealed-value.js";
+
+/** In-memory stand-in for the on-chain inscription store (no chain, no SOL). */
+function memIO(): OnChainIO & { store: Map<string, string> } {
+  const store = new Map<string, string>();
+  let n = 0;
+  return {
+    store,
+    async codeIn(data) { const sig = `tx_${n++}`; store.set(sig, data); return sig; },
+    async readCodeIn(txSig) { return { data: store.get(txSig) ?? null }; },
+  };
+}
 
 const crypto = (iq as any).default?.crypto ?? (iq as any).crypto;
 const signerFor = (kp: Keypair): SignMessage => async (msg) => nacl.sign.detached(msg, kp.secretKey);
@@ -51,4 +62,24 @@ test("seal is non-deterministic (fresh ephemeral key / iv per seal) but always r
   expect(e1.ciphertext === e2.ciphertext && e1.iv === e2.iv).toBe(false); // not a deterministic cipher
   expect(await revealForWallet(crypto, sign, e1)).toBe("v");
   expect(await revealForWallet(crypto, sign, e2)).toBe("v");
+});
+
+test("on-chain wrappers: seal→store→read→reveal round-trips for the bound wallet; foreign wallet cannot", async () => {
+  const io = memIO();
+  const a = Keypair.generate(), b = Keypair.generate();
+  const value = "durable-contract-value::v1";
+  const txSig = await sealValueOnChain(crypto, signerFor(a), io, value);
+  expect(io.store.has(txSig)).toBe(true);
+  expect(io.store.get(txSig)).not.toContain("durable-contract-value"); // stored sealed, not plaintext
+
+  expect(await revealValueOnChain(crypto, signerFor(a), io, txSig)).toBe(value);
+
+  let leaked = false;
+  try { leaked = (await revealValueOnChain(crypto, signerFor(b), io, txSig)) === value; } catch { leaked = false; }
+  expect(leaked).toBe(false);
+});
+
+test("revealValueOnChain throws (never silently empties) when the blob is missing", async () => {
+  const io = memIO();
+  await expect(revealValueOnChain(crypto, signerFor(Keypair.generate()), io, "tx_missing")).rejects.toThrow(/not found on-chain/);
 });
