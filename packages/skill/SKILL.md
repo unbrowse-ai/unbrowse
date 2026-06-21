@@ -21,10 +21,10 @@ store sanitized route metadata, replay it on later calls. A replay is about
 The entire surface is exactly three top-level verbs, each taking a capability:
 
 - **`unbrowse eval <cap>`** - observe. Resolve a route, read a page, check status, list skills.
-- **`unbrowse act <cap>`** - actuate. Execute a route, drive the browser, fetch, run, capture.
+- **`unbrowse breath <cap>`** - actuate. Execute a route, drive the browser, fetch, run, capture.
 - **`unbrowse build <cap>`** - declare. Index, publish, review, set up, register.
 
-There are no flat top-level commands. Every invocation is `unbrowse build|act|eval <cap> [flags]`.
+There are no flat top-level commands. Every invocation is `unbrowse build|breath|eval <cap> [flags]`.
 
 ## The flow (load-bearing): ONE call by default. Resolve+execute for control. One capture on a miss.
 
@@ -33,7 +33,7 @@ call. Let the runtime resolve the route, fill the holes, escalate if needed, and
 structured result. Do NOT hand-run resolve, then fetch, then parse the page yourself.
 
     unbrowse "<what you want>" --url "<site>"            # bare natural-language: the one-hole front door
-    unbrowse act get "<what you want>" --url "<site>" # identical, explicit verb form
+    unbrowse breath get "<what you want>" --url "<site>" # identical, explicit verb form
 
 Worked example, "homemade food on Carousell" (ONE call returns priced listings):
 
@@ -49,11 +49,11 @@ When you must PICK a specific endpoint (several routes, a mutation, explicit par
 two-call explicit path:
 
 1. `unbrowse eval resolve --intent "<what you want>" --url "<site>"` -> ranked shortlist.
-2. `unbrowse act execute --skill <id> --endpoint <id> [--param k=v ...]` -> replay it.
+2. `unbrowse breath execute --skill <id> --endpoint <id> [--param k=v ...]` -> replay it.
 
 On a genuine MISS (no indexed route, a first visit, an anti-bot site), do ONE escalation:
 
-    unbrowse act capture --url "<site>" --intent "<what you want>"
+    unbrowse breath capture --url "<site>" --intent "<what you want>"
 
 That drives the browser once and INDEXES the route. First visit to an uncached site pays a
 capture tax (seconds); every visit after is a route-cache hit (<200ms). `eval resolve` on an
@@ -160,13 +160,13 @@ add the line, with the user's confirmation.
 Use when the site is not published, the flow is JS-heavy, or you need proof of a workflow.
 
 ```bash
-unbrowse act go https://example.com
+unbrowse breath go https://example.com
 unbrowse eval snap --filter interactive   # live @eN refs
-unbrowse act click e2
-unbrowse act fill e5 "hello world"
-unbrowse act submit --wait-for "/next-page.html"
-unbrowse act sync                       # mid-flow checkpoint
-unbrowse act close                      # final checkpoint + queue index/publish
+unbrowse breath click e2
+unbrowse breath fill e5 "hello world"
+unbrowse breath submit --wait-for "/next-page.html"
+unbrowse breath sync                       # mid-flow checkpoint
+unbrowse breath close                      # final checkpoint + queue index/publish
 ```
 
 Rules while browsing: browser-native by default (no hidden same-origin replay); a
@@ -213,7 +213,7 @@ capture - inspect that with `eval skill` / `build review` / `build publish` firs
 ```bash
 unbrowse eval resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
 
-unbrowse act execute --skill {skill_id} --endpoint {endpoint_id} \
+unbrowse breath execute --skill {skill_id} --endpoint {endpoint_id} \
   --path "data.items[]" --extract "name,url,created_at" --limit 10 --pretty
 ```
 
@@ -244,7 +244,7 @@ Automatic: Unbrowse reads cookies from your Chrome/Firefox profile, so if you ar
 there it just works. If a response is `auth_required`:
 
 ```bash
-unbrowse act auth-capture --url "https://example.com"   # sign in once; cookies persist
+unbrowse breath auth-capture --url "https://example.com"   # sign in once; cookies persist
 ```
 
 ## Mutations
@@ -252,8 +252,8 @@ unbrowse act auth-capture --url "https://example.com"   # sign in once; cookies 
 Always `--dry-run` first; ask the user before `--confirm-unsafe`:
 
 ```bash
-unbrowse act execute --skill {id} --endpoint {id} --dry-run
-unbrowse act execute --skill {id} --endpoint {id} --confirm-unsafe
+unbrowse breath execute --skill {id} --endpoint {id} --dry-run
+unbrowse breath execute --skill {id} --endpoint {id} --confirm-unsafe
 ```
 
 Policy-sensitive site mutations can require an extra opt-in
@@ -289,7 +289,7 @@ Global flags: `--pretty` (indented JSON), `--raw` (skip server projection), `--n
 ```bash
 # Resolve then execute a known route
 unbrowse eval resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
-unbrowse act execute --skill {skill_id} --endpoint {endpoint_id} --pretty
+unbrowse breath execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 # Submit feedback AFTER presenting results to the user
 unbrowse eval feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5 --outcome success
@@ -306,12 +306,12 @@ reflects current API reality, not stale docs.
 
 ## Payments
 
-Capture, indexing, and reverse-engineering are free. You pay only to use the shared graph
+Capture and indexing are free. You pay only to use the shared graph
 to skip discovery.
 
 | Tier | What | When | Cost |
 |---|---|---|---|
-| Free | Capture, reverse-engineer, execute from local cache | Always | $0 |
+| Free | Capture, index, execute from local cache | Always | $0 |
 | Tier 1 | One-time skill install from the marketplace | First use of a shared route | $0.005-0.02 |
 | Tier 2 | Per-execution site-owner fee (opt-in sites only) | Each call to an opted-in site | $0.001-0.01 |
 | Tier 3 | Search/routing fee | Each marketplace graph lookup | $0.001-0.005 |
@@ -358,7 +358,7 @@ revenue. Check earnings via `unbrowse eval stats` or `unbrowse eval earnings`.
 ## Reporting issues
 
 When Unbrowse fails on a site (empty data after browse+index+resolve+execute, auth fails
-after cookie injection, repeated resolve misses, wrong/stale execute data, a regression),
+after sign-in, repeated resolve misses, wrong/stale execute data, a regression),
 file a GitHub issue so it can be fixed:
 
 ```bash
