@@ -4,7 +4,8 @@
     "unbrowse": {
       "source": "unbrowse-ai/unbrowse",
       "sourceType": "github",
-      "computedHash": "3e00317e0fa81c66769e396080e5d8965f59af57d39eab168877cc700b89f72d"
+      "skillPath": "SKILL.md",
+      "computedHash": "93f4042e2e051512d8c5fd191677c8d8818385643235e3f368357cf37a0586bb"
     }
   }
 }
