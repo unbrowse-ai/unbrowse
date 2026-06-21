@@ -8,7 +8,7 @@
 import { test, expect } from "bun:test";
 import {
   indexContractRows, searchContracts, hashEmbedder, memCosineStore, openAiEmbedder, cosine,
-  type ContractRow,
+  resolveLiveEmbedder, type ContractRow,
 } from "../src/values/contract-search.js";
 
 // A small fixture "ledger" of contracts, each a distinct topic.
@@ -47,13 +47,18 @@ test("openAiEmbedder is null without a key (offline falls back to hashEmbedder)"
   expect(openAiEmbedder({ OPENAI_API_KEY: "sk-x" })).not.toBeNull();
 });
 
-// ── Live leg (opt-in, FUNDED key required) — proves the real OpenAI embedding integration.
-const liveEmbed = process.env.EMBED_E2E === "1";
-test.skipIf(!liveEmbed)("LIVE: OpenAI embeddings rank the relevant contract first (1536-dim)", async () => {
-  const embed = openAiEmbedder();
-  if (!embed) throw new Error("OPENAI_API_KEY required for EMBED_E2E");
+// ── Live leg — proves REAL semantic embeddings (not the offline hash) power the search.
+// No funded-cloud dependency: resolveLiveEmbedder prefers a funded OpenAI key, else falls back
+// to the LOCAL ollama model (the substrate's own-model path). Skips only when NEITHER a funded
+// cloud key NOR a local daemon answers — so it never flakes on quota or a missing service.
+test("LIVE: real semantic embeddings rank the relevant contract first (openai→ollama fallback)", async () => {
+  const resolved = await resolveLiveEmbedder();
+  if (!resolved) { console.log("[live-embed] no funded cloud key + no local ollama — skipping live leg"); return; }
+  console.log(`[live-embed] provider=${resolved.provider}`);
   const store = memCosineStore();
-  await indexContractRows(LEDGER, embed, store);
-  const hits = await searchContracts("how do I show a value only to the wallet it belongs to", embed, store, 4);
+  await indexContractRows(LEDGER, resolved.embed, store);
+  // Query that c1 ("render a sealed value only upon authentication of the wallet bound to it")
+  // answers uniquely — encryption/sealing distinguishes it from c4's frontend-connect framing.
+  const hits = await searchContracts("encrypt and seal a value so only the bound wallet can decrypt it", resolved.embed, store, 4);
   expect(hits[0].id).toBe("c1");
 });

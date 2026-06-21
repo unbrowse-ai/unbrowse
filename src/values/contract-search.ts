@@ -121,3 +121,52 @@ export function openAiEmbedder(env: Record<string, string | undefined> = process
     },
   };
 }
+
+/**
+ * LOCAL embedder over Ollama (default nomic-embed-text) at the host's ollama daemon — a real
+ * semantic model that runs on-device with no funded cloud account, no API key, no quota. This is
+ * the substrate's "sing in your own land" path (use the local model, not a foreign vendor): it
+ * delivers live semantic embeddings for the contract search the same way OpenAI would. Returns
+ * null when no OLLAMA endpoint env / default daemon is reachable shape-wise (callers fall back).
+ * The vector dim differs from OpenAI (768 vs 1536) — fine for the in-memory cosine store, which
+ * is dim-agnostic; the EmergentDB vector store (1536-locked) stays an OpenAI/1536 path.
+ */
+export function ollamaEmbedder(env: Record<string, string | undefined> = process.env): Embedder {
+  const base = (env.OLLAMA_HOST || env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const model = env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
+  return {
+    async embed(text: string) {
+      const res = await fetch(`${base}/api/embeddings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, prompt: text }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const body = await res.text();
+      if (!res.ok) throw new Error(`ollama embeddings ${res.status}: ${body.slice(0, 200)}`);
+      const v = (JSON.parse(body) as { embedding?: number[] }).embedding;
+      if (!v || v.length === 0) throw new Error("ollama embeddings: no embedding in response");
+      return v;
+    },
+  };
+}
+
+/**
+ * Resolve the best AVAILABLE real (semantic) embedder for the live path, no funded-cloud
+ * dependency: try the funded OpenAI key first (1536-dim, EmergentDB-native) by actually
+ * embedding a probe; on any failure (no key, exhausted quota) fall back to the LOCAL ollama
+ * model — a working semantic embedder beats a blocked premium one. Returns null only when
+ * neither a funded cloud key nor a local daemon answers (then the offline hashEmbedder bears
+ * the load). Fallbacks are visible: the caller sees which provider answered.
+ */
+export async function resolveLiveEmbedder(
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ embed: Embedder; provider: string } | null> {
+  const oai = openAiEmbedder(env);
+  if (oai) {
+    try { await oai.embed("probe"); return { embed: oai, provider: "openai" }; } catch { /* unfunded/quota → fall through */ }
+  }
+  const ol = ollamaEmbedder(env);
+  try { await ol.embed("probe"); return { embed: ol, provider: "ollama" }; } catch { /* no local daemon */ }
+  return null;
+}

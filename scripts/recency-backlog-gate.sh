@@ -36,10 +36,14 @@ else bad "session work NOT shipped (PR #852 not merged)"; fi
   && ok "/reveal promoted to PROD (marker present)" \
   || bad "/reveal prod deploy — gated: verified on preview, prod needs staging→main"
 
-# P5 live embedding leg: needs a FUNDED OpenAI key + EMERGENTDB_API_KEY (offline pipeline already green).
-if [ "${EMBED_E2E:-0}" = "1" ] && bun test tests/emergentdb-contract-search.test.ts >/dev/null 2>&1; then
-  ok "P5 live embedding leg (EMBED_E2E funded)"
-else bad "P5 live embedding leg — gated: funded OpenAI key + EMERGENTDB_API_KEY (offline pipeline IS green)"; fi
+# P5 live embedding leg: a REAL semantic embedder must actually run + rank correctly. No funded
+# cloud needed — resolveLiveEmbedder prefers a funded OpenAI key, else the LOCAL ollama model.
+# Green ONLY when the live leg genuinely engaged (a "provider=" line proves a real embedder ran,
+# not just the offline deterministic tests) AND the suite passed.
+p5out=$(bun test tests/emergentdb-contract-search.test.ts 2>&1)
+if printf '%s' "$p5out" | grep -q "provider=" && printf '%s' "$p5out" | grep -qE "^ *0 fail"; then
+  ok "P5 live embedding leg engaged ($(printf '%s' "$p5out" | grep -oE 'provider=[a-z]+' | head -1)) + ranks correctly"
+else bad "P5 live embedding leg — no real embedder ran (no funded OpenAI key + no local ollama daemon up)"; fi
 
 echo
 if [ "$fail" -ne 0 ]; then echo "RECENCY-BACKLOG-GATE RED — recency tail not all done (shipped top green; external residuals open)."; exit 1; fi
