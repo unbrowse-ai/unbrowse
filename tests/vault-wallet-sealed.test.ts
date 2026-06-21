@@ -61,3 +61,21 @@ describe("default path unchanged (no wallet secret)", () => {
 		expect(await vault.getCredential("plain.com")).toBe(SECRET);
 	});
 });
+
+describe("DEFAULT-ON sealing (no UNBROWSE_WALLET_SECRET — sealed under the local wallet)", () => {
+	it("round-trips with zero config (sealed to the wallet by default, no opt-in)", async () => {
+		delete process.env.UNBROWSE_WALLET_SECRET;
+		await vault.storeCredential("default-seal.com", SECRET);
+		expect(await vault.getCredential("default-seal.com")).toBe(SECRET);
+	});
+
+	it("the value WAS sealed (an explicit foreign secret at read time cannot open it)", async () => {
+		delete process.env.UNBROWSE_WALLET_SECRET; // store under the wallet-derived secret
+		await vault.storeCredential("default-seal2.com", SECRET);
+		// A foreign explicit secret takes precedence at read time → wrong key → cannot open.
+		// (If the value had been stored plaintext, it would read regardless — so null proves sealing.)
+		process.env.UNBROWSE_WALLET_SECRET = OTHER;
+		expect(await vault.getCredential("default-seal2.com")).toBeNull();
+		delete process.env.UNBROWSE_WALLET_SECRET;
+	});
+});
