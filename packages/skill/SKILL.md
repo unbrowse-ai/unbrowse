@@ -240,8 +240,12 @@ After domain convergence a single skill can have 40+ endpoints; filter by intent
 
 ## Authentication
 
-Automatic: Unbrowse reads cookies from your Chrome/Firefox profile, so if you are logged in
-there it just works. If a response is `auth_required`:
+Automatic: Unbrowse reuses your existing logged-in browser session. It reads (a copy of) the
+cookies for the target domain from your daily-driver browser — Chrome, Firefox, Arc, Dia,
+Brave, Edge, Vivaldi, Opera, or Chromium — and attaches them to the fetch, including on the
+fast `resolve` path. So if you are signed in there, a cookie-gated page returns its real
+authenticated content instead of the public/logged-out shell — no browser relaunch, your
+session is left untouched. If a response is still `auth_required`:
 
 ```bash
 unbrowse breath auth-capture --url "https://example.com"   # sign in once; cookies persist
