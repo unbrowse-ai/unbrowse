@@ -71,12 +71,12 @@ try {
  * system prompt the agent cannot dismiss. Pre-flight the keychain NON-INTERACTIVELY via the
  * `security` CLI (which never pops a dialog): if the default keychain is missing or its file
  * does not exist, disable keytar so the encrypted file vault takes over silently — no prompt.
- * Honors UNBROWSE_NO_KEYCHAIN=1 as an explicit opt-out (force the file vault).
+ * No opt-out env: the probe auto-detects an unusable keychain and falls back, so the
+ * UNBROWSE_NO_KEYCHAIN flag was redundant (and confusingly duplicated UNBROWSE_DISABLE_KEYCHAIN)
+ * — removed. The good default is "use the OS keychain when it's usable, file-vault when not."
  */
 function macKeychainUsable(): boolean {
   if (process.platform !== "darwin") return true;
-  const v = (process.env.UNBROWSE_NO_KEYCHAIN ?? "").toLowerCase();
-  if (v === "1" || v === "true" || v === "yes") return false;
   try {
     const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
     const out = execFileSync("security", ["default-keychain"], {

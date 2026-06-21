@@ -12,14 +12,22 @@ describe("proof generation", () => {
     timestamp: "2026-05-02T12:00:00Z",
   };
 
-  test("isProofEnabled returns false by default", () => {
+  test("isProofEnabled returns TRUE by default (default-on, opt-out)", () => {
     delete process.env.UNBROWSE_ZK_PROOF;
-    expect(isProofEnabled()).toBe(false);
+    expect(isProofEnabled()).toBe(true);
   });
 
-  test("isProofEnabled returns true when UNBROWSE_ZK_PROOF=1", () => {
+  test("isProofEnabled stays true when UNBROWSE_ZK_PROOF=1", () => {
     process.env.UNBROWSE_ZK_PROOF = "1";
     expect(isProofEnabled()).toBe(true);
+    delete process.env.UNBROWSE_ZK_PROOF;
+  });
+
+  test("isProofEnabled is FALSE only when explicitly opted out (=0 / false)", () => {
+    process.env.UNBROWSE_ZK_PROOF = "0";
+    expect(isProofEnabled()).toBe(false);
+    process.env.UNBROWSE_ZK_PROOF = "false";
+    expect(isProofEnabled()).toBe(false);
     delete process.env.UNBROWSE_ZK_PROOF;
   });
 

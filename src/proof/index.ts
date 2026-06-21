@@ -9,11 +9,16 @@ export type { NotaryClient } from "./notary.js";
 
 /**
  * Check if ZK proof generation is enabled.
- * Controlled by UNBROWSE_ZK_PROOF env var.
- * Off by default — opt-in for agents that want proof-backed endpoints.
+ * DEFAULT-ON (good default, no opt-in friction): every capture gets a proof.
+ * The default proof type is `commitment_only` — a cheap local hash, no external
+ * deps, no notary round-trip — so default-on adds negligible cost. The stronger
+ * `tlsnotary` type stays gated on UNBROWSE_NOTARY_URL being set.
+ * Opt OUT explicitly with UNBROWSE_ZK_PROOF=0 (or "false") for the rare
+ * cost-sensitive path that genuinely wants no proof.
  */
 export function isProofEnabled(): boolean {
-  return process.env.UNBROWSE_ZK_PROOF === "1" || process.env.UNBROWSE_ZK_PROOF === "true";
+  const v = process.env.UNBROWSE_ZK_PROOF?.trim().toLowerCase();
+  return v !== "0" && v !== "false";
 }
 
 /**
