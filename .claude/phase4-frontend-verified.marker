@@ -1,0 +1,15 @@
+Phase 4 — frontend wallet-render surface: DEPLOYED + VISUALLY VERIFIED (2026-06-21)
+
+URL:    https://unbrowse-aiko-preview.lewis-6d8.workers.dev/reveal  (throwaway preview worker, NOT prod)
+Route:  frontend/src/app/reveal/page.tsx + frontend/src/components/reveal-demo.tsx
+Crypto: frontend/src/lib/wallet-seal-reveal.ts (byte-compatible with backend seal; witness wallet-seal-reveal.test.ts 2/2)
+
+Verification (post-deploy, per the substrate deploy rule):
+  - curl /reveal → HTTP 200, 43580 bytes, all content markers SSR-present
+  - headless Chrome (Playwright) screenshot, read in-thread:
+      * SEALED state: the opaque envelope (senderPub/iv/ciphertext) the server holds and cannot read
+      * REVEALED state: bound wallet authenticates → contract value rendered client-side (green box)
+      * DENIED state: a different wallet → "Access denied", value never renders (AES-GCM auth-tag fails)
+
+This is crypto-was-all-you-needed's central claim as an operable surface: render-without-seeing,
+the wallet (not a server check) is the gate. Prod promotion goes via the gated staging→main path.
