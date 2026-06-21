@@ -10,7 +10,7 @@
 
 import { execSync, execFileSync } from "node:child_process";
 import { createDecipheriv, pbkdf2Sync } from "node:crypto";
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir, platform } from "node:os";
 import { join } from "node:path";
 import { log } from "../logger.js";
