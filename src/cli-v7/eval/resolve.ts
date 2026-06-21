@@ -39,6 +39,7 @@ import { lookupKindMap } from "../kind-map.js";
 import { releaseAttestationHeaders } from "../_shared/cli-runtime.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
+import { resolutionContractVerdict } from "../../values/resolution-contract.js";
 import { safeZero } from "../../values/memzero.js";
 import { escalationDirective } from "../../capture/escalate-on-miss.js";
 import {
@@ -314,6 +315,16 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       errorHint: post.errorHint,
     };
 
+    // /contract-native: render this routing decision as the substrate's OWN three-shape
+    // (interpret → verify → adjudicate) and attach the verdict to the resolve envelope — a
+    // populated shortlist is an adjudicated winner; an empty/escalating one names its frontier.
+    // Pure + fail-open (evidence, never a blocker), the same discipline as the IQ on-chain mirror.
+    const contractVerdict = await resolutionContractVerdict({
+      intent,
+      skill: { skill_id: (shortlist[0] as Record<string, unknown> | undefined)?.skill_id as string | undefined, endpoints: shortlist },
+      url: urlFlag ?? undefined,
+    });
+
     emit(
       {
         ok,
@@ -332,6 +343,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         audit_emit: auditEmit,
         count: shortlist.length,
         shortlist,
+        _contract: contractVerdict,
         // Layer 3 — auto-descend signal: on a real MISS (ok but empty shortlist)
         // with a URL to descend into, emit a live directive so the agent opens
         // the browser, captures down to the packet layer, and the captured route
