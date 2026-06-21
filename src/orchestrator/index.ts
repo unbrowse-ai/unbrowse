@@ -115,7 +115,6 @@ import {
 import { runResolveRace } from "./resolve-race.js";
 import { buildBloombergDirectDocumentResult, fetchDirectDocument } from "./direct-document.js";
 import { captureSession } from "../capture/index.js";
-import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
