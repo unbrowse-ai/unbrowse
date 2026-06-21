@@ -243,8 +243,13 @@ export interface RunResolveRaceArgs {
   clientScope?: string;
   cookies?: Array<{ name: string; value: string }>;
   authHeaders?: Record<string, string>;
-  /** Override marketplace lookup (defaults to getSkillCached). Test seam. */
+  /** Override marketplace lookup BY SKILL_ID (defaults to getSkillCached). Test seam. */
   marketplaceLookup?: (skillId: string, scope?: string) => Promise<SkillManifest | null>;
+  /** Resolve a published marketplace skill BY HOST/domain (cold-domain case). Distinct from
+   *  marketplaceLookup, which only knows skill_id — passing a hostname to it always misses
+   *  (issue #454). When absent, the by-host racer is SKIPPED rather than firing a doomed
+   *  skill_id lookup with a hostname. Wired in the orchestrator to the backend domain search. */
+  marketplaceByHost?: (host: string, intent: string, scope?: string) => Promise<SkillManifest | null>;
   /** Override probe (defaults to probeUrl). Test seam. */
   probeOverride?: (url: string) => Promise<{ status: number; content_type?: string; byte_length?: number; method_used?: "HEAD" | "GET-1byte" }>;
 }
@@ -343,13 +348,16 @@ export async function runResolveRace(args: RunResolveRaceArgs): Promise<RunResol
       return null;
     }
   })();
-  if (marketplaceHost && marketplaceHost !== args.knownSkillId) {
+  if (marketplaceHost && marketplaceHost !== args.knownSkillId && args.marketplaceByHost) {
     racers.push({
       name: "marketplace",
       start: async () => {
         const t = Date.now();
-        const lookup = args.marketplaceLookup ?? getSkillCached;
-        const skill = await lookup(marketplaceHost, args.clientScope);
+        // BY HOST, not by skill_id (issue #454): the prior code passed the hostname to a
+        // skill_id lookup, which never matched → the racer always "lost" and cold-domain
+        // resolves fell through to no_match. Resolve the host to a published skill via the
+        // host-aware path (backend domain search → top skill_id → manifest).
+        const skill = await args.marketplaceByHost!(marketplaceHost, args.intent, args.clientScope);
         if (!skill) throw new Error("not_found");
         return { kind: "marketplace" as const, skill, ms: Date.now() - t };
       },
