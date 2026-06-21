@@ -560,6 +560,13 @@ economics is the remaining step.
 \item Bonding, challenge, and slashing: the collateralised-accountability
 layer in which a maintainer's stake is forfeit on a proof that fails to reproduce,
 with conservative stake arithmetic (\texttt{reference/network/bonding.py}).
+\item Native mechanism-design witness: the proof-of-indexing economy now also
+ships as a TypeScript runtime model
+(\texttt{src/values/proof-indexing-economy.ts}) with deterministic tests
+(\texttt{tests/proof-indexing-economy.test.ts}) proving honest dominance,
+Sybil split-invariance, slashable stale proofs, costly false challenges, and
+conservative balances. The JESPA ledger records it as a reproduced mechanism win
+(\texttt{bench/jespa/proof-indexing-economy-gate.sh}).
 \item Merkle-root checkpoints of the ledger, batching many signed entries
 into a single transparency-style root~\cite{rfc6962} with per-entry inclusion proofs
 (\texttt{reference/ledger/checkpoint.py}); publishing the root on-chain is the
