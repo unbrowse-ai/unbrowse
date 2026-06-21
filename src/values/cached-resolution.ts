@@ -19,6 +19,8 @@ import {
   intentPointer, putBlob, resolvePointer, fsBlobStore, fsLedger,
 } from "./resolution-ledger.js";
 import { principalScope } from "../runtime/principal-scope.js";
+import { resolutionLedgerFromEnv } from "./iq-ledger.js";
+import type { AsyncResolutionLedger } from "./async-resolution.js";
 
 export function defaultResolutionCacheDir(): string {
   return join(homedir(), ".unbrowse", "resolution-cache");
@@ -98,6 +100,10 @@ export async function cachedResolution<T>(opts: {
     if (opts.cacheable(value)) {
       pointer = putBlob(JSON.stringify(value), store);
       ledger.append(ptrKey, pointer, now);
+      // Same on-chain write-through as storeResolution — the orchestrator + client
+      // resolve through cachedResolution, so this is where most resolutions persist
+      // to the IQ signed ledger when configured. Fire-and-forget + fail-open.
+      void mirrorResolutionToChain(keyWithDeps(opts.key, opts.dependsOn), pointer, { principal: opts.principal });
     }
   } catch {
     /* cache write best-effort — the value is still returned */
@@ -136,7 +142,49 @@ export function storeResolution<T>(key: string, value: T, ttlMs: number, dir?: s
     const ledger = fsLedger(join(root, "resolutions.jsonl"));
     const ptr = putBlob(JSON.stringify(value), store);
     ledger.append(intentPointer(scopeResolutionKey(key, principal)), ptr, now ?? Date.now());
+    // On-chain write-through: when the IQ wallet+RPC+table env is configured, also
+    // persist this resolution to the IQLabs signed, append-only on-chain ledger
+    // (crypto-was-all-you-needed) — the local store is a fast mirror of the on-chain
+    // truth. Fire-and-forget + fail-open: it never blocks or breaks the local write,
+    // and it is a cheap no-op when IQ is not configured (no SDK import, see chainLedger).
+    void mirrorResolutionToChain(key, ptr, { principal });
   } catch {
     /* best-effort */
+  }
+}
+
+// The IQ on-chain ledger is built at most once per process (null + cheap when the
+// IQ env is absent — iqClientFromEnv short-circuits before importing the SDK).
+let chainLedgerPromise: Promise<AsyncResolutionLedger | null> | undefined;
+function chainLedger(): Promise<AsyncResolutionLedger | null> {
+  if (chainLedgerPromise === undefined) chainLedgerPromise = resolutionLedgerFromEnv().catch(() => null);
+  return chainLedgerPromise;
+}
+
+/**
+ * Mirror one resolution (intent → content pointer) to the IQ on-chain signed ledger.
+ * Returns `{mirrored:false}` when IQ is not configured or on any error — fail-open,
+ * never throws. `opts.ledger` overrides the env-built ledger (for deterministic tests
+ * without a chain). Append carries the SAME (scoped intent, content pointer) the local
+ * store uses, so on-chain history mirrors local history.
+ */
+export async function mirrorResolutionToChain(
+  key: string,
+  resultPointer: string,
+  opts?: { principal?: string; ledger?: AsyncResolutionLedger | null },
+): Promise<{ mirrored: boolean }> {
+  let ledger: AsyncResolutionLedger | null;
+  try {
+    ledger = opts && "ledger" in opts ? (opts.ledger ?? null) : await chainLedger();
+  } catch {
+    return { mirrored: false };
+  }
+  if (!ledger) return { mirrored: false };
+  try {
+    await ledger.append(intentPointer(scopeResolutionKey(key, opts?.principal)), resultPointer);
+    return { mirrored: true };
+  } catch (e) {
+    process.stderr.write(`iq-mirror: on-chain append deferred — ${(e as Error)?.message ?? String(e)}\n`);
+    return { mirrored: false };
   }
 }

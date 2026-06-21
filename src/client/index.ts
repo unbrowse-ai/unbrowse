@@ -1060,6 +1060,40 @@ export function firstMintDecision(s: { headless: boolean; hasUsableKey: boolean;
 }
 
 /**
+ * Whether the agent already has an established identity worth auto-provisioning
+ * a key for. Wallet-first (identity model PR #849): a present local self-custody
+ * wallet IS an identity — `~/.unbrowse/wallet.json` is minted on first use, so it
+ * only exists on a machine unbrowse has already provisioned, never a pristine
+ * human's first run. So a wallet-holding agent auto-registers (mint + wallet-bind)
+ * instead of being told to run `build register`; agent_id / agent_name remain
+ * identities too. Pure (no I/O) so it is deterministically unit-witnessed.
+ */
+export function hasEstablishedIdentity(s: { agentId?: string | null; agentName?: string | null; walletAddress?: string | null }): boolean {
+  return !!(s.agentId || s.agentName || s.walletAddress);
+}
+
+/**
+ * Pure decision for the auto-backfill of an existing keyed install whose wallet
+ * was never bound (registered before wallet-binding existed, or before this
+ * version). The mint path already binds when there's NO key; this covers the
+ * "has key + has wallet + wallet not bound" gap so updating auto-backfills.
+ *
+ *  - no local wallet            → nothing to bind.
+ *  - no usable key              → the mint path (ensureUsableKey) binds; skip here.
+ *  - config already records THIS wallet → idempotent, instant skip (no network).
+ *  - else                       → check the server profile and bind if unbound.
+ *
+ * Pure (no I/O) so the branch logic is deterministically unit-witnessed.
+ */
+export type WalletBackfillAction = "skip-no-wallet" | "skip-no-key" | "skip-already-bound" | "check-and-bind";
+export function walletBackfillDecision(s: { localWallet?: string | null; hasKey: boolean; boundWallet?: string | null }): WalletBackfillAction {
+  if (!s.localWallet) return "skip-no-wallet";
+  if (!s.hasKey) return "skip-no-key";
+  if (s.boundWallet && s.boundWallet === s.localWallet) return "skip-already-bound";
+  return "check-and-bind";
+}
+
+/**
  * Self-healing key acquisition for the hot read/execute path (the Claude Code
  * auth state machine: validate → on-invalid refresh-once → on-persistent-
  * failure clear + onboard). Unlike ensureRegistered(), this NEVER prompts and
@@ -1083,7 +1117,13 @@ export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key
 
   if (!opts?.force) {
     const usable = await findUsableApiKey();
-    if (usable) return { key: usable.key, refreshed: false };
+    if (usable) {
+      // Auto-backfill: an install that already has a usable key but whose local
+      // wallet was never bound (registered before wallet-binding existed) gets
+      // the wallet attached once here — so updating is enough, no manual step.
+      await backfillWalletBinding();
+      return { key: usable.key, refreshed: false };
+    }
   } else {
     // Force retry (after a backend 401/403): re-validate BEFORE wiping. A
     // transient 401/403 (server blip) must never clobber a still-valid key.
@@ -1097,7 +1137,16 @@ export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key
   }
 
   const cfg = loadConfig();
-  const hadIdentity = !!(cfg?.agent_id || cfg?.agent_name);
+  const wallet = getLocalWalletContext();
+  const hadConfigIdentity = !!(cfg?.agent_id || cfg?.agent_name);
+  // Wallet-first: a present self-custody wallet is an established identity, so a
+  // wallet-holding agent auto-provisions here instead of dead-ending on the
+  // manual `build register` onboarding hint.
+  const hadIdentity = hasEstablishedIdentity({
+    agentId: cfg?.agent_id,
+    agentName: cfg?.agent_name,
+    walletAddress: wallet.wallet_address,
+  });
 
   // Drop the dead bearer so we never resend it ("logout").
   if (cfg?.api_key || process.env.UNBROWSE_API_KEY) {
@@ -1132,10 +1181,19 @@ export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key
         tos_accepted_version: tosVersion,
         tos_accepted_at: new Date().toISOString(),
       });
-      console.warn(hadIdentity
-        ? "[unbrowse] registration was invalid; refreshed it automatically."
+      // Wallet-first: bind the local self-custody wallet to the freshly minted
+      // key (L2 wrap, POST /v1/agents/wallet) so the api_key carries the agent's
+      // wallet identity and earnings/dashboard resolve to it. Best-effort —
+      // surfaces on failure, never throws (wallet may already be claimed, etc).
+      if (wallet.wallet_address) {
+        try { await syncAgentWallet(wallet); }
+        catch (e) { console.warn(`[unbrowse] wallet auto-bind deferred: ${(e as Error)?.message ?? e}`); }
+      }
+      console.warn(
+        hadConfigIdentity ? "[unbrowse] registration was invalid; refreshed it automatically."
+        : wallet.wallet_address ? "[unbrowse] auto-registered this wallet and provisioned its key."
         : "[unbrowse] provisioned a free anonymous key (run `unbrowse build setup` to add a wallet).");
-      return { key: reg.api_key, refreshed: hadIdentity, minted: !hadIdentity };
+      return { key: reg.api_key, refreshed: hadConfigIdentity, minted: !hadConfigIdentity };
     } catch { /* fall through to the onboarding hint */ }
   }
 
@@ -1144,6 +1202,49 @@ export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key
     refreshed: false,
     onboarding: "unbrowse build register --email you@example.com  (or set UNBROWSE_API_KEY), then re-run",
   };
+}
+
+let walletBackfillAttempted = false;
+/**
+ * Auto-backfill the wallet binding for an existing keyed install whose wallet
+ * was never attached (registered before wallet-binding shipped). Idempotent and
+ * once-per-process: after the first successful bind, config records the wallet
+ * and the decision short-circuits with no network. Best-effort — never throws.
+ *
+ * No-clobber: mirrors ensureRegistered's safe rule — only binds when the server
+ * profile has NO wallet; on a server/local mismatch it warns and records the
+ * server wallet locally so it stops re-checking (the operator resolves via
+ * `unbrowse wallet`). The substrate never silently overwrites a server wallet.
+ */
+export async function backfillWalletBinding(): Promise<{ bound: boolean; reason?: string }> {
+  if (walletBackfillAttempted) return { bound: false, reason: "already-attempted-this-process" };
+  if (isLocalOnly()) return { bound: false, reason: "local-only" };
+  const cfg = loadConfig();
+  const wallet = getLocalWalletContext();
+  const hasKey = !!(cfg?.api_key || process.env.UNBROWSE_API_KEY);
+  const action = walletBackfillDecision({ localWallet: wallet.wallet_address, hasKey, boundWallet: cfg?.wallet_address });
+  if (action !== "check-and-bind") return { bound: false, reason: action };
+  walletBackfillAttempted = true;
+  try {
+    const profile = await getMyProfile();
+    if (!profile.wallet_address) {
+      await syncAgentWallet(wallet);
+      console.warn(`[unbrowse] auto-bound wallet ${wallet.wallet_address!.slice(0, 8)}… to your registration.`);
+      return { bound: true };
+    }
+    if (profile.wallet_address !== wallet.wallet_address) {
+      // Record the server wallet locally so we stop re-checking; do NOT clobber.
+      if (cfg) saveConfig({ ...cfg, wallet_address: profile.wallet_address });
+      console.warn(`[unbrowse] local wallet ${wallet.wallet_address!.slice(0, 8)}… differs from server-side ${profile.wallet_address.slice(0, 8)}…; run \`unbrowse wallet\` to inspect.`);
+      return { bound: false, reason: "server-wallet-mismatch" };
+    }
+    // Already bound server-side — record locally so the fast path skips next time.
+    if (cfg) saveConfig({ ...cfg, wallet_address: profile.wallet_address });
+    return { bound: false, reason: "already-bound-server-side" };
+  } catch (e) {
+    console.warn(`[unbrowse] wallet auto-bind deferred: ${(e as Error)?.message ?? e}`);
+    return { bound: false, reason: (e as Error)?.message };
+  }
 }
 
 export interface MagicRegisterResult {

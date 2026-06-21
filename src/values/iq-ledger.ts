@@ -13,6 +13,9 @@
 import type { Pointer, ResolutionRecord } from "./resolution-ledger.js";
 import { type AsyncResolutionLedger, GENESIS, recordHash } from "./async-resolution.js";
 
+// (resolutionLedgerFromEnv — the backend selector — is defined at the bottom,
+//  after iqLedger + iqClientFromEnv it composes.)
+
 /** The minimal on-chain table surface the ledger needs. `writeRow` returns the Solana
  *  transaction signature (the wallet's signature over the row — the "signed" in signed
  *  history). `readRows` returns every row, oldest→newest. */
@@ -90,7 +93,7 @@ export async function iqClientFromEnv(
     const iqlabs = (await import("@iqlabs-official/solana-sdk")).default as {
       writer: { writeRow: (...a: unknown[]) => Promise<string> };
       reader: { readTableRows: (...a: unknown[]) => Promise<Array<Record<string, unknown>>> };
-      contract: { getTablePda: (...a: unknown[]) => unknown };
+      contract: { getDbRootPda: (...a: unknown[]) => { toBuffer(): Buffer }; getTablePda: (...a: unknown[]) => unknown };
       utils: { toSeedBytes: (s: string) => Uint8Array };
     };
     const { Connection, Keypair } = await import("@solana/web3.js");
@@ -101,11 +104,32 @@ export async function iqClientFromEnv(
     return {
       writeRow: (rowJson) => iqlabs.writer.writeRow(connection, signer, dbRootId, tableSeed, rowJson) as Promise<string>,
       readRows: () => {
-        const pda = iqlabs.contract.getTablePda(dbRootId, iqlabs.utils.toSeedBytes(tableSeed), undefined);
+        // Derive the table PDA exactly as the writer does: the DbRoot PDA is
+        // keyed on toSeedBytes(dbRootId) (keccak256, NOT the raw utf8 string),
+        // and getTablePda takes that DbRoot PDA (not the id) + toSeedBytes(tableSeed).
+        // The previous `getTablePda(dbRootId, …, undefined)` derived a phantom PDA
+        // that never matched the written rows — reads always came back empty.
+        const dbRoot = iqlabs.contract.getDbRootPda(iqlabs.utils.toSeedBytes(dbRootId));
+        const pda = iqlabs.contract.getTablePda(dbRoot, iqlabs.utils.toSeedBytes(tableSeed));
         return iqlabs.reader.readTableRows(pda, { speed: "light" });
       },
     };
   } catch {
     return null; // SDK not installed / env incomplete — local fs ledger remains the path
   }
+}
+
+/**
+ * Resolution-ledger backend selector. Prefers the IQ on-chain signed ledger when
+ * the wallet + RPC + table env is configured (so every resolution persists on
+ * Solana, wallet-signed, with append-only history — crypto-was-all-you-needed),
+ * else returns null so the caller keeps its existing local path. This is the same
+ * "strongest configured tier, fail-closed to local" rule the egress-chain uses:
+ * presence of the backend's config — not a mode flag — selects it.
+ */
+export async function resolutionLedgerFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): Promise<AsyncResolutionLedger | null> {
+  const client = await iqClientFromEnv(env);
+  return client ? iqLedger(client) : null;
 }
