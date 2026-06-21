@@ -20,6 +20,7 @@ import {
 } from "./resolution-ledger.js";
 import { principalScope } from "../runtime/principal-scope.js";
 import { resolutionLedgerFromEnv } from "./iq-ledger.js";
+import { mirrorToEmergent } from "./contract-everything.js";
 import { snapshotDrifted, invalidationPointer } from "./route-snapshot.js";
 import type { AsyncResolutionLedger } from "./async-resolution.js";
 
@@ -105,6 +106,10 @@ export async function cachedResolution<T>(opts: {
       // resolve through cachedResolution, so this is where most resolutions persist
       // to the IQ signed ledger when configured. Fire-and-forget + fail-open.
       void mirrorResolutionToChain(keyWithDeps(opts.key, opts.dependsOn), pointer, { principal: opts.principal });
+      // Emergent tier (cached by emergent + searchable by emergent RAG) — sibling of the
+      // IQ mirror. Fire-and-forget + fail-open: a no-op when EMERGENTDB_API_KEY/embedder
+      // are absent (normal CLI), active only where the contract-stack env is configured.
+      void mirrorToEmergent(keyWithDeps(opts.key, opts.dependsOn), opts.key, value);
     }
   } catch {
     /* cache write best-effort — the value is still returned */
@@ -149,6 +154,8 @@ export function storeResolution<T>(key: string, value: T, ttlMs: number, dir?: s
     // truth. Fire-and-forget + fail-open: it never blocks or breaks the local write,
     // and it is a cheap no-op when IQ is not configured (no SDK import, see chainLedger).
     void mirrorResolutionToChain(key, ptr, { principal });
+    // Emergent tier sibling (cache + RAG) — fail-open no-op when unconfigured.
+    void mirrorToEmergent(key, key, value);
   } catch {
     /* best-effort */
   }
