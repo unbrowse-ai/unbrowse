@@ -12,8 +12,9 @@
  */
 import { execSync } from "node:child_process";
 import { join } from "node:path";
-import { bindChain, recordChain, chainLinkSpecs, type ChainLink } from "../src/values/contract-chain.js";
+import { bindChain, recordChain, chainText, chainLinkSpecs, type ChainLink } from "../src/values/contract-chain.js";
 import { recordDeploy, type DeployManifest } from "../src/values/contract-deploy.js";
+import { broadcastContract, broadcastNotes } from "../src/values/contract-broadcast.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -47,6 +48,14 @@ const deploy: DeployManifest = {
 };
 const dep = await recordDeploy(deploy);
 
+// Human-surface reflection tiers (Notion + Outline) — fail-open exactly like the stack tiers.
+const bc = await broadcastContract({
+  id: chain.id,
+  title: `source-of-truth chain — ${binding.bound ? "BOUND" : "unbound"}`,
+  body: `# ${chain.id}\n\n${chainText(binding)}\n\nlinks: ${links.map((l) => `${l.from}${l.reflects ? "→" : "⊘"}${l.to}`).join(", ")}`,
+});
+const human = ["notion", "outline"].filter((s) => (bc as Record<string, { ok: boolean }>)[s].ok).join("+") || "none";
+
 const tiers = (p: { iq: boolean; kv: boolean; rag: boolean }) =>
   ["iq", "kv", "rag"].filter((t) => (p as Record<string, unknown>)[t]).join("+") || "none";
 
@@ -60,7 +69,8 @@ process.stdout.write(
       chain_tiers: tiers(chain.persisted),
       deploy_id: dep.id,
       deploy_tiers: tiers(dep.persisted),
-      notes: [...chain.persisted.notes, ...dep.persisted.notes],
+      human_tiers: human,
+      notes: [...chain.persisted.notes, ...dep.persisted.notes, ...broadcastNotes(bc)],
     },
     null,
     2,
