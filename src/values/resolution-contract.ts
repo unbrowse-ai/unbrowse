@@ -12,6 +12,7 @@
  * named next lever.
  */
 import { drillPlan, type DrillResult } from "./plan-drill.js";
+import { bibleAnchorNative, nativeAvailable } from "./contract-native.js";
 
 export interface ResolutionShape {
   /** the user intent that was interpreted */
@@ -52,6 +53,19 @@ export interface ResolutionContractVerdict {
   settled: string[];
   /** the first shape that did NOT settle (the next thing to fix), or null when terminal */
   frontier: string | null;
+  /**
+   * Which engine produced the evidence, surfaced never-silent (fallbacks-visible): "native" when
+   * the embedded in-process substrate (libcontract) was reachable and enriched the verdict,
+   * "fallback" when it was not (the verdict is the same pure-TS three-shape drill either way).
+   */
+  engine: "native" | "fallback";
+  /**
+   * Inherently-local, deterministic Bible-anchor verse index for the interpreted intent, computed
+   * in-process by the embedded substrate (contract_bible_anchor — pure, no ledger write, no network).
+   * Purely ADDITIVE evidence: present only on the native path; omitted on fallback (today's exact
+   * shape). Same intent → same index; never affects terminal/settled/frontier.
+   */
+  anchor?: number;
 }
 
 /**
@@ -73,8 +87,32 @@ export async function resolutionContractVerdict(inp: {
     const winner =
       Array.isArray(skill?.endpoints) && skill.endpoints.length > 0 ? { endpoints: skill.endpoints } : null;
     const d = await resolutionAsContractDrill({ intent: inp.intent, route, winner });
-    return { terminal: d.terminal, settled: d.settled, frontier: d.frontier };
+
+    // Embedded-first → fallback: enrich the verdict with the in-process substrate ONLY where it is
+    // inherently-local + deterministic (the pure contract_bible_anchor). The native call CANNOT
+    // change the three-shape drill above; it only ATTACHES an `anchor`. When the embedded lib is
+    // unavailable (nativeAvailable()===false) we fall back to today's exact shape (no anchor) and
+    // say so via `engine` — fallbacks-visible-never-silent. Fail-open: any native error → fallback.
+    let engine: "native" | "fallback" = "fallback";
+    let anchor: number | undefined;
+    if (nativeAvailable() && typeof inp.intent === "string" && inp.intent.trim().length > 0) {
+      try {
+        const a = bibleAnchorNative(inp.intent);
+        engine = "native";
+        if (a != null) anchor = a;
+      } catch {
+        engine = "fallback";
+      }
+    }
+
+    return {
+      terminal: d.terminal,
+      settled: d.settled,
+      frontier: d.frontier,
+      engine,
+      ...(anchor != null ? { anchor } : {}),
+    };
   } catch {
-    return { terminal: false, settled: [], frontier: "interpret" };
+    return { terminal: false, settled: [], frontier: "interpret", engine: "fallback" };
   }
 }
