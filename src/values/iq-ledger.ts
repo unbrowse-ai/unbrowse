@@ -76,6 +76,40 @@ export function iqLedger(client: IqClient): AsyncResolutionLedger {
 }
 
 /**
+ * Cold-hydrate (crypto-was-all-you-needed Phase 2): the symmetric READ half of the
+ * write-through. A fresh machine with IQ configured but an empty local ledger clones the
+ * on-chain signed history (the "git clone" of the ledger) into its local fast tier, so
+ * `find`/`history` answer locally without per-read network. Reads are free (no SOL).
+ *
+ * Idempotent: it appends only the per-intent rows the local ledger is MISSING (by position
+ * in each intent's chain), so re-running hydrates 0. The local re-`append` re-signs under
+ * the local signer and recomputes the hash-chain — the on-chain rows stay the durable
+ * witness; local is the re-derived fast mirror of the same (intent → past values) facts.
+ */
+export async function hydrateLocalLedgerFromChain(
+  chain: Pick<IqClient, "readRows">,
+  local: AsyncResolutionLedger,
+): Promise<{ scanned: number; hydrated: number }> {
+  const rows = (await chain.readRows()).map(parseRow).filter((r): r is SignedResolutionRow => r !== null);
+  // Group by intent, preserving on-chain order (oldest→newest) within each intent.
+  const byIntent = new Map<string, SignedResolutionRow[]>();
+  for (const r of rows) {
+    const list = byIntent.get(r.intent) ?? [];
+    list.push(r);
+    byIntent.set(r.intent, list);
+  }
+  let hydrated = 0;
+  for (const [intent, chainRows] of byIntent) {
+    const localRows = await local.history(intent);
+    for (let i = localRows.length; i < chainRows.length; i++) {
+      await local.append(intent, chainRows[i].result, chainRows[i].ts);
+      hydrated++;
+    }
+  }
+  return { scanned: rows.length, hydrated };
+}
+
+/**
  * Build an IqClient from the real @iqlabs-official/solana-sdk. Returns null when the
  * required env (RPC + signer + db/table ids) is absent, so callers fall back to the
  * local fs ledger. The dynamic import keeps the heavy Solana dependency off the hot
