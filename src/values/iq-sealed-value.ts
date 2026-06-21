@@ -46,6 +46,54 @@ export async function revealForWallet(crypto: IqCrypto, signMessage: SignMessage
   return new TextDecoder().decode(plain);
 }
 
+/** The on-chain persistence slice — `codeIn` writes a wallet-signed inscription and
+ *  returns its tx signature; `readCodeIn` reads it back. Injected so the wrappers are
+ *  deterministically testable with an in-memory stand-in (no chain, no SOL). */
+export interface OnChainIO {
+  codeIn(data: string): Promise<string>;
+  readCodeIn(txSig: string): Promise<{ data: string | null }>;
+}
+
+/** Seal `value` to the wallet AND persist the sealed envelope on-chain (wallet-signed).
+ *  Returns the tx signature — the on-chain pointer to a value only the wallet can render. */
+export async function sealValueOnChain(crypto: IqCrypto, signMessage: SignMessage, io: OnChainIO, value: string): Promise<string> {
+  const env = await sealForWallet(crypto, signMessage, value);
+  return io.codeIn(JSON.stringify(env));
+}
+
+/** Read a sealed value back from its on-chain tx signature and render it — succeeds ONLY
+ *  for the wallet it was sealed to. Throws (never silently empties) when the blob is missing. */
+export async function revealValueOnChain(crypto: IqCrypto, signMessage: SignMessage, io: OnChainIO, txSig: string): Promise<string> {
+  const { data } = await io.readCodeIn(txSig);
+  if (data == null) throw new Error(`sealed value not found on-chain for tx ${txSig}`);
+  return revealForWallet(crypto, signMessage, JSON.parse(data) as SealedEnvelope);
+}
+
+/** Build a real OnChainIO over the IQ SDK + a connection from the IQ env, or null when
+ *  not configured (RPC + signer required). The dynamic import keeps the SDK off the cold path. */
+export async function onChainIoFromEnv(env: Record<string, string | undefined> = process.env): Promise<OnChainIO | null> {
+  const rpc = env.SOLANA_RPC_URL || env.SOLANA_RPC_ENDPOINT;
+  const secret = env.IQ_SIGNER_SECRET_KEY;
+  if (!rpc || !secret) return null;
+  try {
+    const sdk = (await import("@iqlabs-official/solana-sdk")).default as {
+      writer: { codeIn: (input: { connection: unknown; signer: unknown }, data: string, filename?: string) => Promise<string> };
+      reader: { readCodeIn: (txSig: string) => Promise<{ data: string | null }> };
+    };
+    const { Connection, Keypair } = await import("@solana/web3.js");
+    const connection = new Connection(rpc);
+    const signer = Keypair.fromSecretKey(
+      secret.trim().startsWith("[") ? Uint8Array.from(JSON.parse(secret)) : (await import("bs58")).default.decode(secret),
+    );
+    return {
+      codeIn: (data) => sdk.writer.codeIn({ connection, signer }, data, "sealed-contract-value.json"),
+      readCodeIn: (txSig) => sdk.reader.readCodeIn(txSig),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Build the IQ crypto slice + a wallet signMessage from the IQ env (RPC + signer secret),
  * or null when not configured — same presence-gated, fail-closed-to-local rule as
