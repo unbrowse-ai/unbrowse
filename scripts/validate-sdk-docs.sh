@@ -98,7 +98,7 @@ else
     while IFS= read -r sub; do
       [ -z "$sub" ] && continue
       case "$sub" in --*|setup|help) continue ;; esac
-      if ! grep -qE "(command === \"$sub\"|case \"$sub\")" "$CLI"; then
+      if ! grep -qE "(command === \"$sub\"|case \"$sub\")" "$CLI" && ! grep -qE "subcommand: \"[a-z]+ $sub\"" src/cli-v7/kind-map.ts; then
         # account for deprecated aliases that still work
         if grep -qE "\"$sub\".*deprecated|deprecated.*\"$sub\"" "$CLI" 2>/dev/null; then continue; fi
         echo "${RED}MISSING CLI${RESET} unbrowse $sub  (mentioned in $f)"

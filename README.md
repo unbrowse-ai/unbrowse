@@ -218,7 +218,7 @@ locally and posts only the route's structural shape — never captured traffic; 
 server verifies the proof + origin attestation before admitting it):
 
 ```bash
-unbrowse build contribute --endpoint "GET api.example.com/v1/items" --origin "https://api.example.com" --params "page,limit"
+unbrowse build contribute --endpoint "GET api.example.com/products" --origin "https://api.example.com" --params "page,limit"
 unbrowse build contribute root   # the shared-graph commitment + endpoint count
 ```
 
