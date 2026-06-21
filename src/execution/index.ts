@@ -2756,6 +2756,43 @@ async function escalateSsrViaEgress(
   return null;
 }
 
+/** A blocked status worth re-trying through a different egress tier (mirrors egressChain.isBlock). */
+function isBlockedReplayStatus(status: number): boolean {
+  return status === 0 || status === 401 || status === 403 || status === 429 || status >= 500;
+}
+
+/** Idempotency firmament: only a READ may be re-issued through the egress ladder. Re-firing a
+ *  blocked-looking WRITE (POST/PUT/PATCH/DELETE) could double-apply a mutation the first call
+ *  already committed server-side — so writes NEVER escalate; they surface the block honestly. */
+export function shouldEscalateBlockedReplay(method: string, status: number): boolean {
+  const m = (method || "GET").toUpperCase();
+  const idempotent = m === "GET" || m === "HEAD";
+  return idempotent && isBlockedReplayStatus(status);
+}
+
+/** Internal-API replay egress escalation — a blocked READ climbs the egress ladder (clean server
+ *  IP → iProyal residential) and is handed back as a synthesized Response so the caller's existing
+ *  parse path is untouched. Returns null on miss (→ the normal block handling runs). Never throws.
+ *  egressChain's B1 firmament keeps auth-bearing requests off the TLS-terminating server tier. */
+async function escalateReplayViaEgress(
+  url: string,
+  headers: Record<string, string>,
+): Promise<Response | null> {
+  try {
+    const { egressChain } = await import("./egress-chain.js");
+    const out = await egressChain({ url, method: "GET", headers, timeoutMs: 12_000 }, { skipLocal: true });
+    if (out && !out.blocked && out.status >= 200 && out.status < 300 && out.body && out.body.length > 0) {
+      let ct = "text/plain";
+      try { JSON.parse(out.body); ct = "application/json"; } catch { /* not JSON — keep text/plain */ }
+      console.log(`[replay] egress ladder served via ${out.tier} tier (local fetch was blocked)`);
+      return new Response(out.body, { status: out.status, headers: { "content-type": ct } });
+    }
+  } catch {
+    /* egress ladder unavailable — fall through to normal block handling */
+  }
+  return null;
+}
+
 /** When extraction returns "multiple" candidates, pick the best one's data to avoid duplicates */
 function flattenExtracted(data: unknown): unknown {
   if (!Array.isArray(data)) return data;
@@ -3635,12 +3672,21 @@ export async function executeEndpoint(
         replayHeaders["content-type"] = "application/json";
       }
       log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 200)} csrf-token=${(replayHeaders["csrf-token"] || "none").substring(0, 20)}... hdrs=${Object.keys(replayHeaders).length} cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
-      const res = await fetch(replayUrl, {
+      let res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
         body: serializeReplayBody(bodyOverride, replayHeaders),
         redirect: "follow",
       });
+      // /lewis-strategy: a blocked READ (CF 403/429/IP-wall) climbs the egress ladder — clean
+      // server IP → iProyal residential — before we accept the block, the same escalation the SSR
+      // fetch got, now at the internal-API execution primitive. WRITES never escalate (idempotency:
+      // re-firing a blocked-looking mutation could double-apply it). Fail-open: a miss leaves `res`
+      // as the original block and the normal handling below runs — never worse than today.
+      if (shouldEscalateBlockedReplay(endpoint.method, res.status)) {
+        const served = await escalateReplayViaEgress(replayUrl, replayHeaders);
+        if (served) res = served;
+      }
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
       const isProtobuf = isProtobufContentType(contentType) || isProtobufLikeEndpoint(replayUrl, contentType);
       let data: unknown;
