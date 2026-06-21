@@ -69,6 +69,34 @@ export async function revealValueOnChain(crypto: IqCrypto, signMessage: SignMess
   return revealForWallet(crypto, signMessage, JSON.parse(data) as SealedEnvelope);
 }
 
+/**
+ * The hole → pointer → pointer → value chain, terminating on-chain. A resolution/hole whose
+ * terminal value is sealed on-chain carries the pointer `iqseal:<txSig>` — recognized by its
+ * SHAPE (the prefix), not an allowlist, so any reveal caller dispatches on-chain holes for free
+ * (generalize-never-hard-filter). This is the production reveal path the orchestrator routes a
+ * hole through: resolve → terminal pointer `iqseal:…` → revealValueOnChain (wallet-gated).
+ */
+export const ONCHAIN_HOLE_PREFIX = "iqseal:";
+
+/** True if a resolution pointer terminates in an on-chain sealed value (by shape). */
+export function isOnChainSealedHole(pointer: string): boolean {
+  return typeof pointer === "string" && pointer.startsWith(ONCHAIN_HOLE_PREFIX);
+}
+
+/** Persist `value` sealed-to-wallet on-chain and return the hole pointer `iqseal:<txSig>`
+ *  — the terminal pointer a resolution/hole stores in place of the raw value. */
+export async function sealHoleValueOnChain(crypto: IqCrypto, signMessage: SignMessage, io: OnChainIO, value: string): Promise<string> {
+  const txSig = await sealValueOnChain(crypto, signMessage, io, value);
+  return ONCHAIN_HOLE_PREFIX + txSig;
+}
+
+/** Render a hole pointer `iqseal:<txSig>` to its value — succeeds ONLY for the bound wallet.
+ *  Throws if the pointer is not an on-chain hole, or the blob is missing, or the wallet differs. */
+export async function revealOnChainSealedHole(crypto: IqCrypto, signMessage: SignMessage, io: OnChainIO, pointer: string): Promise<string> {
+  if (!isOnChainSealedHole(pointer)) throw new Error(`not an on-chain sealed hole pointer: ${pointer}`);
+  return revealValueOnChain(crypto, signMessage, io, pointer.slice(ONCHAIN_HOLE_PREFIX.length));
+}
+
 /** Build a real OnChainIO over the IQ SDK + a connection from the IQ env, or null when
  *  not configured (RPC + signer required). The dynamic import keeps the SDK off the cold path. */
 export async function onChainIoFromEnv(env: Record<string, string | undefined> = process.env): Promise<OnChainIO | null> {
