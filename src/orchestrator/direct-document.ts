@@ -1,6 +1,7 @@
 import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
 import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
 import { resolveProxyUrl } from "../execution/proxy-fetch.js";
+import { log } from "../logger.js";
 import { isListLikeIntent, linksFormEntityCollection } from "../values/cardinality.js";
 import { deriveSearchRouteTemplates, fillSearchRoute } from "../execution/search-forms.js";
 
@@ -468,28 +469,79 @@ function buildSearchRouteCandidates(html: string, url: string, intent?: string):
 
 export const buildBloombergDirectDocumentResult = buildDirectDocumentResult;
 
+/** A logged-in session lifted from the user's daily-driver browser (Chrome /
+ *  Firefox / Arc / Dia / Brave / …) for this URL's domain. The plain-fetch fast
+ *  path used to send ZERO cookies, so a cookie-gated site (logged-in Product
+ *  Hunt, Reddit, etc.) returned its PUBLIC shell even when the user had a valid
+ *  session on disk — the "use the cookies" promise silently no-op'd on the hot
+ *  path. We seed every rung from the same harvester the rescue paths use. */
+async function loadBrowserSessionForUrl(
+  url: string,
+): Promise<{ cookies: Array<{ name: string; value: string }>; header: string } | null> {
+  let domain: string;
+  try {
+    domain = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  try {
+    const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+    const { cookies, source } = extractBrowserCookies(domain);
+    if (cookies.length === 0) return null;
+    const list = cookies.map((c) => ({ name: c.name, value: c.value }));
+    // Strip the surrounding quotes Chromium stores on some values so the Cookie
+    // header is well-formed (mirrors tryCurlImpersonateFetch's own builder).
+    const header = list
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .filter((pair) => !pair.endsWith("="))
+      .join("; ");
+    if (!header) return null;
+    // Visible, never silent: surface which browser session is bearing weight.
+    log("auth", `direct-document: attaching ${list.length} cookie(s) for ${domain}${source ? ` from ${source}` : ""}`);
+    return { cookies: list, header };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchDirectDocument(url: string): Promise<DirectDocumentResult | null> {
   if (!isDirectDocumentEligibleUrl(url)) return null;
+  // Seed the fetch with the user's existing browser session for this domain so
+  // a logged-in page returns its real (authenticated) content, not the public
+  // shell. Same harvester the orchestrator rescue paths use; null when the user
+  // has no session on disk (then this behaves exactly as before).
+  const session = await loadBrowserSessionForUrl(url);
+  const headers: Record<string, string> = {
+    "Accept": "text/html,application/json;q=0.5",
+    "User-Agent": "unbrowse/1.0",
+  };
+  if (session?.header) headers["Cookie"] = session.header;
   try {
     const res = await fetch(url, {
-      headers: { "Accept": "text/html,application/json;q=0.5", "User-Agent": "unbrowse/1.0" },
+      headers,
       signal: AbortSignal.timeout(15_000),
       redirect: "follow",
     });
-    if (!res.ok) return fetchDirectDocumentWithCurl(url);
+    if (!res.ok) return fetchDirectDocumentWithCurl(url, session?.cookies);
     const contentType = res.headers.get("content-type") ?? "";
     const html = await res.text();
     const result = buildDirectDocumentResult(url, html, contentType);
-    return result.rejected ? fetchDirectDocumentWithCurl(url) : result;
+    return result.rejected ? fetchDirectDocumentWithCurl(url, session?.cookies) : result;
   } catch {
     // Fall through to curl below.
   }
-  return fetchDirectDocumentWithCurl(url);
+  return fetchDirectDocumentWithCurl(url, session?.cookies);
 }
 
 export const fetchBloombergDirectDocument = fetchDirectDocument;
 
-async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentResult | null> {
+async function fetchDirectDocumentWithCurl(
+  url: string,
+  cookies?: Array<{ name: string; value: string }>,
+): Promise<DirectDocumentResult | null> {
   // Ladder rung 1: curl-impersonate (Chrome 131 JA4) + auto residential proxy
   // (resolveEgressProxy). Plain `curl -A unbrowse/1.0` gets 403'd by anti-bot
   // hosts (docs.redhat.com) and throttled by IP-gated ones (gnu.org); the
@@ -512,7 +564,7 @@ async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentR
   };
   try {
     // rung 1a: impersonate, direct egress (no proxy)
-    const direct = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 15_000, forceDirect: true }));
+    const direct = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 15_000, forceDirect: true, cookies }));
     if (direct) return direct;
     // rung 1b: impersonate via REAL residential proxy — only when iproyal creds
     // are actually configured (env or ~/.identity/iproyal-creds). We pass the
@@ -522,7 +574,7 @@ async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentR
     // IP-throttled multi-MB manual over a variable residential exit needs headroom.
     const realProxy = resolveProxyUrl();
     if (realProxy) {
-      const viaProxy = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 45_000, proxy: realProxy }));
+      const viaProxy = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 45_000, proxy: realProxy, cookies }));
       if (viaProxy) return viaProxy;
     }
   } catch {
@@ -536,6 +588,13 @@ async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentR
     // through as raw 0x1f 0x8b bytes (observed on amazon.com/s smoke probe
     // 2026-05-21). The marker / stdout.slice split is unaffected because
     // curl writes -w AFTER the decoded body completes.
+    const cookieHeader = (cookies ?? [])
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .filter((pair) => !pair.endsWith("="))
+      .join("; ");
     const stdoutBuf = await new Promise<Buffer>((resolve, reject) => {
       execFile(
         "curl",
@@ -550,6 +609,7 @@ async function fetchDirectDocumentWithCurl(url: string): Promise<DirectDocumentR
           "unbrowse/1.0",
           "-H",
           "Accept: text/html,application/json;q=0.5",
+          ...(cookieHeader ? ["-H", `Cookie: ${cookieHeader}`] : []),
           "-w",
           `${marker}%{content_type}`,
           url,

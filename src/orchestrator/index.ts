@@ -5693,9 +5693,37 @@ export async function resolveAndExecute(
         }
         return null;
       };
+      // Seed the user's existing browser session onto the PRIMARY native fetch
+      // too — not only the curl rescue below. Without this, a logged-in,
+      // cookie-gated page (Product Hunt, Reddit, a dashboard) returns its PUBLIC
+      // shell on the fast path even when a valid session is on disk: the native
+      // fetch 200s with the anonymous HTML, so the curl rescue (which DOES seed
+      // cookies) never runs. Same harvester the rescue path uses.
+      let directFetchCookieHeader = "";
+      try {
+        const dfHost = new URL(ctxUrl).hostname.replace(/^www\./, "");
+        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+        const dfCookies = extractBrowserCookies(dfHost).cookies;
+        if (dfCookies.length > 0) {
+          directFetchCookieHeader = dfCookies
+            .map((c) => {
+              const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+              return `${c.name}=${v}`;
+            })
+            .filter((pair) => !pair.endsWith("="))
+            .join("; ");
+          if (directFetchCookieHeader) {
+            console.log(`[direct-fetch] ${ctxUrl} attaching ${dfCookies.length} browser cookie(s) for ${dfHost} on native fetch`);
+          }
+        }
+      } catch { /* no cookies available — proceed cookieless */ }
       try {
         const directRes = await fetch(context.url, {
-          headers: { "Accept": "application/json, text/html;q=0.5", "User-Agent": "unbrowse/1.0" },
+          headers: {
+            "Accept": "application/json, text/html;q=0.5",
+            "User-Agent": "unbrowse/1.0",
+            ...(directFetchCookieHeader ? { "Cookie": directFetchCookieHeader } : {}),
+          },
           signal: AbortSignal.timeout(15000),  // 15s — slow APIs like NASA cold-start need headroom
           redirect: "follow",
         });
