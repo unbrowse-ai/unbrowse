@@ -317,7 +317,9 @@ What holds today:
 
 ## Authentication
 
-For sites that require login, Unbrowse opens a visible browser window and waits for you to complete the login flow. Cookies and session state are saved to a persistent profile under `~/.unbrowse/profiles/<domain>/` and reused automatically.
+First, automatically: Unbrowse reuses your existing logged-in browser session. It reads a copy of the cookies for the target domain from your daily-driver browser — Chrome, Firefox, Arc, Dia, Brave, Edge, Vivaldi, Opera, or Chromium — and attaches them to the request (including on the fast `resolve` path), so a cookie-gated page returns its real authenticated content instead of the logged-out shell. No browser relaunch; your session is left untouched.
+
+If you are not already signed in anywhere, Unbrowse opens a visible browser window and waits for you to complete the login flow. Cookies and session state are saved to a persistent profile under `~/.unbrowse/profiles/<domain>/` and reused automatically.
 
 ```bash
 curl -s -X POST http://localhost:6969/v1/auth/login \
