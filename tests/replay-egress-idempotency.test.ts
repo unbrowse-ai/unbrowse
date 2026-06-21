@@ -7,7 +7,7 @@
 import { test, expect } from "bun:test";
 import { shouldEscalateBlockedReplay } from "../src/execution/index.js";
 
-const BLOCK = [0, 401, 403, 429, 500, 503];
+const BLOCK = [0, 401, 402, 403, 429, 500, 503]; // 402 included — one classifier with egressChain.isBlock
 const SERVED = [200, 201, 204, 301, 400, 404];
 
 test("a blocked READ escalates — GET/HEAD on a block status", () => {

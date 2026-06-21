@@ -1,3 +1,4 @@
+import { isBlock as isEgressBlockStatus } from "./egress-chain.js";
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { buildBloombergDirectDocumentResult } from "../orchestrator/direct-document.js";
@@ -2756,18 +2757,15 @@ async function escalateSsrViaEgress(
   return null;
 }
 
-/** A blocked status worth re-trying through a different egress tier (mirrors egressChain.isBlock). */
-function isBlockedReplayStatus(status: number): boolean {
-  return status === 0 || status === 401 || status === 403 || status === 429 || status >= 500;
-}
-
 /** Idempotency firmament: only a READ may be re-issued through the egress ladder. Re-firing a
  *  blocked-looking WRITE (POST/PUT/PATCH/DELETE) could double-apply a mutation the first call
- *  already committed server-side — so writes NEVER escalate; they surface the block honestly. */
+ *  already committed server-side — so writes NEVER escalate; they surface the block honestly.
+ *  The block-status set is the ONE classifier `egressChain.isBlock` (incl. 402) — never a second,
+ *  drift-prone copy (Synapse-kind minimum: one mechanism per behavior). */
 export function shouldEscalateBlockedReplay(method: string, status: number): boolean {
   const m = (method || "GET").toUpperCase();
   const idempotent = m === "GET" || m === "HEAD";
-  return idempotent && isBlockedReplayStatus(status);
+  return idempotent && isEgressBlockStatus(status);
 }
 
 /** Internal-API replay egress escalation — a blocked READ climbs the egress ladder (clean server
