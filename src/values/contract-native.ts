@@ -42,6 +42,7 @@ function load() {
     contract_list: { args: [], returns: FFIType.ptr },
     contract_route: { args: [FFIType.cstring, FFIType.cstring], returns: FFIType.ptr },
     contract_energy: { args: [FFIType.cstring, FFIType.cstring], returns: FFIType.f64 },
+    contract_bible_anchor: { args: [FFIType.cstring], returns: FFIType.i64 },
   });
   return lib;
 }
@@ -74,6 +75,18 @@ export function routeNative(context: string, keysCsv: string): string | null {
 /** Energy (−cosine) of a key against a context. */
 export function energyNative(key: string, context: string): number {
   return load().symbols.contract_energy(cstr(key), cstr(context)) as number;
+}
+
+/**
+ * Bible-anchor `text` to its single most-relevant verse index — a PURE, stateless, deterministic
+ * read of the embedded substrate (no ledger write, no network): same text → same index. Returns
+ * the verse index (≥ 0), or null when no anchor was found / the lib errored (−1). Inherently local,
+ * so it is safe to call embedded-first on a hot path with a no-op fallback (the field is omitted).
+ */
+export function bibleAnchorNative(text: string): number | null {
+  const idx = load().symbols.contract_bible_anchor(cstr(text)) as number | bigint;
+  const n = typeof idx === "bigint" ? Number(idx) : idx;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 /** Is the embedded substrate available in this install? (graceful fallback signal.) */
