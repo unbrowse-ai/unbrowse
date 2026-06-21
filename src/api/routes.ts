@@ -24,7 +24,7 @@ import { TRACE_VERSION, CODE_HASH, DEFAULT_BACKEND_URL, GIT_SHA, RUNTIME_GIT_SHA
 import { promoteExplicitExecution, resolveAndExecute, getOrCreateBrowserCaptureSkill, type OrchestratorResult } from "../orchestrator/index.js";
 import { getContributionConfig, setContributionConfig, type ContributionConfig } from "../config/contribution.js";
 import { isPassiveIndexEnabled } from "../capture/passive-index.js";
-import { getSkill } from "../marketplace/index.js";
+import { getSkill, publishSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
 import { getRecentTraces } from "../lib/graph-core/trace-store.js";
 import { executeSkill, withExecuteDeadline } from "../execution/index.js";

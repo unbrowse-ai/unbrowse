@@ -1960,6 +1960,7 @@ export interface ExecutionPayload {
 // them: the omission silently understated the /v1/analytics/sessions contract, so
 // the local impact-log and the backend session record could read as mismatched
 // even though both derive from the same `timing`.
+import type { AnalyticsSessionPayload } from "../analytics-session.js";
 export type { AnalyticsSessionPayload } from "../analytics-session.js";
 
 /**
