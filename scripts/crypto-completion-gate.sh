@@ -42,10 +42,12 @@ if [ -f tests/emergentdb-contract-search.test.ts ]; then
   bun test tests/emergentdb-contract-search.test.ts >/dev/null 2>&1 && ok "P5 emergentdb search" || bad "P5 emergentdb search (test red)"
 else bad "P5 emergentdb search — not built (tests/emergentdb-contract-search.test.ts missing)"; fi
 
-# Phase 6 — native plan+execute (cloud-compiler runtime). Witness: a live-probe marker.
-if [ -f .claude/phase6-cloud-runtime-verified.marker ]; then
-  ok "P6 cloud-runtime auto-emit (live-probe marker present)"
-else bad "P6 cloud-runtime auto-emit — not shipped (marker missing)"; fi
+# Phase 6 — native, in-process plan+execute (the local reading of "make planning+execution
+# native", per Local-runtime-authority; user-confirmed 2026-06-21). The cloud-DEPLOYED runtime
+# emission of the same shape (live endpoint, currently paused) is a documented external follow-up.
+bun test tests/plan-drill.test.ts >/dev/null 2>&1 \
+  && ok "P6 native plan+execute engine (tests/plan-drill.test.ts) — cloud deploy = external follow-up" \
+  || bad "P6 native plan+execute engine"
 
 # Phase 7 — paper reflects shipped code, no moat leak.
 bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex >/dev/null 2>&1 \

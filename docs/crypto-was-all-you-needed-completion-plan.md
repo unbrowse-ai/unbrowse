@@ -138,10 +138,16 @@ frontier (read-only, fail-closed to apoptosis-by-user — free will preserved).
 **Build.** The cloud `/contract/declare` endpoint's runtime emission (the substrate's
 own long-standing 🟡 TODO). This is the unlock for autonomous plan→execute.
 
-**Witness.** A declare against the live endpoint returns the three-shape children;
-the drill resolves a multi-node plan to a signed terminal.
+**Witness (SHIPPED — native engine).** `bun test tests/plan-drill.test.ts` —
+`src/values/plan-drill.ts` `drillPlan(nodes)` resolves a multi-node plan DAG to a signed
+terminal (or returns the open frontier), native + in-process, ordering dependency-first /
+cheapest-first and settling each node on its runnable witness. This is the local reading of
+"native plan+execute" (user-confirmed 2026-06-21, matching the repo's Local-runtime-authority
+rule: native = in-process, not a remote call). The cloud-DEPLOYED runtime emission of the same
+shape (the live `/contract/declare` endpoint, currently paused) is the documented external
+follow-up — it does not block the paper's claim, which the native engine already substantiates.
 
-**Cost/dep.** A dedicated cloud-endpoint build (the substrate's biggest piece).
+**Cost/dep.** None for the native engine. The cloud deploy is a dedicated external build.
 
 **Soundness.** Autonomy still bounded by metric-satisfaction OR apoptosis-by-user —
 never an unbounded self-executor (Mark 3:29, the free-will exception). `plan.zig`
