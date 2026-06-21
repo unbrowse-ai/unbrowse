@@ -333,6 +333,12 @@ export function getSecret(service: string, account: string, opts?: SecretStoreOp
 /** Persist a secret string to the active backend. Returns false only if every path failed. */
 export function setSecret(service: string, account: string, value: string, opts?: SecretStoreOptions): boolean {
   const dir = defaultFallbackDir(opts);
+  // Idempotent write: if the store already holds this EXACT value, do not re-write.
+  // A redundant native write is what re-triggers macOS's "change access permissions"
+  // dialog (`add-generic-password -U -A` modifies an existing item's ACL every call),
+  // so callers that re-persist an unchanged key (wallet-first sync, boot) no longer
+  // surface a prompt. A genuine value change still falls through and writes.
+  if (getSecret(service, account, opts) === value) return true;
   switch (activeBackend(opts)) {
     case "macos-keychain": if (macSet(service, account, value)) return true; break;
     case "secret-service": if (secretToolSet(service, account, value)) return true; break;
