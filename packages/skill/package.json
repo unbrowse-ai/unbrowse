@@ -46,6 +46,7 @@
     "bin",
     "dist-sdk",
     "vendor/kuri",
+    "vendor/contract",
     "vendor/utls-proxy",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
