@@ -35,10 +35,12 @@ if bash scripts/contract-chain-frontend-check.sh >/dev/null 2>&1; then
   echo "  ok   C: cli → frontend  (papers.ts ↔ index, PDFs present, /contract surfaced)"; C=t
 else echo "  RED  C: cli → frontend (contract-chain-frontend-check)"; fail=1; fi
 
-# /taste + chain logic — the binding settles only when every axis (link) clears the bar.
-if timeout 120 bun test tests/contract-taste.test.ts tests/contract-chain.test.ts >/dev/null 2>&1; then
-  echo "  ok   /taste + chain logic settles (min over links; one broken link breaks both)"
-else echo "  RED  /taste + chain logic (bun tests)"; fail=1; fi
+# /taste + chain logic + reconcile + broadcast — the binding settles only when every axis (link)
+# clears the bar; reconcile catches contradicting /contract claims; broadcast is fail-open.
+if timeout 150 bun test tests/contract-taste.test.ts tests/contract-chain.test.ts \
+     tests/contract-reconcile.test.ts tests/contract-broadcast.test.ts >/dev/null 2>&1; then
+  echo "  ok   /taste + chain + reconcile + broadcast logic (min over links/pairs; fail-open sinks)"
+else echo "  RED  /taste + chain + reconcile + broadcast (bun tests)"; fail=1; fi
 
 echo
 if [ "$fail" -ne 0 ]; then
