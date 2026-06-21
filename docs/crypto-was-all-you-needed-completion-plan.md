@@ -45,8 +45,7 @@ codeIn round-trip, default-skipped.
 (~0.001/write) — opt-in, never default.
 
 **Soundness.** Per-write on-chain seal is costly, so it is **opt-in** — a default-on
-seal would be leaven (Decalogue-10 covet / cost without demand). The caller keeps it a
-member, not zero-caller leaven.
+seal would impose cost without demand. The caller keeps it real, not zero-caller dead code.
 
 ---
 
