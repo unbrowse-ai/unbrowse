@@ -75,7 +75,7 @@ Run against the **npm-installed shipped CLI** via `UNBROWSE_BIN`; two-witness ga
 | **A** | Action-retrieval / indexing **coverage** | top endpoints relevant + abstain when none exist | `gate_axisA.sh` | **ToolRet**, Exa |
 | **B** | Execution **without auth** (public) | chosen endpoint returns the real public data the intent asked for | `gate_real.sh` | **Exa**, **WebBench**, **AssistantBench** |
 | **C** | Execution **with auth** (logged-in) | authed READ/CREATE/UPDATE/DELETE succeed against a logged-in session | (auth gate) | **WASP**, **ST-WebAgentBench** |
-| **D** | **Security** auditing | leak-scan **100% clean** (hard gate); targeted-ASR ≤ AgentDojo defended baseline; CuP ≥ ST baseline | `scripts/leak-guard.sh` ✅; `audit_security.py` ⬜ planned (named in bench plan) | **AgentDojo**, **InjecAgent**, **ST-WebAgentBench** |
+| **D** | **Security** auditing | leak-scan **100% clean** (hard gate); targeted-ASR ≤ AgentDojo defended baseline; CuP ≥ ST baseline | `bench/capability/audit_security.py` ✅ (deterministic leak-scan core, red+green witnessed — catches raw/url-enc/base64 secret values, zero-tolerance `--gate`); ASR/CuP ⬜ external harness | **AgentDojo**, **InjecAgent**, **ST-WebAgentBench** |
 
 **Gate thresholds (honest-start, ratchet up):**
 - A: coverage ≥ published ToolRet/Exa on the DNS-live corpus (raw coverage capped by ~27% DNS-dead corpus — see `bench-corpus-dns-dead-ceiling`; on-target "working well" ≈ 96.7% PASS).
@@ -106,6 +106,9 @@ Run against the **npm-installed shipped CLI** via `UNBROWSE_BIN`; two-witness ga
 UNBROWSE_BIN=$(which unbrowse) bash bench/capability/gate_all.sh
 # the real cloned Exa run
 python3 bench/exa/score_extraction.py
+# Axis-D security leak-scan (deterministic, zero-tolerance gate)
+python3 bench/capability/test_audit_security.py   # red+green witness
+python3 bench/capability/audit_security.py --artifacts <jsonl> --secrets <file> --gate
 # crypto/IQ ledger layer (signed + zk + resolve→IQ wire)
 bun test tests/iq-ledger.test.ts tests/iq-mirror-resolution.test.ts \
          tests/iq-sealed-value.test.ts tests/iq-cold-hydrate.test.ts \
