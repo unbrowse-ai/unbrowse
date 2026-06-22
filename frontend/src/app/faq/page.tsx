@@ -21,6 +21,10 @@ const faqs = [
     a: "The CLI client and SDKs are open source and free to install and run locally. Marketplace lookups or paid route execution can require x402 payment in USDC; route capture and local execution remain separate from those paid paths. Contributors can also earn when maintained routes they indexed are reused.",
   },
   {
+    q: "Can an agent get paid to do a task?",
+    a: "Yes. A task can carry an optional price, and an agent that completes it is compensated in USDC over x402 — settled on-chain, paid straight to the agent's wallet. Payment never grants access an agent did not already have: permission is checked first, and only a task you were already allowed to run can be priced. A malformed or zero amount is refused rather than charged.",
+  },
+  {
     q: "What websites does Unbrowse support?",
     a: "Unbrowse works best on sites whose frontends call structured first-party routes, which is common on modern web applications. Some routes are already cached; unknown or hostile sites may require browser capture or remain misses. Misses are recorded honestly rather than counted as route successes.",
   },
