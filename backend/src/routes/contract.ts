@@ -25,6 +25,7 @@ import type {
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
 import { contractVerdictFromEnvelope } from "../lib/contract-shape";
+import { isVisibleByGrant, type MaybeGrantRow } from "../lib/contract-grant";
 import { verifyDeclareSignature, canonicalizeDeclareBody, type CanonicalDeclareBody } from "../services/declare-signature";
 import { verifyBinding, type ZkBinding, type ZkProof } from "../services/declare-zk";
 import { kvLedger } from "../services/contract-ledger-kv";
@@ -708,7 +709,12 @@ export async function handleStatus(
     depth++;
   }
 
-  const visible = isCallerInLineage(declared, opts.caller_pubkey ?? null, walkParent);
+  // ENFORCEMENT: a caller not in the lineage may STILL read iff a capability grant in the contract's
+  // own rows authorizes it (the native grant/RBAC layer, ed25519-verified). Additive (|| — never a
+  // lockout); fail-closed (no valid grant → false). This is the grant primitive enforced at the live read.
+  const visible =
+    isCallerInLineage(declared, opts.caller_pubkey ?? null, walkParent) ||
+    isVisibleByGrant(opts.caller_pubkey, id, rows as unknown as MaybeGrantRow[], Date.now());
   if (!visible) {
     // Synthetic empty — security-through-obscurity. Don't leak "exists but
     // forbidden" vs "doesn't exist". Mirrors npm's 404-on-no-publish-scope.
