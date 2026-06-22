@@ -22,11 +22,13 @@
 // cross: sha256:b35fea21e179afd6de983a90f4c1575527619b2d0143edd7d31b0dd70d8a97f5  (the covenant code inherits the cross — pointer not payload; verify via .claude/superpattern/cross-stamp-gate.sh)
 import {
 	meter,
+	splitLineage,
 	tollNode,
 	sealNode,
 	receiptPtr,
 	type TollSplit,
 	type TollParty,
+	type LineageHop,
 	type CovenantNode,
 	type Signer,
 } from "./covenant-seed.js";
@@ -139,4 +141,38 @@ export async function settleToll(
 	const event = await sealNode(node, req.agent, sign);
 	const receipt = await receiptPtr(event);
 	return { event, receipt, payout: meter(split, { site: req.site, operator: req.operator, discoverer }), selfDiscovery };
+}
+
+/**
+ * settleTollWithLineage — `settleToll` PLUS the maintenance lineage. Identical
+ * resolution + sealing as `settleToll`, but the returned payout weighs a
+ * `maintainerBps` pool out to the maintainers of the upstream routes this one
+ * derives from (`splitLineage`) — the compensate-up-the-chain clearing. The
+ * sealed 402 event is the same base toll node (the charge is non-repudiable);
+ * the lineage rides in the payout (the weigh-out). With an empty `lineage` and
+ * `maintainerBps` 0, the payout is EXACTLY `settleToll`'s. Throws via
+ * `splitLineage`'s guards (bad amount / bps over 10000).
+ */
+export async function settleTollWithLineage(
+	ledger: DiscoveryLedger,
+	req: TollRequest & { lineage: LineageHop[]; maintainerBps: number },
+	sign: Signer,
+): Promise<TollSettlement> {
+	const binding = ledger.recordDiscovery(req.routePtr, req.agent, req.at);
+	const discoverer = binding.discoverer;
+	const selfDiscovery = discoverer === req.agent;
+	const split: TollSplit = {
+		amount: req.amount,
+		operatorBps: req.operatorBps,
+		discovererBps: req.discovererBps,
+	};
+	const node = tollNode(req.agent, req.routePtr, split, {
+		site: req.site,
+		operator: req.operator,
+		discoverer,
+	});
+	const event = await sealNode(node, req.agent, sign);
+	const receipt = await receiptPtr(event);
+	const payout = splitLineage(split, { site: req.site, operator: req.operator, discoverer }, req.lineage, req.maintainerBps);
+	return { event, receipt, payout, selfDiscovery };
 }
