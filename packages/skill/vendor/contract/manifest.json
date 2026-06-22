@@ -1,0 +1,31 @@
+{
+  "repo_url": "~/.claude/skills/contract/libcontract",
+  "built_at": "2026-06-21T23:33:35.939Z",
+  "binaries": {
+    "darwin-arm64": {
+      "zig_target": "aarch64-macos",
+      "sha256": "80f9875b97cdfa47bdd58b877653c538faafc40bc90cc832bdac3fd13925e815",
+      "source": "pre-staged"
+    },
+    "darwin-x64": {
+      "zig_target": "x86_64-macos",
+      "sha256": "a1eba5e6f38718cad9794188c6131f70dcdf24f0c9c8908082739a8644ede68b",
+      "source": "pre-staged"
+    },
+    "linux-x64": {
+      "zig_target": "x86_64-linux",
+      "sha256": "08252d63ebfd7f9d65fb7e88fbcc8ec5719aab09bf1133705ebc7f14fb60af63",
+      "source": "pre-staged"
+    },
+    "linux-arm64": {
+      "zig_target": "aarch64-linux",
+      "sha256": "69ff188142e814138dd1fb0a0fe9100355c1161bcafd4d1096bdaf20f4b3a0e0",
+      "source": "pre-staged"
+    },
+    "win-x64": {
+      "zig_target": "x86_64-windows",
+      "sha256": "dc022ca2ef829bb27b1a8991560954433d499196a93050f7d8834062d4fb20ca",
+      "source": "pre-staged"
+    }
+  }
+}

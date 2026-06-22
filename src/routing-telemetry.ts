@@ -339,31 +339,46 @@ export function createRoutingTelemetryCollector(options: CollectorOptions) {
   };
 }
 
+/**
+ * U-9 privacy fix: the verbatim user-intent string ("find my email password
+ * reset link") must NEVER leave the machine, even when routing telemetry is
+ * enabled. We replace it with an irreversible SHA-256 hash plus a coarse shape
+ * signature (character length + word count) so the backend can still
+ * de-duplicate / cluster sessions without ever seeing the literal text the
+ * user typed. `UNBROWSE_LOCAL_ONLY=1` suppresses the egress entirely upstream
+ * (recordRoutingTelemetry / postTelemetry); this is the defence in depth for
+ * the default-on case.
+ */
+export function redactIntent(intent: string): string {
+  const trimmed = (intent ?? "").trim();
+  if (!trimmed) return "intent:empty";
+  const digest = createHash("sha256").update(trimmed).digest("hex").slice(0, 16);
+  const words = trimmed.split(/\s+/).filter(Boolean).length;
+  return `intent:sha256-${digest}:len${trimmed.length}:w${words}`;
+}
+
 export function sanitizeRoutingEventBatch(events: RoutingTelemetryEvent[]): RoutingTelemetryEvent[] {
   return events.map((event) => {
-    if (event.event_type === "routing_session_started") {
+    // U-9: redact the verbatim intent on EVERY event type (the field lives on
+    // the base event, so it leaked through ranked/step/completed events too).
+    const base = { ...event, top_level_intent: redactIntent(event.top_level_intent) };
+    if (base.event_type === "routing_candidates_ranked") {
       return {
-        ...event,
-        top_level_intent: event.top_level_intent.trim(),
-      };
-    }
-    if (event.event_type === "routing_candidates_ranked") {
-      return {
-        ...event,
-        candidates: event.candidates.map((candidate) => ({
+        ...base,
+        candidates: base.candidates.map((candidate) => ({
           ...candidate,
           rejection_reason: candidate.rejection_reason?.slice(0, 120),
           feature_snapshot: sanitizeObject(candidate.feature_snapshot) as RoutingCandidateSnapshot["feature_snapshot"],
         })),
       };
     }
-    if (event.event_type === "routing_step_executed") {
+    if (base.event_type === "routing_step_executed") {
       return {
-        ...event,
-        failure_reason: event.failure_reason ? classifyFailure(event.failure_reason) : undefined,
+        ...base,
+        failure_reason: base.failure_reason ? classifyFailure(base.failure_reason) : undefined,
       };
     }
-    return event;
+    return base;
   });
 }
 

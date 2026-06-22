@@ -72,6 +72,19 @@ if (existsSync(join(kuriDir, hostKuriDir))) {
   }
 }
 
+// contract: keep the host platform dir (the embedded libcontract), delete the others.
+// Same <platform>-<arch> / win-x64 convention as kuri (src/values/contract-native.ts
+// resolver). Only if the host dir exists (fail-safe); manifest.json is a file, never pruned.
+const contractDir = join(root, "vendor", "contract");
+if (existsSync(join(contractDir, hostKuriDir))) {
+  for (const name of readdirSync(contractDir)) {
+    const p = join(contractDir, name);
+    if (name !== hostKuriDir && existsSync(p) && statSync(p).isDirectory()) {
+      freed += du(p); rmSync(p, { recursive: true, force: true });
+    }
+  }
+}
+
 // utls-proxy: keep the host binary, delete the other utls-proxy-* binaries — only if host exists
 const utlsDir = join(root, "vendor", "utls-proxy");
 if (existsSync(join(utlsDir, hostUtlsBin))) {

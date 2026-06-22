@@ -8,7 +8,7 @@ import { PapersBehind } from "@/components/papers-behind";
 // Per-request x402 model — no subscriptions. Discovery + internal-API routing are
 // free; paid execution settles over x402 (Solana/USDC) as a fair three-way split
 // (indexer, domain owner, platform). A sponsor tier covers a free allowance from
-// the platform vault; beyond it, the agent's own wallet (e.g. lobster.cash) pays
+// the platform vault; beyond it, the agent's own wallet (e.g. pay.sh) pays
 // per request. This page reflects that — it does NOT sell a monthly plan.
 type SponsorState =
   | { sponsored?: boolean; remaining_uc?: number; cap_uc?: number; used_uc?: number; mode?: string }
@@ -39,7 +39,7 @@ export default function BillingPage() {
         internal-API routing are free; paid execution settles over <strong>x402</strong>{" "}
         in USDC as a fair split between the indexer who captured the route, the
         domain owner, and the platform. Fund an agent wallet (we recommend{" "}
-        <a href="https://lobster.cash" className="underline">lobster.cash</a>) and it
+        <a href="https://pay.sh" className="underline">pay.sh</a>) and it
         pays each request automatically — no card, no monthly plan.
       </p>
 
@@ -69,7 +69,7 @@ export default function BillingPage() {
           </div>
 
           <div className="flex gap-3">
-            <a href="https://lobster.cash" className="px-5 py-2.5 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200">
+            <a href="https://pay.sh" className="px-5 py-2.5 rounded-lg bg-text-primary text-surface text-sm font-medium hover:opacity-90 transition-opacity duration-200">
               Set up a wallet
             </a>
             <a href="/how-unbrowse-pays" className="px-5 py-2.5 rounded-lg border border-border bg-surface text-sm font-medium text-text-primary hover:bg-surface-raised transition-colors duration-200">

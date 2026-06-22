@@ -5,9 +5,9 @@ import { isDomainMatch, getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
 import type { ExtractBrowserCookiesOptions } from "./browser-cookies.js";
 import path from "node:path";
-import os from "node:os";
 import fs from "node:fs";
 import { getDefaultLoginConfig } from "../runtime/supervisor.js";
+import { getUnbrowseHome } from "../runtime/paths.js";
 
 
 const LOGIN_TIMEOUT_MS = 300_000;
@@ -172,7 +172,7 @@ export async function loadAuthProfileBestEffort(
  * Stored under ~/.unbrowse/profiles/<registrableDomain>.
  */
 export function getProfilePath(domain: string): string {
-  return path.join(os.homedir(), ".unbrowse", "profiles", getRegistrableDomain(domain));
+  return path.join(getUnbrowseHome(), "profiles", getRegistrableDomain(domain));
 }
 
 export interface LoginResult {

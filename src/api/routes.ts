@@ -28,6 +28,12 @@ import { getSkill, publishSkill } from "../marketplace/index.js";
 import { getPopularUnreviewedSkills, getMyContributions, computeMilestoneState } from "../marketplace/popular-unreviewed.js";
 import { getRecentTraces } from "../lib/graph-core/trace-store.js";
 import { executeSkill, withExecuteDeadline } from "../execution/index.js";
+import {
+  executeCacheKey,
+  getCachedExecuteResult,
+  setCachedExecuteResult,
+  isExecuteResultCacheable,
+} from "../execution/execute-result-cache.js";
 import { rankEndpointsServerFirst } from "../client/rank-server-first.js";
 import {
   extractBrowserAuth,
@@ -2227,6 +2233,43 @@ export async function registerRoutes(app: FastifyInstance) {
       const endpointIdForTrace = typeof (execParams as Record<string, unknown>).endpoint_id === "string"
         ? (execParams as Record<string, unknown>).endpoint_id as string
         : "";
+
+      // U-8: instrument the execute layer (no `timing.actual_total_ms` existed
+      // before) AND short-circuit a warm repeat of the same read from the
+      // in-process result cache. The cache is keyed on (skill, endpoint, params)
+      // and only ever consulted/stored for safe-to-replay reads — see the
+      // cacheable gate below. Volatile, request-scoped inputs (auth_headers,
+      // session_id, dry_run) disqualify caching, so a write or an authed read
+      // always re-fires live.
+      const execStartedMs = Date.now();
+      const cacheable =
+        !effectiveConfirmUnsafe && // a write/unsafe op must always re-fire
+        !dry_run &&
+        !auth_headers &&
+        !session_id &&
+        endpointIdForTrace !== "";
+      const cacheKey = cacheable
+        ? executeCacheKey({ skillId: skill_id, endpointId: endpointIdForTrace, params: execParams as Record<string, unknown> })
+        : null;
+      if (cacheKey) {
+        const cachedResult = getCachedExecuteResult<{ trace: ExecutionTrace; result: unknown }>(cacheKey);
+        if (cachedResult) {
+          const cacheHitMs = Date.now() - execStartedMs;
+          const response = attachAgentOutcomeHints(
+            {
+              ...cachedResult,
+              timing: { source: "result-cache", cache_hit: true, actual_total_ms: cacheHitMs },
+            } as Record<string, unknown>,
+            {
+              skill,
+              endpointId: cachedResult.trace.endpoint_id,
+              timing: { source: "result-cache", cache_hit: true, actual_total_ms: cacheHitMs },
+            },
+          );
+          return reply.send(response);
+        }
+      }
+
       let execResult = await withExecuteDeadline(
         executeSkill(skill, execParams, projection, { confirm_unsafe: effectiveConfirmUnsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope, authHeaders: auth_headers }),
         executeDeadlineMs,
@@ -2449,9 +2492,39 @@ export async function registerRoutes(app: FastifyInstance) {
         discovery_queries: 0,
       })).catch(() => {});
 
-      const response = attachAgentOutcomeHints({ ...execResult } as Record<string, unknown>, {
+      // U-8: real wall-clock for this execute. `actual_total_ms` was never
+      // instrumented at this layer before — the slow path (5–13s) had no number
+      // attached, so an agent couldn't see the cost or a cache win.
+      const actualTotalMs = Date.now() - execStartedMs;
+      const timing: Partial<OrchestrationTiming> = {
+        source: "execute",
+        cache_hit: false,
+        actual_total_ms: actualTotalMs,
+      };
+
+      // U-8: populate the result cache so the NEXT identical read is a fast
+      // replay. Only safe-to-replay reads land here (structural gate): the
+      // executed endpoint is GET/HEAD, the call carried no auth/session scope,
+      // it was not a dry_run, and it succeeded.
+      if (cacheKey) {
+        const executedEp = skill.endpoints.find((e) => e.endpoint_id === execResult.trace.endpoint_id);
+        if (
+          isExecuteResultCacheable({
+            method: executedEp?.method,
+            hasAuth: !!auth_headers,
+            hasSession: !!session_id,
+            dryRun: !!dry_run,
+            success: execResult.trace.success === true,
+          })
+        ) {
+          setCachedExecuteResult(cacheKey, { trace: execResult.trace, result: execResult.result });
+        }
+      }
+
+      const response = attachAgentOutcomeHints({ ...execResult, timing } as Record<string, unknown>, {
         skill,
         endpointId: execResult.trace.endpoint_id,
+        timing,
       });
       // Surface the cross-skill DAG suggestion so the agent can chain: run the named
       // producer in another skill to fill the hole this op couldn't fill locally.

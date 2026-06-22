@@ -10,7 +10,7 @@
  *     pinned in this repo, 344K-star ecosystem per docs/built-on-unbrowse).
  *   - Claude Code, Codex, Cursor, Windsurf, Claude Desktop — skill/CLI install
  *     documented at /install; MCP is legacy/manual-only.
- *   - Crossmint — payout-rail partner (lobster.cash CLI is the recommended
+ *   - Crossmint — payout-rail partner (pay.sh CLI is the recommended
  *     wallet path; see src/app/account/wallet/page.tsx Option 1).
  *   - Faremeter — payment rail (`@faremeter/flex-solana` optional
  *     dep in packages/sdk/package.json).

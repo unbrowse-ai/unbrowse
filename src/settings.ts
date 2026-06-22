@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { getRegistrableDomain } from "./domain.js";
+import { getUnbrowseHome } from "./runtime/paths.js";
 
 type RawConfig = Record<string, unknown>;
 
@@ -39,8 +39,8 @@ function getConfigDir(): string {
   if (process.env.UNBROWSE_CONFIG_DIR) return process.env.UNBROWSE_CONFIG_DIR;
   const profile = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
   return profile
-    ? join(homedir(), ".unbrowse", "profiles", profile)
-    : join(homedir(), ".unbrowse");
+    ? join(getUnbrowseHome(), "profiles", profile)
+    : getUnbrowseHome();
 }
 
 export function getUnbrowseConfigPath(): string {

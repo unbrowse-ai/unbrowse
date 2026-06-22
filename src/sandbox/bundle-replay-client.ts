@@ -105,10 +105,46 @@ export interface SandboxReplayResponse {
 
 const DEFAULT_KURI_BASE = process.env.KURI_BASE_URL ?? "http://127.0.0.1:6969";
 
+function isLocalOnly(): boolean {
+  return process.env.UNBROWSE_LOCAL_ONLY === "1";
+}
+
+/**
+ * U-12 privacy fix: is this replay target the user's own machine (loopback)
+ * or a remote host? When LOCAL_ONLY is set we must refuse to ship the
+ * executable `bundle_source` + the local proxy URL to anything that isn't
+ * loopback — those would otherwise leave the machine for Unbrowse infra.
+ */
+export function isLoopbackBase(base: string): boolean {
+  let host: string;
+  try {
+    host = new URL(base).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    host.endsWith(".localhost")
+  );
+}
+
 export class BundleReplayError extends Error {
   constructor(public readonly status: number, public readonly body: string) {
     super(`sandbox replay failed: HTTP ${status}: ${body.slice(0, 200)}`);
     this.name = "BundleReplayError";
+  }
+}
+
+export class LocalOnlyReplayError extends Error {
+  constructor(base: string) {
+    super(
+      `UNBROWSE_LOCAL_ONLY=1: refusing to ship bundle_source + proxy to non-loopback sandbox host (${base}). ` +
+        `Point KURI_BASE_URL at a local Kuri (127.0.0.1) to run replay on this machine.`,
+    );
+    this.name = "LocalOnlyReplayError";
   }
 }
 
@@ -118,6 +154,15 @@ export async function runBundleReplay(
 ): Promise<SandboxReplayResponse> {
   const base = opts.kuriBase ?? DEFAULT_KURI_BASE;
   const fetchImpl = opts.fetchImpl ?? fetch;
+
+  // U-12: when LOCAL_ONLY is set, the executable bundle_source and the local
+  // proxy URL must never leave the machine. A loopback Kuri is still allowed
+  // (replay runs on the user's own box); any remote host is refused.
+  const localOnly = isLocalOnly();
+  if (localOnly && !isLoopbackBase(base)) {
+    throw new LocalOnlyReplayError(base);
+  }
+
   const body = JSON.stringify({
     target_origin: req.targetOrigin,
     target_href: req.targetHref,
@@ -137,7 +182,9 @@ export async function runBundleReplay(
       same_site: c.same_site ?? c.sameSite ?? "",
       expires: c.expires ?? 0,
     })),
-    ...(req.proxy ? { proxy: req.proxy } : {}),
+    // U-12: never ship the user's local proxy URL (corporate proxy / VPN /
+    // mitmproxy — may itself carry proxy-auth creds) when LOCAL_ONLY is set.
+    ...(req.proxy && !localOnly ? { proxy: req.proxy } : {}),
   });
 
   const resp = await fetchImpl(`${base}/v1/sandbox/replay`, {

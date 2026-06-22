@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getModuleDir, getPackageRoot } from "./paths.js";
+import { getModuleDir, getPackageRoot, getUnbrowseHome } from "./paths.js";
 
 export type InstallMethod = "repo-clone" | "npm-global" | "unknown";
 export type InstallHost = "auto" | "codex" | "claude" | "mcp" | "off" | "unknown";
@@ -54,7 +54,7 @@ function getHomeDir(): string {
 
 function getConfigDir(): string {
   if (process.env.UNBROWSE_CONFIG_DIR) return process.env.UNBROWSE_CONFIG_DIR;
-  return path.join(getHomeDir(), ".unbrowse");
+  return getUnbrowseHome();
 }
 
 function ensureDir(dir: string): string {

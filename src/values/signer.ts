@@ -39,6 +39,14 @@ import { join } from "node:path";
 import { AdapterError } from "./types.js";
 import { safeZero } from "./memzero.js";
 import { getSecret, setSecret, type SecretStoreOptions } from "./keychain.js";
+import { getUnbrowseHome } from "../runtime/paths.js";
+
+// An UNBROWSE_HOME override (U-3) means an isolated data root — so the wallet
+// must live in that root's encrypted file, NOT the shared OS keychain (which is
+// machine-global and would leak between the real install and an isolated run).
+function homeIsolated(): boolean {
+  return !!process.env.UNBROWSE_HOME?.trim();
+}
 
 /** Output of `sign()`. Both fields are safe to log. */
 export interface Signature {
@@ -63,7 +71,8 @@ function walletDir(): string {
   if (w) return w;
   const c = process.env.UNBROWSE_CONFIG_DIR?.trim();
   if (c) return c;
-  return join(homedir(), ".unbrowse");
+  // UNBROWSE_HOME (U-3) relocates the whole data root, wallet included.
+  return getUnbrowseHome();
 }
 function walletEncPath(): string {
   return join(walletDir(), "wallet.enc");
@@ -79,6 +88,7 @@ function keychainEnabled(): boolean {
   if (!isDarwin()) return false;
   if (process.env.UNBROWSE_WALLET_DIR?.trim()) return false;
   if (process.env.UNBROWSE_DISABLE_KEYCHAIN === "1") return false;
+  if (homeIsolated()) return false;
   return true;
 }
 
@@ -144,7 +154,8 @@ function readLegacyFile(): Uint8Array | null {
 function secretStoreOpts(): SecretStoreOptions {
   const isolated =
     !!process.env.UNBROWSE_WALLET_DIR?.trim() ||
-    process.env.UNBROWSE_DISABLE_KEYCHAIN === "1";
+    process.env.UNBROWSE_DISABLE_KEYCHAIN === "1" ||
+    homeIsolated();
   return isolated
     ? { forceBackend: "encrypted-file", fallbackDir: walletDir() }
     : { fallbackDir: walletDir() };
