@@ -22,8 +22,10 @@ import { contractVerdictFromEnvelope, type ContractVerdict } from "./contract-sh
 
 export type HttpMethod = "GET" | "POST";
 
-/** Canonical USDC mint on Solana — the default settlement asset (FDRY bonds, USDC settles). */
-const USDC_SOL_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+/** Canonical USDC mint on Solana — the default settlement asset (FDRY bonds, USDC settles).
+ *  Exported so the self-awareness portrait (contract-self.ts) builds FROM this one source — the
+ *  economy described to a user cannot drift from the economy the code actually settles in. */
+export const USDC_SOL_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 /** An opt-in price a grant attaches per task method. A method absent here is FREE. Amounts are in
  *  the asset's atomic units (USDC = 6 decimals, so "10000" = $0.01). */
