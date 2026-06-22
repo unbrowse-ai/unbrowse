@@ -18,6 +18,7 @@
  * an embedder) are resolved from env; absence is surfaced, never silently swallowed.
  */
 
+import { createHash } from "node:crypto";
 import { resolutionLedgerFromEnv } from "./iq-ledger.js";
 import {
   EMERGENTDB_BASE,
@@ -132,6 +133,49 @@ export interface PersistOutcome {
  * a tier that is unconfigured/unavailable is recorded in `notes` (visible, never silent),
  * the others still land. Returns which tiers succeeded so callers/gates can assert.
  */
+/** The emitted three-shape verdict shape (mirror of contract-shape.ts ContractVerdict — kept
+ *  structural to avoid dragging the CLI output module into this value layer). */
+export interface VerdictShape {
+  terminal: boolean;
+  settled: string[];
+  frontier: string | null;
+  engine: string;
+}
+
+/** Content-addressed id for a verdict: same (intent, settled-shape) → same on-chain row. */
+export function verdictContractId(intent: string, verdict: VerdictShape): string {
+  return (
+    "verdict-" +
+    createHash("sha256")
+      .update(`${intent}\x00${verdict.settled.join(">")}\x00${verdict.terminal}`)
+      .digest("hex")
+      .slice(0, 16)
+  );
+}
+
+/**
+ * persistVerdictOnChain — the seam that makes an emitted /contract verdict ACTUALLY on-chain.
+ *
+ * "Make it actually /contract so it's on chain with a web2 wrapper for 402": the emitted
+ * interpret→verify→adjudicate verdict is mapped into the unified ContractEverything row and routed
+ * through persistContract, whose Tier-1 is the IQ signed on-chain ledger (ledger.append — a real
+ * wallet-signed chain write). The "web2 wrapper for 402" is the substrate's existing wallet path:
+ * the on-chain write is satisfied by the wallet derived from the operator's keypair, and any priced
+ * cloud seam returns the canonical 402 envelope which the x402 layer (src/payments/x402-fetch.ts)
+ * settles — the caller never sees a payment header. Fail-open + honest-skip: when the IQ env
+ * (RPC/signer/db ids) is absent, the on-chain tier is skipped with a note, never a fabricated write.
+ */
+export async function persistVerdictOnChain(
+  verdict: VerdictShape,
+  intent: string,
+  opts: { namespace?: string; embedder?: Embedder } = {},
+): Promise<PersistOutcome> {
+  return persistContract(
+    { id: verdictContractId(intent, verdict), text: intent, value: verdict },
+    opts,
+  );
+}
+
 export async function persistContract(
   c: ContractEverything,
   opts: { namespace?: string; embedder?: Embedder } = {},
