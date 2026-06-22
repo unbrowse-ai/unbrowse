@@ -68,3 +68,4 @@ api key wraps a wallet\tbackend/src/middleware/payment-admission.ts
 covenant substrate now ships	src/values/contract-native.ts
 single source-of-truth is bound across	src/values/contract-chain.ts
 append-only on-chain ledger	src/values/iq-ledger.ts
+wallet-bound contribution ledger	src/cli-v7/eval/stats.ts
