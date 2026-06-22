@@ -15,7 +15,7 @@
     "openclaw:install": "bash scripts/install-openclaw-unbrowse.sh",
     "test": "bun run test:issue-regressions && bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
     "test:cli": "bun test tests/cli-e2e.test.ts",
-    "test:issue-regressions": "bun test tests/github-issue-regressions.test.ts tests/codex-harness.test.ts tests/codex-product-success-cases.test.ts",
+    "test:issue-regressions": "bun test ./tests/github-issue-regressions.test.ts ./tests/codex-harness.test.ts ./tests/codex-product-success-cases.test.ts",
     "test:issue-worktree-skill": "bun test tests/issue-worktree-loop.test.ts",
     "test:triage": "bash scripts/test-triage.sh",
     "test:triage:json": "bash scripts/test-triage.sh --json",
