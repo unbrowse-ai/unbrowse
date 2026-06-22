@@ -15,7 +15,10 @@ avoid the usual fate of systems that grow a fresh mechanism for every fresh
 feature and then spend the rest of their lives reconciling them.)
 
 For how this spine shows up across the five papers, see
-[The Unbrowse Papers](../the-unbrowse-papers.md).
+[The Unbrowse Papers](../the-unbrowse-papers.md). For the first-principles reading
+of the substrate as a living architecture — the EBM selector + LLM generator, how
+it deploys itself, and how it benchmarks itself honestly — see
+[The Contract Substrate as a Biological Architecture](./contract-biological-architecture.md).
 
 ## A contract is a declared truth-claim
 

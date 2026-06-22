@@ -287,6 +287,7 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 - [`docs/for-agents/how-an-agent-uses-unbrowse.md`](./docs/for-agents/how-an-agent-uses-unbrowse.md) — route-level behavior and agent workflow
 - [`docs/for-developers/integration-surfaces.md`](./docs/for-developers/integration-surfaces.md) — MCP, SDK, and CLI integration surfaces
 - [`docs/concepts/contract-substrate.md`](./docs/concepts/contract-substrate.md) — the contract substrate: declare surface, wallet-bound signing, append-only ledger, pointer-keyed cache
+- [`docs/concepts/contract-biological-architecture.md`](./docs/concepts/contract-biological-architecture.md) — first-principles: the substrate as a living architecture (EBM selector + LLM generator), self-deployment, honest reproduced-win benchmarking
 - [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md) — payment + sponsor flow on Faremeter Flex
 - [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
 - [`docs/SECURITY.md`](./docs/SECURITY.md) — security model for public packages and runtime integrity
