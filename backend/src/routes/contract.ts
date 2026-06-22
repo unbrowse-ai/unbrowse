@@ -24,6 +24,7 @@ import type {
   SatisfiedCellMatch,
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
+import { contractVerdictFromEnvelope } from "../lib/contract-shape";
 import { verifyDeclareSignature, canonicalizeDeclareBody, type CanonicalDeclareBody } from "../services/declare-signature";
 import { verifyBinding, type ZkBinding, type ZkProof } from "../services/declare-zk";
 import { kvLedger } from "../services/contract-ledger-kv";
@@ -1422,7 +1423,10 @@ async function executeDeclare(
       result.compile_evidence = "compile_skipped_no_api_key";
     }
 
-    return c.json(result);
+    // /contract: the backend's contract-declare op settles as a three-shape verdict too — the
+    // backend layer is /contract-shaped natively, same verdict shape as the CLI. Fail-open.
+    const _rec = result as unknown as Record<string, unknown>;
+    return c.json({ ..._rec, _contract: contractVerdictFromEnvelope(_rec) });
   } catch (err) {
     if (err instanceof DeclareSecretRejection) {
       return c.json({ error: "secret_in_declare", field: err.field }, 400);

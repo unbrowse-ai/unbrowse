@@ -6,6 +6,7 @@
  * to a log line so the form is testable before the binding is provisioned. */
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { contractVerdictFromEnvelope } from "@/lib/contract-shape";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
@@ -61,5 +62,8 @@ export async function POST(req: Request): Promise<Response> {
     console.log(`[aiko-waitlist] (no KV bound) ${record}`);
   }
 
-  return Response.json({ ok: true });
+  // /contract: the frontend's API op settles as the same three-shape verdict — the frontend layer
+  // is /contract-shaped natively, identical verdict shape to the CLI + backend.
+  const _envelope = { ok: true, route: "aiko-waitlist" };
+  return Response.json({ ..._envelope, _contract: contractVerdictFromEnvelope(_envelope) });
 }
