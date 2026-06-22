@@ -180,12 +180,33 @@ export interface ThinClientOptions {
   signer?: ThinClientSigner;
 }
 
+/** A raw contract row to mirror to the server graph (Π4 doctrine mirror).
+ *  Minimal local shape — the server accepts a raw ContractEventRow under `{ row }`. */
+export interface ThinClientMirrorRow {
+  event: string;
+  id: string;
+  ts: string;
+  plan?: string;
+  action?: string;
+  pointer_type?: string;
+  parent_id?: string;
+  agent?: string;
+}
+
+export interface ThinClientMirrorResponse {
+  mirrored: boolean;
+  mirrored_at?: string;
+}
+
 export interface ThinClient {
   declare(req: ThinClientDeclareRequest): Promise<{ id: string }>;
   iterate(req: ThinClientIterateRequest): Promise<ThinClientIterateResponse>;
   status(id: string): Promise<ThinClientStatusResponse>;
   planForIntent(intent: string, limit?: number): Promise<ThinClientPlanMatch[]>;
   surface(): Promise<ThinClientContractSurface>;
+  /** POST a raw row to /v1/contract/mirror so a local verdict/deploy becomes
+   *  visible on the beta-api contract graph (the CLI→server direction). */
+  mirror(row: ThinClientMirrorRow): Promise<ThinClientMirrorResponse>;
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -441,6 +462,13 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       return call<never, ThinClientContractSurface>(
         "/v1/contract/surface",
         "GET",
+      );
+    },
+    async mirror(row) {
+      return call<{ row: ThinClientMirrorRow }, ThinClientMirrorResponse>(
+        "/v1/contract/mirror",
+        "POST",
+        { row },
       );
     },
   };
