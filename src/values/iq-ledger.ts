@@ -45,8 +45,7 @@ function parseRow(raw: Record<string, unknown>): SignedResolutionRow | null {
 /** An AsyncResolutionLedger over an IQLabs on-chain table. find = latest row for an
  *  intent; history = every past row for it (oldest→newest); append = a new signed row. */
 export function iqLedger(client: IqClient): AsyncResolutionLedger {
-  const allRows = async (): Promise<SignedResolutionRow[]> =>
-    (await client.readRows()).map(parseRow).filter((r): r is SignedResolutionRow => r !== null);
+  const allRows = async (): Promise<SignedResolutionRow[]> => expandRows(await client.readRows());
 
   return {
     async find(intent: Pointer) {
@@ -75,6 +74,59 @@ export function iqLedger(client: IqClient): AsyncResolutionLedger {
   };
 }
 
+// ── Multi-row batching (justrach-style efficiency): one tx amortized over N records ──
+// Each writeRow = one Solana tx = one rent payment. Per-memory-row on-chain is uneconomic
+// (it is WHY the IQ tier keeps deferring on funds). Packing N records into ONE row drops
+// the per-record cost ~1/N. A packed row is {batch:[record,...]}; a legacy row is the
+// record itself. `expandRows` reads BOTH transparently, so single-row history written
+// before this change and packed history written after it coexist with no migration.
+
+/** Pack N resolution records into one on-chain row payload (one writeRow → one tx). */
+export function packBatch(records: ResolutionRecord[]): string {
+  return JSON.stringify({ batch: records });
+}
+
+/** Expand raw on-chain rows into signed records, unpacking {batch:[...]} packs.
+ *  Backward-compatible: a legacy single-record row expands to exactly one record. */
+export function expandRows(raw: Array<Record<string, unknown>>): SignedResolutionRow[] {
+  const out: SignedResolutionRow[] = [];
+  for (const r of raw) {
+    const batch = (r as { batch?: unknown }).batch;
+    const rowSig = typeof (r as { sig?: unknown }).sig === "string" ? ((r as { sig: string }).sig) : "";
+    if (Array.isArray(batch)) {
+      for (const b of batch) {
+        const parsed = parseRow(b as Record<string, unknown>);
+        if (parsed) out.push({ ...parsed, sig: parsed.sig || rowSig });
+      }
+    } else {
+      const parsed = parseRow(r);
+      if (parsed) out.push(parsed);
+    }
+  }
+  return out;
+}
+
+/** Append MANY records as ONE on-chain row (one writeRow = one tx). The hash-chain is
+ *  continued within and across the batch (seq is global, prev links record→record), so
+ *  packed history verifies exactly like single-row history. Returns the single tx sig. */
+export async function appendBatch(
+  client: IqClient,
+  entries: Array<{ intent: Pointer; result: Pointer; ts?: number }>,
+): Promise<{ sig: string; records: SignedResolutionRow[] }> {
+  const existing = expandRows(await client.readRows());
+  let seq = existing.length;
+  let prev = existing.length ? existing[existing.length - 1].hash : GENESIS;
+  const records: ResolutionRecord[] = [];
+  for (const e of entries) {
+    const hash = recordHash({ intent: e.intent, prev, result: e.result, seq });
+    records.push({ seq, intent: e.intent, result: e.result, prev, hash, ts: e.ts });
+    prev = hash;
+    seq += 1;
+  }
+  const sig = await client.writeRow(packBatch(records));
+  return { sig, records: records.map((r) => ({ ...r, sig })) };
+}
+
 /**
  * Cold-hydrate (crypto-was-all-you-needed Phase 2): the symmetric READ half of the
  * write-through. A fresh machine with IQ configured but an empty local ledger clones the
@@ -90,7 +142,7 @@ export async function hydrateLocalLedgerFromChain(
   chain: Pick<IqClient, "readRows">,
   local: AsyncResolutionLedger,
 ): Promise<{ scanned: number; hydrated: number }> {
-  const rows = (await chain.readRows()).map(parseRow).filter((r): r is SignedResolutionRow => r !== null);
+  const rows = expandRows(await chain.readRows());
   // Group by intent, preserving on-chain order (oldest→newest) within each intent.
   const byIntent = new Map<string, SignedResolutionRow[]>();
   for (const r of rows) {
@@ -107,6 +159,24 @@ export async function hydrateLocalLedgerFromChain(
     }
   }
   return { scanned: rows.length, hydrated };
+}
+
+/**
+ * Cross-machine recall, WIRED (was: hydrateLocalLedgerFromChain had zero callers — the
+ * "remembers across machines" half existed but was never invoked). Build the Iq client
+ * from env and hydrate the local fast-tier ledger from the wallet's on-chain signed
+ * history. A fresh machine that holds the wallet rebuilds its memory from chain — no
+ * machine-local storage required to remember what it did. Returns null (no-op) when IQ
+ * env is absent, so a machine without the wallet/keys simply runs on its local ledger.
+ * Call this on boot before serving reads; idempotent (hydrates only missing rows).
+ */
+export async function recallMemoryFromChain(
+  local: AsyncResolutionLedger,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ scanned: number; hydrated: number } | null> {
+  const client = await iqClientFromEnv(env);
+  if (!client) return null;
+  return hydrateLocalLedgerFromChain(client, local);
 }
 
 /**
