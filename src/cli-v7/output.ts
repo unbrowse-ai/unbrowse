@@ -10,6 +10,8 @@
  *   70  EX_SOFTWARE       — handler not yet implemented (v7 stub state)
  *   1   generic failure
  */
+import { contractVerdictFromEnvelope } from "../values/contract-shape.js";
+
 export const EX_OK = 0;
 export const EX_USAGE = 64;
 export const EX_SOFTWARE = 70;
@@ -23,6 +25,18 @@ export interface OutputOptions {
 }
 
 export function emit(data: unknown, opts: OutputOptions = {}): void {
+  // /contract shaped all the way through: EVERY primitive's envelope carries the three-shape
+  // verdict (interpret→verify→adjudicate), attached here at the ONE shared boundary from the
+  // envelope's universal shape — zero per-primitive wiring. resolve/execute attach a richer
+  // bible-anchor-enriched `_contract` themselves; this fills it for every other primitive and
+  // NEVER overwrites an existing one. Fail-open: a verdict error can never break an emit.
+  if (data && typeof data === "object" && !Array.isArray(data) && !("_contract" in (data as object))) {
+    try {
+      (data as Record<string, unknown>)._contract = contractVerdictFromEnvelope(data as Record<string, unknown>);
+    } catch {
+      /* fail-open — output is never blocked by the verdict */
+    }
+  }
   const usePretty = opts.pretty === true || (opts.json !== true && !!process.stdout.isTTY);
   const out = usePretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
   process.stdout.write(out + "\n");
