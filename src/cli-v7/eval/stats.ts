@@ -34,6 +34,7 @@ import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { postStateless } from "../_stateless.js";
 import { readImpactSummary, getImpactLogPath } from "../../impact-log.js";
 import { getAgentId, getMyDashboard } from "../../client/index.js";
+import { readLocalWalletAddress } from "../../values/signer.js";
 
 export interface YouViewLocal {
   total_cost_saved_uc: number;
@@ -49,17 +50,36 @@ export interface YouViewDash {
 /** Pure shaping of the "you" view — cost/time saved from the LOCAL impact log (offline,
  *  no account); payouts + contributions count from the remote dashboard when present,
  *  else degrade to 0 (never null, never fabricated). authenticated = we had a dashboard.
- *  Extracted pure so the four-field contract + graceful degrade is unit-tested. */
-export function shapeYouView(local: YouViewLocal, dash: YouViewDash | null, impactLogPath: string): Record<string, unknown> {
+ *
+ *  web3-native, web2-wrapped: the contribution ledger is bound to your self-custody
+ *  `wallet` (the on-chain identity the owner-share + Proof-of-Indexing attribution pay
+ *  out to); the money/tokens/time fields are the plain web2-friendly view of it. `wallet`
+ *  is read no-mint (null until you have one) so merely checking stats never creates keys.
+ *  Extracted pure so the field contract + graceful degrade is unit-tested. */
+export function shapeYouView(
+  local: YouViewLocal,
+  dash: YouViewDash | null,
+  impactLogPath: string,
+  wallet?: string | null,
+): Record<string, unknown> {
   return {
-    cost_saved_usd: Math.round((local.total_cost_saved_uc / 1_000_000) * 1e6) / 1e6,
-    time_saved_hours: Math.round((local.total_time_saved_ms / 3_600_000) * 1e4) / 1e4,
+    // web2-friendly contribution ledger (money made / money saved / tokens / speed / time)
+    money_made_usd: dash?.economics?.total_earned_usd ?? 0,
+    money_saved_usd: Math.round((local.total_cost_saved_uc / 1_000_000) * 1e6) / 1e6,
     tokens_saved: local.total_tokens_saved,
+    time_saved_hours: Math.round((local.total_time_saved_ms / 3_600_000) * 1e4) / 1e4,
+    // "speed" — average wall-clock saved per run (ms); honest derive, 0 when no runs
+    avg_time_saved_per_run_ms:
+      local.total_runs > 0 ? Math.round(local.total_time_saved_ms / local.total_runs) : 0,
     total_runs: local.total_runs,
     contributions: dash?.contributions?.length ?? 0,
-    payouts_usd: dash?.economics?.total_earned_usd ?? 0,
+    // web3-native binding: the wallet these contributions + payouts settle to (no-mint read)
+    wallet: wallet ?? null,
     authenticated: dash != null,
     impact_log_path: impactLogPath,
+    // back-compat aliases (prior field names kept so existing readers don't break)
+    cost_saved_usd: Math.round((local.total_cost_saved_uc / 1_000_000) * 1e6) / 1e6,
+    payouts_usd: dash?.economics?.total_earned_usd ?? 0,
   };
 }
 
@@ -79,7 +99,15 @@ async function buildYouView(): Promise<Record<string, unknown>> {
       // remote unreachable / unauthenticated — keep local-only zeros, stay non-null
     }
   }
-  return shapeYouView(local, dash, getImpactLogPath());
+  // web3-native binding, read no-mint: null until a wallet exists (checking stats
+  // must never create key state). The web2 fields render the same either way.
+  let wallet: string | null = null;
+  try {
+    wallet = readLocalWalletAddress();
+  } catch {
+    // no wallet pointer / unreadable — degrade to null, never crash the reporter
+  }
+  return shapeYouView(local, dash, getImpactLogPath(), wallet);
 }
 
 function resolveApiBase(): string {

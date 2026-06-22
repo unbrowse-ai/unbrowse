@@ -24,6 +24,30 @@ describe("shapeYouView — G1 you-view contract", () => {
     expect(you.impact_log_path).toBe("/tmp/impact.jsonl");
   });
 
+  it("web2-friendly contribution ledger: money made / saved / tokens / speed / time", () => {
+    const you = shapeYouView(local, { economics: { total_earned_usd: 1.5 }, contributions: [{}] }, "/p", null);
+    expect(you.money_made_usd).toBe(1.5); // money made = owner-share payouts
+    expect(you.money_saved_usd).toBe(758.165901); // money saved = cost avoided
+    expect(you.tokens_saved).toBe(252_721_967);
+    expect(you.time_saved_hours).toBe(52.4247);
+    // "speed" — avg wall-clock saved per run = 188_729_000 / 20_522 ≈ 9197ms
+    expect(you.avg_time_saved_per_run_ms).toBe(Math.round(188_729_000 / 20_522));
+    // back-compat aliases still present so existing readers don't break
+    expect(you.cost_saved_usd).toBe(you.money_saved_usd);
+    expect(you.payouts_usd).toBe(you.money_made_usd);
+  });
+
+  it("web3-native binding: wallet surfaced when present, null (no-mint) when absent", () => {
+    expect(shapeYouView(local, null, "/p", "So1aNaWa11et").wallet).toBe("So1aNaWa11et");
+    expect(shapeYouView(local, null, "/p").wallet).toBeNull(); // no wallet arg → null, never minted
+    expect(shapeYouView(local, null, "/p", null).wallet).toBeNull();
+  });
+
+  it("zero runs → speed (avg_time_saved_per_run_ms) is 0, never NaN/divide-by-zero", () => {
+    const you = shapeYouView({ total_cost_saved_uc: 0, total_time_saved_ms: 0, total_tokens_saved: 0, total_runs: 0 }, null, "/p");
+    expect(you.avg_time_saved_per_run_ms).toBe(0);
+  });
+
   it("with dashboard → payouts + contributions count from remote, authenticated", () => {
     const you = shapeYouView(local, {
       economics: { total_earned_usd: 0.42 },

@@ -395,6 +395,16 @@ on top of someone else's work earns nothing. This keeps the incentive pointed at
 real maintenance rather than at land-grabbing a popular route and collecting rent
 on another party's labour.
 
+This reward, and the savings it sits beside, are made legible to the contributor
+without exposing the chain underneath: the CLI surfaces a
+wallet-bound contribution ledger --- money earned (the owner/indexer share that settled to you), money saved
+(the cost the cached route avoided), and the tokens, speed, and wall-clock time
+saved --- read off the local impact log and your on-chain dashboard. The on-chain
+identity is the root the ledger binds to; the figures are a Web2-shaped view wrapped
+over it, so a contributor who never wants to think about wallets still sees what
+their maintenance produced. The wallet is read without minting, so merely checking
+the numbers never creates key state.
+
 Delta-based attribution prices contribution honestly, but it does not, by itself,
 solve who is making the contribution --- and here we have to be plain rather than
 reassuring. The marginal-contribution score is computed per identity, and in an
