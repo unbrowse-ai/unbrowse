@@ -734,7 +734,14 @@ product, what is available as runnable code, and where the work stops:
 \begin{itemize}[leftmargin=1.4em]
 \item In the product: Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
 fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
-route/endpoint caching.
+route/endpoint caching. The node-at-every-layer is no longer a description of
+separate modules: the covenant substrate now ships \emph{embedded} in the stateless
+binary and is exercised in-process on the resolution hot path
+(\texttt{src/values/contract-native.ts}), and a single source-of-truth is bound across
+the CLI, the server, and the site so the same signed node adjudicates at each surface
+(\texttt{src/values/contract-chain.ts}), persisted to an append-only on-chain ledger
+(\texttt{src/values/iq-ledger.ts}). One compiled substrate, instantiated at every layer
+--- the paper's thesis made literal rather than illustrative.
 \item The cross-layer security primitives are implemented, each with
 tests that execute the claim: the signed descent through every layer with vertical
 wallet ownership (\texttt{src/values/signed-descent.ts}, \texttt{src/values/wallet-hierarchy.ts},
@@ -762,7 +769,11 @@ client sees only holes, approvals, and typed pointers rather than graph-control
 verbs. The
 on-chain deployment of the checkpoint root, the ERC-8004 registry binding, and a
 real signed OS/kernel/packet descent across platforms remain integration work,
-honestly labelled.
+honestly labelled. The same honesty applies to the end state this embedded substrate
+points at --- a site that is a thin reader of on-chain public state, carrying pointers
+and sealed payloads only while the closed reverse-engineering compute stays off-chain
+--- which is planned but is not yet the live serving path, and is therefore reported as
+a frontier, not a feature.
 \item Zero-edit drop-in replacements for the libraries an agent would
 otherwise reach for exist as packages backed by the route graph: an \texttt{exa-py}
 drop-in (\texttt{packages/py-exa}) and a \texttt{browser-use} drop-in
