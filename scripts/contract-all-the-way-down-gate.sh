@@ -39,4 +39,7 @@ if grep -nE '^\s*import .*(contract-native|bun:ffi)' src/values/contract-shape.t
 fi
 echo "ok G5 pure — the shared deriver is dependency-free (no native FFI on every emit)"
 
+grep -q "_contract: contractVerdictFromEnvelope" src/orchestrator/index.ts || fail "G6 orchestrator: walkPrerequisiteChain steps no longer settle as a three-shape contract"
+echo "ok G6 orchestrator — the DAG executor settles each prerequisite step as a three-shape contract"
+
 echo "GATE GREEN — /contract shaped all the way through: every primitive emit carries the three-shape verdict"
