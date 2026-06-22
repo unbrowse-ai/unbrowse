@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { isVisibleByGrant, canonicalGrant, type MaybeGrantRow } from "./contract-grant";
+import { isVisibleByGrant, canonicalGrant, grantGate, payGate, type MaybeGrantRow } from "./contract-grant";
 
 function identity() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -50,5 +50,38 @@ describe("backend isVisibleByGrant — enforcement read-guard (no leak)", () => 
   it("SCOPE: a grant for a DIFFERENT contract does not leak this one", () => {
     const rows = [grantRow(owner, reader.id, "contract:other")];
     expect(isVisibleByGrant(reader.id, "abc", rows, NOW)).toBe(false);
+  });
+});
+
+describe("payGate ∘ grantGate — RBAC verdict feeds the x402 compensation tier (end-to-end)", () => {
+  const AGENT = "FnKAsX65xiNBukiLt9YYyzHJQrsRxQG62X9uMavKtkf";
+
+  it("ALLOWED + priced POST → a 402 quote payable to the agent (real grantGate base-allow → payGate)", () => {
+    const dec = grantGate({ surface: "agent:x", baseAllowed: true, caller: AGENT, contractId: "c1", rows: [] });
+    expect(dec.visible).toBe(true); // grantGate's REAL verdict
+    const pay = payGate({ decision: dec, method: "POST", price: { POST: { amount: "10000" } }, recipient: AGENT, resource: "task:c1" });
+    expect(pay.kind).toBe("payment_required");
+    if (pay.kind !== "payment_required") throw new Error("unreachable");
+    expect(pay.quote.payTo).toBe(AGENT);
+    expect(pay.quote.amount).toBe("10000");
+  });
+
+  it("DENIED by grantGate stays denied EVEN WITH a price (payment never buys past RBAC)", () => {
+    const dec = grantGate({ surface: "agent:x", baseAllowed: false, caller: AGENT, contractId: "c1", rows: [] });
+    expect(dec.visible).toBe(false); // no base, no grant → grantGate denies
+    const pay = payGate({ decision: dec, method: "POST", price: { POST: { amount: "999999" } }, recipient: AGENT, resource: "r" });
+    expect(pay.kind).toBe("denied"); // NOT payment_required
+  });
+
+  it("ALLOWED + no price → free", () => {
+    const dec = grantGate({ surface: "s", baseAllowed: true, caller: AGENT, contractId: "c1", rows: [] });
+    expect(payGate({ decision: dec, method: "GET", recipient: AGENT, resource: "r" }).kind).toBe("free");
+  });
+
+  it("ALLOWED + malformed amount → denied (no bogus quote on a money path)", () => {
+    const dec = grantGate({ surface: "s", baseAllowed: true, caller: AGENT, contractId: "c1", rows: [] });
+    for (const amount of ["0", "-5", "abc", ""]) {
+      expect(payGate({ decision: dec, method: "POST", price: { POST: { amount } }, recipient: AGENT, resource: "r" }).kind).toBe("denied");
+    }
   });
 });

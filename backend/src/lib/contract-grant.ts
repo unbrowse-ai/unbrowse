@@ -156,3 +156,70 @@ export function grantGate(opts: {
   const grantOk = isVisibleByGrant(opts.caller, opts.contractId, opts.rows, opts.nowMs ?? Date.now());
   return { surface: opts.surface, visible: grantOk, via: grantOk ? "grant" : "denied" };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// payGate — the opt-in x402 COMPENSATION tier composed over grantGate's RBAC verdict.
+//
+// The flow where it actually runs: a request arrives at a contract route → grantGate decides WHO may
+// reach the task (the VisibilityDecision) → payGate adds the OPTIONAL price per method (GET = read,
+// POST = act). visible + a valid price → a 402 quote payable to the AGENT (compensated to do the work);
+// visible + no price → free; not visible → denied. Payment NEVER buys past RBAC (Decalogue cmd 8): a
+// denied caller stays denied even with a price. Fail-closed on a malformed amount (no bogus quote).
+// Backend copy ON PURPOSE (per-deploy, like grantGate itself); the CLI's src/values/contract-pay.ts is
+// the decoupled boolean variant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type HttpMethod = "GET" | "POST";
+
+const USDC_SOL_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+/** An opt-in price a grant attaches per method (absent → free). Amounts are atomic units (USDC = 6dp). */
+export interface PricePolicy {
+  GET?: { amount: string; asset?: string };
+  POST?: { amount: string; asset?: string };
+}
+
+export interface X402Quote {
+  scheme: "exact";
+  amount: string;
+  asset: string;
+  payTo: string;
+  resource: string;
+  network: string;
+}
+
+export type PayDecision =
+  | { kind: "denied"; surface: string; via: VisibilityDecision["via"] }
+  | { kind: "free"; surface: string; method: HttpMethod }
+  | { kind: "payment_required"; surface: string; method: HttpMethod; quote: X402Quote };
+
+/** payGate — compose a grantGate VisibilityDecision with an optional per-method price into the x402
+ *  compensation tier. Pure + fail-closed; the actual settlement is the x402 layer. */
+export function payGate(opts: {
+  decision: VisibilityDecision;
+  method: HttpMethod;
+  price?: PricePolicy;
+  recipient: string;
+  resource: string;
+  network?: string;
+}): PayDecision {
+  const { surface, visible, via } = opts.decision;
+  if (!visible) return { kind: "denied", surface, via }; // payment never buys past RBAC
+  const tier = opts.price?.[opts.method];
+  if (!tier) return { kind: "free", surface, method: opts.method };
+  // fail-closed on a money path: a malformed amount or missing recipient never becomes a quote
+  if (!/^[1-9][0-9]*$/.test(tier.amount) || !opts.recipient) return { kind: "denied", surface, via };
+  return {
+    kind: "payment_required",
+    surface,
+    method: opts.method,
+    quote: {
+      scheme: "exact",
+      amount: tier.amount,
+      asset: tier.asset ?? USDC_SOL_MINT,
+      payTo: opts.recipient,
+      resource: opts.resource,
+      network: opts.network ?? "solana",
+    },
+  };
+}
