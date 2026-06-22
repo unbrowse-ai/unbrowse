@@ -16,6 +16,7 @@ import { decomposeGraphqlEndpoint, decomposeGrpcEndpoint, decomposeJsonRpcEndpoi
 import { sealSkillSnapshotHoles } from "../values/storage-hole-bindings.js";
 import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
 import { deriveSealKey, deriveCommitmentKey } from "../values/signer.js";
+import { contractVerdictFromEnvelope, type ContractVerdict } from "../values/contract-shape.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
 import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch, x402PaymentAvailable } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
@@ -2265,7 +2266,7 @@ export async function walkPrerequisiteChain(
   queryIntent: string,
   projection: Parameters<typeof executeSkill>[2],
   options: Parameters<typeof executeSkill>[3],
-  steps: Array<{ endpoint_id: string; ok: boolean; yielded: string[] }>,
+  steps: Array<{ endpoint_id: string; ok: boolean; yielded: string[]; _contract?: ContractVerdict }>,
   // The TARGET endpoint whose holes are being filled. When set, the skill's operation_graph edges
   // bind each hole to the RIGHT producer (Ex 28:32 — which hole fits which); omitted → order fallback.
   consumerId?: string,
@@ -2352,14 +2353,27 @@ export async function walkPrerequisiteChain(
             return { ok, yields };
           },
         });
-        steps.push({ endpoint_id: prereqId, ok: res.value.ok, yielded: Object.keys(res.value.yields) });
+        // /contract: each prerequisite step in the DAG settles as a three-shape contract
+        // (interpret the step → verify it routed to an endpoint → adjudicate a real ok) — the
+        // runtime DAG-recompute (walkPrerequisiteChain) is itself contract-shaped, not just its edges.
+        steps.push({
+          endpoint_id: prereqId,
+          ok: res.value.ok,
+          yielded: Object.keys(res.value.yields),
+          _contract: contractVerdictFromEnvelope({ subcommand: "orchestrator prereq", endpoint_id: prereqId, ok: res.value.ok }),
+        });
         if (!res.value.ok) continue;
         // Advance the cascade edge to this step's pointer (when persisted; pass-through under ttl<=0).
         if (res.pointer) priorPointer = res.pointer;
         extracted = res.value.yields;
         executed.set(prereqId, extracted);
       } catch {
-        steps.push({ endpoint_id: prereqId, ok: false, yielded: [] });
+        steps.push({
+          endpoint_id: prereqId,
+          ok: false,
+          yielded: [],
+          _contract: contractVerdictFromEnvelope({ subcommand: "orchestrator prereq", endpoint_id: prereqId, ok: false }),
+        });
         continue;
       }
     }
