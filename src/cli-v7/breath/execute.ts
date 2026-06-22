@@ -53,6 +53,7 @@ import {
 } from "../output.js";
 import { lookupKindMap } from "../kind-map.js";
 import { postStateless } from "../_stateless.js";
+import { resolutionContractVerdict } from "../../values/resolution-contract.js";
 
 const EX_CDP = 65;
 const FIVE_MINUTES_MS = 300_000;
@@ -676,11 +677,22 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
   const truncated = !wantRaw && responseText.length > RAW_TRUNCATE_BYTES;
   const responseBodyOut = truncated ? responseText.slice(0, RAW_TRUNCATE_BYTES) : responseText;
 
+  // /contract all-the-way-down: the execute act carries the SAME three-shape verdict the
+  // resolve path does (interpret the endpoint → verify it routed to an outgoing URL →
+  // adjudicate a real <400 result), attached as `_contract`. Pure + fail-open, identical
+  // discipline to resolve — evidence, never a blocker. This makes execute /contract-native too.
+  const executeVerdict = await resolutionContractVerdict({
+    intent: endpointId || outgoingUrl,
+    skill: { skill_id: endpointId, endpoints: status < 400 ? [{ status, url: outgoingUrl }] : [] },
+    url: outgoingUrl,
+  });
+
   emit(
     {
       ok: true,
       subcommand: "breath execute",
       op_kind: meta.op_kind,
+      _contract: executeVerdict,
       session_id: sessionId,
       endpoint_id: endpointId,
       url: outgoingUrl, // url is data, not a secret
