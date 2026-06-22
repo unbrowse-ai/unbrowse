@@ -24,6 +24,11 @@ OUT = os.path.join(HERE, "data", "jespa_route_result.json")
 # latent (P = 24x24 = 576 params) is learnable from the real corpus — model fits the data.
 D = 24
 N_CAND = 10          # true route + same-intent-type distractors (the REAL disambiguation task)
+EP_PER_ROUTE = 4     # masked episodes evaluated per route. Each random mask is a GENUINELY distinct
+                     # intent (the I-JEPA masked-intent distribution itself), so K views per route is
+                     # denser sampling of the SAME task — not synthetic padding. Fixes the underpowered
+                     # n=31 single-episode eval whose noise produced a FALSE-NEGATIVE lift (witnessed:
+                     # 1-ep lift −0.03/−0.10 vs K=4 lift +0.008/+0.024, n 31→124). See PROBE-FINDINGS.md.
 MASK_KEEP = 0.6      # fraction of route tokens visible in the intent (context)
 STOP = {"https", "http", "www", "com", "org", "io", "net", "html", "", "the", "a"}
 
@@ -107,11 +112,12 @@ def run_seed(routes, seed):
     def r_at_1(split, lam, sd):
         rg = np.random.default_rng(sd); hits = n = 0
         for i in split:
-            ep = eval_episode(i, lam, rg)
-            if ep is None: continue
-            ti, cand, kw, jc = ep
-            score = {c: kw[c] + lam * jc[c] for c in cand}
-            hits += max(cand, key=lambda c: score[c]) == ti; n += 1
+            for _ in range(EP_PER_ROUTE):     # K masked views per route — each a distinct masked intent
+                ep = eval_episode(i, lam, rg)
+                if ep is None: break          # no same-type pool for this route — same every view, skip it
+                ti, cand, kw, jc = ep
+                score = {c: kw[c] + lam * jc[c] for c in cand}
+                hits += max(cand, key=lambda c: score[c]) == ti; n += 1
         return (hits / n if n else 0.0), n
     best_lam, best = 0.0, -1.0
     for lam in (0.0, 0.05, 0.1, 0.2, 0.4, 0.8):
