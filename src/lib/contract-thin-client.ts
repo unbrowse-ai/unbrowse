@@ -17,6 +17,7 @@
 
 import type { LocalCapabilityDispatcher } from "./local-capabilities";
 import { canonicalizeViaWasm, signViaWasm } from "./core-wasm";
+import { buildSpawnAttestation } from "../values/contract-attest.js";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirror backend/src/routes/contract.ts request/response.
@@ -299,6 +300,8 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
     method: "GET" | "POST",
     body?: TReq,
     queryParams?: Record<string, string>,
+    extraHeaders?: Record<string, string>,
+    rawBody?: string,
   ): Promise<TRes> {
     const url = new URL(`${baseUrl}${path}`);
     if (queryParams) {
@@ -309,9 +312,13 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       headers: {
         "Content-Type": "application/json",
         ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
+        ...(extraHeaders ?? {}),
       },
     };
-    if (body !== undefined) init.body = JSON.stringify(body);
+    // rawBody (when present) is the EXACT bytes a spawn attestation signed — send it verbatim,
+    // never re-stringify (a re-serialization would change the bytes and break the signature).
+    if (rawBody !== undefined) init.body = rawBody;
+    else if (body !== undefined) init.body = JSON.stringify(body);
     const res = await fetchImpl(url.toString(), init);
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -396,10 +403,27 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
           }
         : req;
 
+      // Native CLI↔server bind: sign the EXACT POST bytes with the aiko substrate deployer key
+      // (single-link lineage rooted at the deployer identity) and attach the x-aiko-* attestation
+      // headers. buildSpawnAttestation returns null on any machine without the deployer key (every
+      // non-Lewis install) → no headers → the server admits the declare on the legacy-anonymous
+      // path, unchanged. The bytes signed here are the bytes sent (rawBody), so the leaf signature
+      // verifies server-side.
+      const bodyStr = JSON.stringify(wireBody);
+      let attestHeaders: Record<string, string> | undefined;
+      try {
+        const att = buildSpawnAttestation(new TextEncoder().encode(bodyStr));
+        if (att) attestHeaders = att as unknown as Record<string, string>;
+      } catch {
+        /* no deployer key / rotated key → legacy-anonymous (server admits it) */
+      }
       const result = await call<unknown, { id: string }>(
         "/v1/contract/declare",
         "POST",
-        wireBody,
+        undefined,
+        undefined,
+        attestHeaders,
+        bodyStr,
       );
       return { id: result.id };
     },
