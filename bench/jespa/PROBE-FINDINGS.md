@@ -91,3 +91,11 @@ lift ≤0 across 101→144 routes, cold re-run seed7 +0.000 / seed13 −0.039.
 NOT DEMONSTRATED (correction to my own claim): "production-ranker pivot WOULD win (5.6×)" — the 5.6× is
 in FINDING.md on GITIGNORED internal data I have NOT reproduced. It is a HYPOTHESIS to TEST, not a proven
 path. Honest framing: the pivot is the obvious next experiment; whether it clears 0.05 is UNPROVEN.
+
+## DEFINITIVE VERDICT (diverse-lane re-bench, 2026-06-22): HOLD — confirmed, not anchor-artifact
+The grind reached ALL lanes (semantic-rank 17, ssr-list 13, graphql 2, anchor 12, auth 9 = 48 unique
+grind routes; 125 total unique). Re-bench n=152: seed7 lift +0.000, seed13 lift −0.039 → FAIL. The
+diverse lanes (where jespa's masked-prediction was hoped to earn signal) did NOT help. The jespa D=24
+linear predictor genuinely does not beat keyword Jaccard on route disambiguation, across every lane,
+independent of corpus size. The win is RANKER-bound. Honest negative, gate untouched, no fabricated green.
+The named (UNPROVEN) next experiment: port the production learned-energy ranker (FEAT_DIM=512) into the bench.
