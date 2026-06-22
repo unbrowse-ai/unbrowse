@@ -76,6 +76,12 @@ export async function cachedResolution<T>(opts: {
    *  pointer). Folded into the key so a change to any dependency cascade-invalidates this
    *  entry — the values-ledger pointer→pointer edge. Omit for a leaf resolution. */
   dependsOn?: readonly string[];
+  /** Set false on a HOT-PATH read to skip the on-chain IQ + emergentDB mirrors. The mirrors are
+   *  fire-and-forget, but when the contract-stack env (IQ wallet/RPC, EMERGENTDB_API_KEY) is
+   *  configured they open a network socket whose floated promise can keep a short-lived CLI process
+   *  alive at exit. Local caching is unaffected — only the off-machine mirror is suppressed. Default
+   *  true (mirror on). */
+  mirror?: boolean;
 }): Promise<CachedResolution<T>> {
   if (!(opts.ttlMs > 0)) return { value: await opts.recompute(), cached: false };
 
@@ -102,14 +108,16 @@ export async function cachedResolution<T>(opts: {
     if (opts.cacheable(value)) {
       pointer = putBlob(JSON.stringify(value), store);
       ledger.append(ptrKey, pointer, now);
-      // Same on-chain write-through as storeResolution — the orchestrator + client
-      // resolve through cachedResolution, so this is where most resolutions persist
-      // to the IQ signed ledger when configured. Fire-and-forget + fail-open.
-      void mirrorResolutionToChain(keyWithDeps(opts.key, opts.dependsOn), pointer, { principal: opts.principal });
-      // Emergent tier (cached by emergent + searchable by emergent RAG) — sibling of the
-      // IQ mirror. Fire-and-forget + fail-open: a no-op when EMERGENTDB_API_KEY/embedder
-      // are absent (normal CLI), active only where the contract-stack env is configured.
-      void mirrorToEmergent(keyWithDeps(opts.key, opts.dependsOn), opts.key, value);
+      if (opts.mirror !== false) {
+        // Same on-chain write-through as storeResolution — the orchestrator + client
+        // resolve through cachedResolution, so this is where most resolutions persist
+        // to the IQ signed ledger when configured. Fire-and-forget + fail-open.
+        void mirrorResolutionToChain(keyWithDeps(opts.key, opts.dependsOn), pointer, { principal: opts.principal });
+        // Emergent tier (cached by emergent + searchable by emergent RAG) — sibling of the
+        // IQ mirror. Fire-and-forget + fail-open: a no-op when EMERGENTDB_API_KEY/embedder
+        // are absent (normal CLI), active only where the contract-stack env is configured.
+        void mirrorToEmergent(keyWithDeps(opts.key, opts.dependsOn), opts.key, value);
+      }
     }
   } catch {
     /* cache write best-effort — the value is still returned */
