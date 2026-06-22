@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { canRead, canonicalGrant, type ContractGrant } from "../src/values/contract-grant.ts";
+import { canRead, canonicalGrant, grantGate, type ContractGrant } from "../src/values/contract-grant.ts";
 
 function identity() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -119,5 +119,29 @@ describe("contract-grant RBAC — roles as scoped grants (native, no new mechani
     // so test the inverse: only the forged assignment present → denied
     const onlyForged = [roleGrant(owner.privateKey, owner.id), { ...good, signature: "00".repeat(32) }];
     expect(canRead({ reader: alice.id, requestedScope: "contract:abc", grants: onlyForged, nowMs: NOW }).allowed).toBe(false);
+  });
+});
+
+describe("grantGate — the opt-in permission policy (one guard, opted into per surface)", () => {
+  const owner = identity();
+  const reader = identity();
+  const NOW = 1_900_000_000_000;
+  const grant = (() => {
+    const g = { granter: owner.id, grantee: reader.id, scope: "contract:abc", expires: null };
+    return { ...g, signature: sign(null, Buffer.from(canonicalGrant(g)), owner.privateKey).toString("hex") };
+  })();
+
+  it("base allow → visible via base (the surface's own prior decision wins, no grant needed)", () => {
+    const d = grantGate({ surface: "s1", baseAllowed: true, caller: reader.id, scope: "contract:abc", grants: [], nowMs: NOW });
+    expect(d).toEqual({ surface: "s1", visible: true, via: "base" });
+  });
+  it("base deny + valid grant → visible via grant (additive widening)", () => {
+    const d = grantGate({ surface: "s2", baseAllowed: false, caller: reader.id, scope: "contract:abc", grants: [grant], nowMs: NOW });
+    expect(d.visible).toBe(true);
+    expect(d.via).toBe("grant");
+  });
+  it("base deny + no grant → denied (fail-closed), surface named", () => {
+    const d = grantGate({ surface: "s3", baseAllowed: false, caller: reader.id, scope: "contract:abc", grants: [], nowMs: NOW });
+    expect(d).toEqual({ surface: "s3", visible: false, via: "denied" });
   });
 });

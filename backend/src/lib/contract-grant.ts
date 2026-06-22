@@ -134,3 +134,25 @@ export function isVisibleByGrant(
   if (grants.length === 0) return false;
   return canRead({ reader: caller, requestedScope: `contract:${contractId}`, grants, nowMs, verify }).allowed;
 }
+
+/** The decision a surface gets when it opts into the grant policy (coverage auditable + why). */
+export interface VisibilityDecision {
+  surface: string;
+  visible: boolean;
+  via: "base" | "grant" | "denied";
+}
+
+/** grantGate — the OPT-IN permission policy any layer/surface adopts (superpattern: one guard, opted
+ *  into per surface). base allow → via base; base deny → grants WIDEN (additive, no lockout); fail-closed. */
+export function grantGate(opts: {
+  surface: string;
+  baseAllowed: boolean;
+  caller: string | null | undefined;
+  contractId: string;
+  rows: MaybeGrantRow[];
+  nowMs?: number;
+}): VisibilityDecision {
+  if (opts.baseAllowed) return { surface: opts.surface, visible: true, via: "base" };
+  const grantOk = isVisibleByGrant(opts.caller, opts.contractId, opts.rows, opts.nowMs ?? Date.now());
+  return { surface: opts.surface, visible: grantOk, via: grantOk ? "grant" : "denied" };
+}

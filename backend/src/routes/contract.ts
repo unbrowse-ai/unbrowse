@@ -25,7 +25,7 @@ import type {
 } from "../services/contract-ledger";
 import { projectStatus, searchSatisfiedCells, isCallerInLineage } from "../services/contract-ledger";
 import { contractVerdictFromEnvelope } from "../lib/contract-shape";
-import { isVisibleByGrant, type MaybeGrantRow } from "../lib/contract-grant";
+import { grantGate, type MaybeGrantRow } from "../lib/contract-grant";
 import { verifyDeclareSignature, canonicalizeDeclareBody, type CanonicalDeclareBody } from "../services/declare-signature";
 import { verifyBinding, type ZkBinding, type ZkProof } from "../services/declare-zk";
 import { kvLedger } from "../services/contract-ledger-kv";
@@ -709,12 +709,16 @@ export async function handleStatus(
     depth++;
   }
 
-  // ENFORCEMENT: a caller not in the lineage may STILL read iff a capability grant in the contract's
-  // own rows authorizes it (the native grant/RBAC layer, ed25519-verified). Additive (|| — never a
-  // lockout); fail-closed (no valid grant → false). This is the grant primitive enforced at the live read.
-  const visible =
-    isCallerInLineage(declared, opts.caller_pubkey ?? null, walkParent) ||
-    isVisibleByGrant(opts.caller_pubkey, id, rows as unknown as MaybeGrantRow[], Date.now());
+  // OPT-IN: this surface adopts the grant/RBAC permission policy via grantGate (named
+  // "backend:contract-read" so the opted-in set is auditable). base = the lineage check; grants
+  // WIDEN additively (no lockout); fail-closed. Other layers opt in the same way, or don't.
+  const visible = grantGate({
+    surface: "backend:contract-read",
+    baseAllowed: isCallerInLineage(declared, opts.caller_pubkey ?? null, walkParent),
+    caller: opts.caller_pubkey,
+    contractId: id,
+    rows: rows as unknown as MaybeGrantRow[],
+  }).visible;
   if (!visible) {
     // Synthetic empty — security-through-obscurity. Don't leak "exists but
     // forbidden" vs "doesn't exist". Mirrors npm's 404-on-no-publish-scope.
