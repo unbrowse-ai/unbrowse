@@ -155,6 +155,16 @@ export function llamaCppEmbedder(env: Record<string, string | undefined> = proce
   const DIM = 1536;
   return {
     async embed(text: string) {
+      // NATIVE-FIRST: the substrate's own Zig organ (embed_server.embed1536 over the C-ABI) —
+      // the embed call + MRL reduce live in libcontract, not in this TS. Null → fall through to
+      // the TS transport below (platforms without the vendored symbol; visible, never silent).
+      try {
+        const { embed1536Native } = await import("./contract-native.js");
+        const native = embed1536Native(text);
+        if (native) return native;
+      } catch {
+        /* bun:ffi / vendored lib unavailable → TS fallback */
+      }
       const res = await fetch(`${base}/v1/embeddings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
