@@ -921,6 +921,15 @@ export interface SkillManifest {
   /** All agents who contributed endpoints to this skill, with their shares */
   contributors?: SkillContributor[];
   /**
+   * The upstream routes this skill DERIVES from — its maintenance lineage. When a
+   * route is built by reusing/deriving from prior routes, this records each ancestor's
+   * routePtr + the maintainer who kept it fresh, so settlement can weigh a maintainer
+   * pool out UP THE CHAIN (covenant `splitLineage` — 2 Kings 12:11, the workers paid for
+   * the work that enabled this route; Job 34:11). Absence = no lineage (the split reduces
+   * to the base `meter`). Shaped to feed `splitLineage` directly (matches its LineageHop).
+   */
+  source_routes?: { routePtr: string; maintainer: string }[];
+  /**
    * Skill-level recipient wallet for x402 payouts (legacy Cascade Split
    * address pre-v6.16; on Flex this is simply the primary contributor's
    * wallet, surfaced as `payTo` in the payment terms).
