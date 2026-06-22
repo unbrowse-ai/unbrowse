@@ -99,3 +99,19 @@ diverse lanes (where jespa's masked-prediction was hoped to earn signal) did NOT
 linear predictor genuinely does not beat keyword Jaccard on route disambiguation, across every lane,
 independent of corpus size. The win is RANKER-bound. Honest negative, gate untouched, no fabricated green.
 The named (UNPROVEN) next experiment: port the production learned-energy ranker (FEAT_DIM=512) into the bench.
+
+## PIVOT TESTED + REFUTED (2026-06-22): the production ranker is the WRONG tool — HOLD is airtight
+Ported unbrowse's REAL trained route ranker (learned-energy featurize() + the 512-weight embedded head,
+synthetic:false) into the bench. Result: HEAD R@1=0.19/0.11 vs keyword 0.78 → lift −0.59/−0.66 (near random).
+ROOT CAUSE (proven, not assumed): the production head is a RELIABILITY ranker ("will this route succeed?"),
+NOT a RETRIEVAL ranker ("which route matches this intent?"). In a bench episode all candidates share the
+masked intent, so the head's intent features are non-discriminative and it ranks by OOD domain/endpoint
+weights = noise. The "production-ranker pivot would win" hypothesis (flagged UNPROVEN in the judgement step)
+is now TESTED and FALSIFIED.
+
+FINAL VERDICT — HOLD, exhaustively established (two rankers tested, both lose to keyword):
+  1. jespa D=24 linear predictor → lift ≤0 (too weak / data-bound), across all lanes, 101→144 routes.
+  2. production learned-energy head → lift −0.6 (wrong task: reliability, not retrieval).
+Keyword Jaccard is the genuinely strong baseline for this same-type masked-intent RETRIEVAL task at public
+scale. The bench cannot be made to PASS by the available rankers without changing the task — and changing the
+task to force a win is the broken bottle (Matt 9:17). Honest negative, gate untouched, no fabricated green.
