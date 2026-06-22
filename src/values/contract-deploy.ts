@@ -20,6 +20,7 @@ import {
   type ContractEverything,
 } from "./contract-everything.js";
 import type { ScoredId } from "./contract-search.js";
+import { createThinClient } from "../lib/contract-thin-client.js";
 
 /** What is being deployed and where. Mirrors build-attest's AttestBody fields so a
  *  deploy contract and its signed build attestation describe the same artifact. */
@@ -66,6 +67,17 @@ export interface DeployRecord {
   manifest: DeployManifest;
   /** which stack tiers the deploy landed on (iq / kv / rag), with notes. */
   persisted: Awaited<ReturnType<typeof persistContract>>;
+  /** server-graph mirror result (CLI→beta-api): one of mirrored | skipped | failed. */
+  mirrored: { state: "mirrored" | "skipped" | "failed"; note: string };
+}
+
+/** Server-graph mirror config — when an apiKey is present the deploy row is
+ *  POSTed to /v1/contract/mirror so it surfaces on the beta-api contract graph.
+ *  fetchImpl/baseUrl are injectable for hermetic witnesses. */
+export interface RecordDeployOptions {
+  apiKey?: string;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
 }
 
 /**
@@ -73,12 +85,43 @@ export interface DeployRecord {
  * the deploy manifest becomes an on-chain IQ row + emergent KV cache entry +
  * emergent RAG-indexed document. Fail-open per tier (a tier with absent creds is a
  * surfaced note, not a throw), so a deploy is never blocked by the recorder.
+ *
+ * Then, best-effort, MIRRORS the deploy row to the server graph (CLI→beta-api
+ * /v1/contract/mirror) so the deploy is visible on the backend contract graph,
+ * not just local + on-chain IQ. The mirror is fail-open + fail-visible: a missing
+ * key skips it (state "skipped"), a network/auth error surfaces a note (state
+ * "failed") — a deploy is NEVER blocked by the mirror (the offline-first invariant).
  */
-export async function recordDeploy(m: DeployManifest): Promise<DeployRecord> {
+export async function recordDeploy(m: DeployManifest, opts: RecordDeployOptions = {}): Promise<DeployRecord> {
   const id = deployContractId(m);
   const contract: ContractEverything = { id, text: deployText(m), value: m };
   const persisted = await persistContract(contract, { namespace: DEPLOY_NAMESPACE });
-  return { id, manifest: m, persisted };
+  const mirrored = await mirrorDeployRow(id, m, opts);
+  return { id, manifest: m, persisted, mirrored };
+}
+
+/** Best-effort CLI→server mirror of a deploy as a raw ContractEventRow. */
+async function mirrorDeployRow(
+  id: string,
+  m: DeployManifest,
+  opts: RecordDeployOptions,
+): Promise<DeployRecord["mirrored"]> {
+  const apiKey = opts.apiKey ?? process.env.UNBROWSE_API_KEY ?? process.env.UNBROWSE_ADMIN_KEY;
+  if (!apiKey) return { state: "skipped", note: "no api key — deploy stays local + on-chain (IQ)" };
+  try {
+    const client = createThinClient({ apiKey, baseUrl: opts.baseUrl, fetchImpl: opts.fetchImpl });
+    const res = await client.mirror({
+      event: "declared",
+      id,
+      ts: new Date(m.ts).toISOString(),
+      plan: deployText(m),
+      action: `deploy:${m.kind}`,
+      pointer_type: "cli",
+    });
+    return { state: res.mirrored ? "mirrored" : "failed", note: res.mirrored ? `mirrored at ${res.mirrored_at ?? "?"}` : "server returned mirrored=false" };
+  } catch (e) {
+    return { state: "failed", note: `mirror POST failed: ${(e as Error).message}` };
+  }
 }
 
 /** Recall a deploy manifest by id — emergent KV fast tier, IQ durable behind. */
