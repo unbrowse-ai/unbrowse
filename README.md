@@ -79,6 +79,22 @@ Receipts are Ed25519-signed today. Stronger authorization and provenance schemes
 
 > The bare `unbrowse "task"` front door routes to the one-hole path; the three-verb CLI (`build`/`act`/`eval`) is the explicit surface underneath. New integrations should target `unbrowse "task"`, `createHole().fill(...)`, or inspect the live bridge contract at `GET /v1/contract/surface`.
 
+## The contract substrate
+
+The hole/contract surface is one face of a uniform **contract substrate**: every
+unit of work — resolving an intent, executing a route, sealing a value, settling
+a payment — is the same kind of object (a declared, signed, cached, accountable
+truth-claim), so one set of rules for identity, caching, and accountability
+applies everywhere. You declare a goal; the in-process runtime compiles it into a
+contract, resolves it against real evaluators, signs the verdict with a
+wallet-derived key, and appends it to a content-addressed ledger. Re-resolving
+unchanged work is free because the cache keys on a signature chain over pointers,
+not on copied output bytes.
+
+Full design — declare surface, wallet-bound signing, append-only + on-chain
+ledger, pointer-keyed cache, single-source-of-truth binding, and what ships vs
+what is forward-looking — in [docs/concepts/contract-substrate.md](./docs/concepts/contract-substrate.md).
+
 ## Drop-in client adapters
 
 Already using a search or browsing client? Swap one import. Unbrowse ships **drop-in
@@ -270,6 +286,7 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 - [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) — canonical install, setup, and headless bootstrap path
 - [`docs/for-agents/how-an-agent-uses-unbrowse.md`](./docs/for-agents/how-an-agent-uses-unbrowse.md) — route-level behavior and agent workflow
 - [`docs/for-developers/integration-surfaces.md`](./docs/for-developers/integration-surfaces.md) — MCP, SDK, and CLI integration surfaces
+- [`docs/concepts/contract-substrate.md`](./docs/concepts/contract-substrate.md) — the contract substrate: declare surface, wallet-bound signing, append-only ledger, pointer-keyed cache
 - [`docs/concepts/fare-splits.md`](./docs/concepts/fare-splits.md) — payment + sponsor flow on Faremeter Flex
 - [`docs/wallets.md`](./docs/wallets.md) — wallet, escrow, session-key setup, payout
 - [`docs/SECURITY.md`](./docs/SECURITY.md) — security model for public packages and runtime integrity
