@@ -585,30 +585,13 @@ export function chromeCdpAttachLaunchArgs(port: number, platform: NodeJS.Platfor
   return args;
 }
 
-async function terminateBrokerOnPort(port: number): Promise<void> {
-  try {
-    const output = execFileSync("lsof", ["-tiTCP:" + String(port), "-sTCP:LISTEN"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    const pids = output
-      .split(/\r?\n/)
-      .map((line) => Number(line.trim()))
-      .filter((pid) => Number.isInteger(pid) && pid > 0);
-    for (const pid of pids) {
-      try {
-        process.kill(pid, "SIGTERM");
-      } catch {
-        // best effort only
-      }
-    }
-    if (pids.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  } catch {
-    // lsof missing or no listener — best effort only
-  }
-}
+// U-4: the former `terminateBrokerOnPort(port)` helper `lsof`-ed the broker port
+// and SIGTERM'd whatever process was LISTENING on it. That force-kills a broker
+// owned by ANOTHER process (e.g. `act serve`'s daemon) when `act capture` can't
+// reuse it — the U-4 crash. It was the only caller's only purpose, so it is
+// removed: a foreign broker is now reused or left alone, never killed by port
+// (see reuseHealthyBrokerIfPossible). The dep seam below stays so existing tests
+// can still assert it is NEVER invoked.
 
 type HealthyBrokerReuseDeps = {
   isHealthyPort?: (port: number) => Promise<boolean>;
@@ -656,6 +639,30 @@ export async function reuseHealthyBrokerIfPossible(
     return true;
   }
 
+  // U-4 fix: a broker we did NOT spawn (state.process == null) is owned by
+  // ANOTHER process — e.g. `act serve`'s daemon. Recycling it by `lsof`-ing the
+  // port and SIGTERM'ing the listener tears down that other process's daemon,
+  // which is exactly the U-4 crash (`act capture` killing a running `act serve`).
+  // Ownership is the only honest signal here: in a fresh CLI invocation a broker
+  // this process started always carries a live `state.process` handle; a healthy
+  // listener with no handle is foreign. We must NEVER terminate a foreign broker.
+  //   - In the default attach path a healthy foreign broker is fully usable over
+  //     its HTTP API (newTab discovers the broker's own CDP / falls back to
+  //     /tab/new), so we cooperate and reuse it as-is.
+  //   - In clean-room/isolated mode we don't reuse it, but we still must not kill
+  //     it: return false so the spawn path brings up our own broker, leaving the
+  //     foreign daemon alive.
+  if (!state.process) {
+    if (launchConfig.attachToExistingChrome) {
+      log("kuri", `healthy foreign broker on port ${state.port} (not owned by this process); reusing cooperatively instead of recycling`);
+      state.ready = true;
+      return true;
+    }
+    log("kuri", `healthy foreign broker on port ${state.port} (not owned by this process); clean-room mode will spawn its own broker without terminating the foreign daemon`);
+    state.ready = false;
+    return false;
+  }
+
   if (tabs.length > 0) {
     log("kuri", `healthy broker on port ${state.port} has stale registered tabs but no CDP; recycling startup path`);
   } else {
@@ -663,14 +670,9 @@ export async function reuseHealthyBrokerIfPossible(
   }
   state.ready = false;
 
-  if (state.process) {
-    state.process.kill("SIGTERM");
-    await waitForChildExit(state.process);
-    state.process = null;
-  } else {
-    const terminate = deps.terminateBrokerOnPort ?? terminateBrokerOnPort;
-    await terminate(state.port);
-  }
+  state.process.kill("SIGTERM");
+  await waitForChildExit(state.process);
+  state.process = null;
 
   return false;
 }

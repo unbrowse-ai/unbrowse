@@ -1,8 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
 import { log } from "../logger.js";
+import { getUnbrowseHome } from "../runtime/paths.js";
 import { sealToWallet, revealForWallet, type WalletSealed } from "../trust/sealed-cache.js";
 import { deriveSealKey as deriveWalletSealKey } from "../values/signer.js";
 
@@ -166,7 +166,7 @@ export interface StoredCredential {
 const SERVICE = "unbrowse";
 const KEYCHAIN_VAULT_ACCOUNT = "__unbrowse_vault_v1";
 // Use a fixed location so the vault works regardless of server CWD
-const VAULT_DIR = join(homedir(), ".unbrowse", "vault");
+const VAULT_DIR = join(getUnbrowseHome(), "vault");
 const VAULT_FILE = join(VAULT_DIR, "credentials.enc");
 const KEY_FILE = join(VAULT_DIR, ".key");
 

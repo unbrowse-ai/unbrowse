@@ -94,7 +94,7 @@ await unbrowse.annotate({
       <pre><code>{`// Sync the agent's chosen x402 settlement rail.
 // Wraps POST /v1/account/payment-provider. Allowed values:
 //   "pay_sh"           pay-cli + TouchID + USDC (x402 MPP)
-//   "lobster_cash"     @crossmint/lobster-cli + virtual card + Solana
+//   "pay_sh"     @pay-sh/cli + virtual card + Solana
 //   "external_solana"  bring-your-own signer (via \`unbrowse wallet\`)
 //   "privy_embedded"   Privy auto-created wallet (web sign-in)
 //   "privy_embedded_solana"  bound automatically via /v1/auth/privy/start

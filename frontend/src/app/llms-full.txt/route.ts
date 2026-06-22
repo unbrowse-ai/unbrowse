@@ -279,7 +279,7 @@ Capture, indexing, and route mapping are free. Agents pay per execution when reu
 
 Payment is HTTP-native and inline: the server replies 402 with payment terms (the canonical [x402](https://www.x402.org) shape, kept as the developer-implementation appendix here); the client signs an off-chain Ed25519 authorization with a session key registered against their prepaid USDC escrow on [Faremeter Flex](https://docs.faremeter.xyz/flex/overview); the response carries the proof. EVM support is on Faremeter's roadmap; Unbrowse stays Solana-only for paid execute until then.
 
-Wallet operations are delegated to lobster.cash or any Solana-mainnet signer. Onboarding requires three artifacts on Solana mainnet: a wallet, a Flex escrow funded with USDC, and a registered session key. \`unbrowse setup\` walks through all three.
+Wallet operations are delegated to pay.sh or any Solana-mainnet signer. Onboarding requires three artifacts on Solana mainnet: a wallet, a Flex escrow funded with USDC, and a registered session key. \`unbrowse setup\` walks through all three.
 
 ### Route Mining Economics
 

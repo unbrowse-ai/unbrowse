@@ -41,8 +41,8 @@ import {
   // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 } from "../_session.js";
 import { readdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getUnbrowseHome } from "../../runtime/paths.js";
 import { postStateless } from "../_stateless.js";
 
 interface SessionRow {
@@ -94,7 +94,7 @@ async function chromeReachable(chromeWsUrl: string): Promise<boolean> {
  * the same semantics and is the single read-only surface eval needs.
  */
 async function* walkVisibleSessionFiles(): AsyncGenerator<string> {
-  const root = join(homedir(), ".unbrowse", "tmp");
+  const root = join(getUnbrowseHome(), "tmp");
   let entries: string[];
   try {
     entries = await readdir(root);

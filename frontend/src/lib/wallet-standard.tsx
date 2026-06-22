@@ -7,11 +7,11 @@
  * payments were CLI/backend only. This is the browser counterpart to the SDK's
  * `unbrowse/sdk/wallet-standard` bridge: discover any Wallet Standard Solana
  * wallet (Phantom, Solflare, Backpack, a Privy embedded Solana wallet,
- * lobster.cash, …), connect, and sign the x402 payment challenge into an
+ * pay.sh, …), connect, and sign the x402 payment challenge into an
  * `X-PAYMENT` header for a priced Unbrowse call.
  *
  * Keys never leave the wallet — we prepare the payment intent and delegate
- * signing/approval/broadcast to the wallet (lobster.cash-compatible).
+ * signing/approval/broadcast to the wallet (pay.sh-compatible).
  */
 import { useEffect, useState, useCallback } from "react";
 import { getWallets } from "@wallet-standard/app";

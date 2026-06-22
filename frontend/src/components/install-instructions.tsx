@@ -65,7 +65,7 @@ const TABS = [
       { type: "cmd",     text: "  $  unbrowse setup" },
       { type: "blank",   text: "" },
       { type: "comment", text: "  ##  earn from discovered routes" },
-      { type: "cmd",     text: "  $  npx @crossmint/lobster-cli setup" },
+      { type: "cmd",     text: "  $  npx @pay-sh/cli setup" },
     ] as TLine[],
   },
   {
