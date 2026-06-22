@@ -68,14 +68,17 @@ describe("update hints", () => {
     delete process.env.UNBROWSE_SETUP_HOST;
     delete process.env.UNBROWSE_SETUP_ROOT;
 
-    global.fetch = mock(async () => new Response(JSON.stringify({ version: "9.9.9" }), {
+    // Mock a version strictly above any real package version, else has_update is correctly
+    // false once the shipped version climbs past the mock (this test went stale at 9.9.9
+    // when the package reached 9.13.0).
+    global.fetch = mock(async () => new Response(JSON.stringify({ version: "999.0.0" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     })) as typeof global.fetch;
 
     const result = await checkForUpdates(import.meta.url, { force: true });
     expect(result.has_update).toBe(true);
-    expect(result.latest).toBe("9.9.9");
+    expect(result.latest).toBe("999.0.0");
     expect(result.command).toBe("curl -fsSL https://unbrowse.ai/install.sh | bash");
   });
 
