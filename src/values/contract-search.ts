@@ -123,7 +123,7 @@ export function openAiEmbedder(env: Record<string, string | undefined> = process
 }
 
 /**
- * LOCAL embedder over Ollama (default nomic-embed-text) at the host's ollama daemon — a real
+ * LOCAL embedder over Ollama (default google/embeddinggemma-300m) at the host's ollama daemon — a real
  * semantic model that runs on-device with no funded cloud account, no API key, no quota. This is
  * the substrate's "sing in your own land" path (use the local model, not a foreign vendor): it
  * delivers live semantic embeddings for the contract search the same way OpenAI would. Returns
@@ -133,7 +133,7 @@ export function openAiEmbedder(env: Record<string, string | undefined> = process
  */
 export function ollamaEmbedder(env: Record<string, string | undefined> = process.env): Embedder {
   const base = (env.OLLAMA_HOST || env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
-  const model = env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
+  const model = env.OLLAMA_EMBED_MODEL || "embeddinggemma";
   return {
     async embed(text: string) {
       const res = await fetch(`${base}/api/embeddings`, {
