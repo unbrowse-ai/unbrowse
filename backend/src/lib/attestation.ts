@@ -42,8 +42,13 @@
  * day-30 cutover is what Lewis triggers by replacing the sentinel
  * with the real pubkey + flipping ATTESTATION_REQUIRED on.
  */
+// The aiko SUBSTRATE deployer identity = Ed25519(~/.aiko/keys/root.key seed), current as of the
+// 20-Jun-2026 rotation (the on-disk root.pub is STALE/pre-rotation). The CLI signs its single-link
+// spawn attestation with this key (src/values/contract-attest.ts); declares whose lineage terminus
+// equals this pubkey are admitted as `attested`. Anonymous (header-absent) declares stay on the
+// legacy path — this cutover does NOT reject the product's public callers.
 export const LEWIS_DEPLOYER_PUBKEY_v1 =
-  "0000000000000000000000000000000000000000000000000000000000000000";
+  "e6837faf6c4687968f831a421586712d33fc7fc67c3f091bc1d02e856b98b2fc";
 
 /** The window after which legacy-anonymous declares stop being admitted. */
 export const LEGACY_WINDOW_ENDS = "2026-06-25T00:00:00.000Z";
