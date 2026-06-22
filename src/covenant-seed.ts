@@ -198,7 +198,18 @@ export interface TollSplit {
 export interface TollParty {
 	identity: string;
 	amount: number;
-	role: "site" | "operator" | "discoverer";
+	role: "site" | "operator" | "discoverer" | "maintainer";
+}
+
+/**
+ * One ancestor hop in a route's maintenance lineage — a maintainer who enabled
+ * the route being paid by indexing/maintaining an upstream route it derives from.
+ */
+export interface LineageHop {
+	/** content-addressed pointer to the upstream route this hop maintained. */
+	routePtr: string;
+	/** wallet identity of the maintainer who did that upstream work. */
+	maintainer: string;
 }
 
 /**
@@ -221,6 +232,55 @@ export function meter(
 		{ identity: parties.site, amount: siteCut, role: "site" },
 		{ identity: parties.operator, amount: operatorCut, role: "operator" },
 		{ identity: parties.discoverer, amount: discovererCut, role: "discoverer" },
+	];
+}
+
+/**
+ * splitLineage — `meter` PLUS the maintenance lineage: the compensate-up-the-chain
+ * weigh-out. When the paid route was enabled by upstream routes, the maintainers
+ * who kept those fresh are workers too and are paid for their work (Job 34:11
+ * "for the work of a man he will render to him"; 2 Kings 12:11 the overseer "paid
+ * it out to ... those who did the work"). operator + discoverer take their bps (as
+ * in `meter`); the lineage maintainers SHARE a `maintainerBps` pool EQUALLY (every
+ * enabling hop is one worker); the SITE absorbs the rounding remainder so
+ * `sum(payouts) === amount` EXACTLY, zero leak at the booth — the same invariant
+ * `meter` holds. Maintainers are deduped (one wallet → one share even if it
+ * maintained several ancestors), and a hop that IS the discoverer is skipped (it is
+ * already paid via `discovererBps` — never paid twice). Empty lineage + maintainerBps
+ * 0 reduces EXACTLY to `meter` (backwards-compatible). Same guards as `meter`, plus
+ * the three bps together may not exceed 10000.
+ */
+export function splitLineage(
+	split: TollSplit,
+	parties: { site: string; operator: string; discoverer: string },
+	lineage: LineageHop[],
+	maintainerBps: number,
+): TollParty[] {
+	const { amount, operatorBps, discovererBps } = split;
+	if (!Number.isInteger(amount) || amount < 0) throw new Error(`toll amount must be a non-negative integer: ${amount}`);
+	if (maintainerBps < 0) throw new Error(`maintainerBps must be non-negative: ${maintainerBps}`);
+	if (operatorBps < 0 || discovererBps < 0 || operatorBps + discovererBps + maintainerBps > 10_000)
+		throw new Error(`toll bps out of range: operator=${operatorBps} discoverer=${discovererBps} maintainer=${maintainerBps}`);
+	const operatorCut = Math.floor((amount * operatorBps) / 10_000);
+	const discovererCut = Math.floor((amount * discovererBps) / 10_000);
+	// Dedupe maintainers (one wallet, one share) and skip the discoverer (already paid).
+	const seen = new Set<string>();
+	const maintainers: string[] = [];
+	for (const hop of lineage) {
+		if (hop.maintainer === parties.discoverer) continue;
+		if (seen.has(hop.maintainer)) continue;
+		seen.add(hop.maintainer);
+		maintainers.push(hop.maintainer);
+	}
+	const maintainerPool = Math.floor((amount * maintainerBps) / 10_000);
+	const perMaintainer = maintainers.length > 0 ? Math.floor(maintainerPool / maintainers.length) : 0;
+	const maintainerParties: TollParty[] = maintainers.map((m) => ({ identity: m, amount: perMaintainer, role: "maintainer" as const }));
+	const siteCut = amount - operatorCut - discovererCut - perMaintainer * maintainers.length; // remainder → site, never lost
+	return [
+		{ identity: parties.site, amount: siteCut, role: "site" },
+		{ identity: parties.operator, amount: operatorCut, role: "operator" },
+		{ identity: parties.discoverer, amount: discovererCut, role: "discoverer" },
+		...maintainerParties,
 	];
 }
 
