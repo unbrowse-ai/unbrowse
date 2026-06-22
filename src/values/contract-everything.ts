@@ -212,7 +212,7 @@ export async function persistContract(
       if (live) { embed = live.embed; out.embedder = live.provider; }
     }
     if (!embed) {
-      out.notes.push("rag: no embedder available (OPENAI_API_KEY / ollama) — skipped");
+      out.notes.push("rag: no 1536-dim embedder available (contract-native llama.cpp / OPENAI_API_KEY / Nebius) — skipped");
     } else {
       const row: ContractRow = { id: c.id, text: c.text };
       await indexContractRows([row], embed, emergentVectorStore(namespace));

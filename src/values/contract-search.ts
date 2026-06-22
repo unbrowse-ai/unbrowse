@@ -122,31 +122,50 @@ export function openAiEmbedder(env: Record<string, string | undefined> = process
   };
 }
 
+/** Matryoshka (MRL) reduce: front-truncate to `dim` then L2-renormalize. Qwen3-Embedding is
+ * trained with MRL, so the first `dim` components are a valid, self-contained embedding — this
+ * is the supported way to get an exact 1536-dim vector from the model's native 2560-dim output
+ * (and it fits the 1536-locked emergent RAG store). Throws if the source is shorter than `dim`. */
+function mrlReduce(v: number[], dim: number): number[] {
+  if (v.length < dim) throw new Error(`embedding too short for MRL reduce: got ${v.length}, need >=${dim}`);
+  if (v.length === dim) return v;
+  const head = v.slice(0, dim);
+  let n = 0;
+  for (const x of head) n += x * x;
+  n = Math.sqrt(n);
+  if (n === 0) return head;
+  return head.map((x) => x / n);
+}
+
 /**
- * LOCAL embedder over Ollama (default google/embeddinggemma-300m) at the host's ollama daemon — a real
- * semantic model that runs on-device with no funded cloud account, no API key, no quota. This is
- * the substrate's "sing in your own land" path (use the local model, not a foreign vendor): it
- * delivers live semantic embeddings for the contract search the same way OpenAI would. Returns
- * null when no OLLAMA endpoint env / default daemon is reachable shape-wise (callers fall back).
- * The vector dim differs from OpenAI (768 vs 1536) — fine for the in-memory cosine store, which
- * is dim-agnostic; the EmergentDB vector store (1536-locked) stays an OpenAI/1536 path.
+ * LOCAL embedder over the CONTRACT-NATIVE llama.cpp bind (aiko-ebllm) serving
+ * Qwen/Qwen3-Embedding-4B — a real semantic model that runs on-device through the substrate's
+ * OWN llama.cpp server (the SEEK-rung sibling), no ollama, no funded cloud account, no API key,
+ * no quota. This is the substrate's "sing in your own land" path (Ps 137:4 — the substrate's own
+ * model, not a foreign vendor). The model's native output is 2560-dim; we MRL-reduce to 1536 so
+ * the LOCAL/native path PRODUCES THE EXACT DIM the EmergentDB vector store is locked to — native
+ * AND emergent-RAG-compatible at once (the embeddinggemma/768 path used to break the 1536 store).
+ * Endpoint is the OpenAI-compatible `/v1/embeddings` llama-server exposes (hardcoded-with-env
+ * default, like the contract substrate's other local-LLM ports). Throws when unreachable — the
+ * caller falls through to the funded cloud 1536 paths, visibly.
  */
-export function ollamaEmbedder(env: Record<string, string | undefined> = process.env): Embedder {
-  const base = (env.OLLAMA_HOST || env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
-  const model = env.OLLAMA_EMBED_MODEL || "embeddinggemma";
+export function llamaCppEmbedder(env: Record<string, string | undefined> = process.env): Embedder {
+  const base = (env.UNBROWSE_EMBED_URL || env.AIKO_EMBED_URL || "http://127.0.0.1:8090").replace(/\/$/, "");
+  const model = env.UNBROWSE_EMBED_MODEL || "Qwen3-Embedding-4B";
+  const DIM = 1536;
   return {
     async embed(text: string) {
-      const res = await fetch(`${base}/api/embeddings`, {
+      const res = await fetch(`${base}/v1/embeddings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, prompt: text }),
+        body: JSON.stringify({ model, input: text }),
         signal: AbortSignal.timeout(30_000),
       });
       const body = await res.text();
-      if (!res.ok) throw new Error(`ollama embeddings ${res.status}: ${body.slice(0, 200)}`);
-      const v = (JSON.parse(body) as { embedding?: number[] }).embedding;
-      if (!v || v.length === 0) throw new Error("ollama embeddings: no embedding in response");
-      return v;
+      if (!res.ok) throw new Error(`llama.cpp embeddings ${res.status}: ${body.slice(0, 200)}`);
+      const v = (JSON.parse(body) as { data?: Array<{ embedding?: number[] }> }).data?.[0]?.embedding;
+      if (!v || v.length === 0) throw new Error("llama.cpp embeddings: no embedding in response");
+      return mrlReduce(v, DIM);
     },
   };
 }
@@ -193,16 +212,22 @@ export function nebiusEmbedder(env: Record<string, string | undefined> = process
 }
 
 /**
- * Resolve the best AVAILABLE real (semantic) embedder for the live path, no funded-cloud
- * dependency: try the funded OpenAI key first (1536-dim, EmergentDB-native) by actually
- * embedding a probe; then Nebius/OpenRouter (also 1536-dim, the EmergentDB-locked dim);
- * only then the LOCAL ollama model (768-dim — fine for the in-memory cosine store, NOT for
- * the 1536-locked emergent vector store). Returns null only when none answer (then the
- * offline hashEmbedder bears the load). Fallbacks are visible: the caller sees the provider.
+ * Resolve the best AVAILABLE real (semantic) embedder for the live path. EVERY tier here is
+ * 1536-dim, so whichever answers, the emergent RAG store (1536-locked) lands — the old
+ * embeddinggemma/768 fallback that silently broke RAG is gone.
+ *
+ * Order is NATIVE-FIRST ("sing in your own land"): the contract-native llama.cpp bind serving
+ * Qwen3-Embedding-4B@1536 (on-device, no cloud, no key) is tried first by actually embedding a
+ * probe; only if the local llama.cpp server is unreachable / the model isn't loaded does it
+ * fall through to the funded cloud 1536 paths — OpenAI (text-embedding-3-small) then
+ * Nebius/OpenRouter (Qwen3-Embedding-8B @ dimensions:1536). Returns null only when none answer
+ * (then the offline hashEmbedder bears the load). Fallbacks are visible: the caller sees the provider.
  */
 export async function resolveLiveEmbedder(
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ embed: Embedder; provider: string } | null> {
+  const llama = llamaCppEmbedder(env);
+  try { await llama.embed("probe"); return { embed: llama, provider: "llama.cpp/qwen3-embedding-4b" }; } catch { /* local server down / model not loaded → fall through */ }
   const oai = openAiEmbedder(env);
   if (oai) {
     try { await oai.embed("probe"); return { embed: oai, provider: "openai" }; } catch { /* unfunded/quota → fall through */ }
@@ -211,7 +236,5 @@ export async function resolveLiveEmbedder(
   if (neb) {
     try { await neb.embed("probe"); return { embed: neb, provider: "nebius" }; } catch { /* limited/absent → fall through */ }
   }
-  const ol = ollamaEmbedder(env);
-  try { await ol.embed("probe"); return { embed: ol, provider: "ollama" }; } catch { /* no local daemon */ }
   return null;
 }
