@@ -54,6 +54,7 @@ import {
 import { lookupKindMap } from "../kind-map.js";
 import { postStateless } from "../_stateless.js";
 import { resolutionContractVerdict } from "../../values/resolution-contract.js";
+import { persistVerdictOnChain } from "../../values/contract-everything.js";
 
 const EX_CDP = 65;
 const FIVE_MINUTES_MS = 300_000;
@@ -686,6 +687,15 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     skill: { skill_id: endpointId, endpoints: status < 400 ? [{ status, url: outgoingUrl }] : [] },
     url: outgoingUrl,
   });
+
+  // /contract on-chain call-site: when the operator OPTS IN (UNBROWSE_CONTRACT_ONCHAIN=1), a real
+  // terminal execute lands its three-shape verdict on-chain via the IQ signed ledger — fire-and-
+  // forget so it never blocks the hot path, fail-open so it can never break execute. DEFAULT
+  // installs (no env) fire NOTHING: zero new network, no per-execute cost. This is what makes the
+  // verdict ACTUALLY /contract on-chain, not just emitted locally.
+  if (process.env.UNBROWSE_CONTRACT_ONCHAIN === "1" && executeVerdict.terminal) {
+    void persistVerdictOnChain(executeVerdict, endpointId || outgoingUrl).catch(() => {});
+  }
 
   emit(
     {
