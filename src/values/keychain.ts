@@ -109,6 +109,14 @@ function macGet(service: string, account: string): string | null {
 
 function macSet(service: string, account: string, value: string): boolean {
   if (!macAvailable()) return false;
+  // Read-first against the KEYCHAIN ITSELF: if the item already holds this exact
+  // value, never re-write it. `add-generic-password -U -A` re-applies the item's
+  // ACL on every call, which is what makes macOS pop "security wants to change
+  // access permissions of the unbrowse-x402-wallet item". setSecret guards too,
+  // but its getSecret may read a different backend (file fallback) and miss; this
+  // guards the keychain write directly, so the ACL is touched exactly ONCE (first
+  // mint) and never again. Native keychain only — no recurring permission prompt.
+  if (macGet(service, account) === value) return true;
   // `-U` upsert (update in place) + `-A` allow-any-app so sibling spawns read
   // without an ACL prompt. This is the signer's proven shape — do NOT
   // delete-then-add: a freshly-created item can't be read back in the SAME
