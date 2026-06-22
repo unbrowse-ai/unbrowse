@@ -1,5 +1,20 @@
 # Changelog
 
+## [10.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.14.0...v10.1.0) (2026-06-23)
+
+Supersedes the unpublished v10.0.0 tag (npm last published 9.14.0).
+
+### Features
+
+* **contract:** native 1536-dim emergent embedder — Qwen3-Embedding-4B (MRL 2560→1536) served by the contract-native llama.cpp bind, replacing the ollama/768 path that broke the 1536-locked emergent RAG store; native-first with a cloud 1536 fallback ([85c0b5cc])
+* **contract:** CLI↔server native bind — single-link spawn attestation rooted at the aiko substrate deployer identity; the CLI and server recognize each other by one wallet-signed /contract, not a bearer key (anonymous declares unaffected) — LIVE-verified on beta-api (attested 200 / anon legacy 200 / forged 401) ([44e3597e], [15004b8b])
+* **ledger:** frecency-windowed read — the local /contract ledger is a bounded hot-cache (64MiB tail window; append-only-with-touch-events = freq×recency, zero sidecar), full history durable on-chain; fixes get/list failing once the live ledger passed the old 16MB cap ([42fc820b])
+* **contract:** native embed organ baked in Zig (libcontract `embed_server.embed1536` + C-ABI `contract_embed_1536`), vendored across all 5 platforms ([5a40a6a4], [a6344fa0])
+
+### Bug Fixes
+
+* **contract:** keep the CLI-only `bun:ffi` native embedder out of the Cloudflare Worker bundle — a static dynamic-import literal was followed by esbuild into the backend bundle; a non-literal specifier excludes it from the Worker while the CLI resolves it at runtime ([7bb84116])
+
 ## [9.10.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.10.0-preview.0...v9.10.0) (2026-06-20)
 
 ### Features
