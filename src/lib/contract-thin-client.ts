@@ -417,14 +417,38 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       } catch {
         /* no deployer key / rotated key → legacy-anonymous (server admits it) */
       }
-      const result = await call<unknown, { id: string }>(
-        "/v1/contract/declare",
-        "POST",
-        undefined,
-        undefined,
-        attestHeaders,
-        bodyStr,
-      );
+      let result: { id: string };
+      try {
+        result = await call<unknown, { id: string }>(
+          "/v1/contract/declare",
+          "POST",
+          undefined,
+          undefined,
+          attestHeaders,
+          bodyStr,
+        );
+      } catch (e) {
+        // Rollout-safe: if the server REJECTS the spawn attestation (e.g. the deployer-pubkey pin
+        // isn't deployed to this backend yet), retry the SAME declare WITHOUT the x-aiko-* headers
+        // so the CLI falls back to the legacy-anonymous path instead of breaking. Visible, never
+        // silent — the seam surfaces on stderr. Once the backend pin is live, attestation succeeds
+        // and this fallback never fires.
+        if (attestHeaders && e instanceof Error && /attestation_failed|\b401\b/.test(e.message)) {
+          try {
+            console.error(`contract-attest: server rejected spawn attestation (${e.message.slice(0, 100)}) — retrying legacy-anonymous`);
+          } catch { /* stderr unavailable */ }
+          result = await call<unknown, { id: string }>(
+            "/v1/contract/declare",
+            "POST",
+            undefined,
+            undefined,
+            undefined,
+            bodyStr,
+          );
+        } else {
+          throw e;
+        }
+      }
       return { id: result.id };
     },
 
