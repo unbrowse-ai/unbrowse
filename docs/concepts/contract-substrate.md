@@ -10,7 +10,12 @@ the CLI and SDK execute against.
 The shape is deliberately uniform: every unit of work — resolving an intent,
 executing a route, sealing a value, settling a payment — is the **same kind of
 object**, so the same rules for identity, caching, and accountability apply
-everywhere instead of one mechanism per feature.
+everywhere instead of one mechanism per feature. (The whole design exists to
+avoid the usual fate of systems that grow a fresh mechanism for every fresh
+feature and then spend the rest of their lives reconciling them.)
+
+For how this spine shows up across the five papers, see
+[The Unbrowse Papers](../the-unbrowse-papers.md).
 
 ## A contract is a declared truth-claim
 
@@ -114,4 +119,5 @@ named here as direction, not claimed as shipped.
 The internal grounding that motivates the substrate's invariants (why the cache
 keys on pointers, why two-or-three witnesses gate a slash, why the ledger is
 append-only) is documented separately and is not required to use the contract
-boundary — the boundary is fully described by the surface above.
+boundary — the boundary is fully described by the surface above. There are
+reasons all the way down; you just don't have to read them to call `unbrowse`.
