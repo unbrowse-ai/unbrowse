@@ -33,14 +33,14 @@ export interface SpawnAttestationHeaders {
   "x-aiko-spawn-nonce": string;
 }
 
-function loadAikoKeypair(): nacl.SignKeyPair | null {
+/** The default deployer-seed reader: the raw hex contents of ~/.aiko/keys/root.key (or null when
+ *  absent — the common case on a non-deployer install). Injectable so the fail-closed branches are
+ *  witnessable without touching the real key. */
+export function defaultDeployerSeedHex(): string | null {
   try {
-    const seedHex = readFileSync(join(homedir(), ".aiko", "keys", "root.key"), "utf8").trim();
-    const seed = Buffer.from(seedHex, "hex");
-    if (seed.length < 32) return null;
-    return nacl.sign.keyPair.fromSeed(seed.subarray(0, 32));
+    return readFileSync(join(homedir(), ".aiko", "keys", "root.key"), "utf8");
   } catch {
-    return null; // no deployer key on this machine → legacy-anonymous (the common case)
+    return null;
   }
 }
 
@@ -48,14 +48,29 @@ function loadAikoKeypair(): nacl.SignKeyPair | null {
  * Build the single-link spawn-attestation headers over the EXACT `bodyBytes` the CLI will POST.
  * Returns null when this machine cannot produce the substrate-root attestation (no key, or a
  * rotated key that no longer matches the pinned pubkey) — the caller then sends no headers and the
- * server admits the declare on the legacy-anonymous path. `contractId` labels the single link.
+ * server admits the declare on the legacy-anonymous path. `contractId` labels the single link;
+ * `loadSeedHex` is the deployer-seed reader (injectable for the fail-closed witness).
  */
 export function buildSpawnAttestation(
   bodyBytes: Uint8Array,
   contractId = "cli-server-bind",
+  loadSeedHex: () => string | null = defaultDeployerSeedHex,
 ): SpawnAttestationHeaders | null {
-  const kp = loadAikoKeypair();
-  if (!kp) return null;
+  let seedHex: string | null;
+  try {
+    seedHex = loadSeedHex();
+  } catch {
+    seedHex = null;
+  }
+  if (!seedHex) return null; // no deployer key → legacy-anonymous (every non-Lewis install)
+  let kp: nacl.SignKeyPair;
+  try {
+    const seed = Buffer.from(seedHex.trim(), "hex");
+    if (seed.length < 32) return null;
+    kp = nacl.sign.keyPair.fromSeed(seed.subarray(0, 32));
+  } catch {
+    return null;
+  }
   const pubHex = Buffer.from(kp.publicKey).toString("hex");
   // Fail-closed: a rotated root.key whose pubkey ≠ the pinned root would 401 server-side. Don't send.
   if (pubHex !== AIKO_DEPLOYER_ROOT_PUBKEY) return null;
