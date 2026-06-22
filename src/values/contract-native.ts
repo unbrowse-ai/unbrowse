@@ -43,6 +43,7 @@ function load() {
     contract_route: { args: [FFIType.cstring, FFIType.cstring], returns: FFIType.ptr },
     contract_energy: { args: [FFIType.cstring, FFIType.cstring], returns: FFIType.f64 },
     contract_bible_anchor: { args: [FFIType.cstring], returns: FFIType.i64 },
+    contract_embed_1536: { args: [FFIType.cstring], returns: FFIType.ptr },
   });
   return lib;
 }
@@ -87,6 +88,32 @@ export function bibleAnchorNative(text: string): number | null {
   const idx = load().symbols.contract_bible_anchor(cstr(text)) as number | bigint;
   const n = typeof idx === "bigint" ? Number(idx) : idx;
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Embed `text` to a 1536-dim vector via the NATIVE substrate organ — the substrate's own
+ * Qwen3-Embedding-4B (llama.cpp :8090) MRL-reduced to 1536 in Zig (embed_server.embed1536),
+ * NOT TS math, NOT ollama. The exact dim the emergent RAG store is locked to. Returns the
+ * float vector, or null when the lib/symbol is absent OR the embed server is down (the caller
+ * falls through to a cloud 1536 path — fail-visible, never a silent bad vector).
+ */
+export function embed1536Native(text: string): number[] | null {
+  let s: ReturnType<typeof load>["symbols"];
+  try {
+    s = load().symbols;
+  } catch {
+    return null; // lib not vendored for this platform
+  }
+  const fn = (s as Record<string, unknown>).contract_embed_1536 as ((t: Buffer) => number | null) | undefined;
+  if (!fn) return null; // older vendored lib without the symbol
+  const json = readPtr(fn(cstr(text)) as number | null);
+  if (!json) return null; // server down / model not loaded
+  try {
+    const v = JSON.parse(json) as number[];
+    return Array.isArray(v) && v.length === 1536 ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Is the embedded substrate available in this install? (graceful fallback signal.) */
