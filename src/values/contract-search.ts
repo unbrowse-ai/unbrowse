@@ -159,7 +159,14 @@ export function llamaCppEmbedder(env: Record<string, string | undefined> = proce
       // the embed call + MRL reduce live in libcontract, not in this TS. Null → fall through to
       // the TS transport below (platforms without the vendored symbol; visible, never silent).
       try {
-        const { embed1536Native } = await import("./contract-native.js");
+        // NON-LITERAL specifier on purpose: contract-native.ts imports `bun:ffi` (CLI/Bun-only).
+        // A static `import("./contract-native.js")` makes esbuild follow it INTO the Cloudflare
+        // Worker bundle (the backend reaches contract-search via the payments→cached-resolution
+        // chain) where bun:ffi cannot resolve. A variable specifier is left as a runtime import the
+        // bundler does NOT follow — so the Worker excludes it, while the CLI (Bun) resolves it at
+        // runtime. The `typeof import(...)` is type-only (erased, never bundled) so we keep types.
+        const nativeSpecifier = "./contract-native.js";
+        const { embed1536Native } = (await import(nativeSpecifier)) as typeof import("./contract-native.js");
         const native = embed1536Native(text);
         if (native) return native;
       } catch {
