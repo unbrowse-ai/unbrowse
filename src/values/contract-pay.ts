@@ -73,6 +73,12 @@ export function payGate(opts: {
   if (!tier) {
     return { kind: "free", surface, method, _contract: contractVerdictFromEnvelope({ ok: true, surface, method, payable: false }) };
   }
+  // Fail-closed on a money path: a malformed amount ("0", "-5", "abc", "") or a missing recipient
+  // would emit a quote that pays nobody or settles to junk — never emit a bogus quote (Decalogue
+  // cmd 9, no false witness on a payment). A valid amount is a positive integer in atomic units.
+  if (!/^[1-9][0-9]*$/.test(tier.amount) || !opts.recipient) {
+    return { kind: "denied", surface, _contract: contractVerdictFromEnvelope({ ok: false, surface, reason: "invalid-price" }) };
+  }
   const quote: X402Quote = {
     scheme: "exact",
     amount: tier.amount,

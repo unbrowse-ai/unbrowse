@@ -54,6 +54,23 @@ describe("payGate — RBAC + opt-in x402 compensation per GET/POST task", () => 
     expect(d.kind).toBe("denied"); // NOT payment_required — payment never buys past the gate
   });
 
+  it("FAIL-CLOSED: a malformed amount never emits a payable quote (no false witness on money)", () => {
+    for (const amount of ["0", "-5", "abc", "", "1.5", "010", " 100"]) {
+      const d = payGate({ surface: "s", method: "POST", allowed: true, price: { POST: { amount } }, recipient: AGENT, resource: "r" });
+      expect(d.kind).toBe("denied"); // a bogus amount must NOT become a quote
+    }
+  });
+
+  it("FAIL-CLOSED: a priced task with no recipient is denied (a quote paying nobody)", () => {
+    const d = payGate({ surface: "s", method: "POST", allowed: true, price: { POST: { amount: "10000" } }, recipient: "", resource: "r" });
+    expect(d.kind).toBe("denied");
+  });
+
+  it("VALID: a positive-integer atomic amount still produces the quote", () => {
+    const d = payGate({ surface: "s", method: "POST", allowed: true, price: { POST: { amount: "1" } }, recipient: AGENT, resource: "r" });
+    expect(d.kind).toBe("payment_required");
+  });
+
   it("carries the /contract verdict shape on every decision", () => {
     const d = payGate({ surface: "s", method: "GET", allowed: true, recipient: AGENT, resource: "r" });
     expect(typeof d._contract.terminal).toBe("boolean");
