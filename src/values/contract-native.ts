@@ -10,17 +10,45 @@
  *
  * Trusted in-process caller only (the CLI). Arms-length callers use `aiko "<goal>"`.
  */
-import { dlopen, FFIType, CString } from "bun:ffi";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const HOST = `${process.platform}-${process.arch}`;
 const EXT = process.platform === "darwin" ? "dylib" : process.platform === "win32" ? "dll" : "so";
 
+const isBun = typeof process !== "undefined" && !!(process as { versions?: { bun?: string } }).versions?.bun;
+const moduleDir = dirname(fileURLToPath(import.meta.url)); // src/values when dev, runtime/… when packed
+
+/**
+ * bun:ffi acquired LAZILY (CLI/Bun-only) — NEVER a static `import ... from "bun:ffi"`.
+ * A static top-level import is followed by esbuild INTO the Node CLI bundle (runtime/cli.js),
+ * and Node's ESM loader rejects the `bun:` scheme at module-eval time
+ * (ERR_UNSUPPORTED_ESM_URL_SCHEME) — crashing every command. A `require()` is left as a
+ * runtime call the launcher's Node never executes (guarded by isBun), so the module loads
+ * clean under Node and every caller falls through to the cloud/TS fallbacks. (kuri/ffi.ts pattern.)
+ */
+type BunFfi = {
+  dlopen: (path: string, symbols: Record<string, unknown>) => { symbols: Record<string, (...a: unknown[]) => unknown> };
+  FFIType: Record<string, unknown>;
+  CString: new (p: number) => { toString(): string };
+};
+let _ffi: BunFfi | null = null;
+function bunFfi(): BunFfi | null {
+  if (_ffi) return _ffi;
+  if (!isBun) return null;
+  try {
+    _ffi = require("bun:ffi") as BunFfi;
+    return _ffi;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve the VENDORED lib — packaged path first (installed npm), then the dev repo. */
 function resolveLib(): string | null {
   const rel = join("vendor", "contract", HOST, `libcontract.${EXT}`);
-  const here = import.meta.dir; // src/values when dev, runtime/… when packed
+  const here = moduleDir;
   const candidates = [
     join(here, "..", "..", "packages", "skill", rel), // dev repo
     join(here, "..", "..", rel), // packaged (runtime/ → package root)
@@ -31,9 +59,12 @@ function resolveLib(): string | null {
   return null;
 }
 
-let lib: ReturnType<typeof dlopen> | null = null;
+let lib: { symbols: Record<string, (...a: unknown[]) => unknown> } | null = null;
 function load() {
   if (lib) return lib;
+  const f = bunFfi();
+  if (!f) throw new Error("contract-native: bun:ffi unavailable (not running under Bun)");
+  const { dlopen, FFIType } = f;
   const path = resolveLib();
   if (!path) throw new Error(`contract-native: vendored libcontract.${EXT} for ${HOST} not found (vendor/contract)`);
   lib = dlopen(path, {
@@ -49,7 +80,12 @@ function load() {
 }
 
 const cstr = (s: string) => Buffer.from(s + "\0");
-const readPtr = (p: number | null): string | null => (p ? new CString(p as number).toString() : null);
+const readPtr = (p: number | null): string | null => {
+  if (!p) return null;
+  const f = bunFfi();
+  if (!f) return null;
+  return new f.CString(p as number).toString();
+};
 
 /** Declare a /contract in-process via the embedded substrate. Returns the 8-hex id. */
 export function declareNative(plan: string, action: string, parentId?: string, agent?: string): string | null {
