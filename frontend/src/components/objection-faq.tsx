@@ -31,7 +31,7 @@ export function ObjectionFaq() {
     },
     {
       q: "Crypto is sketchy.",
-      a: "USDC on Solana via Faremeter Flex. Settlement is gas-light and instant; Crossmint lobster.cash routes payouts straight to a bank account. You never touch the chain unless you want to.",
+      a: "USDC on Solana via Faremeter Flex. Settlement is gas-light and instant; pay.sh routes payouts straight to a bank account. You never touch the chain unless you want to.",
       cite: "t3_1pe54l3, t3_1s3ozz0",
     },
     {

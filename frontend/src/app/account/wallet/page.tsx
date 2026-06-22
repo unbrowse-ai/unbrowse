@@ -168,9 +168,9 @@ export default function WalletPage() {
         </Card>
       )}
 
-      <Card title="Option 1 — lobster.cash (recommended)">
+      <Card title="Option 1 — pay.sh (recommended)">
         <p className="text-sm text-text-secondary">
-          lobster.cash is a developer-friendly custodial wallet that auto-funds
+          pay.sh is a developer-friendly custodial wallet that auto-funds
           your Flex escrow and signs session-key registrations. Easiest path
           for first-time users.
         </p>
@@ -178,18 +178,18 @@ export default function WalletPage() {
           <li>
             Create an account at{" "}
             <a
-              href="https://lobster.cash"
+              href="https://pay.sh"
               target="_blank"
               rel="noreferrer"
               className="text-text-primary hover:text-text-secondary underline"
             >
-              lobster.cash
+              pay.sh
             </a>
             .
           </li>
           <li>
-            Install the Lobster CLI and run setup:
-            <CodeBlock>npx @crossmint/lobster-cli setup</CodeBlock>
+            Install the pay.sh CLI and run setup:
+            <CodeBlock>npx @pay-sh/cli setup</CodeBlock>
           </li>
           <li>
             Pair the wallet to your Unbrowse account:

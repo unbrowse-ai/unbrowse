@@ -313,6 +313,18 @@ What holds today:
 - **Execution is local-first.** On the default path, a resolved route runs from your own machine straight to the target site — the request and its body do not pass through unbrowse's servers.
 - **Routes are pointers, not maps.** The client sees typed holes and `sha256:` pointers to secret-stripped route structures, never raw internal API maps, HAR payloads, or PII.
 
+### `UNBROWSE_LOCAL_ONLY=1` — the privacy kill-switch
+
+By default, anonymized routing telemetry (which holes/routes were tried, how they scored) is sent to the backend to improve the shared route graph. Set **`UNBROWSE_LOCAL_ONLY=1`** to make every resolve fully local with **no analytics egress whatsoever**:
+
+- **No routing telemetry POST.** The `/v1/telemetry/routing` upload (and all other stats/analytics POSTs) is skipped entirely — nothing about your intent or visited domains leaves the machine.
+- **Verbatim intent is never sent, even with telemetry on.** When telemetry *is* enabled, the literal text you typed (e.g. `"find my email password reset link"`) is redacted to an irreversible `intent:sha256-…:len…:w…` hash + shape signature before egress — the backend can cluster sessions without ever reading your words.
+- **Sandbox replay stays local.** Anti-bot route capture/replay (`/v1/sandbox/replay`) will refuse to ship your executable bundle or your local `proxy`/VPN URL to any non-loopback host; replay runs only against a Kuri on `127.0.0.1`.
+
+```bash
+export UNBROWSE_LOCAL_ONLY=1   # set once; all intent/domain analytics egress is suppressed
+```
+
 **Credentials never cross unbrowse's servers in the clear — true today.** An auth-bearing egress request — one carrying any cookie, any value derived from the site's local/session storage, or any header beyond the generic ones an anonymous public request already sends (so an `Authorization`, an API key, a CSRF or session token, or any custom `X-*` header all count) — is never routed through the server's IP-escalation tier, which terminates TLS and could read it. Such a request stays on your own machine or your own proxy, or fails honestly; the cleartext credential never leaves for unbrowse's servers. What is still being closed (rolling out) is the **non-auth request body** on that same clean-IP escalation path: the proxy tier is moving to a blind end-to-end-encrypted tunnel where the server lends an IP, relays only ciphertext, and never terminates your TLS. Until that tunnel ships, a blocked auth-bearing request fails rather than escalating — and no absolute "servers never see any data" claim is made yet.
 
 ## Authentication
@@ -362,3 +374,4 @@ Log files are plain text — cookie values are present, so redact before sharing
 | `UNBROWSE_URL`     | `http://localhost:6969` | Base URL used by the SDK and skill-bundle              |
 | `UNBROWSE_API_KEY` | (auto-generated)        | Marketplace API key (auto-registered on first startup) |
 | `UNBROWSE_API_URL` | `beta-api.unbrowse.ai`  | Backend API URL override                               |
+| `UNBROWSE_LOCAL_ONLY` | (unset)              | `1` = privacy kill-switch: suppress ALL analytics/telemetry egress (intent text, domains, routing telemetry, sandbox replay). See **Privacy**. |

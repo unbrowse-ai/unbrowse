@@ -69,7 +69,15 @@ export function isMainModule(metaUrl: string): boolean {
   }
 }
 
+/**
+ * The unbrowse data root. `UNBROWSE_HOME` overrides the default `~/.unbrowse`
+ * everywhere (U-3) so an isolated run — a test, a CI runner, a second profile —
+ * can relocate ALL on-disk state with one knob. Empty/whitespace is ignored so
+ * `UNBROWSE_HOME=` does not silently break the default install.
+ */
 export function getUnbrowseHome(): string {
+  const override = process.env.UNBROWSE_HOME?.trim();
+  if (override) return override;
   return path.join(os.homedir(), ".unbrowse");
 }
 

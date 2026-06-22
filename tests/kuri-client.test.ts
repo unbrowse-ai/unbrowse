@@ -393,7 +393,10 @@ exit 1
     )).toBe(false);
   });
 
-  it("recycles a healthy broker that has lost both CDP and tabs", async () => {
+  // U-4: a healthy broker with no process handle is FOREIGN (owned by another
+  // process, e.g. `act serve`). In attach mode it must be reused cooperatively,
+  // NOT terminated — terminating it is the U-4 crash.
+  it("reuses (never terminates) a healthy FOREIGN broker in attach mode", async () => {
     const seen: string[] = [];
     const state = {
       process: null,
@@ -418,14 +421,54 @@ exit 1
       },
     );
 
+    expect(reused).toBe(true);
+    expect(state.ready).toBe(true);
+    // The foreign broker is NEVER terminated.
+    expect(seen).not.toContain("terminate-broker");
+  });
+
+  // The self-owned recycle path: a broker THIS process spawned (process handle
+  // present) whose CDP+tabs are gone IS torn down via its own child handle
+  // (SIGTERM), never via lsof-on-port. That distinction is what keeps capture
+  // from killing serve.
+  it("recycles a SELF-OWNED healthy broker that has lost both CDP and tabs (via its own handle)", async () => {
+    const seen: string[] = [];
+    let killSignal: string | null = null;
+    const fakeChild = {
+      kill: (sig: string) => { killSignal = sig; return true; },
+      exitCode: 0,
+      signalCode: null,
+      once: (_e: string, cb: () => void) => { cb(); },
+      on: (_e: string, cb: () => void) => { cb(); },
+    };
+    const state = {
+      process: fakeChild,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: false, attachToExistingChrome: true },
+      {
+        isHealthyPort: async () => true,
+        discoverCdpPort: async () => { seen.push("discover-cdp"); },
+        ensureUserChromeRunning: async () => { seen.push("ensure-user-chrome"); },
+        ensureTabsDiscovered: async () => { seen.push("discover-tabs"); },
+        listTabs: async () => [],
+        terminateBrokerOnPort: async () => { seen.push("terminate-broker"); },
+      },
+    );
+
     expect(reused).toBe(false);
     expect(state.ready).toBe(false);
-    expect(seen).toEqual([
-      "discover-cdp",
-      "ensure-user-chrome",
-      "discover-tabs",
-      "terminate-broker",
-    ]);
+    expect(killSignal).toBe("SIGTERM");
+    // lsof-on-port termination is NEVER used, even for a self-owned broker.
+    expect(seen).not.toContain("terminate-broker");
   });
 
   it("clean-room opt-out does not discover or reuse ambient CDP", async () => {
@@ -455,9 +498,11 @@ exit 1
       },
     );
 
+    // U-4: clean-room does not reuse the foreign broker, but it must NOT
+    // terminate it either — the spawn path brings up its own broker instead.
     expect(reused).toBe(false);
     expect(state.cdpPort).toBe(null);
-    expect(seen).toEqual(["discover-tabs", "terminate-broker"]);
+    expect(seen).not.toContain("terminate-broker");
   });
 
   it("keeps a healthy broker when user Chrome is restored during reuse", async () => {
@@ -494,7 +539,8 @@ exit 1
     expect(state.cdpPort).toBe(9222);
   });
 
-  it("recycles a healthy broker when only stale registered tabs remain and CDP is gone", async () => {
+  // U-4: stale tabs on a FOREIGN broker (no process handle) → reuse, not kill.
+  it("reuses (never terminates) a healthy FOREIGN broker with only stale tabs in attach mode", async () => {
     const seen: string[] = [];
     const state = {
       process: null,
@@ -519,17 +565,12 @@ exit 1
       },
     );
 
-    expect(reused).toBe(false);
-    expect(state.ready).toBe(false);
-    expect(seen).toEqual([
-      "discover-cdp",
-      "ensure-user-chrome",
-      "discover-tabs",
-      "terminate-broker",
-    ]);
+    expect(reused).toBe(true);
+    expect(state.ready).toBe(true);
+    expect(seen).not.toContain("terminate-broker");
   });
 
-  it("recycles a healthy broker when user Chrome launch leaves a non-responsive CDP port", async () => {
+  it("reuses (never terminates) a healthy FOREIGN broker when Chrome launch leaves a non-responsive CDP port", async () => {
     const seen: string[] = [];
     const state = {
       process: null,
@@ -558,14 +599,10 @@ exit 1
       },
     );
 
-    expect(reused).toBe(false);
-    expect(state.ready).toBe(false);
-    expect(state.cdpPort).toBe(null);
-    expect(seen).toEqual([
-      "ensure-user-chrome",
-      "discover-tabs",
-      "terminate-broker",
-    ]);
+    // Foreign broker → reused cooperatively, never terminated.
+    expect(reused).toBe(true);
+    expect(state.ready).toBe(true);
+    expect(seen).not.toContain("terminate-broker");
   });
 
   it("extracts plugin loaders from html datasets", () => {

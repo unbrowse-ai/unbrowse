@@ -17,7 +17,7 @@ import { sealSkillSnapshotHoles } from "../values/storage-hole-bindings.js";
 import { fsSealedBlobStore } from "../values/sealed-blob-store.js";
 import { deriveSealKey, deriveCommitmentKey } from "../values/signer.js";
 import { trySsrFastPathOnBlock } from "../capture/ssr-fastpath.js";
-import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch } from "../capture/curl-impersonate-fallback.js";
+import { tryCurlImpersonateFetch, tryCamoufoxFetch, tryX402UnblockerFetch, x402PaymentAvailable } from "../capture/curl-impersonate-fallback.js";
 import { looksBlocked } from "../capture/fetch-ladder.js";
 import { resolveProxyUrl, resolveEgressProxy, proxiedFetchOnce } from "../execution/proxy-fetch.js";
 import { egressFetchWithBlockCheck } from "../execution/egress-chain.js";
@@ -326,6 +326,14 @@ const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-
 // re-resolve. Disable explicitly with UNBROWSE_LOCAL_CACHES=0; UNBROWSE_STATELESS=1 also forces off.
 const LOCAL_CACHES_ENABLED =
   process.env.UNBROWSE_STATELESS !== "1" && process.env.UNBROWSE_LOCAL_CACHES !== "0";
+// U-6: a `--help`/usage invocation must NOT boot the runtime (load the on-disk
+// domain/route caches) just to print text. These cache loads are top-level module
+// side-effects that fire on import; skip them when the user only asked for help.
+const HELP_INVOCATION =
+  process.argv.includes("--help") ||
+  process.argv.includes("-h") ||
+  process.argv[2] === "help" ||
+  process.argv.length <= 2;
 /** Call-time read of the local-caches gate (persist/replay functions read this so a runtime env
  *  change is honoured. ON unless STATELESS or LOCAL_CACHES=0). */
 function localCachesEnabled(): boolean {
@@ -341,7 +349,7 @@ export function persistDomainCache() {
   } catch { /* best effort */ }
 }
 
-if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE) {
+if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE && !HELP_INVOCATION) {
   try {
     if (existsSync(DOMAIN_CACHE_FILE)) {
       const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
@@ -402,7 +410,7 @@ export function invalidateRouteCacheForDomain(domain: string): void {
 routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup (skipped when disk caches disabled)
-if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE) {
+if (LOCAL_CACHES_ENABLED && !ISOLATED_SKILL_SNAPSHOT_MODE && !HELP_INVOCATION) {
   try {
     if (existsSync(ROUTE_CACHE_FILE)) {
       const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
@@ -6559,10 +6567,73 @@ export async function resolveAndExecute(
     const resultRecord = (result && typeof result === "object") ? (result as Record<string, unknown>) : null;
     const isAuthRequired =
       resultRecord?.error === "auth_required" || resultRecord?.auth_required === true;
+    // U-14: a target 402 is NOT an anti-bot block — it's a payment-required signal. Historically
+    // 402 was lumped with 403/429 and escalated to a browser session handoff (silent DOM scrape),
+    // so a user running an intent against an x402-protected page got a scraped body and `wallet
+    // unchanged`, never an x402 payment. Split 402 out: first try the paid x402 unblocker
+    // (settles via the base EOA / pay.sh rails — it engages automatically only when a payment
+    // method is configured). If no payment method is available, surface an ACTIONABLE
+    // `x402_required` next_step rather than silently dom-scraping — never a fake-success.
+    if (!isAuthRequired && context?.url && blockingStatus === 402) {
+      if (x402PaymentAvailable()) {
+        console.warn(`[capture] host_returned_402 on ${captureDomain}: escalating to x402 payment (paid unblocker)`);
+        try {
+          const paid = await tryX402UnblockerFetch({ url: context.url, timeoutMs: 240_000 });
+          if (paid && paid.html.length > 0) {
+            const paidArtifact = buildPageArtifactCapture(context.url, queryIntent, paid.html, false);
+            if (paidArtifact.endpoint && paidArtifact.result) {
+              console.log(`[orchestrator] x402_payment_success: ${paid.html.length} bytes (settled the target 402)`);
+              const paidTrace: import("../types/index.js").ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: captureSkill!.skill_id,
+                endpoint_id: paidArtifact.endpoint.endpoint_id,
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+              recordRoutingStep("live-capture", captureSkill, paidTrace, paidArtifact.result, {
+                candidateCount: 1,
+                selectedEndpointId: paidArtifact.endpoint.endpoint_id,
+                didStepUnlockNextStep: true,
+                userOverride: false,
+                requiredRecovery: true,
+              });
+              return {
+                result: paidArtifact.result,
+                trace: paidTrace,
+                source: "live-capture",
+                skill: captureSkill!,
+                timing: finalize("live-capture", paidArtifact.result, undefined, undefined, paidTrace),
+              };
+            }
+          }
+        } catch (payErr) {
+          console.warn(`[orchestrator] x402_payment_error: ${payErr instanceof Error ? payErr.message : String(payErr)}`);
+        }
+      }
+      // No payment method, or the paid attempt did not clear the 402 → return an actionable
+      // x402_required signal. The agent (or user) can configure a wallet and retry; we do NOT
+      // silently fall through to a browser/DOM scrape of the paywall.
+      return {
+        result: {
+          error: "x402_required",
+          status_code_observed: 402,
+          message: x402PaymentAvailable()
+            ? "Target returned 402 Payment Required; the configured x402 payment method did not clear it."
+            : "Target returned 402 Payment Required. Configure an x402 payment method to pay and retry.",
+          next_step: "configure an x402 wallet (UNBROWSE_WALLET_ADAPTER / ~/.identity/base-x402-key.json / lobster.cash) then re-resolve",
+          url: context.url,
+        },
+        trace,
+        source: "live-capture",
+        skill: captureSkill!,
+        timing: finalize("live-capture", null, undefined, undefined, trace),
+      };
+    }
     if (
       !isAuthRequired &&
       context?.url &&
-      (blockingStatus === 402 || blockingStatus === 403 || blockingStatus === 429)
+      (blockingStatus === 403 || blockingStatus === 429)
     ) {
       console.warn(
         `[capture] host_blocked_with_${blockingStatus} on ${captureDomain}: escalating to browse_session handoff`,

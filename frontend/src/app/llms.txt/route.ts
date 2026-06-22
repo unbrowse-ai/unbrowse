@@ -21,7 +21,7 @@ export async function GET() {
 ## Getting Started
 
 - [Native Browser Install (Recommended)](https://www.unbrowse.ai/skill.md): Run \`${installOpenClaw}\` to route supported page actions through Unbrowse while keeping browser fallback available
-- [CLI Install](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up Crossmint lobster.cash during bootstrap if you want mined-route payouts
+- [CLI Install](https://www.unbrowse.ai/skill.md): Install with \`${installGeneric}\`, resolve your first intent, and set up pay.sh during bootstrap if you want mined-route payouts
 - [Public Docs](https://docs.unbrowse.ai): Public explainer and whitepaper companion docs
 - [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with \`${installNpm}\`
 - [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion

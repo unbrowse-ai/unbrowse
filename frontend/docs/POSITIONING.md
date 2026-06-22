@@ -106,7 +106,7 @@ headline) applied.
 
 ### EarnSection — `frontend/src/components/earn-section.tsx`
 
-Wave-3 F1 (Solana not Base) + U7 (Crossmint lobster.cash) + U8
+Wave-3 F1 (Solana not Base) + U7 (pay.sh) + U8
 (capture-is-free reframe) all applied.
 
 - **Headline:** "The next agent on your route pays you."
@@ -116,7 +116,7 @@ Wave-3 F1 (Solana not Base) + U7 (Crossmint lobster.cash) + U8
   **Corrected from wave-1 "USDC on Base L2" (F1 in wave-3 audit).**
 - **Capture-is-free:** llms.txt:72 ("capture and indexing are free,
   agents pay only when reusing a paid route or paid marketplace lookup").
-- **Payout:** Crossmint lobster.cash, set up during `npx unbrowse setup`
+- **Payout:** pay.sh, set up during `npx unbrowse setup`
   (llms.txt:75 + restored from legacy page.tsx line that wave-1 dropped).
 - **Sponsor tier:** `backend/src/middleware/sponsor.ts` (wave-3 p08).
 - **Reddit (13 threads):** t3_1s3ozz0, t3_1p63m3b (21↑), t3_1pgebeh,
