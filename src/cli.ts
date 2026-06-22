@@ -3304,7 +3304,7 @@ export const CLI_REFERENCE = {
     { name: "settings", usage: "[--auto-publish on|off] [--passive-index on|off] [--publish-blacklist d1,d2] [--publish-promptlist d1,d2]", desc: "Show or update local capture/publish policy. --passive-index (default on) indexes in the background while you browse for faster checkpoints." },
 
     // ── The primary one-hole path + compatibility route views ─────────────
-    { name: "get", usage: '"task" [--url <url>] | <url> "task"', desc: "PRIMARY read/search one-hole agent path. Ask for the internet result in natural language, optionally scoped to a URL; runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing while keeping private route/auth details behind typed holes." },
+    { name: "get", usage: '"task" [--url <url>] [--mode auto|data|chooser]', desc: "PRIMARY read/search one-hole agent path. Ask for the internet result in natural language, optionally scoped to a URL; runtime chooses search, direct fetch, route graph, adapter, browser capture, cookies/HAR, and indexing while keeping private route/auth details behind typed holes. --mode (default auto) makes the post-capture data-vs-chooser switch explicit: `data` always returns the page/result payload, `chooser` always returns the available_operations list, `auto` keeps the runtime's default." },
     { name: "fetch", usage: "<url> [opts] | <url> --bundle-source <js|-> --post-eval <expr> [opts]", desc: "PRIMARY URL → content tool. SIMPLE mode (`fetch <url>`) prints body only, HTML auto-converted to markdown. ADVANCED mode (with --bundle-source) runs custom JS through the embedded browser/sandbox primitive and prints the full envelope (cookies, post_eval, observed routes). Browser/Kuri helpers are binary-owned implementation details." },
     { name: "fill", usage: '<ref> <value>  |  "task" [--url <url>]', desc: "Browser-session DOM input fill by @eN ref. Compatibility: natural-language `fill \"task\"` still routes through the one-hole path, but new read/search prompts should use `get`." },
     { name: "run", usage: '<url> "task"', desc: "Compatibility alias for the one-shot path. Prefer `get` for new read/search agent prompts; accepts positional task text or --intent/--task/--query." },
@@ -3477,7 +3477,8 @@ function printHelp(): void {
     "Quick paths:",
     "  Resolve an intent          → unbrowse eval resolve --intent \"...\" [--url <url>]",
     "  Fetch a URL's contents     → unbrowse breath fetch <url>",
-    "  One-hole read/search       → unbrowse breath get \"task\" [--url <url>]",
+    "  One-hole read/search       → unbrowse breath get \"task\" [--url <url>] [--mode auto|data|chooser]",
+    "       --mode (default auto) forces the post-capture switch: data=always the page/result payload, chooser=always the available_operations list",
     "  Real DOM (forms, clicks)   → unbrowse breath go <url>  (then eval snap, breath click/submit/close)",
     "  Sign in to a site          → unbrowse breath auth <url>",
     "",

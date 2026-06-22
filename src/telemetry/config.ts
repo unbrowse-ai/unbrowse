@@ -26,6 +26,9 @@ export type ResolvedTelemetryConfig = TelemetryConfig & {
 };
 
 export function getUnbrowseHome(): string {
+  // UNBROWSE_HOME (U-3) is the explicit data-root override and wins.
+  const override = process.env.UNBROWSE_HOME?.trim();
+  if (override) return override;
   // Honour $HOME so tests can sandbox with HOME=$(mktemp -d).
   const home = process.env.HOME || homedir();
   return path.join(home, ".unbrowse");

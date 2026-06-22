@@ -13,7 +13,7 @@ import { IconDiamondCheck, IconArrow } from "./archival-icons";
  * Wave-3 codebase fixes applied:
  *   - F1: chain is Solana via Faremeter Flex (NOT Base). Source:
  *     backend/src/services/sponsor-flex.ts + middleware/sponsor.ts:16.
- *   - U7: Crossmint lobster.cash is the payout path. Source:
+ *   - U7: pay.sh is the payout path. Source:
  *     llms.txt:75 + prior page.tsx copy.
  *   - U8: capture and indexing are FREE; agents only pay on reuse of
  *     a paid route. Source: llms.txt:72.
@@ -62,7 +62,7 @@ export function EarnSection() {
             </div>
 
             <p className="mt-4 text-xs font-mono text-[rgba(255,122,32,0.55)]">
-              <span className="text-[rgba(255,176,96,0.85)]">$</span> Set up Crossmint lobster.cash during <code>npx unbrowse setup</code> to wire the payout address.
+              <span className="text-[rgba(255,176,96,0.85)]">$</span> Set up pay.sh during <code>npx unbrowse setup</code> to wire the payout address.
             </p>
           </div>
 
@@ -86,7 +86,7 @@ export function EarnSection() {
               </div>
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />
-                <span>Payout to bank via Crossmint lobster.cash, set up in one step.</span>
+                <span>Payout to bank via pay.sh, set up in one step.</span>
               </div>
               <div className="flex items-start gap-2 text-text-secondary leading-relaxed">
                 <IconDiamondCheck size={14} className="text-orange-500 shrink-0 mt-1" />

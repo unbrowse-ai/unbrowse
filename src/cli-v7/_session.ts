@@ -36,9 +36,9 @@ import {
   writeFile,
   rm,
 } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
+import { getUnbrowseHome } from "../runtime/paths.js";
 
 export interface BrowseSessionRecord {
   readonly sessionId: string;
@@ -57,7 +57,7 @@ export interface BrowseSessionRecord {
 }
 
 function statelessTmpRoot(): string {
-  return join(homedir(), ".unbrowse", "tmp");
+  return join(getUnbrowseHome(), "tmp");
 }
 
 /**

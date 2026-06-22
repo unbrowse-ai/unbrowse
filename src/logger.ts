@@ -1,16 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { getUnbrowseHome } from "./runtime/paths.js";
 
-const LOG_DIR = path.join(os.homedir(), ".unbrowse", "logs");
+// Resolved per-call so UNBROWSE_HOME (U-3) relocates logs too.
+function logDir(): string {
+  return path.join(getUnbrowseHome(), "logs");
+}
 
 function getLogFile(): string {
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  return path.join(LOG_DIR, `unbrowse-${date}.log`);
+  return path.join(logDir(), `unbrowse-${date}.log`);
 }
 
 function ensureLogDir(): void {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
+  fs.mkdirSync(logDir(), { recursive: true });
 }
 
 /**

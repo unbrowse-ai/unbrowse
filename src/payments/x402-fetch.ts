@@ -37,6 +37,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { payShFetch, payShSandboxEnabled } from "./pay-sh.js";
+import { baseX402Available, buildBaseX402Header, isEvmExact, type EvmAccept } from "./base-x402-signer.js";
 
 // ---------------------------------------------------------------------------
 // x402 envelope shape (structural primitive — same across providers).
@@ -120,7 +121,7 @@ export interface X402FetchResult {
 // (lobster CLI, privy backend endpoint, generic key-file signer) are in
 // sibling files and reused; we just dispatch.
 // ---------------------------------------------------------------------------
-export type WalletAdapterName = "lobster" | "privy" | "generic" | "pay" | "none";
+export type WalletAdapterName = "lobster" | "privy" | "generic" | "pay" | "base" | "none";
 
 export interface WalletConfig {
   adapter: WalletAdapterName;
@@ -149,33 +150,16 @@ export function resolveWalletConfig(env: NodeJS.ProcessEnv = process.env): Walle
     ? Math.max(0, parseFloat(maxCostStr) || DEFAULT_MAX_COST_USD)
     : DEFAULT_MAX_COST_USD;
 
+  // pay.sh is the ONLY wallet adapter — ows/lobster/privy/generic/base removed
+  // (user directive: "no need for ows or any other adapters, just pay.sh is fine").
+  // The pay.sh wrapper re-issues the request via the `pay` CLI (TouchID + USDC x402);
+  // if `pay` is not on PATH the wrapper surfaces pay_no_binary honestly. Explicit
+  // opt-out only: UNBROWSE_WALLET_ADAPTER=none disables payment; anything else → pay.
   const explicit = env.UNBROWSE_WALLET_ADAPTER?.trim().toLowerCase();
-  if (explicit === "lobster" || explicit === "privy" || explicit === "generic") {
-    const key_ref = env.UNBROWSE_WALLET_KEY?.trim();
-    return { adapter: explicit, key_ref, max_cost_usd };
-  }
-  // pay.sh adapter is EXPLICIT-ONLY (default-off, never auto-detected) so a
-  // machine that merely has `pay` installed never silently routes payments
-  // through it. The wrapper re-issues the request via the `pay` CLI.
-  if (explicit === "pay") {
-    return { adapter: "pay", max_cost_usd };
-  }
   if (explicit === "none") {
     return { adapter: "none", max_cost_usd };
   }
-
-  // Auto-detect (precheck only — never read secrets, never decrypt).
-  const home = env.HOME || homedir();
-  if (existsSync(join(home, ".lobster", "agents.json"))) {
-    return { adapter: "lobster", max_cost_usd };
-  }
-  if (existsSync(join(home, ".privy", "session.json"))) {
-    return { adapter: "privy", max_cost_usd };
-  }
-  if (env.UNBROWSE_WALLET_KEY?.trim()) {
-    return { adapter: "generic", key_ref: env.UNBROWSE_WALLET_KEY.trim(), max_cost_usd };
-  }
-  return { adapter: "none", max_cost_usd };
+  return { adapter: "pay", max_cost_usd };
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +212,22 @@ async function signEnvelope(
   envelope: X402Envelope,
   cfg: WalletConfig,
 ): Promise<{ paymentHeader: string } | { error: string }> {
+  // U-13 generalizing route: when the 402 is an EVM "exact" accept and a funded Base EOA
+  // key is available, sign it directly via EIP-3009 — REGARDLESS of the configured adapter.
+  // This is the rail the lobster smart-wallet path can't take: facilitators that report
+  // xSettlementAccountSupported=false reject the smart-wallet settlement, but the EIP-3009
+  // transferWithAuthorization (a plain EOA signature the facilitator broadcasts) needs no
+  // settlement account. Routing by ENVELOPE SHAPE (not by a per-adapter switch) means an EVM
+  // 402 is handled correctly even when the user only has lobster configured for Solana.
+  // The explicit `base` adapter forces this path; auto/other adapters opt in when EVM-exact.
+  if (envelopeHasEvmExact(envelope)) {
+    try {
+      if (baseX402Available()) return signViaBase(envelope);
+    } catch { /* fall through to the configured adapter */ }
+  }
   switch (cfg.adapter) {
+    case "base":
+      return signViaBase(envelope);
     case "lobster":
       return signViaLobster(envelope);
     case "privy":
@@ -238,6 +237,58 @@ async function signEnvelope(
     case "none":
     default:
       return { error: "no wallet adapter configured" };
+  }
+}
+
+/** True iff the envelope offers an EVM "exact" accept the base EIP-3009 signer can settle. */
+function envelopeHasEvmExact(envelope: X402Envelope): boolean {
+  return (envelope.accepts ?? []).some((a) =>
+    isEvmExact({
+      scheme: a.scheme ?? "",
+      network: a.network ?? "",
+      asset: (a.asset ?? "") as string,
+      payTo: (a.payTo ?? a.recipient ?? "") as string,
+    }),
+  );
+}
+
+/**
+ * Base (EVM) adapter — the missing rail that fixes U-13. The lobster smart-wallet
+ * settlement path is rejected by facilitators that report xSettlementAccountSupported=false
+ * on base-sepolia (eip155:84532). The x402 "exact" scheme on an EVM chain is an EIP-3009
+ * `transferWithAuthorization`: the payer signs an EIP-712 typed message, the facilitator
+ * broadcasts it (gasless for the payer). No smart-wallet settlement account required. We pick
+ * the first EVM-exact accept from the envelope and sign it locally with the funded Base key.
+ *
+ * Returns an honest error when: no base key, or no EVM-exact accept in the envelope (the 402
+ * only offered Solana/other chains this signer cannot settle).
+ */
+async function signViaBase(envelope: X402Envelope): Promise<{ paymentHeader: string } | { error: string }> {
+  if (!baseX402Available()) return { error: "no base x402 key (~/.identity/base-x402-key.json or keychain)" };
+  const accepts = (envelope.accepts ?? []) as X402Accept[];
+  // Map the wrapper's loose X402Accept onto the signer's EvmAccept shape, then pick the first
+  // EVM "exact" entry the base signer can actually settle.
+  const evm = accepts
+    .map((a): EvmAccept => ({
+      scheme: a.scheme ?? "",
+      network: a.network ?? "",
+      amount: a.amount,
+      maxAmountRequired: a.maxAmountRequired,
+      asset: (a.asset ?? "") as string,
+      payTo: (a.payTo ?? a.recipient ?? "") as string,
+      maxTimeoutSeconds: typeof a.validUntil === "number" ? undefined : undefined,
+      extra: a.extra as { name?: string; version?: string } | undefined,
+    }))
+    .find(isEvmExact);
+  if (!evm) {
+    return { error: "no EVM-exact accept in envelope (base signer cannot settle non-EVM chains)" };
+  }
+  try {
+    const paymentHeader = await buildBaseX402Header(evm, Math.floor(Date.now() / 1000));
+    if (!paymentHeader) return { error: "base signer returned empty header" };
+    return { paymentHeader };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -452,8 +503,13 @@ export async function x402Fetch(
   const requested_cost_usd = envelopeCostUsd(envelope);
 
   // No wallet → honest signal. Caller falls back (proxy: direct egress;
-  // captcha: browser_fallback).
-  if (cfg.adapter === "none") {
+  // captcha: browser_fallback). EXCEPTION (U-13): an EVM-exact 402 with a funded Base EOA
+  // key is signable even when no other adapter is configured — signEnvelope routes it to the
+  // EIP-3009 base signer. So don't short-circuit "none" when that rail is available.
+  const canSignViaBase = (() => {
+    try { return envelopeHasEvmExact(envelope) && baseX402Available(); } catch { return false; }
+  })();
+  if (cfg.adapter === "none" && !canSignViaBase) {
     return {
       response: firstRes,
       trace: {

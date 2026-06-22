@@ -11,8 +11,8 @@
  */
 
 import { existsSync, mkdirSync, appendFileSync, statSync, readFileSync, renameSync, unlinkSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { getUnbrowseHome } from "./runtime/paths.js";
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const MAX_ROTATIONS = 3;
@@ -55,8 +55,8 @@ function getLogDir(): string {
   if (process.env.UNBROWSE_CONFIG_DIR) return process.env.UNBROWSE_CONFIG_DIR;
   const profile = process.env.UNBROWSE_PROFILE?.trim();
   return profile
-    ? join(homedir(), ".unbrowse", "profiles", profile)
-    : join(homedir(), ".unbrowse");
+    ? join(getUnbrowseHome(), "profiles", profile)
+    : getUnbrowseHome();
 }
 
 export function getImpactLogPath(): string {

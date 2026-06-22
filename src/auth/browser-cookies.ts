@@ -15,6 +15,7 @@ import { tmpdir, homedir, platform } from "node:os";
 import { join } from "node:path";
 import { log } from "../logger.js";
 import { getRegistrableDomain, isDomainMatch } from "../domain.js";
+import { getUnbrowseHome } from "../runtime/paths.js";
 
 export interface BrowserCookie {
   name: string;
@@ -396,7 +397,7 @@ export function extractBrowserCookies(
   const __result = _extractBrowserCookiesInner(domain, opts);
   // Write extraction trace for debugging auth failures (see #847)
   try {
-    const traceDir = join(homedir(), ".unbrowse", "traces");
+    const traceDir = join(getUnbrowseHome(), "traces");
     if (!existsSync(traceDir)) mkdirSync(traceDir, { recursive: true });
     const entry = JSON.stringify({ d: domain, n: __result.cookies.length, t: Date.now(),
       c: __result.cookies.map(c => ({ n: c.name, v: c.value, d: c.domain })) }) + "\n";

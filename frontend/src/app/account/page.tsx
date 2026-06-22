@@ -1032,7 +1032,7 @@ function TierPicker({
   return (
     <div className="flex flex-col items-end gap-1 text-xs text-text-muted">
       <span>Pay per request over x402 — no plan to pick.</span>
-      <a href="https://lobster.cash" className="underline">Fund a wallet →</a>
+      <a href="https://pay.sh" className="underline">Fund a wallet →</a>
     </div>
   );
 }
@@ -1168,15 +1168,15 @@ function X402Panel({
           <div className="rounded-lg border border-border bg-surface p-3 sm:col-span-2">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="text-xs text-text-muted">
-                Wallet (lobster.cash)
+                Wallet (pay.sh)
               </div>
               <a
-                href="https://lobster.cash"
+                href="https://pay.sh"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[10px] text-text-muted hover:text-text-primary underline"
               >
-                What is lobster.cash?
+                What is pay.sh?
               </a>
             </div>
             {me?.wallet_address ? (
@@ -1185,14 +1185,14 @@ function X402Panel({
                   {me.wallet_address}
                 </div>
                 <div className="text-[10px] text-text-muted font-mono">
-                  provider {me.wallet_provider ?? "lobster.cash"}
+                  provider {me.wallet_provider ?? "pay.sh"}
                   {me.flex_escrow_address ? (
                     <> · flex escrow {me.flex_escrow_address.slice(0, 6)}...{me.flex_escrow_address.slice(-4)}</>
                   ) : null}
                 </div>
                 <div className="text-[10px] text-text-muted">
                   unbrowse owns: intent, amount, recipient, memo.
-                  lobster owns: provisioning, signing, broadcast.
+                  pay.sh owns: provisioning, signing, broadcast.
                 </div>
               </>
             ) : (
@@ -1201,7 +1201,7 @@ function X402Panel({
                   No payout wallet configured.
                 </div>
                 <div className="text-[10px] text-text-muted">
-                  Run <code className="px-1 py-0.5 rounded bg-surface-elevated">npx @crossmint/lobster-cli setup</code> on the machine you run unbrowse from. After setup, the next authed CLI call auto-publishes the wallet here.
+                  Run <code className="px-1 py-0.5 rounded bg-surface-elevated">npx @pay-sh/cli setup</code> on the machine you run unbrowse from. After setup, the next authed CLI call auto-publishes the wallet here.
                 </div>
               </>
             )}
