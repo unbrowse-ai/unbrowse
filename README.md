@@ -293,6 +293,7 @@ Long-form docs live under [`docs/`](./docs/). Public repo entrypoints:
 
 Whitepaper companion set:
 
+- [`docs/the-unbrowse-papers.md`](./docs/the-unbrowse-papers.md) — the five papers as one argument, with the contract substrate as their spine
 - [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) — public companion index
 - [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, product boundary
 - [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) — market and business framing
