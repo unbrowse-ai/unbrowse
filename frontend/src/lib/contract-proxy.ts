@@ -44,6 +44,8 @@ export async function contractProxy<T>(opts: {
   layers: LedgerLayer[];
   /** the ON-CHAIN source (the contract ledger), fetched ONLY on a full layer miss. */
   source: () => Promise<T>;
+  /** only commit a source result to memory when this holds (default: non-null). Keeps errors live. */
+  cacheable?: (v: T) => boolean;
   /** back-fill the fastest layer with a source result so the next hit is muscle memory (default true). */
   backfill?: boolean;
 }): Promise<ProxyResult<T>> {
@@ -57,7 +59,8 @@ export async function contractProxy<T>(opts: {
   }
   // full miss → the ON-CHAIN source (the signed contract ledger)
   const value = await opts.source();
-  if (opts.backfill !== false && opts.layers[0]?.put) {
+  const committable = opts.cacheable ? opts.cacheable(value) : value != null;
+  if (committable && opts.backfill !== false && opts.layers[0]?.put) {
     try {
       await opts.layers[0].put(key, value);
     } catch {
