@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getModuleDir, getPackageRoot, getUnbrowseHome } from "./paths.js";
+import { apiContract } from "../values/api-contract.js";
 
 export type InstallMethod = "repo-clone" | "npm-global" | "unknown";
 export type InstallHost = "auto" | "codex" | "claude" | "mcp" | "off" | "unknown";
@@ -169,15 +170,34 @@ function compareSemver(a: string, b: string): number {
 }
 
 async function fetchLatestVersion(): Promise<string | null> {
+  // Every API read becomes /contract muscle memory: the npm latest-version GET recalls from the
+  // contract ledger first and only hits the registry (the legacy internet) on a miss. mirror:false —
+  // a hot CLI read must not float an off-machine mirror socket that delays process exit (the hang
+  // fixed in 8080e567). A null (offline/error) is never memoized → it stays live.
   try {
-    const res = await fetch("https://registry.npmjs.org/unbrowse/latest", {
-      signal: AbortSignal.timeout(8_000),
-      headers: { Accept: "application/json" },
+    const r = await apiContract<string | null>({
+      api: "npm.latest-version",
+      args: "unbrowse",
+      ttlMs: 5 * 60_000,
+      cacheable: (v) => v != null,
+      mirror: false,
+      produce: async () => {
+        try {
+          const res = await fetch("https://registry.npmjs.org/unbrowse/latest", {
+            signal: AbortSignal.timeout(8_000),
+            headers: { Accept: "application/json" },
+          });
+          if (!res.ok) return null;
+          const body = await res.json() as { version?: string };
+          return typeof body.version === "string" && body.version.trim() ? body.version.trim() : null;
+        } catch {
+          return null;
+        }
+      },
     });
-    if (!res.ok) return null;
-    const body = await res.json() as { version?: string };
-    return typeof body.version === "string" && body.version.trim() ? body.version.trim() : null;
+    return r.value;
   } catch {
+    // contract-ledger infra failure must never break the update check — fall to a live null
     return null;
   }
 }
