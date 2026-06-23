@@ -91,6 +91,55 @@ system does not grow a new mechanism every time it grows a new feature.
 If you only read one thing, read the substrate page; the papers are what happens
 when you push each of its faces until it has to be a paper.
 
+## Why this is the decentralised agentic internet — unbrowse, FDRY, stFDRY
+
+Read together, the five papers describe one thing the current web does not have: a
+**shared, agent-usable action layer that no single operator has to be trusted to
+keep honest.** Three pieces carry it, and each is a different paper's payoff.
+
+**unbrowse is the execution layer.** Today an agent's reach into a site is private,
+re-derived per request, and gone when the process exits (Papers 1–2). unbrowse makes
+the call a *shared, replayable, ranked artifact* — the route a site's own front-end
+already knew how to make, learned once and reused. That is the agentic internet's
+hands: the layer through which agents actually *act* on the web, cheaply and fast,
+instead of re-driving a browser every time.
+
+**The contract substrate is the trust layer.** A shared action layer is only safe if
+every action is attributable and tamper-evident, which is Paper 4: one wallet key
+signs every layer an agent touches, results are content-addressed and sealed, and the
+record is an append-only, hash-chained ledger anchored on-chain. That is what lets the
+action layer be *shared without a trusted operator in the middle* — the decentralising
+move is replacing "trust our server" with "verify the signature and the chain."
+
+**FDRY is the accountability currency; stFDRY is the abiding stake.** A shared graph
+decays, and usage fees alone under-provide its upkeep (Paper 5). The corrective is
+economic: a maintainer **bonds FDRY** to stand behind a route, a freshness proof that
+fails is slashable, and **stFDRY** is the staked, abiding form that earns by keeping
+the graph fresh. Crucially — and this is the load-bearing distinction — **FDRY is the
+trust currency, never the payment rail.** Usage settles in USDC; FDRY is bonded to be
+*trusted by* the network, not spent to *use* it (see
+[Trust and Accountability](./concepts/trust-and-accountability.md)). That separation
+is what makes the accountability honest rather than extractive: the people who keep
+routes alive are the ones the system rewards, and the reward is *earn-by-abiding*, not
+a toll on everyone else.
+
+Put the three together and the shape is a **commons**: an open action graph (unbrowse)
+whose integrity is cryptographic rather than custodial (the substrate) and whose
+upkeep is funded by accountable, slashable stake rather than by a landlord
+(FDRY/stFDRY). That is the precise sense in which this is the *decentralised* agentic
+internet — not "runs on a blockchain," but *no single party has to be trusted, and the
+incentive to maintain the commons is on a ledger instead of on goodwill.*
+
+**Honest about the trajectory (the /lewis-brain check applied to this very claim).**
+"Decentralised" here is a direction with shipped feet, not a finished state. Shipped
+today: the on-chain hash-chained ledger, wallet-bound signing at the boundary, the
+content-addressed sealed cache, USDC settlement, and the three-way fair split. Still
+forward-looking, and named as such in the papers: a full peer-to-peer ledger (the
+substrate is server-canonical today), a validator market, and the bonded
+proof-of-indexing maintenance loop. The destination is a trust-minimised commons; the
+honest present is a single canonical operator running the protocol while it stabilises.
+The papers say which is which, and so does this page.
+
 ---
 
 *Honest-status footer, because the discipline applies to this page too:* Papers
