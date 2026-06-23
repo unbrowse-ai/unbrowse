@@ -116,6 +116,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     // Chrome over a raw CDP conn, so we inject here over raw CDP (Network.
     // setCookies on the tab's flat sessionId) and re-navigate so the
     // authenticated page renders. Best-effort + fail-visible, never blocks nav.
+    let cookiesInjected = 0;
     try {
       const { shouldImportBrowserCookies } = await import("../../auth/index.js");
       if (shouldImportBrowserCookies()) {
@@ -146,6 +147,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
           });
           await conn.call("Network.setCookies", { cookies: cdpCookies }, target.sessionId);
           await conn.call("Page.navigate", { url }, target.sessionId);
+          cookiesInjected = cdpCookies.length;
           process.stderr.write(
             `[auth] breath go: injected ${cdpCookies.length} cookie(s) for ${host}, re-navigated authenticated\n`,
           );
@@ -156,6 +158,36 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     } catch (cookieErr) {
       process.stderr.write(
         `[auth] breath go: cookie injection skipped: ${cookieErr instanceof Error ? cookieErr.message : String(cookieErr)}\n`,
+      );
+    }
+
+    // Read the rendered body so callers (and the bench Axis-C with-auth path)
+    // get the authenticated RESPONSE, not just a session pointer. Bounded
+    // readyState wait, then document.body.innerText. Best-effort — a slow page
+    // yields null and never blocks the navigate result.
+    let pageText: string | null = null;
+    try {
+      await conn.call("Runtime.enable", {}, target.sessionId);
+      const deadline = Date.now() + 6000;
+      while (Date.now() < deadline) {
+        const rs = await conn.call<{ expression: string; returnByValue: boolean }, { result?: { value?: unknown } }>(
+          "Runtime.evaluate",
+          { expression: "document.readyState", returnByValue: true },
+          target.sessionId,
+        );
+        if (rs?.result?.value === "complete") break;
+        await new Promise((res) => setTimeout(res, 200));
+      }
+      const body = await conn.call<{ expression: string; returnByValue: boolean }, { result?: { value?: unknown } }>(
+        "Runtime.evaluate",
+        { expression: "document.body ? document.body.innerText : ''", returnByValue: true },
+        target.sessionId,
+      );
+      const v = body?.result?.value;
+      if (typeof v === "string" && v.length > 0) pageText = v.slice(0, 200000);
+    } catch (readErr) {
+      process.stderr.write(
+        `[page] breath go: body read skipped: ${readErr instanceof Error ? readErr.message : String(readErr)}\n`,
       );
     }
 
@@ -203,6 +235,8 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         context_id: "",
         chrome_ws_url: conn.endpoint,
         url,
+        cookies_injected: cookiesInjected,
+        ...(pageText !== null ? { page: { text: pageText } } : {}),
         ...(captcha ? { captcha } : {}),
         audit: {
           ok: navAudit.ok,
