@@ -49,9 +49,14 @@ execFileSync(
   { cwd: packageRoot, stdio: "inherit" },
 );
 
+// index.ts now also emits multiple files (dynamic import() chunks + the WASM
+// asset pulled transitively), so --outfile fails the same way cli.ts/mcp.ts
+// would ("cannot write multiple output files without an output directory").
+// Use --outdir like the siblings, and --entry-naming to keep the server.js
+// name the wrapper (dist/server.js) spawns; chunks land alongside in dist/.
 execFileSync(
   "bun",
-  [...sharedArgs, path.join(sourceDir, "index.ts"), "--outfile", path.join(distDir, "server.js")],
+  [...sharedArgs, path.join(sourceDir, "index.ts"), "--outdir", distDir, "--entry-naming", "server.[ext]"],
   { cwd: packageRoot, stdio: "inherit" },
 );
 
