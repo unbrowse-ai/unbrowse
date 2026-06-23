@@ -31,12 +31,31 @@ import {
   type ContractVectorStore,
   type Embedder,
   type ScoredId,
+  hashEmbedder,
   indexContractRows,
   resolveLiveEmbedder,
   searchContracts,
 } from "./contract-search.js";
 
 const DEFAULT_NAMESPACE = "ubz-contracts";
+
+/**
+ * The embedder the indexing/search seam ALWAYS gets — never null. Prefers a live SEMANTIC
+ * embedder (contract-native llama.cpp :8090 / OpenAI / Nebius), and when none answer it falls
+ * to the substrate's OWN embedded feature-hash embedder at 1536 dim (no model, no server, no
+ * key — runs identically in the CLI, the Worker backend, and the frontend). This fulfils
+ * resolveLiveEmbedder's documented promise ("then the offline hashEmbedder bears the load")
+ * so the searchable passive-index tier degrades to lexical recall instead of silently skipping.
+ * The provider is surfaced, never silent — "embedded-hash-1536" means this row was indexed
+ * lexically (a hash query against a hash-indexed store is internally consistent).
+ */
+export async function embedderForIndexing(
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ embed: Embedder; provider: string }> {
+  const live = await resolveLiveEmbedder(env);
+  if (live) return live;
+  return { embed: hashEmbedder(1536), provider: "embedded-hash-1536" };
+}
 
 function emergentKey(): string {
   const k = (typeof process !== "undefined" ? process.env?.EMERGENTDB_API_KEY : undefined)?.trim();
@@ -208,16 +227,13 @@ export async function persistContract(
   try {
     let embed = opts.embedder;
     if (!embed) {
-      const live = await resolveLiveEmbedder(process.env);
-      if (live) { embed = live.embed; out.embedder = live.provider; }
+      const chosen = await embedderForIndexing(process.env);
+      embed = chosen.embed;
+      out.embedder = chosen.provider;
     }
-    if (!embed) {
-      out.notes.push("rag: no 1536-dim embedder available (contract-native llama.cpp / OPENAI_API_KEY / Nebius) — skipped");
-    } else {
-      const row: ContractRow = { id: c.id, text: c.text };
-      await indexContractRows([row], embed, emergentVectorStore(namespace));
-      out.rag = true;
-    }
+    const row: ContractRow = { id: c.id, text: c.text };
+    await indexContractRows([row], embed, emergentVectorStore(namespace));
+    out.rag = true;
   } catch (e) {
     out.notes.push(`rag: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -255,16 +271,9 @@ export async function mirrorToEmergent(
   }
   try {
     let embed = opts.embedder;
-    if (!embed) {
-      const live = await resolveLiveEmbedder(process.env);
-      if (live) embed = live.embed;
-    }
-    if (!embed) {
-      r.notes.push("rag: no embedder available — skipped");
-    } else {
-      await indexContractRows([{ id, text }], embed, emergentVectorStore(namespace));
-      r.rag = true;
-    }
+    if (!embed) embed = (await embedderForIndexing(process.env)).embed;
+    await indexContractRows([{ id, text }], embed, emergentVectorStore(namespace));
+    r.rag = true;
   } catch (e) {
     r.notes.push(`rag: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -298,10 +307,6 @@ export async function searchContractsEverywhere(
 ): Promise<ScoredId[]> {
   const namespace = opts.namespace ?? DEFAULT_NAMESPACE;
   let embed = opts.embedder;
-  if (!embed) {
-    const live = await resolveLiveEmbedder(process.env);
-    if (!live) throw new Error("searchContractsEverywhere: no embedder available");
-    embed = live.embed;
-  }
+  if (!embed) embed = (await embedderForIndexing(process.env)).embed;
   return searchContracts(query, embed, emergentVectorStore(namespace), opts.k ?? 5);
 }
