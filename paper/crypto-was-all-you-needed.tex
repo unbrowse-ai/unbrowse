@@ -505,6 +505,61 @@ test that an entry outside the batch cannot prove inclusion and that changing an
 entry changes the root. Publishing the root on-chain is the deployment step; the
 commitment it would publish is exactly this root.
 
+\subsection{Crystallised intelligence: the resolved graph, keyed by identity, surfaced only under the key}
+
+The work the substrate does is itself the thing worth persisting. A resolution ---
+the intelligence of ``this intent resolves to that ranked endpoint, and the call
+succeeded'' --- is not a transient log line; it is a signed node, and committing it
+to the ledger \emph{crystallises} it. Every resolution the runtime settles is
+written as a wallet-signed, content-addressed row on the append-only on-chain ledger
+(\texttt{src/values/iq-ledger.ts}): the row stores the content hash of the resolution
+and the wallet signature that sealed it, written to a Solana table via
+\texttt{writeRow}, so the transaction signature itself proves that one specific
+identity wrote that exact row. The substrate that produced the resolution is the same
+one compiled into the stateless binary and bound across the CLI, the server, and the
+site (\texttt{src/values/contract-native.ts}, \texttt{src/values/contract-chain.ts});
+what it learns by resolving, it crystallises by signing. This is the substrate
+deploying its own learning into durable public state --- the resolved graph becomes an
+on-chain record rather than evaporating with the process.
+
+Three properties fall out of keying that record by the one root identity (\S4), and
+they are exactly the three a maintainer of a shared, compensable graph needs.
+
+\paragraph{Identifiable.} Because each row carries the wallet signature of its author,
+a contribution is attributable to a portable on-chain identity --- the wallet public
+key \emph{is} the contributor id, with no separate account system layered on top. This
+is the wallet-bound contribution ledger that already keys credit in the product
+(\texttt{src/cli-v7/eval/stats.ts}): who resolved which route is a signed fact on the
+chain, not a row in a database the operator could quietly rewrite. That attributability
+is the precondition for paying the party who created a route's value, the economics
+deferred to \S\ref{sec:economics}.
+
+\paragraph{Persistent.} The on-chain table is append-only and hash-chained, so the
+full history of resolutions survives independent of any single server; the local
+ledger is a recency-weighted hot window over it, never the system of record. Reordering
+or editing a past row breaks every root after it, so persistence here is tamper-evident
+durability --- a history independent auditors can check --- not merely ``we kept a copy.''
+
+\paragraph{Surfaced only under key or signature.} Crystallising a resolution on a
+\emph{shared} chain must not leak what the resolution touched. The rule is the
+value-off-chain / root-on-chain discipline of this section applied to every sealed
+value: the chain carries only the small signed commitment, while the value itself
+stays sealed off-graph under the wallet (\texttt{src/values/wallet-seal.ts}), and a
+captured credential or auth value is sealed to the holder's wallet
+(\texttt{src/values/auth-vault.ts}). An observer of the public chain reads \emph{that}
+a row exists and verifies it against the public key; recovering the value behind it
+requires the holder's private key, or a signature-gated reveal under it, and a
+sensitive entry stays sealed until that reveal. The ZK binding of \S5 is the strongest
+form of the same rule: the chain confirms a credential is bound to the identity while
+learning nothing about the credential unless its holder opens the proof under
+signature. So the crystallised intelligence is \emph{public as a verifiable,
+attributable record and private as a payload} --- legible to everyone as ``this
+identity settled this, here is the proof,'' yet readable as content by no one but the
+key. The honesty boundary of \S13 holds unchanged: the on-chain table write is in the
+product, while batching resolutions under a single Merkle-root checkpoint published
+on-chain (\texttt{reference/ledger/checkpoint.py}) is the decentralisation step that
+scales it --- reported as the frontier it is, not as a finished feature.
+
 \section{From security to economics: where this paper stops}
 \label{sec:economics}
 
