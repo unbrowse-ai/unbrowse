@@ -5925,6 +5925,7 @@ export async function resolveAndExecute(
       // fetch 200s with the anonymous HTML, so the curl rescue (which DOES seed
       // cookies) never runs. Same harvester the rescue path uses.
       let directFetchCookieHeader = "";
+      let directFetchCookiesAttached = 0;
       try {
         const dfHost = new URL(ctxUrl).hostname.replace(/^www\./, "");
         const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
@@ -5938,6 +5939,9 @@ export async function resolveAndExecute(
             .filter((pair) => !pair.endsWith("="))
             .join("; ");
           if (directFetchCookieHeader) {
+            // Count the cookies actually sent on the Cookie header (post-filter),
+            // not the raw extracted count — this is the real auth attached.
+            directFetchCookiesAttached = directFetchCookieHeader.split("; ").filter(Boolean).length;
             console.log(`[direct-fetch] ${ctxUrl} attaching ${dfCookies.length} browser cookie(s) for ${dfHost} on native fetch`);
           }
         }
@@ -6084,6 +6088,10 @@ export async function resolveAndExecute(
               source: "direct-fetch" as any,
               skill: undefined as any,
               timing: t,
+              // Surface the count of auth cookies attached so the act-go navigate
+              // envelope can report cookies_injected (the with-auth execution signal),
+              // matching the breath-go path's contract. 0 when the fetch was cookieless.
+              ...(directFetchCookiesAttached > 0 ? { cookies_injected: directFetchCookiesAttached } : {}),
             };
           }
         } else if (directRes.status === 403 || directRes.status === 429 || directRes.status === 503) {
