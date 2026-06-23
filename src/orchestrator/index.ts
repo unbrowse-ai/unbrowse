@@ -72,7 +72,7 @@ import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
-import { cachedResolution } from "../values/cached-resolution.js";
+import { cachedResolution, mirrorResolutionToChain } from "../values/cached-resolution.js";
 import { cardinalityMatches, routeLooksLikeSingleItem, isListLikeIntent, isConcreteResourceLeaf, urlHasConcreteResourcePath, pathCoherent } from "../values/cardinality.js";
 export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
@@ -978,6 +978,39 @@ export function buildResolveCacheKey(domain: string | null, intent: string, url?
   return `${domain || "global"}:${intent.trim().toLowerCase()}:${normalizeRouteContext(url)}`;
 }
 
+/**
+ * Mirror a FRESH captured route/domain index onto the /contract ledger (IQ-backed) via the ONE
+ * shared resolution-mirror seam (`mirrorResolutionToChain`) — the captured index is a /contract
+ * truth-claim, not only a machine-local disk cache. Fire-and-forget + fail-open: never blocks or
+ * breaks capture. Gated by the SAME localCaches gate as disk persist (so a --stateless /
+ * UNBROWSE_LOCAL_CACHES=0 run does neither); the IQ env-gate inside mirrorResolutionToChain makes
+ * it a no-op on-chain when SOLANA_RPC_ENDPOINT/IQ_DB_ROOT_ID/IQ_TABLE_SEED are absent. The
+ * stderr evidence line is fail-VISIBLE ("fallbacks are visible, never silent") and proves the
+ * mirror is WIRED even when the chain env is absent. Disk cache behaviour is unchanged.
+ */
+export function mirrorCapturedRouteToContract(
+  cacheKey: string,
+  skill: SkillManifest,
+  endpointId?: string,
+  ledgerOverride?: Parameters<typeof mirrorResolutionToChain>[2],
+): void {
+  if (!localCachesEnabled() || ISOLATED_SKILL_SNAPSHOT_MODE) return;
+  try {
+    const urlTemplate =
+      skill.endpoints?.find((e) => e.endpoint_id === endpointId)?.url_template ??
+      skill.endpoints?.[0]?.url_template ??
+      "";
+    const pointer = `route:${createHash("sha256")
+      .update(`${skill.skill_id}|${endpointId ?? ""}|${urlTemplate}`)
+      .digest("hex")
+      .slice(0, 32)}`;
+    console.error(`[contract-index] route ${cacheKey} → /contract ledger (mirror fired)`);
+    void mirrorResolutionToChain(cacheKey, pointer, ledgerOverride ?? {}).catch(() => {});
+  } catch {
+    /* mirror is best-effort — never blocks capture */
+  }
+}
+
 function promoteLearnedSkill(
   scope: string,
   cacheKey: string,
@@ -986,6 +1019,10 @@ function promoteLearnedSkill(
   contextUrl?: string,
 ): void {
   if (!localCachesEnabled()) return;
+  // Is this a FRESH capture (route key not already cached)? Only fresh captures get
+  // mirrored to the /contract ledger — never a cache hit / re-promote (avoids re-mirroring
+  // every read). Checked BEFORE the set below.
+  const isFreshCapture = !skillRouteCache.has(cacheKey);
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
@@ -996,6 +1033,7 @@ function promoteLearnedSkill(
     ts: Date.now(),
   });
   persistRouteCache();
+  if (isFreshCapture) mirrorCapturedRouteToContract(cacheKey, skill, endpointId);
   // Also cache at domain level for cross-intent reuse
   const domainKey = getDomainReuseKey(contextUrl ?? skill.domain);
   if (domainKey) {
@@ -1015,6 +1053,7 @@ function cacheResolvedSkill(
   endpointId?: string,
 ): void {
   if (!localCachesEnabled()) return;
+  const isFreshCapture = !skillRouteCache.has(cacheKey);
   const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   skillRouteCache.set(cacheKey, {
     skillId: skill.skill_id,
@@ -1024,6 +1063,7 @@ function cacheResolvedSkill(
     ts: Date.now(),
   });
   persistRouteCache();
+  if (isFreshCapture) mirrorCapturedRouteToContract(cacheKey, skill, endpointId);
 }
 
 function promoteResultSnapshot(
