@@ -73,6 +73,7 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution, mirrorResolutionToChain } from "../values/cached-resolution.js";
+import { mirrorToEmergent } from "../values/contract-everything.js";
 import { cardinalityMatches, routeLooksLikeSingleItem, isListLikeIntent, isConcreteResourceLeaf, urlHasConcreteResourcePath, pathCoherent } from "../values/cardinality.js";
 export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
@@ -993,6 +994,7 @@ export function mirrorCapturedRouteToContract(
   skill: SkillManifest,
   endpointId?: string,
   ledgerOverride?: Parameters<typeof mirrorResolutionToChain>[2],
+  emergentOverride?: typeof mirrorToEmergent,
 ): void {
   if (!localCachesEnabled() || ISOLATED_SKILL_SNAPSHOT_MODE) return;
   try {
@@ -1004,8 +1006,18 @@ export function mirrorCapturedRouteToContract(
       .update(`${skill.skill_id}|${endpointId ?? ""}|${urlTemplate}`)
       .digest("hex")
       .slice(0, 32)}`;
-    console.error(`[contract-index] route ${cacheKey} → /contract ledger (mirror fired)`);
+    console.error(
+      `[contract-index] route ${cacheKey} → /contract ledger + emergent kv/rag (mirror fired)`,
+    );
+    // Tier 1 — IQ on-chain signed ledger (durable, env-gated no-op when chain env absent).
     void mirrorResolutionToChain(cacheKey, pointer, ledgerOverride ?? {}).catch(() => {});
+    // Tier 2/3 — emergentDB KV cache + RAG/graph index. The captured route is "treated as a kv
+    // cache" (Lewis): emergent KV stores the route entry, the graph/RAG tier indexes a searchable
+    // description. EMERGENTDB_API_KEY-gated inside mirrorToEmergent (cheap no-op on plain CLI),
+    // fire-and-forget so it never blocks capture. Same id as the IQ tier for a consistent pointer.
+    const emergentText = `${skill.domain ?? ""} ${skill.skill_id} ${urlTemplate}`.trim();
+    const emergentValue = { skillId: skill.skill_id, endpointId, urlTemplate, pointer };
+    void (emergentOverride ?? mirrorToEmergent)(pointer, emergentText, emergentValue).catch(() => {});
   } catch {
     /* mirror is best-effort — never blocks capture */
   }
