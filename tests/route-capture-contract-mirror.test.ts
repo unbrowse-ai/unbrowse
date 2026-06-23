@@ -29,6 +29,17 @@ const skill: SkillManifest = {
   endpoints: [{ endpoint_id: "ep-1", url_template: "https://example.com/api/{id}" }],
 } as unknown as SkillManifest;
 
+// Observe the emergent (KV + RAG/graph) tier the same way the IQ ledger is observed: a stub the
+// production call falls back from. Records (id,text,value) so we can assert id-consistency with IQ.
+function stubEmergent() {
+  const calls: Array<{ id: string; text: string; value: unknown }> = [];
+  const emergent = async (id: string, text: string, value: unknown) => {
+    calls.push({ id, text, value });
+    return { kv: true, rag: false, notes: [] as string[] };
+  };
+  return { calls, emergent };
+}
+
 test("fresh capture mirrors the route index onto the /contract ledger (content-addressed pointer)", async () => {
   const prev = process.env.UNBROWSE_LOCAL_CACHES;
   process.env.UNBROWSE_LOCAL_CACHES = "1";
@@ -42,13 +53,48 @@ test("fresh capture mirrors the route index onto the /contract ledger (content-a
   else process.env.UNBROWSE_LOCAL_CACHES = prev;
 });
 
-test("UNBROWSE_LOCAL_CACHES=0 gate is honored — no mirror, no append", async () => {
+test("fresh capture ALSO mirrors to the emergentDB KV + RAG/graph tier (same route pointer id)", async () => {
+  const prev = process.env.UNBROWSE_LOCAL_CACHES;
+  process.env.UNBROWSE_LOCAL_CACHES = "1";
+  const { appended, ledger } = stubLedger();
+  const { calls, emergent } = stubEmergent();
+  mirrorCapturedRouteToContract(
+    "cli:example.com:list:url",
+    skill,
+    "ep-1",
+    { ledger: ledger as never },
+    emergent as never,
+  );
+  await new Promise((r) => setTimeout(r, 20));
+  // emergent mirror fired exactly once
+  expect(calls.length).toBe(1);
+  // id is the SAME content-addressed route: pointer the IQ tier appended (consistent across tiers)
+  expect(calls[0].id).toMatch(/^route:[0-9a-f]{32}$/);
+  expect(calls[0].id).toBe(appended[0].result);
+  // text is a short searchable route description (domain + skill + url_template) for RAG indexing
+  expect(calls[0].text).toContain("example.com");
+  expect(calls[0].text).toContain("https://example.com/api/{id}");
+  // value is the route entry KV-cached
+  expect(calls[0].value).toMatchObject({ skillId: "test-skill-1", endpointId: "ep-1" });
+  if (prev === undefined) delete process.env.UNBROWSE_LOCAL_CACHES;
+  else process.env.UNBROWSE_LOCAL_CACHES = prev;
+});
+
+test("UNBROWSE_LOCAL_CACHES=0 gate is honored — no mirror (neither tier), no append", async () => {
   const prev = process.env.UNBROWSE_LOCAL_CACHES;
   process.env.UNBROWSE_LOCAL_CACHES = "0";
   const { appended, ledger } = stubLedger();
-  mirrorCapturedRouteToContract("cli:example.com:list:url", skill, "ep-1", { ledger: ledger as never });
+  const { calls, emergent } = stubEmergent();
+  mirrorCapturedRouteToContract(
+    "cli:example.com:list:url",
+    skill,
+    "ep-1",
+    { ledger: ledger as never },
+    emergent as never,
+  );
   await new Promise((r) => setTimeout(r, 20));
   expect(appended.length).toBe(0);
+  expect(calls.length).toBe(0);
   if (prev === undefined) delete process.env.UNBROWSE_LOCAL_CACHES;
   else process.env.UNBROWSE_LOCAL_CACHES = prev;
 });
