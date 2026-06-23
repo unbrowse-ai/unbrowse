@@ -258,10 +258,20 @@ export async function indexEndpoints(
   skillId: string,
   endpoints: Array<{ endpoint_id: string; description?: string; method: string; url_template: string }>,
   meta: Record<string, unknown>
-): Promise<void> {
+): Promise<number> {
   const domain = normalizeDomain(env, String(meta.domain ?? "global"));
   const toIndex = endpoints.filter((ep) => ep.description);
-  if (toIndex.length === 0) return;
+  if (toIndex.length === 0) {
+    // VISIBLE, never silent (Decalogue 9 / fallbacks-visible): a skill published with
+    // endpoints but NONE carrying a description contributes ZERO docs to /v1/search — so
+    // the caller must NOT record "ok". A silent early-return here is exactly why an empty
+    // /v1/search index gives no diagnostic. Return 0 so the caller logs the honest status.
+    console.warn(`[indexEndpoints] skill=${skillId} domain=${domain}: ${endpoints.length} endpoint(s), 0 with descriptions — indexed NOTHING (invisible to /v1/search until descriptions exist)`);
+    return 0;
+  }
+  if (toIndex.length < endpoints.length) {
+    console.warn(`[indexEndpoints] skill=${skillId} domain=${domain}: indexing ${toIndex.length}/${endpoints.length} endpoint(s); ${endpoints.length - toIndex.length} dropped (no description)`);
+  }
 
   const items = toIndex.map((ep) => {
     let path: string;
@@ -317,6 +327,7 @@ export async function indexEndpoints(
       items,
     }),
   ]);
+  return toIndex.length;
 }
 
 
