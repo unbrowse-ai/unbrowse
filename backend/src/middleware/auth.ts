@@ -187,6 +187,29 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   const allKeysRevokedOpt = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
   const killed = allKeysRevokedOpt === "1" || allKeysRevokedOpt === "true";
+
+  // web3-native PRIMARY identity: a valid wallet-signature trio authenticates FIRST
+  // (the wallet pubkey IS the principal — never key-gated; an unbound wallet maps to
+  // `wallet:<pk>`). This mirrors bearerAuth's signature root so the route-graph resolve
+  // path leaves anonymous tier on a wallet signature alone, with NO api key. The bearer
+  // key below is the web2 convenience WRAPPER on top, not the primary gate.
+  if (!killed) {
+    const sigWallet = c.req.header("X-Unbrowse-Wallet");
+    const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+    const sigSig = c.req.header("X-Unbrowse-Signature");
+    if (sigWallet && sigTs && sigSig) {
+      const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+      if (sig) {
+        await ensureAgentProfile(c.env, sig.agent_id);
+        c.set("agent_id", sig.agent_id);
+        queueAgentActivity(c, sig.agent_id);
+        await next();
+        return;
+      }
+      // signature present but unverified → fall through to the key/anon wrapper.
+    }
+  }
+
   if (!killed && authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {

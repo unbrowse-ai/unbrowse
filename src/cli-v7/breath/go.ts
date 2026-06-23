@@ -109,6 +109,56 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     // re-attach from a separate `eval snap` / `act click` / `act close` call.
     const target = await createTarget(conn, url, {});
 
+    // Auth: createTarget opens a FRESH cookie jar, so an auth-walled SPA
+    // (x.com/i/bookmarks, etc.) renders the logged-out wall. The server route
+    // /v1/browse/go injects cookies via importBrowserCookiesIntoTab, but that
+    // helper targets the kuri broker; the local CLI drives its OWN spawned
+    // Chrome over a raw CDP conn, so we inject here over raw CDP (Network.
+    // setCookies on the tab's flat sessionId) and re-navigate so the
+    // authenticated page renders. Best-effort + fail-visible, never blocks nav.
+    try {
+      const { shouldImportBrowserCookies } = await import("../../auth/index.js");
+      if (shouldImportBrowserCookies()) {
+        const host = new URL(url).hostname;
+        const { findBestBrowserSession, extractBrowserCookies } = await import(
+          "../../auth/browser-cookies.js"
+        );
+        const best = findBestBrowserSession(host);
+        const cookies = best?.cookies ?? extractBrowserCookies(host).cookies;
+        if (cookies.length > 0) {
+          const toCdpSameSite = (s: string): string | undefined => {
+            const v = (s ?? "").toLowerCase();
+            return v === "strict" ? "Strict" : v === "lax" ? "Lax" : v === "none" ? "None" : undefined;
+          };
+          const cdpCookies = cookies.map((c) => {
+            const out: Record<string, unknown> = {
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path || "/",
+              secure: Boolean(c.secure),
+              httpOnly: Boolean(c.httpOnly),
+            };
+            const sameSite = toCdpSameSite(c.sameSite);
+            if (sameSite) out.sameSite = sameSite;
+            if (c.expires && c.expires > 0) out.expires = c.expires;
+            return out;
+          });
+          await conn.call("Network.setCookies", { cookies: cdpCookies }, target.sessionId);
+          await conn.call("Page.navigate", { url }, target.sessionId);
+          process.stderr.write(
+            `[auth] breath go: injected ${cdpCookies.length} cookie(s) for ${host}, re-navigated authenticated\n`,
+          );
+        } else {
+          process.stderr.write(`[auth] breath go: no browser cookies found for ${host}\n`);
+        }
+      }
+    } catch (cookieErr) {
+      process.stderr.write(
+        `[auth] breath go: cookie injection skipped: ${cookieErr instanceof Error ? cookieErr.message : String(cookieErr)}\n`,
+      );
+    }
+
     // Optional anti-bot solve (opt-in via --solve or UNBROWSE_AUTO_SOLVE=1, since
     // it is a METERED backend call — treated like the tolled proxy fallback). When
     // the rendered page is a captcha WIDGET, escalate the solve to the backend

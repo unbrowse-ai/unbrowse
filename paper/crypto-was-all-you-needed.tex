@@ -13,7 +13,7 @@
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
-\title{\textbf{Crypto Was All You Needed}\\
+\title{\textbf{Sign Everything. No, Everything.}\\
 \large A Signed, Layer-Descending Stack for Agent Computation:\\
 Identity, Authentication, and Zero-Knowledge Privacy across the Stack}
 
@@ -33,8 +33,7 @@ makes one claim and tries not to oversell it: the discipline that makes a
 \emph{single} signed request trustworthy --- sign it, seal it, cache it, prove who
 you are without showing your hand --- is the same discipline, unchanged, all the
 way down the stack (screen $\to$ browser $\to$ CLI $\to$ OS $\to$ kernel $\to$
-packet).\footnote{The title nods to ``Attention Is All You Need''; the argument
-does not depend on the joke.} Every layer is signed by one Ed25519 wallet key;
+packet). Every layer is signed by one Ed25519 wallet key;
 credentials are bound to that identity by zero-knowledge proof and revealed only
 under signature; every intermediate result is content-addressed and cached, with
 the signed commitment appended to a hash-chained ledger (value off-chain, root
@@ -454,7 +453,19 @@ checks the tag before it trusts a single byte, and tampering fails closed rather
 than failing quietly into your logs. The same discipline generalises upward as
 object-capability attenuation~\cite{ocap} --- authority travels only by reference
 and can be narrowed, never picked up from the ambient air. The rule is boring on
-purpose: no unsigned action crosses the gate, at any layer, ever. This holds as a
+purpose: no unsigned action crosses the gate, at any layer, ever.
+
+The same object-capability rule answers the access-control question identity raises:
+who may \emph{read} what. Because the wallet is the identity (\S4) and every sealed
+value is bound to it, read access to a sealed value is not an ambient permission but
+a capability the holder \emph{grants} --- a scoped, revocable reference, narrowed to a
+specific value or value class, that the grantee can exercise but cannot widen or
+re-delegate beyond its bounds~\cite{ocap}. The granter's signature is the only
+authority that mints or revokes such a grant: there is no account or admin row beneath
+the key that could override it, so the asymmetry of \S4 holds for delegated reads too
+--- the holder decides what crosses, and to whom, and can withdraw it. Authentication
+(who the key is) and authorisation (who may see what) are thus the same key discipline
+seen from two sides, not two subsystems. This holds as a
 \emph{uniform} stack property: \texttt{reference/layers/gate.py} is a runnable gate
 bound to one wallet root that admits an action only if its signature verifies over
 the action's canonical bytes, and a test confirms that an unsigned, foreign-signed,
@@ -803,7 +814,7 @@ product, what is available as runnable code, and where the work stops:
 \item In the product: Intent $\to$ route resolve $\to$ execute; live browser capture; HTTP
 fetch with browser-faithful TLS fingerprinting; wallet-signed admission;
 route/endpoint caching. The node-at-every-layer is no longer a description of
-separate modules: the covenant substrate now ships \emph{embedded} in the stateless
+separate modules: the contract substrate now ships \emph{embedded} in the stateless
 binary and is exercised in-process on the resolution hot path
 (\texttt{src/values/contract-native.ts}), and a single source-of-truth is bound across
 the CLI, the server, and the site so the same signed node adjudicates at each surface

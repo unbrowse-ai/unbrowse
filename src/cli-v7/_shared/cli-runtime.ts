@@ -13,6 +13,7 @@ import { getInProcessApp } from "../../runtime/in-process-app.js";
 import { getLastVendorBlock } from "../../capture/process-vendor-signal.js";
 import { RELEASE_MANIFEST_BASE64, RELEASE_MANIFEST_SIGNATURE } from "../../version.js";
 import { reportIssue } from "../../telemetry/issue.js";
+import { walletAuthHeaders } from "../../lib/wallet-auth-headers.js";
 
 /**
  * Release-manifest attestation headers. The backend's `requireSignedClient`
@@ -47,6 +48,10 @@ export const FRONTEND_URL = (process.env.UNBROWSE_FRONTEND_URL || process.env.PU
 // ---------------------------------------------------------------------------
 
 export async function api(method: string, path: string, body?: unknown, opts?: { timeoutMs?: number }): Promise<unknown> {
+  // web3-native identity FIRST: mint the wallet-signed capability and ride it on every
+  // request (X-Unbrowse-*). Best-effort — null when no signer, so the api-key wrapper still
+  // works. The backend authenticates the wallet sig primarily; the key is the web2 wrapper.
+  const walletAuth = (await walletAuthHeaders()) ?? {};
   let url = path;
   let payload = body;
   if (method === "GET" && body && typeof body === "object") {
@@ -72,6 +77,7 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
         ...(payload !== undefined ? { "content-type": "application/json" } : {}),
         "x-unbrowse-client-id": CLI_CLIENT_ID,
         ...releaseAttestationHeaders(),
+        ...walletAuth,
       },
       ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
     };
@@ -112,6 +118,7 @@ export async function api(method: string, path: string, body?: unknown, opts?: {
     headers: {
       ...(payload ? { "content-type": "application/json" } : {}),
       "x-unbrowse-client-id": CLI_CLIENT_ID,
+      ...walletAuth,
     },
     payload: payload !== undefined ? JSON.stringify(payload) : undefined,
   });

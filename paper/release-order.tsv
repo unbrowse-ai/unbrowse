@@ -1,0 +1,14 @@
+# Paper release order — one per day, in Thanos stone-COLLECTION order.
+# Reality grandfathers the wedge: "Internal APIs Are All You Need" is ALREADY
+# published (arXiv:2604.00694), so it holds rank 1 (published); the remaining
+# five release one-per-day in stone-collection order (Power→Reality→Soul→Time→Mind).
+# Columns: rank<TAB>stone<TAB>basename<TAB>date<TAB>status
+# status ∈ {released, published, pending}. The release-gate enforces a monotonic
+# prefix: no pending paper may precede a released/published one.
+rank	stone	basename	date	status
+1	🔵Space	internal-apis-are-all-you-need	already-out	published
+2	🔴Reality	crypto-was-all-you-needed	2026-06-24	pending
+3	🟢Time	execute-dont-guess	2026-06-25	pending
+4	🟠Soul	identity-was-all-you-needed	2026-06-26	pending
+5	🟣Power	internal-apis-were-not-all-you-needed	2026-06-27	pending
+6	🟡Mind	energy-route-ranking	2026-06-28	pending

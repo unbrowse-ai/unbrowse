@@ -1,6 +1,6 @@
-# The Unbrowse Papers — one argument, told five times
+# The Unbrowse Papers — one argument, told six times
 
-Five papers, one stubborn idea: **an agent should reuse the call a site's own
+Six papers, one stubborn idea: **an agent should reuse the call a site's own
 front-end already knew how to make, instead of re-deriving it through a browser
 on every request.** Each paper takes that idea somewhere it had to go anyway —
 selection, honesty, security, economics — and the [contract substrate](./concepts/contract-substrate.md)
@@ -11,7 +11,21 @@ A note on tone: these papers try hard not to oversell themselves. Where a thing
 ships, it says shipped and points at the code. Where a thing is a research
 direction wearing a confident font, it says so. Nobody is graded on adjectives.
 
-## 1. Internal APIs Are All You Need — *the wedge*
+There are six of them, and yes — that is the joke. Each paper is one Infinity Stone:
+the shared action layer (**Space** 🔵), the selector that decides which route fires
+(**Mind** 🟡), the cryptography whose signed chain defines what's real (**Reality** 🔴),
+the discipline that only counts a number if it re-runs green (**Time** 🟢), the staked
+coin — bonded, slashed, burned — that keeps the graph from rotting (**Power** 🟣), and
+the identity that does the signing (**Soul** 🟠).
+This is not a costume bolted onto the work — it is the honest shape of building one of
+these: each layer you finish reveals the layer under it, and you do not have the set
+until you have all six. Collect all six and you hold the gauntlet — snap it, and the
+agentic internet quietly rearranges itself around the call a site's own front-end
+already knew how to make. We are, with appropriate menace, still collecting. (No half
+of any universe is harmed in the assembly; the worst-case outcome is that your browser
+gets faster.)
+
+## 1. Internal APIs Are All You Need — 🔵 Space *(the wedge)*
 
 > arXiv:2604.00694 · `paper/internal-apis-are-all-you-need.tex`
 
@@ -26,7 +40,7 @@ agent gets structured data instead of a page dump.
 This is the load-bearing claim. Everything else is what happens once you take it
 seriously.
 
-## 2. Energy-Based Route Ranking — *which route fires*
+## 2. Stop Picking Routes by Vibes — 🟡 Mind *(which route fires)*
 
 > `paper/energy-route-ranking.tex`
 
@@ -36,7 +50,7 @@ learned head assigns a compatibility energy `E(intent, route)`, the selector
 ranks by it, lowest energy wins. Boring on purpose. Selection should be a number,
 not a vibe.
 
-## 3. Execute, Don't Guess — *the honesty discipline*
+## 3. Run It or It Didn't Happen — 🟢 Time *(the honesty discipline)*
 
 > `paper/execute-dont-guess.tex`
 
@@ -46,7 +60,7 @@ whose witness you cannot locate and run. Applied to a 0.8B tool-routing agent:
 **nine reproduced wins and five honest negatives.** The five losses are the point
 — a benchmark you cannot lose is a benchmark you cannot trust.
 
-## 4. Crypto Was All You Needed — *the descent*
+## 4. Sign Everything. No, Everything. — 🔴 Reality *(the descent)*
 
 > `paper/crypto-was-all-you-needed.tex` ([PDF](https://docs.unbrowse.ai))
 
@@ -60,7 +74,16 @@ every result is content-addressed and sealed, and nothing crosses a layer
 unsigned. The cache–ledger core ships as runnable, tested code — which is to say,
 this is the security paper that is also the [contract substrate](./concepts/contract-substrate.md).
 
-## 5. Unbrowse Maintenance Network — *the economy*
+A facet this work sharpened into its own concern: **identity and access** — *who*
+the key is, and *who may see what*. The same Ed25519 key that signs the descent is
+also a first-class identity (a wallet signature authenticates with no web2 account
+underneath it); every cached value is sealed to that key and revealed only under it,
+fail-closed; and who-may-read is a signed, scoped, revocable capability grant — a
+role check where the granter's signature is the only authority, never self-assignment.
+Authentication, selective disclosure, and authorisation collapse into one act of
+signing. It was large enough to stand alone — and now does, as Paper 6.
+
+## 5. Wait, Who's Going to Maintain All This? — 🟣 Power *(the economy)*
 
 > `paper/internal-apis-were-not-all-you-needed.tex` ([PDF](https://docs.unbrowse.ai))
 
@@ -78,22 +101,38 @@ the people who keep a route alive get credited when it is reused, the ones who
 let it rot get slashed, and the accounting is on a ledger rather than on trust.
 Care, made into a column.
 
+## 6. You Are Your Keys (Sorry) — 🟠 Soul *(the principal)*
+
+> `paper/identity-was-all-you-needed.tex`
+
+Paper 4 signs *what* an action is; this one answers *who is asking* and *who may
+see the result* — and the punchline is that, once the agent already carries a
+signing key, both collapse into the key itself, with no account database, ACL
+service, or secret vault left to trust. Identity is the public key; disclosure is
+decryption under its private half; authorisation is a signed, scoped, revocable
+capability grant naming another key. Three readings of one signed object. It ships
+as running code, and it is candid about the residue it does *not* close — revocation
+latency, key loss, metadata exposure — because an identity paper that claims those
+are solved is the one you shouldn't trust. The carve-out the descent paper promised,
+now standing on its own.
+
 ## The spine — the contract substrate
 
-The five papers are one object seen from five angles. That object is the
+The six papers are one object seen from six angles. That object is the
 [contract substrate](./concepts/contract-substrate.md): every unit of work —
 resolving an intent (Paper 1), selecting a route (Paper 2), proving a number
-(Paper 3), signing a layer (Paper 4), maintaining freshness (Paper 5) — is the
-same kind of thing: a declared, signed, cached, accountable truth-claim. One set
-of rules for identity, caching, and accountability, applied everywhere, so the
-system does not grow a new mechanism every time it grows a new feature.
+(Paper 3), signing a layer (Paper 4), maintaining freshness (Paper 5), naming who
+may act and see (Paper 6) — is the same kind of thing: a declared, signed, cached,
+accountable truth-claim. One set of rules for identity, caching, and
+accountability, applied everywhere, so the system does not grow a new mechanism
+every time it grows a new feature.
 
 If you only read one thing, read the substrate page; the papers are what happens
 when you push each of its faces until it has to be a paper.
 
 ## Why this is the decentralised agentic internet — unbrowse, FDRY, stFDRY
 
-Read together, the five papers describe one thing the current web does not have: a
+Read together, the six papers describe one thing the current web does not have: a
 **shared, agent-usable action layer that no single operator has to be trusted to
 keep honest.** Three pieces carry it, and each is a different paper's payoff.
 
@@ -116,8 +155,13 @@ decays, and usage fees alone under-provide its upkeep (Paper 5). The corrective 
 economic: a maintainer **bonds FDRY** to stand behind a route, a freshness proof that
 fails is slashable, and **stFDRY** is the staked, abiding form that earns by keeping
 the graph fresh. Crucially — and this is the load-bearing distinction — **FDRY is the
-trust currency, never the payment rail.** Usage settles in USDC; FDRY is bonded to be
-*trusted by* the network, not spent to *use* it (see
+trust currency, never the payment rail.** The split is the old economics one: a
+*medium of exchange* (what you spend — fast, stable, forgettable: USDC over x402) is
+not the *store of value* (the reserve the network's trust rests on, held rather than
+handed over: FDRY). Conflating them is the bug — if the reserve asset were also the
+spending rail, every use would be a forced sale that drains the very stake meant to
+signal commitment. So usage settles in USDC; FDRY is bonded to be *trusted by* the
+network, not spent to *use* it (see
 [Trust and Accountability](./concepts/trust-and-accountability.md)). That separation
 is what makes the accountability honest rather than extractive: the people who keep
 routes alive are the ones the system rewards, and the reward is *earn-by-abiding*, not
@@ -140,11 +184,38 @@ proof-of-indexing maintenance loop. The destination is a trust-minimised commons
 honest present is a single canonical operator running the protocol while it stabilises.
 The papers say which is which, and so does this page.
 
+## References
+
+Cited in the consistent format the papers use (`\cite` keys map to these). An arXiv
+identifier is listed only where the paper is actually on the record; the rest are
+gate-green in-repo and earn their identifier on submission — naming a number before it
+exists is the fabrication Paper 3 forbids.
+
+- **[1]** *Internal APIs Are All You Need.* arXiv:2604.00694. The wedge; cited as `[1]`
+  by every other paper. `paper/internal-apis-are-all-you-need.tex`
+- **[2]** *Energy-Based Route Ranking.* `paper/energy-route-ranking.tex` — gate-green;
+  arXiv ID on submission.
+- **[3]** *Run It or It Didn't Happen.* `paper/execute-dont-guess.tex` — gate-green; arXiv ID
+  on submission.
+- **[4]** *Sign Everything. No, Everything.* `paper/crypto-was-all-you-needed.tex` — gate-green;
+  arXiv ID on submission.
+- **[5]** *Unbrowse Maintenance Network* (a.k.a. *Wait, Who's Going to Maintain All This?*).
+  `paper/internal-apis-were-not-all-you-needed.tex` — gate-green; arXiv ID on submission.
+  (An internal note once reused `2604.00694` for this paper; that collides with [1] and
+  is treated as unassigned until submission, not asserted.)
+- **[6]** *You Are Your Keys (Sorry).* `paper/identity-was-all-you-needed.tex` —
+  gate-green, compiles clean; arXiv ID on submission.
+
+External prior art the papers lean on is cited inline in each `.tex` against its own
+`\bibitem` list (RFC 8032 Ed25519, RFC 6962 Certificate Transparency, the
+object-capability model, ERC-8004, x402, The Graph's proof-of-indexing, Filecoin
+PoSt) — those are real, dated references and stay in the paper bodies where the gate
+checks them.
+
 ---
 
 *Honest-status footer, because the discipline applies to this page too:* Papers
-1–3 are published / gate-green; Papers 4–5 pass their gates and the PDFs are
-linked above. The forward-looking pieces (peer-to-peer ledger, a full validator
+1–3 are published / gate-green; Papers 4–6 pass their gates and compile clean. The forward-looking pieces (peer-to-peer ledger, a full validator
 market, the bonded proof-of-indexing loop) are named as direction in the papers
 themselves, not claimed as shipped. If this page ever says more than the papers
 do, the page is wrong.
