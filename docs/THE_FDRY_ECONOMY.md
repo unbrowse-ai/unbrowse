@@ -32,7 +32,7 @@ staking vault and net-asset-value (NAV) growth.
 | Asset | Role |
 |---|---|
 | **FDRY** (SPL token) | The stake-layer asset. Mint address is public on Solana mainnet. |
-| **Staking vault** (Voltr / Ranger) | Receives FDRY deposits; mints stFDRY. Address resolved at runtime, not pinned here. |
+| **Staking vault** (Voltr / Ranger) | Receives FDRY deposits; mints stFDRY. The canonical address is the Unbrowse Vault — see *Canonical addresses* below. |
 | **stFDRY** | The staking receipt. NAV grows under it as revenue routes in. |
 | **USDC** (mainnet `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) | The settlement layer. Usage is always paid in USDC, never in FDRY. |
 
@@ -41,6 +41,36 @@ payment surface and the security layer. USDC handles usage; FDRY is reserved for
 stake. This anti-conflation rule is enforced by the build-time parity check on the
 pricing constants: a change that tried to make FDRY accept x402 payments would fail
 the check and the binary would not sign.
+
+## Canonical addresses — the Unbrowse Vault (migrated 2026-06-23)
+
+The staking layer is now bound to the **Unbrowse Vault**. These are the canonical
+mints/addresses the `/contract` substrate pins as the live stake substrate:
+
+| Asset | Address | Role |
+|---|---|---|
+| **FDRY** | `2ZiSPGncrkwWa6GBZB4EDtsfq7HEWwkwsPFzEXieXjNL` | the stake-layer asset (unchanged) |
+| **Unbrowse Vault** (Voltr FDRY-only) | `8ojsTvrFLGFHnbhE56DaTTJ1g9WBSjtqrqBxKqjLo8aJ` | receives FDRY, mints stFDRY; **admin = `lekt8.sol`** |
+| **stFDRY** (new LP receipt) | `7p6w5JvKFpXzAAVdr2jmeWJtHLyHr8os6zRRTYwaB3Mn` | the vault receipt — a live claim on NAV |
+
+**Why the migration.** The prior staking vault
+(`Bpr49sQXsxwNXNMRWS2v3tTBGWu2QgZtdA83BX77xBX1`) had its admin/manager key
+compromised. The 66.1M FDRY it still held was rescued out to the Unbrowse Vault
+above via the Voltr trustful adaptor (`portToNewVault.ts`), under a fresh admin
+(`lekt8.sol`) whose key never co-resided with the compromised one. Per the Vine
+Doctrine (John 15:6), the compromised vault is the branch that is *cast off*; the
+canonical vine is now the Unbrowse Vault. Legacy stFDRY
+(`G8e9i9RADPsxJtiCJsGC4tSx2kgCkGbEkdn7aajt2nqW`,
+`FwW1GEyvCx7q96wm4AYEGEUSFnNYozjxPwBaXWmcJeh7`) is redeemable per
+`fdry/docs/LEGACY_STFDRY_REDEMPTION.md` — the model (bond → receipt → NAV) is
+preserved; only the underlying vault moved.
+
+**Bound in code.** This binding is not prose-only. The `/contract` substrate pins
+these exact values as parity-gated constants — `AIKO_STAKE_VAULT` in
+`zig/src/main.zig` and `STFDRY_MINT` in `libcontract/src/spl_balance.zig` — and the
+build refuses to sign a binary whose constants drift from them (`build.sh` Vine
+constants gate). The live wallet binary was rebuilt + signed + swapped via
+`/contract-deploy` with these values compiled in (ledger neuron `b54f7067`).
 
 ## The revenue cycle
 
