@@ -65,7 +65,10 @@ two independent witnesses\tbackend/src/services/energy.ts
 escalate rather than return a least-bad\tbackend/src/services/settle.ts
 X402PaymentRequirementV2\tbackend/src/middleware/x402-gate.ts
 api key wraps a wallet\tbackend/src/middleware/payment-admission.ts
-covenant substrate now ships	src/values/contract-native.ts
+contract substrate now ships	src/values/contract-native.ts
 single source-of-truth is bound across	src/values/contract-chain.ts
 append-only on-chain ledger	src/values/iq-ledger.ts
 wallet-bound contribution ledger	src/cli-v7/eval/stats.ts
+wallet signature is a first-class identity	backend/src/services/auth-signature.ts
+sealed under authenticated encryption with a key	src/trust/sealed-cache.ts
+scoped, revocable capability grant	backend/src/lib/contract-grant.ts

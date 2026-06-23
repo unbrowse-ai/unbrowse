@@ -272,7 +272,7 @@ function canonicalizeDeclareBody(body: {
  * absent AND a declare actually needs to sign. Returns null when the signer
  * module can't be loaded — the declare path then stays unsigned (offline-safe).
  */
-async function defaultSigner(): Promise<ThinClientSigner | null> {
+export async function defaultSigner(): Promise<ThinClientSigner | null> {
   try {
     const mod = await import("../values/signer.js");
     return {

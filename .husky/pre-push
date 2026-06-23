@@ -2,6 +2,12 @@
 # Pre-push hook: Run full P0/P1 test suite before pushing
 # Ensures all critical fixes are still working
 
+# context-broadcast: witness every push as a /contract (aiko) + Notion row.
+# Detached + fully muted so it NEVER blocks, delays, or fails a push, and runs
+# BEFORE the early exits below so it fires on every push. (Lewis 2026-06-22:
+# "always do it on git push".)
+( python3 "$HOME/.claude/skills/context-broadcast/scripts/broadcast.py" --if-major --note "git push" >/dev/null 2>&1 & ) || true
+
 set -e
 
 # Only run if we have test analyses with actual content

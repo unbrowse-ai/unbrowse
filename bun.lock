@@ -248,7 +248,7 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "9.10.0",
+      "version": "9.13.0",
       "devDependencies": {
         "@types/node": "^22.10.0",
         "typescript": "^6.0.2",
@@ -281,7 +281,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "9.10.0",
+      "version": "9.14.0",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },

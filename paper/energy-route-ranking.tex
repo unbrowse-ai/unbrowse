@@ -16,8 +16,8 @@
 \usepackage{xcolor}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
-\title{\textbf{Energy-Based Route Ranking}\\
-\large Learned Selection over an Agent's Tool Library}
+\title{\textbf{Stop Picking Routes by Vibes}\\
+\large Fractal Cell Energy: A Biological Architecture for Route Selection over an Agent's Tool Library}
 
 \author{Lewis Tham\\ Unbrowse AI \\ \texttt{lewis@unbrowse.ai}
   \and Cayden Chik\\ Unbrowse AI \\ \texttt{cayden@unbrowse.ai}}
@@ -29,14 +29,20 @@
 \begin{abstract}
 An autonomous agent accumulates a library of callable routes --- learned
 first-party API endpoints, each answering some class of intent. The runtime
-question is selection: given a user intent and a library of candidate routes,
-which route should fire? We treat selection as an energy-based scoring problem.
-A learned energy head assigns a scalar compatibility energy $E(\text{intent},
-\text{route})$ to each candidate; the selector ranks the library by ascending
-energy and fires the lowest-energy match. The head is trained from observed
-\emph{(intent, route, outcome)} triples and embedded into the runtime so that
-ranking happens at inference, with a content-addressed cache so a repeated
-selection is a lookup rather than a recomputation. We report only reproduced
+question is selection: given a user intent, which route should fire? We answer
+it the way biology already did, which is mildly embarrassing for the field.
+Each route is a \emph{cell} that carries a scalar \emph{energy} --- the negative
+coherence between the intent and what the route is for --- and trains that energy
+every time it fires: a reward-weighted running-mean prototype ($O(1)$ per firing,
+West 1979) that folds toward the context on a good outcome and away on a bad one.
+Selection is then not a decision but a measurement --- rank the library by
+ascending energy $E(\text{intent}, \text{route})$, fire the lowest. The operation
+is scale-free: it composes unchanged from the single neuron up through the
+atom$\to$cell$\to$tissue$\to$organ fractal, so $\text{select}(\text{select}) =
+\text{select}$ all the way down --- which is either a deep structural fact or the
+only trick we know, and the experiments do not require us to decide. A
+content-addressed cache makes a repeated selection a lookup, on the principle
+that a cell which already fired should not have to think again. We report only reproduced
 results. On discrete-structure tasks the method wins: route ranking reaches
 \textbf{R@1 $=0.0488$}, \textbf{4.6$\times$} a keyword baseline; access-pattern
 type classification reaches \textbf{0.71--0.81 accuracy}, \textbf{$\approx$2.1$\times$}

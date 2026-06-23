@@ -62,7 +62,13 @@ export async function authBySignature(
   if (!Number.isFinite(tsNum) || Math.abs(now - tsNum) > AUTH_TTL_MS) return null; // stale / replay
   const ok = await verifyEd25519(input.pubkeyHex, authChallenge(input.pubkeyHex, input.ts), input.sigHex);
   if (!ok) return null;
+  // web3-native, NEVER key-gated: a VERIFIED wallet signature IS a first-class
+  // principal. The key binding is the optional web2 wrapper ON TOP — when present it
+  // resolves the pubkey to the SAME agent_id the bound api-key has (web2 account
+  // continuity); when ABSENT the wallet pubkey itself is the agent_id (`wallet:<pk>`),
+  // so a wallet that never minted a key is still a full principal. The signature
+  // already proved ownership — that is sufficient identity. (keyIdForPubkey's bind path
+  // refuses pubkey-hijack, so each wallet only ever maps to its own agent.)
   const agentId = await keyIdForPubkey(env, input.pubkeyHex);
-  if (!agentId) return null; // pubkey not bound to an agent → not a signature-auth principal
-  return { agent_id: agentId };
+  return { agent_id: agentId ?? `wallet:${input.pubkeyHex.toLowerCase()}` };
 }

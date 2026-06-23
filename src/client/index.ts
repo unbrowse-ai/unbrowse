@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cachedResolution } from "../values/cached-resolution.js";
+import { mergedAuthHeaders } from "../lib/wallet-auth-headers.js";
 import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
@@ -340,7 +341,7 @@ async function postTelemetry(path: string, body: Record<string, unknown>): Promi
       headers: {
         "Content-Type": "application/json",
         "Accept-Encoding": "gzip, deflate",
-        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(await mergedAuthHeaders(key)),
       },
       body: JSON.stringify(body),
       // Telemetry is best-effort and is awaited inline on the resolve hot
@@ -590,7 +591,7 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
         ...releaseAttestationHeaders,
-        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(await mergedAuthHeaders(key)),
         ...(opts?.extraHeaders ?? {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -671,7 +672,7 @@ async function apiRequest<T = unknown>(
         headers: {
           "Content-Type": "application/json",
           ...releaseAttestationHeaders,
-          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+          ...(await mergedAuthHeaders(key)),
         },
       });
       if (flexResult) {
@@ -700,7 +701,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -718,7 +719,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -753,7 +754,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -775,7 +776,7 @@ async function apiRequest<T = unknown>(
             "Content-Type": "application/json",
             "Accept-Encoding": "gzip, deflate",
             ...releaseAttestationHeaders,
-            ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            ...(await mergedAuthHeaders(key)),
           },
         });
         if (paidResult) {
