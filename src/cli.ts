@@ -16,7 +16,7 @@ import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } f
 import { flatCommandVerb, looksLikeContractGoal } from "./cli-v7/kind-map.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { resolutionContractVerdict } from "./values/resolution-contract.js";
-import { resolutionCardinalityMatches, resolutionHostMatches } from "./values/cardinality.js";
+import { resolutionCardinalityMatches, resolutionHostMatches, resolutionPathMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
@@ -824,7 +824,12 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     if (
       cachedHit &&
       resolutionCardinalityMatches(intent, cachedData) &&
-      resolutionHostMatches(typeof flags.url === "string" ? flags.url : undefined, cachedData)
+      resolutionHostMatches(typeof flags.url === "string" ? flags.url : undefined, cachedData) &&
+      // Path guard (concrete-resource misroute): an explicit --url naming a concrete
+      // resource (e.g. /zen, /users/octocat) must not replay a value whose records are
+      // not path-coherent with that exact path — treat as a miss so the literal URL
+      // re-resolves. Listing/root URLs are untouched (resolutionPathMatches admits them).
+      resolutionPathMatches(typeof flags.url === "string" ? flags.url : undefined, cachedData)
     ) {
       const replay = markResolveCacheReplay(cachedHit);
       const hostType = detectTelemetryHostType();

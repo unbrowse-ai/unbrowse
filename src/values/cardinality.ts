@@ -278,3 +278,94 @@ export function resolutionHostMatches(url: string | undefined, data: unknown): b
   if (hosts.length === 0) return true;
   return hosts.some((h) => h === reqHost);
 }
+
+// ── Concrete-resource-path shape (shared by the CLI cache gate and the orchestrator) ──
+// Generalize by SHAPE, never a per-site allowlist: a URL names a CONCRETE resource
+// when its pathname is non-root and its final segment is not a generic listing/feed
+// word. Listing/collection/root URLs are NOT concrete, so the precision gates below
+// leave them exactly as today.
+
+/** A path leaf is a "concrete resource" unless it is a generic listing/feed word. */
+export function isConcreteResourceLeaf(leaf: string): boolean {
+  return (
+    !!leaf &&
+    !/^(search|explore|trending|tabs|home|for-you|foryou|latest|live|people|posts|videos)$/.test(
+      leaf,
+    )
+  );
+}
+
+/** True when a URL names a concrete resource path (non-root, non-listing leaf). */
+export function urlHasConcreteResourcePath(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return false;
+    const leaf = decodeURIComponent(segments[segments.length - 1] ?? "").toLowerCase();
+    return isConcreteResourceLeaf(leaf);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Path-coherence: a candidate path matches a requested path when, split on "/", they
+ * have the same number of segments and every segment is either identical or the
+ * candidate segment is a {hole} placeholder (e.g. /users/{name} matches /users/octocat;
+ * /zen matches /zen; /users/{name} does NOT match /zen). Accepts full URLs or bare paths.
+ */
+export function pathCoherent(candidate: string, contextPath: string): boolean {
+  const toPath = (s: string): string => {
+    try { return new URL(s).pathname; } catch { return s; }
+  };
+  const decodeSeg = (s: string): string => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  };
+  const candSegments = toPath(candidate).split("/").filter(Boolean).map(decodeSeg);
+  const ctxSegments = toPath(contextPath).split("/").filter(Boolean).map(decodeSeg);
+  if (candSegments.length !== ctxSegments.length) return false;
+  for (let i = 0; i < candSegments.length; i++) {
+    const cand = candSegments[i] ?? "";
+    const ctx = ctxSegments[i] ?? "";
+    const isHole = /^\{[^}]*\}$/.test(cand);
+    if (!isHole && cand !== ctx) return false;
+  }
+  return true;
+}
+
+/** Collect candidate record URLs from a resolved VALUE, reading conventional
+ *  url/link/href/source_url/url_template fields. Mirror of collectRecordHosts. */
+function collectRecordUrls(data: unknown): string[] {
+  const out: string[] = [];
+  const push = (rec: unknown): void => {
+    if (!rec || typeof rec !== "object") return;
+    const r = rec as Record<string, unknown>;
+    for (const k of ["url", "link", "href", "source_url", "url_template"]) {
+      const v = r[k];
+      if (typeof v === "string" && v) out.push(v);
+    }
+  };
+  if (Array.isArray(data)) for (const rec of data.slice(0, 20)) push(rec);
+  else push(data);
+  return out;
+}
+
+/**
+ * The ledger-replay PATH guard. When the explicit target URL names a CONCRETE
+ * resource (e.g. /zen, /users/octocat), a cached resolution VALUE may be replayed
+ * only when it evidences that exact concrete path — i.e. some record URL is
+ * path-coherent with the request. A host-only-matched stale hit (a github.com
+ * feed cached under api.github.com/zen) is a misroute for a concrete path and is
+ * treated as a miss so the resolver re-resolves the literal URL. Conservative:
+ * returns true (admit) for non-concrete (listing/root) URLs, or when the value
+ * carries no record URL to anchor against — only an unambiguous concrete-path
+ * mismatch is rejected. Structural recognition (path-coherence), not an allowlist.
+ */
+export function resolutionPathMatches(url: string | undefined, data: unknown): boolean {
+  if (!urlHasConcreteResourcePath(url)) return true;
+  let contextPath = "";
+  try { contextPath = new URL(url as string).pathname; } catch { return true; }
+  const urls = collectRecordUrls(data);
+  if (urls.length === 0) return true;
+  return urls.some((u) => pathCoherent(u, contextPath));
+}
