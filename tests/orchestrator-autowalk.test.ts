@@ -43,10 +43,9 @@ describe("shouldAutoWalk gate", () => {
   it("walks a same-registrable-domain candidate regardless of score", () => {
     expect(shouldAutoWalk(req, "https://www.carousell.sg/p/risoles-1/", 0.3)).toBe(true);
   });
-  it("walks a high-score off-domain candidate (>= minScore)", () => {
-    expect(shouldAutoWalk(req, "https://other.com/x", 0.85)).toBe(true);
-  });
-  it("does NOT walk a low-score off-domain candidate", () => {
+  it("does NOT walk an off-domain candidate when an explicit target URL is given, even at high score (cross-domain misroute guard)", () => {
+    // reddit.com/api/me.json must NOT drift to a high-scored github.com repo.
+    expect(shouldAutoWalk(req, "https://other.com/x", 0.85)).toBe(false);
     expect(shouldAutoWalk(req, "https://other.com/x", 0.5)).toBe(false);
   });
   it("no url → false", () => {
@@ -86,11 +85,20 @@ describe("pickWalkTarget — prefer a deep page over a bare homepage", () => {
     ];
     expect(pickWalkTarget(req, ranked)?.url).toBe("https://www.carousell.sg/food/q/");
   });
-  it("picks a high-score off-domain deep page when no same-domain candidate exists", () => {
+  it("returns null for an explicit target when only off-domain candidates exist (no cross-domain drift)", () => {
+    // With an explicit --url, a high web-search score is not licence to walk
+    // another site — fall through to the honest leaf (capture/fetch the target).
     const ranked = [
-      { url: "https://authority.com/", score: 0.95 },     // off-domain homepage, high score
-      { url: "https://authority.com/answer", score: 0.9 }, // off-domain deep, high score → preferred
+      { url: "https://authority.com/", score: 0.95 },
+      { url: "https://authority.com/answer", score: 0.9 },
     ];
-    expect(pickWalkTarget(req, ranked)?.url).toBe("https://authority.com/answer");
+    expect(pickWalkTarget(req, ranked)).toBeNull();
+  });
+  it("still picks a high-score off-domain deep page for a GENERAL search (no target URL)", () => {
+    const ranked = [
+      { url: "https://authority.com/", score: 0.95 },
+      { url: "https://authority.com/answer", score: 0.9 },
+    ];
+    expect(pickWalkTarget(undefined, ranked)?.url).toBe("https://authority.com/answer");
   });
 });

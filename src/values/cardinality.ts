@@ -230,3 +230,51 @@ export function cardinalityMatches(
 export function resolutionCardinalityMatches(intent: string | undefined, data: unknown): boolean {
   return cardinalityMatches(intent, { kind: "value", value: data });
 }
+
+/** Registrable host (eTLD+1-ish) of a URL or bare host — dependency-free twin of the
+ *  orchestrator's registrableHost, kept here so the warm-peek fast path needs no heavy import. */
+function registrableHostOf(input?: string | null): string | null {
+  if (!input) return null;
+  const host = (() => {
+    try { return new URL(input).hostname; } catch { /* not a full URL */ }
+    try { return new URL(`https://${input}`).hostname; } catch { return null; }
+  })();
+  if (!host) return null;
+  return host.replace(/^www\./, "").split(".").slice(-2).join(".") || null;
+}
+
+/** Collect candidate record URLs from a resolved VALUE (a list of records or a single
+ *  record), reading the conventional url/link fields. Shallow + bounded — the warm path. */
+function collectRecordHosts(data: unknown): string[] {
+  const out: string[] = [];
+  const push = (rec: unknown): void => {
+    if (!rec || typeof rec !== "object") return;
+    const r = rec as Record<string, unknown>;
+    for (const k of ["url", "link", "href", "source_url"]) {
+      const v = r[k];
+      const h = typeof v === "string" ? registrableHostOf(v) : null;
+      if (h) out.push(h);
+    }
+  };
+  if (Array.isArray(data)) for (const rec of data.slice(0, 20)) push(rec);
+  else push(data);
+  return out;
+}
+
+/**
+ * The ledger-replay HOST guard (issue: cross-domain misroute). A cached resolution
+ * VALUE may be replayed for an explicit target URL only when it is host-consistent:
+ * when the request names a concrete registrable host and the cached value's records
+ * ALL point to a DIFFERENT host (e.g. a github.com result cached under a reddit.com
+ * request), the entry is a misroute and must be treated as a miss. Conservative —
+ * returns true (admit) when there is no target host or the value carries no record
+ * URL to anchor against, so only an unambiguous all-off-host value is rejected.
+ * Structural recognition (host compare), not an allowlist.
+ */
+export function resolutionHostMatches(url: string | undefined, data: unknown): boolean {
+  const reqHost = registrableHostOf(url);
+  if (!reqHost) return true;
+  const hosts = collectRecordHosts(data);
+  if (hosts.length === 0) return true;
+  return hosts.some((h) => h === reqHost);
+}

@@ -105,6 +105,30 @@ describe("parseCmdGetArgs", () => {
     expect("error" in result).toBe(true);
     if ("error" in result) expect(result.error).toBe('usage: unbrowse get <url> "task"');
   });
+
+  // Regression (cross-domain misroute): leading alias tokens `act go` fall through
+  // to `breath get`, so args = ["act","go","https://…"]. The URL is a NON-first
+  // positional and MUST be lifted into `url` (and stripped from the intent) so it
+  // reaches context.url and the host-anchor guards fire — otherwise a github.com
+  // web/cache result replays for a reddit.com request.
+  test("URL in a non-first positional is lifted into url", () => {
+    expect(parseCmdGetArgs(["act", "go", "https://www.reddit.com/api/me.json"], {})).toEqual({
+      url: "https://www.reddit.com/api/me.json",
+      intent: "act go",
+    });
+  });
+
+  test("a lone non-first URL becomes the target with no other intent → usage error", () => {
+    const result = parseCmdGetArgs(["go", "https://x.com"], {});
+    // "go" remains as the intent after the URL is stripped
+    expect(result).toEqual({ url: "https://x.com", intent: "go" });
+  });
+
+  test("multiple positional URLs stay free-text (ambiguous target)", () => {
+    expect(parseCmdGetArgs(["compare", "https://a.com", "https://b.com"], {})).toEqual({
+      intent: "compare https://a.com https://b.com",
+    });
+  });
 });
 
 describe("parseCmdFillArgs", () => {
