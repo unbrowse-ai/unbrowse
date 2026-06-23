@@ -522,6 +522,19 @@ what it learns by resolving, it crystallises by signing. This is the substrate
 deploying its own learning into durable public state --- the resolved graph becomes an
 on-chain record rather than evaporating with the process.
 
+What ``settles'' means here is precise, and it is the gate on crystallisation: a
+resolution crystallises \emph{only} once its \texttt{node.witness} has settled (\S3) ---
+and settling is a \emph{fixed-point coherence} check, not a bare boolean. The substrate
+runs a joint-embedding predictive witness over the candidate: it iterates the learned
+operator from two independent seeds and admits the result only if both converge to the
+same direction \emph{and} that direction is stable under one more application. A
+configuration that does not reach this fixed point is held, not written --- so the
+on-chain record accretes coherence-settled intelligence rather than every transient
+guess. This is the same two-independent-witnesses discipline the rest of the stack uses
+for admission (\S7) and for a slash quorum (\S\ref{sec:economics}), here applied to the
+question \emph{``is this resolution coherent enough to persist forever?''}; the energy
+selector it gates is the subject of the companion route-ranking work~\cite{maintenance}.
+
 Three properties fall out of keying that record by the one root identity (\S4), and
 they are exactly the three a maintainer of a shared, compensable graph needs.
 
