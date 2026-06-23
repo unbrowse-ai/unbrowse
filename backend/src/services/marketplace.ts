@@ -432,7 +432,7 @@ export async function publishSkill(
   let index_status: string;
   try {
     if (publicEndpoints.length > 0) {
-      await indexEndpoints(env, skill.skill_id, publicEndpoints, {
+      const indexed = await indexEndpoints(env, skill.skill_id, publicEndpoints, {
         domain: skill.domain,
         subdomain: skill.subdomain,
         name: skill.name,
@@ -441,7 +441,9 @@ export async function publishSkill(
         verified_ratio: verifiedRatio,
         updated_at: skill.updated_at,
       });
-      index_status = "ok";
+      // Honest status: "ok" only when docs ACTUALLY landed. 0 indexed (no descriptions)
+      // means the skill is invisible to /v1/search — record that, never a fabricated "ok".
+      index_status = indexed > 0 ? `indexed:${indexed}` : "skipped:no-descriptions";
     } else {
       index_status = `shadow:${trust.promotion_reason}`;
     }
