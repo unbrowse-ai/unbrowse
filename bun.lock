@@ -248,7 +248,7 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "9.13.0",
+      "version": "10.1.0",
       "devDependencies": {
         "@types/node": "^22.10.0",
         "typescript": "^6.0.2",
@@ -281,7 +281,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "9.14.0",
+      "version": "10.1.8",
       "bin": {
         "unbrowse": "bin/unbrowse-wrapper.mjs",
       },
@@ -4045,6 +4045,8 @@
     "@unbrowse/sdk/@types/node": ["@types/node@22.19.21", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-VMeFBSCKQKmm2swI2kW51SFusDqekC6q9trBCvJ/JliDchFSuoYYKN7yVNjPthP1HKZcx3U1gI/wTcEBjEFKTA=="],
 
     "@unbrowse/sdk/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@unbrowse/sdk/unbrowse": ["unbrowse@9.14.0", "", { "dependencies": { "@fastify/cors": "^11.2.0", "bs58": "^6.0.0", "cheerio": "^1.2.0", "dotenv": "^17.3.1", "fastify": "^5.7.4", "nanoid": "^5.1.6", "ws": "^8.19.0" }, "optionalDependencies": { "keytar": "^7.9.0" }, "bin": { "unbrowse": "bin/unbrowse-wrapper.mjs" } }, "sha512-WW08HZm4neiMo5z6SrXLI3PIJR+7ytYq5MBa/1gtUl7rRMg13fsCuIv0Npbqasz1y1K6VmLBgxK9SjivWax0Lw=="],
 
     "@unbrowse/selenium-shim/@types/node": ["@types/node@22.7.5", "", { "dependencies": { "undici-types": "~6.19.2" } }, "sha512-jML7s2NAzMWc//QSJ1a3prpk78cOPchGvXJsC3C6R6PSMoooztvRVQEz89gmBTBY1SPMaqo5teB4uNHPdetShQ=="],
 
