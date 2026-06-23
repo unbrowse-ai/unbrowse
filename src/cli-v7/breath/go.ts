@@ -117,6 +117,10 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     // setCookies on the tab's flat sessionId) and re-navigate so the
     // authenticated page renders. Best-effort + fail-visible, never blocks nav.
     let cookiesInjected = 0;
+    // Keep the extracted cookies in scope so the post-navigate authenticated
+    // direct-fetch supplement (below) can reuse them for an API-shaped URL whose
+    // navigated body comes back empty / anti-bot-walled.
+    let injectedCookies: Array<{ name: string; value: string }> = [];
     try {
       const { shouldImportBrowserCookies } = await import("../../auth/index.js");
       if (shouldImportBrowserCookies()) {
@@ -126,6 +130,7 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
         );
         const best = findBestBrowserSession(host);
         const cookies = best?.cookies ?? extractBrowserCookies(host).cookies;
+        injectedCookies = cookies.map((c) => ({ name: c.name, value: c.value }));
         if (cookies.length > 0) {
           const toCdpSameSite = (s: string): string | undefined => {
             const v = (s ?? "").toLowerCase();
@@ -189,6 +194,60 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       process.stderr.write(
         `[page] breath go: body read skipped: ${readErr instanceof Error ? readErr.message : String(readErr)}\n`,
       );
+    }
+
+    // Authenticated direct-fetch supplement (shape-recognized, not allowlisted).
+    // When `act go` navigates an API-shaped URL, CDP renders the API's JSON
+    // (or an anti-bot wall block page) into document.body.innerText — and the
+    // wall page yields a body that does NOT decode to a structured JSON record.
+    // The page of an API URL IS its JSON, so when the navigated body is not a
+    // structured response AND we have the browser's auth cookies, fetch the same
+    // URL directly with those cookies (Chrome's own session) and, IF that body
+    // decodes to a JSON object/collection, use it as page.text — the authenticated
+    // content the caller navigated to. Fail-visible; never replaces a real
+    // HTML-page navigate (an HTML page's innerText already decodes to no JSON, so
+    // the direct fetch's HTML body also won't — leaving pageText untouched).
+    const decodesToJsonRecord = (s: string | null): boolean => {
+      if (!s) return false;
+      const t = s.trim();
+      if (!(t.startsWith("{") || t.startsWith("["))) return false;
+      try {
+        const v = JSON.parse(t);
+        return v !== null && typeof v === "object"; // object or array = a record/collection
+      } catch {
+        return false;
+      }
+    };
+    if (!decodesToJsonRecord(pageText) && injectedCookies.length > 0) {
+      try {
+        const cookieHeader = injectedCookies
+          .map((c) => {
+            const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+            return `${c.name}=${v}`;
+          })
+          .join("; ");
+        const ua =
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        const res = await fetch(url, {
+          headers: { Cookie: cookieHeader, "User-Agent": ua, Accept: "application/json" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const directBody = await res.text();
+        if (decodesToJsonRecord(directBody)) {
+          pageText = directBody.slice(0, 200000);
+          process.stderr.write(
+            `[auth] breath go: navigated body unstructured/walled; supplemented page.text from authenticated direct fetch (status ${res.status}, ${directBody.length} bytes)\n`,
+          );
+        } else {
+          process.stderr.write(
+            `[auth] breath go: direct-fetch supplement skipped — body not a JSON record (status ${res.status})\n`,
+          );
+        }
+      } catch (directErr) {
+        process.stderr.write(
+          `[auth] breath go: direct-fetch supplement failed: ${directErr instanceof Error ? directErr.message : String(directErr)}\n`,
+        );
+      }
     }
 
     // Optional anti-bot solve (opt-in via --solve or UNBROWSE_AUTO_SOLVE=1, since

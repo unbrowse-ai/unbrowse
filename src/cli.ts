@@ -1655,6 +1655,43 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
     };
   }
 
+  // `act go <url>` (the bare navigate alias) routes here via breath get -> cmdRun,
+  // so its intent is the literal alias tokens with no user task. A genuine one-hole
+  // read (`"fetch the user" --url …`) carries a real task intent and must NOT match.
+  const isActGoNavigateVariant = (() => {
+    const i = (intent ?? "").trim().toLowerCase();
+    return i === "act go" || i === "go" || i === "act read" || i === "read";
+  })();
+
+  // act-go output-contract consistency: depending on internal routing `act go`
+  // emits either the breath-go envelope (carries page.text) OR this orchestrator
+  // envelope (carries the body under `result`). For the NAVIGATE variant whose URL
+  // returned a structured API body DIRECTLY (source === "direct-fetch": the
+  // orchestrator path that fetched the URL and got clean JSON), ALSO surface that
+  // body as page.text so `act go` has ONE consistent "navigate + capture" contract.
+  //
+  // Gated narrowly so it never pollutes other envelopes:
+  //   - navigate variant only (bare `act go`, not a one-hole task read);
+  //   - source === "direct-fetch" only (a clean API body — NOT a live-capture /
+  //     resolve envelope like example.com, which already has its own surface and
+  //     whose `result` is a {error,next_step,…} envelope, not a page);
+  //   - the body is a JSON record (object/collection), not plaintext/scalar (/zen).
+  function mirrorNavigateBodyToPage(result: Record<string, unknown>): Record<string, unknown> {
+    if (!isActGoNavigateVariant) return result;
+    if ("page" in result) return result; // already carries a page surface
+    if (result.source !== "direct-fetch") return result; // only the clean-API-body path
+    const body = (result as Record<string, unknown>).result;
+    if (body === null || typeof body !== "object") return result; // not a JSON record (plaintext, scalar)
+    let text: string;
+    try {
+      text = JSON.stringify(body);
+    } catch {
+      return result;
+    }
+    if (!text) return result;
+    return { ...result, page: { text: text.slice(0, 200000) } };
+  }
+
   function endpointsDiscovered(result: Record<string, unknown>): number {
     if (typeof result.endpoints_discovered === "number") return result.endpoints_discovered;
     if (Array.isArray(result.endpoints)) return result.endpoints.length;
@@ -1765,11 +1802,11 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
       return;
     }
     if (isResolveSuccessResult(result)) {
-      output(decorate(result), !!flags.pretty);
+      output(decorate(mirrorNavigateBodyToPage(result)), !!flags.pretty);
       return;
     }
     if (!shouldIndexFallback(result)) {
-      output(decorate(result), !!flags.pretty);
+      output(decorate(mirrorNavigateBodyToPage(result)), !!flags.pretty);
       return;
     }
 
@@ -1801,7 +1838,7 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
     if (!captureLooksThin(capture)) {
       result = await resolveStep("after_index");
       if (isResolveSuccessResult(result)) {
-        output(decorate(result), !!flags.pretty);
+        output(decorate(mirrorNavigateBodyToPage(result)), !!flags.pretty);
         return;
       }
       if (resolveResultError(result) === "auth_required") {
