@@ -16,7 +16,7 @@ import { bridgeKuriProxyEnv, kuriProxyTraceEnabled, ensureKuriProxyReachable } f
 import { flatCommandVerb, looksLikeContractGoal } from "./cli-v7/kind-map.js";
 import { peekResolution, storeResolution } from "./values/cached-resolution.js";
 import { resolutionContractVerdict } from "./values/resolution-contract.js";
-import { resolutionCardinalityMatches } from "./values/cardinality.js";
+import { resolutionCardinalityMatches, resolutionHostMatches } from "./values/cardinality.js";
 import { requestCacheKey, isIdempotentRequest } from "./values/cache-key.js";
 import { cmdCookies } from "./cli-cookies.js";
 import { cmdWallet } from "./cli-wallet.js";
@@ -816,7 +816,16 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     // Cardinality guard (Ezekiel 47:10): a list/search intent must not replay a
     // single-item value. A poisoned row (a product detail cached under a list
     // intent) is treated as a miss so the orchestrator recomputes a real list.
-    if (cachedHit && resolutionCardinalityMatches(intent, cachedHit.result ?? (cachedHit as Record<string, unknown>).data)) {
+    // Host guard (cross-domain misroute): an explicit target URL must not replay a
+    // value whose records ALL point to a different host (e.g. a github.com result
+    // cached under a reddit.com request) — treat it as a miss so the orchestrator
+    // re-resolves against the requested host and the poisoned row self-heals.
+    const cachedData = cachedHit ? (cachedHit.result ?? (cachedHit as Record<string, unknown>).data) : undefined;
+    if (
+      cachedHit &&
+      resolutionCardinalityMatches(intent, cachedData) &&
+      resolutionHostMatches(typeof flags.url === "string" ? flags.url : undefined, cachedData)
+    ) {
       const replay = markResolveCacheReplay(cachedHit);
       const hostType = detectTelemetryHostType();
       if (process.env.UNBROWSE_LANDING_TOKEN || process.env.UNBROWSE_ATTRIBUTION_B64) {
@@ -1222,6 +1231,23 @@ function parseCmdHoleIntentArgs(
     const intent = flagIntent ?? (args.length > 1 ? args.slice(1).join(" ") : undefined);
     if (!intent) return { error: `usage: unbrowse ${verb} <url> "task"` };
     return { url: args[0], intent };
+  }
+
+  // A URL in a NON-first positional (e.g. when leading alias tokens `act go` fell
+  // through to `breath get`, so args = ["act","go","https://…"]). Recognize the URL
+  // by SHAPE and lift it into the target `url` so it reaches context.url — without
+  // this the URL stays buried in the free-text intent, context.url is undefined, and
+  // every downstream host-anchor guard (anchorHitsToDomain, pickAnswerHit,
+  // shouldAutoWalk, cachedSkillHostMatchesContext) is defeated, letting a different
+  // host's cached/web result replay (a github.com skill answering a reddit.com URL).
+  // Only when exactly one positional is a URL — an ambiguous multi-URL intent stays
+  // free-text. Strip it from the intent so the intent is the task, not the address.
+  const urlArgs = args.filter(looksLikeUrl);
+  if (urlArgs.length === 1) {
+    const rest = args.filter((a) => a !== urlArgs[0]);
+    const intent = flagIntent ?? (rest.length > 0 ? rest.join(" ") : undefined);
+    if (!intent) return { error: `usage: unbrowse ${verb} <url> "task"` };
+    return { url: urlArgs[0], intent };
   }
 
   const intent = flagIntent ?? (args.length > 0 ? args.join(" ") : undefined);

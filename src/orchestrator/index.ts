@@ -146,9 +146,14 @@ export function anchorHitsToDomain<T extends { url: string }>(
 }
 
 /** Auto-walk gate (the web-search→direct-document DAG edge): walk the top
- *  candidate only when it is high-confidence — same registrable domain as the
- *  requested URL, or score >= minScore. Keeps the one-hop walk from chasing a
- *  low-confidence off-domain link. Pure + exported for unit tests. */
+ *  candidate only when it is high-confidence. When the caller named an explicit
+ *  target URL, the walk is HOST-ANCHORED: only a same-registrable-domain
+ *  candidate is walkable — a high web-search score is NOT licence to drift to
+ *  another site. (Without this, `act go reddit.com/api/me.json` would walk a
+ *  high-scored github.com repo that merely mentions "reddit" and replay GitHub
+ *  content for a Reddit request — a cross-domain misroute.) The score>=minScore
+ *  escape only applies to a general web search with NO target domain. Pure +
+ *  exported for unit tests. */
 export function shouldAutoWalk(
   requestedUrl: string | null | undefined,
   topUrl: string | null | undefined,
@@ -158,7 +163,8 @@ export function shouldAutoWalk(
   if (!topUrl) return false;
   const reqReg = registrableHost(requestedUrl);
   const topReg = registrableHost(topUrl);
-  return (!!reqReg && reqReg === topReg) || (topScore ?? 0) >= minScore;
+  if (reqReg) return reqReg === topReg; // explicit target → stay on its domain
+  return (topScore ?? 0) >= minScore;   // general search → score gate
 }
 
 /** Pick the candidate to auto-walk from a score-ranked list: the highest-scored
@@ -875,6 +881,27 @@ function endpointMatchesContextOrigin(
   } catch {
     return true;
   }
+}
+
+/** Host-anchor for the route/skill cache REPLAY boundary. A cached entry may only
+ *  be replayed for a requested URL on the SAME registrable host as the cached
+ *  skill — a github.com skill must never answer a reddit.com request. (endpoint-
+ *  MatchesContextOrigin above is a localhost-only guard: it is a no-op for public
+ *  hosts, so without this a mismatched — or poisoned — public-host cache entry
+ *  replays freely. This is the structural recognition: compare hosts, not an
+ *  allowlist.) Returns true when there is no requested URL (nothing to anchor to)
+ *  or the registrable hosts match; subdomains of the same registrable domain are
+ *  kept (api.reddit.com ↔ reddit.com). Pure + exported for unit tests. */
+export function cachedSkillHostMatchesContext(
+  skillDomain: string | null | undefined,
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl) return true;
+  const ctxReg = registrableHost(contextUrl);
+  if (!ctxReg) return true;
+  const skillReg = registrableHost(skillDomain) ?? registrableHost(`https://${skillDomain ?? ""}`);
+  if (!skillReg) return true;
+  return skillReg === ctxReg;
 }
 
 function endpointTargetsMismatchedLocalReplayHost(
@@ -5069,7 +5096,10 @@ export async function resolveAndExecute(
   if (!forceCapture && !agentChoseEndpoint) {
     const cachedResult = routeResultCache.get(cacheKey);
     if (cachedResult) {
-      if (!shouldReuseRouteResultSnapshot(cachedResult, queryIntent, context?.url)) {
+      if (
+        !cachedSkillHostMatchesContext(cachedResult.skill.domain, context?.url) ||
+        !shouldReuseRouteResultSnapshot(cachedResult, queryIntent, context?.url)
+      ) {
         routeResultCache.delete(cacheKey);
       } else {
         timing.cache_hit = true;
@@ -5120,6 +5150,14 @@ export async function resolveAndExecute(
       const cached = skillRouteCache.get(scopedKey);
       if (!cached) continue;
       if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      // Host-anchor: never replay a cached route whose skill domain differs from
+      // the requested URL's registrable host (a github.com entry must not answer
+      // a reddit.com request). Drops the entry so it self-heals via fresh capture.
+      if (!cachedSkillHostMatchesContext(cached.domain, context?.url)) {
         skillRouteCache.delete(scopedKey);
         persistRouteCache();
         continue;
@@ -5257,6 +5295,14 @@ export async function resolveAndExecute(
       const cached = skillRouteCache.get(scopedKey);
       if (!cached) continue;
       if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      // Host-anchor: never replay a cached route whose skill domain differs from
+      // the requested URL's registrable host (a github.com entry must not answer
+      // a reddit.com request). Drops the entry so it self-heals via fresh capture.
+      if (!cachedSkillHostMatchesContext(cached.domain, context?.url)) {
         skillRouteCache.delete(scopedKey);
         persistRouteCache();
         continue;
