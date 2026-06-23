@@ -73,48 +73,61 @@ export function contractCacheKey(id: string, namespace = DEFAULT_NAMESPACE): str
   return `${namespace}:contract:${id}`;
 }
 
-/** KV key mapping an emergent-assigned vector id back to our contract id (emergent assigns
- *  its own content-addressed numeric id on insert, so the reverse map lives in KV). */
+/** KV key mapping our self-computed numeric vector id back to our contract id. The CALLER owns
+ *  the id (emergent's VectorEntry.id is a caller-supplied positive int — emergentdb-js SDK), so
+ *  the reverse map is keyed on the deterministic id we derived from the contract id. */
 function vecMapKey(assignedId: number | string, namespace = DEFAULT_NAMESPACE): string {
   return `${namespace}:vecmap:${assignedId}`;
 }
 
 /**
+ * Stable positive-integer vector id for a contract id — sha256(id) folded into a safe positive
+ * int (< 2^48, well under Number.MAX_SAFE_INTEGER). EmergentDB's VectorEntry.id is a CALLER-supplied
+ * positive int (the SDK + arch-clarification doc: hash skill_id:endpoint_id → positive int), so the
+ * same contract id always maps to the same vector id — inserts are idempotent UPSERTS, not duplicates,
+ * and search results map back to the contract id with no extra round-trip.
+ */
+export function stableVectorId(id: string): number {
+  const h = createHash("sha256").update(id).digest();
+  // first 6 bytes → unsigned 48-bit int (safe, positive, < 2^53)
+  let n = 0;
+  for (let i = 0; i < 6; i++) n = n * 256 + h[i];
+  return n + 1; // +1 guarantees strictly positive (VectorEntry.id is .positive())
+}
+
+/**
  * ContractVectorStore backed by the LIVE emergent vector API (/vectors/insert + /vectors/search).
- * Emergent assigns its own id on insert (the input id is ignored), so upsert self-searches to
- * learn the assigned id and writes a KV reverse-map; search resolves assigned ids back to our
- * contract ids via that map. Mirrors backend/services/semantic-cache.ts's proven pattern.
+ * Per the emergentdb-js SDK: the caller supplies a positive-int id (we derive it deterministically
+ * via stableVectorId), insert returns that id, and search returns {id, score} — so NO self-search
+ * round-trip is needed and identical content upserts in place instead of colliding on a fixed id.
  */
 export function emergentVectorStore(namespace = DEFAULT_NAMESPACE): ContractVectorStore {
-  const headers = () => ({ Authorization: `Bearer ${emergentKey()}`, "Content-Type": "application/json" });
+  const headers = () => ({
+    Authorization: `Bearer ${emergentKey()}`,
+    "Content-Type": "application/json",
+    "User-Agent": "emergentdb-js/0.0.11", // canonical SDK UA — a generic UA trips Cloudflare 1010 at the edge
+  });
   return {
     async upsert(id: string, vector: number[]): Promise<void> {
       if (vector.length !== EMERGENTDB_VECTOR_DIM) {
         throw new Error(`emergent vector must be ${EMERGENTDB_VECTOR_DIM}-dim, got ${vector.length}`);
       }
+      const numId = stableVectorId(id);
       const ins = await fetch(`${EMERGENTDB_BASE}/vectors/insert`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ id: 1, vector, namespace }),
+        body: JSON.stringify({ id: numId, vector, namespace }),
         signal: AbortSignal.timeout(emergentTimeoutMs()),
       });
       if (!ins.ok) throw new Error(`vectors/insert ${ins.status}: ${(await ins.text()).slice(0, 200)}`);
-      // Learn the emergent-assigned id via a self-search, then persist the reverse map.
-      const sr = await fetch(`${EMERGENTDB_BASE}/vectors/search`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ vector, k: 1, namespace }),
-        signal: AbortSignal.timeout(emergentTimeoutMs()),
-      });
-      if (!sr.ok) throw new Error(`vectors/search(self) ${sr.status}: ${(await sr.text()).slice(0, 200)}`);
-      const assigned = ((await sr.json()) as { results?: Array<{ id: number | string }> }).results?.[0]?.id;
-      if (assigned !== undefined) await kvSet(vecMapKey(assigned, namespace), id);
+      // We own the id (no emergent-assigned id, no self-search) — persist the reverse map directly.
+      await kvSet(vecMapKey(numId, namespace), id);
     },
     async search(vector: number[], k: number): Promise<ScoredId[]> {
       const sr = await fetch(`${EMERGENTDB_BASE}/vectors/search`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ vector, k, namespace }),
+        body: JSON.stringify({ vector, k, include_metadata: false, namespace }),
         signal: AbortSignal.timeout(emergentTimeoutMs()),
       });
       if (!sr.ok) throw new Error(`vectors/search ${sr.status}: ${(await sr.text()).slice(0, 200)}`);
