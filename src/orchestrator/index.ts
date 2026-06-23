@@ -73,7 +73,7 @@ import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js
 import { ddgSearch, ddgSoftBlock } from "../lib/ddg-search.js";
 import { selectHoleProducer, bindingGraphFromOperationGraph } from "../lib/graph-core/hole-binding.js";
 import { cachedResolution } from "../values/cached-resolution.js";
-import { cardinalityMatches, routeLooksLikeSingleItem, isListLikeIntent } from "../values/cardinality.js";
+import { cardinalityMatches, routeLooksLikeSingleItem, isListLikeIntent, isConcreteResourceLeaf, urlHasConcreteResourcePath, pathCoherent } from "../values/cardinality.js";
 export { schemaLooksLikeSingleItem } from "../values/cardinality.js";
 import { credentialFromAuthContext } from "../runtime/principal-scope.js";
 import { isPersistableYield } from "../values/yield-safety.js";
@@ -2558,6 +2558,10 @@ function isDocumentLikeCandidate(candidate: RankedCandidate, contextUrl?: string
   }
 }
 
+// Concrete-resource-path shape (isConcreteResourceLeaf / urlHasConcreteResourcePath /
+// pathCoherent) is the shared structural gate, sourced from ../values/cardinality so the
+// CLI cache boundary and the orchestrator recognize the same shape — no duplicated regex.
+
 function isConcreteEntityDetailIntent(intent: string, contextUrl?: string): boolean {
   if (!/\b(get|fetch|view)\b/i.test(intent)) return false;
   if (
@@ -2571,12 +2575,7 @@ function isConcreteEntityDetailIntent(intent: string, contextUrl?: string): bool
     const leaf = decodeURIComponent(
       new URL(contextUrl).pathname.split("/").filter(Boolean).pop() ?? "",
     ).toLowerCase();
-    return (
-      !!leaf &&
-      !/^(search|explore|trending|tabs|home|for-you|foryou|latest|live|people|posts|videos)$/.test(
-        leaf,
-      )
-    );
+    return isConcreteResourceLeaf(leaf);
   } catch {
     return false;
   }
@@ -2593,7 +2592,13 @@ export function marketplaceSkillMatchesContext(
   if (isFeedTimelineIntent(intent, contextUrl)) {
     return skill.endpoints.some((endpoint) => endpointMatchesFeedTimelineContext(endpoint, contextUrl));
   }
-  if (!contextUrl || !isConcreteEntityDetailIntent(intent, contextUrl)) return true;
+  // A concrete-resource context path (e.g. /zen, /users/octocat) gates by path-coherence
+  // regardless of whether an entity-noun fired in the intent — recognized by URL shape,
+  // not by an enumerated noun list. If no endpoint is path-coherent with the requested
+  // path, the skill does NOT match, so the orchestrator falls through to a direct fetch
+  // of the literal URL.
+  const concretePath = contextUrl && urlHasConcreteResourcePath(contextUrl);
+  if (!contextUrl || (!isConcreteEntityDetailIntent(intent, contextUrl) && !concretePath)) return true;
   let contextPath = "";
   try {
     contextPath = new URL(contextUrl).pathname;
@@ -2601,6 +2606,19 @@ export function marketplaceSkillMatchesContext(
     return true;
   }
   if (!contextPath) return true;
+
+  if (concretePath) {
+    for (const endpoint of skill.endpoints ?? []) {
+      let triggerPath = "";
+      try { triggerPath = endpoint.trigger_url ? new URL(endpoint.trigger_url).pathname : ""; } catch { /* ignore */ }
+      if (
+        pathCoherent(endpoint.url_template, contextPath) ||
+        triggerPath === contextPath
+      )
+        return true;
+    }
+    return false;
+  }
 
   let hasApiLikeEndpoint = false;
   for (const endpoint of skill.endpoints ?? []) {
@@ -2617,6 +2635,63 @@ export function marketplaceSkillMatchesContext(
   }
 
   return hasApiLikeEndpoint;
+}
+
+/**
+ * For a concrete-resource explicit URL (e.g. /zen, /users/octocat — by SHAPE), does
+ * this winning skill actually have an endpoint path-coherent with that exact path?
+ * A skill discovered as the INTERNAL API for the requested page is legitimate even
+ * when its API path differs (page /things → api /api/things is NOT path-coherent but
+ * IS the right route), so this only fires for CONCRETE-resource URLs and is used to
+ * PREFER the literal direct-fetch over a host-only-matched STALE skill (a github.com
+ * "Explore" capture replaying for api.github.com/zen) — never to invalidate the skill
+ * outright. Returns true (skill is fine) for non-concrete / listing / root URLs.
+ */
+function skillPathCoherentForConcreteUrl(skill: SkillManifest, contextUrl?: string): boolean {
+  if (!urlHasConcreteResourcePath(contextUrl)) return true;
+  let contextPath = "";
+  try { contextPath = new URL(contextUrl as string).pathname; } catch { return true; }
+  return (skill.endpoints ?? []).some((ep) => {
+    if (pathCoherent(ep.url_template, contextPath)) return true;
+    try { return ep.trigger_url ? new URL(ep.trigger_url).pathname === contextPath : false; } catch { return false; }
+  });
+}
+
+/**
+ * Literal-URL direct fetch for a concrete-resource explicit --url whose winning skill
+ * is NOT path-coherent (execute-don't-guess). Returns the body parsed as JSON when
+ * JSON-shaped, else a {url, content_type, text} record — or null to fall through to
+ * the skill deferral. Pure of the orchestrator's nested finalize/trace so it can live
+ * at module scope; the caller wraps it into an OrchestratorResult.
+ */
+async function fetchLiteralConcreteBody(
+  url: string,
+): Promise<{ result: unknown; content_type: string } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "*/*", "User-Agent": "unbrowse/1.0" },
+      signal: AbortSignal.timeout(15000),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    const body = await res.text();
+    if (!(body.length > 0 && body.length < 2_000_000)) return null;
+    const trimmed = body.trimStart();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed !== null && typeof parsed === "object") return { result: parsed, content_type: ct };
+      } catch { /* not JSON — fall to text */ }
+    }
+    return {
+      result: { url, content_type: ct, text: body, source_url: url, extraction: { source: "direct-fetch", rejected: false } },
+      content_type: ct,
+    };
+  } catch (e) {
+    console.log(`[direct-fetch] ${url} literal concrete fetch failed: ${e instanceof Error ? e.message : String(e)} — falling through to skill`);
+    return null;
+  }
 }
 
 function prioritizeIntentMatchedApis(
@@ -4721,6 +4796,34 @@ export async function resolveAndExecute(
           timing: finalize("marketplace", w.data, w.skill.skill_id, w.skill, recipeTrace),
         };
       }
+      // Concrete-resource literal preference (execute-don't-guess). When the explicit
+      // --url names a concrete resource (e.g. /zen) and the winning skill has NO
+      // endpoint path-coherent with it, the skill is a host-only-matched stale route
+      // (a github.com "Explore" capture replaying for api.github.com/zen). Prefer a
+      // direct fetch of the literal URL; only fall back to the skill deferral if the
+      // fetch fails. Path-coherent skills (the legitimate internal-API-for-this-page
+      // case) skip this entirely and defer as before.
+      if (
+        (w.kind === "marketplace" || w.kind === "local-skill") &&
+        urlHasConcreteResourcePath(raceContextUrl) &&
+        !skillPathCoherentForConcreteUrl(w.skill, raceContextUrl)
+      ) {
+        const literal = await fetchLiteralConcreteBody(raceContextUrl);
+        if (literal) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(), skill_id: "direct-fetch", endpoint_id: "direct-fetch",
+            started_at: new Date(t0).toISOString(), completed_at: new Date().toISOString(), success: true,
+          };
+          console.log(`[direct-fetch] ${raceContextUrl} concrete-resource literal URL preferred over non-path-coherent skill ${w.skill.skill_id} (ct=${literal.content_type})`);
+          return {
+            result: literal.result,
+            trace,
+            source: "direct-fetch" as const,
+            skill: undefined as any,
+            timing: finalize("direct-fetch", literal.result, "direct-fetch", undefined as any, trace),
+          };
+        }
+      }
       if (w.kind === "marketplace") {
         return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
       }
@@ -4775,6 +4878,60 @@ export async function resolveAndExecute(
         // direct fetch failed/was non-JSON despite the JSON content-type
         // probe — fall through to Exa as the genuine fallback.
         console.log(`[direct-fetch] ${raceContextUrl} probe said JSON but direct fetch yielded no usable JSON — falling through to exa`);
+      }
+      // Concrete-resource literal-URL fast-path (execute-don't-guess). The caller
+      // handed an EXPLICIT --url naming a concrete resource (non-listing leaf, e.g.
+      // /zen, /users/octocat) and the probe got a usable 2xx/3xx response that is
+      // NOT JSON and NOT HTML (e.g. text/plain — github's /zen easter egg). The URL
+      // IS the answer; guessing a web-search candidate ABOUT the topic contradicts
+      // the thesis (internal-apis-are-all-you-need). Bounded by URL SHAPE: listing/
+      // collection/root URLs are not concrete, so this never touches them. Returns
+      // the literal body as a direct-document; on any miss, falls through unchanged.
+      if (
+        w.kind === "probe" &&
+        w.status >= 200 && w.status < 400 &&
+        !probeLooksLikeDirectJsonApi(w) &&
+        !probeLooksLikeFetchableHtmlDocument(w) &&
+        urlHasConcreteResourcePath(raceContextUrl)
+      ) {
+        try {
+          const litRes = await fetch(raceContextUrl, {
+            headers: { Accept: "*/*", "User-Agent": "unbrowse/1.0" },
+            signal: AbortSignal.timeout(15000),
+            redirect: "follow",
+          });
+          if (litRes.ok) {
+            const ct = litRes.headers.get("content-type") ?? "";
+            const body = await litRes.text();
+            if (body.length > 0 && body.length < 2_000_000) {
+              const trace: ExecutionTrace = {
+                trace_id: nanoid(),
+                skill_id: "direct-fetch",
+                endpoint_id: "direct-fetch",
+                started_at: new Date(t0).toISOString(),
+                completed_at: new Date().toISOString(),
+                success: true,
+              };
+              const result = {
+                url: raceContextUrl,
+                content_type: ct,
+                text: body,
+                source_url: raceContextUrl,
+                extraction: { source: "direct-fetch", rejected: false },
+              };
+              console.log(`[direct-fetch] ${raceContextUrl} concrete-resource literal URL — direct fetch over exa (ct=${ct}, ${body.length}B)`);
+              return {
+                result,
+                trace,
+                source: "direct-fetch" as const,
+                skill: undefined as any,
+                timing: finalize("direct-fetch", result, "direct-fetch", undefined as any, trace),
+              };
+            }
+          }
+        } catch (e) {
+          console.log(`[direct-fetch] ${raceContextUrl} concrete-resource literal fetch failed: ${e instanceof Error ? e.message : String(e)} — falling through to exa`);
+        }
       }
       // HTML direct-document fast-path — companion to the JSON fast-path above.
       // The caller gave an exact content URL (raceContextUrl) and the probe says
