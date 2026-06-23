@@ -1,6 +1,7 @@
-import type { Env } from "../types.js";
+import type { Env, EndpointDescriptor } from "../types.js";
 import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
+import { generateDescriptions } from "./descriptions.js";
 import { skillsKV } from "./kv.js";
 import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
 import { webSearchWithProvider, type WebResult, type WebSearchOutcome } from "./web-search/index.js";
@@ -837,7 +838,7 @@ export async function searchEndpoints(
 /** Re-index a single skill — indexes per-endpoint via Graph API. */
 export async function reindexSkill(
   env: Env,
-  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: Array<{ endpoint_id: string; description?: string; method: string; url_template: string; reliability_score: number; verification_status: string }>; updated_at: string }
+  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: EndpointDescriptor[]; updated_at: string }
 ): Promise<void> {
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
   const avgReliability = reliabilities.length > 0
@@ -845,6 +846,15 @@ export async function reindexSkill(
     : 0.5;
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+
+  // Consistency with the publish path (marketplace.ts): ensure every endpoint carries a
+  // description BEFORE indexing, so a re-index populates /v1/search the same as a publish.
+  // Without this, reindexSkill dropped description-less endpoints (indexEndpoints skips them),
+  // so the CLI `index` command + the reindex sweeper under-populated vs publish. generateDescriptions
+  // is LLM-first with a heuristic fallback, so it always yields a non-empty description.
+  if (skill.endpoints.some((ep) => !ep.description)) {
+    await generateDescriptions(env, skill.endpoints);
+  }
 
   await indexEndpoints(env, skill.skill_id, skill.endpoints, {
     domain: skill.domain,
