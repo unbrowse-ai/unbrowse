@@ -122,70 +122,13 @@ export function openAiEmbedder(env: Record<string, string | undefined> = process
   };
 }
 
-/** Matryoshka (MRL) reduce: front-truncate to `dim` then L2-renormalize. Qwen3-Embedding is
- * trained with MRL, so the first `dim` components are a valid, self-contained embedding — this
- * is the supported way to get an exact 1536-dim vector from the model's native 2560-dim output
- * (and it fits the 1536-locked emergent RAG store). Throws if the source is shorter than `dim`. */
-function mrlReduce(v: number[], dim: number): number[] {
-  if (v.length < dim) throw new Error(`embedding too short for MRL reduce: got ${v.length}, need >=${dim}`);
-  if (v.length === dim) return v;
-  const head = v.slice(0, dim);
-  let n = 0;
-  for (const x of head) n += x * x;
-  n = Math.sqrt(n);
-  if (n === 0) return head;
-  return head.map((x) => x / n);
-}
-
-/**
- * LOCAL embedder over the CONTRACT-NATIVE llama.cpp bind (aiko-ebllm) serving
- * Qwen/Qwen3-Embedding-4B — a real semantic model that runs on-device through the substrate's
- * OWN llama.cpp server (the SEEK-rung sibling), no ollama, no funded cloud account, no API key,
- * no quota. This is the substrate's "sing in your own land" path (Ps 137:4 — the substrate's own
- * model, not a foreign vendor). The model's native output is 2560-dim; we MRL-reduce to 1536 so
- * the LOCAL/native path PRODUCES THE EXACT DIM the EmergentDB vector store is locked to — native
- * AND emergent-RAG-compatible at once (the embeddinggemma/768 path used to break the 1536 store).
- * Endpoint is the OpenAI-compatible `/v1/embeddings` llama-server exposes (hardcoded-with-env
- * default, like the contract substrate's other local-LLM ports). Throws when unreachable — the
- * caller falls through to the funded cloud 1536 paths, visibly.
- */
-export function llamaCppEmbedder(env: Record<string, string | undefined> = process.env): Embedder {
-  const base = (env.UNBROWSE_EMBED_URL || env.AIKO_EMBED_URL || "http://127.0.0.1:8090").replace(/\/$/, "");
-  const model = env.UNBROWSE_EMBED_MODEL || "Qwen3-Embedding-4B";
-  const DIM = 1536;
-  return {
-    async embed(text: string) {
-      // NATIVE-FIRST: the substrate's own Zig organ (embed_server.embed1536 over the C-ABI) —
-      // the embed call + MRL reduce live in libcontract, not in this TS. Null → fall through to
-      // the TS transport below (platforms without the vendored symbol; visible, never silent).
-      try {
-        // NON-LITERAL specifier on purpose: contract-native.ts imports `bun:ffi` (CLI/Bun-only).
-        // A static `import("./contract-native.js")` makes esbuild follow it INTO the Cloudflare
-        // Worker bundle (the backend reaches contract-search via the payments→cached-resolution
-        // chain) where bun:ffi cannot resolve. A variable specifier is left as a runtime import the
-        // bundler does NOT follow — so the Worker excludes it, while the CLI (Bun) resolves it at
-        // runtime. The `typeof import(...)` is type-only (erased, never bundled) so we keep types.
-        const nativeSpecifier = "./contract-native.js";
-        const { embed1536Native } = (await import(nativeSpecifier)) as typeof import("./contract-native.js");
-        const native = embed1536Native(text);
-        if (native) return native;
-      } catch {
-        /* bun:ffi / vendored lib unavailable → TS fallback */
-      }
-      const res = await fetch(`${base}/v1/embeddings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, input: text }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      const body = await res.text();
-      if (!res.ok) throw new Error(`llama.cpp embeddings ${res.status}: ${body.slice(0, 200)}`);
-      const v = (JSON.parse(body) as { data?: Array<{ embedding?: number[] }> }).data?.[0]?.embedding;
-      if (!v || v.length === 0) throw new Error("llama.cpp embeddings: no embedding in response");
-      return mrlReduce(v, DIM);
-    },
-  };
-}
+// LOCAL embedder RIPPED OUT (2026-06-24, Lewis "dont use local embedder ... server based has its
+// own embedder we can use"): the on-device llama.cpp :8090 bind (Qwen3-Embedding-4B) + its
+// MRL-reduce helper are gone — resolveLiveEmbedder (below) uses the SERVER-based embedders
+// (OpenAI / Nebius) directly. That local :8090 server isn't deployed where the RAG path runs
+// (Cloudflare Worker / fresh hosts), so probing it only added latency before the fall-through.
+// The native organ embed1536Native still lives in contract-native.ts for CLI/Bun callers; it is
+// no longer on the RAG embedder ladder.
 
 /**
  * Nebius embedder over Qwen3-Embedding-8B with an explicit `dimensions: 1536` request, so the
@@ -233,18 +176,17 @@ export function nebiusEmbedder(env: Record<string, string | undefined> = process
  * 1536-dim, so whichever answers, the emergent RAG store (1536-locked) lands — the old
  * embeddinggemma/768 fallback that silently broke RAG is gone.
  *
- * Order is NATIVE-FIRST ("sing in your own land"): the contract-native llama.cpp bind serving
- * Qwen3-Embedding-4B@1536 (on-device, no cloud, no key) is tried first by actually embedding a
- * probe; only if the local llama.cpp server is unreachable / the model isn't loaded does it
- * fall through to the funded cloud 1536 paths — OpenAI (text-embedding-3-small) then
- * Nebius/OpenRouter (Qwen3-Embedding-8B @ dimensions:1536). Returns null only when none answer
- * (then the offline hashEmbedder bears the load). Fallbacks are visible: the caller sees the provider.
+ * Order is SERVER-BASED ONLY: the local on-device embedder (the contract-native llama.cpp
+ * :8090 bind) was RIPPED OUT (2026-06-24, Lewis) — that local server is not deployed where the
+ * RAG path runs (Cloudflare Worker / fresh hosts), so probing it only added latency before the
+ * fall-through. The substrate uses its SERVER-based embedders directly: OpenAI
+ * (text-embedding-3-small) then Nebius/OpenRouter (Qwen3-Embedding-8B @ dimensions:1536).
+ * Returns null only when none answer (then the offline hashEmbedder bears the load). Fallbacks
+ * are visible: the caller sees the provider.
  */
 export async function resolveLiveEmbedder(
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ embed: Embedder; provider: string } | null> {
-  const llama = llamaCppEmbedder(env);
-  try { await llama.embed("probe"); return { embed: llama, provider: "llama.cpp/qwen3-embedding-4b" }; } catch { /* local server down / model not loaded → fall through */ }
   const oai = openAiEmbedder(env);
   if (oai) {
     try { await oai.embed("probe"); return { embed: oai, provider: "openai" }; } catch { /* unfunded/quota → fall through */ }
