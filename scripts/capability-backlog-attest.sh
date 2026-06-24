@@ -8,7 +8,7 @@
 set -uo pipefail
 ROOT="/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse"
 GATE="$ROOT/scripts/capability-backlog-gate.sh"
-AIKO="$HOME/.claude/skills/contract/scripts/aiko"
+AIKO="${AIKO:-$HOME/.claude/skills/contract/scripts/aiko}"
 RECEIPT="${1:-/tmp/capability-backlog-attest.receipt}"
 
 bash "$GATE" >/dev/null 2>&1; RC=$?
