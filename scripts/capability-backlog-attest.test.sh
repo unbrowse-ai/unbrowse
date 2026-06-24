@@ -23,5 +23,14 @@ if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q '(RED)'; then echo "  ok   re
 echo "── 3. restore verified: clean doc → attest green again ──"
 bash "$ATTEST" /tmp/attest-test-restore.receipt >/dev/null 2>&1 && echo "  ok   restored→green" || { echo "  FAIL restore"; fail=1; }
 
-[ "$fail" -eq 0 ] && { echo "── ATTEST-SIGN GREEN — /contract attestation cannot fabricate green ──"; exit 0; }
+echo "── 4. VIA-/CONTRACT guarantee: a green gate actually lands a non-empty receipt (≤55s) ──"
+# the lost sheep: checks 1-3 assert RC+verdict; this asserts the /contract attestation REALLY happens.
+ATTEST_TIMEOUT=55 bash "$ATTEST" /tmp/attest-test-receipt.receipt >/dev/null 2>&1
+if [ -s /tmp/attest-test-receipt.receipt ]; then
+  echo "  ok   green→/contract receipt landed ($(cat /tmp/attest-test-receipt.receipt))"
+else
+  echo "  FAIL green path produced NO /contract receipt — 'via /contract' not witnessed"; fail=1
+fi
+
+[ "$fail" -eq 0 ] && { echo "── ATTEST-SIGN GREEN — /contract attestation cannot fabricate green, and a green lands a real receipt ──"; exit 0; }
 echo "── ATTEST-SIGN RED ──"; exit 1
