@@ -37,7 +37,7 @@ LEGEND: layer = web2 (cache/API/UI) · web3 (ledger/token/identity) · both (the
 | 22 | frontend /hallmark + /taste refresh | (positioning) manicmind | web2 | partial | `frontend/` exists | 2,3 | P1 | reflect native-fetch + cache story in the UI (own loop) |
 | 23 | docs overhaul (papers↔code anchors) | paper/anchors.tsv | web2 | partial | `docs/`, `scripts/paper-gate.sh` | 2 | P1 | extend anchors.tsv to the new native bites (own loop) |
 | 24 | browser-benchmark suite (exa/browsecomp/webagent) | execute-dont-guess-benchmarks | both | partial | `bench/` (exa clone, jespa, webagent vendors) | 5 | P1 | reproduce one suite vs a baseline (own loop) |
-| 25 | staging + prod deploy of the substrate | release-order.tsv | both | shipped | `scripts/contract-deploy` + gitea CI | 6 | — | done (deploy path proven) |
+| 25 | staging + prod deploy of the substrate | release-order.tsv | both | shipped | `scripts/contract-deploy-gate.sh` + gitea CI | 6 | — | done (deploy path proven) |
 
 ## The 7 asks → backlog rows (nothing the user named is dropped)
 
