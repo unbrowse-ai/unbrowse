@@ -293,24 +293,57 @@ export async function mirrorToEmergent(
   return r;
 }
 
-/** Recall a contract's cached value: emergent KV fast tier first, IQ durable tier behind. */
+/** Which tier served (or failed) a recall — the web2-cache-wraps-web3-ledger path, made OBSERVABLE.
+ * `kv-hit` = the emergent KV cache (web2) served; `iq-fallback` = the IQ ledger (web3) served on a
+ * KV miss; `miss` = neither had it; `kv-error`/`iq-error` = a tier threw (surfaced, not swallowed). */
+export type RecallTier = "kv-hit" | "iq-fallback" | "miss" | "kv-error" | "iq-error";
+
+/** PURE recall core — the web2-cache-wraps-web3-ledger decision, with the two lookups INJECTED so it
+ * is testable COLD (no network). `onTier` makes the wrap OBSERVABLE: a `kv-hit` means the emergent KV
+ * cache (web2) served; `iq-fallback` means the IQ ledger (web3) served on a KV miss; `miss` means
+ * neither; `kv-error`/`iq-error` surface a thrown tier (fallbacks visible, never silent — the old
+ * `catch {}` swallowed these). */
+export async function recallContractVia(
+  id: string,
+  deps: {
+    kvGet: (key: string) => Promise<string | null>;
+    findInLedger: (id: string) => Promise<{ result: string } | null>;
+    namespace?: string;
+    onTier?: (tier: RecallTier, detail?: unknown) => void;
+  },
+): Promise<unknown | null> {
+  const namespace = deps.namespace ?? DEFAULT_NAMESPACE;
+  const note = deps.onTier ?? (() => {});
+  try {
+    const cached = await deps.kvGet(contractCacheKey(id, namespace));
+    // parse BEFORE noting the hit — a corrupt cache value must surface as kv-error, never a false
+    // kv-hit (the tier signal means "this tier actually served a usable value").
+    if (cached != null) { const value = JSON.parse(cached); note("kv-hit"); return value; }
+  } catch (e) { note("kv-error", e); /* corrupt value or KV down → fall through to IQ */ }
+  try {
+    const hit = await deps.findInLedger(id);
+    if (hit) { const value = JSON.parse(hit.result); note("iq-fallback"); return value; }
+  } catch (e) { note("iq-error", e); /* not configured / corrupt row → miss */ }
+  note("miss");
+  return null;
+}
+
+/** Recall a contract's cached value: emergent KV fast tier first, IQ durable tier behind. Wires the
+ * live lookups into the pure `recallContractVia` core; `opts.onTier` observes which tier served.
+ * The observer is optional + side-effect-free by default, so existing callers are unchanged. */
 export async function recallContract(
   id: string,
-  opts: { namespace?: string } = {},
+  opts: { namespace?: string; onTier?: (tier: RecallTier, detail?: unknown) => void } = {},
 ): Promise<unknown | null> {
-  const namespace = opts.namespace ?? DEFAULT_NAMESPACE;
-  try {
-    const cached = await kvGet(contractCacheKey(id, namespace));
-    if (cached != null) return JSON.parse(cached);
-  } catch { /* fall through to IQ */ }
-  try {
-    const ledger = await resolutionLedgerFromEnv(process.env);
-    if (ledger) {
-      const hit = await ledger.find(id);
-      if (hit) return JSON.parse(hit.result);
-    }
-  } catch { /* not configured */ }
-  return null;
+  return recallContractVia(id, {
+    kvGet,
+    findInLedger: async (i) => {
+      const ledger = await resolutionLedgerFromEnv(process.env);
+      return ledger ? await ledger.find(i) : null;
+    },
+    namespace: opts.namespace,
+    onTier: opts.onTier,
+  });
 }
 
 /** Semantic search across persisted contracts via emergent RAG. Returns contract ids best-first. */
