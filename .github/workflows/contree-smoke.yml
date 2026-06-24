@@ -19,7 +19,13 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    # Uses the existing gitea-mini self-hosted runner (GitHub Actions budget is
+    # depleted, so ubuntu-latest can't provision). The smoke just needs ANY
+    # runner to call the contree API from; it doesn't matter which one.
+    # Once the SDK is proven, boot-runner.yml will use this same self-hosted
+    # runner to spawn contree microVMs that self-register as label=contree,
+    # then release.yml jobs swap runs-on: self-hosted -> runs-on: contree.
+    runs-on: self-hosted
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
