@@ -53,7 +53,7 @@ def run_seed(rows, seed):
 
     # JESPA: multinomial logistic energy classifier (gradient descent, the learned energy head)
     K = len(types); W = np.zeros((K, D)); lr = 0.5
-    for _ in range(400):
+    for _ in range(800):
         Z = X[tr] @ W.T; Z -= Z.max(1, keepdims=True); P = np.exp(Z); P /= P.sum(1, keepdims=True)
         Yoh = np.eye(K)[y[tr]]
         W -= lr * ((P - Yoh).T @ X[tr]) / len(tr) + 1e-3 * W
@@ -71,7 +71,7 @@ def main():
     rows = load()
     from collections import Counter
     print(f"[intent-type] real corpus: {len(rows)} unique routes, types={dict(Counter(t for _,t,_ in rows))}")
-    seeds = [run_seed(rows, s) for s in (7, 13)]
+    seeds = [run_seed(rows, s) for s in range(1, 31)]
     for s in seeds:
         print(f"  seed {s['seed']}: JESPA acc={s['jespa_acc']}  baseline(max maj={s['majority']},kw={s['keyword_nc']})={s['baseline_acc']}  "
               f"lift={s['jespa_acc']-s['baseline_acc']:+.4f}  n={s['n_eval']}")
