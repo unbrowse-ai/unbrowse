@@ -115,4 +115,16 @@ if has_match '^src/'; then
     echo "[pre-commit] src/ changed — bench-targeted parity gate unavailable (script deleted in benches-as-contracts migration); skipping" >&2
   fi
 fi
+# Capability-backlog no-fake-green gate: when the backlog or its gate/attestation is
+# staged, every 'shipped' row must carry a RESOLVING anchor (no fabricated green). FAST
+# (no substrate call); the slow via-/contract receipt-landing is the /contract-deploy
+# witness, not pre-commit. Self-skips when no backlog surface is staged.
+if has_match '^(docs/UNBROWSE-CAPABILITY-BACKLOG\.md|scripts/capability-backlog-(gate|attest))'; then
+  echo "[pre-commit] capability-backlog: no-fake-green (every shipped row resolves)"
+  if ! bash scripts/capability-backlog-gate.sh >/dev/null; then
+    echo "[pre-commit] FAIL: capability-backlog fake-green — a 'shipped' row has no resolving anchor." >&2
+    exit 1
+  fi
+fi
+
 echo "[pre-commit] fast checks passed"
