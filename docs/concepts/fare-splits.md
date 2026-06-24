@@ -4,7 +4,9 @@ How a paid call to an Unbrowse skill divides into three on-chain shares.
 
 ## The three lanes
 
-When an agent calls a paid skill via `unbrowse execute`, the platform's facilitator signs a Faremeter Flex authorization that distributes the price across up to three recipients atomically. The math lives in `backend/src/services/flex.ts:computeFlexSplits`.
+When an agent calls a paid skill via `unbrowse execute`, the platform's facilitator computes the split across up to three recipients. The math lives in `backend/src/services/flex.ts:computeFlexSplits`.
+
+> **Settlement: atomic on devnet, custodial on mainnet today.** The trustless on-chain atomic split (one Faremeter Flex transaction across all three recipients) is live on **devnet only** — the split program is not yet deployed to Solana mainnet. On **mainnet today the platform settles these splits custodially**: it collects the payment and disburses each contributor's and owner's earned cut from the attribution ledger (`backend/src/services/disburse.ts`, default dry-run). The lane math below is identical either way; only the settlement venue differs.
 
 | Lane | Share | When it fires |
 |---|---|---|
