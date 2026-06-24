@@ -1,12 +1,13 @@
 name: contree-smoke
 
-# De-risks the contree-as-GitHub-Actions-runner migration.
-# Proves: SDK auth with the stored NEBIUS_CONTREE_TOKEN, microVM spawn,
-# command exec inside the microVM, stdout/exit_code capture, and teardown.
+# Validates the full contree-runner loop: workflow dispatch -> contree-labeled
+# runner (a Nebius microVM spawned by scripts/contree-runner.py) picks up the
+# job -> executes basic steps -> result reported back to GitHub.
 #
-# Next phase after this is green: boot-runner.yml that spawns a microVM
-# which self-registers as a GitHub Actions runner with label `contree`,
-# then release.yml swaps `runs-on: self-hosted` -> `runs-on: contree`.
+# Run sequence:
+#   1. gh workflow run contree-smoke          # job queues waiting for `contree` runner
+#   2. scripts/contree-runner.py              # spawns microVM, registers as label=contree, picks up job
+#   3. gh run watch <run-id>                  # see it go green
 
 on:
   workflow_dispatch:
@@ -19,60 +20,25 @@ permissions:
 
 jobs:
   smoke:
-    # Uses the existing gitea-mini self-hosted runner (GitHub Actions budget is
-    # depleted, so ubuntu-latest can't provision). The smoke just needs ANY
-    # runner to call the contree API from; it doesn't matter which one.
-    # Once the SDK is proven, boot-runner.yml will use this same self-hosted
-    # runner to spawn contree microVMs that self-register as label=contree,
-    # then release.yml jobs swap runs-on: self-hosted -> runs-on: contree.
-    runs-on: self-hosted
-    timeout-minutes: 5
+    runs-on: contree
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install contree-sdk
-        run: pip install contree-sdk==0.3.3
-
-      - name: Spawn microVM and run echo
-        env:
-          NEBIUS_CONTREE_TOKEN: ${{ secrets.NEBIUS_CONTREE_TOKEN }}
-          NEBIUS_PROJECT_ID: ${{ secrets.NEBIUS_PROJECT_ID }}
+      - name: Basic exec check
         run: |
-          set -euo pipefail
-          python3 <<'PY'
-          import os, sys, time
-          from contree_sdk import ContreeSync
+          echo "hello from contree runner"
+          echo "runner OS: $(uname -s)"
+          echo "runner arch: $(uname -m)"
+          echo "runner kernel: $(uname -r)"
+          cat /etc/os-release | head -3
 
-          token = os.environ["NEBIUS_CONTREE_TOKEN"]
-          if not token:
-              print("::error::NEBIUS_CONTREE_TOKEN is empty"); sys.exit(2)
+      - name: Toolchain check
+        run: |
+          echo "git: $(git --version)"
+          echo "python3: $(python3 --version 2>&1)"
+          echo "node: $(node --version 2>&1 || echo 'not installed')"
+          echo "pip3: $(pip3 --version 2>&1 || echo 'not installed')"
 
-          print("::group::client init + token info")
-          client = ContreeSync(token=token)
-          info = client.get_token_info()
-          print("token_info:", info)
-          print("::endgroup::")
-
-          print("::group::spawn python:3.12-slim microVM")
-          img = client.images.use("python:3.12-slim")
-          print("image uuid:", img.uuid)
-          print("::endgroup::")
-
-          print("::group::run echo inside microVM")
-          ran = img.run(shell='echo "hello from contree"; uname -a; cat /etc/os-release | head -3')
-          final = ran.wait()
-          print("exit_code:", final.exit_code)
-          print("stdout:", final.stdout)
-          print("stderr:", final.stderr)
-          print("::endgroup::")
-
-          if final.exit_code != 0:
-              print(f"::error::microVM command exited {final.exit_code}"); sys.exit(1)
-          if b"hello from contree" not in (final.stdout or b""):
-              print("::error::expected stdout missing"); sys.exit(1)
-          print("SMOKE GREEN: contree microVM spawned, command ran, stdout captured, exit 0")
-          PY
+      - name: Contree runner green
+        run: echo "SMOKE GREEN — contree runner picked up job, executed steps, reporting back to GitHub"
