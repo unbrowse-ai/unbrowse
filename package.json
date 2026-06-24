@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-monorepo",
-  "version": "10.1.8",
+  "version": "10.2.0",
   "workspaces": [
     "packages/*",
     "backend",

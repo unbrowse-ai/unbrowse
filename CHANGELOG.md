@@ -1,5 +1,20 @@
 # Changelog
 
+## [10.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v10.1.8...v10.2.0) (2026-06-24)
+
+### Features
+
+* **contract:** make emergentDB-wraps-IQ recall tier OBSERVABLE (used-properly) ([#912](https://github.com/unbrowse-ai/unbrowse-dev/issues/912)) ([800afd1](https://github.com/unbrowse-ai/unbrowse-dev/commit/800afd116ce9ec24362149cd49d4db54f351d86a))
+* **contract:** no-fake-green capability-backlog gate chain + /contract attestation + standing pre-commit gate ([#913](https://github.com/unbrowse-ai/unbrowse-dev/issues/913)) ([02c574d](https://github.com/unbrowse-ai/unbrowse-dev/commit/02c574db633eb03c3477be23af428641ce5a2eb2))
+
+### Bug Fixes
+
+* **backend:** honest /v1/search index status — surface the empty-index cause, no fabricated ok ([#908](https://github.com/unbrowse-ai/unbrowse-dev/issues/908)) ([59a589e](https://github.com/unbrowse-ai/unbrowse-dev/commit/59a589e235b8080090ed222d85e6256af1e93f17))
+* **backend:** reindex generates descriptions before indexing — consistent with publish ([#909](https://github.com/unbrowse-ai/unbrowse-dev/issues/909)) ([e536869](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5368696a88d18ec6a3465580ba8cbd6e7fa4807)), closes [post-#908](https://github.com/unbrowse-ai/post-/issues/908)
+* **ci:** sync root bun.lock so backend frozen install passes (unblocks gitea CI deploy) ([#910](https://github.com/unbrowse-ai/unbrowse-dev/issues/910)) ([50f4811](https://github.com/unbrowse-ai/unbrowse-dev/commit/50f48115713a1d67cbdba3ed537ad0b52db3d76b)), closes [#909](https://github.com/unbrowse-ai/unbrowse-dev/issues/909)
+* **emergent:** SDK-correct vector upsert (caller-owned id, no self-search) ([#907](https://github.com/unbrowse-ai/unbrowse-dev/issues/907)) ([35e148b](https://github.com/unbrowse-ai/unbrowse-dev/commit/35e148ba9fcaa9d526e2424b0f359d92fda527f5))
+* **rag:** rip out local :8090 embedder — resolveLiveEmbedder is server-based only ([#911](https://github.com/unbrowse-ai/unbrowse-dev/issues/911)) ([dd6b765](https://github.com/unbrowse-ai/unbrowse-dev/commit/dd6b7655306f746b3e5b68fd8ff460bf7ad14606))
+
 ## [10.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v9.14.0...v10.1.0) (2026-06-23)
 
 Supersedes the unpublished v10.0.0 tag (npm last published 9.14.0).
