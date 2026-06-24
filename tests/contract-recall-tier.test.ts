@@ -64,3 +64,66 @@ describe("recallContractVia — tier observability (web2 KV wraps web3 IQ)", () 
     expect(v).toBeNull();
   });
 });
+
+describe("recallContractVia — edge + adversarial conditions", () => {
+  const cap = () => {
+    const tiers: RecallTier[] = [];
+    return { tiers, on: (t: RecallTier) => tiers.push(t) };
+  };
+
+  it("malformed KV payload must NOT falsely report kv-hit (it never served a usable value)", async () => {
+    const c = cap();
+    const v = await recallContractVia("a", {
+      kvGet: async () => "{not json",                       // corrupt cache value
+      findInLedger: async () => ({ result: JSON.stringify({ ok: 1 }) }),
+      onTier: c.on,
+    });
+    expect(v).toEqual({ ok: 1 });            // recovered via IQ
+    expect(c.tiers).not.toContain("kv-hit"); // the lost sheep: a corrupt value must not look like a hit
+    expect(c.tiers).toContain("kv-error");
+    expect(c.tiers).toContain("iq-fallback");
+  });
+
+  it("malformed IQ payload → iq-error surfaced, terminal miss, null", async () => {
+    const c = cap();
+    const v = await recallContractVia("a", {
+      kvGet: async () => null,
+      findInLedger: async () => ({ result: "{not json" }),
+      onTier: c.on,
+    });
+    expect(v).toBeNull();
+    expect(c.tiers).toContain("iq-error");
+    expect(c.tiers[c.tiers.length - 1]).toBe("miss");
+  });
+
+  it("both tiers error → both surfaced, terminal miss, null", async () => {
+    const c = cap();
+    const v = await recallContractVia("a", {
+      kvGet: async () => { throw new Error("kv down"); },
+      findInLedger: async () => { throw new Error("iq down"); },
+      onTier: c.on,
+    });
+    expect(v).toBeNull();
+    expect(c.tiers).toContain("kv-error");
+    expect(c.tiers).toContain("iq-error");
+    expect(c.tiers[c.tiers.length - 1]).toBe("miss");
+  });
+
+  it("concurrent recalls do not cross-talk (the pure core holds no shared state)", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) => {
+        const c = cap();
+        const hit = i % 2 === 0;
+        return recallContractVia(`id-${i}`, {
+          kvGet: async () => (hit ? JSON.stringify({ i }) : null),
+          findInLedger: async () => null,
+          onTier: c.on,
+        }).then((v) => ({ i, v, tiers: c.tiers }));
+      }),
+    );
+    for (const { i, v, tiers } of results) {
+      if (i % 2 === 0) { expect(v).toEqual({ i }); expect(tiers).toEqual(["kv-hit"]); }
+      else { expect(v).toBeNull(); expect(tiers).toEqual(["miss"]); }
+    }
+  });
+});
