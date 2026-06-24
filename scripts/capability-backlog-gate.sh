@@ -36,6 +36,20 @@ for f in $(grep '| shipped |' "$BL" | grep -oE '`[^`]+`' | tr -d '`' | grep -oE 
 done
 [ "$miss" -gt 0 ] && fail=1
 
+echo "── 3b. EVERY 'shipped' row SHOWS a backticked anchor (no empty/unquoted-anchor fake-green) ──"
+# A row may claim `shipped` only if it exhibits its proof: at least one backticked anchor token.
+# Catches the fake-green vector where a row asserts shipped with an empty or unquoted anchor cell.
+noanchor=0
+while IFS= read -r row; do
+  if echo "$row" | grep -qE '`[^`]+`'; then
+    :
+  else
+    echo "  FAIL shipped row shows no backticked anchor:$(echo "$row" | cut -c1-64)"; noanchor=$((noanchor+1))
+  fi
+done < <(grep '| shipped |' "$BL")
+[ "$noanchor" -eq 0 ] && echo "  ok   every shipped row exhibits a backticked anchor"
+[ "$noanchor" -gt 0 ] && fail=1
+
 if [ "$fail" -eq 0 ]; then
   echo "── BACKLOG GREEN — 6 papers + 7 asks covered, shipped anchors resolve ──"; exit 0
 fi
