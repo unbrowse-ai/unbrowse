@@ -94,6 +94,15 @@ find "$DST" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*
     # platform-vocabulary + maintenance-stake-model secularization
     s/\bthe substrate\b/the platform/gi;
     s/\bsubstrate\b/platform/gi;
+    # the hidden scoring/learning mechanism — secularize to plain WHAT (never name energy-based/EBM publicly).
+    # Order: most-specific first so the parenthetical phrase resolves before bare EBM.
+    s/energy-based model \(EBM\)/scoring model/gi;
+    s/energy-based-model/scoring-model/gi;
+    s/energy-based/score-based/gi;
+    s/\bEBM\b/scorer/g;
+    # a/an agreement after the scorer/scoring substitutions (was "an EBM" -> "an scorer")
+    s/\bAn (\**scor)/A $1/g;
+    s/\ban (\**scor)/a $1/g;
     s/Vine Doctrine/maintenance-stake model/gi;
     s/\babiding\b/staking/gi;
     s/\babide\b/stake/gi;
