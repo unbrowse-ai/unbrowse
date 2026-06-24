@@ -20,12 +20,20 @@ test("deterministic: same element + page → same content-addressed id", () => {
   expect(a.id).toBe(b.id);
 });
 
-test("pointer not payload: the entry carries identity, never DOM bytes", () => {
+test("pointer not payload: the entry carries identity, never a DOM-payload field", () => {
   const c = a11yNodeToContract({ ref: "e2", role: "textbox", name: "Email", value: "a@b.com" }, URL);
   const v = c.value as Record<string, unknown>;
-  // identity fields present; no html/outerHTML/dom payload field
+  // the real guard: an EXACT identity key-set — no html/outerHTML/innerHTML/dom payload field
   expect(Object.keys(v).sort()).toEqual(["kind", "name", "pageUrl", "ref", "role", "state"]);
-  expect(JSON.stringify(c)).not.toContain("<");
+  expect(Object.keys(v).some((k) => /html|outer|inner|dom/i.test(k))).toBe(false);
+});
+
+test("an accessible name containing '<' is valid IDENTITY, not payload (Day-8 sheep)", () => {
+  // a legit button name like "1 < 2" must NOT be rejected — '<' in a name is identity, not a DOM dump
+  const c = a11yNodeToContract({ ref: "e0", role: "button", name: "1 < 2 (Back)" }, URL);
+  const v = c.value as Record<string, unknown>;
+  expect(v.name).toBe("1 < 2 (Back)");
+  expect(Object.keys(v).sort()).toEqual(["kind", "name", "pageUrl", "ref", "role", "state"]);
 });
 
 test("distinct elements get distinct ids (no collision)", () => {
