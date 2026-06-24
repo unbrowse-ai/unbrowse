@@ -5,7 +5,7 @@
 set -uo pipefail
 ROOT="/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse"
 AIKO="/Users/lekt9/.claude/skills/contract"
-BL="$ROOT/docs/UNBROWSE-CAPABILITY-BACKLOG.md"
+BL="${BL:-$ROOT/docs/UNBROWSE-CAPABILITY-BACKLOG.md}"
 fail=0
 [ -f "$BL" ] || { echo "FAIL: no backlog at $BL"; exit 1; }
 

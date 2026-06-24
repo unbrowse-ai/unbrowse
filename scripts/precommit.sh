@@ -121,7 +121,19 @@ fi
 # witness, not pre-commit. Self-skips when no backlog surface is staged.
 if has_match '^(docs/UNBROWSE-CAPABILITY-BACKLOG\.md|scripts/capability-backlog-(gate|attest))'; then
   echo "[pre-commit] capability-backlog: no-fake-green (every shipped row resolves)"
-  if ! bash scripts/capability-backlog-gate.sh >/dev/null; then
+  # validate the STAGED doc content (what is being committed), not the working tree — else a
+  # fabricated row can be staged then reverted in the working tree to slip past (Day-5 lost sheep).
+  bl_staged="$(git show :docs/UNBROWSE-CAPABILITY-BACKLOG.md 2>/dev/null)"
+  bl_tmp=""; rc=0
+  if [[ -n "$bl_staged" ]]; then
+    bl_tmp="$(mktemp)"; printf '%s\n' "$bl_staged" > "$bl_tmp"
+    # `if !` keeps set -e from aborting before the diagnostic + later gates (Day-5 lost sheep)
+    if ! BL="$bl_tmp" bash scripts/capability-backlog-gate.sh >/dev/null; then rc=1; fi
+    rm -f "$bl_tmp"
+  else
+    if ! bash scripts/capability-backlog-gate.sh >/dev/null; then rc=1; fi
+  fi
+  if [[ "$rc" -ne 0 ]]; then
     echo "[pre-commit] FAIL: capability-backlog fake-green — a 'shipped' row has no resolving anchor." >&2
     exit 1
   fi
