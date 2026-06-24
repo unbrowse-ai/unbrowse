@@ -115,4 +115,31 @@ if has_match '^src/'; then
     echo "[pre-commit] src/ changed — bench-targeted parity gate unavailable (script deleted in benches-as-contracts migration); skipping" >&2
   fi
 fi
+# Capability-backlog no-fake-green gate: when the backlog or its gate/attestation is
+# staged, every 'shipped' row must carry a RESOLVING anchor (no fabricated green). FAST
+# (no substrate call); the slow via-/contract receipt-landing is the /contract-deploy
+# witness, not pre-commit. Self-skips when no backlog surface is staged.
+if has_match '^(docs/UNBROWSE-CAPABILITY-BACKLOG\.md|scripts/capability-backlog-(gate|attest))'; then
+  echo "[pre-commit] capability-backlog: no-fake-green (every shipped row resolves)"
+  # validate the STAGED doc content (what is being committed), not the working tree — else a
+  # fabricated row can be staged then reverted in the working tree to slip past (Day-5 lost sheep).
+  # unset any inherited BL so a hostile env (e.g. BL=/dev/null) can never point the gate at an
+  # empty/clean file and pass vacuously (Day-8 auditor finding); we set BL explicitly below.
+  unset BL 2>/dev/null || true
+  bl_staged="$(git show :docs/UNBROWSE-CAPABILITY-BACKLOG.md 2>/dev/null)"
+  bl_tmp=""; rc=0
+  if [[ -n "$bl_staged" ]]; then
+    bl_tmp="$(mktemp)"; printf '%s\n' "$bl_staged" > "$bl_tmp"
+    # `if !` keeps set -e from aborting before the diagnostic + later gates (Day-5 lost sheep)
+    if ! BL="$bl_tmp" bash scripts/capability-backlog-gate.sh >/dev/null; then rc=1; fi
+    rm -f "$bl_tmp"
+  else
+    if ! bash scripts/capability-backlog-gate.sh >/dev/null; then rc=1; fi
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    echo "[pre-commit] FAIL: capability-backlog fake-green — a 'shipped' row has no resolving anchor." >&2
+    exit 1
+  fi
+fi
+
 echo "[pre-commit] fast checks passed"
