@@ -28,10 +28,13 @@ echo "── 4. VIA-/CONTRACT guarantee: a green gate actually lands a non-empty
 # MUST start from a cleared receipt — else a STALE receipt from a prior run falsely passes under aiko-down.
 R4="$(mktemp)"; : > "$R4"
 ATTEST_TIMEOUT=55 bash "$ATTEST" "$R4" >/dev/null 2>&1
-if [ -s "$R4" ]; then
-  echo "  ok   green→/contract receipt landed ($(cat "$R4"))"
+# non-empty is NOT enough (garbage/error stdout would falsely pass): the receipt MUST look like a
+# real contract-neuron id — a single hex token. Rejects error text, partial JSON, debug logs.
+RC4="$(tr -d ' \t\n\r' < "$R4")"
+if printf '%s' "$RC4" | grep -qE '^[0-9a-f]{6,40}$'; then
+  echo "  ok   green→/contract receipt landed (contract-id $RC4)"
 else
-  echo "  FAIL green path produced NO /contract receipt — 'via /contract' not witnessed"; fail=1
+  echo "  FAIL green path produced NO VALID /contract receipt — got '$(head -c 40 "$R4")' (not a contract-id)"; fail=1
 fi
 rm -f "$R4"
 
