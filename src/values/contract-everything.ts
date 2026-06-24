@@ -316,12 +316,14 @@ export async function recallContractVia(
   const note = deps.onTier ?? (() => {});
   try {
     const cached = await deps.kvGet(contractCacheKey(id, namespace));
-    if (cached != null) { note("kv-hit"); return JSON.parse(cached); }
-  } catch (e) { note("kv-error", e); /* fall through to IQ */ }
+    // parse BEFORE noting the hit — a corrupt cache value must surface as kv-error, never a false
+    // kv-hit (the tier signal means "this tier actually served a usable value").
+    if (cached != null) { const value = JSON.parse(cached); note("kv-hit"); return value; }
+  } catch (e) { note("kv-error", e); /* corrupt value or KV down → fall through to IQ */ }
   try {
     const hit = await deps.findInLedger(id);
-    if (hit) { note("iq-fallback"); return JSON.parse(hit.result); }
-  } catch (e) { note("iq-error", e); /* not configured */ }
+    if (hit) { const value = JSON.parse(hit.result); note("iq-fallback"); return value; }
+  } catch (e) { note("iq-error", e); /* not configured / corrupt row → miss */ }
   note("miss");
   return null;
 }
