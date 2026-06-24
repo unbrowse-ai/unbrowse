@@ -78,6 +78,14 @@ resolution + verdict + domain-contract paths, with a witness test already presen
 gate is RED only on the external RAG `/vectors` timeout — reported amber, not painted green. The fix
 (row 21: a local/dense vector fallback so `/vectors` isn't the only path) is its own future loop.
 
+### Shipped this campaign (one witnessed bite per loop)
+
+| PR | bite | witness |
+|---|---|---|
+| #911 | server-only embedder — ripped dead local llama `:8090` probe; `resolveLiveEmbedder` is OpenAI/Nebius only (row 21 embedder-half) | `contract-search.ts:resolveLiveEmbedder` |
+| #912 | recall-tier OBSERVABLE — pure injectable `recallContractVia` core; all 4 tiers (kv-hit/iq-fallback/miss/kv-error) cold-deterministic, mutation+adversarially hardened (row 12 follow-on) | `tests/contract-recall-tier.test.ts` (9 pass) |
+| #913 | versioned THIS roadmap + its mutation-proven gate (was untracked) | `scripts/capability-backlog-gate.sh` (RC=0) + moat-scan RC=0 |
+
 The genuine BUILD gaps (own future loops): row 11 (point the web2 facade at the NATIVE substrate) ·
 row 21 (RAG dense-embedder so /vectors isn't the only path) · rows 9/10 (native ports) · rows 22-24
 (frontend/docs refresh, benchmark runs).
