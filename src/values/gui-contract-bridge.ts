@@ -25,8 +25,9 @@ export function a11yNodeToContract(el: GuiElement, pageUrl: string): ContractEve
   const ref = (el.ref ?? "").trim();
   const role = (el.role ?? "").trim();
   const name = (el.name ?? "").trim();
-  // content-addressed id over the element's IDENTITY (stable across re-captures of the same element)
-  const id = "gui-" + sha256Hex(Buffer.from(`${pageUrl}\n${role}\n${ref}\n${name}`)).slice(0, 16);
+  // content-addressed id over the element's IDENTITY. JSON-encode the field array so a separator char
+  // (e.g. a newline) inside a field cannot inject a collision between distinct elements (Day-5 sheep).
+  const id = "gui-" + sha256Hex(Buffer.from(JSON.stringify([pageUrl, role, ref, name]))).slice(0, 16);
   // pointer-shaped claim: the WHAT (an interactive element on a page), never the DOM payload
   const text = `${role || "element"} '${name}' @ ${pageUrl} → ${ref || "(no-ref)"}`;
   const value = { kind: "gui-element", ref, role, name, state: (el.state ?? "").trim(), pageUrl };
