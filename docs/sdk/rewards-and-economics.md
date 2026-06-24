@@ -58,6 +58,7 @@ Exact rate cards live at [unbrowse.ai/pricing](https://www.unbrowse.ai/pricing).
 - **Cadence**: each paid execute signs a Flex authorization off-chain; the platform's facilitator holds the authorization in memory, then submits a batched on-chain settlement after the refund window. Distribution is atomic per the signed splits.
 - **Wallet**: paired via `unbrowse setup` (lobster.cash recommended) or `--wallet-address <addr>`. Once paired, the SDK signs payment authorizations with a session key registered against your Flex escrow — see [docs/wallets.md](../wallets.md) for the wallet → escrow → session-key onboarding sequence.
 - **Visibility**: `unbrowse stats --earnings` (CLI), or `GET /v1/stats/indexer/:id/ledger`, `GET /v1/account`, `GET /v1/analytics/payments` (HTTP).
+- **Ledger model**: the attribution and fee ledgers are **append-only event logs** — one immutable content-addressed row per execution — and your balance is a **projection** (fold) over those rows, not a mutated running total. Concurrent executions therefore never lose credits, replaying the same `execution_id` is idempotent, and every credit is individually auditable (the same integrity model as the route-attestation ledger). See `backend/LEDGER-UNIFICATION-PLAN.md`.
 
 ## Anti-fraud (current state and roadmap)
 

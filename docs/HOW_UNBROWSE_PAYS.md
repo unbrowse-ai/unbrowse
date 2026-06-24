@@ -15,7 +15,7 @@ and no monthly plan: you pay per request, and only for the requests that execute
 
 ## The split
 
-Every paid call is divided by Faremeter Flex into a fixed, on-chain split. The
+Every paid call is divided into a fixed split by Faremeter Flex. The
 settlement roles are defined in `backend/src/services/flex.ts:39`, and the split
 percentages are set by named basis-point constants:
 
@@ -29,6 +29,14 @@ So a paid call with a bound domain owner settles as a **50/35/15** split: half t
 the platform that runs the infrastructure, just over a third to the indexers who
 discovered the route, and the rest to the website owner. When no owner wallet is
 bound, the owner share folds back into the contributor pool.
+
+**Where it settles: atomic on devnet, custodial on mainnet today.** The trustless
+on-chain atomic split (one Flex transaction across all recipients) is live on
+**devnet only** — the split program is not yet on Solana mainnet. On **mainnet
+today the platform settles the split custodially**: it collects the payment and
+disburses each contributor's and owner's earned cut from the attribution ledger
+(`backend/src/services/disburse.ts`, default dry-run). The percentages above are
+identical either way; only the settlement venue differs.
 
 ## Brokered costs (fair compensation)
 
