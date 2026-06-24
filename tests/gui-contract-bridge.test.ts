@@ -55,3 +55,10 @@ test("degenerate inputs (empty/unicode) still produce a stable pointer entry", (
   const uni = a11yNodeToContract({ ref: "e1", role: "button", name: "提交 ✓" }, URL);
   expect(uni.text).toBe("button '提交 ✓' @ https://example.com/checkout → e1");
 });
+
+test("robustness: a non-string field (malformed caller) coerces, never crashes (Day-8 auditor)", () => {
+  // a JS caller could pass a number/undefined despite the type; String() coercion must not throw
+  const c = a11yNodeToContract({ ref: 123 as unknown as string, role: "button", name: undefined as unknown as string }, URL);
+  expect(c.id.startsWith("gui-")).toBe(true);
+  expect((c.value as Record<string, unknown>).ref).toBe("123");
+});
