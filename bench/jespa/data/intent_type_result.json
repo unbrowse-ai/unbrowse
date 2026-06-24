@@ -1,22 +1,246 @@
 {
   "benchmark": "route access-pattern type classification (.bench-gate, 7-class)",
-  "n_routes": 101,
+  "n_routes": 399,
   "seeds": [
     {
+      "seed": 1,
+      "jespa_acc": 0.4083,
+      "baseline_acc": 0.3417,
+      "majority": 0.275,
+      "keyword_nc": 0.3417,
+      "n_eval": 120
+    },
+    {
+      "seed": 2,
+      "jespa_acc": 0.4583,
+      "baseline_acc": 0.3583,
+      "majority": 0.2833,
+      "keyword_nc": 0.3583,
+      "n_eval": 120
+    },
+    {
+      "seed": 3,
+      "jespa_acc": 0.4083,
+      "baseline_acc": 0.325,
+      "majority": 0.3,
+      "keyword_nc": 0.325,
+      "n_eval": 120
+    },
+    {
+      "seed": 4,
+      "jespa_acc": 0.4167,
+      "baseline_acc": 0.4,
+      "majority": 0.2667,
+      "keyword_nc": 0.4,
+      "n_eval": 120
+    },
+    {
+      "seed": 5,
+      "jespa_acc": 0.45,
+      "baseline_acc": 0.3333,
+      "majority": 0.3167,
+      "keyword_nc": 0.3333,
+      "n_eval": 120
+    },
+    {
+      "seed": 6,
+      "jespa_acc": 0.45,
+      "baseline_acc": 0.35,
+      "majority": 0.225,
+      "keyword_nc": 0.35,
+      "n_eval": 120
+    },
+    {
       "seed": 7,
-      "jespa_acc": 0.7097,
-      "baseline_acc": 0.3226,
-      "majority": 0.3226,
-      "keyword_nc": 0.2903,
-      "n_eval": 31
+      "jespa_acc": 0.4083,
+      "baseline_acc": 0.3417,
+      "majority": 0.1917,
+      "keyword_nc": 0.3417,
+      "n_eval": 120
+    },
+    {
+      "seed": 8,
+      "jespa_acc": 0.425,
+      "baseline_acc": 0.2917,
+      "majority": 0.2333,
+      "keyword_nc": 0.2917,
+      "n_eval": 120
+    },
+    {
+      "seed": 9,
+      "jespa_acc": 0.3917,
+      "baseline_acc": 0.2833,
+      "majority": 0.2833,
+      "keyword_nc": 0.25,
+      "n_eval": 120
+    },
+    {
+      "seed": 10,
+      "jespa_acc": 0.375,
+      "baseline_acc": 0.3333,
+      "majority": 0.2167,
+      "keyword_nc": 0.3333,
+      "n_eval": 120
+    },
+    {
+      "seed": 11,
+      "jespa_acc": 0.425,
+      "baseline_acc": 0.325,
+      "majority": 0.2583,
+      "keyword_nc": 0.325,
+      "n_eval": 120
+    },
+    {
+      "seed": 12,
+      "jespa_acc": 0.375,
+      "baseline_acc": 0.325,
+      "majority": 0.2917,
+      "keyword_nc": 0.325,
+      "n_eval": 120
     },
     {
       "seed": 13,
-      "jespa_acc": 0.8065,
-      "baseline_acc": 0.3871,
-      "majority": 0.2903,
-      "keyword_nc": 0.3871,
-      "n_eval": 31
+      "jespa_acc": 0.4417,
+      "baseline_acc": 0.3083,
+      "majority": 0.3083,
+      "keyword_nc": 0.2333,
+      "n_eval": 120
+    },
+    {
+      "seed": 14,
+      "jespa_acc": 0.4917,
+      "baseline_acc": 0.4583,
+      "majority": 0.2833,
+      "keyword_nc": 0.4583,
+      "n_eval": 120
+    },
+    {
+      "seed": 15,
+      "jespa_acc": 0.4583,
+      "baseline_acc": 0.3333,
+      "majority": 0.2583,
+      "keyword_nc": 0.3333,
+      "n_eval": 120
+    },
+    {
+      "seed": 16,
+      "jespa_acc": 0.4,
+      "baseline_acc": 0.35,
+      "majority": 0.2167,
+      "keyword_nc": 0.35,
+      "n_eval": 120
+    },
+    {
+      "seed": 17,
+      "jespa_acc": 0.4167,
+      "baseline_acc": 0.3417,
+      "majority": 0.2083,
+      "keyword_nc": 0.3417,
+      "n_eval": 120
+    },
+    {
+      "seed": 18,
+      "jespa_acc": 0.3667,
+      "baseline_acc": 0.3,
+      "majority": 0.225,
+      "keyword_nc": 0.3,
+      "n_eval": 120
+    },
+    {
+      "seed": 19,
+      "jespa_acc": 0.4333,
+      "baseline_acc": 0.4,
+      "majority": 0.275,
+      "keyword_nc": 0.4,
+      "n_eval": 120
+    },
+    {
+      "seed": 20,
+      "jespa_acc": 0.4083,
+      "baseline_acc": 0.275,
+      "majority": 0.2167,
+      "keyword_nc": 0.275,
+      "n_eval": 120
+    },
+    {
+      "seed": 21,
+      "jespa_acc": 0.3667,
+      "baseline_acc": 0.3,
+      "majority": 0.2167,
+      "keyword_nc": 0.3,
+      "n_eval": 120
+    },
+    {
+      "seed": 22,
+      "jespa_acc": 0.4,
+      "baseline_acc": 0.325,
+      "majority": 0.3167,
+      "keyword_nc": 0.325,
+      "n_eval": 120
+    },
+    {
+      "seed": 23,
+      "jespa_acc": 0.4583,
+      "baseline_acc": 0.325,
+      "majority": 0.2833,
+      "keyword_nc": 0.325,
+      "n_eval": 120
+    },
+    {
+      "seed": 24,
+      "jespa_acc": 0.4167,
+      "baseline_acc": 0.3083,
+      "majority": 0.2,
+      "keyword_nc": 0.3083,
+      "n_eval": 120
+    },
+    {
+      "seed": 25,
+      "jespa_acc": 0.475,
+      "baseline_acc": 0.375,
+      "majority": 0.2417,
+      "keyword_nc": 0.375,
+      "n_eval": 120
+    },
+    {
+      "seed": 26,
+      "jespa_acc": 0.375,
+      "baseline_acc": 0.3,
+      "majority": 0.3,
+      "keyword_nc": 0.275,
+      "n_eval": 120
+    },
+    {
+      "seed": 27,
+      "jespa_acc": 0.4,
+      "baseline_acc": 0.3417,
+      "majority": 0.2583,
+      "keyword_nc": 0.3417,
+      "n_eval": 120
+    },
+    {
+      "seed": 28,
+      "jespa_acc": 0.5,
+      "baseline_acc": 0.3667,
+      "majority": 0.275,
+      "keyword_nc": 0.3667,
+      "n_eval": 120
+    },
+    {
+      "seed": 29,
+      "jespa_acc": 0.4333,
+      "baseline_acc": 0.3167,
+      "majority": 0.3167,
+      "keyword_nc": 0.2833,
+      "n_eval": 120
+    },
+    {
+      "seed": 30,
+      "jespa_acc": 0.4,
+      "baseline_acc": 0.2917,
+      "majority": 0.2917,
+      "keyword_nc": 0.2667,
+      "n_eval": 120
     }
   ]
 }
