@@ -1,0 +1,72 @@
+name: contree-smoke
+
+# De-risks the contree-as-GitHub-Actions-runner migration.
+# Proves: SDK auth with the stored NEBIUS_CONTREE_TOKEN, microVM spawn,
+# command exec inside the microVM, stdout/exit_code capture, and teardown.
+#
+# Next phase after this is green: boot-runner.yml that spawns a microVM
+# which self-registers as a GitHub Actions runner with label `contree`,
+# then release.yml swaps `runs-on: self-hosted` -> `runs-on: contree`.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/contree-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install contree-sdk
+        run: pip install contree-sdk==0.3.3
+
+      - name: Spawn microVM and run echo
+        env:
+          NEBIUS_CONTREE_TOKEN: ${{ secrets.NEBIUS_CONTREE_TOKEN }}
+          NEBIUS_PROJECT_ID: ${{ secrets.NEBIUS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import os, sys, time
+          from contree_sdk import ContreeSync
+
+          token = os.environ["NEBIUS_CONTREE_TOKEN"]
+          if not token:
+              print("::error::NEBIUS_CONTREE_TOKEN is empty"); sys.exit(2)
+
+          print("::group::client init + token info")
+          client = ContreeSync(token=token)
+          info = client.get_token_info()
+          print("token_info:", info)
+          print("::endgroup::")
+
+          print("::group::spawn python:3.12-slim microVM")
+          img = client.images.use("python:3.12-slim")
+          print("image uuid:", img.uuid)
+          print("::endgroup::")
+
+          print("::group::run echo inside microVM")
+          ran = img.run(shell='echo "hello from contree"; uname -a; cat /etc/os-release | head -3')
+          final = ran.wait()
+          print("exit_code:", final.exit_code)
+          print("stdout:", final.stdout)
+          print("stderr:", final.stderr)
+          print("::endgroup::")
+
+          if final.exit_code != 0:
+              print(f"::error::microVM command exited {final.exit_code}"); sys.exit(1)
+          if b"hello from contree" not in (final.stdout or b""):
+              print("::error::expected stdout missing"); sys.exit(1)
+          print("SMOKE GREEN: contree microVM spawned, command ran, stdout captured, exit 0")
+          PY
