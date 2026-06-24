@@ -25,12 +25,15 @@ bash "$ATTEST" /tmp/attest-test-restore.receipt >/dev/null 2>&1 && echo "  ok   
 
 echo "── 4. VIA-/CONTRACT guarantee: a green gate actually lands a non-empty receipt (≤55s) ──"
 # the lost sheep: checks 1-3 assert RC+verdict; this asserts the /contract attestation REALLY happens.
-ATTEST_TIMEOUT=55 bash "$ATTEST" /tmp/attest-test-receipt.receipt >/dev/null 2>&1
-if [ -s /tmp/attest-test-receipt.receipt ]; then
-  echo "  ok   green→/contract receipt landed ($(cat /tmp/attest-test-receipt.receipt))"
+# MUST start from a cleared receipt — else a STALE receipt from a prior run falsely passes under aiko-down.
+R4="$(mktemp)"; : > "$R4"
+ATTEST_TIMEOUT=55 bash "$ATTEST" "$R4" >/dev/null 2>&1
+if [ -s "$R4" ]; then
+  echo "  ok   green→/contract receipt landed ($(cat "$R4"))"
 else
   echo "  FAIL green path produced NO /contract receipt — 'via /contract' not witnessed"; fail=1
 fi
+rm -f "$R4"
 
 [ "$fail" -eq 0 ] && { echo "── ATTEST-SIGN GREEN — /contract attestation cannot fabricate green, and a green lands a real receipt ──"; exit 0; }
 echo "── ATTEST-SIGN RED ──"; exit 1
