@@ -30,5 +30,19 @@ else
   echo "  FAIL fabricated row did NOT block the commit (rc=$rc)"; fail=1
 fi
 
+echo "── 3. STAGED-EVASION (Day-5 sheep): fake row STAGED but working tree reverted → still BLOCKS ──"
+# the precommit gate must validate STAGED content, not the working tree, or a staged fake row reverted
+# in the working tree slips past into the commit.
+clean="$(mktemp)"; cp "$DOC" "$clean"
+printf '\n| 88 | sign-evasion | x | both | shipped | `NO-SUCH-evade.zig` | 1 | P0 | sign |\n' >> "$DOC"
+git add "$DOC" >/dev/null 2>&1; cp "$clean" "$DOC"   # staged=fake, working=clean
+out="$(bash scripts/precommit.sh 2>&1)"; rc=$?
+git restore --staged "$DOC" >/dev/null 2>&1; cp "$clean" "$DOC"; rm -f "$clean"
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'capability-backlog fake-green'; then
+  echo "  ok   staged fake row (working reverted) → still blocked"
+else
+  echo "  FAIL staged-evasion slipped past (rc=$rc) — gate read working tree, not staged"; fail=1
+fi
+
 [ "$fail" -eq 0 ] && { echo "── PRECOMMIT-BACKLOG-SIGN GREEN — the standing no-fake-green gate holds ──"; exit 0; }
 echo "── PRECOMMIT-BACKLOG-SIGN RED ──"; exit 1
