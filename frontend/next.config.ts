@@ -6,12 +6,15 @@ const workspaceRoot = resolve(process.cwd(), "..");
 const nextConfig: NextConfig = {
 	poweredByHeader: false,
 	images: {
-		// Previously `unoptimized: true` (commit 2352069c, Mar 30) because a custom
-		// loader broke under opennextjs-cloudflare. The adapter has shipped a
-		// first-party Image Optimization handler since ~v1.x; v1.19.11 (current)
-		// supports it natively. Flipping back lets `<Image>` ship resized AVIF/WebP
-		// instead of raw source bytes (PERF-AUDIT, fix 1).
-		formats: ["image/avif", "image/webp"],
+		// `unoptimized: true` is REQUIRED on the Cloudflare Pages deploy.
+		// opennextjs-cloudflare's native image-optimization handler 500s
+		// (CF error 1101 — Worker exception) on the live deploy for every
+		// `<Image>` request, breaking the navbar logo + hero hands + saint eagle.
+		// The raw assets are already optimized webp/png (`logo-optimized.webp`,
+		// `*-optimized.webp`), so skipping the optimizer loses nothing real.
+		// Re-enable AVIF/WebP resizing only when the adapter handler is verified
+		// green on prod (not just claimed supported in a changelog).
+		unoptimized: true,
 	},
 	output: "standalone",
 	turbopack: {
