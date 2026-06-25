@@ -19,6 +19,7 @@
  * yields nothing because the client keeps nothing openable.
  */
 import { sealToWallet, revealForWallet, type WalletSealed } from "../trust/sealed-cache.js";
+import { attest } from "../auth/attest.js";
 
 /** A wallet-sealed credential store. In-memory working set; the durable copy is
  *  the sealed-blob stream (local opaque file or the backend KV — either way it
@@ -45,11 +46,24 @@ export class WalletVault {
 		return this.entries.get(account)?.commitment;
 	}
 
-	/** Open the credential for the wallet-holder. Throws for a wrong wallet or a
-	 *  tampered blob; returns undefined for an unknown account. */
-	async open(account: string, walletSecret: string): Promise<string | undefined> {
+	/** Open the credential for the wallet-holder. Requires OS-native
+	 *  attestation (Touch ID / Windows Hello / polkit / stdin) BEFORE deriving
+	 *  the seal key and decrypting — the second witness on top of the wallet
+	 *  signature. Throws for a wrong wallet, tampered blob, or failed
+	 *  attestation; returns undefined for an unknown account.
+	 *
+	 *  Override `skipAttest` ONLY for tests / unattended CI; the gate is the
+	 *  load-bearing piece in production. */
+	async open(account: string, walletSecret: string, opts?: { skipAttest?: boolean; attestReason?: string }): Promise<string | undefined> {
 		const sealed = this.entries.get(account);
 		if (!sealed) return undefined;
+		if (!opts?.skipAttest) {
+			const reason = opts?.attestReason ?? `unbrowse wants to unlock the credential for "${account}"`;
+			const attestation = attest(reason);
+			if (!attestation.ok) {
+				throw new Error(`attestation failed (${attestation.method}): ${attestation.reason}`);
+			}
+		}
 		return (await revealForWallet(sealed, walletSecret, account)) as string;
 	}
 

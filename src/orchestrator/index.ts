@@ -104,6 +104,8 @@ import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies, authRuntime } from "../auth/runtime.js";
 import { decidePreResolveAuthGate } from "../auth/pre-resolve-gate.js";
+import { passFor, spendPass } from "../auth/pass.js";
+import { attest } from "../auth/attest.js";
 import { getCredential } from "../vault/index.js";
 import { pruneLocalCacheStateForSkill, type LocalCacheCleanupSummary } from "../stale-cleanup.js";
 import {
@@ -4735,42 +4737,64 @@ export async function resolveAndExecute(
     // array. Audit grep `host === "<lit>"` MUST stay at zero hits.
     const preGate = decidePreResolveAuthGate(queryIntent, raceContextUrl);
     if (preGate.gate === "auth_required") {
-      const gateTrace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: "",
-        endpoint_id: "",
-        started_at: new Date(t0).toISOString(),
-        completed_at: new Date().toISOString(),
-        success: false,
-        error: "auth_required",
-      };
-      decisionTrace.pre_resolve_auth_gate = {
-        host: preGate.host,
-        cookie_source: preGate.cookie_source,
-        reason: preGate.reason,
-      };
-      console.log(`[pre-resolve-gate] short-circuit auth_required for ${preGate.host} (${preGate.reason})`);
-      return {
-        result: {
-          status: "auth_required",
-          auth: "required",
-          auth_required: true,
-          auth_hint: `Sign in to ${preGate.host} via a browser tab so local cookies are fresh, then retry.`,
-          intent: queryIntent,
-          url: raceContextUrl,
-          domain: preGate.host,
-          next_step: "unbrowse_auth_capture",
-          suggested_commands: [
-            `unbrowse auth-capture --url ${JSON.stringify(`https://${preGate.host}`)}`,
-          ],
-          gate_reason: preGate.reason,
-          decision_trace: decisionTrace,
-        },
-        trace: gateTrace,
-        source: "marketplace",
-        skill: undefined as any,
-        timing: finalize("marketplace", null, undefined, undefined, gateTrace),
-      };
+      // pass intercept: if the user has already cut a pass for this host
+      // (always_allow or one_time), and the OS-native attestation
+      // (Touch ID / Windows Hello / polkit) passes, swallow the
+      // auth_required envelope and let the resolve race proceed. The pass
+      // was signed by the wallet (pass.ts:cutPass), so a foreign wallet's
+      // pass cannot unlock this user's creds.
+      const scope = queryIntent ?? "*";
+      let swallowedAuthRequired = false;
+      const pass = passFor(preGate.host, scope) ?? passFor(preGate.host, "*");
+      if (pass) {
+        const attestation = attest(`unbrowse wants to use a stored credential for ${preGate.host} (${pass.mode})`);
+        if (attestation.ok) {
+          console.log(`[pass] active for ${preGate.host}:${pass.scope} (${pass.mode}); swallowing auth_required`);
+          if (pass.mode === "one_time") spendPass(pass);
+          swallowedAuthRequired = true;
+        } else {
+          console.log(`[pass] attestation failed (${attestation.method}): ${attestation.reason}; surfacing auth_required`);
+        }
+      }
+      if (!swallowedAuthRequired) {
+        const gateTrace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "",
+          endpoint_id: "",
+          started_at: new Date(t0).toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "auth_required",
+        };
+        decisionTrace.pre_resolve_auth_gate = {
+          host: preGate.host,
+          cookie_source: preGate.cookie_source,
+          reason: preGate.reason,
+        };
+        console.log(`[pre-resolve-gate] short-circuit auth_required for ${preGate.host} (${preGate.reason})`);
+        return {
+          result: {
+            status: "auth_required",
+            auth: "required",
+            auth_required: true,
+            auth_hint: `Sign in to ${preGate.host} via a browser tab so local cookies are fresh, then retry.`,
+            intent: queryIntent,
+            url: raceContextUrl,
+            domain: preGate.host,
+            next_step: "unbrowse_auth_capture",
+            suggested_commands: [
+              `unbrowse auth-capture --url ${JSON.stringify(`https://${preGate.host}`)}`,
+            ],
+            gate_reason: preGate.reason,
+            decision_trace: decisionTrace,
+          },
+          trace: gateTrace,
+          source: "marketplace",
+          skill: undefined as any,
+          timing: finalize("marketplace", null, undefined, undefined, gateTrace),
+        };
+      }
+      // else: grant swallowed the auth_required; fall through to the resolve race
     }
 
     const localSnapshot = (() => {
