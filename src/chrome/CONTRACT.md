@@ -105,10 +105,10 @@ holds end-to-end.
 ## Status
 
 - [x] CONTRACT.md — this doc (direction B set)
-- [x] KvChain — local sealed-cache + ledger append (this commit)
-- [x] CookiePrimitive — stateless chrome.cookies.* backed by KvChain (this commit)
-- [ ] StoragePrimitive (local + sync) — next layer
-- [ ] IndexedDBPrimitive — next layer
-- [ ] HistoryPrimitive — next layer (with default-preference wiring to ranking)
-- [ ] BookmarksPrimitive — next layer (with default-preference wiring to ranking)
-- [ ] Lexicon entry in unbrowse SKILL.md (render the contract)
+- [x] KvChain — local sealed-cache + ledger append
+- [x] CookiePrimitive — stateless chrome.cookies.* backed by KvChain
+- [x] StoragePrimitive (local + sync) — chrome.storage.* with quota enforcement
+- [x] IndexedDBPrimitive — openDatabase/store/put/get/delete + lazy indexes
+- [x] HistoryPrimitive — chrome.history.* + `recentDomains()` default-preference helper
+- [x] BookmarksPrimitive — chrome.bookmarks.* + `bookmarkDomains()` + `loadDefaultPreferences()`
+- [x] Lexicon entry in unbrowse SKILL.md (render the contract)
