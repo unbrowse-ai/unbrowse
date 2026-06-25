@@ -85,8 +85,8 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 # Then paste the returned ids into the TODO slots below.
 [[kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+id = "efff18ebbaf74e1392548afb45844987"
+preview_id = "370571fa8cf7469aa42dbaf428f9bfc2"
 
 # RESPONSE_CACHE — W17 KV-backed response cache for hot Worker paths
 # (resolve, marketplace lookup, sponsor-status, audit-verify). Dedicated
@@ -103,8 +103,8 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
 # recomputed.
 [[kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+id = "f8055ec27cdd4aa6931daa60318ebe90"
+preview_id = "bb57956c8bbf4b53a9735ef7aa946ec3"
 
 # SESSION_STATE — v7.2.0-preview.0 persistent-session pointer-of-pointer
 # storage (W23 wave, 2026-05-28). Stores the L1..L4 pointer-chain
@@ -125,8 +125,8 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_previe
 # browser-close was destroying every session.
 [[kv_namespaces]]
 binding = "SESSION_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+id = "317fd40784c64dcfac29f0f7b0aa38cc"
+preview_id = "64277a013ed84123a64330024c84c180"
 
 # TRACE_STATE — v7.2.0-preview.0 trace-state KV (Day-3 Land worker B,
 # 2026-05-28). Pointer-only execution traces; decision_trace step
@@ -140,8 +140,8 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview
 #   bunx wrangler kv:namespace create TRACE_STATE --preview
 [[kv_namespaces]]
 binding = "TRACE_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+id = "8afc4e178a174950afda83c9b8afa750"
+preview_id = "90b80f7a55af4ec98cdfa2a4c6079af7"
 
 # SETTINGS_STATE — v7.2.0-preview.0 per-wallet durable preferences
 # (Day-3 Land worker B, 2026-05-28). Pointer-only settingValuePointer
@@ -155,8 +155,8 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
 #   bunx wrangler kv:namespace create SETTINGS_STATE --preview
 [[kv_namespaces]]
 binding = "SETTINGS_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+id = "976e3113d052468ebf5bd54c4ff74659"
+preview_id = "f2b30095ff9f4b02a09d00f4ca54375a"
 
 # SCREENSHOT_BLOB — v7.2.0-preview.0 content-addressable PNG storage
 # (Day-5 SWARM worker D, 2026-05-28). Replaces local-disk
@@ -174,8 +174,8 @@ preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_previe
 #   bunx wrangler kv:namespace create SCREENSHOT_BLOB --preview
 [[kv_namespaces]]
 binding = "SCREENSHOT_BLOB"
-id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
+id = "923d4768fdce4d22a760238a2ecf7c60"
+preview_id = "4a90d2e86be149669648cad57ee6ce02"
 
 # Secrets (set via `wrangler secret put`):
 #   EMERGENTDB_API_KEY, NEBIUS_API_KEY, API_KEY, FAL_KEY, TURBOBOX_URL,
@@ -286,40 +286,40 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 # every audit row silently no-ops. Operator must provision per env.
 [[env.production.kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+id = "efff18ebbaf74e1392548afb45844987"
+preview_id = "370571fa8cf7469aa42dbaf428f9bfc2"
 
 # RESPONSE_CACHE — see top-level stanza for doctrine. Per-env slot lets
 # prod, staging, and gate-staging hold ISOLATED caches so a bench-time
 # invalidation never spills into prod hot paths.
 [[env.production.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+id = "f8055ec27cdd4aa6931daa60318ebe90"
+preview_id = "bb57956c8bbf4b53a9735ef7aa946ec3"
 
 # SESSION_STATE — see top-level stanza for doctrine (W23, v7.2.0-preview.0).
 [[env.production.kv_namespaces]]
 binding = "SESSION_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+id = "317fd40784c64dcfac29f0f7b0aa38cc"
+preview_id = "64277a013ed84123a64330024c84c180"
 
 # TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.production.kv_namespaces]]
 binding = "TRACE_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+id = "8afc4e178a174950afda83c9b8afa750"
+preview_id = "90b80f7a55af4ec98cdfa2a4c6079af7"
 
 # SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.production.kv_namespaces]]
 binding = "SETTINGS_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+id = "976e3113d052468ebf5bd54c4ff74659"
+preview_id = "f2b30095ff9f4b02a09d00f4ca54375a"
 
 # SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
 [[env.production.kv_namespaces]]
 binding = "SCREENSHOT_BLOB"
-id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
+id = "923d4768fdce4d22a760238a2ecf7c60"
+preview_id = "4a90d2e86be149669648cad57ee6ce02"
 
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -442,38 +442,38 @@ preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
 # audit log so sandbox sessions never write into prod receipts.
 [[env.experiments.kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+id = "efff18ebbaf74e1392548afb45844987"
+preview_id = "370571fa8cf7469aa42dbaf428f9bfc2"
 
 # RESPONSE_CACHE — see top-level stanza.
 [[env.experiments.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+id = "f8055ec27cdd4aa6931daa60318ebe90"
+preview_id = "bb57956c8bbf4b53a9735ef7aa946ec3"
 
 # SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0).
 [[env.experiments.kv_namespaces]]
 binding = "SESSION_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+id = "317fd40784c64dcfac29f0f7b0aa38cc"
+preview_id = "64277a013ed84123a64330024c84c180"
 
 # TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.experiments.kv_namespaces]]
 binding = "TRACE_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+id = "8afc4e178a174950afda83c9b8afa750"
+preview_id = "90b80f7a55af4ec98cdfa2a4c6079af7"
 
 # SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.experiments.kv_namespaces]]
 binding = "SETTINGS_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+id = "976e3113d052468ebf5bd54c4ff74659"
+preview_id = "f2b30095ff9f4b02a09d00f4ca54375a"
 
 # SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
 [[env.experiments.kv_namespaces]]
 binding = "SCREENSHOT_BLOB"
-id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
+id = "923d4768fdce4d22a760238a2ecf7c60"
+preview_id = "4a90d2e86be149669648cad57ee6ce02"
 
 [env.experiments.vars]
 ENVIRONMENT = "staging"
@@ -506,42 +506,42 @@ preview_id = "1eac26403aab4949ad69c35678dca938"
 # prod or staging audit logs.
 [[env.gate-staging.kv_namespaces]]
 binding = "AUDIT_LOG"
-id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_AUDIT_LOG_preview"
+id = "efff18ebbaf74e1392548afb45844987"
+preview_id = "370571fa8cf7469aa42dbaf428f9bfc2"
 
 # RESPONSE_CACHE — see top-level stanza. Bench-gate harness uses this
 # namespace to assert cache HIT/MISS behavior in-thread without touching
 # prod or staging caches.
 [[env.gate-staging.kv_namespaces]]
 binding = "RESPONSE_CACHE"
-id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_RESPONSE_CACHE_preview"
+id = "f8055ec27cdd4aa6931daa60318ebe90"
+preview_id = "bb57956c8bbf4b53a9735ef7aa946ec3"
 
 # SESSION_STATE — see top-level stanza (W23, v7.2.0-preview.0). Bench-
 # gate harness exercises session-park / session-restore against this
 # namespace.
 [[env.gate-staging.kv_namespaces]]
 binding = "SESSION_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SESSION_STATE_preview"
+id = "317fd40784c64dcfac29f0f7b0aa38cc"
+preview_id = "64277a013ed84123a64330024c84c180"
 
 # TRACE_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.gate-staging.kv_namespaces]]
 binding = "TRACE_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_TRACE_STATE_preview"
+id = "8afc4e178a174950afda83c9b8afa750"
+preview_id = "90b80f7a55af4ec98cdfa2a4c6079af7"
 
 # SETTINGS_STATE — see top-level stanza (Day-3 Land worker B, v7.2.0-preview.0).
 [[env.gate-staging.kv_namespaces]]
 binding = "SETTINGS_STATE"
-id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SETTINGS_STATE_preview"
+id = "976e3113d052468ebf5bd54c4ff74659"
+preview_id = "f2b30095ff9f4b02a09d00f4ca54375a"
 
 # SCREENSHOT_BLOB — see top-level stanza (Day-5 SWARM worker D, v7.2.0-preview.0).
 [[env.gate-staging.kv_namespaces]]
 binding = "SCREENSHOT_BLOB"
-id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB"
-preview_id = "TODO_create_via_wrangler_kv_namespace_create_SCREENSHOT_BLOB_preview"
+id = "923d4768fdce4d22a760238a2ecf7c60"
+preview_id = "4a90d2e86be149669648cad57ee6ce02"
 
 [env.gate-staging.vars]
 ENVIRONMENT = "gate-staging"

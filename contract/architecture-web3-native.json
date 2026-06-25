@@ -1,0 +1,102 @@
+{
+  "contract_id": "unbrowse-architecture-web3-native-v1",
+  "declared_at": "2026-06-25T00:00:00Z",
+  "claim": "Unbrowse is web3-native: a local self-custody ed25519 wallet is the SOLE REQUIRED identity credential. The wallet signature authenticates as `wallet:<pk>` BEFORE any bearer path on every backend route. A `ubr_` api-key, when present, is a DEPRECATED web2 wrapper layered for account-bound continuity (payouts, dashboard, ToS surface), never a gate. Unbrowse is a CHILD ENVIRONMENT EXECUTOR under the CONTRACT (aiko) PARENT SUBSTRATE; the wallet signs FOR the Word declared on the parent, and the child never oversteps into the parent's signing scope.",
+  "atoms": {
+    "identity_root": {
+      "what": "local self-custody ed25519 wallet pubkey — the SOLE identity credential",
+      "where_stored": "~/.unbrowse/wallet.json (mode 0o600) + OS keychain seal",
+      "witnesses": [
+        "src/values/signer.ts:ensureLocalWalletAddress",
+        "src/values/signer.ts:getWalletPubkey",
+        "src/payments/wallet.ts:getWalletContext (entry 5 of the precedence chain)"
+      ]
+    },
+    "auth_credential": {
+      "what": "per-request capability signature over AUTH_DOMAIN:pubkeyHex:ts (60s TTL)",
+      "how_emitted": "src/lib/wallet-auth-headers.ts:mergedAuthHeaders() — emits X-Unbrowse-Wallet, X-Unbrowse-Auth-Ts, X-Unbrowse-Signature",
+      "how_verified": "backend/src/services/auth-signature.ts:authBySignature (ed25519 verify → wallet:<pk>)",
+      "challenge_format": "AUTH_DOMAIN ':' pubkeyHex ':' ts  (AUTH_DOMAIN = 'unbrowse-auth:v1')",
+      "witnesses": [
+        "src/lib/wallet-auth-headers.ts",
+        "backend/src/services/auth-signature.ts:authBySignature",
+        "backend/src/services/auth-signature.ts:authChallenge"
+      ]
+    },
+    "principal_never_keygated": {
+      "what": "verified wallet sig authenticates as wallet:<pk> on EVERY auth middleware, BEFORE any Bearer 401 path — a wallet-only caller is a full principal",
+      "middlewares_covered": ["bearerAuth", "optionalAuth", "bearerAuthNoTos"],
+      "witnesses": [
+        "backend/src/middleware/auth.ts:bearerAuth (wallet-sig short-circuit before Bearer)",
+        "backend/src/middleware/auth.ts:optionalAuth (wallet-sig short-circuit)",
+        "backend/src/middleware/auth.ts:bearerAuthNoTos (wallet-sig path added 2026-06-25, 3 routes: /agents/wallet, /agents/accept-tos, /agents/me)",
+        "backend/test/wallet-principal-never-keygated.test.ts (3/3 PASS as of 2026-06-25)"
+      ]
+    },
+    "deprecated_web2_wrapper": {
+      "what": "ubr_ api-key = DEPRECATED web2 wrapper, layered over the wallet when present (Authorization: Bearer ubr_...). Used for account-bound flow continuity only. Never a gate.",
+      "client_behavior": "ensureUsableKey() returns {key:''} on the resolve hot path when a wallet is present; only attempts a key-mint when opts.allowMint is set.",
+      "sdk_behavior": "UnbrowseClientOptions.walletSigner = web3-native callback (preferred); UnbrowseClientOptions.apiKey = deprecated wrapper. Constructor throws if NEITHER is set.",
+      "retirement_plan": "Wrapper will be retired once account-bound flows (payouts, dashboard) migrate to wallet-direct.",
+      "witnesses": [
+        "src/client/index.ts:ensureUsableKey (wallet-present fast path, opts.allowMint gate)",
+        "src/sdk/client.ts (walletSigner callback, apiKey marked @deprecated)",
+        "src/sdk/types.ts:UnbrowseClientOptions (walletSigner preferred, apiKey deprecated)",
+        "src/sdk/onboard.ts:ensureIdentity (WALLET-FIRST, account-key = legacy fallback only)"
+      ]
+    },
+    "parent_substrate_aiko": {
+      "what": "the contract (aiko) is the PARENT SUBSTRATE — on-chain truth-root. Deployer keypair at ~/.aiko/keys/deployer.key signs the parent root; signed attestations are the witness ledger rows the child dereferences.",
+      "truth_root": "the Word (scripture), NOT the deployer wallet — wallet signs FOR the Word, it does not stand in for it. The wallet is rotatable, the Word is not (Matthew 24:35).",
+      "witnesses": [
+        "src/bridges/contract-mcp-bridge.ts (parent/child MCP bridge)",
+        "src/lib/contract-thin-client.ts (HTTP thin client over /v1/contract/*)",
+        "~/.aiko/keys/deployer.key (parent signing keypair location)"
+      ]
+    },
+    "child_environment_executor": {
+      "what": "unbrowse is the CHILD ENVIRONMENT EXECUTOR — web primitives only (fetch, scrape, browse, sign web challenges, x402 pay). It never signs a parent truth claim, only its own web-auth capability.",
+      "boundary_invariant": "child never oversteps into parent's signing scope. The bridge exposes parent declarations AS POINTERS (read-only ledger rows), never as inlined payloads.",
+      "witnesses": [
+        "src/bridges/contract-mcp-bridge.ts",
+        "src/lib/contract-thin-client.ts(/v1/contract/* read surface)"
+      ]
+    },
+    "x402_payments_native": {
+      "what": "x402 payment flow is already web3-native — same wallet signs the payment envelope as signs the auth capability. No web2 dependency on the payment rail.",
+      "witnesses": [
+        "src/payments/x402-fetch.ts:resolveWalletConfig (wallet signs the 402 envelope)",
+        "src/vault/wallet-vault.ts:sealToWallet / open (credentials sealed to the wallet)"
+      ]
+    }
+  },
+  "removed_or_flipped": [
+    {"file": "backend/src/middleware/auth.ts", "change": "bearerAuthNoTos gained a wallet-sig path (3 routes no longer Bearer-only)"},
+    {"file": "src/lib/wallet-auth-headers.ts", "change": "doc flipped: wallet sig = SOLE REQUIRED credential, Bearer = deprecated optional wrapper"},
+    {"file": "src/client/index.ts", "change": "ensureUsableKey: wallet-present fast path returns {key:''}, key-mint gated behind opts.allowMint"},
+    {"file": "src/cli-v7/eval/resolve.ts", "change": "mergedAuthHeaders() wired in as the auth source on the resolve hot path; Bearer = optional layer"},
+    {"file": "src/sdk/client.ts", "change": "walletSigner callback added; constructor throws if neither walletSigner nor apiKey set; apiKey marked @deprecated"},
+    {"file": "src/sdk/types.ts", "change": "UnbrowseClientOptions: walletSigner (preferred) + apiKey (deprecated) added"},
+    {"file": "src/sdk/onboard.ts", "change": "ensureIdentity/onboardingStatus flipped: WALLET-FIRST, account-key = optional wrapper"},
+    {"file": "docs/architecture/AUTH.md", "change": "rewritten for web3-native identity model + parent/child substrate section added"}
+  ],
+  "witness_verdict": {
+    "witness_test": "backend/test/wallet-principal-never-keygated.test.ts",
+    "verdict": "3/3 PASS (2026-06-25) — wallet-only caller authenticates as wallet:<pk>; forged sig rejected; stale ts rejected",
+    "full_backend_test_dir": "backend/test/ — 15/15 PASS (2026-06-25) — includes wallet-sign, wallet-principal, anonymous-analytics, cli-wallet-auth-e2e",
+    "isolated_route_tests": "backend/tests/agents-wallet-route.test.ts (1/1 PASS) + auth-tos-gate.test.ts (4/4 PASS) + protected-routes-auth.test.ts + auth-recovery.test.ts (1/1 PASS) — each passes in isolation with the bearerAuthNoTos wallet-sig path in place",
+    "known_preexisting_isolation_flake": "Running the four route-test files TOGETHER produces 1 cross-pollution failure (agents-wallet-route returns already_claimed) — reproduces WITH and WITHOUT my auth.ts change. Pre-existing, unrelated to the web3 rip.",
+    "typecheck_filter": "no new errors in edited files (src/sdk/{client,onboard,types}.ts, src/cli-v7/eval/resolve.ts, src/lib/wallet-auth-headers.ts, src/client/index.ts, backend/src/middleware/auth.ts)"
+  },
+  "open_followups": {
+    "docs_remaining": [
+      "docs/whitepaper/{system-today,for-investors,what-is-unbrowse}.md — checked; existing language is wallet-aware (creator payout identity), no web2-first identity claim to flip",
+      "docs/sdk/build-on-unbrowse.md — extension-points table is generic; could add walletSigner hook row but not load-bearing",
+      "docs/concepts/contract-substrate.md — already declares the wallet-bound substrate model"
+    ],
+    "code_followups": [
+      "src/cli.ts:3783,3830 magicRegister/ensureRegistered — kept as optional wrappers; ensureUsableKey already returns {key:''} when wallet present so callers hit the anon-mint path",
+      "backend co-verification: full backend/test/ suite (15/15 PASS) + isolated route tests all GREEN with the bearerAuthNoTos wallet-sig path in place"
+    ]
+  }
+}
