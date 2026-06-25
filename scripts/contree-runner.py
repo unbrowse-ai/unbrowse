@@ -57,23 +57,25 @@ def main():
     print(f"      client ok; concurrent capacity available")
 
     print("[3/4] spawn microVM, install runner, register, run --ephemeral...")
-    image = client.images.use("ubuntu:22.04")
+    image = client.images.use("python:3.12-slim")
     boot_script = f"""
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl tar gzip jq git python3 python3-pip > /dev/null
+apt-get install -y -qq curl tar gzip jq git python3 python3-pip sudo > /dev/null
 id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
 cd /home/runner
 curl -sL {RUNNER_TGZ} | tar xz
-./config.sh \\
+chown -R runner:runner /home/runner
+./bin/installdependencies.sh
+sudo -u runner ./config.sh \\
     --url https://github.com/{REPO} \\
     --token {reg_token} \\
     --labels {LABEL} \\
     --ephemeral \\
     --unattended \\
     --name contree-$(hostname)
-./run.sh
+sudo -u runner ./run.sh
 """
     op = image.run(shell=boot_script, disposable=True, timeout=TIMEOUT)
     print(f"      microVM spawned; runner registering; will block until job completes or timeout")
