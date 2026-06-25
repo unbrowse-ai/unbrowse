@@ -765,7 +765,7 @@ export interface EndpointDescriptor {
   signature?: string;
   response_schema?: ResponseSchema;
   graphql_info?: {
-    operation_name?: string;
+    operation_name: string;
   };
   trigger_url?: string;
   graph_visibility?: GraphVisibility;

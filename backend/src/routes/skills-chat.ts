@@ -26,6 +26,7 @@ import { recommendCommandCached, recommendationCacheKey, proposeViaLlm, type Val
 import { statsKV } from "../services/kv.js";
 import { fingerprintSkillContract, memoizeSkillValue, kvContentStore, kvPointerIndex } from "../services/skill-contract-cache.js";
 import { endpointToHoledTool, type HoledTool } from "../../../src/skillmd.js";
+import type { SkillManifest as SharedSkillManifest } from "../../../src/types/skill.js";
 
 /** Stable label for the pinned /contract LLM chain — part of the memo fingerprint
  *  (a chain change must bust the cache). */
@@ -232,7 +233,7 @@ function liveDeps(env: Env): SkillChatDeps {
     // (typed holes only, no values, no credentials).
     recommendTool: async (skill, _message) => {
       const ep = (skill.endpoints ?? []).find((e) => typeof e?.endpoint_id === "string" && e.endpoint_id.length > 0);
-      return ep ? endpointToHoledTool(skill, ep) : null;
+      return ep ? endpointToHoledTool(skill as unknown as SharedSkillManifest, ep as SharedSkillManifest["endpoints"][number]) : null;
     },
     // Write-side (Layer 2): persist the resolved skill as a ledger contract.
     // Identical to the previous inline schedule block — re-hydrate the skill,

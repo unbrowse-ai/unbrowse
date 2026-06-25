@@ -62,7 +62,10 @@ if [[ -z "$CANDIDATE_URL" ]]; then
       sleep 1
     fi
     echo "[gate] starting local prod server on :3300" >&2
-    (cd "$FRONTEND_DIR" && PORT=3300 bun run start > "$BENCH_DIR/local-server.log" 2>&1 &)
+    (
+      cd "$FRONTEND_DIR"
+      PORT=3300 bun run start > "$BENCH_DIR/local-server.log" 2>&1
+    ) &
     LOCAL_SERVER_PID=$!
     # Wait for server up
     for i in 1 2 3 4 5 6 7 8 9 10; do

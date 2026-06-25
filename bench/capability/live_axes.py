@@ -91,7 +91,7 @@ def resolve(intent, url, top=8, no_execute=True, force_capture=True, timeout=210
     contract command a real agent calls.) The resolve envelope nests the shortlist
     under result.available_endpoints; --force-capture indexes on a cold miss so a
     fresh URL still measures real coverage, --no-execute returns the metadata only."""
-    args = ["eval", "resolve", "--intent", intent, "--url", url]
+    args = ["resolve", "--intent", intent, "--url", url]
     if no_execute:
         args.append("--no-execute")
     if force_capture:

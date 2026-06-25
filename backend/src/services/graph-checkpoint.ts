@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 
 const NODE_PREFIX = 0x01;
 const leafHex = (endpoint: string, did: string): string => sha256hex(`\x00${endpoint}:${did}`);
-const hashNode = (l: Buffer, r: Buffer): Buffer =>
+const hashNode = (l: Buffer<ArrayBufferLike>, r: Buffer<ArrayBufferLike>): Buffer<ArrayBufferLike> =>
   createHash("sha256").update(Buffer.concat([Buffer.from([NODE_PREFIX]), l, r])).digest();
 
 /** One step of an audit path: a sibling hash and which side it sits on. */
@@ -63,7 +63,7 @@ export function inclusionProof(g: SharedGraph, endpoint: string): InclusionStep[
     } else {
       proof.push({ hash: level[idx - 1].toString("hex"), right: false });
     }
-    const next: Buffer[] = [];
+    const next: Buffer<ArrayBufferLike>[] = [];
     for (let i = 0; i < level.length; i += 2) {
       next.push(i + 1 < level.length ? hashNode(level[i], level[i + 1]) : level[i]);
     }
@@ -77,7 +77,7 @@ export function inclusionProof(g: SharedGraph, endpoint: string): InclusionStep[
  *  check it reproduces `root`. A wrong deltaId, a tampered step, or a path for a different
  *  leaf fails closed. */
 export function verifyInclusion(root: string, endpoint: string, did: string, proof: InclusionStep[]): boolean {
-  let h = Buffer.from(leafHex(endpoint, did), "hex");
+  let h: Buffer<ArrayBufferLike> = Buffer.from(leafHex(endpoint, did), "hex");
   for (const s of proof) {
     const sib = Buffer.from(s.hash, "hex");
     h = s.right ? hashNode(h, sib) : hashNode(sib, h);

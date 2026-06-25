@@ -16,7 +16,7 @@ export interface WorkerProxyResponse {
   captcha_solver_status?: "dispatched" | "token_received" | "replay_success" | "failed_no_sitekey" | "failed_no_wallet" | "failed_solver_error" | "failed_replay_blocked" | "byok_dispatched" | "byok_token_received";
   /** What the SDK did with the on-chain route lookup, when enabled. */
   onchain_decision?: {
-    action: "replay" | "live_fetch_direct" | "live_fetch_iproyal" | "live_fetch_with_captcha";
+    action: "replay" | "live_fetch_direct" | "live_fetch_residential" | "live_fetch_with_captcha";
     endpoint_id?: string;
     commitment?: string;
     attested_on_chain?: boolean;
@@ -46,11 +46,11 @@ export interface WorkerProxyRequest {
 }
 
 export interface EgressConfig {
-  /** Egress mode. `direct` = worker's own IP. `residential` = IPRoyal pool. */
+  /** Egress mode. `direct` = worker's own IP. `residential` = residential proxy pool (worker-side configured). */
   mode: "direct" | "residential";
-  /** IPRoyal country-lock suffix (e.g. "my" for Malaysia). Appended to password as `_country-<cc>`. */
+  /** Residential pool country-lock suffix (e.g. "my" for Malaysia). Appended to the worker-side password as `_country-<cc>`. */
   country?: string;
-  /** IPRoyal sticky-session id. Appended to password as `_session-<id>`. */
+  /** Residential pool sticky-session id. Appended to the worker-side password as `_session-<id>`. */
   session_id?: string;
 }
 

@@ -75,6 +75,7 @@ function load() {
     contract_energy: { args: [FFIType.cstring, FFIType.cstring], returns: FFIType.f64 },
     contract_bible_anchor: { args: [FFIType.cstring], returns: FFIType.i64 },
     contract_embed_1536: { args: [FFIType.cstring], returns: FFIType.ptr },
+    contract_torah_bytes_hex: { args: [FFIType.cstring], returns: FFIType.ptr },
   });
   return lib;
 }
@@ -150,6 +151,19 @@ export function embed1536Native(text: string): number[] | null {
   } catch {
     return null;
   }
+}
+
+/** Emit canonical-order Torah/Bible + Hebrew lexicon bytes as hex through native libcontract. */
+export function torahBytesHexNative(refs: string): string | null {
+  let s: ReturnType<typeof load>["symbols"];
+  try {
+    s = load().symbols;
+  } catch {
+    return null;
+  }
+  const fn = (s as Record<string, unknown>).contract_torah_bytes_hex as ((refs: Buffer) => number | null) | undefined;
+  if (!fn) return null;
+  return readPtr(fn(cstr(refs)) as number | null);
 }
 
 /** Is the embedded substrate available in this install? (graceful fallback signal.) */

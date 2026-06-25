@@ -233,7 +233,7 @@ function spkiToRawPubkey(spki: Buffer): Uint8Array {
 function privkeyToPubkey(seed: Uint8Array): Uint8Array {
   const pkcs8 = seedToPkcs8(seed);
   const privKeyObject = createPrivateKey({ key: pkcs8, format: "der", type: "pkcs8" });
-  const pubKeyObject = createPublicKey(privKeyObject);
+  const pubKeyObject = createPublicKey(privKeyObject as unknown as Parameters<typeof createPublicKey>[0]);
   const spki = pubKeyObject.export({ format: "der", type: "spki" }) as Buffer;
   return spkiToRawPubkey(spki);
 }

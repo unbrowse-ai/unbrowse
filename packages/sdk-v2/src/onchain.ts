@@ -47,7 +47,7 @@ export interface IqAttestationRow {
 export type OnChainAction =
   | "replay"
   | "live_fetch_direct"
-  | "live_fetch_iproyal"
+  | "live_fetch_residential"
   | "live_fetch_with_captcha";
 
 export interface OnChainRouteDecision {
@@ -124,8 +124,8 @@ export function tier3IqAttestationLookup(
  * Decision rules (from packages/sdk-v2/CONTRACT.md):
  *   - Tier-1 hit → action = "replay" (with optional score boost from tier-2 strong)
  *   - Tier-1 miss + tier-2 strong → "live_fetch_direct" (bookmarked domains are more likely to accept direct fetch)
- *   - Tier-1 miss + tier-2 weak → "live_fetch_iproyal" (visited domains but unknown — use residential)
- *   - Tier-1 miss + tier-2 null + tier-3 attestation exists → "live_fetch_iproyal" (route exists somewhere, just not local — try residential)
+ *   - Tier-1 miss + tier-2 weak → "live_fetch_residential" (visited domains but unknown — use residential)
+ *   - Tier-1 miss + tier-2 null + tier-3 attestation exists → "live_fetch_residential" (route exists somewhere, just not local — try residential)
  *   - Tier-1 miss + tier-2 null + tier-3 miss → "live_fetch_with_captcha" (unknown frontier, expect challenge)
  *
  * Anti-bot escalation ladder: replay → direct → residential → captcha.
@@ -157,7 +157,7 @@ export function composeOnChainDecision(
 
   if (tier2 === "weak") {
     return {
-      action: "live_fetch_iproyal",
+      action: "live_fetch_residential",
       preference_bias: "weak",
       reason: "tier1 miss + recently-visited eTLD+1 → residential (visited but unverified)",
     };
@@ -165,7 +165,7 @@ export function composeOnChainDecision(
 
   if (tier3) {
     return {
-      action: "live_fetch_iproyal",
+      action: "live_fetch_residential",
       commitment: tier3.commitment,
       attested_on_chain: true,
       preference_bias: null,

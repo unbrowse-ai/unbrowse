@@ -268,11 +268,6 @@ export interface EndpointDescriptor {
   _minedTemplate?: string;
   /** Raw path binding evidence captured before semantic naming rewrites placeholders. */
   _path_binding_candidates?: EndpointPathBindingCandidate[];
-  /** GraphQL operation metadata — operation name extracted from request body or URL.
-   *  Used for deduplication, display, and template matching of GraphQL endpoints. */
-  graphql_info?: {
-    operation_name: string;
-  };
   /** Structured search form spec — when present, indicates this endpoint can be driven
    *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
    *  to gate search-form execution paths. */

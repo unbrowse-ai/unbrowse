@@ -1,7 +1,6 @@
 /**
  * contract-surface seed test — the /contract-shaped surface SHAPE is real (declareGoal),
- * and the ledger-DAG wiring is honestly unbuilt (resolveViaLedger throws a TODO, NOT a
- * fabricated witness). Red-first marker, not fake green.
+ * and resolveViaLedger returns a real witness shape instead of a stub.
  */
 import { describe, expect, it } from "bun:test";
 import { declareGoal, resolveViaLedger } from "../src/contract-surface/index.ts";
@@ -17,8 +16,10 @@ describe("contract-surface seed (the /contract-shaped union surface)", () => {
     expect(() => declareGoal({ intent: "" })).toThrow(/non-empty intent/);
   });
 
-  it("resolveViaLedger: wiring is honestly TODO — throws, never fakes a witness", async () => {
+  it("resolveViaLedger: returns a witness shape", async () => {
     const n = declareGoal({ intent: "anything" });
-    await expect(resolveViaLedger(n)).rejects.toThrow(/wiring TODO/);
+    const w = await resolveViaLedger(n);
+    expect(typeof w.satisfied).toBe("boolean");
+    expect(w.evidence).toBeTruthy();
   });
 });
