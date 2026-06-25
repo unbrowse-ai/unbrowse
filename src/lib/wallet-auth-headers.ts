@@ -1,12 +1,14 @@
 /**
  * wallet-auth-headers.ts — mint the web3-native auth capability for every backend call.
  *
- * The auth credential is a signed capability whose ROOT is the wallet pubkey (sp-zkaccess
- * `witness` atom: prove you hold the key by signing a fresh domain-separated challenge;
- * the verifier re-checks against the pubkey, no central authority). The api-key bearer is a
- * delegated convenience WRAPPER on top — these headers ride ALONGSIDE it, never instead of
- * the key. The backend (auth-signature.ts) authenticates the wallet sig FIRST and treats an
- * unbound wallet as the principal `wallet:<pk>`, so identity is never key-gated.
+ * IDENTITY ROOT = the wallet pubkey (ed25519). The caller proves key-holdership by
+ * signing a fresh domain-separated challenge; the backend verifies the signature and
+ * resolves the pubkey → agent_id (`wallet:<pk>` when unbound, the bound account
+ * otherwise). This is web3-native and NEVER key-gated: a wallet with no api-key is a
+ * full principal. The api-key Bearer is a DEPRECATED OPTIONAL web2 wrapper, sent only
+ * when a legacy key happens to be present so existing account-bound flows (earnings
+ * accrual, dashboards) keep working until the wrapper is fully retired. The wallet
+ * signature alone is sufficient — callers MUST NOT gate on key presence.
  *
  * Challenge MUST match the backend verbatim: AUTH_DOMAIN ":" pubkeyHex ":" ts (auth-signature.ts).
  */
@@ -59,11 +61,13 @@ export async function walletAuthHeaders(signer?: ThinClientSigner): Promise<Wall
 }
 
 /**
- * The remote-request auth header set: the wallet capability is PRIMARY (always sent when a
- * signer exists), the api-key bearer is the DELEGATED convenience grant layered on top (sent
- * only when present). Web3-native, never key-gated: a key-less wallet still authenticates;
- * a keyed wallet sends both (the backend authenticates the signature first, the key links the
- * web2 account). Used by the client transport for every outbound beta-api call.
+ * The remote-request auth header set: the wallet capability is the SOLE REQUIRED
+ * credential (always sent when a signer exists — and a signer always exists after
+ * first run, see ensureLocalWalletAddress). The api-key Bearer is a DEPRECATED
+ * OPTIONAL web2 wrapper, sent only when a legacy key is present for account-bound
+ * flow continuity. Web3-native, never key-gated: a key-less wallet authenticates
+ * fully; a keyed wallet sends both during the wrapper's retirement window. Used by
+ * the client transport for every outbound beta-api call.
  */
 export async function mergedAuthHeaders(key?: string, signer?: ThinClientSigner): Promise<Record<string, string>> {
   const wallet = (await walletAuthHeaders(signer)) ?? {};

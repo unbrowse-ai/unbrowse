@@ -164,7 +164,22 @@ export interface ApiKeyRevokeResponse {
 }
 
 export interface UnbrowseClientOptions {
+  /**
+   * @deprecated web2 web2 wrapper. The web3-native credential is the wallet
+   * signature (see `walletSigner`); a wallet-only caller authenticates as
+   * `wallet:<pk>` on the backend with no api-key. Kept for account-bound
+   * flow continuity during the wrapper's retirement window.
+   */
   apiKey?: string;
+  /**
+   * Web3-native auth signer. When set, the SDK calls it on every request and
+   * merges the returned headers (typically `X-Unbrowse-Wallet`,
+   * `X-Unbrowse-Auth-Ts`, `X-Unbrowse-Signature`) into the outbound request.
+   * The backend verifies the signature and authenticates as `wallet:<pk>`
+   * BEFORE any Bearer 401 path, so callers with NO api-key are full principals.
+   * Either `walletSigner` or `apiKey` MUST be set; `walletSigner` preferred.
+   */
+  walletSigner?: () => Promise<Record<string, string>>;
   baseURL?: string;
   timeout?: number;
   maxRetries?: number;

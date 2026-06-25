@@ -137,16 +137,38 @@ npm i unbrowse
 ```
 
 ```ts
-import { createHole } from "unbrowse/sdk";
+import { createHole, mergedAuthHeaders } from "unbrowse/sdk";
 
-const hole = createHole({ client: { apiKey: process.env.UNBROWSE_API_KEY } });
+// Web3-native: the wallet signature is the sole required credential.
+// mergedAuthHeaders() reads the local wallet at ~/.unbrowse/wallet.json
+// and emits the three auth capability headers per request. The backend
+// verifies the sig and authenticates as `wallet:<pk>` BEFORE any bearer
+// path — a wallet-only caller is a full principal, never key-gated.
+const hole = createHole({ client: { walletSigner: mergedAuthHeaders } });
 const data = await hole.fill({
   intent: "search Hacker News for AI agent papers",
   url: "https://news.ycombinator.com",
 });
 ```
 
-Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an API key. The same install also provides the `unbrowse` CLI and legacy MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for the full surface.
+A local self-custody ed25519 wallet is auto-created on first run — no signup
+required. The same wallet signs x402 payment envelopes, so "who you are" and
+"who pays" are the same handle.
+
+**Optional web2 wrapper (deprecated).** For account-bound flows (payouts
+accrual, dashboard sync, ToS surface tied to an email), layer a `ubr_`
+api-key over the wallet:
+
+```ts
+const hole = createHole({
+  client: { walletSigner: mergedAuthHeaders, apiKey: process.env.UNBROWSE_API_KEY },
+});
+```
+
+Register at [unbrowse.ai/login?cli=1](https://unbrowse.ai/login?cli=1) for an
+optional bound account key. The same install also provides the `unbrowse` CLI
+and legacy MCP server (`npx unbrowse mcp`) — see [SKILL.md](./SKILL.md) for
+the full surface.
 
 ### Option 3 — Standalone CLI
 

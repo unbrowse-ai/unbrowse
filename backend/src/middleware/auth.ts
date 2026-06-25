@@ -137,13 +137,35 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   if (r) return r;
 }
 
-/** Verify bearer token without checking ToS version. Used for /agents/accept-tos and /agents/me. */
+/** Verify bearer token without checking ToS version. Used for /agents/accept-tos and /agents/me.
+ *
+ * Web3-native: a verified wallet signature is the PRIMARY credential (same as
+ * bearerAuth + optionalAuth). The api-key Bearer is the optional web2 wrapper.
+ * A wallet-only caller (no bound key) authenticates as `wallet:<pk>` and can
+ * read its own profile + bind a wallet + re-accept ToS — never key-gated. */
 export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
+  // web3-PK signature auth (first-class, same root as bearerAuth). Verified
+  // wallet sig authenticates as `wallet:<pk>` even with NO api key.
+  const sigWallet = c.req.header("X-Unbrowse-Wallet");
+  const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+  const sigSig = c.req.header("X-Unbrowse-Signature");
+  if (sigWallet && sigTs && sigSig) {
+    const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+    if (sig) {
+      await ensureAgentProfile(c.env, sig.agent_id);
+      c.set("agent_id", sig.agent_id);
+      queueAgentActivity(c, sig.agent_id);
+      await next();
+      return;
+    }
+    // signature present but unverified → fall through to the key/anon wrapper.
+  }
+
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({
       error: "Missing or invalid Authorization header",
-      message: "Sign up at unbrowse.ai to get an API key.",
+      message: "Sign up at unbrowse.ai to get an API key, or run `unbrowse setup` to create a local wallet.",
     }, 401);
   }
   const token = authHeader.slice(7);

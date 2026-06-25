@@ -36,6 +36,7 @@ const SDK_VERSION = "7.0.0-preview.1";
 type Json = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 export class Unbrowse {
+  /** @deprecated web2 wrapper. Use `walletSigner` for web3-native auth. */
   readonly apiKey: string | undefined;
   readonly baseURL: string;
   readonly timeout: number;
@@ -43,6 +44,7 @@ export class Unbrowse {
   readonly logLevel: NonNullable<UnbrowseClientOptions["logLevel"]>;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly defaultHeaders: Record<string, string>;
+  private readonly walletSigner: UnbrowseClientOptions["walletSigner"];
 
   readonly account: AccountResource;
   readonly keys: KeysResource;
@@ -50,7 +52,17 @@ export class Unbrowse {
 
   constructor(opts: UnbrowseClientOptions = {}) {
     const env = readEnv();
+    // WEB3-NATIVE: wallet sig is PRIMARY (via walletSigner callback). The api-key
+    // Bearer is the deprecated web2 wrapper, kept for account-bound flow
+    // continuity. A wallet-only caller (no apiKey, walletSigner set)
+    // authenticates as `wallet:<pk>` on the backend — full principal.
     this.apiKey = opts.apiKey ?? env.UNBROWSE_API_KEY;
+    this.walletSigner = opts.walletSigner;
+    if (!this.apiKey && !this.walletSigner) {
+      throw new UnbrowseError(
+        "Unbrowse requires authentication. Pass `walletSigner` (web3-native, preferred) or `apiKey` (deprecated web2 wrapper).",
+      );
+    }
     this.baseURL = stripTrailingSlash(opts.baseURL ?? env.UNBROWSE_BASE_URL ?? DEFAULT_BASE_URL);
     this.timeout = opts.timeout ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -95,6 +107,14 @@ export class Unbrowse {
       ...this.defaultHeaders,
       ...(opts.headers ?? {}),
     };
+    // WEB3-NATIVE auth: the wallet signature is the SOLE REQUIRED credential.
+    // The backend verifies the sig and authenticates as `wallet:<pk>` BEFORE
+    // any Bearer 401 path. The apiKey Bearer below is the deprecated web2
+    // wrapper, sent only when a legacy key is present.
+    if (this.walletSigner) {
+      const walletHeaders = await this.walletSigner();
+      Object.assign(headers, walletHeaders);
+    }
     if (this.apiKey) headers["Authorization"] = `Bearer ${this.apiKey}`;
     if (body !== undefined && method !== "GET") headers["Content-Type"] = "application/json";
     if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
