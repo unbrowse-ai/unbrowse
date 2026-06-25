@@ -359,6 +359,63 @@ revenue. Check earnings via `unbrowse eval stats` or `unbrowse eval earnings`.
 - It does not silently replay during live browsing; a browser step is browser-native until
   `build index`/`build publish` compiles it into an explicit replay contract.
 
+## Chrome primitives contract (stateless, KV-backed)
+
+Unbrowse ships its own `chrome.*` primitive layer — stateless, no Chrome
+process spawned. The chrome extension API shape is mirrored 1:1, but the
+backing impl is unbrowse's own KV chain (sealed-cache + ledger). Anyone
+porting a new browser (Firefox, Safari, jsdom) satisfies the same shape.
+
+**The floor — `KvChain`.** Every primitive bottoms out at the same KV chain.
+Writes flow through three tiers:
+1. **Local** — in-process WalletSealedCache (AES-256-GCM, wallet-derived key).
+2. **Durable ledger** — append-only hash-chained rows to `.claude/contracts.jsonl`.
+   Each row carries a `commitment` (sha256 of the sealed value) — pointer-over-payload,
+   never the plaintext.
+3. **IQ (contract binary walks the chain)** — the `/contract` binary walks
+   `contracts.jsonl` on read-back; rows are content-addressed, so the contract
+   resolves KV writes by pointer, never payload.
+
+```ts
+import { KvChain } from "unbrowse/chrome/kv-chain";
+import * as cookies from "unbrowse/chrome/cookies";
+import * as storage from "unbrowse/chrome/storage";
+import * as history from "unbrowse/chrome/history";
+import * as bookmarks from "unbrowse/chrome/bookmarks";
+
+const chain = new KvChain({ walletSecret: "<from local wallet>" });
+
+// chrome.cookies.* — getAll / set / remove / getAllCookieStores
+const cookieStore = cookies.createStore(chain);
+await cookies.set(cookieStore, { url: "https://example.com/", name: "session", value: "abc", secure: true });
+const all = await cookies.getAll(cookieStore, { url: "https://example.com/" });
+
+// chrome.storage.local / .sync — get / set / remove / clear / getBytesInUse
+const local = storage.openArea(chain, "local");
+await local.set({ theme: "dark" });
+const { theme } = await local.get("theme");
+
+// chrome.history.* — search / getVisits / addUrl / deleteUrl / deleteRange / deleteAll
+//  + recentDomains() — the default-preference (weak) signal
+const hist = history.openHistory(chain);
+await hist.addUrl("https://github.com/unbrowse-ai/unbrowse");
+const recent = await history.recentDomains(chain, { sinceDaysAgo: 14 });
+
+// chrome.bookmarks.* — getTree / getChildren / search / create / move / update / remove / removeTree
+//  + bookmarkDomains() + loadDefaultPreferences() (strong + weak)
+const bm = bookmarks.openBookmarks(chain);
+await bm.create({ parentId: "bookmark_bar", title: "Unbrowse", url: "https://github.com/unbrowse-ai/unbrowse" });
+const prefs = await bookmarks.loadDefaultPreferences(chain);
+//   prefs = { bookmark_domains: [...], recent_domains: [...], redacted: true }
+```
+
+**Default preference (history + bookmarks).** The resolve/ranking layer
+weights candidate domains higher when they appear in bookmarks (strong —
+user saved them) or recent history (weak — user visited recently). Both
+return eTLD+1 only (subdomain/path/query stripped by construction).
+
+Full spec: `src/chrome/CONTRACT.md`.
+
 ## Reporting issues
 
 When Unbrowse fails on a site (empty data after browse+index+resolve+execute, auth fails
