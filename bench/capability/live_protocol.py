@@ -80,7 +80,7 @@ def _parse_envelope(out):
 def resolve_live(intent, url=None, force_capture=True, timeout=180):
     """Agent-contract STEP 1: top-level `unbrowse resolve --no-execute` → ranked endpoints
     (result.available_endpoints). --force-capture indexes on a cold miss."""
-    args = ["eval", "resolve", "--intent", intent, "--no-execute"]
+    args = ["resolve", "--intent", intent, "--no-execute"]
     if url:
         args += ["--url", url]
     if force_capture:

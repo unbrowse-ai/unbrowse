@@ -42,9 +42,9 @@ function canon(e: Omit<LedgerEntry, "sig">): Uint8Array {
  *  one source of truth for the shared-graph merge commitment (graph-merge). */
 export function merkleRoot(leafHexes: string[]): string {
   if (!leafHexes.length) return sha256hex(new Uint8Array());
-  let level = leafHexes.map((h) => Buffer.from(h, "hex"));
+  let level: Buffer<ArrayBufferLike>[] = leafHexes.map((h) => Buffer.from(h, "hex"));
   while (level.length > 1) {
-    const next: Buffer[] = [];
+    const next: Buffer<ArrayBufferLike>[] = [];
     for (let i = 0; i < level.length; i += 2) {
       if (i + 1 < level.length) {
         next.push(createHash("sha256").update(Buffer.concat([Buffer.from([0x01]), level[i], level[i + 1]])).digest());

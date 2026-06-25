@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-monorepo",
-  "version": "11.0.1",
+  "version": "11.0.2",
   "workspaces": [
     "packages/*",
     "backend",
@@ -76,6 +76,9 @@
     "bench:gate:refresh-corpus": "bash scripts/refresh-bench-corpus.sh",
     "bench:gate:freeze": "bun scripts/bench-gate-compare.ts --freeze",
     "bench:gate:full": "~/.claude/skills/contract/scripts/aiko 'bench-gate-full'",
+    "bench:ryuga:seal0": "bash bench/ryuga-seal0-gate.sh",
+    "bench:layer-contract": "bash bench/exa/layer-contract-gate.sh",
+    "contract:torah-root": "bun scripts/contract-torah-root-gate.ts",
     "bench:gate:mcp": "~/.claude/skills/contract/scripts/aiko 'bench-gate-mcp'",
     "bench:gate:mcp:collect": "bun scripts/bench-gate-mcp-collect.ts",
     "bench:corpus:validate": "bun scripts/bench-corpus.ts validate",

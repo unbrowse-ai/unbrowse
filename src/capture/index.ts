@@ -37,6 +37,18 @@ const interceptorInjectedTabs = new Set<string>();
 // Tracks tabs where CDP-level document-start injection has been registered
 const cdpDocStartTabs = new Set<string>();
 
+type CdpWebSocket = {
+  close(): void;
+  send(data: string): void;
+  onopen: (() => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onerror: (() => void) | null;
+};
+
+function openCdpWebSocket(url: string): CdpWebSocket {
+  return new WebSocket(url) as unknown as CdpWebSocket;
+}
+
 /**
  * Register a script via Chrome's Page.addScriptToEvaluateOnNewDocument CDP method directly.
  * This runs BEFORE any page JS on every navigation — critical for catching early fetch() calls.
@@ -55,7 +67,7 @@ export async function registerDocumentStartScript(tabId: string, source: string)
     if (!target?.webSocketDebuggerUrl) return false;
 
     // Connect via WebSocket and send CDP command
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    const ws = openCdpWebSocket(target.webSocketDebuggerUrl);
     const result = await new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => { ws.close(); resolve(false); }, 3000);
       ws.onopen = () => {
@@ -108,7 +120,7 @@ export async function enableNetworkHeaderCapture(tabId: string): Promise<void> {
     const headers = new Map<string, Record<string, string>>();
     cdpCapturedHeaders.set(tabId, headers);
 
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    const ws = openCdpWebSocket(target.webSocketDebuggerUrl);
     ws.onopen = () => {
       // Enable network domain (may already be enabled, that's OK)
       ws.send(JSON.stringify({ id: 1, method: "Network.enable", params: {} }));
@@ -1670,7 +1682,7 @@ export async function captureSession(
     }, CAPTURE_NO_PROGRESS_MS);
     const cdpResponseMeta = new Map<string, { status: number; headers: Array<{name: string; value: string}>; mimeType: string }>();
     const cdpFinishedRequests = new Set<string>();
-    let cdpWs: WebSocket | null = null;
+    let cdpWs: CdpWebSocket | null = null;
     let cdpMsgId = 10;
     const cdpPendingBodies = new Map<number, string>(); // msgId -> requestId
     const cdpResolvedBodies = new Map<string, string>(); // url -> body
@@ -1681,7 +1693,7 @@ export async function captureSession(
         const tabs = (await tabsResp.json()) as Array<{ id: string; webSocketDebuggerUrl?: string; type?: string }>;
         const cdpTab = tabs.find(t => t.id === tabId) ?? tabs.find(t => t.type === "page");
         if (cdpTab?.webSocketDebuggerUrl) {
-          cdpWs = new WebSocket(cdpTab.webSocketDebuggerUrl);
+          cdpWs = openCdpWebSocket(cdpTab.webSocketDebuggerUrl);
           await new Promise<void>((resolve, reject) => {
             cdpWs!.onopen = () => resolve();
             cdpWs!.onerror = () => reject(new Error("CDP WS failed"));

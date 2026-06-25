@@ -62,7 +62,7 @@ export function revengWithHoles(capture: RawRequest[]): {
   holes: HoleTemplate[];
 } {
   const safe = obfuscateCaptureForReveng(capture);
-  return { endpoints: extractEndpoints(safe), holes: safe.map(extractHoles) };
+  return { endpoints: extractEndpoints(safe), holes: safe.map((request) => extractHoles(request)) };
 }
 
 /**

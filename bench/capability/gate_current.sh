@@ -22,7 +22,7 @@ def last(axis):
     return rs[-1] if rs else None  # last appended = latest evidence (no ts parsing)
 
 checks = {
-    "A indexing":  (last("A_indexing"),  lambda r: r.get("gate") == "true" and r.get("coverage") is True and r.get("tiers_covered") is True),
+    "A indexing":  (last("A_indexing"),  lambda r: r.get("gate") == "true" and r.get("coverage") is True and (r.get("tiers_covered") is True or all((r.get("per_tier") or {}).get(t, {}).get("coverage_rate") == 1.0 for t in ("R", "H", "A")))),
     "B execution": (last("B_execute"),   lambda r: r.get("source") == "live" and r.get("gate") == "true"),
     "C auth":      (last("C_auth"),       lambda r: r.get("gate") == "true" and r.get("authed") is True),
     "D security":  (last("D_security"),   lambda r: r.get("leak_clean") is True),

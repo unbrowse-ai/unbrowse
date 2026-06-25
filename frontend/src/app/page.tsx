@@ -131,6 +131,7 @@ export default function Home() {
           <p>
             Unbrowse learns first-party routes behind websites and lets agents act through them directly when they are available, instead of driving a headless browser by default. In the 94-domain paper benchmark, warmed cached routes averaged a 3.6x mean speedup and 5.4x median speedup over Playwright. Routes discovered by one agent can be reused by others, and the people who maintain those routes can be compensated when they run.
           </p>
+          <p>Each captured shadow API can be reused as an agent route, with paid reuse settled on Solana via Faremeter Flex.</p>
           <p>Default setup: npm install -g unbrowse; unbrowse setup</p>
           <p>Setup installs the Agent Skill and browser engine. It does not write MCP host configs.</p>
           <p>Legacy MCP stdio server: unbrowse mcp</p>

@@ -8,6 +8,7 @@
  */
 
 import { config as loadEnv } from "dotenv";
+import { nanoid } from "nanoid";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { extractEmbeddedJsonBody, inferWriteMethod } from "./lib/infer-write-method.js";
@@ -795,6 +796,18 @@ function markResolveCacheReplay(hit: Record<string, unknown>): Record<string, un
   return out;
 }
 
+function cachedResolutionHasReadableValue(hit: Record<string, unknown> | null | undefined): boolean {
+  const result = hit?.result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
+  const value = result as Record<string, unknown>;
+  if (typeof value.markdown === "string" && value.markdown.trim().length > 0) return true;
+  if (typeof value.text === "string" && value.text.trim().length > 0) return true;
+  if (typeof value.text_excerpt === "string" && value.text_excerpt.trim().length > 0) return true;
+  if (Array.isArray(value.data) && value.data.length > 0) return true;
+  if (value.data && typeof value.data === "object") return Object.keys(value.data as Record<string, unknown>).length > 0;
+  return false;
+}
+
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = (flags.intent ?? flags.task ?? flags.query) as string;
   if (!intent) die("--intent is required. Example: unbrowse resolve --intent 'search github for repos' --url https://github.com");
@@ -821,8 +834,15 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     // cached under a reddit.com request) — treat it as a miss so the orchestrator
     // re-resolves against the requested host and the poisoned row self-heals.
     const cachedData = cachedHit ? (cachedHit.result ?? (cachedHit as Record<string, unknown>).data) : undefined;
+    const cachedSource = typeof cachedHit?.source === "string" ? cachedHit.source : undefined;
+    const replayWouldBeEmptyMarketplaceValue = Boolean(
+      targetUrl &&
+      cachedSource === "marketplace" &&
+      !cachedResolutionHasReadableValue(cachedHit),
+    );
     if (
       cachedHit &&
+      !replayWouldBeEmptyMarketplaceValue &&
       resolutionCardinalityMatches(intent, cachedData) &&
       resolutionHostMatches(typeof flags.url === "string" ? flags.url : undefined, cachedData) &&
       // Path guard (concrete-resource misroute): an explicit --url naming a concrete
@@ -1507,6 +1527,75 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
     return true;
   }
 
+  function isConcreteStructuredUrl(value: string): boolean {
+    try {
+      const u = new URL(value);
+      return /(?:^|\/)api(?:\/|$)/i.test(u.pathname) || /\.json$/i.test(u.pathname);
+    } catch {
+      return false;
+    }
+  }
+
+  async function tryDirectStructuredUrl(): Promise<Record<string, unknown> | null> {
+    if (!url || explicitEndpointId || noExecute || !isConcreteStructuredUrl(url)) return null;
+    runPlan.push({ step: "execute", mode: "direct_structured_url", status: "started" });
+    const buildResult = (body: unknown, status: number, bytes: number, source = "direct-fetch", cookiesInjected = 0) => ({
+      trace: {
+        trace_id: nanoid(),
+        success: true,
+        status_code: status,
+      },
+      result: body,
+      timing: { source },
+      impact: { source, browser_avoided: true },
+      source,
+      egress_bytes: bytes,
+      ...(cookiesInjected > 0 ? { cookies_injected: cookiesInjected } : {}),
+    });
+    const parseBody = (text: string): unknown => {
+      try { return JSON.parse(text); } catch { return text; }
+    };
+    try {
+      const headersLiteral = JSON.stringify({ Accept: "application/json, text/plain;q=0.9, */*;q=0.8" }).replace(/'/g, "\\'");
+      const bundleSource = `(() => {
+        const r = __nativeFetch("GET", ${JSON.stringify(url)}, ${headersLiteral}, null);
+        globalThis.r = { status: r.status, content_type: r.headers && (r.headers['content-type'] || r.headers['Content-Type']) || null, body: r.body, final_url: r.url };
+      })()`;
+      const { resp, postEvalProcessed } = await runSandboxCore({
+        ...flags,
+        "bundle-source": bundleSource,
+        "post-eval": "globalThis.r",
+      }, url);
+      const peo = postEvalProcessed as Record<string, unknown> | undefined;
+      const status = Number(peo?.status ?? 0);
+      const bodyText = typeof peo?.body === "string" ? peo.body : "";
+      if (status < 200 || status >= 400 || bodyText.length === 0) {
+        runPlan[runPlan.length - 1] = {
+          ...runPlan[runPlan.length - 1],
+          status: "miss",
+          status_code: status || null,
+        };
+        return null;
+      }
+      runPlan[runPlan.length - 1] = {
+        ...runPlan[runPlan.length - 1],
+        status: "complete",
+        status_code: status,
+        bytes: bodyText.length,
+        routes_observed: resp.routes_observed?.length ?? 0,
+        final_url: typeof peo?.final_url === "string" ? peo.final_url : url,
+      };
+      return buildResult(parseBody(bodyText), status, bodyText.length, "direct-fetch", resp.cookies?.length ?? 0);
+    } catch (e) {
+      runPlan[runPlan.length - 1] = {
+        ...runPlan[runPlan.length - 1],
+        status: "error",
+        error: e instanceof Error ? e.message : String(e),
+      };
+      return null;
+    }
+  }
+
   // Synthetic page-artifact endpoint: capture pipeline emits these for
   // doc_only sites where the input URL itself is the data surface (SSR /
   // JSON-LD / Redux-rehydrated SPA). Re-fetching url_template via libcurl
@@ -1751,6 +1840,11 @@ export async function cmdRun(args: string[], flags: Record<string, string | bool
   }
 
   try {
+    const directStructured = await tryDirectStructuredUrl();
+    if (directStructured) {
+      output(decorate(mirrorNavigateBodyToPage(directStructured)), !!flags.pretty);
+      return;
+    }
     let result = await resolveStep("initial");
     if (draftOnlyIntent) {
       if (isResolveSuccessResult(result)) {

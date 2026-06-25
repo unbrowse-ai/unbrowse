@@ -4900,6 +4900,32 @@ export async function resolveAndExecute(
           };
         }
       }
+      if (
+        (w.kind === "marketplace" || w.kind === "local-skill") &&
+        !agentChoseEndpoint &&
+        raceContextUrl &&
+        !isSearchLikeIntent(queryIntent, raceContextUrl)
+      ) {
+        const directDoc = await fetchDirectDocument(raceContextUrl);
+        if (directDoc && directDoc.markdown.length >= 500) {
+          const trace: ExecutionTrace = {
+            trace_id: nanoid(),
+            skill_id: "direct-document",
+            endpoint_id: "direct-document",
+            started_at: new Date(t0).toISOString(),
+            completed_at: new Date().toISOString(),
+            success: true,
+          };
+          console.log(`[direct-document] ${raceContextUrl} literal URL value preferred over ${w.kind} hit ${w.skill.skill_id}`);
+          return {
+            result: directDoc,
+            trace,
+            source: "direct-document" as const,
+            skill: undefined as any,
+            timing: finalize("direct-document", directDoc, "direct-document", undefined as any, trace),
+          };
+        }
+      }
       if (w.kind === "marketplace") {
         return buildDeferral(w.skill, "marketplace", { decision_trace: decisionTrace });
       }

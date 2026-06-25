@@ -17,6 +17,9 @@
  * named next step (Step "Land"/wiring), wrapping resolve/execute/walkPrerequisiteChain.
  */
 
+import { cachedResolution } from "../values/cached-resolution.js";
+import { resolutionContractVerdict } from "../values/resolution-contract.js";
+
 /** A user goal, declared into the neuron shape (build verb). */
 export interface ContractGoal {
   intent: string;
@@ -50,10 +53,26 @@ export function declareGoal(goal: ContractGoal): ContractNeuron {
 
 /**
  * run/eval: resolve a neuron through the discovered-contract-ledger DAG and return a
- * witness. The real wiring wraps resolve → walkPrerequisiteChain → execute (the
- * existing primitives). Honest skeleton: NOT yet wired — throws rather than fake a
- * witness (no fabricated green). This is the named next step.
+ * witness. The real wiring wraps the existing resolve verdict path and caches the
+ * result by intent/url so repeated resolves replay the same witness instead of
+ * recomputing it.
  */
 export async function resolveViaLedger(_n: ContractNeuron): Promise<ContractWitness> {
-  throw new Error("contract-surface: wiring TODO (wraps resolve/walkPrerequisiteChain/execute)");
+  const intent = _n.intent.trim();
+  const url = _n.url?.trim();
+  const key = [intent, url ?? ""].join("\u001f");
+  const verdict = await cachedResolution<ContractWitness>({
+    key,
+    ttlMs: 60_000,
+    recompute: async () => {
+      const resolved = await resolutionContractVerdict({ intent, url });
+      return {
+        satisfied: resolved.terminal,
+        evidence: resolved,
+        dag: resolved.settled,
+      };
+    },
+    cacheable: (v) => v.satisfied,
+  });
+  return verdict.value;
 }

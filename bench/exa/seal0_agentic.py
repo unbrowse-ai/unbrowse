@@ -44,7 +44,7 @@ NEBIUS_BASE = "https://api.tokenfactory.nebius.com/v1"
 # Provider registry: name -> (base_url | None for OpenAI, key_env, default model).
 PROVIDERS = {
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "google/gemini-2.5-flash"),
-    "nebius":     (NEBIUS_BASE,                    "NEBIUS_API_KEY",     "moonshotai/Kimi-K2.5"),
+    "nebius":     (NEBIUS_BASE,                    "NEBIUS_API_KEY",     "zai-org/GLM-5.2"),
     "openai":     (None,                           "OPENAI_API_KEY",     "gpt-4o"),
 }
 # Agent: OpenRouter (Kimi-K2.5 returned empty completions + echoed queries).
@@ -60,6 +60,7 @@ RESULTS_PER_SEARCH = int(os.environ.get("SEAL0_RESULTS_PER_SEARCH", "5"))
 RESULT_CHARS = int(os.environ.get("SEAL0_RESULT_CHARS", "1200"))   # per-snippet, in-context
 CTX_SNIPPET_CHARS = int(os.environ.get("SEAL0_CTX_SNIPPET_CHARS", "320"))  # planner digest
 EVIDENCE_KEEP = int(os.environ.get("SEAL0_EVIDENCE_KEEP", "8"))    # snippets into reconciler
+UNCAP_MAX_TOKENS = os.environ.get("SEAL0_UNCAP_MAX_TOKENS", "0").lower() in {"1", "true", "yes"}
 
 # Phase A.1 — decompose: propose N DISTINCT search angles up front. Diversity is the
 # lever: the single naive query returns only the popular (trap) answer.
@@ -142,9 +143,16 @@ class Trace:
 async def _chat(agent: OpenAI, messages: list, max_tokens: int = 700) -> str:
     """One chat call; retry once on empty content (the empty-completion bug guard)."""
     for _ in range(2):
+        kwargs = {
+            "model": AGENT_MODEL,
+            "messages": messages,
+            "temperature": 0.2,
+        }
+        if not UNCAP_MAX_TOKENS:
+            kwargs["max_tokens"] = max_tokens
         resp = await asyncio.to_thread(
             agent.chat.completions.create,
-            model=AGENT_MODEL, messages=messages, temperature=0.2, max_tokens=max_tokens,
+            **kwargs,
         )
         content = (resp.choices[0].message.content or "").strip()
         if content:
@@ -231,6 +239,9 @@ async def process(searcher, agent, grader, qid, row) -> Trace:
     tr = Trace(qid=qid, question=row["question"], gold=str(row["answer"]))
     try:
         await run_agent(searcher, agent, tr)
+        if not tr.pred.strip():
+            tr.errored, tr.error, tr.correct = True, "empty prediction (fail-loud abstention)", False
+            return tr
         await asyncio.to_thread(grade, grader, tr)
     except Exception as e:  # noqa: BLE001 - fail loud, count as incorrect
         tr.errored, tr.error, tr.correct = True, f"{type(e).__name__}: {e}"[:300], False

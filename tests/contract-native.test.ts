@@ -5,7 +5,7 @@
  * The id round-trips through the real ledger (the lib reads ~/.contracts).
  */
 import { describe, expect, it } from "bun:test";
-import { declareNative, getNative, nativeAvailable } from "../src/values/contract-native.js";
+import { declareNative, getNative, nativeAvailable, torahBytesHexNative } from "../src/values/contract-native.js";
 
 describe("contract embedded in the CLI binary (in-process)", () => {
   it("the vendored libcontract loads in-process", () => {
@@ -25,5 +25,12 @@ describe("contract embedded in the CLI binary (in-process)", () => {
     expect(id).toMatch(/^[0-9a-f]{8}$/);
     const rows = getNative(id!);
     expect(rows && rows.includes(id!)).toBe(true);
+  });
+
+  it("emits canonical Torah/Hebrew lexicon bytes through native libcontract", () => {
+    const hex = torahBytesHexNative("Numbers 1:2, Genesis 1:1");
+    expect(hex).toBeString();
+    expect(hex).toStartWith("43544231");
+    expect(hex).toBe(torahBytesHexNative("Genesis 1:1\nNumbers 1:2"));
   });
 });

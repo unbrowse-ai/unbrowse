@@ -1588,7 +1588,7 @@ function templatizePathSegments(
     // Parse templateUrl manually to avoid encoding {braces}
     // Format: "https://host:port/path/segments" (query already stripped by normalizeUrl)
     const tMatch = templateUrl.match(/^(https?:\/\/[^/]+)(\/.*)?$/);
-    if (!tMatch) return { url: templateUrl, pathParams };
+    if (!tMatch) return { url: templateUrl, pathParams, pathBindingCandidates };
     const tOrigin = tMatch[1];
     const tPath = tMatch[2] ?? "/";
 

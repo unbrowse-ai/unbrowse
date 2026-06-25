@@ -22,13 +22,11 @@ import {
   VENDOR_TASK_TYPE,
 } from "../packages/sdk-v2/src/captcha.js";
 import {
-  resolveProxyUrl,
-  resolveEgressProxy,
-  applyIproyalOverrides,
-  formatIproyalUrl,
+  resolveEgressMode,
+  applyResidentialOverrides,
   redactProxyUrl,
-  type IproyalCreds,
-} from "../packages/sdk-v2/src/iproyal.js";
+  type EgressHint,
+} from "../packages/sdk-v2/src/egress.js";
 
 const NOW = 1_700_000_000_000;
 
@@ -140,15 +138,15 @@ describe("onchain — composeOnChainDecision", () => {
     expect(d.preference_bias).toBe("strong");
   });
 
-  it("returns 'live_fetch_iproyal' on tier-1 miss + visited (weak)", () => {
+  it("returns 'live_fetch_residential' on tier-1 miss + visited (weak)", () => {
     const d = composeOnChainDecision(null, "weak", null);
-    expect(d.action).toBe("live_fetch_iproyal");
+    expect(d.action).toBe("live_fetch_residential");
     expect(d.preference_bias).toBe("weak");
   });
 
-  it("returns 'live_fetch_iproyal' on tier-1 + tier-2 miss + tier-3 attestation exists", () => {
+  it("returns 'live_fetch_residential' on tier-1 + tier-2 miss + tier-3 attestation exists", () => {
     const d = composeOnChainDecision(null, null, tier3Match);
-    expect(d.action).toBe("live_fetch_iproyal");
+    expect(d.action).toBe("live_fetch_residential");
     expect(d.attested_on_chain).toBe(true);
   });
 
@@ -303,100 +301,73 @@ describe("captcha — categorizeSolverOutcome", () => {
   });
 });
 
-describe("iproyal — resolveProxyUrl", () => {
-  it("returns undefined when UNBROWSE_DIRECT_EGRESS=1", () => {
-    expect(resolveProxyUrl({ UNBROWSE_DIRECT_EGRESS: "1", IPROYAL_USER: "u", IPROYAL_PASS: "p" })).toBeUndefined();
+describe("egress — resolveEgressMode", () => {
+  it("per-call override wins", () => {
+    expect(resolveEgressMode({ UNBROWSE_DIRECT_EGRESS: "1" }, { mode: "residential" }).mode).toBe("residential");
   });
 
-  it("returns UNBROWSE_PROXY_URL when set", () => {
-    expect(resolveProxyUrl({ UNBROWSE_PROXY_URL: "http://other:8080" })).toBe("http://other:8080");
+  it("UNBROWSE_DIRECT_EGRESS=1 → direct", () => {
+    expect(resolveEgressMode({ UNBROWSE_DIRECT_EGRESS: "1" }, null).mode).toBe("direct");
   });
 
-  it("builds IPRoyal URL from env creds", () => {
-    expect(resolveProxyUrl({ IPROYAL_USER: "u1", IPROYAL_PASS: "p1_country-my" })).toBe(
-      "http://u1:p1_country-my@geo.iproyal.com:12321",
-    );
+  it("UNBROWSE_PROXY_URL set → residential", () => {
+    expect(resolveEgressMode({ UNBROWSE_PROXY_URL: "http://other:8080" }, null).mode).toBe("residential");
   });
 
-  it("falls back to file creds when env is empty", () => {
-    const fileCreds: IproyalCreds = { username: "fu", password: "fp", host: "geo.iproyal.com", port: 12321 };
-    expect(resolveProxyUrl({}, () => fileCreds)).toBe("http://fu:fp@geo.iproyal.com:12321");
+  it("nothing configured → direct (default)", () => {
+    expect(resolveEgressMode({}, null).mode).toBe("direct");
   });
 
-  it("returns undefined when nothing is configured", () => {
-    expect(resolveProxyUrl({})).toBeUndefined();
-  });
-});
-
-describe("iproyal — resolveEgressProxy", () => {
-  const fileCreds: IproyalCreds = { username: "fu", password: "fp", host: "geo.iproyal.com", port: 12321 };
-
-  it("per-call override 'direct' short-circuits to undefined", () => {
-    expect(resolveEgressProxy({ IPROYAL_USER: "u", IPROYAL_PASS: "p" }, { mode: "direct" })).toBeUndefined();
-  });
-
-  it("per-call override 'residential' forces IPRoyal even with UNBROWSE_DIRECT_EGRESS set", () => {
-    const url = resolveEgressProxy(
-      { UNBROWSE_DIRECT_EGRESS: "1", IPROYAL_USER: "u", IPROYAL_PASS: "p" },
-      { mode: "residential" },
-    );
-    expect(url).toContain("geo.iproyal.com:12321");
-  });
-
-  it("per-call override country/session appends to password", () => {
-    const url = resolveEgressProxy(
-      { IPROYAL_USER: "u", IPROYAL_PASS: "p" },
-      { mode: "residential", country: "my", session_id: "s1" },
-    );
-    expect(url).toBe("http://u:p_country-my_session-s1@geo.iproyal.com:12321");
-  });
-
-  it("falls back to file creds under residential override", () => {
-    const url = resolveEgressProxy({}, { mode: "residential" }, () => fileCreds);
-    expect(url).toBe("http://fu:fp@geo.iproyal.com:12321");
-  });
-
-  it("precedence: DIRECT > PROXY_URL > IPRoyal(file)", () => {
-    expect(resolveEgressProxy({ UNBROWSE_DIRECT_EGRESS: "1" }, null, () => fileCreds)).toBeUndefined();
-    expect(resolveEgressProxy({ UNBROWSE_PROXY_URL: "http://x:y@h:1" }, null, () => fileCreds)).toBe("http://x:y@h:1");
-    expect(resolveEgressProxy({}, null, () => fileCreds)).toContain("geo.iproyal.com:12321");
+  it("country/session override takes precedence over env vars", () => {
+    const hint = resolveEgressMode({}, { mode: "residential", country: "my" });
+    expect(hint.mode).toBe("residential");
+    expect(hint.country).toBe("my");
   });
 });
 
-describe("iproyal — applyIproyalOverrides", () => {
-  const creds: IproyalCreds = { username: "u", password: "p", host: "h", port: 1 };
-
-  it("appends country suffix", () => {
-    expect(applyIproyalOverrides(creds, { country: "my" }).password).toBe("p_country-my");
+describe("egress — applyResidentialOverrides", () => {
+  it("appends country to an existing hint", () => {
+    const out = applyResidentialOverrides({ mode: "residential" }, { country: "my" });
+    expect(out.country).toBe("my");
+    expect(out.session_id).toBeUndefined();
   });
 
-  it("appends session suffix", () => {
-    expect(applyIproyalOverrides(creds, { session_id: "s1" }).password).toBe("p_session-s1");
+  it("appends session id", () => {
+    const out = applyResidentialOverrides({ mode: "residential" }, { session_id: "s1" });
+    expect(out.session_id).toBe("s1");
   });
 
-  it("appends both in order country, session", () => {
-    expect(applyIproyalOverrides(creds, { country: "my", session_id: "s1" }).password).toBe("p_country-my_session-s1");
+  it("appends both country and session", () => {
+    const out = applyResidentialOverrides({ mode: "residential" }, { country: "my", session_id: "s1" });
+    expect(out.country).toBe("my");
+    expect(out.session_id).toBe("s1");
   });
 
-  it("returns the creds unchanged when no overrides", () => {
-    expect(applyIproyalOverrides(creds, null).password).toBe("p");
+  it("returns the hint unchanged when overrides are null", () => {
+    const hint: EgressHint = { mode: "residential" };
+    expect(applyResidentialOverrides(hint, null)).toBe(hint);
+  });
+
+  it("preserves existing country when only session_id is overridden", () => {
+    const out = applyResidentialOverrides({ mode: "residential", country: "us" }, { session_id: "s1" });
+    expect(out.country).toBe("us");
+    expect(out.session_id).toBe("s1");
   });
 });
 
-describe("iproyal — format + redact", () => {
-  it("formatIproyalUrl builds the canonical http://user:pass@host:port form", () => {
-    expect(formatIproyalUrl({ username: "u", password: "p", host: "h", port: 1 })).toBe("http://u:p@h:1");
+describe("egress — redactProxyUrl", () => {
+  it("redacts credentials from a URL with inline user:pass@", () => {
+    const redacted = redactProxyUrl("http://user:secret@host.example:1234");
+    expect(redacted).not.toContain("user");
+    expect(redacted).not.toContain("secret");
+    expect(redacted).toContain("host.example:1234");
   });
 
-  it("redactProxyUrl redacts credentials", () => {
-    const url = formatIproyalUrl({ username: "secret_user", password: "secret_pass", host: "h", port: 1 });
-    const redacted = redactProxyUrl(url);
-    expect(redacted).not.toContain("secret_user");
-    expect(redacted).not.toContain("secret_pass");
-    expect(redacted).toContain("h:1");
-  });
-
-  it("redactProxyUrl returns undefined for undefined input", () => {
+  it("returns undefined for undefined input", () => {
     expect(redactProxyUrl(undefined)).toBeUndefined();
+  });
+
+  it("returns a non-URL string unchanged after best-effort redaction", () => {
+    expect(redactProxyUrl("not a url")).toBe("not a url");
   });
 });

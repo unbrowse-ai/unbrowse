@@ -66,7 +66,7 @@ export interface ContributionConfig {
 }
 
 const DEFAULT: ContributionConfig = {
-  // You are opted in by default: skills publish publicly to the marketplace.
+  // You are opted in by default: skills publish publicly to the marketplace and index on-chain.
   // auto_review=true means captures publish on close/sync without an
   // explicit `unbrowse_review` call (and without a reviewed_at stamp —
   // that field records an actual review). To require the
