@@ -20,6 +20,11 @@ permissions:
 env:
   PUPPETEER_SKIP_DOWNLOAD: "1"
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  # chromedriver (transitive via @axe-core/cli) tries to download a chromedriver
+  # binary on install; on the gitea runner this races across the 5 parallel
+  # matrix shards (concurrent bun installs share the cache dir) and exits 1.
+  # We don't drive a real chrome via chromedriver in any release step — skip it.
+  CHROMEDRIVER_SKIP_DOWNLOAD: "true"
 
 jobs:
   build-kuri-win-x64:
