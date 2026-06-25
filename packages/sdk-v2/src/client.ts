@@ -28,6 +28,16 @@ import type {
   WorkerProxyRequest,
   WorkerProxyResponse,
 } from "./proxy-types.js";
+import {
+  tier1RouteCacheLookup,
+  tier2PreferenceBias,
+  tier3IqAttestationLookup,
+  composeOnChainDecision,
+  type RouteCacheRow,
+  type PreferenceBias,
+  type IqAttestationRow,
+  type OnChainRouteDecision,
+} from "./onchain.js";
 const DEFAULT_BASE_URL = "https://beta-api.unbrowse.ai";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 2;
@@ -205,17 +215,53 @@ class KeysResource {
 class ProxyResource {
   constructor(private readonly client: Unbrowse) {}
 
-  // POST /v1/proxy — worker fetches the target URL on behalf of the agent.
-  // Use this when the SDK runs in a browser/edge where direct outbound fetches
-  // would expose the user IP, get geo-fenced, or hit anti-bot. Pass
-  // proxy:"residential" to tunnel the worker's outbound fetch through a residential proxy.
+  /**
+   * POST /v1/proxy — server-side fetch proxy for the SDK.
+   *
+   * Backward-compatible: existing `{ url, proxy: "residential" }` calls keep
+   * working. The new options (`egress`, `captcha`, `onchain`, `wallet`)
+   * layer additively on top.
+   *
+   * Wallet requirement applies to all paid paths. A request with no wallet
+   * and no API key (which is the optional wrapper over a wallet) returns
+   * 402 with the `x402_no_wallet` sub-state — honest, never a fake-success.
+   * The wallet signature is the PRIMARY credential (backend/src/middleware/
+   * auth.ts:89-145); an API key binds a wallet to a sponsor escrow but does
+   * not pay on its own.
+   */
   fetch(req: WorkerProxyRequest, opts: RequestOptions = {}): Promise<WorkerProxyResponse> {
     return this.client.request<WorkerProxyResponse>("POST", "/v1/proxy", req, opts);
   }
 
-  // GET /v1/proxy — capability check. Use to decide whether to request
-  // proxy:"residential" before committing to the call. Reports whether
-  // the worker's residential proxy credentials are configured.
+  /**
+   * Convenience: a one-call helper that consults the three-tier on-chain
+   * lookup and returns the decision. Read-only — helps the SDK consumer
+   * route without committing to the live fetch. The decision is advisory
+   * (the worker re-derives independently as defense in depth).
+   *
+   * Returns an OnChainRouteDecision. The caller can decide to:
+   *   - replay via client.execute({ endpoint_id, transport: "worker-proxy" })
+   *   - call proxy.fetch with the worker's chosen egress mode
+   */
+  onchainLookup(
+    rows: RouteCacheRow[],
+    prefs: PreferenceBias,
+    attestationRows: IqAttestationRow[],
+    args: { intent: string; context_url: string; stale_after_ms?: number; use_preferences?: boolean },
+  ): OnChainRouteDecision {
+    const now = Date.now();
+    const stale = args.stale_after_ms ?? 86_400_000;
+    const tier1 = tier1RouteCacheLookup(rows, args.intent, args.context_url, stale, now);
+    const tier2 = args.use_preferences === false ? null : tier2PreferenceBias(args.context_url, prefs);
+    const tier3 = tier1 ? tier3IqAttestationLookup(attestationRows, tier1.commitment) : null;
+    return composeOnChainDecision(tier1, tier2, tier3);
+  }
+
+  /**
+   * GET /v1/proxy — capability check. Use to decide whether to request
+   * proxy:"residential" before committing to the call. Reports whether
+   * the worker's residential proxy credentials are configured.
+   */
   capabilities(opts: RequestOptions = {}): Promise<WorkerProxyCapabilities> {
     return this.client.request<WorkerProxyCapabilities>("GET", "/v1/proxy", undefined, opts);
   }

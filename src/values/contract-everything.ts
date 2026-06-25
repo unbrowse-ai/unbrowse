@@ -36,6 +36,10 @@ import {
   resolveLiveEmbedder,
   searchContracts,
 } from "./contract-search.js";
+import { bindContractToTorah, torahBindingText, type ContractTorahBinding } from "./contract-torah-root.js";
+import { declareNative, embed1536Native, energyNative, nativeAvailable, routeNative } from "./contract-native.js";
+
+export { energyNative, routeNative };
 
 const DEFAULT_NAMESPACE = "ubz-contracts";
 
@@ -54,6 +58,17 @@ export async function embedderForIndexing(
 ): Promise<{ embed: Embedder; provider: string }> {
   const live = await resolveLiveEmbedder(env);
   if (live) return live;
+  if (nativeAvailable()) {
+    const fallback = hashEmbedder(1536);
+    const nativeEmbed: Embedder = {
+      async embed(text: string) {
+        const v = embed1536Native(text);
+        if (v && v.length === 1536) return v;
+        return fallback.embed(text);
+      },
+    };
+    return { embed: nativeEmbed, provider: "contract-native-embed1536" };
+  }
   return { embed: hashEmbedder(1536), provider: "embedded-hash-1536" };
 }
 
@@ -152,10 +167,12 @@ export interface ContractEverything {
 }
 
 export interface PersistOutcome {
+  native: boolean;
   iq: boolean;
   kv: boolean;
   rag: boolean;
   embedder?: string;
+  torah?: ContractTorahBinding;
   /** Per-tier failure reasons, surfaced never-silent. */
   notes: string[];
 }
@@ -213,7 +230,24 @@ export async function persistContract(
   opts: { namespace?: string; embedder?: Embedder } = {},
 ): Promise<PersistOutcome> {
   const namespace = opts.namespace ?? DEFAULT_NAMESPACE;
-  const out: PersistOutcome = { iq: false, kv: false, rag: false, notes: [] };
+  const out: PersistOutcome = { native: false, iq: false, kv: false, rag: false, notes: [] };
+
+  // Root binding — every contract row gets a Torah anchor before any persistence tier fires.
+  // The payload remains unchanged; the binding is metadata and RAG context, not a mutation of truth.
+  out.torah = await bindContractToTorah({ id: c.id, text: c.text });
+
+  // Tier 0 — in-process libcontract declare (local ledger at ~/.contracts).
+  try {
+    if (nativeAvailable()) {
+      const nativeId = declareNative(c.text, c.id);
+      if (nativeId) out.native = true;
+      else out.notes.push("native: declareNative returned null");
+    } else {
+      out.notes.push("native: libcontract not available on this platform");
+    }
+  } catch (e) {
+    out.notes.push(`native: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   // Tier 1 — IQ on-chain signed ledger.
   try {
@@ -244,7 +278,7 @@ export async function persistContract(
       embed = chosen.embed;
       out.embedder = chosen.provider;
     }
-    const row: ContractRow = { id: c.id, text: c.text };
+    const row: ContractRow = { id: c.id, text: `${c.text}\n${torahBindingText(out.torah)}` };
     await indexContractRows([row], embed, emergentVectorStore(namespace));
     out.rag = true;
   } catch (e) {
@@ -339,7 +373,8 @@ export async function recallContract(
     kvGet,
     findInLedger: async (i) => {
       const ledger = await resolutionLedgerFromEnv(process.env);
-      return ledger ? await ledger.find(i) : null;
+      const row = ledger ? await ledger.find(i) : null;
+      return row?.result ? { result: row.result } : null;
     },
     namespace: opts.namespace,
     onTier: opts.onTier,
