@@ -1,30 +1,30 @@
 {
   "repo_url": "~/.claude/skills/contract/libcontract",
-  "built_at": "2026-06-22T18:24:27.230Z",
+  "built_at": "2026-06-25T04:37:06.300Z",
   "binaries": {
     "darwin-arm64": {
       "zig_target": "aarch64-macos",
-      "sha256": "d01192ade216c2175ef1179e94d195f660da7106f81ba0b7f361a82241c401db",
+      "sha256": "48f0700d2386d09380df2896a54a2d99789f06360af22329d89ddb040ac097fd",
       "source": "local-build (native embed1536 organ)"
     },
     "darwin-x64": {
       "zig_target": "x86_64-macos",
-      "sha256": "30da405ba49a88b21c68e2d376dee46b397aab789fab2cba6379667554c42c3a",
+      "sha256": "ca0cbe416fcc01a1a58fa7338a52b1094f9865b4fb277fa3ef6279e02b99d0cd",
       "source": "local-build (native embed1536 organ)"
     },
     "linux-x64": {
       "zig_target": "x86_64-linux",
-      "sha256": "59f0af6d8c39967176db19cf081d10f43d1ceaca71eafd0aebeb8e8588edc889",
+      "sha256": "c27925e0780e1b8f9b3826244e866840e5b982efd1c4284ed4600a41330d24b3",
       "source": "local-build (native embed1536 organ)"
     },
     "linux-arm64": {
       "zig_target": "aarch64-linux",
-      "sha256": "b78153f7c35caf82daf3627d390128df366e83501adda4d0e521b9c4db0c6767",
+      "sha256": "42cf1359777eb3749e75f9aeeb246f9342fafd07861ea5808613f5aa7a45127d",
       "source": "local-build (native embed1536 organ)"
     },
     "win-x64": {
       "zig_target": "x86_64-windows",
-      "sha256": "3198eab073a11b06b0306aa638b42f8f0db86c6ee802d22032ef8dfd1b734b6d",
+      "sha256": "5a83d82378a0705f1af5145dce5a83919743b523a2299f631d57ef8bb3be3c91",
       "source": "local-build (native embed1536 organ)"
     }
   }
