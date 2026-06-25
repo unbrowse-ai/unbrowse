@@ -1,0 +1,696 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release from (e.g. v6.18.0). Used for re-running a release that queued against an offline runner."
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  build-kuri-win-x64:
+    name: Build Kuri Windows Broker (windows-gnu)
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Init submodules/kuri only
+        shell: bash
+        run: |
+          git submodule init submodules/kuri
+          git submodule update --init --depth=1 submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - name: Build Windows Kuri broker
+        working-directory: submodules/kuri
+        shell: bash
+        run: |
+          zig build -Dtarget=x86_64-windows-gnu
+          test -f zig-out/bin/kuri.exe || { echo "kuri.exe not produced by Windows GNU build"; exit 1; }
+          ls -la zig-out/bin/kuri*.exe
+          shasum -a 256 zig-out/bin/kuri.exe
+      - name: Smoke Windows Kuri broker
+        # Cross-compiled on a non-Windows self-hosted runner: a win-x64 .exe cannot
+        # execute here, so the run-and-/health smoke is valid only on a NATIVE Windows
+        # runner. Skip it elsewhere — the build verified the artifact exists + hashed it.
+        if: runner.os == 'Windows'
+        working-directory: submodules/kuri
+        shell: pwsh
+        run: |
+          $env:HEADLESS = "true"
+          $env:KURI_HEADLESS = "true"
+          $proc = Start-Process -FilePath "zig-out\bin\kuri.exe" -PassThru -NoNewWindow -RedirectStandardOutput kuri.stdout.log -RedirectStandardError kuri.stderr.log
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2 -ErrorAction Stop
+              if ($health.ok -eq $true) {
+                $ok = $true
+                break
+              }
+            } catch {
+              # keep polling
+            }
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) {
+            Write-Host "::group::kuri stdout"
+            if (Test-Path kuri.stdout.log) { Get-Content kuri.stdout.log }
+            Write-Host "::endgroup::"
+            Write-Host "::group::kuri stderr"
+            if (Test-Path kuri.stderr.log) { Get-Content kuri.stderr.log }
+            Write-Host "::endgroup::"
+            Write-Error "kuri.exe never became healthy within 30s"
+            exit 1
+          }
+          Write-Host "PASS: Windows Kuri broker reached /health"
+      - name: Upload Windows Kuri broker
+        uses: actions/upload-artifact@v3
+        with:
+          name: kuri-win-x64
+          path: submodules/kuri/zig-out/bin/kuri.exe
+          retention-days: 1
+          if-no-files-found: error
+
+  # Build the Kuri browser-broker vendor binaries ONCE per release and share
+  # them with every downstream job via the kuri-vendor artifact. This is the
+  # ~17min cross-compile that previously ran twice (once inside
+  # build-binaries.sh in upload-release-assets, once in publish-cli). The
+  # actions/cache keyed on the Kuri submodule SHA turns it into a near-no-op
+  # whenever the submodule is unchanged (build-kuri-binaries.mjs self-skips
+  # when a target binary is already present on disk).
+  build-kuri-vendor:
+    name: Build Kuri Vendor (shared, cached)
+    runs-on: self-hosted
+    needs: build-kuri-win-x64
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - name: Resolve Kuri submodule SHA
+        id: kuri
+        run: echo "sha=$(git -C submodules/kuri rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Kuri vendor binaries
+        id: kuri-cache
+        uses: actions/cache@v4
+        with:
+          path: packages/skill/vendor/kuri
+          key: kuri-vendor-${{ runner.os }}-${{ steps.kuri.outputs.sha }}-${{ hashFiles('packages/skill/scripts/build-kuri-binaries.mjs') }}
+      - name: Restore Windows Kuri broker
+        uses: actions/download-artifact@v3
+        # download-artifact@v3 can HANG on gitea (docker cp), which wedges the job.
+        # Bound it + tolerate failure; the stage step below falls back to building.
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          name: kuri-win-x64
+          path: /tmp/kuri-win-x64
+      - name: Stage Windows Kuri broker into vendor tree
+        run: |
+          if [ -s /tmp/kuri-win-x64/kuri.exe ]; then
+            mkdir -p packages/skill/vendor/kuri/win-x64
+            cp /tmp/kuri-win-x64/kuri.exe packages/skill/vendor/kuri/win-x64/kuri.exe
+            echo "staged pre-built win-x64 broker ($(wc -c < packages/skill/vendor/kuri/win-x64/kuri.exe) bytes)"
+          else
+            echo "win-x64 artifact unavailable (download skipped/timed out) — build-kuri-binaries will cross-compile it"
+          fi
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Kuri vendor binaries
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Upload kuri-vendor artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
+          retention-days: 1
+          if-no-files-found: error
+
+  # One job per platform — the five single-file CLI binaries now compile
+  # concurrently instead of serially inside one job. Each shard reuses the
+  # shared Kuri vendor artifact (so build-binaries.sh's internal kuri build
+  # self-skips) and uploads ONLY its tarball; the signed release manifest is
+  # generated once in upload-release-assets (issued_at is build-time, so a
+  # per-shard manifest would diverge).
+  build-cli-binary:
+    name: Build CLI Binary (${{ matrix.target }})
+    runs-on: self-hosted
+    needs: build-kuri-vendor
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64, win-x64]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - name: Restore shared Kuri vendor binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
+      # Cache the compiled tarball for this target keyed on the source that
+      # feeds it, so re-running the same tag skips the recompile entirely.
+      - name: Cache compiled binary (${{ matrix.target }})
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: cli-bin-${{ matrix.target }}-${{ github.ref_name }}-${{ hashFiles('src/single-binary.ts', 'scripts/build-binaries.sh', 'src/version.ts') }}
+      - name: Build single-file binary for ${{ matrix.target }}
+        run: bash scripts/build-binaries.sh ${{ matrix.target }}
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+      - name: Upload binary tarball artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-binary-${{ matrix.target }}
+          path: dist/unbrowse-*-${{ matrix.target }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  upload-release-assets:
+    name: Upload CLI Release Assets
+    runs-on: self-hosted
+    needs: build-cli-binary
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - name: Install GitHub CLI
+        run: |
+          if command -v gh >/dev/null 2>&1; then
+            gh --version
+            exit 0
+          fi
+          GH_VERSION=2.70.0
+          curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/gh.tgz -C /tmp
+          echo "/tmp/gh_${GH_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
+      - name: Resolve public release repo token
+        env:
+          GH_TOKEN_INPUT: ${{ github.token }}
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          TARGET_REPO="unbrowse-ai/unbrowse"
+          TOKEN="$GH_TOKEN_INPUT"
+          if [ "$GITHUB_REPOSITORY" != "$TARGET_REPO" ]; then
+            TOKEN="${SKILL_REPO_TOKEN:-}"
+            if [ -z "$TOKEN" ]; then
+              echo "::error::Missing SKILL_REPO_TOKEN for public release assets in ${TARGET_REPO}."
+              exit 1
+            fi
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
+      - name: Download all CLI binary tarballs
+        uses: actions/download-artifact@v3
+        with:
+          pattern: cli-binary-*
+          path: dist
+          merge-multiple: true
+      # The signed release manifest is generated ONCE here (not per matrix
+      # shard) so its build-time issued_at and signature are internally
+      # consistent. release-manifest.{json,sig} land in dist/ alongside the
+      # downloaded tarballs.
+      - name: Generate signed release manifest
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: bun scripts/build-release-manifest.ts
+      - name: Create or update GitHub release assets
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          TARGET_REPO="${UNBROWSE_RELEASE_REPO}"
+          ls -lh dist/
+          # Upload only the version-scoped tarballs that install.mjs / verify-release-assets.mjs
+          # actually consume (5 platforms × ~25MB) plus the signed manifest.
+          ASSETS=(
+            "dist/unbrowse-v${VERSION}-darwin-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-arm64.tar.gz"
+            "dist/unbrowse-v${VERSION}-linux-x64.tar.gz"
+            "dist/unbrowse-v${VERSION}-win-x64.tar.gz"
+            "dist/release-manifest.json"
+            "dist/release-manifest.sig"
+          )
+          if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --title "$TAG" --notes "Release ${TAG}"
+          fi
+
+  sync-public-tree:
+    name: Sync Public Docs + Packages
+    runs-on: self-hosted
+    needs: upload-release-assets
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dev
+      - name: Resolve public repo token
+        env:
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          if [ -z "${SKILL_REPO_TOKEN:-}" ]; then
+            echo "::notice::No SKILL_REPO_TOKEN; skipping public-tree sync."
+            echo "SKIP_SYNC=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "::add-mask::$SKILL_REPO_TOKEN"
+          echo "PUB_TOKEN=$SKILL_REPO_TOKEN" >> "$GITHUB_ENV"
+      - name: Clone public repo
+        if: env.SKIP_SYNC != '1'
+        run: git clone --depth 1 "https://x-access-token:${PUB_TOKEN}@github.com/unbrowse-ai/unbrowse.git" public
+      - name: Assemble public tree (open-core sync)
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/open-core-sync.sh "$GITHUB_WORKSPACE/public"
+      # Last line before any public push: the assembled tree must carry NONE of
+      # the forbidden set (internal vocabulary, scripture citations, operational
+      # internals). A hit fails the job and nothing is pushed.
+      - name: Leak gate on assembled public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/public-tree-leak-gate.sh "$GITHUB_WORKSPACE/public"
+      # Ten doc commandments on the assembled tree: no dead links, balanced
+      # fences, one H1, substance, no markers/local-paths/secrets. A hit fails
+      # the job before the public push.
+      - name: Markdown commandments gate on assembled public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: dev
+        run: bash scripts/md-commandments-gate.sh "$GITHUB_WORKSPACE/public"
+      - name: Commit + push public tree
+        if: env.SKIP_SYNC != '1'
+        working-directory: public
+        run: |
+          git config user.name "unbrowse-bot"
+          git config user.email "bot@unbrowse.ai"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::Public tree already in sync; nothing to push."
+            exit 0
+          fi
+          git commit -m "docs: sync public surface for ${GITHUB_REF_NAME} (docs + adapters)"
+          git push origin HEAD:main
+
+  verify-release-assets:
+    name: Verify CLI Release Assets
+    runs-on: self-hosted
+    needs: upload-release-assets
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify release assets are reachable
+        working-directory: packages/skill
+        env:
+          UNBROWSE_RELEASE_REPO: unbrowse-ai/unbrowse
+          UNBROWSE_RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/verify-release-assets.mjs
+
+  publish-cli:
+    name: Publish CLI (npm)
+    runs-on: self-hosted
+    # Decoupled from upload/verify-release-assets: those push platform tarballs to
+    # the github.com release (for binary distribution) and touch a billing-locked
+    # github account. The npm package only needs the Kuri vendor binaries, so the
+    # publish skips the fragile github-release layers and runs right after vendor.
+    needs: [build-kuri-vendor]
+    outputs:
+      package_name: ${{ steps.pkg.outputs.name }}
+      package_version: ${{ steps.pkg.outputs.version }}
+      published: ${{ steps.publish-result.outputs.published }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile
+      # Reuse the Kuri vendor binaries the build-kuri-vendor job already
+      # compiled this run (shared via artifact). build-kuri-binaries.mjs below
+      # then self-skips because the per-target binaries are already present,
+      # turning its former ~17min cross-compile into a hash-only no-op. If the
+      # artifact is somehow unavailable the build step still rebuilds.
+      - name: Restore shared Kuri vendor binaries
+        uses: actions/download-artifact@v3
+        # Bound the download: it can hang on gitea (docker cp). On timeout the
+        # build step below rebuilds the vendor binaries from source.
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          name: kuri-vendor
+          path: packages/skill/vendor/kuri
+      - name: Build Kuri vendor binaries (uses pre-staged artifacts where present)
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - name: Sync manifest sha256 to actual artifact (zig builds are non-deterministic)
+        run: |
+          HASH=$(sha256sum packages/skill/vendor/kuri/darwin-arm64/kuri | awk '{print $1}')
+          echo "[manifest-sync] darwin-arm64 binary hash: $HASH"
+          node -e "
+            const fs = require('fs');
+            const p = 'packages/skill/vendor/kuri/manifest.json';
+            const m = JSON.parse(fs.readFileSync(p));
+            m.binaries['darwin-arm64'].sha256 = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+            console.log('[manifest-sync] manifest updated');
+          " "$HASH"
+      - run: bun run check:kuri-vendor
+        name: Check baked Kuri vendor state
+      - name: Leak guard — block sensitive ops names from public artifacts
+        run: bash scripts/leak-guard.sh
+      - name: Paper gate — public paper reflects code + leaks no moat term
+        run: bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex
+      - name: Backend coverage gate — every backend module is classified against the papers
+        run: python3 paper/scripts/backend-paper-coverage.py --gate
+
+      - name: Read package metadata
+        id: pkg
+        run: |
+          PKG_NAME="$(node -p 'require("./packages/skill/package.json").name')"
+          PKG_VERSION="$(node -p 'require("./packages/skill/package.json").version')"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Failed to read package metadata from packages/skill/package.json."
+            exit 1
+          fi
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── npm publish migrated to OIDC Trusted Publishing from the PUBLIC repo ──
+      # The build repo (this private repo) CANNOT publish with --provenance — npm
+      # rejects provenance from a private source repo (E422 "Unsupported ... source
+      # repository visibility: private"). So this job builds the tarball, attaches
+      # it to the public release, and dispatches unbrowse-ai/unbrowse's OIDC publish
+      # workflow, which publishes WITH provenance + no token. See
+      # unbrowse-ai/unbrowse .github/workflows/release.yml.
+
+      - name: Check if version already exists on npm
+        id: version-check
+        run: |
+          PKG_NAME="${{ steps.pkg.outputs.name }}"
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Package metadata outputs are empty; refusing to release."
+            exit 1
+          fi
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping publish dispatch."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the npm tarball
+        id: pack
+        if: steps.version-check.outputs.skip_publish != '1'
+        working-directory: packages/skill
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: |
+          PKG_VERSION="$(node -p 'require("./package.json").version')"
+          TARBALL="unbrowse-${PKG_VERSION}.tgz"
+          npm pack
+          ls -la "$TARBALL"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke packaged global install
+        if: steps.version-check.outputs.skip_publish != '1'
+        run: bash scripts/smoke-packaged-cli.sh
+        env:
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+
+      - name: Publish to npm (direct — github OIDC publish is billing-locked)
+        id: publish-result
+        if: steps.version-check.outputs.skip_publish != '1'
+        working-directory: packages/skill
+        env:
+          # setup-node wrote an .npmrc that reads NODE_AUTH_TOKEN. The getfoundry
+          # automation token (gitea secret) publishes directly. Provenance is NOT
+          # used: npm rejects it from a private source repo (E422), and the public
+          # OIDC path runs on a billing-locked github account.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+          # Fail fast + clear if the token is invalid, instead of a cryptic publish error.
+          WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
+          if [ "$WHO" != "getfoundry" ]; then
+            echo "::error::NPM_TOKEN does not authenticate as getfoundry (whoami=$WHO) — cannot publish ${TARBALL}."
+            exit 1
+          fi
+          echo "::notice::Publishing ${TARBALL} to npm as ${WHO} (no provenance)"
+          npm publish "$TARBALL" --access public
+          echo "published=1" >> "$GITHUB_OUTPUT"
+
+  publish-sdk:
+    name: Publish SDK (npm)
+    runs-on: self-hosted
+    needs: publish-cli
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile
+
+      - name: Read SDK package metadata
+        id: pkg
+        run: |
+          PKG_NAME="$(node -p 'require("./packages/sdk/package.json").name')"
+          PKG_VERSION="$(node -p 'require("./packages/sdk/package.json").version')"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Failed to read packages/sdk/package.json metadata."
+            exit 1
+          fi
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve npm token
+        id: npm-auth
+        env:
+          # SDK gets its own granular access token (NPM_TOKEN_SDK is scoped to
+          # @unbrowse/sdk only; NPM_TOKEN is the CLI-scoped one and would 403
+          # on @unbrowse/sdk publish). Falls back to NPM_TOKEN if SDK-specific
+          # secret isn't configured (older workflow shape).
+          NPM_TOKEN_SDK: ${{ secrets.NPM_TOKEN_SDK }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+          NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
+        run: |
+          TOKEN="${NPM_TOKEN_SDK:-${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}}"
+          if [ -z "$TOKEN" ]; then
+            if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
+              echo "::error::Missing npm publish secret. Set NPM_TOKEN_SDK, NPM_TOKEN, or NPM_PUBLISH_TOKEN."
+              exit 1
+            fi
+            echo "::notice::Skipping @unbrowse/sdk publish; no npm token configured for $GITHUB_REPOSITORY."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "NODE_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Build SDK
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: npm run build
+
+      - name: Check if version already exists
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        id: version-check
+        run: |
+          PKG_NAME="${{ steps.pkg.outputs.name }}"
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish SDK to npm
+        if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: |
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          # Mirror the CLI dist-tag convention: preview tags publish under the
+          # `preview` dist-tag, stable versions become `latest`. @unbrowse/sdk
+          # is a scoped package never published before, so --access public is
+          # required for the first publish (and harmless thereafter).
+          NPM_TAG="latest"
+          case "$PKG_VERSION" in
+            *-preview.*) NPM_TAG="preview" ;;
+          esac
+          echo "Publishing @unbrowse/sdk@${PKG_VERSION} (dist-tag: ${NPM_TAG})"
+          PUBLISH_LOG="$(mktemp)"
+          set +e
+          npm publish --access public --tag "$NPM_TAG" 2>&1 | tee "$PUBLISH_LOG"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$STATUS" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -qi "previously published versions" "$PUBLISH_LOG"; then
+            echo "::notice::@unbrowse/sdk version already exists on npm; treating publish as a no-op."
+            exit 0
+          fi
+          exit "$STATUS"
+
+      - name: Undeprecate @unbrowse/sdk (clear legacy deprecation on all versions)
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        working-directory: packages/sdk
+        run: |
+          # @unbrowse/sdk is the actively-used local-binary SDK, not legacy. The
+          # package.json no longer carries a `deprecated` field so new publishes are
+          # clean, but PREVIOUSLY-published versions stay flagged until explicitly
+          # cleared. Undeprecate ALL versions every release (empty message = clear).
+          # Best-effort: a hiccup here must never fail the release.
+          npm deprecate "@unbrowse/sdk@*" "" 2>&1 | tee /tmp/undeprecate.log \
+            && echo "::notice::@unbrowse/sdk undeprecated (all versions)" \
+            || echo "::warning::npm deprecate (undeprecate) failed; see log above"
+  deploy-backend:
+    name: Deploy Backend (CF Worker)
+    runs-on: self-hosted
+    needs: publish-cli
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+        working-directory: .
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile
+      - name: Deploy worker with version vars
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+        run: |
+          # /v1/version returns the deployed artifact identity. Without these
+          # --var flags the worker sees the keys as undefined and the endpoint
+          # serves nulls (regressed v7.0.0 deploy; same gap as memory a9c61025).
+          # Tag-triggered runs get GITHUB_REF_NAME=v*; manual workflow_dispatch
+          # falls back to the package.json version.
+          VERSION=$(node -p 'require("../version.json").version')
+          BUILD_SHA="${GITHUB_SHA:0:8}"
+          DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "[deploy-backend] version=$VERSION build_sha=$BUILD_SHA deployed_at=$DEPLOYED_AT"
+          bunx wrangler deploy \
+            --config wrangler.ci.toml \
+            --var "UNBROWSE_VERSION:$VERSION" \
+            --var "UNBROWSE_BUILD_SHA:$BUILD_SHA" \
+            --var "UNBROWSE_DEPLOYED_AT:$DEPLOYED_AT"
+
+  deploy-frontend:
+    name: Deploy Frontend (CF Pages)
+    runs-on: self-hosted
+    needs: publish-cli
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+        working-directory: .
+      - name: Setup Bun (use pre-installed if available)
+        run: |
+          if command -v bun >/dev/null 2>&1; then
+            echo "Using pre-installed bun: $(bun --version)"
+            exit 0
+          fi
+          curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" bash
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile
+      - run: bun run deploy:ci
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
