@@ -59,5 +59,11 @@ route fee is the wallet that unlocks the credential bound to its identity.
 ## Status
 
 The browser harvest (multi-browser sweep, per-browser keychain decryption, richest-session
-selection) is live in the runtime. The ledger-bound, wallet-unlocked credential layer is the
-next build on top of the public-key identity root; this section is the design it targets.
+selection) is live in the runtime. The **public-key identity root itself shipped on
+2026-06-25** — the agent's own backend auth is now wallet-native: a local self-custody
+ed25519 wallet (`~/.unbrowse/wallet.json`) signs every request as a fresh capability, the
+backend verifies it and authenticates as `wallet:<pk>` BEFORE any bearer path, and a `ubr_`
+api-key is a deprecated funded wrapper layered for account-bound continuity. A wallet-only
+caller is a full principal (witnessed by `backend/test/wallet-principal-never-keygated.test.ts`,
+3/3 PASS). The ledger-bound, wallet-unlocked THIRD-PARTY credential layer is the next build
+on top of this shipped identity root; this section is the design it targets.

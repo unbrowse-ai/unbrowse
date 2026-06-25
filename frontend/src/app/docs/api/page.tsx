@@ -15,14 +15,28 @@ export default function DocsApiPage() {
 
       <h2>Constructor options</h2>
       <pre><code>{`new Unbrowse({
-  apiKey?:    string;          // env UNBROWSE_API_KEY
+  walletSigner?: () => Promise<Record<string, string>>;  // WEB3-NATIVE (preferred)
+                                                        // emits X-Unbrowse-Wallet,
+                                                        // X-Unbrowse-Auth-Ts,
+                                                        // X-Unbrowse-Signature per
+                                                        // request; backend verifies
+                                                        // the ed25519 sig and
+                                                        // authenticates as
+                                                        // wallet:<pk> — a full
+                                                        // principal, never key-gated.
+  apiKey?:    string;          // @deprecated web2 wrapper, env UNBROWSE_API_KEY.
+                                // Layered for account-bound continuity (payouts,
+                                // dashboard, ToS). Wallet-only callers are full
+                                // principals; the key is optional and retiring.
   baseURL?:   string;          // env UNBROWSE_BASE_URL, default https://beta-api.unbrowse.ai
   timeout?:   number;          // ms, default 60_000
   maxRetries?: number;         // default 2
   fetch?:     typeof fetch;    // inject for tracing or mocking
   defaultHeaders?: Record<string, string>;
   logLevel?:  "off" | "error" | "warn" | "info" | "debug"; // env UNBROWSE_LOG
-});`}</code></pre>
+});
+
+// At least one of walletSigner or apiKey MUST be set; walletSigner preferred.`}</code></pre>
 
       <h2>Top-level methods</h2>
 

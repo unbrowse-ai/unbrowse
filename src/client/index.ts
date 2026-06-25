@@ -1113,7 +1113,7 @@ export function walletBackfillDecision(s: { localWallet?: string | null; hasKey:
  * `force:true` skips the initial validate and goes straight to refresh — used
  * for the single retry after a backend 401/403.
  */
-export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key: string; refreshed: boolean; minted?: boolean; onboarding?: string }> {
+export async function ensureUsableKey(opts?: { force?: boolean; allowMint?: boolean }): Promise<{ key: string; refreshed: boolean; minted?: boolean; onboarding?: string }> {
   if (isLocalOnly()) return { key: "local-only", refreshed: false };
 
   if (!opts?.force) {
@@ -1139,6 +1139,19 @@ export async function ensureUsableKey(opts?: { force?: boolean }): Promise<{ key
 
   const cfg = loadConfig();
   const wallet = getLocalWalletContext();
+
+  // WEB3-NATIVE FAST PATH: the local self-custody wallet IS the identity. The
+  // wallet signature (minted by mergedAuthHeaders on every request) authenticates
+  // as `wallet:<pk>` on the backend — no api-key required. Return an empty key:
+  // mergedAuthHeaders sends the wallet sig alone, and the backend accepts it
+  // (bearerAuth + optionalAuth + bearerAuthNoTos all verify the sig first and
+  // short-circuit before the Bearer 401 path). The key mint below is an OPTIONAL
+  // web2 wrapper (account-bind for earnings/dashboard continuity), gated behind
+  // opts.allowMint so the resolve hot path NEVER blocks on key acquisition.
+  if (wallet.wallet_address && !opts?.allowMint) {
+    return { key: "", refreshed: false };
+  }
+
   const hadConfigIdentity = !!(cfg?.agent_id || cfg?.agent_name);
   // Wallet-first: a present self-custody wallet is an established identity, so a
   // wallet-holding agent auto-provisions here instead of dead-ending on the

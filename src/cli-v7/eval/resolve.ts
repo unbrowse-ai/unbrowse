@@ -48,6 +48,7 @@ import {
   postStateless,
 } from "../_stateless.js";
 import { ensureUsableKey } from "../../client/index.js";
+import { mergedAuthHeaders } from "../../lib/wallet-auth-headers.js";
 
 /**
  * Free-tier floor: remap the anonymous `/v1/search` envelope ({ results }) into
@@ -131,26 +132,31 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
 
     const base = resolveApiBase();
     const url = `${base.replace(/\/$/, "")}/v1/search/resolve`;
+    // WEB3-NATIVE AUTH: the wallet signature is the SOLE REQUIRED credential.
+    // mergedAuthHeaders() emits the wallet sig (X-Unbrowse-Wallet/Ts/Signature)
+    // when a local signer exists, which the backend verifies before any Bearer
+    // 401 path. The api-key Bearer is an OPTIONAL web2 wrapper layered below.
+    const walletAuth = await mergedAuthHeaders();
     const headers: Record<string, string> = {
       "content-type": "application/json",
       accept: "application/json",
       ...releaseAttestationHeaders(),
+      ...walletAuth,
     };
     if (fresh) headers["cache-control"] = "no-cache";
-    // Self-healing bearer (Claude-Code auth state machine): validate the
-    // stored key and, if it is missing/invalid, refresh an existing identity
-    // automatically (anon re-register) or surface a one-line onboarding step
-    // instead of dead-ending on a raw 403.
+    // OPTIONAL web2 wrapper: mint an api-key only when an identity already
+    // exists. Never blocks the hot path — a wallet-only caller sends the sig
+    // and authenticates as `wallet:<pk>` (bearerAuth accepts it first-class).
     let onboardingHint: string | undefined;
     const keyResult = await ensureUsableKey();
     if (keyResult.key && keyResult.key !== "local-only") headers["authorization"] = `Bearer ${keyResult.key}`;
     else if (keyResult.onboarding) onboardingHint = keyResult.onboarding;
 
-    // Free-tier floor: no usable key (anon mint refused/offline). Rather than hit
-    // the bearer-gated /v1/search/resolve and 403, fall back to the anonymous free
-    // /v1/search shortlist so a keyless caller still gets results, not a dead end.
-    // Excludes the "local-only" sentinel: hermetic mode must not make a network call.
-    if (!headers["authorization"] && keyResult.key !== "local-only") {
+    // Free-tier floor: NEITHER a wallet sig NOR a usable key is present (hermetic
+    // mode, fresh install offline, etc). Fall back to anonymous /v1/search so a
+    // keyless caller still gets results. A wallet-present caller sends the sig
+    // and goes straight to the keyed path below.
+    if (!headers["x-unbrowse-wallet"] && !headers["authorization"] && keyResult.key !== "local-only") {
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 15_000);

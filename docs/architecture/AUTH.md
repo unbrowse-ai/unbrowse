@@ -1,30 +1,62 @@
 # Unbrowse Architecture — Identity, Auth & Wallets
 
-> **At a glance** — One identity (email magic link → `ubr_` API key) fronts both
-> the platform and the money. The client gates auth *before* it spends effort on
-> a personal/auth-shaped intent, attaches and refreshes credentials at execute
-> time, keeps credentials off any server-readable tier, and resolves a wallet
-> through a fixed precedence chain. An API key can be bound to a funding source —
-> the key wraps the wallet.
+> **At a glance (web3-native, 2026-06-25 rip)** — One identity (the local
+> self-custody **ed25519 wallet pubkey**) fronts every backend call. The
+> client signs a fresh domain-separated challenge and the backend verifies it
+> as the SOLE REQUIRED credential, authenticating the caller as
+> `wallet:<pk>` BEFORE any bearer path. A legacy `ubr_` api-key, if present,
+> is an OPTIONAL **web2 wrapper** layered over the wallet for account-bound
+> continuity (payouts accrual, dashboard sync); a wallet-only caller is a
+> full principal. Unbrowse is a **child environment executor** under the
+> **contract (aiko) parent substrate**, which signs the on-chain parent root;
+> the wallet is the only identity the runtime ever persists.
 
-> Reviewed 2026-06-17 against build v9.4.12. Companion to [SECURITY.md](./SECURITY.md),
+> Reviewed 2026-06-25 against build v9.4.12+web3-rip. Companion to [SECURITY.md](./SECURITY.md),
 > [PRIVACY.md](./PRIVACY.md), and the money model in [../HOW_UNBROWSE_PAYS.md](../HOW_UNBROWSE_PAYS.md).
 
-## 1. Identity & the API key
+## 1. Identity & the wallet signature
 
-- Users sign in with **email magic links** — no passwords (backend
-  `auth.ts`, frontend `login`).
-- The credential is an **API key** `ubr_<hex>`, stored SHA-256-hashed server-side
-  (`backend/src/services/keys.ts`) and validated by `backend/src/middleware/auth.ts`
-  with timing-safe comparison, a Terms-of-Service version gate, and a global kill
-  switch (`ALL_KEYS_REVOKED`).
-- **Client storage** (`src/client/index.ts`): `getApiKey()` resolves env
-  `UNBROWSE_API_KEY` first, then `~/.unbrowse/config.json` (`.api_key`, mode
-  0o600). `validateApiKey()` does a HEAD `/v1/agents/me` and returns
-  `ok | missing_profile | invalid | offline`. The `ignore_env_api_key` flag lets
-  a config key override a stale environment key.
-- The profile config also carries `agent_id`, `email`, `user_id`,
-  `wallet_address`, `wallet_provider`, and ToS acceptance (`UnbrowseConfig`).
+- **Identity root = the wallet pubkey (ed25519)**, persisted at
+  `~/.unbrowse/wallet.json` (mode 0o600) + OS keychain seal. Every install
+  creates one on first run (`src/values/signer.ts` →
+  `ensureLocalWalletAddress()`); there is no email/password gate to identity.
+- **The auth credential** is a capability signature minted per-request by
+  `src/lib/wallet-auth-headers.ts` (`mergedAuthHeaders()`). The signature is
+  over `AUTH_DOMAIN ":" pubkeyHex ":" ts` (60s TTL,
+  `AUTH_DOMAIN = "unbrowse-auth:v1"`), sent as the three headers
+  `X-Unbrowse-Wallet`, `X-Unbrowse-Auth-Ts`, `X-Unbrowse-Signature`. The
+  backend (`backend/src/services/auth-signature.ts` → `authBySignature`)
+  re-derives the challenge, verifies the ed25519 sig against the pubkey, and
+  resolves to the agent_id `wallet:<pk>` (or its bound account, if any).
+- **The wallet sig IS the principal — never key-gated.** Verified by
+  `backend/test/wallet-principal-never-keygated.test.ts`: a wallet-only
+  caller (no api-key bound) authenticates and reads
+  `/v1/agents/wallet`, `/v1/agents/accept-tos`, `/v1/agents/me`,
+  `/v1/account/me`, `/v1/account/credits` regardless of key state. The three
+  auth middlewares (`bearerAuth`, `optionalAuth`, `bearerAuthNoTos`) all
+  verify the sig FIRST and short-circuit to `wallet:<pk>` before any Bearer
+  401 path.
+- **`ubr_` api-key = DEPRECATED web2 wrapper**, layered over the wallet when
+  present (`Authorization: Bearer ubr_…`). Used only to bind account-bound
+  flows (payouts to the linked email, dashboard sync, ToS surface). The
+  wrapper will be retired; new code MUST NOT gate on it. Client-side
+  `getApiKey()` (`src/client/index.ts`) is now opt-in: `ensureUsableKey()`
+  returns `{key: ""}` on the resolve hot path when a wallet is present, and
+  only attempts a key-mint when `opts.allowMint` is set.
+- **Parent/child substrate model.** The wallet at `~/.unbrowse/wallet.json`
+  is unbrowse's identity. The contract substrate (aiko) is the **parent** —
+  its deployer keypair at `~/.aiko/keys/deployer.key` signs the parent root
+  on-chain, and unbrowse is its **child environment executor** with access
+  only to web primitives. The bridge lives in
+  `src/bridges/contract-mcp-bridge.ts` + `src/lib/contract-thin-client.ts`
+  (HTTP thin client over `/v1/contract/*`); the child never oversteps into
+  the parent's signing scope.
+- **Client storage** (`src/client/index.ts`): `~/.unbrowse/config.json`
+  (mode 0o600) carries `agent_id`, `email`, `user_id`, `wallet_address`,
+  `wallet_provider`, ToS acceptance (`UnbrowseConfig`). `getApiKey()` reads
+  `UNBROWSE_API_KEY` first then config; `validateApiKey()` HEADs
+  `/v1/agents/me` (note: when wallet-only, the route accepts the sig
+  directly — the key is not required to be present).
 
 ## 2. Pre-resolve auth gate (don't spend effort you'll lose)
 
@@ -85,7 +117,7 @@ can prompt for sign-in instead of failing mid-route.
 - `matrix.ts` / `index.ts` — integration-coverage matrix and the
   `verifyEndpoint` / `verifySkill` / `schedulePeriodicVerification` orchestration.
 
-## 6. Wallet resolution order (the key wraps the wallet)
+## 6. Wallet resolution order (the wallet is the identity; wrappers layer on top)
 
 There are two distinct resolutions — **which wallet address** the agent has, and
 **which signer adapter** pays a 402. Keep them separate.
@@ -101,6 +133,9 @@ wins:
 4. **lobster.cash (local config)** — `~/.lobster/config.json` (gated by the same flag).
 5. **Unbrowse-local native wallet** — `~/.unbrowse/wallet.json` + OS keychain
    (gated). Every install gets a real self-custody wallet with zero setup.
+   **This entry is the IDENTITY ROOT** — when this is the resolved address, the
+   same keypair signs every auth capability via `mergedAuthHeaders()`. The
+   wallet is the principal; the key (if bound) is the wrapper.
 6. **None** → sponsored free tier, or an honest `x402_no_wallet` failure.
 
 **Signer adapter** — at payment time `src/payments/x402-fetch.ts`
@@ -112,18 +147,45 @@ the x402 envelope, and retries. Credentials are sealed to the wallet in
 `src/vault/wallet-vault.ts` (`sealToWallet` / `open`); `commitmentOf` exposes a
 host-independent commitment that reveals nothing about the secret.
 
-**Funding binds the key.** A key can be bound to a funding source (external
-wallet address or prepaid credit budget) via `POST /v1/account/keys/:keyId/funding`
-(backend `account.ts`). Contributors who published before attaching a wallet are
-paid retroactively when the binding appears (backend `splits.ts`). Client-side,
-`src/cli-wallet.ts` reads and reconciles the local vs server wallet for the
-`unbrowse wallet` command.
+**Funding binds the wallet to a key wrapper.** A `ubr_` api-key, when present,
+is bound to a funding source (external wallet address or prepaid credit
+budget) via `POST /v1/account/keys/:keyId/funding` (backend `account.ts`) —
+this is the optional account-bind that carries payouts accrual. Contributors
+who published before attaching a wallet are paid retroactively when the
+binding appears (backend `splits.ts`). Client-side, `src/cli-wallet.ts` reads
+and reconciles the local wallet vs the server-bound wallet for the
+`unbrowse wallet` command. **The wallet always remains the identity; the key
+is only a funded wrapper that the agent may or may not have.**
+
+## 7. Parent/child substrate (aiko → unbrowse)
+
+The wallet at `~/.unbrowse/wallet.json` is unbrowse's identity, but unbrowse
+itself is a **child environment executor** under the **contract (aiko) parent
+substrate**:
+
+- **Parent (aiko/contract):** the on-chain truth-root. Deployer keypair lives
+  at `~/.aiko/keys/deployer.key`; the contract binary's signed attestations
+  are the witness ledger rows the rest of the system dereferences. The wallet
+  signs FOR the Word declared on the parent — the wallet is rotatable, the
+  Word is not.
+- **Child (unbrowse):** the environment executor with access only to **web
+  primitives** (fetch, scrape, browse, sign web challenges, x402 pay). It
+  never oversteps into the parent's signing scope — it never signs a parent
+  truth claim, only its own web-auth capability.
+- **Bridge:** `src/bridges/contract-mcp-bridge.ts` + the HTTP thin client at
+  `src/lib/contract-thin-client.ts` (`/v1/contract/*` server route) expose
+  the parent's declarations to the child as MCP tool surface. The child
+  reads parent-signed ledger rows as pointers (never inlines the payload),
+  dereferences through the substrate, and acts on the resolved truth.
 
 ## One-line model
 
-The `ubr_` key is the single identity; it gates effort before resolve, carries
-credentials only to tiers that can't read them, and fronts a wallet resolved by
-a fixed precedence — so "who you are" and "who pays" are the same handle.
+The local ed25519 wallet is the single identity. It signs every request as a
+fresh capability, the backend verifies it as `wallet:<pk>` BEFORE any bearer
+path, and a `ubr_` key (if present) is a deprecated funded wrapper layered for
+account-bound continuity — under a contract (aiko) parent substrate where the
+wallet signs FOR the Word, never in its place. "Who you are" (wallet pubkey)
+and "who pays" (the same wallet, optionally key-funded) are the same handle.
 
 ## See also
 - Anti-tamper, anti-bot, trust graph → [SECURITY.md](./SECURITY.md)

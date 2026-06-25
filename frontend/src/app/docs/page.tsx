@@ -16,15 +16,28 @@ export default function DocsQuickstartPage() {
       <h2>1. Install</h2>
       <pre><code>npm i @unbrowse/client</code></pre>
 
-      <h2>2. Get an API key</h2>
+      <h2>2. Authenticate (web3-native)</h2>
       <p>
-        Sign in at <a href="/login">unbrowse.ai/login</a> (magic link). The dashboard mints your first key. Copy it once and store it in <code>UNBROWSE_API_KEY</code>.
+        The credential root is a wallet signature. A local self-custody ed25519
+        wallet is auto-created at <code>~/.unbrowse/wallet.json</code> on first
+        run — no signup required. The SDK signs each request as a fresh capability;
+        the backend verifies the signature and authenticates you as
+        <code>wallet:&lt;pubkey&gt;</code> — a full principal, never key-gated.
+      </p>
+      <p>
+        <strong>Optional web2 wrapper (deprecated).</strong> For account-bound
+        flows (payouts accrual, dashboard sync, ToS surface tied to an email),
+        sign in at <a href="/login">unbrowse.ai/login</a> (magic link), mint a
+        key, and store it in <code>UNBROWSE_API_KEY</code>. A wallet-only caller
+        is already a full principal; the key is layered only for account-bound
+        continuity and will be retired.
       </p>
 
       <h2>3. Resolve an intent</h2>
-      <pre><code>{`import { Unbrowse } from "@unbrowse/client";
+      <pre><code>{`import { Unbrowse, mergedAuthHeaders } from "@unbrowse/client";
 
-const unbrowse = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY });
+// Web3-native: the wallet signature is the sole required credential.
+const unbrowse = new Unbrowse({ walletSigner: mergedAuthHeaders });
 
 const result = await unbrowse.resolve({
   intent: "search hackernews for AI agent papers",

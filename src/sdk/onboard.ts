@@ -1,15 +1,17 @@
 /**
- * src/sdk/onboard.ts — identity onboarding for the hole.
+ * src/sdk/onboard.ts — identity onboarding for the agent.
  *
- * Best-practice credential chain, resolved in order:
- *   1. a BOUND ACCOUNT — an API key (from a frontend OAuth login or `unbrowse register`),
- *      which already carries payouts + sync;
- *   2. else the auto-created LOCAL SELF-CUSTODY WALLET (the keyless fallback every install
- *      gets — see src/values/signer.ts `ensureLocalWalletAddress`, surfaced at
- *      ~/.unbrowse/wallet.json), which can later be SYNCED onto an account.
+ * WEB3-NATIVE credential chain, resolved in order:
+ *   1. the LOCAL SELF-CUSTODY WALLET (the root identity every install gets —
+ *      src/values/signer.ts `ensureLocalWalletAddress`, surfaced at
+ *      ~/.unbrowse/wallet.json). The wallet signature authenticates as
+ *      `wallet:<pk>` on the backend — full principal, never key-gated.
+ *   2. else a BOUND ACCOUNT — a deprecated web2 api-key wrapper (from a frontend
+ *      OAuth login or `unbrowse register`), layered on top of the wallet to
+ *      carry account-bound flows (payouts accrual, dashboard sync).
  *
  * `onboardingStatus` reports what's configured and the one next step to tell the user.
- * Every input (api-key resolver, wallet peek, sync) is injectable so this is testable
+ * Every input (wallet peek, api-key resolver, sync) is injectable so this is testable
  * offline and embeddable in any frontend.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -64,27 +66,33 @@ function maskKey(key: string): string {
 }
 
 /**
- * Ensure the agent has a usable identity, account-first then local wallet. When only a
- * local wallet exists and a `sync` is provided, the wallet is published onto an account.
- * Throws only when neither an account key nor a local wallet can be found (run setup).
+ * Ensure the agent has a usable identity, WALLET-FIRST. The wallet signature alone
+ * is a full credential on the backend (`wallet:<pk>` principal). An account-key, if
+ * present, is the optional web2 wrapper layered for payouts/sync continuity.
+ * Throws only when neither a local wallet nor an account key can be found (run setup).
  */
 export async function ensureIdentity(opts: OnboardOptions = {}): Promise<Identity> {
-  const apiKey = (opts.resolveApiKey ?? defaultResolveApiKey)();
-  if (apiKey) {
-    return { kind: "account", id: maskKey(apiKey), synced: true };
-  }
   const wallet = (opts.peekWallet ?? defaultPeekWallet)();
   if (wallet) {
     const id: Identity = { kind: "wallet", id: wallet, synced: false };
-    if (opts.sync) {
+    const apiKey = (opts.resolveApiKey ?? defaultResolveApiKey)();
+    if (apiKey && opts.sync) {
       await opts.sync(id);
       id.synced = true;
     }
     return id;
   }
+  // No wallet: legacy fallback to a web2 account-key (deprecated — agents
+  // without a wallet cannot sign the web3 auth challenge and will 401 on
+  // wallet-sig-required routes once the wrapper is fully retired).
+  const apiKey = (opts.resolveApiKey ?? defaultResolveApiKey)();
+  if (apiKey) {
+    return { kind: "account", id: maskKey(apiKey), synced: true };
+  }
   throw new Error(
-    "No identity yet. Run `unbrowse setup` to create a local self-custody wallet, " +
-      "or set UNBROWSE_API_KEY (`unbrowse register --email you@example.com`) to bind an account.",
+    "No identity yet. Run `unbrowse setup` to create a local self-custody wallet " +
+      "(web3-native principal, preferred). Setting UNBROWSE_API_KEY (`unbrowse register`) " +
+      "binds a deprecated web2 account wrapper over the wallet.",
   );
 }
 
@@ -97,16 +105,19 @@ export function onboardingStatus(opts: OnboardOptions = {}): OnboardingStatus {
 
   let identity: Identity | null = null;
   let nextStep: string;
-  if (hasAccount) {
-    identity = { kind: "account", id: maskKey(apiKey as string), synced: true };
-    nextStep = "You're set: a bound account handles sync, payouts, and paid routes.";
+  if (hasWallet && hasAccount) {
+    identity = { kind: "wallet", id: wallet as string, synced: true };
+    nextStep = "You're set: wallet is your principal, account-key wraps payouts/sync.";
   } else if (hasWallet) {
     identity = { kind: "wallet", id: wallet as string, synced: false };
     nextStep =
-      "Local self-custody wallet ready. Bind an account to sync earnings across machines: " +
-      "`unbrowse register --email you@example.com`.";
+      "Local self-custody wallet ready (web3-native principal). Optionally bind an account " +
+      "for payouts/sync: `unbrowse register --email you@example.com`.";
+  } else if (hasAccount) {
+    identity = { kind: "account", id: maskKey(apiKey as string), synced: true };
+    nextStep = "Bound account-key only (deprecated web2 fallback). Run `unbrowse setup` to create a wallet.";
   } else {
-    nextStep = "Run `unbrowse setup` to create your local wallet (or set UNBROWSE_API_KEY).";
+    nextStep = "Run `unbrowse setup` to create your local wallet (the web3-native principal).";
   }
   return { identity, hasAccount, hasWallet, nextStep };
 }

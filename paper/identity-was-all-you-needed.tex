@@ -195,6 +195,21 @@ hard residue --- revocation latency, key loss, metadata exposure --- is solved. 
 line between the collapse (real) and the residue (open) is the honest core of the
 result.
 
+\section*{Status as of the 2026-06-25 web3-native rip}
+The architecture this paper describes is now the shipped production identity model.
+The local self-custody ed25519 wallet (\texttt{\textasciitilde/.unbrowse/wallet.json})
+signs every backend request as a fresh capability; the backend verifies it and
+authenticates as \texttt{wallet:$\langle$pubkey$\rangle$} BEFORE any bearer path on
+every auth middleware (\texttt{bearerAuth}, \texttt{optionalAuth},
+\texttt{bearerAuthNoTos}). A \texttt{ubr\_} api-key, where present, is a deprecated
+funded wrapper layered for account-bound continuity (payouts, dashboard, ToS
+surface) --- exactly the ``label on top'' the paper specifies. The
+witness test \texttt{wallet-principal-never-keygated.test.ts} (3/3 PASS) confirms
+that a wallet-only caller with no bound key is a full principal: the collapse is
+running code. Unbrowse itself sits as a child environment executor under the
+contract (aiko) parent substrate: the wallet signs FOR the Word declared on the
+parent, never in its place.
+
 \begin{thebibliography}{99}
 \bibitem{crypto} L.~Tham, C.~Chik. \emph{Crypto Was All You Needed: A Signed,
 Layer-Descending Stack for Agent Computation}. Unbrowse AI, 2026.
