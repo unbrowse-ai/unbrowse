@@ -1,5 +1,14 @@
 # Changelog
 
+## [11.1.0] (2026-06-26)
+
+### Features
+
+* **aiko-bind:** native Aiko-Unbrowse binding manifest (`src/values/aiko-unbrowse-binding.ts`) and machine-readable projection through `bridgeManifest()` pointing to `aiko-engine3`.
+* **release-gate:** always-test against benchmarks via Aiko before cutting/deploying to production inside `scripts/release-and-verify.sh`, falling back to `staging` deploy contract registration on failure or bypass.
+* **aiko-demo:** visual, interactive Aiko + Unbrowse demo and on-chain receipts info on the `/aiko` page.
+* **docs:** updated public architecture and agent quickstart docs with binding manifest specifications (`docs/built-on-unbrowse/aiko-agent.md`, `docs/architecture/AUTH.md`).
+
 ## [10.2.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v10.1.8...v10.2.0) (2026-06-24)
 
 ### Features
