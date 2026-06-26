@@ -138,6 +138,30 @@ export async function proofPtr(poi: ProofOfIndexing): Promise<string> {
 	return `sha256:${await sha256Hex(canonicalBody(poi))}`;
 }
 
+/**
+ * Seal a proof AND anchor its Merkle root on-chain (IQ namespace: ubz-poi).
+ * The root commits to the indexed route's schema without revealing route values.
+ * Fail-open: if chain is unconfigured, the sealed POI is still returned.
+ */
+export async function sealAndAnchorPoi(
+	poi: ProofOfIndexing,
+	sign: Signer,
+): Promise<{ poi: ProofOfIndexing; anchored: boolean; note?: string }> {
+	const sealed = await sealProofOfIndexing(poi, sign);
+	try {
+		const { anchorPoiRoot } = await import("../values/chain-anchor.js");
+		const result = await anchorPoiRoot(
+			sealed.schemaHash,
+			sealed.routePtr,
+			sealed.schemaHash,
+			sealed.signature,
+		);
+		return { poi: sealed, anchored: result.anchored, note: result.note };
+	} catch {
+		return { poi: sealed, anchored: false, note: "chain-anchor import failed" };
+	}
+}
+
 /** Verify a proof's signature against the indexer's public key (verifier injected). */
 export async function verifyProofOfIndexing(
 	poi: ProofOfIndexing,
