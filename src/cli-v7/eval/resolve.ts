@@ -49,6 +49,7 @@ import {
 } from "../_stateless.js";
 import { ensureUsableKey } from "../../client/index.js";
 import { mergedAuthHeaders } from "../../lib/wallet-auth-headers.js";
+import { chainResolve } from "../../values/chain-resolve.js";
 
 /**
  * Free-tier floor: remap the anonymous `/v1/search` envelope ({ results }) into
@@ -125,6 +126,37 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     : NaN;
   const limit = Number.isFinite(limitFlag) && limitFlag > 0 ? limitFlag : 10;
   const fresh = parsed.flags.fresh === true;
+
+  // Chain-first resolve: query the IQ on-chain ledger BEFORE the backend.
+  // When the chain has a cached resolution for this intent, return it directly —
+  // zero backend dependency. Skipped when --fresh is set (force backend re-resolve).
+  if (!fresh) {
+    try {
+      const chainResult = await chainResolve(intent, { limit });
+      if (chainResult && chainResult.shortlist.length > 0) {
+        emit(
+          {
+            ok: true,
+            subcommand: "eval resolve",
+            op_kind: meta.op_kind,
+            source: "chain",
+            tier: "iq-onchain",
+            intent,
+            ctx_url: urlFlag ?? null,
+            domain: domainFlag ?? null,
+            limit,
+            fresh,
+            count: chainResult.shortlist.length,
+            shortlist: chainResult.shortlist,
+          },
+          opts,
+        );
+        process.exit(0);
+      }
+    } catch {
+      // Chain read failed — fall through to backend (fail-open)
+    }
+  }
 
   try {
     const pubkeyBytes = await getWalletPubkey();

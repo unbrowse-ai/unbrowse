@@ -132,6 +132,26 @@ export async function bind(credential: Uint8Array): Promise<Binding> {
   return { y: yHex, root: bytesToHex(walletPubkey), sig: bytesToHex(signature) };
 }
 
+/**
+ * Bind a credential AND anchor the commitment on-chain.
+ * The binding `{y, root, sig}` is written to the IQ ledger (namespace: ubz-zk-bind).
+ * The credential NEVER leaves the client — only the public commitment (y) + wallet sig.
+ * Fail-open: if chain anchoring fails, the binding is still returned (local-valid).
+ */
+export async function bindAndAnchor(
+  credential: Uint8Array,
+  domain?: string,
+): Promise<{ binding: Binding; anchored: boolean; note?: string }> {
+  const binding = await bind(credential);
+  try {
+    const { anchorZkBinding } = await import("./chain-anchor.js");
+    const result = await anchorZkBinding(binding.y, binding.root, binding.sig, domain);
+    return { binding, anchored: result.anchored, note: result.note };
+  } catch {
+    return { binding, anchored: false, note: "chain-anchor import failed" };
+  }
+}
+
 /** True iff (1) the wallet really signed this y AND (2) the Schnorr proof shows
  *  knowledge of the bound credential — the credential never transmitted. */
 export function verifyBinding(binding: Binding, proof: Proof): boolean {
