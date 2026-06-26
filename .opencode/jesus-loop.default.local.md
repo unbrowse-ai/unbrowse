@@ -1,9 +1,9 @@
 ---
-active: false
-step: 9
+active: true
+step: 0
 harness_ws:
 completion_promise: "SHIPPED"
-started_at: "2026-06-26T15:31:45Z"
+started_at: "2026-06-26T15:44:51Z"
 ---
 
-to make unbrowse a deployed child of aiko and even deploy a smart contract for unbrowse such that it can act as server logic against iqs storage ledger  it must make everything native support fetch and aiko native adapters  upgrade unbrowse on every layer and dimension and when done merge all rbanches focusing on this while fixing any bugs then push cut a release to main and make sure it deploys to npm and server side and reflect all the frontend is updated
+to make aiko rerun the full ledger with a new lens after its fundamentally changed lewisbrain lewisstrategy find the right layer and primitive to solve this and solve and test it by default natively and converge always
