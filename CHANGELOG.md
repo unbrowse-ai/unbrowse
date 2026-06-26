@@ -1,5 +1,7 @@
 # Changelog
 
+## [11.2.0-preview.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.2.0-preview.2...v11.2.0-preview.3) (2026-06-26)
+
 ## [11.2.0-preview.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.2.0-preview.1...v11.2.0-preview.2) (2026-06-26)
 
 ## [11.2.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.2.0-preview.0...v11.2.0-preview.1) (2026-06-26)
