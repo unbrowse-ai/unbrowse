@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "[packaged-kuri] runtime path + setup tests"
-bun test tests/runtime-paths.test.ts tests/runtime-setup.test.ts
+bun test ./tests/runtime-paths.test.ts ./tests/runtime-setup.test.ts
 
 echo "[packaged-kuri] setup smoke"
 # Three-verb collapse: setup is a `build` capability (`unbrowse build setup`);
