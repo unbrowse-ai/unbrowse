@@ -71,4 +71,9 @@ append-only on-chain ledger	src/values/iq-ledger.ts
 wallet-bound contribution ledger	src/cli-v7/eval/stats.ts
 wallet signature is a first-class identity	backend/src/services/auth-signature.ts
 sealed under authenticated encryption with a key	src/trust/sealed-cache.ts
+sealed commitment anchored on chain	src/values/chain-anchor.ts
 scoped, revocable capability grant	backend/src/lib/contract-grant.ts
+aiko-native deploy	src/values/aiko-deploy.ts
+chain-first resolve	src/values/chain-resolve.ts
+ZK binding anchored on chain	src/values/chain-anchor.ts
+proof-of-indexing anchored on chain	src/values/chain-anchor.ts
