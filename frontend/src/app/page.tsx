@@ -28,6 +28,7 @@ const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 // real published PDF (`/unbrowse-maintenance-network.pdf`); the papers page
 // previously pointed at a filename that 404s.
 const PAPERS = [
+  // --- Cycle 1 ---
   {
     title: "Internal APIs Are All You Need",
     blurb: "The spatial deconstruction of the web: first-party API routes already sit beneath modern websites. Learn them once, share them, and bypass the rendering engine entirely.",
@@ -62,6 +63,43 @@ const PAPERS = [
     title: "You Are Your Keys (Sorry)",
     blurb: "The sovereign identity of the signing principal: identity is the public key, disclosure is decryption, and authorization is a signed capability grant. No database or ACL required.",
     href: "/identity-was-all-you-needed.pdf",
+    pdf: true,
+  },
+  // --- Cycle 2 (The Fractal Loop) ---
+  {
+    title: "CPUs Are All You Need",
+    blurb: "The spatial deconstruction of compute: non-parametric CPU-only nearest-neighbour lookup beats expensive GPU-trained DQNs on ARC-AGI-3 action prediction. More compute is not the missing piece.",
+    href: "/cpus-are-all-you-need.pdf",
+    pdf: true,
+  },
+  {
+    title: "The Write Half of Recall",
+    blurb: "The cognitive mapping of memory: recording agentic trace-history and hippocampal engram replays to guide online resolution without re-deriving goals, minimizing the generation tax.",
+    href: "/the-write-half-of-recall.pdf",
+    pdf: true,
+  },
+  {
+    title: "Five Stacks, One Loop",
+    blurb: "The cryptographic reality layer of re-entrancy: a single loop orchestrates disparate blockchain platforms, databases, and VMs with atomic, verified state transitions.",
+    href: "/five-stacks-one-loop.pdf",
+    pdf: true,
+  },
+  {
+    title: "Fade Is the Only Edge",
+    blurb: "The thermodynamics of market decay: capitalizing on momentum and liquidity flows in prediction markets using pure game theory, verified over walk-forward OOS splits.",
+    href: "/fade-is-the-only-edge.pdf",
+    pdf: true,
+  },
+  {
+    title: "Contract Substrate Hardening",
+    blurb: "The temporal convergence of the ledger: maintaining an append-only local ledger of signed engrams that survives memory compaction and session limits over long run times.",
+    href: "/contract-substrate-hardening.pdf",
+    pdf: true,
+  },
+  {
+    title: "Identity Points to Itself",
+    blurb: "The recursive, self-attesting soul: a public key acting as its own root of trust, requiring biometric fingerprint confirmation on macOS for high-stakes capability grants.",
+    href: "/identity-points-to-itself.pdf",
     pdf: true,
   },
 ];
