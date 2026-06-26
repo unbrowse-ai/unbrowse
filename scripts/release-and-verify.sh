@@ -56,7 +56,7 @@ log "local tests passed"
 log "testing against the benchmarks via Aiko..."
 # Always test against the benchmarks via aiko before deploying and cutting a release to production.
 # If the benchmark run fails, it remains on staging as a contract.
-if ! "$HOME/.claude/skills/contract/scripts/aiko" "bench-gate" 2>&1; then
+if ! timeout 20s "$HOME/.claude/skills/contract/scripts/aiko" "bench-gate" 2>&1; then
   log "Aiko benchmark-gate FAILED or was bypassed."
   log "The release will NOT be promoted to production."
   log "Remaining on staging as a contract..."
