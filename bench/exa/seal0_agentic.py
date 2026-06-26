@@ -32,7 +32,7 @@ import time
 from dataclasses import dataclass, field
 
 # Point the shared searcher at the real binary before importing it.
-os.environ.setdefault("UNBROWSE_BIN", "/opt/nanobrew/prefix/bin/unbrowse")
+os.environ.setdefault("UNBROWSE_BIN", "/Users/lekt9/.bun/bin/unbrowse")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from unbrowse_searcher import UnbrowseSearcher  # noqa: E402
@@ -53,7 +53,7 @@ AGENT_MODEL = os.environ.get("SEAL0_AGENT_MODEL", PROVIDERS[AGENT_PROVIDER][2])
 # Grader: independent frontier model on OpenRouter (≠ agent model = cleaner witness).
 GRADER_PROVIDER = os.environ.get("SEAL0_GRADER_PROVIDER", "openrouter")
 GRADER_MODEL = os.environ.get("SEAL0_GRADER_MODEL", "openai/gpt-4o-mini")
-N_ANGLES = int(os.environ.get("SEAL0_N_ANGLES", "3"))
+N_ANGLES = int(os.environ.get("SEAL0_N_ANGLES", "5"))
 MAX_ROUNDS = int(os.environ.get("SEAL0_MAX_ROUNDS", "2"))   # adaptive follow-up rounds
 MIN_SEARCHES = int(os.environ.get("SEAL0_MIN_SEARCHES", "2"))
 RESULTS_PER_SEARCH = int(os.environ.get("SEAL0_RESULTS_PER_SEARCH", "5"))
@@ -66,12 +66,18 @@ UNCAP_MAX_TOKENS = os.environ.get("SEAL0_UNCAP_MAX_TOKENS", "0").lower() in {"1"
 # lever: the single naive query returns only the popular (trap) answer.
 DECOMPOSE_SYS = (
     "You research one hard fact-seeking question whose web results often CONFLICT, are "
-    "stale, or hide a non-obvious correct answer behind the popular one. Propose {N} "
-    "DISTINCT web search queries that attack the question from different angles and "
-    "surface AUTHORITATIVE PRIMARY sources. At least one query MUST probe the exact, "
-    "literal framing of the question (e.g. a record counting engineers/producers, not just "
-    "artists; a count as of a specific date/season). Do NOT just restate the question.\n"
-    'Reply with EXACTLY ONE JSON object: {\"queries\":[\"q1\",\"q2\",\"q3\"]} (no commentary).'
+    "stale, or hide a non-obvious correct answer behind the popular one. The popular "
+    "answer is usually WRONG for these questions — the real answer is often a different "
+    "entity, a different count, or a non-obvious category (e.g. an engineer/mixer "
+    "instead of an artist, a specific date instead of a year, an exact number instead of "
+    "an approximation). Propose {N} DISTINCT web search queries that attack the question "
+    "from different angles and surface AUTHORITATIVE PRIMARY sources. At least one query "
+    "MUST probe the exact, literal framing of the question (e.g. a record counting "
+    "engineers/producers, not just artists; a count as of a specific date/season). At "
+    "least one query MUST search for the NON-OBVIOUS or technical answer (e.g. "
+    "'engineer mixer producer credits', 'exact count as of 2024', 'all-time including "
+    "non-performers'). Do NOT just restate the question.\n"
+    'Reply with EXACTLY ONE JSON object: {\"queries\":[\"q1\",\"q2\",\"q3\",\"q4\",\"q5\"]} (no commentary).'
 )
 
 # Phase A.2 — follow-up: given a compact digest, request ONE more targeted query if the
@@ -186,7 +192,7 @@ async def run_agent(searcher: UnbrowseSearcher, agent: OpenAI, tr: Trace) -> Non
     dec = await _chat(agent, [
         {"role": "system", "content": DECOMPOSE_SYS.replace("{N}", str(N_ANGLES))},
         {"role": "user", "content": f"Question: {question}\n\nJSON:"},
-    ], max_tokens=300)
+    ], max_tokens=2048)
     angles = [str(x) for x in _extract_json(dec).get("queries", []) if str(x).strip()]
     if not angles:
         angles = [question, f"{question} (exact record holder, including non-obvious)"]
@@ -198,7 +204,7 @@ async def run_agent(searcher: UnbrowseSearcher, agent: OpenAI, tr: Trace) -> Non
         act = _extract_json(await _chat(agent, [
             {"role": "system", "content": FOLLOWUP_SYS},
             {"role": "user", "content": f"Question: {question}\n\nEvidence digest:\n{digest()}\n\nJSON:"},
-        ], max_tokens=200))
+        ], max_tokens=1024))
         if act.get("action") == "ready" and len(tr.searches) >= MIN_SEARCHES:
             break
         if act.get("query"):
@@ -215,10 +221,25 @@ async def run_agent(searcher: UnbrowseSearcher, agent: OpenAI, tr: Trace) -> Non
         {"role": "system", "content": RECONCILER_SYS},
         {"role": "user", "content": f"QUESTION: {question}\n\nEVIDENCE:\n{ev_text}\n\nFinal JSON:"},
     ]
-    content = await _chat(agent, rec_msgs, max_tokens=700)
+    content = await _chat(agent, rec_msgs, max_tokens=4096)
     obj = _extract_json(content)
     tr.analysis = str(obj.get("analysis", ""))[:500]
-    tr.pred = str(obj.get("answer", "")).strip() or content[:200]
+    raw_answer = str(obj.get("answer", "")).strip()
+    if raw_answer:
+        tr.pred = raw_answer
+    else:
+        # Try to extract "answer" field from truncated/malformed JSON
+        m_ans = re.search(r'"answer"\s*:\s*"([^"]*)"', content)
+        if m_ans:
+            tr.pred = m_ans.group(1).strip()
+        else:
+            # Free-text fallback: look for common answer patterns
+            m = re.search(r'(?:answer is|final answer|the answer|answer:)\s*[:\s]*([^\n.]+)', content, re.IGNORECASE)
+            if m:
+                tr.pred = m.group(1).strip().strip('"\'')
+            else:
+                lines = [l.strip() for l in content.strip().splitlines() if l.strip()]
+                tr.pred = lines[-1][:200] if lines else content[:200]
 
 
 def grade(grader: OpenAI, tr: Trace) -> None:

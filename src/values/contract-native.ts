@@ -18,7 +18,10 @@ const HOST = `${process.platform}-${process.arch}`;
 const EXT = process.platform === "darwin" ? "dylib" : process.platform === "win32" ? "dll" : "so";
 
 const isBun = typeof process !== "undefined" && !!(process as { versions?: { bun?: string } }).versions?.bun;
-const moduleDir = dirname(fileURLToPath(import.meta.url)); // src/values when dev, runtime/… when packed
+const moduleDir = (() => {
+  try { return dirname(fileURLToPath(import.meta.url)); }
+  catch { return ""; }
+})();
 
 /**
  * bun:ffi acquired LAZILY (CLI/Bun-only) — NEVER a static `import ... from "bun:ffi"`.
