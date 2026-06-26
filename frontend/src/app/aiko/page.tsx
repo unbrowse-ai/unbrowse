@@ -296,7 +296,7 @@ export default function AikoLandingPage() {
         </div>
         <div className="aiko-cell" style={{ marginTop: "1rem" }}>
           <p className="aiko-cell__b" style={{ margin: 0 }}>
-            Native binding: <code>aiko-engine3</code> -> <code>unbrowse resolve</code> -> <code>unbrowse execute</code> -> <code>iqseal</code> / deploy / route receipts.
+            Native binding: <code>aiko-engine3</code> {"->"} <code>unbrowse resolve</code> {"->"} <code>unbrowse execute</code> {"->"} <code>iqseal</code> / deploy / route receipts.
           </p>
         </div>
       </section>

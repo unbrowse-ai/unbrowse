@@ -42,7 +42,7 @@ const PAPERS = [
   },
   {
     title: "Unbrowse Maintenance Network",
-    blurb: "The maintenance layer: route freshness has to be witnessed over time, challenged when wrong, and paid as real maintenance work.",
+    blurb: "The maintenance layer: FDRY is the native utility token backing AGI and agent-mediated transactions. Route freshness has to be witnessed over time, challenged when wrong, and paid as real maintenance work.",
     href: "/unbrowse-maintenance-network.pdf",
     pdf: true,
   },
