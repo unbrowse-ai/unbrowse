@@ -165,6 +165,9 @@ Three patterns that would be simpler but are deliberately rejected:
   Slashing is a matter of evidence, not opinion; stake cannot purchase forgiveness
   for a failed route.
 
+## See Also
+- [Jupiter Chrome Extension & Meteora Wallet Integration Guide](../../../../fdry/docs/JUPITER_EXTENSION_SUPPORT.md) — How the Jupiter Wallet extension integrates with `pay.sh` / OWS, and how to route Meteora assets to back the vault.
+
 ## Game-Theoretic Foundations & Academic Grounding
 
 The Unbrowse Maintenance Network is designed from first principles using mechanism design and game theory to ensure honest routing is the unique Nash equilibrium. It draws on several foundational papers from arXiv:
