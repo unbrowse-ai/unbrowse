@@ -50,17 +50,7 @@ learned head assigns a compatibility energy `E(intent, route)`, the selector
 ranks by it, lowest energy wins. Boring on purpose. Selection should be a number,
 not a vibe.
 
-## 3. Run It or It Didn't Happen — 🟢 Time *(the honesty discipline)*
-
-> `paper/execute-dont-guess.tex`
-
-One unglamorous rule: a published number is admissible only if a command re-runs
-it green, honest negatives are recorded next to the wins, and no claim ships
-whose witness you cannot locate and run. Applied to a 0.8B tool-routing agent:
-**nine reproduced wins and five honest negatives.** The five losses are the point
-— a benchmark you cannot lose is a benchmark you cannot trust.
-
-## 4. Sign Everything. No, Everything. — 🔴 Reality *(the descent)*
+## 3. Sign Everything. No, Everything. — 🔴 Reality *(the descent)*
 
 > `paper/crypto-was-all-you-needed.tex` ([PDF](https://docs.unbrowse.ai))
 
@@ -83,7 +73,7 @@ role check where the granter's signature is the only authority, never self-assig
 Authentication, selective disclosure, and authorisation collapse into one act of
 signing. It was large enough to stand alone — and now does, as Paper 6.
 
-## 5. Wait, Who's Going to Maintain All This? — 🟣 Power *(the economy)*
+## 4. Wait, Who's Going to Maintain All This? — 🟣 Power *(the economy)*
 
 > `paper/internal-apis-were-not-all-you-needed.tex` ([PDF](https://docs.unbrowse.ai))
 
@@ -100,6 +90,16 @@ This is the **love-ledger** part, if you want the unsentimental version of it:
 the people who keep a route alive get credited when it is reused, the ones who
 let it rot get slashed, and the accounting is on a ledger rather than on trust.
 Care, made into a column.
+
+## 5. Run It or It Didn't Happen — 🟢 Time *(the honesty discipline)*
+
+> `paper/execute-dont-guess.tex`
+
+One unglamorous rule: a published number is admissible only if a command re-runs
+it green, honest negatives are recorded next to the wins, and no claim ships
+whose witness you cannot locate and run. Applied to a 0.8B tool-routing agent:
+**nine reproduced wins and five honest negatives.** The five losses are the point
+— a benchmark you cannot lose is a benchmark you cannot trust.
 
 ## 6. You Are Your Keys (Sorry) — 🟠 Soul *(the principal)*
 
