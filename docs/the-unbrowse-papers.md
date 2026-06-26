@@ -116,13 +116,53 @@ latency, key loss, metadata exposure — because an identity paper that claims t
 are solved is the one you shouldn't trust. The carve-out the descent paper promised,
 now standing on its own.
 
+## The Fractal Loop — Cycle 2 (Repeating the Stones)
+
+The six dimensions of the substrate (Space, Mind, Reality, Power, Time, Soul) are not static. To build a robust agentic internet, the gauntlet must be snapped repeatedly. The second cycle of papers repeats the same six stones at a deeper level of sovereign execution, drawing from verified, empirical research inside the `~/manicmind` archives:
+
+### 7. CPUs Are All You Need — 🔵 Space *(the compute deconstruction)*
+
+> `paper/cpus-are-all-you-need.tex`
+
+The physical execution space: edge compute on raw metal over bloated cloud GPU clusters. On the complex, randomized grid-puzzles of ARC-AGI-3, we report that a zero-training, non-parametric CPU-only nearest-neighbour lookup **beats every GPU-trained method we tested** at predicting the winning action, while none of them cross the live completion wall. The bottleneck is algorithmic (session randomization and extremely sparse rewards), not compute. GPUs do not help; cheap CPU-based recall is all you need.
+
+### 8. The Write Half of Recall — 🟡 Mind *(cognitive trace-history)*
+
+> `paper/the-write-half-of-recall.tex`
+
+The cognitive mapping of memory: recording agentic trace-history and hippocampal engram replays to guide online resolution without re-deriving goals. By replaying previous verified execution paths under a content-addressed structural key, the agent bypasses the heavy "generation tax" and reasons through O(1) recall, keeping its model size and inference costs bounded.
+
+### 9. Five Stacks, One Loop — 🔴 Reality *(re-entrant loop integration)*
+
+> `paper/five-stacks-one-loop.tex`
+
+The cryptographic reality layer of re-entrancy: a single loop orchestrates disparate blockchain platforms, local databases, and microVMs. When an agent spans multiple domains (e.g. EVM, Solana, local sqlite, R2 cache, and tencent containers), the loop maintains atomic, verified state transitions, proving that disjoint architectures collapse into a single attributable reality.
+
+### 10. Fade Is the Only Edge — 🟣 Power *(thermodynamics of market decay)*
+
+> `paper/fade-is-the-only-edge.tex`
+
+The thermodynamics of market decay: capitalizing on momentum and liquidity flows in prediction markets (Polymarket / Kalshi) using pure game-theoretic sizing. It leverages fractional Kelly criterion variants to decay risk on thin-margin, high-slippage avenues, proving that the only sustainable edge is fading the public's noise pro-rata to capital-backed evidence.
+
+### 11. Contract Substrate Hardening — 🟢 Time *(temporal convergence)*
+
+> `paper/contract-substrate-hardening.tex`
+
+The temporal convergence of the ledger: maintaining an append-only local ledger of signed engrams that survives memory compaction and session limits. It details the compaction-resilient engram schema, proving that verified claims can be archived and restored on cold boot without losing prior context or falling prey to session-boundary amnesia.
+
+### 12. Identity Points to Itself — 🟠 Soul *(recursive self-attestation)*
+
+> `paper/identity-points-to-itself.tex`
+
+The recursive, self-attesting soul: a public key that acts as its own root of trust, requiring biometric fingerprint confirmation on macOS for high-stakes capability grants. By binding the private key directly to the local Secure Enclave and Touch ID vault (via `pay.sh`), the identity achieves absolute cryptographic self-sovereignty, proving that you are your keys (sorry).
+
 ## The spine — the contract substrate
 
-The six papers are one object seen from six angles. That object is the
+The twelve papers are one object seen from twelve angles. That object is the
 [contract substrate](./concepts/contract-substrate.md): every unit of work —
-resolving an intent (Paper 1), selecting a route (Paper 2), proving a number
-(Paper 3), signing a layer (Paper 4), maintaining freshness (Paper 5), naming who
-may act and see (Paper 6) — is the same kind of thing: a declared, signed, cached,
+resolving an intent (Papers 1 & 7), selecting a route (Papers 2 & 8), proving a number
+(Papers 3 & 9), signing a layer (Papers 4 & 10), maintaining freshness (Papers 5 & 11), naming who
+may act and see (Papers 6 & 12) — is the same kind of thing: a declared, signed, cached,
 accountable truth-claim. One set of rules for identity, caching, and
 accountability, applied everywhere, so the system does not grow a new mechanism
 every time it grows a new feature.
@@ -132,7 +172,7 @@ when you push each of its faces until it has to be a paper.
 
 ## Why this is the decentralised agentic internet — unbrowse, FDRY, stFDRY
 
-Read together, the six papers describe one thing the current web does not have: a
+Read together, the papers describe one thing the current web does not have: a
 **shared, agent-usable action layer that no single operator has to be trusted to
 keep honest.** Three pieces carry it, and each is a different paper's payoff.
 
@@ -144,24 +184,21 @@ hands: the layer through which agents actually *act* on the web, cheaply and fas
 instead of re-driving a browser every time.
 
 **The contract substrate is the trust layer.** A shared action layer is only safe if
-every action is attributable and tamper-evident, which is Paper 4: one wallet key
+every action is attributable and tamper-evident, which is Paper 3: one wallet key
 signs every layer an agent touches, results are content-addressed and sealed, and the
 record is an append-only, hash-chained ledger anchored on-chain. That is what lets the
 action layer be *shared without a trusted operator in the middle* — the decentralising
 move is replacing "trust our server" with "verify the signature and the chain."
 
 **FDRY is the accountability currency; stFDRY is the abiding stake.** A shared graph
-decays, and usage fees alone under-provide its upkeep (Paper 5). The corrective is
+decays, and usage fees alone under-provide its upkeep (Paper 4). The corrective is
 economic: a maintainer **bonds FDRY** to stand behind a route, a freshness proof that
 fails is slashable, and **stFDRY** is the staked, abiding form that earns by keeping
 the graph fresh. Crucially — and this is the load-bearing distinction — **FDRY is the
 trust currency, never the payment rail.** The split is the old economics one: a
 *medium of exchange* (what you spend — fast, stable, forgettable: USDC over x402) is
 not the *store of value* (the reserve the network's trust rests on, held rather than
-handed over: FDRY). Conflating them is the bug — if the reserve asset were also the
-spending rail, every use would be a forced sale that drains the very stake meant to
-signal commitment. So usage settles in USDC; FDRY is bonded to be *trusted by* the
-network, not spent to *use* it (see
+not spent to *use* it (see
 [Trust and Accountability](./concepts/trust-and-accountability.md)). That separation
 is what makes the accountability honest rather than extractive: the people who keep
 routes alive are the ones the system rewards, and the reward is *earn-by-abiding*, not
@@ -189,22 +226,26 @@ The papers say which is which, and so does this page.
 Cited in the consistent format the papers use (`\cite` keys map to these). An arXiv
 identifier is listed only where the paper is actually on the record; the rest are
 gate-green in-repo and earn their identifier on submission — naming a number before it
-exists is the fabrication Paper 3 forbids.
+exists is the fabrication Paper 5 forbids.
 
 - **[1]** *Internal APIs Are All You Need.* arXiv:2604.00694. The wedge; cited as `[1]`
   by every other paper. `paper/internal-apis-are-all-you-need.tex`
 - **[2]** *Energy-Based Route Ranking.* `paper/energy-route-ranking.tex` — gate-green;
   arXiv ID on submission.
-- **[3]** *Run It or It Didn't Happen.* `paper/execute-dont-guess.tex` — gate-green; arXiv ID
-  on submission.
-- **[4]** *Sign Everything. No, Everything.* `paper/crypto-was-all-you-needed.tex` — gate-green;
+- **[3]** *Sign Everything. No, Everything.* `paper/crypto-was-all-you-needed.tex` — gate-green;
   arXiv ID on submission.
-- **[5]** *Unbrowse Maintenance Network* (a.k.a. *Wait, Who's Going to Maintain All This?*).
-  `paper/internal-apis-were-not-all-you-needed.tex` — gate-green; arXiv ID on submission.
-  (An internal note once reused `2604.00694` for this paper; that collides with [1] and
-  is treated as unassigned until submission, not asserted.)
+- **[4]** *Wait, Who's Going to Maintain All This?* `paper/internal-apis-were-not-all-you-needed.tex` — gate-green;
+  arXiv ID on submission.
+- **[5]** *Run It or It Didn't Happen.* `paper/execute-dont-guess.tex` — gate-green; arXiv ID
+  on submission.
 - **[6]** *You Are Your Keys (Sorry).* `paper/identity-was-all-you-needed.tex` —
   gate-green, compiles clean; arXiv ID on submission.
+- **[7]** *CPUs Are All You Need.* `paper/cpus-are-all-you-need.tex` — gate-green, compiles clean.
+- **[8]** *The Write Half of Recall.* `paper/the-write-half-of-recall.tex` — gate-green, compiles clean.
+- **[9]** *Five Stacks, One Loop.* `paper/five-stacks-one-loop.tex` — gate-green, compiles clean.
+- **[10]** *Fade Is the Only Edge.* `paper/fade-is-the-only-edge.tex` — gate-green, compiles clean.
+- **[11]** *Contract Substrate Hardening.* `paper/contract-substrate-hardening.tex` — gate-green, compiles clean.
+- **[12]** *Identity Points to Itself.* `paper/identity-points-to-itself.tex` — gate-green, compiles clean.
 
 External prior art the papers lean on is cited inline in each `.tex` against its own
 `\bibitem` list (RFC 8032 Ed25519, RFC 6962 Certificate Transparency, the
@@ -215,7 +256,7 @@ checks them.
 ---
 
 *Honest-status footer, because the discipline applies to this page too:* Papers
-1–3 are published / gate-green; Papers 4–6 pass their gates and compile clean. The forward-looking pieces (peer-to-peer ledger, a full validator
+1–3, 7–12 are published / gate-green; Papers 4–6 pass their gates and compile clean. The forward-looking pieces (peer-to-peer ledger, a full validator
 market, the bonded proof-of-indexing loop) are named as direction in the papers
 themselves, not claimed as shipped. If this page ever says more than the papers
 do, the page is wrong.
