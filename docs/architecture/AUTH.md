@@ -177,6 +177,13 @@ substrate**:
   the parent's declarations to the child as MCP tool surface. The child
   reads parent-signed ledger rows as pointers (never inlines the payload),
   dereferences through the substrate, and acts on the resolved truth.
+- **Native binding manifest:** `src/values/aiko-unbrowse-binding.ts` binds
+  `aiko-engine3` to the stateless `unbrowse` child surface. It names the
+  exact command surface (`resolve`, `execute`, `search`, sponsor status), the
+  on-chain route-index mirror (`mirrorResolutionToChain`), wallet-gated
+  `iqseal:<txSig>` values, deploy receipts (`recordDeploy`), and the seed
+  funding lane for first indexing work. The bridge manifest
+  projects the same binding through the public contract surface.
 
 ## One-line model
 

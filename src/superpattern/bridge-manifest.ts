@@ -9,6 +9,7 @@
 
 import { knownCommands, surfaceFor, type Surface } from "./cli-surface.js";
 import { AGENT_STANDARDS, type AgentStandard } from "../values/standards-registry.js";
+import { AIKO_ENGINE3_REPO, aikoUnbrowseBinding, type AikoUnbrowseBinding } from "../values/aiko-unbrowse-binding.js";
 
 export type PaperVerb = "observe" | "act" | "verify";
 export type BridgeLayer = "screen" | "browser" | "cli" | "os" | "kernel" | "packet";
@@ -118,11 +119,12 @@ export interface BridgeManifest {
   readonly runtime_authority: RuntimeAuthorityContract;
   readonly roles: readonly BridgeRoleSurface[];
   readonly aiko_inverse: {
-    readonly repo: "/Users/lekt9/Projects/unbrowse-ecosystem/aiko-engine";
+    readonly repo: typeof AIKO_ENGINE3_REPO;
     readonly mapping: "1:-1";
     readonly public_descriptor: "JSON descriptor plus rpc refs";
     readonly private_runtime: "live plugin functions stay in worker registry";
   };
+  readonly aiko_unbrowse_binding: AikoUnbrowseBinding;
 }
 
 const PAPER_NODE_SHAPE: PaperNodeShape = {
@@ -308,10 +310,11 @@ export function bridgeManifest(): BridgeManifest {
       },
     ],
     aiko_inverse: {
-      repo: "/Users/lekt9/Projects/unbrowse-ecosystem/aiko-engine",
+      repo: AIKO_ENGINE3_REPO,
       mapping: "1:-1",
       public_descriptor: "JSON descriptor plus rpc refs",
       private_runtime: "live plugin functions stay in worker registry",
     },
+    aiko_unbrowse_binding: aikoUnbrowseBinding(),
   };
 }
