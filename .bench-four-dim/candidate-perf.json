@@ -1,0 +1,1282 @@
+{
+  "target": "http://localhost:3300/",
+  "loadMs": 6764,
+  "httpStatus": 200,
+  "nav": {
+    "domContentLoaded": 914.3000000007451,
+    "loadEvent": 0,
+    "ttfb": 8.400000000372529,
+    "transferSize": 29259,
+    "encodedBodySize": 28959,
+    "decodedBodySize": 165344,
+    "type": "navigate"
+  },
+  "coreMetrics": {
+    "fcp": 1752,
+    "lcp": 1752,
+    "cls": 0.0012787072824751674,
+    "longTaskCount": 3,
+    "longTaskTotalMs": 323,
+    "longTaskMaxMs": 188,
+    "tbt": 173,
+    "layoutShifts": [
+      {
+        "value": 0.0012787072824751674,
+        "startTime": 1928.800000000745,
+        "sources": [
+          {
+            "node": "#text",
+            "id": null,
+            "cls": null
+          },
+          {
+            "node": "#text",
+            "id": null,
+            "cls": null
+          }
+        ]
+      }
+    ],
+    "paints": [
+      {
+        "name": "first-paint",
+        "startTime": 1752
+      },
+      {
+        "name": "first-contentful-paint",
+        "startTime": 1752
+      }
+    ]
+  },
+  "lenisCheck": {
+    "mounted": false,
+    "type": "undefined",
+    "hasDestroy": false
+  },
+  "lenisOffResult": null,
+  "imageAudit": {
+    "totalImages": 9,
+    "missingDimensions": 7,
+    "offenders": [
+      {
+        "src": "http://localhost:3300/images/human-hand-nobg.png",
+        "naturalW": 1360,
+        "naturalH": 731,
+        "clientW": 246,
+        "clientH": 388
+      },
+      {
+        "src": "http://localhost:3300/images/android-hand-nobg.png",
+        "naturalW": 1167,
+        "naturalH": 976,
+        "clientW": 215,
+        "clientH": 338
+      },
+      {
+        "src": "http://localhost:3300/nvidia-inception.svg",
+        "naturalW": 300,
+        "naturalH": 129,
+        "clientW": 130,
+        "clientH": 56
+      },
+      {
+        "src": "http://localhost:3300/partner-crossmint.svg",
+        "naturalW": 150,
+        "naturalH": 28,
+        "clientW": 129,
+        "clientH": 24
+      },
+      {
+        "src": "http://localhost:3300/partner-moonpay.svg",
+        "naturalW": 300,
+        "naturalH": 66,
+        "clientW": 109,
+        "clientH": 24
+      },
+      {
+        "src": "http://localhost:3300/partner-corbits.svg",
+        "naturalW": 1335,
+        "naturalH": 400,
+        "clientW": 67,
+        "clientH": 20
+      },
+      {
+        "src": "http://localhost:3300/partner-uprock.png",
+        "naturalW": 96,
+        "naturalH": 96,
+        "clientW": 28,
+        "clientH": 28
+      }
+    ]
+  },
+  "fontAudit": [
+    {
+      "family": "Fonetika",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display Fallback",
+      "style": "normal",
+      "weight": "normal",
+      "status": "unloaded",
+      "display": "auto"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "italic",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "600",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "600",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "600",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "600",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "600",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Cormorant Garamond",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "400",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "500",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans",
+      "style": "normal",
+      "weight": "700",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "400",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "400",
+      "status": "loaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "500",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "700",
+      "status": "unloaded",
+      "display": "swap"
+    },
+    {
+      "family": "Google Sans Display",
+      "style": "normal",
+      "weight": "700",
+      "status": "loaded",
+      "display": "swap"
+    }
+  ],
+  "scrollResult": {
+    "totalFrames": 255,
+    "droppedFrames": 9,
+    "badFrames": 8,
+    "worstFrameMs": 316.59999999999854,
+    "avgFrameMs": 21.666666666665204,
+    "effectiveFps": 46.15384615384927,
+    "sampleHistogram": {
+      ">16ms": 254,
+      ">20ms": 9,
+      ">33ms": 8,
+      ">50ms": 8,
+      ">100ms": 8
+    }
+  },
+  "inpProxies": [
+    {
+      "selector": "a[href*='install']",
+      "latencyMs": 140.19999999925494
+    },
+    {
+      "selector": "button:not([disabled])",
+      "latencyMs": 200.30000000074506
+    },
+    {
+      "selector": "[role='tab']",
+      "latencyMs": 93.69999999925494
+    }
+  ],
+  "slowEvents": [
+    {
+      "name": "pointerover",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.599999999627,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerenter",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "mouseover",
+      "duration": 184,
+      "startTime": 14033.599999999627,
+      "processingStart": 14034.700000001118,
+      "processingEnd": 14034.700000001118
+    },
+    {
+      "name": "pointerover",
+      "duration": 88,
+      "startTime": 13885.400000000373,
+      "processingStart": 13892.200000001118,
+      "processingEnd": 13895.099999999627
+    },
+    {
+      "name": "pointerenter",
+      "duration": 88,
+      "startTime": 13885.400000000373,
+      "processingStart": 13895.099999999627,
+      "processingEnd": 13895.099999999627
+    },
+    {
+      "name": "pointerenter",
+      "duration": 88,
+      "startTime": 13885.400000000373,
+      "processingStart": 13895.099999999627,
+      "processingEnd": 13895.099999999627
+    },
+    {
+      "name": "pointerenter",
+      "duration": 88,
+      "startTime": 13885.400000000373,
+      "processingStart": 13895.099999999627,
+      "processingEnd": 13895.099999999627
+    }
+  ],
+  "network": {
+    "totalRequests": 85,
+    "totalBytes": 1158014,
+    "byType": {
+      "image/svg+xml": {
+        "count": 6,
+        "bytes": 16280
+      },
+      "text/html": {
+        "count": 1,
+        "bytes": 29578
+      },
+      "image/webp": {
+        "count": 1,
+        "bytes": 1704
+      },
+      "text/css": {
+        "count": 2,
+        "bytes": 24240
+      },
+      "image/png": {
+        "count": 3,
+        "bytes": 503567
+      },
+      "application/javascript": {
+        "count": 15,
+        "bytes": 330134
+      },
+      "font/woff2": {
+        "count": 4,
+        "bytes": 84423
+      },
+      "image/avif": {
+        "count": 2,
+        "bytes": 75429
+      },
+      "text/x-component": {
+        "count": 50,
+        "bytes": 92659
+      },
+      "unknown": {
+        "count": 1,
+        "bytes": 0
+      }
+    },
+    "jsChunks": [
+      {
+        "url": "http://localhost:3300/_next/static/chunks/107eebbadf9a906d.js",
+        "kb": 138.3,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/6ad2c7d531fe35b7.js",
+        "kb": 68.9,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/8ff8407765861fd3.js",
+        "kb": 31.6,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/97b94bbbc6e274cf.js",
+        "kb": 20.5,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/5278315fa76dec3d.js",
+        "kb": 13.5,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/36511a7fd645ea81.js",
+        "kb": 7.7,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/44c6e0dba42dd4ca.js",
+        "kb": 7.6,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/9eb502b89e79803d.js",
+        "kb": 7.5,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/aca54f13ad64704c.js",
+        "kb": 6.3,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/9592273939cd40e7.js",
+        "kb": 5.2,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/turbopack-da219b19cc82efcb.js",
+        "kb": 4.3,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/5248b267326c1197.js",
+        "kb": 4.3,
+        "status": 200
+      },
+      {
+        "url": "https://cloud.umami.is/script.js",
+        "kb": 3.3,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/5c3cf7970d1cc163.js",
+        "kb": 2.7,
+        "status": 200
+      },
+      {
+        "url": "http://localhost:3300/_next/static/chunks/e0389384bbedb86c.js",
+        "kb": 0.6,
+        "status": 200
+      }
+    ],
+    "jsTotalKb": 322.3,
+    "cssChunks": [
+      {
+        "url": "http://localhost:3300/_next/static/chunks/b929e1a495836344.css",
+        "kb": 20.6
+      },
+      {
+        "url": "https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap",
+        "kb": 3.1
+      }
+    ],
+    "fontFiles": [
+      {
+        "url": "https://fonts.gstatic.com/s/googlesansdisplay/v23/ea8FacM9Wef3EJPWRrHjgE4B6CnlZxHVDv79oT3ZQZQ.woff2",
+        "kb": 15.1,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/googlesansdisplay/v23/ea8IacM9Wef3EJPWRrHjgE4B6CnlZxHVBkXYtBD7TL5-PQE.woff2",
+        "kb": 15.1,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/googlesans/v69/4UasrENHsxJlGDuGo1OIlJfC6l_24rlCK1Yo_Iqcsih3SAyH6cAwhX9RPlwUvbQoi-Entw.woff2",
+        "kb": 18.9,
+        "status": 200
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/googlesans/v69/4UasrENHsxJlGDuGo1OIlJfC6l_24rlCK1Yo_Iqcsih3SAyH6cAwhX9RPjIUvbQoi-E.woff2",
+        "kb": 33.4,
+        "status": 200
+      }
+    ],
+    "topImages": [
+      {
+        "url": "http://localhost:3300/images/android-hand-nobg.png",
+        "kb": 285.4
+      },
+      {
+        "url": "http://localhost:3300/images/human-hand-nobg.png",
+        "kb": 201.7
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=400&q=80",
+        "kb": 46
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=400&q=80",
+        "kb": 27.7
+      },
+      {
+        "url": "http://localhost:3300/nvidia-inception.svg",
+        "kb": 5.9
+      },
+      {
+        "url": "http://localhost:3300/partner-corbits.svg",
+        "kb": 4.6
+      },
+      {
+        "url": "http://localhost:3300/partner-uprock.png",
+        "kb": 4.6
+      },
+      {
+        "url": "http://localhost:3300/partner-crossmint.svg",
+        "kb": 3.6
+      },
+      {
+        "url": "http://localhost:3300/partner-moonpay.svg",
+        "kb": 1.8
+      },
+      {
+        "url": "http://localhost:3300/logo-optimized.webp",
+        "kb": 1.7
+      }
+    ],
+    "imageCount": 12
+  }
+}

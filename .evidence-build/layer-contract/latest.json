@@ -1,0 +1,162 @@
+{
+  "ts": "2026-06-25T15:02:19.464Z",
+  "ok": true,
+  "reports": [
+    {
+      "url": "https://docs.redhat.com/es/documentation/red_hat_jboss_enterprise_application_platform/7.4/html-single/developing_hibernate_applications/index",
+      "intent": "document contents",
+      "layers": [
+        {
+          "layer": "dns",
+          "status": "pass",
+          "detail": {
+            "addresses": [
+              "2600:1413:b000:1b::17d7:717",
+              "2600:1413:b000:1b::17d7:704",
+              "23.32.39.133",
+              "23.58.144.151"
+            ]
+          }
+        },
+        {
+          "layer": "tcp_tls",
+          "status": "pass",
+          "detail": {
+            "authorized": true,
+            "protocol": "TLSv1.3"
+          }
+        },
+        {
+          "layer": "native_fetch",
+          "status": "fail",
+          "detail": {
+            "status": 403,
+            "content_type": "text/html",
+            "bytes": 547
+          }
+        },
+        {
+          "layer": "curl_impersonate_direct",
+          "status": "pass",
+          "detail": {
+            "status": 200,
+            "bytes": 1969701,
+            "proxy_used": false,
+            "final_url": "https://docs.redhat.com/es/documentation/red_hat_jboss_enterprise_application_platform/7.4/html-single/developing_hibernate_applications/index"
+          }
+        },
+        {
+          "layer": "curl_impersonate_proxy",
+          "status": "pass",
+          "detail": {
+            "status": 200,
+            "bytes": 1969701,
+            "proxy_used": true,
+            "final_url": "https://docs.redhat.com/es/documentation/red_hat_jboss_enterprise_application_platform/7.4/html-single/developing_hibernate_applications/index"
+          }
+        },
+        {
+          "layer": "direct_document",
+          "status": "pass",
+          "detail": {
+            "reason": "served",
+            "markdown_bytes": 12000,
+            "html_bytes": 1969294,
+            "url_template": "https://docs.redhat.com/es/documentation/red_hat_jboss_enterprise_application_platform/7.4/html-single/developing_hibernate_applications/index"
+          }
+        },
+        {
+          "layer": "unbrowse_search",
+          "status": "pass",
+          "detail": {
+            "rc": 0,
+            "bin": "bun",
+            "bin_args": "src/cli.ts",
+            "source": "direct-document",
+            "markdown_bytes": 200000,
+            "stderr": "[domain-cache] loaded 9 entries from disk\n[route-cache] loaded 4 entries from disk\n[unbrowse] ToS check skipped (non-interactive/server mode)\n[23:02:15] [auth] extracted 0 cookies for docs.redhat.com from Chrome default profile\n[23:02:15] [auth] extracted 0 cookies for docs.redhat.com from Chrome us"
+          }
+        }
+      ],
+      "holes": []
+    },
+    {
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "intent": "document contents",
+      "layers": [
+        {
+          "layer": "dns",
+          "status": "pass",
+          "detail": {
+            "addresses": [
+              "2606:4700::6810:fd78",
+              "2606:4700::6810:fe78",
+              "104.16.254.120",
+              "104.16.253.120"
+            ]
+          }
+        },
+        {
+          "layer": "tcp_tls",
+          "status": "pass",
+          "detail": {
+            "authorized": true,
+            "protocol": "TLSv1.3"
+          }
+        },
+        {
+          "layer": "native_fetch",
+          "status": "pass",
+          "detail": {
+            "status": 200,
+            "content_type": "text/html; charset=utf-8",
+            "bytes": 22589
+          }
+        },
+        {
+          "layer": "curl_impersonate_direct",
+          "status": "pass",
+          "detail": {
+            "status": 200,
+            "bytes": 22611,
+            "proxy_used": false,
+            "final_url": "https://requests.readthedocs.io/en/latest/"
+          }
+        },
+        {
+          "layer": "curl_impersonate_proxy",
+          "status": "pass",
+          "detail": {
+            "status": 200,
+            "bytes": 22611,
+            "proxy_used": true,
+            "final_url": "https://requests.readthedocs.io/en/latest/"
+          }
+        },
+        {
+          "layer": "direct_document",
+          "status": "pass",
+          "detail": {
+            "reason": "served",
+            "markdown_bytes": 10491,
+            "html_bytes": 22589,
+            "url_template": "https://requests.readthedocs.io/en/latest/"
+          }
+        },
+        {
+          "layer": "unbrowse_search",
+          "status": "pass",
+          "detail": {
+            "rc": 0,
+            "bin": "bun",
+            "bin_args": "src/cli.ts",
+            "source": "direct-document",
+            "markdown_bytes": 10491,
+            "stderr": "[domain-cache] loaded 9 entries from disk\n[route-cache] loaded 4 entries from disk\n[unbrowse] ToS check skipped (non-interactive/server mode)\n"
+          }
+        }
+      ],
+      "holes": []
+    }
+  ]
+}

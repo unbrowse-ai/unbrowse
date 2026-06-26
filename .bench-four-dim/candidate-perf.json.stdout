@@ -1,0 +1,6 @@
+[perf] navigate http://localhost:3300/
+[perf] loaded in 6764 ms; status 200
+[perf] scroll jank pass
+[perf] INP proxy pass
+/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.editions-evidence/PERF-AUDIT.md
+/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.editions-evidence/PERF-AUDIT.json

@@ -45,10 +45,16 @@ Most agents who run validators are contributors on every successful capture. The
 
 ## Pricing model
 
+> **The margin gate is the admission control.** An action ships iff
+> `value_created − transaction_cost > 0` (Luke 14:28 — count the cost; [Paper 4
+> §4.1](../paper/the-margin-was-all-you-needed.md)). The captured spread is the
+> economy; it is split by **marginal contribution (Shapley value)**, not by
+> stake size, and tithed to the abiding (holders) via NAV-per-share growth.
+
 - **Cache hit**: small per-execution micro-payment (USDC over x402). Exact amounts depend on skill rarity and the live rate card.
 - **Live capture**: free for the caller. The captured skill becomes inventory.
 - **Paid x402 routes**: skills marked `paid` cost more (per-skill pricing). The 50/15/35 split (platform/owner-when-claimed/contributors) still applies.
-- **Attribution weighting**: contributors whose routes are uniquely useful earn larger shares than those whose routes have good alternatives. Stop adding marginal value and your share decays over subsequent executions.
+- **Attribution weighting**: contributors whose routes are uniquely useful earn larger shares than those whose routes have good alternatives. Stop adding marginal value and your share decays over subsequent executions. This is the **Shapley value** over the production coalition — the unique split that is efficient, symmetric, dummy, and additive ([arXiv:1403.6713](https://arxiv.org/abs/1403.6713), [arXiv:2410.09107](https://arxiv.org/abs/2410.09107), [arXiv:2506.07388](https://arxiv.org/abs/2506.07388)). The live `cumulative_delta` weighting is its streaming approximation.
 
 Exact rate cards live at [unbrowse.ai/pricing](https://www.unbrowse.ai/pricing). The runtime never settles below the platform threshold to keep gas-equivalents tractable — Faremeter Flex batches authorizations and finalizes on-chain when the refund window closes.
 

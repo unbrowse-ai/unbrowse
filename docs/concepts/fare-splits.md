@@ -2,6 +2,11 @@
 
 How a paid call to an Unbrowse skill divides into three on-chain shares.
 
+> **The split is by marginal contribution (Shapley value), not by stake
+> size.** The three lanes below are the live instantiation of the
+> marginal-contribution split from [the margin paper](../paper/the-margin-was-all-you-needed.md)
+> (Paper 4, §4.3). Stake buys eligibility to earn, never a larger share.
+
 ## The three lanes
 
 When an agent calls a paid skill via `unbrowse execute`, the platform's facilitator computes the split across up to three recipients. The math lives in `backend/src/services/flex.ts:computeFlexSplits`.
@@ -20,6 +25,8 @@ The three lanes always sum to exactly 10000 basis points (100%). The Flex on-cha
 
 The pre-claim shape was 50/50 (platform / contributor pool). When a site owner publishes their canonical API or proves ownership via DNS-TXT, they have done work that did not previously exist: surfacing a stable contract for agents to consume. The 15% lane lets that work get paid while preserving a 35% indexer share, the largest single slice for the people doing the discovery and maintenance work.
 
+This is the **Coasean bargain** over agent-mediated access ([arXiv:2604.07546](https://arxiv.org/abs/2604.07546)): the agent negotiates access + attribution + compensation on behalf of the rightsholder, and the verified DNS claim is the receipt that the rightsholder agreed. The three lanes are the structural decomposition of the production coalition — the platform (fixed-cost backbone), the contributors (marginal-contribution discoverers + maintainers), and the site owner (the upstream rightsholder). The general mechanism is the Shapley value ([arXiv:1403.6713](https://arxiv.org/abs/1403.6713), [arXiv:1805.08125](https://arxiv.org/abs/1805.08125) for the freely-replicable-goods fairness adjustment); the three lanes are its live instantiation.
+
 If the domain is never claimed, indexers absorb the would-be owner share automatically (the contributor pool grows to 50%). No domain has to pay for a missing owner; the math degrades gracefully.
 
 ## Contributor sub-splits
@@ -31,7 +38,15 @@ contributor_share_i = max(cumulative_delta_i, 0.01) / sum(max(cumulative_delta_j
                     * contributor_pool_bps
 ```
 
-The top `FLEX_MAX_SPLITS - 1` (or `- 2` when the owner lane is active) by `cumulative_delta` get a slot; the rest are dropped from this settlement (they accrue weight for future calls). The on-chain Flex program caps at 5 split recipients per authorization, so the caller of `unbrowse setup` cannot be the 99th contributor and silently lose all attribution.
+This is a **streaming Shapley approximation** — `cumulative_delta` tracks each
+contributor's marginal contribution to the callable route, and the
+normalised share is the Shapley value over the production coalition (the
+unique split that is efficient, symmetric, dummy, and additive — see [Paper
+4 §4.2](../paper/the-margin-was-all-you-needed.md) and the cited mechanism-design
+literature: [arXiv:1403.6713](https://arxiv.org/abs/1403.6713),
+[arXiv:2410.09107](https://arxiv.org/abs/2410.09107),
+[arXiv:2506.07388](https://arxiv.org/abs/2506.07388)). The top
+`FLEX_MAX_SPLITS - 1` (or `- 2` when the owner lane is active) by `cumulative_delta` get a slot; the rest are dropped from this settlement (they accrue weight for future calls). The on-chain Flex program caps at 5 split recipients per authorization, so the caller of `unbrowse setup` cannot be the 99th contributor and silently lose all attribution.
 
 ## What happens when there are no eligible contributors
 
