@@ -98,7 +98,13 @@ const COMPARISON = {
 const RECEIPTS = [
   { t: "Nothing happens off-screen", b: "Watch what she does, step by step. She works in the open on your machine, not in a black box you have to trust." },
   { t: "Local-first", b: "A 4-bit on-device model in the macOS app sandbox. No data exfiltration, and it still answers with WiFi off." },
-  { t: "Open, readable config", b: "Your setup is plain JSON files you can open and read. No proprietary lock-in on your data." },
+  { t: "On-chain receipts", b: "Routes, sealed values and deploys are pointer receipts. When chain mode is configured, the history lands on the IQ Solana ledger." },
+];
+
+const UNBROWSE_DEMO = [
+  { n: "01", t: "Aiko hears the job", b: "Find dog leashes on Carousell, compare the cheapest real listings, and do not buy until I approve." },
+  { n: "02", t: "Unbrowse opens the route", b: "Aiko calls Unbrowse resolve, picks the ranked route, then execute returns the listings without browser theater." },
+  { n: "03", t: "Receipts stay addressable", b: "The route pointer mirrors to the IQ ledger when configured; private fills become iqseal pointers; deploys are contract rows." },
 ];
 
 // Access-layer partners — ported from aiko-v4-lite's PaymentAccessStrip. x402 +
@@ -268,6 +274,30 @@ export default function AikoLandingPage() {
             <span>Talk to Aiko, or type&#8230;</span>
             <span className="aiko-notch__send"><ArrowRight className="w-3.5 h-3.5" /></span>
           </div>
+        </div>
+      </section>
+
+      {/* Unbrowse demo */}
+      <section className="aiko-section aiko-wrap" id="unbrowse-demo">
+        <span className="aiko-eyebrow">Aiko + Unbrowse</span>
+        <h2 className="aiko-h2" style={{ marginTop: "1.25rem" }}>She reaches the internet without making you set it up.</h2>
+        <p className="aiko-kicker" style={{ marginTop: "1.25rem" }}>
+          Aiko runs the plan. Unbrowse supplies the route, execution and receipts.
+          Paid access is wallet-approved, and irreversible steps still stop for your nod.
+        </p>
+        <div className="aiko-grid aiko-grid--3" style={{ marginTop: "1.75rem" }}>
+          {UNBROWSE_DEMO.map((s) => (
+            <div className="aiko-cell" key={s.n}>
+              <span className="aiko-cell__n">{s.n}</span>
+              <h3 className="aiko-cell__t">{s.t}</h3>
+              <p className="aiko-cell__b">{s.b}</p>
+            </div>
+          ))}
+        </div>
+        <div className="aiko-cell" style={{ marginTop: "1rem" }}>
+          <p className="aiko-cell__b" style={{ margin: 0 }}>
+            Native binding: <code>aiko-engine3</code> -> <code>unbrowse resolve</code> -> <code>unbrowse execute</code> -> <code>iqseal</code> / deploy / route receipts.
+          </p>
         </div>
       </section>
 

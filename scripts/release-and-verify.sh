@@ -52,6 +52,29 @@ bun test tests/path-params.test.ts tests/utils.test.ts || die "unit tests failed
 git checkout -- src/build-info.generated.ts 2>/dev/null || true
 log "local tests passed"
 
+# ── Step 1.2: Benchmark check via Aiko ──
+log "testing against the benchmarks via Aiko..."
+# Always test against the benchmarks via aiko before deploying and cutting a release to production.
+# If the benchmark run fails, it remains on staging as a contract.
+if ! "$HOME/.claude/skills/contract/scripts/aiko" "bench-gate" 2>&1; then
+  log "Aiko benchmark-gate FAILED or was bypassed."
+  log "The release will NOT be promoted to production."
+  log "Remaining on staging as a contract..."
+  
+  VERSION_STAGING="$(node -p "require('./package.json').version")"
+  GIT_SHA_STAGING="$(git rev-parse HEAD)"
+  
+  log "Recording staging deploy contract for unbrowse@$VERSION_STAGING (git $GIT_SHA_STAGING)..."
+  if bun scripts/contract-deploy-record.ts --kind server --target staging --version "$VERSION_STAGING" --git "$GIT_SHA_STAGING" --witness "Aiko benchmark-gate failed or was not run"; then
+    log "Staging deploy contract registered successfully."
+  else
+    log "WARNING: Staging deploy contract registration failed."
+  fi
+  
+  die "Deployment aborted: benchmarks did not pass via Aiko. Kept on staging as a contract."
+fi
+log "Aiko benchmark-gate PASSED. Proceeding to production deploy/release..."
+
 # ── Step 1.5: Agent-judged bench-gate (opt-in via --bench-gate / RUN_BENCH_GATE=1) ──
 # Runs the harness against the LOCAL `bun src/cli.ts`, then PREPS a judge
 # bundle. The agent running this script reads the bundle, writes verdict.json,
@@ -163,6 +186,14 @@ REMOTE_SCRIPT
   log "remote verification passed on $REMOTE_HOST"
 else
   log "skipping remote verification"
+fi
+
+# Record the successful production deploy as a contract
+log "Recording production deploy contract for unbrowse@$VERSION (git $TAG)..."
+if bun scripts/contract-deploy-record.ts --kind server --target production --version "$VERSION" --git "$TAG" --witness "release-and-verify.sh"; then
+  log "Production deploy contract registered successfully."
+else
+  log "WARNING: Production deploy contract registration failed."
 fi
 
 log "done — $TAG released and verified"
