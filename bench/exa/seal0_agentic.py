@@ -97,7 +97,10 @@ RECONCILER_SYS = (
     "CONFLICT. Do this: (1) list each candidate answer and which source supports it; "
     "(2) pick the one backed by the most AUTHORITATIVE, SPECIFIC, and RECENT source that "
     "matches the question's exact framing — distrust the merely popular answer; "
-    "(3) output the final answer as short and exact as the question demands.\n"
+    "(3) output the final answer as short and exact as the question demands. If the "
+    "question asks for a count, number, date, or name, output the exact number, date, or name "
+    "without approximation or extra words (e.g., '12' instead of 'about 12', '377' instead "
+    "of 'over 370').\n"
     'Reply with EXACTLY ONE JSON object: {\"analysis\":\"<1-3 sentences>\",\"answer\":\"<precise answer>\"}.'
 )
 
