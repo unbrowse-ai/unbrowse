@@ -705,6 +705,15 @@ export const KIND_MAP = [
     mcp_tool: null,
     summary: "Declare a truth claim (wallet-signed) or read its projection: `contract declare <text>` / `contract status <id>`.",
   },
+  {
+    subcommand: "eval deploy",
+    verb: "eval",
+    op_kind: "eval:deploy",
+    op_class: "observe",
+    action: "deploy",
+    mcp_tool: null,
+    summary: "Deploy the current unbrowse build as an aiko-native contract (4-tier: native → IQ → KV → RAG).",
+  },
 ] as const satisfies readonly KindMapEntry[];
 
 export type V7Subcommand = (typeof KIND_MAP)[number]["subcommand"];
