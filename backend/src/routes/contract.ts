@@ -1844,12 +1844,43 @@ function timingSafeEqual(a: string, b: string): boolean {
  *  matching the worker's configured ADMIN_KEY env. Returns true iff the
  *  request carries a matching token; returns false (without leaking
  *  configured key length/prefix) otherwise. */
-function isMirrorAuthorized(c: { env: Env; req: { header: (k: string) => string | undefined } }): boolean {
+/** Auth gate for the mirror route — `Authorization: Bearer <ADMIN_KEY>`
+ *  matching the worker's configured ADMIN_KEY env, OR a valid spawn
+ *  attestation headers verification against LEWIS_DEPLOYER_PUBKEY_v1. */
+async function isMirrorAuthorized(
+  c: { env: Env; req: { header: (k: string) => string | undefined } },
+  rawBodyBytes: Uint8Array,
+): Promise<boolean> {
+  // 1. Bearer token fallback.
   const configured = c.env.ADMIN_KEY?.trim();
-  if (!configured) return false;
-  const header = c.req.header("Authorization");
-  if (!header?.startsWith("Bearer ")) return false;
-  return timingSafeEqual(header.slice(7), configured);
+  if (configured) {
+    const header = c.req.header("Authorization");
+    if (header?.startsWith("Bearer ")) {
+      if (timingSafeEqual(header.slice(7), configured)) return true;
+    }
+  }
+
+  // 2. Aiko deployer root lineage (x-aiko-* headers).
+  const lineageHeader = c.req.header("x-aiko-lineage-chain");
+  const sigHeader = c.req.header("x-aiko-spawn-signature");
+  const nonceHeader = c.req.header("x-aiko-spawn-nonce") ?? null;
+  if (sigHeader && lineageHeader) {
+    try {
+      const verdict = await verifySpawnAttestation({
+        lineageChainHeader: lineageHeader,
+        signatureHeader: sigHeader,
+        nonceHeader,
+        bodyBytes: rawBodyBytes,
+      });
+      if (verdict.ok && verdict.rootPubkey === LEWIS_DEPLOYER_PUBKEY_v1) {
+        return true;
+      }
+    } catch {
+      // ignore & fail closed
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -1862,12 +1893,16 @@ function isMirrorAuthorized(c: { env: Env; req: { header: (k: string) => string 
  * use the doctrine-spec wording.
  */
 async function mirrorRouteHandler(c: any) {
-  if (!isMirrorAuthorized(c)) {
-    return c.json({ error: "unauthorized — Bearer ADMIN_KEY required" }, 401);
+  const rawText = await c.req.text();
+  const rawBodyBytes = new TextEncoder().encode(rawText);
+
+  if (!(await isMirrorAuthorized(c, rawBodyBytes))) {
+    return c.json({ error: "unauthorized — Bearer ADMIN_KEY or valid aiko deployer attestation required" }, 401);
   }
+
   let req: MirrorRequest;
   try {
-    req = await c.req.json();
+    req = JSON.parse(rawText) as MirrorRequest;
   } catch {
     return c.json({ error: "request body must be valid JSON" }, 400);
   }

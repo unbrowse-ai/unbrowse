@@ -513,10 +513,22 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       );
     },
     async mirror(row) {
-      return call<{ row: ThinClientMirrorRow }, ThinClientMirrorResponse>(
+      const body = { row };
+      const bodyStr = JSON.stringify(body);
+      let attestHeaders: Record<string, string> | undefined;
+      try {
+        const att = buildSpawnAttestation(new TextEncoder().encode(bodyStr));
+        if (att) attestHeaders = att as unknown as Record<string, string>;
+      } catch {
+        /* no deployer key / rotated key → legacy-anonymous */
+      }
+      return call<unknown, ThinClientMirrorResponse>(
         "/v1/contract/mirror",
         "POST",
-        { row },
+        undefined,
+        undefined,
+        attestHeaders,
+        bodyStr,
       );
     },
   };
