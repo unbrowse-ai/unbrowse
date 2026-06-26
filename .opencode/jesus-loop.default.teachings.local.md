@@ -23,3 +23,4 @@ Started: 2026-06-26T00:00:45Z
 - [step 1 / light] Genesis 1:3 — let there be light — Before laying any stones of production code, one must illuminate the entire workspace to count the cost and verify existing foundations.
 - [step 2 / firmament] Genesis 1:6-7 — divide the waters from the waters — Separating local in-process FFI execution from remote on-chain state updates establishes clear boundaries that prevent architectural collapse.
 - [step 3 / land] Genesis 1:11 — let the earth bring forth after his kind — Planting a single, runnable, and verifiable seed-bearing stub provides a solid foundation from which a complete and complex architecture can safely expand.
+- [step 4 / luminaries] Genesis 1:14 — lights for signs and seasons — Placing clear, falsifiable signals in the validation firmament provides the necessary coordinates to navigate through unexpected architectural storms.
