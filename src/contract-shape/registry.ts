@@ -151,6 +151,30 @@ export const CONTRACT_REGISTRY: readonly ContractNeuronSpec[] = [
     input_shape: "{channel: string, filter: {from?, subject_contains?, body_contains?}, timeout_ms?: number}",
     output_shape: "{message: {from, to, subject, body_text, body_html, received_at} | null, source_pointer: string}",
   },
+  {
+    name: "solana-deploy-server",
+    description: "Deploy unbrowse aiko as a smart contract to run logic on server natively.",
+    contract_id: "7d6c5b4a",
+    locality: "local-only",
+    input_shape: "{server_name: string}",
+    output_shape: "{ok: boolean, name?: string, program_id?: string, state_account?: string, error?: string}",
+  },
+  {
+    name: "on-chain-fetch",
+    description: "Stateless on-chain TLS-like secure fetch from deployed program ID and state account on Solana.",
+    contract_id: "3c2b1a0d",
+    locality: "local-only",
+    input_shape: "{program_id: string, state_account: string, path: string}",
+    output_shape: "{ok: boolean, status?: number, body?: string, signature?: string, error?: string}",
+  },
+  {
+    name: "iq-zk-store",
+    description: "Store or retrieve private-by-design encrypted payloads verified with ZK proof on IQ network.",
+    contract_id: "8f7e6d5c",
+    locality: "local-only",
+    input_shape: "{op: 'store'|'retrieve', key: string, payload?: string}",
+    output_shape: "{ok: boolean, ledger_tx_id?: string, zk_proof?: string, payload?: string, error?: string}",
+  },
 ] as const;
 
 /**

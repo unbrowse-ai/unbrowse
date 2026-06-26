@@ -16,16 +16,15 @@
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const AIKO_CHAT_URL =
-  process.env.AIKO_CHAT_URL ?? "https://aiko-cayden.getfoundry.app/v1/chat/completions";
-const AIKO_MODEL = process.env.AIKO_MODEL_ID ?? "aiko-local";
-
 interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const url = process.env.AIKO_CHAT_URL ?? "https://aiko-cayden.getfoundry.app/v1/chat/completions";
+  const model = process.env.AIKO_MODEL_ID ?? "aiko-local";
+
   let messages: ChatMessage[];
   try {
     const body = (await req.json()) as { messages?: ChatMessage[] };
@@ -43,7 +42,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let upstream: Response;
   try {
-    upstream = await fetch(AIKO_CHAT_URL, {
+    upstream = await fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -53,7 +52,7 @@ export async function POST(req: Request): Promise<Response> {
       },
       // retriever:"unbrowse" → ground external facts via unbrowse (free DDG). stream → tokens as they come.
       body: JSON.stringify({
-        model: AIKO_MODEL,
+        model: model,
         retriever: "unbrowse",
         stream: true,
         messages: trimmed,
