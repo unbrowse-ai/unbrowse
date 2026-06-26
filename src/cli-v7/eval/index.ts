@@ -39,6 +39,7 @@ import { handler as inspectHandler } from "./inspect.js";
 import { handler as accountHandler } from "./account.js";
 import { handler as configHandler } from "./config.js";
 import { handler as contractHandler } from "./contract.js";
+import { handler as deployHandler } from "./deploy.js";
 
 const TABLE: Record<string, VerbHandler> = {
   snap: snapHandler,
@@ -70,6 +71,7 @@ const TABLE: Record<string, VerbHandler> = {
   account: accountHandler,
   config: configHandler,
   contract: contractHandler,
+  deploy: deployHandler,
 };
 
 export const router: VerbRouter = {
