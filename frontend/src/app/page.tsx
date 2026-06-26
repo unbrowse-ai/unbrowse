@@ -30,20 +30,38 @@ const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const PAPERS = [
   {
     title: "Internal APIs Are All You Need",
-    blurb: "The wedge: first-party routes already sit beneath modern websites. Learn them once, reuse them when they are still fresh, and keep the browser as fallback.",
+    blurb: "The spatial deconstruction of the web: first-party API routes already sit beneath modern websites. Learn them once, share them, and bypass the rendering engine entirely.",
     href: "/internal-apis-are-all-you-need",
     pdf: false,
   },
   {
-    title: "Crypto Was All You Needed",
-    blurb: "The execution layer: one signing discipline follows an agent through screen, browser, CLI, OS, kernel, and packet, with credentials and results bound to that identity.",
+    title: "Stop Picking Routes by Vibes",
+    blurb: "The cognitive selection model: given an intent and N candidate routes, an energy-based neural selector assigns compatibility scores so routes are picked by mathematics, not vibes.",
+    href: "/energy-route-ranking.pdf",
+    pdf: true,
+  },
+  {
+    title: "Sign Everything. No, Everything.",
+    blurb: "The cryptographic anchoring of multi-layer reality: one Ed25519 key signs every layer an agent touches—screen, browser, CLI, OS, and packet—sealing credentials and results.",
     href: "/crypto-was-all-you-needed.pdf",
     pdf: true,
   },
   {
-    title: "Unbrowse Maintenance Network",
-    blurb: "The maintenance layer: FDRY is the native utility token backing AGI and agent-mediated transactions. Route freshness has to be witnessed over time, challenged when wrong, and paid as real maintenance work.",
+    title: "Wait, Who's Going to Maintain All This?",
+    blurb: "The thermodynamics of route upkeep and economic power: route freshness is a standing liability secured by bonded, slashable maintenance with FDRY as the native utility token backing AGI.",
     href: "/unbrowse-maintenance-network.pdf",
+    pdf: true,
+  },
+  {
+    title: "Run It or It Didn't Happen",
+    blurb: "The temporal verification and honesty discipline: a published number is admissible only if a cold command re-runs it green, recording honest failures next to the wins.",
+    href: "/execute-dont-guess.pdf",
+    pdf: true,
+  },
+  {
+    title: "You Are Your Keys (Sorry)",
+    blurb: "The sovereign identity of the signing principal: identity is the public key, disclosure is decryption, and authorization is a signed capability grant. No database or ACL required.",
+    href: "/identity-was-all-you-needed.pdf",
     pdf: true,
   },
 ];

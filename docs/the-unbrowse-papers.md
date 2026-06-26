@@ -14,8 +14,8 @@ direction wearing a confident font, it says so. Nobody is graded on adjectives.
 There are six of them, and yes — that is the joke. Each paper is one Infinity Stone:
 the shared action layer (**Space** 🔵), the selector that decides which route fires
 (**Mind** 🟡), the cryptography whose signed chain defines what's real (**Reality** 🔴),
-the discipline that only counts a number if it re-runs green (**Time** 🟢), the staked
-coin — bonded, slashed, burned — that keeps the graph from rotting (**Power** 🟣), and
+the staked coin — bonded, slashed, burned — that keeps the graph from rotting (**Power** 🟣),
+the discipline that only counts a number if it re-runs green (**Time** 🟢), and
 the identity that does the signing (**Soul** 🟠).
 This is not a costume bolted onto the work — it is the honest shape of building one of
 these: each layer you finish reveals the layer under it, and you do not have the set
