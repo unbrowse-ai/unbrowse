@@ -1,0 +1,41 @@
+{
+  "ts": "2026-06-26T02:35:42Z",
+  "seal": "seal0",
+  "claim": "ccd9b0a7",
+  "contract_rc": 143,
+  "unbrowse_cli": {
+    "rc": 0,
+    "version": "11.0.1",
+    "bin": "unbrowse"
+  },
+  "unbrowse_benchmax": {
+    "gate_all.sh": 0,
+    "gate_real.sh": 0,
+    "gate_selfimprove.sh": 0
+  },
+  "exa_targets": {
+    "webcode_rag": {
+      "groundedness": 0.4167,
+      "target": 0.794,
+      "beat": false
+    },
+    "browsecomp": {
+      "fast_gate_rc": 0,
+      "robust_gate_rc": 1,
+      "target": 0.336,
+      "beat_robust": false
+    },
+    "seal0": {
+      "accuracy": 0.0,
+      "target": 0.243,
+      "beat": false
+    }
+  },
+  "ryuga": {
+    "status": "FAIL",
+    "loop_rc": 0,
+    "gate_rc": 1,
+    "reason": "ryuga loop ran but gate failed"
+  },
+  "verdict": "HOLD"
+}

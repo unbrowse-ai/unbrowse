@@ -19,6 +19,13 @@ Every paid call is divided into a fixed split by Faremeter Flex. The
 settlement roles are defined in `backend/src/services/flex.ts:39`, and the split
 percentages are set by named basis-point constants:
 
+> **The split is by marginal contribution (Shapley value), not by stake
+> size.** Stake buys eligibility to earn, never a larger share (Matt 7:16 —
+> by their fruits). The three lanes are the structural decomposition of the
+> production coalition; the within-pool contributor weighting
+> (`cumulative_delta`) is a streaming Shapley approximation. See [Paper 4
+> §4.3](../paper/the-margin-was-all-you-needed.md).
+
 - Platform: 50% (`PLATFORM_BPS = 5000`, see `backend/src/services/flex.ts:68`).
 - Indexer / contributor pool: 35%, shared across the contributors who captured and
   maintain the route, weighted by their cumulative contribution.
@@ -40,12 +47,15 @@ identical either way; only the settlement venue differs.
 
 ## Brokered costs (fair compensation)
 
-The split above taxes a route's **own price** — the opt-in lane. **Execution itself is free:
-unbrowse takes no cut on the commons.** When unbrowse fronts a paid upstream on your behalf — a
-web-unblocker for a hard-protected site, an LLM proxy, a paid third-party API, a facilitator or
-gas fee — it passes the raw upstream cost straight through to you **at cost**, adding nothing.
-You never pay unbrowse to execute; you only ever pay the genuine upstream, and only when one
-exists.
+> The split below taxes a route's **own price** — the opt-in lane. **Execution itself is free:
+> unbrowse takes no cut on the commons.** This is the **margin gate** ([Paper 4
+> §4.1](../paper/the-margin-was-all-you-needed.md)): an action is worth taking iff
+> `value_created − transaction_cost > 0` (Luke 14:28 — count the cost); a negative-margin
+> action is refused before it ever settles. When unbrowse fronts a paid upstream on your
+> behalf — a web-unblocker for a hard-protected site, an LLM proxy, a paid third-party API,
+> a facilitator or gas fee — it passes the raw upstream cost straight through to you **at
+> cost**, adding nothing. You never pay unbrowse to execute; you only ever pay the genuine
+> upstream, and only when one exists.
 
 The broker markup is a single named constant — **0% by default** (`FAIR_COMPENSATION_BPS`,
 `backend/src/services/fair-compensation.ts`): a fronted upstream is pass-through-at-cost.

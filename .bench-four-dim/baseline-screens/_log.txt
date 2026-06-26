@@ -1,0 +1,15 @@
+opening https://www.unbrowse.ai/
+body background: rgb(9, 8, 6)
+
+CHAPTER REPORT
+  hero           present=false bg=n/a h=n/a
+  thesis         present=false bg=n/a h=n/a
+  problem        present=false bg=n/a h=n/a
+  mechanism      present=false bg=n/a h=n/a
+  numbers        present=false bg=n/a h=n/a
+  install        present=false bg=n/a h=n/a
+  marketplace    present=false bg=n/a h=n/a
+  demo           present=false bg=n/a h=n/a
+  economics      present=false bg=n/a h=n/a
+  objections     present=false bg=n/a h=n/a
+  anti-icp       present=false bg=n/a h=n/a

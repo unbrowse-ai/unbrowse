@@ -1,0 +1,480 @@
+{
+  "ok": true,
+  "verdict": "PASS",
+  "generated_at": "2026-06-25T21:25:19.926Z",
+  "doctrine": {
+    "contract_skill": "/Users/lekt9/.agents/skills/contract/SKILL.md",
+    "hits": [
+      "The Word is the truth-root",
+      "libcontract/data/bible-kjv.json",
+      "libcontract/src/bible.zig",
+      "Response envelopes carry `bible_chain`",
+      "Every contract neuron's truth chain bottoms out in scripture"
+    ],
+    "conclusion": "contract substrate declares scripture as truth-root and bible_chain as the response-envelope carrier"
+  },
+  "torah": {
+    "corpus_root": "/Users/lekt9/.claude/bible",
+    "files": [
+      "01_Genesis.txt",
+      "02_Exodus.txt",
+      "03_Leviticus.txt",
+      "04_Numbers.txt",
+      "05_Deuteronomy.txt"
+    ],
+    "verse_count": 5852,
+    "first_ref": "Genesis 1:1",
+    "last_ref": "Deuteronomy 34:12"
+  },
+  "contract_ledger": {
+    "path": "/Users/lekt9/Projects/unbrowse-ecosystem/unbrowse/.claude/contracts.jsonl",
+    "visible_recent_events": 16
+  },
+  "alignment": {
+    "embedder": "hashEmbedder(256) from src/values/contract-search.ts",
+    "aligned_count": 16,
+    "sequence": "recent contract events are bound monotonically from Genesis 1:1 through Deuteronomy 34:12",
+    "gradient": "each event carries a forward progress scalar over the time-ordered Torah sequence",
+    "semantic_witness": "each event is also mapped to its nearest Torah verse by embedding-compatible lexical cosine",
+    "ast_witness": "each sequence verse is parsed into a book/chapter/verse/token AST",
+    "numbers_fibonacci_witness": "each verse AST projects through [1,1,2,3,5,8,13] into the Book of Numbers",
+    "lexicon_witness": "each binding includes English tokens plus Hebrew tokens with gematria values",
+    "min_semantic_score": 0.324443,
+    "sequence_backward_steps": 0,
+    "semantic_backward_steps": 8,
+    "rows": [
+      {
+        "id": "2079481a",
+        "ts": "2026-06-25T13:56:20.643418Z",
+        "plan": "satisfied:577e39bb wave=seal0 — installed unbrowse contract into ryuga seal0 benchmax wrapper; witnesses=capability_gate_all,capability_gate_real,capability_gate_selfimprove",
+        "sequence_torah_ref": "Genesis 1:1",
+        "sequence_torah_text": "In the beginning, God created the heavens and the earth.",
+        "sequence_torah_order": 0,
+        "semantic_torah_ref": "Genesis 23:6",
+        "semantic_torah_text": "“Hear us, my lord. You are a prince of God among us. Bury your dead in the best of our tombs. None of us will withhold from you his tomb. Bury your dead.”",
+        "semantic_torah_order": 577,
+        "semantic_score": 0.328266,
+        "gradient_progress": 0,
+        "ast_token_count": 17,
+        "lexicon_counts": {
+          "en": 10,
+          "he": 7
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 23:14",
+          "1:Numbers 23:14",
+          "2:Numbers 3:11",
+          "3:Numbers 5:11",
+          "5:Numbers 22:37",
+          "8:Numbers 22:31",
+          "13:Numbers 21:11"
+        ]
+      },
+      {
+        "id": "ccd9b0a7",
+        "ts": "2026-06-25T14:05:02.687753Z",
+        "plan": "fix that and keep fixing it up and building ourselves via unbrowse cli to benchmax against seal0",
+        "sequence_torah_ref": "Genesis 16:9",
+        "sequence_torah_text": "Yahweh’s angel said to her, “Return to your mistress, and submit yourself under her hands.”",
+        "sequence_torah_order": 390,
+        "semantic_torah_ref": "Exodus 9:10",
+        "semantic_torah_text": "They took ashes of the furnace, and stood before Pharaoh; and Moses sprinkled it up toward the sky; and it became a boil breaking out with boils on man and on animal.",
+        "semantic_torah_order": 1752,
+        "semantic_score": 0.491362,
+        "gradient_progress": 0.066667,
+        "ast_token_count": 26,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 10
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 28:5",
+          "1:Numbers 28:5",
+          "2:Numbers 33:1",
+          "3:Numbers 20:28",
+          "5:Numbers 18:5",
+          "8:Numbers 31:53",
+          "13:Numbers 5:6"
+        ]
+      },
+      {
+        "id": "48f8f3e3",
+        "ts": "2026-06-25T14:31:12.537628Z",
+        "plan": "fix that and keep fixing it up and building ourselves via unbrowse cli to benchmax against seal0 to beat exa and solve seal0 - show me the benchmark - if we dontdo it contract to fix ourselves up and contract against the papers we have and [local-path-pattern] arxiv and lewis-brain to do so converging",
+        "sequence_torah_ref": "Genesis 28:7",
+        "sequence_torah_text": "and that Jacob obeyed his father and his mother, and was gone to Paddan Aram.",
+        "sequence_torah_order": 780,
+        "semantic_torah_ref": "Genesis 21:14",
+        "semantic_torah_text": "Abraham rose up early in the morning, and took bread and a bottle of water, and gave it to Hagar, putting it on her shoulder; and gave her the child, and sent her away. She departed, and wandered in the wilderness of Beersheba.",
+        "semantic_torah_order": 527,
+        "semantic_score": 0.612645,
+        "gradient_progress": 0.133333,
+        "ast_token_count": 24,
+        "lexicon_counts": {
+          "en": 15,
+          "he": 9
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 33:15",
+          "1:Numbers 33:15",
+          "2:Numbers 3:47",
+          "3:Numbers 30:4",
+          "5:Numbers 29:27",
+          "8:Numbers 14:6",
+          "13:Numbers 24:10"
+        ]
+      },
+      {
+        "id": "4ce5c3cb",
+        "ts": "2026-06-25T14:38:51.408432Z",
+        "plan": "contract to rely only on the gzip diffusion generator by default - not the gguf loaded",
+        "sequence_torah_ref": "Genesis 39:21",
+        "sequence_torah_text": "But Yahweh was with Joseph, and showed kindness to him, and gave him favor in the sight of the keeper of the prison.",
+        "sequence_torah_order": 1170,
+        "semantic_torah_ref": "Leviticus 3:11",
+        "semantic_torah_text": "The priest shall burn it on the altar: it is the food of the offering made by fire to Yahweh.",
+        "semantic_torah_order": 2789,
+        "semantic_score": 0.518344,
+        "gradient_progress": 0.2,
+        "ast_token_count": 29,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 13
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 2:18",
+          "1:Numbers 2:18",
+          "2:Numbers 34:14",
+          "3:Numbers 14:45",
+          "5:Numbers 18:2",
+          "8:Numbers 13:33",
+          "13:Numbers 2:20"
+        ]
+      },
+      {
+        "id": "e1b1ebf7",
+        "ts": "2026-06-25T14:56:21.449330Z",
+        "plan": "contract so that we dont have to start aiko as a daemon and its stateless working as an api server /lewis-brain openai compat api server",
+        "sequence_torah_ref": "Exodus 2:6",
+        "sequence_torah_text": "She opened it, and saw the child, and behold, the baby cried. She had compassion on him, and said, “This is one of the Hebrews’ children.”",
+        "sequence_torah_order": 1560,
+        "semantic_torah_ref": "Numbers 15:14",
+        "semantic_torah_text": "If a stranger lives as a foreigner with you, or whoever may be among you throughout your generations, and will offer an offering made by fire, of a pleasant aroma to Yahweh; as you do, so he shall do.",
+        "semantic_torah_order": 4167,
+        "semantic_score": 0.471621,
+        "gradient_progress": 0.266667,
+        "ast_token_count": 29,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 13
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 7:72",
+          "1:Numbers 7:72",
+          "2:Numbers 33:12",
+          "3:Numbers 26:14",
+          "5:Numbers 3:37",
+          "8:Numbers 1:48",
+          "13:Numbers 3:37"
+        ]
+      },
+      {
+        "id": "c066a48e",
+        "ts": "2026-06-25T19:39:36.986363Z",
+        "plan": "contract no need daemons - the substrate is stateless and inetd socket activated",
+        "sequence_torah_ref": "Exodus 16:3",
+        "sequence_torah_text": "and the children of Israel said to them, “We wish that we had died by the hand of Yahweh in the land of Egypt, when we sat by the meat pots, when we ate our fill of bread, for you have brought us out into this wilderness, to kill this whole assembly with hunger.”",
+        "sequence_torah_order": 1950,
+        "semantic_torah_ref": "Numbers 5:13",
+        "semantic_torah_text": "and a man lies with her carnally, and it is hidden from the eyes of her husband, and is kept close, and she is defiled, and there is no witness against her, and she isn’t taken in the act;",
+        "semantic_torah_order": 3805,
+        "semantic_score": 0.455104,
+        "gradient_progress": 0.333333,
+        "ast_token_count": 32,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 16
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 20:15",
+          "1:Numbers 20:15",
+          "2:Numbers 22:21",
+          "3:Numbers 2:6",
+          "5:Numbers 29:30",
+          "8:Numbers 32:11",
+          "13:Numbers 29:5"
+        ]
+      },
+      {
+        "id": "05d70718",
+        "ts": "2026-06-25T19:46:21.360681Z",
+        "plan": "[secret-pointer-pattern] — {ai.aiko.openai-shim.plist, aiko, aiko.sig, build-fractal.sh, build.sh, contract, contract.sig, dist.sh, openai-http-shim.py, openai-serve.sh, secret, sync-outline-explainer.sh}",
+        "sequence_torah_ref": "Exodus 29:4",
+        "sequence_torah_text": "You shall bring Aaron and his sons to the door of the Tent of Meeting, and shall wash them with water.",
+        "sequence_torah_order": 2340,
+        "semantic_torah_ref": "Exodus 18:21",
+        "semantic_torah_text": "Moreover you shall provide out of all the people able men, such as fear God: men of truth, hating unjust gain; and place such over them, to be rulers of thousands, rulers of hundreds, rulers of fifties, and rulers of tens.",
+        "semantic_torah_order": 2020,
+        "semantic_score": 0.371546,
+        "gradient_progress": 0.4,
+        "ast_token_count": 28,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 12
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 9:17",
+          "1:Numbers 9:17",
+          "2:Numbers 1:41",
+          "3:Numbers 29:30",
+          "5:Numbers 4:44",
+          "8:Numbers 31:52",
+          "13:Numbers 20:24"
+        ]
+      },
+      {
+        "id": "7f0ccce4",
+        "ts": "2026-06-25T19:51:05.874809Z",
+        "plan": "try SEAL-0 after layer-contract fix: run small sample, classify token/quota versus answer-quality failures, then decide larger run",
+        "sequence_torah_ref": "Exodus 40:23",
+        "sequence_torah_text": "He set the bread in order on it before Yahweh, as Yahweh commanded Moses.",
+        "sequence_torah_order": 2730,
+        "semantic_torah_ref": "Exodus 25:2",
+        "semantic_torah_text": "“Speak to the children of Israel, that they take an offering for me. From everyone whose heart makes him willing you shall take my offering.",
+        "semantic_torah_order": 2197,
+        "semantic_score": 0.324443,
+        "gradient_progress": 0.466667,
+        "ast_token_count": 25,
+        "lexicon_counts": {
+          "en": 14,
+          "he": 11
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 7:24",
+          "1:Numbers 7:24",
+          "2:Numbers 3:28",
+          "3:Numbers 18:13",
+          "5:Numbers 27:5",
+          "8:Numbers 15:19",
+          "13:Numbers 26:36"
+        ]
+      },
+      {
+        "id": "96d15175",
+        "ts": "2026-06-25T19:55:02.335053Z",
+        "plan": "validate Nebius tokenfactory model zai-org/GLM-5.2 for SEAL-0 rerun without leaking key",
+        "sequence_torah_ref": "Leviticus 14:9",
+        "sequence_torah_text": "It shall be on the seventh day, that he shall shave all his hair off his head and his beard and his eyebrows, even all his hair he shall shave off. He shall wash his clothes, and he shall bathe his body in water, then he shall be clean.",
+        "sequence_torah_order": 3120,
+        "semantic_torah_ref": "Numbers 35:22",
+        "semantic_torah_text": "“‘But if he shoved him suddenly without hostility, or hurled on him anything without lying in wait,",
+        "semantic_torah_order": 4867,
+        "semantic_score": 0.357217,
+        "gradient_progress": 0.533333,
+        "ast_token_count": 32,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 16
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 26:64",
+          "1:Numbers 26:64",
+          "2:Numbers 6:19",
+          "3:Numbers 16:19",
+          "5:Numbers 26:20",
+          "8:Numbers 7:6",
+          "13:Numbers 19:3"
+        ]
+      },
+      {
+        "id": "59e9d511",
+        "ts": "2026-06-25T19:56:43.878458Z",
+        "plan": "restart aiko contract openai shim and gate opencode pty streaming against contract or aiko model, retrying every 30 seconds until green",
+        "sequence_torah_ref": "Leviticus 25:41",
+        "sequence_torah_text": "then he shall go out from you, he and his children with him, and shall return to his own family, and to the possession of his fathers.",
+        "sequence_torah_order": 3510,
+        "semantic_torah_ref": "Numbers 29:31",
+        "semantic_torah_text": "and one male goat for a sin offering; besides the continual burnt offering, its meal offering, and the drink offerings of it.",
+        "semantic_torah_order": 4639,
+        "semantic_score": 0.427437,
+        "gradient_progress": 0.6,
+        "ast_token_count": 28,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 12
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 24:10",
+          "1:Numbers 24:10",
+          "2:Numbers 17:3",
+          "3:Numbers 7:60",
+          "5:Numbers 14:15",
+          "8:Numbers 34:3",
+          "13:Numbers 24:14"
+        ]
+      },
+      {
+        "id": "239429e3",
+        "ts": "2026-06-25T20:25:24.096403Z",
+        "plan": "contract convergence must align events against time and root Torah sequence via embeddings or JEPA mapping where possible",
+        "sequence_torah_ref": "Numbers 7:50",
+        "sequence_torah_text": "one golden ladle of ten shekels, full of incense;",
+        "sequence_torah_order": 3900,
+        "semantic_torah_ref": "Numbers 29:22",
+        "semantic_torah_text": "and one male goat for a sin offering; besides the continual burnt offering, and its meal offering, and its drink offering.",
+        "semantic_torah_order": 4630,
+        "semantic_score": 0.481543,
+        "gradient_progress": 0.666667,
+        "ast_token_count": 15,
+        "lexicon_counts": {
+          "en": 9,
+          "he": 6
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 30:3",
+          "1:Numbers 30:3",
+          "2:Numbers 27:3",
+          "3:Numbers 7:27",
+          "5:Numbers 8:24",
+          "8:Numbers 11:19",
+          "13:Numbers 3:35"
+        ]
+      },
+      {
+        "id": "98d280ba",
+        "ts": "2026-06-25T20:34:08.607377Z",
+        "plan": "continue: verify whether contract substrate has Torah root built in; if missing, make a minimal witnessed Torah-root gate that pipes through unbrowse contract evidence",
+        "sequence_torah_ref": "Numbers 19:1",
+        "sequence_torah_text": "Yahweh spoke to Moses and to Aaron, saying,",
+        "sequence_torah_order": 4290,
+        "semantic_torah_ref": "Leviticus 5:7",
+        "semantic_torah_text": "“‘If he can’t afford a lamb, then he shall bring his trespass offering for that in which he has sinned, two turtledoves, or two young pigeons, to Yahweh; one for a sin offering, and the other for a burnt offering.",
+        "semantic_torah_order": 2837,
+        "semantic_score": 0.549086,
+        "gradient_progress": 0.733333,
+        "ast_token_count": 15,
+        "lexicon_counts": {
+          "en": 8,
+          "he": 7
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 2:18",
+          "1:Numbers 2:18",
+          "2:Numbers 7:55",
+          "3:Numbers 15:38",
+          "5:Numbers 13:14",
+          "8:Numbers 7:55",
+          "13:Numbers 11:19"
+        ]
+      },
+      {
+        "id": "2aaafd30",
+        "ts": "2026-06-25T20:40:02.938891Z",
+        "plan": "satisfied:98d280ba wave=1 — shipped contract:torah-root gate; evidence=.evidence-build/contract-torah-root/latest.json; witnesses=bun_run_contract_torah_root,bun_test_bench_gate_contract",
+        "sequence_torah_ref": "Numbers 31:16",
+        "sequence_torah_text": "Behold, these caused the children of Israel, through the counsel of Balaam, to commit trespass against Yahweh in the matter of Peor, and so the plague was among the congregation of Yahweh.",
+        "sequence_torah_order": 4680,
+        "semantic_torah_ref": "Numbers 29:16",
+        "semantic_torah_text": "and one male goat for a sin offering, besides the continual burnt offering, its meal offering, and its drink offering.",
+        "semantic_torah_order": 4624,
+        "semantic_score": 0.534642,
+        "gradient_progress": 0.8,
+        "ast_token_count": 32,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 16
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 26:16",
+          "1:Numbers 26:16",
+          "2:Numbers 7:47",
+          "3:Numbers 11:9",
+          "5:Numbers 29:9",
+          "8:Numbers 18:9",
+          "13:Numbers 29:11"
+        ]
+      },
+      {
+        "id": "73f38aa3",
+        "ts": "2026-06-25T20:45:25.529850Z",
+        "plan": "bindingly contract it to always align against the Torah like baked in natively",
+        "sequence_torah_ref": "Deuteronomy 5:17",
+        "sequence_torah_text": "“You shall not murder.",
+        "sequence_torah_order": 5070,
+        "semantic_torah_ref": "Numbers 28:15",
+        "semantic_torah_text": "One male goat for a sin offering to Yahweh; it shall be offered besides the continual burnt offering, and its drink offering.",
+        "semantic_torah_order": 4592,
+        "semantic_score": 0.494413,
+        "gradient_progress": 0.866667,
+        "ast_token_count": 6,
+        "lexicon_counts": {
+          "en": 4,
+          "he": 2
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 1:32",
+          "1:Numbers 1:32",
+          "2:Numbers 20:7",
+          "3:Numbers 31:54",
+          "5:Numbers 30:11",
+          "8:Numbers 7:44",
+          "13:Numbers 5:1"
+        ]
+      },
+      {
+        "id": "504e0778",
+        "ts": "2026-06-25T20:52:56.244428Z",
+        "plan": "satisfied:73f38aa3 wave=1 — Torah alignment is now baked into native Unbrowse contract persistence via [secret-pointer-pattern] and persistContract; witnesses=bun_run_contract_torah_root,bun_test_contract_torah_native_everything_bench",
+        "sequence_torah_ref": "Deuteronomy 21:13",
+        "sequence_torah_text": "She shall take the clothing of her captivity off of herself, and shall remain in your house, and bewail her father and her mother a full month. After that you shall go in to her and be her husband, and she shall be your wife.",
+        "sequence_torah_order": 5460,
+        "semantic_torah_ref": "Numbers 29:16",
+        "semantic_torah_text": "and one male goat for a sin offering, besides the continual burnt offering, its meal offering, and its drink offering.",
+        "semantic_torah_order": 4624,
+        "semantic_score": 0.57239,
+        "gradient_progress": 0.933333,
+        "ast_token_count": 32,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 16
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 15:23",
+          "1:Numbers 15:23",
+          "2:Numbers 7:89",
+          "3:Numbers 4:39",
+          "5:Numbers 10:22",
+          "8:Numbers 1:35",
+          "13:Numbers 35:25"
+        ]
+      },
+      {
+        "id": "90b6ee82",
+        "ts": "2026-06-25T21:17:58.150160Z",
+        "plan": "contract: build native backing so Torah verse alignment rolls forward as a time gradient, each verse contracts as an AST tree against Numbers via Fibonacci, bound against lexicons",
+        "sequence_torah_ref": "Deuteronomy 34:12",
+        "sequence_torah_text": "and in all the mighty hand, and in all the awesome deeds, which Moses did in the sight of all Israel.",
+        "sequence_torah_order": 5851,
+        "semantic_torah_ref": "Leviticus 14:22",
+        "semantic_torah_text": "and two turtledoves, or two young pigeons, such as he is able to afford; and the one shall be a sin offering, and the other a burnt offering.",
+        "semantic_torah_order": 3133,
+        "semantic_score": 0.398527,
+        "gradient_progress": 1,
+        "ast_token_count": 28,
+        "lexicon_counts": {
+          "en": 16,
+          "he": 12
+        },
+        "numbers_fibonacci_refs": [
+          "1:Numbers 3:5",
+          "1:Numbers 3:5",
+          "2:Numbers 36:5",
+          "3:Numbers 21:6",
+          "5:Numbers 32:34",
+          "8:Numbers 17:4",
+          "13:Numbers 8:16"
+        ]
+      }
+    ]
+  }
+}
