@@ -1,5 +1,12 @@
 # Changelog
 
+## [11.2.0-preview.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.2.0-preview.0...v11.2.0-preview.1) (2026-06-26)
+
+### Features
+
+* **docs:** update unbrowse papers to document Cycle 1 and Cycle 2 papers ([afd0d11](https://github.com/unbrowse-ai/unbrowse-dev/commit/afd0d11a60e7079f0c339728a7ff2e211519c2d4))
+* **frontend:** include Cycle 2 papers in the landing page ([05fd723](https://github.com/unbrowse-ai/unbrowse-dev/commit/05fd7231231cd89ca8e49cf4d79eb63cc77e4670))
+
 ## [11.2.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.1.1...v11.2.0-preview.0) (2026-06-26)
 
 ### Features
