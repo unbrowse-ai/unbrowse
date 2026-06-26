@@ -25,9 +25,10 @@ Drop into `shared/shared/searchers/unbrowse.py`, register in SEARCHER_BUILDERS, 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
-from urllib.parse import parse_qs, quote_plus, unquote, urlparse
+from urllib.parse import quote_plus
 
 try:
     # Drop-in mode: real exa-labs base classes.
@@ -54,23 +55,17 @@ except Exception:  # pragma: no cover - standalone/import-time fallback
             raise NotImplementedError
 
 
-UNBROWSE = os.environ.get("UNBROWSE_BIN", "/opt/homebrew/bin/unbrowse")
+UNBROWSE = os.environ.get("UNBROWSE_BIN", "/Users/lekt9/.bun/bin/unbrowse")
 TIMEOUT = int(os.environ.get("UNBROWSE_TIMEOUT", "120"))
 
-# Full-page enrichment knobs (WAVE-09 lever): for the top-k ranked SERP results we
-# fetch the source page and put the FULL markdown body into SearchResult.text — the
-# field evals.rag reads — so the grounder sees the exact spec passage, not a thin
-# DDG highlight window. Concurrency is bounded by the engine semaphore.
-ENRICH_TOP_K = int(os.environ.get("UNBROWSE_ENRICH_TOP_K", "3"))
-ENRICH_CHARS = int(os.environ.get("UNBROWSE_ENRICH_CHARS", "8000"))
+# Full-page enrichment knobs: `unbrowse act get --json` routes through Exa web search
+# and returns the top result's full-page text in text_excerpt/markdown — the grounder
+# sees the exact spec passage, not a thin highlight window.
+ENRICH_CHARS = int(os.environ.get("UNBROWSE_ENRICH_CHARS", "12000"))
 SERP_CONCURRENCY = int(os.environ.get("UNBROWSE_SERP_CONCURRENCY", "4"))
 
 # `unbrowse fetch <url>` prints body markdown plus human trace lines. Strip traces.
 _TRACE = re.compile(r"^(\[\d{2}:\d{2}:\d{2}|\[unbrowse\]|\[trace\]|\[debug\]|\[info\]|\[auth\]|\[exit\]|\[in-process)")
-
-# A DDG result heading:  ## [Title](//duckduckgo.com/l/?uddg=ENCODED&rut=...)
-_HEADING = re.compile(r"^##\s+\[(?P<title>.+?)\]\((?P<href>[^)]+)\)\s*$")
-_LINK_LINE = re.compile(r"^\[(?P<text>.+?)\]\((?P<href>//duckduckgo\.com/l/[^)]+)\)\s*$")
 
 
 def _clean(stdout: str) -> str:
@@ -79,63 +74,43 @@ def _clean(stdout: str) -> str:
     ).strip()
 
 
-def _decode_ddg(href: str) -> str:
-    """Pull the real target URL out of a DDG /l/?uddg=... redirect link."""
-    if "uddg=" not in href:
-        return ""
-    parsed = urlparse(href if href.startswith("http") else "https:" + href)
-    uddg = parse_qs(parsed.query).get("uddg", [""])[0]
-    return unquote(uddg) if uddg else ""
+_TAG = re.compile(r"<[^>]+>")
+_WS = re.compile(r"\s+")
 
 
-def _parse_ddg_markdown(md: str, num_results: int) -> list[SearchResult]:
-    """Parse DDG-HTML-as-markdown into ranked SearchResults (document order = rank)."""
-    lines = md.splitlines()
-    results: list[SearchResult] = []
-    i, n = 0, len(lines)
-    while i < n and len(results) < num_results:
-        m = _HEADING.match(lines[i].strip())
-        if not m:
-            i += 1
-            continue
-        url = _decode_ddg(m.group("href"))
-        title = m.group("title").replace("**", "").strip()
-        if not url:
-            i += 1
-            continue
-        snippet = ""
-        j, scanned = i + 1, 0
-        while j < n and scanned < 8:
-            stripped = lines[j].strip()
-            if _HEADING.match(stripped):
-                break
-            lm = _LINK_LINE.match(stripped)
-            if lm:
-                text = lm.group("text").replace("**", "").strip()
-                if text and not text.startswith("!") and " " in text and len(text) > 25:
-                    snippet = text
-                    break
-            j += 1
-            scanned += 1
-        results.append(SearchResult(
-            url=url, title=title or url, text=snippet or title,
-            metadata={"enriched": False, "snippet": snippet or title},
-        ))
-        i = j if j > i else i + 1
-    return results
+def _strip_html(html: str) -> str:
+    """Crude HTML-to-text: strip tags, collapse whitespace."""
+    text = _TAG.sub(" ", html)
+    return _WS.sub(" ", text).strip()
 
 
 async def _run(args: list[str]) -> tuple[str, bool]:
-    """Invoke the unbrowse CLI off the event loop. Honest failure, never fake."""
+    """Invoke the unbrowse CLI off the event loop. Honest failure, never fake.
+
+    Uses a temp file for stdout instead of a pipe — Bun truncates piped stdout
+    at 64KB, which corrupts large JSON payloads (full-page HTML inside JSON).
+    """
+    import subprocess
+    import tempfile
     try:
-        proc = await asyncio.create_subprocess_exec(
-            UNBROWSE, *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            tmp_path = tmp.name
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            [UNBROWSE] + args,
+            stdout=open(tmp_path, "wb"),
+            stderr=subprocess.DEVNULL,
+            timeout=TIMEOUT,
         )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=TIMEOUT)
+        with open(tmp_path, "rb") as f:
+            out = f.read()
+        os.unlink(tmp_path)
         return out.decode("utf-8", "replace"), proc.returncode == 0
     except Exception as e:  # noqa: BLE001 - surface the failure, do not mask it
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
         return f"__UNBROWSE_ERR__ {e}", False
 
 
@@ -154,37 +129,55 @@ class UnbrowseSearcher(Searcher):
         return [SearchResult(url=url, text=text, metadata={"ok": True, "chars": len(text)})]
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
-        """Ranked DDG SERP (libcurl-impersonate fetch of the DDG HTML endpoint),
-        then FULL-PAGE ENRICHMENT: for the top-k results we fetch the source URL and
-        put the whole page markdown into `text` (the field evals.rag reads), so the
-        grounder sees the exact spec passage, not a thin DDG highlight. Honest-empty
-        on SERP failure; thin DDG snippet kept as fallback if a per-page fetch fails."""
-        serp_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        """Ranked web search via `unbrowse act get --json` (Exa-powered search +
+        direct-document enrichment). Returns SearchResult list with the top result's
+        full-page text in `text` (the field evals.rag reads), so the grounder sees
+        the exact spec passage. Honest-empty on failure."""
         async with self._sem:
-            stdout, ok = await _run(["act", "fetch", serp_url])
+            stdout, ok = await _run([
+                "act", "get", query, "--mode", "data", "--json",
+            ])
         if not ok:
             return []
-        ranked = _parse_ddg_markdown(_clean(stdout), num_results)
-        if not ranked:
+        stdout = _clean(stdout)
+        try:
+            payload = json.loads(stdout)
+        except Exception:
+            return []
+        if not isinstance(payload, dict):
+            return []
+        result = payload.get("result", {})
+        if not isinstance(result, dict):
+            return []
+        candidates = result.get("exa_candidates", [])[:num_results]
+        if not candidates or not isinstance(candidates, list):
             return []
 
-        top_k = min(ENRICH_TOP_K, len(ranked))
+        # Full-page enrichment: prefer text_excerpt/markdown; fall back to raw text
+        # (HTML) stripped of tags.
+        top_text = (result.get("text_excerpt") or result.get("markdown") or "")
+        if not top_text:
+            raw_html = result.get("text", "") or ""
+            if raw_html:
+                top_text = _strip_html(raw_html)
+        top_text = top_text[:ENRICH_CHARS]
 
-        async def _enrich(r: SearchResult) -> SearchResult:
-            if not r.url:
-                return r
-            async with self._sem:
-                body, fok = await _run(["act", "fetch", r.url])
-            if not fok:
-                return r  # keep the thin DDG snippet as honest fallback
-            full = _clean(body)[:ENRICH_CHARS]
-            if full:
-                r.text = full
-                r.metadata = {**(r.metadata or {}), "enriched": True, "chars": len(full)}
-            return r
-
-        enriched = await asyncio.gather(*[_enrich(r) for r in ranked[:top_k]])
-        return list(enriched) + ranked[top_k:]
+        results: list[SearchResult] = []
+        for i, c in enumerate(candidates):
+            if not isinstance(c, dict):
+                continue
+            text = c.get("highlights_excerpt", "")
+            enriched = False
+            if i == 0 and top_text:
+                text = top_text
+                enriched = True
+            results.append(SearchResult(
+                url=c.get("url", ""),
+                title=c.get("title", ""),
+                text=text,
+                metadata={"enriched": enriched, "score": c.get("score", 0)},
+            ))
+        return results
 
 
 def build_unbrowse_searcher() -> "UnbrowseSearcher":
