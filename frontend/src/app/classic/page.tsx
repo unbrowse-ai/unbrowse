@@ -7,6 +7,7 @@ import { FlowingDotField } from "@/components/flowing-dot-field";
 import { MobileNav } from "@/components/mobile-nav";
 import { ChapterSpine } from "@/components/hallmark/chapter-spine";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 const faqJsonLd = {
