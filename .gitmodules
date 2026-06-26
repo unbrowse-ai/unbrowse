@@ -5,7 +5,7 @@
 [submodule "submodules/kuri"]
 	path = submodules/kuri
 	url = https://github.com/lekt9/kuri.git
-	branch = feat/windows-port-wave-1
+	branch = adding-extensions
 [submodule "skills/foundry"]
 	path = skills/foundry
 	url = https://github.com/unbrowse-ai/foundry.git
