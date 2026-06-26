@@ -1,5 +1,51 @@
 # Changelog
 
+## [11.2.0-preview.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v11.1.1...v11.2.0-preview.0) (2026-06-26)
+
+### Features
+
+* **bench:** ship Axis-D deterministic leak-scan scorer (audit_security.py) ([088fc4e](https://github.com/unbrowse-ai/unbrowse-dev/commit/088fc4e8feb108992684385d9b9819ad7663726e))
+* **cache:** route input-shape snapshot + IQ-bound invalidation ([435a399](https://github.com/unbrowse-ai/unbrowse-dev/commit/435a3996b0a5f2aea780722206e81a04bcb215ab))
+* **cli:** make resolve /contract-native — emit the three-shape verdict on the envelope ([4c88d84](https://github.com/unbrowse-ai/unbrowse-dev/commit/4c88d840bf40fcd4ec6af54efb5ccc08a676d862))
+* **contract-deploy:** every deploy is a /contract on the stack (IQ + emergent cache + RAG) ([aabbf26](https://github.com/unbrowse-ai/unbrowse-dev/commit/aabbf26e935ee4c7b40417a8ccdffc2e9e35b8d3))
+* **contract:** bind cli+server+frontend as ONE source of truth (papers→code→cli→frontend) + /taste ([61f633e](https://github.com/unbrowse-ai/unbrowse-dev/commit/61f633ebf0dab495ca941bd06b750b9a6d10fcf9))
+* **contract:** CLI uses embedded substrate on resolve hot path + rebuild-reinstall gate ([1c29de3](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c29de39d55d97173cc757882e6c8f4016348070))
+* **contract:** cross-build libcontract for darwin-x64 + linux-x64/arm64 (embedded substrate, 4/5 platforms) ([a49cc5e](https://github.com/unbrowse-ai/unbrowse-dev/commit/a49cc5eb0959243721862d6f390a049d4f68493e))
+* **contract:** embed libcontract natively in the CLI binary (in-process /contract) ([120f30b](https://github.com/unbrowse-ai/unbrowse-dev/commit/120f30bc6b61f8156166ab25a7d6b94eb9f965db))
+* **contract:** Notion+Outline reflection tiers + mechanical cross-contract reconciliation ([4c0ce11](https://github.com/unbrowse-ai/unbrowse-dev/commit/4c0ce11af7d041de9e4290526977503898fe941a)), closes [#879](https://github.com/unbrowse-ai/unbrowse-dev/issues/879)
+* **contract:** postinstall prunes foreign-platform libcontract (konmari) ([ef2f5a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/ef2f5a915eb4a0b00c0ae41c1259ea6c53a1cc28))
+* **contract:** render a routing decision as a native /contract three-shape ([b3f4faf](https://github.com/unbrowse-ai/unbrowse-dev/commit/b3f4faf61cdf795739079f884fcf56f01f5793f3))
+* **contract:** win-x64 libcontract cross-build fixed → 5/5 platforms embedded ([336e8f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/336e8f452e82a781d65c47f9016b62ab11c9adb0))
+* **contract:** wire /contract → IQ → emergent cache → emergent RAG at the shared boundary ([dbf4b7c](https://github.com/unbrowse-ai/unbrowse-dev/commit/dbf4b7c1d5ec569565ec195917d3e42d0ae0968f))
+* **economy:** add proof-indexing staking game-theory witness ([2215bbe](https://github.com/unbrowse-ai/unbrowse-dev/commit/2215bbeb23790ba7f95032ffcd06d491502e2ec9))
+* **frontend:** complete the 6 papers representation on the homepage and papers document ([292e6f3](https://github.com/unbrowse-ai/unbrowse-dev/commit/292e6f3e38757f1a22dd4e91383e869b131036ad))
+* **frontend:** Phase 4 — wallet-gated reveal surface (/reveal) ([7498298](https://github.com/unbrowse-ai/unbrowse-dev/commit/7498298104f4eaa92a4dcf8a14224ab50f9b1e3a))
+* **frontend:** Phase 4 (core) — client-side wallet-reveal crypto, byte-compatible with the backend seal ([ca856e7](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca856e733e36d5bc8004df7df21d5ec7ce749884))
+* **frontend:** Phase 4 SHIPPED — wallet-gated reveal deployed + visually verified ([0ad8bfb](https://github.com/unbrowse-ai/unbrowse-dev/commit/0ad8bfbcc3e9fbb6211f20a1292077c91553a3ea))
+* **frontend:** update landing pages to reflect FDRY utility and Aiko native bindings ([b1f0506](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1f0506c575d187983f473f9cec9a3aeafd13512))
+* **iq-ledger:** cross-machine wallet-bound on-chain memory — batched push + wired hydrate ([06a4772](https://github.com/unbrowse-ai/unbrowse-dev/commit/06a477242e81454c31b5efe1156d4736b244eb14))
+* **iq+auth:** wallet-first auto-register + IQ on-chain signed ledger live on mainnet ([723dbda](https://github.com/unbrowse-ai/unbrowse-dev/commit/723dbda4bae2480cb1c5520cfb2f1849d00ee158))
+* **iq:** binding completion gate for crypto-was-all-you-needed ([d0781c3](https://github.com/unbrowse-ai/unbrowse-dev/commit/d0781c3757dfe1d92b88bf2d082dc04043b1de9c))
+* **iq:** Phase 1 — wallet-sealed value as a tested member + completion plan ([99cf466](https://github.com/unbrowse-ai/unbrowse-dev/commit/99cf466a1906dea934d39f331bf9f7fa0f562be3))
+* **iq:** Phase 1 complete — sealed-value on-chain wrappers + injected-IO witness ([f0355f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/f0355f49567cf4ac5a4ca0ff1c099a1211b253d1))
+* **iq:** Phase 2 — cold-hydrate the on-chain signed history into the local fast tier ([3ba0d6c](https://github.com/unbrowse-ai/unbrowse-dev/commit/3ba0d6c9247b0b9ed33a240cfe21b0ce7aa074ce))
+* **iq:** Phase 3 — hole→on-chain-sealed-value wallet-gated reveal, wired e2e ([4e0e278](https://github.com/unbrowse-ai/unbrowse-dev/commit/4e0e278148dd22423591d9e30f1f026f67552cb1))
+* **iq:** Phase 5 — emergent-graph semantic search over the contract ledger ([98df02c](https://github.com/unbrowse-ai/unbrowse-dev/commit/98df02c5510d4dd9f01e47cd3260e908a3c2ad8b))
+* **iq:** Phase 6 cloud-runtime — native three-shape declare + drill-to-terminal ([24f92a0](https://github.com/unbrowse-ai/unbrowse-dev/commit/24f92a0cefe98dcce0502d3d285e8e6b96a93449))
+* native in-process plan+execute drill over a task DAG ([3b9bdd1](https://github.com/unbrowse-ai/unbrowse-dev/commit/3b9bdd112788b037103767265ce62acc0e031ac7))
+* **onchain:** Phase-A foundation — chain-reader skin + moat-no-leak + bridge gates ([8c30334](https://github.com/unbrowse-ai/unbrowse-dev/commit/8c3033496c4d9ac5547ca22db18e6db279f56cdc))
+* P6 settled via native plan+execute engine — completion gate GREEN ([cb6c72b](https://github.com/unbrowse-ai/unbrowse-dev/commit/cb6c72bdd803589d4eab0cd22d873e0023f849ea))
+* pay.sh-only payments + unbrowse-testing fixes + /contract-surface seed ([a2f997e](https://github.com/unbrowse-ai/unbrowse-dev/commit/a2f997ef48e2178814d7eadfbf759ca49dc68aad))
+* **vault:** seal credentials under the wallet by DEFAULT (no opt-in env flag) ([75237a1](https://github.com/unbrowse-ai/unbrowse-dev/commit/75237a13a5fb62917373614af941acc8c6bb8125))
+* ZK proof DEFAULT-ON + drop redundant UNBROWSE_NO_KEYCHAIN flag (good-defaults sweep) ([9d21ffe](https://github.com/unbrowse-ai/unbrowse-dev/commit/9d21ffe557ede7cfed9310d64f4546df55819a70))
+
+### Bug Fixes
+
+* **bench:** honest jespa win-ledger gate + repair two false-negative harnesses ([68a4d92](https://github.com/unbrowse-ai/unbrowse-dev/commit/68a4d924ec3db66da3820618487c86bb686952ec))
+* **bench:** remove stray merge-conflict markers from ACCEPTANCE-CRITERIA run block ([b339da8](https://github.com/unbrowse-ai/unbrowse-dev/commit/b339da8e367d72051b29233f756ade5d4cf6f104))
+* **keychain:** idempotent setSecret — stop the recurring macOS 'change access permissions' prompt ([e41a494](https://github.com/unbrowse-ai/unbrowse-dev/commit/e41a494b4bc586a3ae606f925f7d05ebfcb02631))
+* **types:** import ResolutionRecord + node:fs symbols; tighten tsc baseline 207→202 ([b95e447](https://github.com/unbrowse-ai/unbrowse-dev/commit/b95e447305c6f5bf95dcc457a2e80894f0e1ef2c))
+
 ## [11.1.0] (2026-06-26)
 
 ### Features
