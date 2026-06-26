@@ -40,6 +40,7 @@ import { releaseAttestationHeaders } from "../_shared/cli-runtime.js";
 import { DEFAULT_BACKEND_URL } from "../../version.js";
 import { getWalletPubkey, signBytes } from "../../values/signer.js";
 import { resolutionContractVerdict } from "../../values/resolution-contract.js";
+import { persistVerdictOnChain } from "../../values/contract-everything.js";
 import { safeZero } from "../../values/memzero.js";
 import { escalationDirective } from "../../capture/escalate-on-miss.js";
 import {
@@ -362,6 +363,12 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
       skill: { skill_id: (shortlist[0] as Record<string, unknown> | undefined)?.skill_id as string | undefined, endpoints: shortlist },
       url: urlFlag ?? undefined,
     });
+
+    // Aiko-native: when UNBROWSE_CONTRACT_ONCHAIN=1, persist the resolve verdict
+    // on-chain so it's available for chain-first reads by future callers.
+    if (process.env.UNBROWSE_CONTRACT_ONCHAIN === "1" && contractVerdict.terminal) {
+      void persistVerdictOnChain(contractVerdict, intent).catch(() => {});
+    }
 
     emit(
       {
