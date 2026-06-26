@@ -1,7 +1,7 @@
 {
   "name": "@unbrowse/sdk",
-  "version": "11.0.0",
-  "description": "TypeScript SDK for Unbrowse \u2014 auto-spawns the unbrowse binary and talks to it over a local socket. For an HTTP-first, browser/edge-compatible client with zero runtime deps, see @unbrowse/client.",
+  "version": "11.1.0-preview.0",
+  "description": "TypeScript SDK for Unbrowse — auto-spawns the unbrowse binary and talks to it over a local socket. For an HTTP-first, browser/edge-compatible client with zero runtime deps, see @unbrowse/client.",
   "type": "module",
   "license": "MIT",
   "exports": {
