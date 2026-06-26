@@ -43,4 +43,12 @@ describe("Aiko native Unbrowse binding", () => {
     expect(scriptContent).toContain("Production deploy contract registered");
     expect(scriptContent).toContain("contract-deploy-record.ts --kind server --target production");
   });
+
+  it("ensures public architecture docs are free of internal method-vocabulary leak 'superpattern'", () => {
+    const authDocsPath = join(import.meta.dir, "../docs/architecture/AUTH.md");
+    const docsContent = readFileSync(authDocsPath, "utf8");
+
+    // The word 'superpattern' should not appear in public-facing architecture docs
+    expect(docsContent).not.toContain("superpattern");
+  });
 });
