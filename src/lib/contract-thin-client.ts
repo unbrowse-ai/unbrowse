@@ -16,6 +16,9 @@
  */
 
 import type { LocalCapabilityDispatcher } from "./local-capabilities";
+import { canonicalizeViaWasm, signViaWasm } from "./core-wasm";
+import { buildSpawnAttestation } from "../values/contract-attest.js";
+import { AIKO_AGENT_NAME, contractClientHeaders, isAikoSubstratePresent } from "../runtime/aiko-identity.js";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirror backend/src/routes/contract.ts request/response.
@@ -30,6 +33,27 @@ export interface ThinClientDeclareRequest {
   action: string;
   parent_id?: string;
   learning?: string;
+  /** Writer identity claimed for this declare. When a wallet is present
+   *  this is the signed `agent` field; absent → null in the canonical body. */
+  agent?: string;
+}
+
+/**
+ * The unbrowse wallet signer surface this client needs to bind a declare to
+ * the same one-key-signs-every-layer identity the rest of the CLI uses
+ * (src/values/signer.ts). Injectable so tests can point at a hermetic wallet
+ * (UNBROWSE_WALLET_DIR) or supply a stub; defaults to the real signer.
+ */
+export interface ThinClientSigner {
+  getWalletPubkey(): Promise<Uint8Array>;
+  signBytes(message: Uint8Array): Promise<{ signature: Uint8Array }>;
+  /**
+   * Optional: run `fn` with the raw 64-byte Ed25519 SecretKey (seed||pubkey)
+   * loaded transiently (zeroed after). Present on the real unbrowse signer so
+   * the declare can route SIGN through the one Zig WASM core; absent on test
+   * stubs, in which case signing stays on `signBytes`. Never retain the buffer.
+   */
+  withSecretKey?<T>(fn: (sk64: Uint8Array) => T): T;
 }
 
 export interface ThinClientIterateRequest {
@@ -153,6 +177,27 @@ export interface ThinClientOptions {
   dispatcher?: LocalCapabilityDispatcher;
   /** Optional fetch implementation (testing). Defaults to globalThis.fetch. */
   fetchImpl?: typeof fetch;
+  /** Optional wallet signer (testing). Defaults to the unbrowse signer
+   *  (src/values/signer.ts) loaded lazily so offline use never needs a key. */
+  signer?: ThinClientSigner;
+}
+
+/** A raw contract row to mirror to the server graph (Π4 doctrine mirror).
+ *  Minimal local shape — the server accepts a raw ContractEventRow under `{ row }`. */
+export interface ThinClientMirrorRow {
+  event: string;
+  id: string;
+  ts: string;
+  plan?: string;
+  action?: string;
+  pointer_type?: string;
+  parent_id?: string;
+  agent?: string;
+}
+
+export interface ThinClientMirrorResponse {
+  mirrored: boolean;
+  mirrored_at?: string;
 }
 
 export interface ThinClient {
@@ -161,6 +206,84 @@ export interface ThinClient {
   status(id: string): Promise<ThinClientStatusResponse>;
   planForIntent(intent: string, limit?: number): Promise<ThinClientPlanMatch[]>;
   surface(): Promise<ThinClientContractSurface>;
+  /** POST a raw row to /v1/contract/mirror so a local verdict/deploy becomes
+   *  visible on the beta-api contract graph (the CLI→server direction). */
+  mirror(row: ThinClientMirrorRow): Promise<ThinClientMirrorResponse>;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Pure-TS canonical declare body — the FALLBACK. PREFER the Zig WASM core
+ * (`canonicalizeViaWasm` in ./core-wasm) which is the ONE canonical
+ * implementation shared with the backend's verifier; this TS path runs only
+ * when the wasm can't load (unsupported runtime, missing/corrupt module).
+ *
+ * The backend emits keys in this fixed object-literal order (plan, action,
+ * parent_id, agent, wallet_identity, ts) — NOT a runtime sort — and uses
+ * `null` (never undefined / omitted) for an absent parent_id or agent. The Zig
+ * core re-serializes in this same order, so all three (CLI WASM, CLI TS,
+ * backend) emit byte-identical bytes — the invariant that makes a CLI-signed
+ * declare verify on the backend.
+ */
+function canonicalizeDeclareBodyTs(body: {
+  plan: string;
+  action: string;
+  parent_id: string | null;
+  agent: string | null;
+  wallet_identity: string;
+  ts: string;
+}): string {
+  return JSON.stringify({
+    plan: body.plan,
+    action: body.action,
+    parent_id: body.parent_id,
+    agent: body.agent,
+    wallet_identity: body.wallet_identity,
+    ts: body.ts,
+  });
+}
+
+/**
+ * Canonicalize the declare body through the SINGLE Zig WASM core, falling back
+ * to the pure-TS emitter on any wasm fault. This kills the CLI's OWN duplicate
+ * byte-emitter as the load-bearing path: the bytes the CLI signs now come from
+ * the same core the backend canonicalizes/verifies with.
+ */
+function canonicalizeDeclareBody(body: {
+  plan: string;
+  action: string;
+  parent_id: string | null;
+  agent: string | null;
+  wallet_identity: string;
+  ts: string;
+}): string {
+  return canonicalizeViaWasm(body) ?? canonicalizeDeclareBodyTs(body);
+}
+
+/**
+ * Lazily load the real unbrowse signer (src/values/signer.ts) so the thin
+ * client never imports keychain machinery unless an opts.signer override is
+ * absent AND a declare actually needs to sign. Returns null when the signer
+ * module can't be loaded — the declare path then stays unsigned (offline-safe).
+ */
+export async function defaultSigner(): Promise<ThinClientSigner | null> {
+  try {
+    const mod = await import("../values/signer.js");
+    return {
+      getWalletPubkey: mod.getWalletPubkey,
+      signBytes: mod.signBytes,
+      withSecretKey: mod.withSecretKey,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -178,6 +301,8 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
     method: "GET" | "POST",
     body?: TReq,
     queryParams?: Record<string, string>,
+    extraHeaders?: Record<string, string>,
+    rawBody?: string,
   ): Promise<TRes> {
     const url = new URL(`${baseUrl}${path}`);
     if (queryParams) {
@@ -188,9 +313,14 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       headers: {
         "Content-Type": "application/json",
         ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
+        ...contractClientHeaders(),
+        ...(extraHeaders ?? {}),
       },
     };
-    if (body !== undefined) init.body = JSON.stringify(body);
+    // rawBody (when present) is the EXACT bytes a spawn attestation signed — send it verbatim,
+    // never re-stringify (a re-serialization would change the bytes and break the signature).
+    if (rawBody !== undefined) init.body = rawBody;
+    else if (body !== undefined) init.body = JSON.stringify(body);
     const res = await fetchImpl(url.toString(), init);
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -201,11 +331,126 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
 
   return {
     async declare(req) {
-      const result = await call<ThinClientDeclareRequest, { id: string }>(
-        "/v1/contract/declare",
-        "POST",
-        req,
-      );
+      // Bind the declare to the unbrowse wallet identity (one-key-signs-
+      // every-layer). Mirror src/cli-v7/eval/resolve.ts:128 — pubkey →
+      // hex(wallet_identity), sign the canonical body, attach both. The
+      // backend's verifyDeclareSignature (declare-signature.ts) verifies
+      // Ed25519 over the EXACT canonical bytes built here.
+      //
+      // Backward-compat: if no wallet is configured / the signer is
+      // unavailable (getWalletPubkey throws, keychain absent, offline),
+      // fall back to the current UNSIGNED POST so offline use never breaks.
+      let signedExtras:
+        | { wallet_identity: string; declare_signature: string; ts: string; agent: string | null }
+        | undefined;
+      try {
+        const signer = opts.signer ?? (await defaultSigner());
+        if (signer) {
+          const pubkeyBytes = await signer.getWalletPubkey();
+          const wallet_identity = bytesToHex(pubkeyBytes);
+          // ts is part of the signed body AND must be echoed in the request,
+          // or the server defaults to its own clock and the sig won't verify
+          // (backend contract.ts verifyDeclareAuth reads req.ts).
+          const ts = new Date().toISOString();
+          const parent_id = req.parent_id ?? null;
+          const agent = req.agent ?? (isAikoSubstratePresent() ? AIKO_AGENT_NAME : null);
+          const canonical = canonicalizeDeclareBody({
+            plan: req.plan,
+            action: req.action,
+            parent_id,
+            agent,
+            wallet_identity,
+            ts,
+          });
+          const canonicalBytes = new TextEncoder().encode(canonical);
+          // SIGN through the ONE Zig WASM core when the signer can expose the
+          // raw 64-byte SecretKey in-process (real unbrowse signer). The secret
+          // is loaded transiently inside withSecretKey and zeroed on return —
+          // it never leaves that scope. On ANY wasm fault (signViaWasm → null)
+          // OR a signer without withSecretKey (test stub) we fall back to the
+          // node:crypto signer.signBytes, so signing NEVER breaks. Ed25519 is
+          // RFC-8032 — both signatures verify identically on the backend.
+          let declare_signature: string | null = null;
+          if (typeof signer.withSecretKey === "function") {
+            declare_signature = signer.withSecretKey((sk64) =>
+              signViaWasm(canonicalBytes, sk64),
+            );
+          }
+          if (declare_signature === null) {
+            const signed = await signer.signBytes(canonicalBytes);
+            declare_signature = bytesToHex(signed.signature);
+          }
+          signedExtras = {
+            wallet_identity,
+            declare_signature,
+            ts,
+            agent,
+          };
+        }
+      } catch {
+        // No usable wallet → stay on the unsigned legacy path.
+        signedExtras = undefined;
+      }
+
+      const wireBody = signedExtras
+        ? {
+            plan: req.plan,
+            action: req.action,
+            ...(req.parent_id !== undefined ? { parent_id: req.parent_id } : {}),
+            ...(req.learning !== undefined ? { learning: req.learning } : {}),
+            ...(signedExtras.agent !== null ? { agent: signedExtras.agent } : {}),
+            wallet_identity: signedExtras.wallet_identity,
+            declare_signature: signedExtras.declare_signature,
+            ts: signedExtras.ts,
+          }
+        : req;
+
+      // Native CLI↔server bind: sign the EXACT POST bytes with the aiko platform deployer key
+      // (single-link lineage rooted at the deployer identity) and attach the x-aiko-* attestation
+      // headers. buildSpawnAttestation returns null on any machine without the deployer key (every
+      // non-Lewis install) → no headers → the server admits the declare on the legacy-anonymous
+      // path, unchanged. The bytes signed here are the bytes sent (rawBody), so the leaf signature
+      // verifies server-side.
+      const bodyStr = JSON.stringify(wireBody);
+      let attestHeaders: Record<string, string> | undefined;
+      try {
+        const att = buildSpawnAttestation(new TextEncoder().encode(bodyStr));
+        if (att) attestHeaders = att as unknown as Record<string, string>;
+      } catch {
+        /* no deployer key / rotated key → legacy-anonymous (server admits it) */
+      }
+      let result: { id: string };
+      try {
+        result = await call<unknown, { id: string }>(
+          "/v1/contract/declare",
+          "POST",
+          undefined,
+          undefined,
+          attestHeaders,
+          bodyStr,
+        );
+      } catch (e) {
+        // Rollout-safe: if the server REJECTS the spawn attestation (e.g. the deployer-pubkey pin
+        // isn't deployed to this backend yet), retry the SAME declare WITHOUT the x-aiko-* headers
+        // so the CLI falls back to the legacy-anonymous path instead of breaking. Visible, never
+        // silent — the seam surfaces on stderr. Once the backend pin is live, attestation succeeds
+        // and this fallback never fires.
+        if (attestHeaders && e instanceof Error && /attestation_failed|\b401\b/.test(e.message)) {
+          try {
+            console.error(`contract-attest: server rejected spawn attestation (${e.message.slice(0, 100)}) — retrying legacy-anonymous`);
+          } catch { /* stderr unavailable */ }
+          result = await call<unknown, { id: string }>(
+            "/v1/contract/declare",
+            "POST",
+            undefined,
+            undefined,
+            undefined,
+            bodyStr,
+          );
+        } else {
+          throw e;
+        }
+      }
       return { id: result.id };
     },
 
@@ -267,6 +512,13 @@ export function createThinClient(opts: ThinClientOptions = {}): ThinClient {
       return call<never, ThinClientContractSurface>(
         "/v1/contract/surface",
         "GET",
+      );
+    },
+    async mirror(row) {
+      return call<{ row: ThinClientMirrorRow }, ThinClientMirrorResponse>(
+        "/v1/contract/mirror",
+        "POST",
+        { row },
       );
     },
   };
