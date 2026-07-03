@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cachedResolution } from "../values/cached-resolution.js";
+import { mergedAuthHeaders } from "../lib/wallet-auth-headers.js";
 import { homedir, hostname, release as osRelease } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
@@ -28,6 +29,7 @@ import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
+import { defaultAgentDisplayName, isAikoSubstratePresent } from "../runtime/aiko-identity.js";
 import {
   decodeTelemetryAttribution,
   mergeTelemetryAttribution,
@@ -340,7 +342,7 @@ async function postTelemetry(path: string, body: Record<string, unknown>): Promi
       headers: {
         "Content-Type": "application/json",
         "Accept-Encoding": "gzip, deflate",
-        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(await mergedAuthHeaders(key)),
       },
       body: JSON.stringify(body),
       // Telemetry is best-effort and is awaited inline on the resolve hot
@@ -453,8 +455,10 @@ export function isValidAgentEmail(value: string): boolean {
 }
 
 export function buildDefaultAgentName(): string {
-  return `${hostname()}-${randomBytes(3).toString("hex")}`;
+  return defaultAgentDisplayName(hostname(), randomBytes(3).toString("hex"));
 }
+
+export { isAikoSubstratePresent } from "../runtime/aiko-identity.js";
 
 export function resolveAgentName(preferredEmail: string | undefined, fallbackName: string): string {
   const normalized = normalizeAgentEmail(preferredEmail ?? "");
@@ -568,7 +572,7 @@ async function apiRequest<T = unknown>(
   method: string,
   path: string,
   body?: unknown,
-  opts?: { noAuth?: boolean; timeoutMs?: number; skipAutoUpdate?: boolean; extraHeaders?: Record<string, string> },
+  opts?: { noAuth?: boolean; timeoutMs?: number; skipAutoUpdate?: boolean; skipAuthRetry?: boolean; extraHeaders?: Record<string, string> },
 ): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
   const releaseAttestationHeaders = buildReleaseAttestationHeaders(
@@ -590,7 +594,7 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
         ...releaseAttestationHeaders,
-        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(await mergedAuthHeaders(key)),
         ...(opts?.extraHeaders ?? {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -612,6 +616,20 @@ async function apiRequest<T = unknown>(
     console.warn("\n[unbrowse] The Terms of Service have been updated.");
     console.warn("[unbrowse] Please restart the unbrowse service to accept the new terms.");
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
+  }
+
+  // Handle 401/403 — invalid/expired key. Refresh the bearer ONCE and retry
+  // (the Claude-Code auth state machine). Guards: only when we actually sent a
+  // key, only once (skipAuthRetry), and NEVER for the auth/registration/tos
+  // endpoints that ensureUsableKey() itself calls (avoids infinite recursion).
+  if ((res.status === 401 || res.status === 403)
+      && !opts?.noAuth && !opts?.skipAuthRetry && key
+      && (data as Record<string, unknown>).error !== "tos_update_required"
+      && !/^\/v1\/(agents\/register|agents\/me|auth\/|tos\/)/.test(path)) {
+    const recover = await ensureUsableKey({ force: true });
+    if (recover.key && recover.key !== "local-only") {
+      return apiRequest<T>(method, path, body, { ...opts, skipAuthRetry: true });
+    }
   }
 
   // Handle 426 — client outdated or verification failed. Auto-update, restart, and retry once.
@@ -657,7 +675,7 @@ async function apiRequest<T = unknown>(
         headers: {
           "Content-Type": "application/json",
           ...releaseAttestationHeaders,
-          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+          ...(await mergedAuthHeaders(key)),
         },
       });
       if (flexResult) {
@@ -686,7 +704,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -704,7 +722,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -739,7 +757,7 @@ async function apiRequest<T = unknown>(
               "Content-Type": "application/json",
               "Accept-Encoding": "gzip, deflate",
               ...releaseAttestationHeaders,
-              ...(key ? { Authorization: `Bearer ${key}` } : {}),
+              ...(await mergedAuthHeaders(key)),
             },
           });
           if (paidResult) {
@@ -761,7 +779,7 @@ async function apiRequest<T = unknown>(
             "Content-Type": "application/json",
             "Accept-Encoding": "gzip, deflate",
             ...releaseAttestationHeaders,
-            ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            ...(await mergedAuthHeaders(key)),
           },
         });
         if (paidResult) {
@@ -1032,6 +1050,220 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean; exi
   }
 }
 
+/**
+ * Pure decision kernel for the free, zero-setup tier: WHEN may the CLI silently
+ * mint a free anonymous key on the caller's behalf? Only when there is no human
+ * to ask (headless) AND there is no usable key AND no prior identity to refresh.
+ * Interactive sessions defer to onboarding (never silently accept ToS for a
+ * present human); an existing identity takes the refresh path, not first-mint.
+ * Kept pure (no I/O) so it is deterministically unit-witnessed; ensureUsableKey
+ * wires it in.
+ */
+export function firstMintDecision(s: { headless: boolean; hasUsableKey: boolean; hasIdentity: boolean }): boolean {
+  return s.headless && !s.hasUsableKey && !s.hasIdentity;
+}
+
+/**
+ * Whether the agent already has an established identity worth auto-provisioning
+ * a key for. Wallet-first (identity model PR #849): a present local self-custody
+ * wallet IS an identity — `~/.unbrowse/wallet.json` is minted on first use, so it
+ * only exists on a machine unbrowse has already provisioned, never a pristine
+ * human's first run. So a wallet-holding agent auto-registers (mint + wallet-bind)
+ * instead of being told to run `build register`; agent_id / agent_name remain
+ * identities too. Pure (no I/O) so it is deterministically unit-witnessed.
+ */
+export function hasEstablishedIdentity(s: { agentId?: string | null; agentName?: string | null; walletAddress?: string | null }): boolean {
+  return !!(s.agentId || s.agentName || s.walletAddress);
+}
+
+/**
+ * Pure decision for the auto-backfill of an existing keyed install whose wallet
+ * was never bound (registered before wallet-binding existed, or before this
+ * version). The mint path already binds when there's NO key; this covers the
+ * "has key + has wallet + wallet not bound" gap so updating auto-backfills.
+ *
+ *  - no local wallet            → nothing to bind.
+ *  - no usable key              → the mint path (ensureUsableKey) binds; skip here.
+ *  - config already records THIS wallet → idempotent, instant skip (no network).
+ *  - else                       → check the server profile and bind if unbound.
+ *
+ * Pure (no I/O) so the branch logic is deterministically unit-witnessed.
+ */
+export type WalletBackfillAction = "skip-no-wallet" | "skip-no-key" | "skip-already-bound" | "check-and-bind";
+export function walletBackfillDecision(s: { localWallet?: string | null; hasKey: boolean; boundWallet?: string | null }): WalletBackfillAction {
+  if (!s.localWallet) return "skip-no-wallet";
+  if (!s.hasKey) return "skip-no-key";
+  if (s.boundWallet && s.boundWallet === s.localWallet) return "skip-already-bound";
+  return "check-and-bind";
+}
+
+/**
+ * Self-healing key acquisition for the hot read/execute path (the Claude Code
+ * auth state machine: validate → on-invalid refresh-once → on-persistent-
+ * failure clear + onboard). Unlike ensureRegistered(), this NEVER prompts and
+ * is safe to call before every backend request:
+ *
+ *  - usable key present (env or config, validated) → return it.
+ *  - key missing/invalid BUT a prior identity exists (config has agent_id) →
+ *    the stale key is cleared ("logout") and a fresh key is minted
+ *    automatically via /v1/agents/register-anon (a non-interactive refresh of
+ *    an identity that already accepted ToS), then returned.
+ *  - truly fresh machine (no identity) or refresh failed → return key:"" plus
+ *    a one-line `onboarding` next-step. Headless callers surface that instead
+ *    of a raw 403; the message IS the recovery (we never silently accept ToS
+ *    on a human's behalf).
+ *
+ * `force:true` skips the initial validate and goes straight to refresh — used
+ * for the single retry after a backend 401/403.
+ */
+export async function ensureUsableKey(opts?: { force?: boolean; allowMint?: boolean }): Promise<{ key: string; refreshed: boolean; minted?: boolean; onboarding?: string }> {
+  if (isLocalOnly()) return { key: "local-only", refreshed: false };
+
+  if (!opts?.force) {
+    const usable = await findUsableApiKey();
+    if (usable) {
+      // Auto-backfill: an install that already has a usable key but whose local
+      // wallet was never bound (registered before wallet-binding existed) gets
+      // the wallet attached once here — so updating is enough, no manual step.
+      await backfillWalletBinding();
+      return { key: usable.key, refreshed: false };
+    }
+  } else {
+    // Force retry (after a backend 401/403): re-validate BEFORE wiping. A
+    // transient 401/403 (server blip) must never clobber a still-valid key.
+    // Only fall through to reset+mint on a confirmed-invalid key; tolerate
+    // "offline" (unconfirmable) by keeping what we have.
+    const existing = (process.env.UNBROWSE_API_KEY ?? loadConfig()?.api_key ?? "").trim();
+    if (existing) {
+      const st = await validateApiKey(existing);
+      if (st.status === "ok" || st.status === "offline") return { key: existing, refreshed: false };
+    }
+  }
+
+  const cfg = loadConfig();
+  const wallet = getLocalWalletContext();
+
+  // WEB3-NATIVE FAST PATH: the local self-custody wallet IS the identity. The
+  // wallet signature (minted by mergedAuthHeaders on every request) authenticates
+  // as `wallet:<pk>` on the backend — no api-key required. Return an empty key:
+  // mergedAuthHeaders sends the wallet sig alone, and the backend accepts it
+  // (bearerAuth + optionalAuth + bearerAuthNoTos all verify the sig first and
+  // short-circuit before the Bearer 401 path). The key mint below is an OPTIONAL
+  // web2 wrapper (account-bind for earnings/dashboard continuity), gated behind
+  // opts.allowMint so the resolve hot path NEVER blocks on key acquisition.
+  if (wallet.wallet_address && !opts?.allowMint) {
+    return { key: "", refreshed: false };
+  }
+
+  const hadConfigIdentity = !!(cfg?.agent_id || cfg?.agent_name);
+  // Wallet-first: a present self-custody wallet is an established identity, so a
+  // wallet-holding agent auto-provisions here instead of dead-ending on the
+  // manual `build register` onboarding hint.
+  const hadIdentity = hasEstablishedIdentity({
+    agentId: cfg?.agent_id,
+    agentName: cfg?.agent_name,
+    walletAddress: wallet.wallet_address,
+  });
+
+  // Drop the dead bearer so we never resend it ("logout").
+  if (cfg?.api_key || process.env.UNBROWSE_API_KEY) {
+    try { resetLocalRegistration(); } catch { /* best-effort */ }
+    delete process.env.UNBROWSE_API_KEY;
+  }
+
+  // Mint a fresh anonymous key when EITHER we are refreshing a previously
+  // registered identity (already ToS-accepted) OR this is a fresh headless
+  // machine that may be silently provisioned for free (firstMintDecision).
+  // Interactive fresh machines fall through to the onboarding hint — we never
+  // accept ToS silently for a present human.
+  const headless = process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY || !process.stdout.isTTY;
+  const firstMint = firstMintDecision({ headless, hasUsableKey: false, hasIdentity: hadIdentity });
+  if (hadIdentity || firstMint) {
+    try {
+      let tosVersion = cfg?.tos_accepted_version ?? "";
+      if (!tosVersion) {
+        try { tosVersion = (await api<{ version: string }>("GET", "/v1/tos/current")).version; } catch { /* tolerate */ }
+      }
+      const name = cfg?.agent_name ?? buildDefaultAgentName();
+      const reg = await api<{ agent_id: string; api_key: string }>(
+        "POST", "/v1/agents/register-anon",
+        { name, tos_version: tosVersion, ...parseInstallAttribution() },
+      );
+      process.env.UNBROWSE_API_KEY = reg.api_key;
+      saveConfig({
+        api_key: reg.api_key,
+        agent_id: reg.agent_id,
+        agent_name: name,
+        registered_at: new Date().toISOString(),
+        tos_accepted_version: tosVersion,
+        tos_accepted_at: new Date().toISOString(),
+      });
+      // Wallet-first: bind the local self-custody wallet to the freshly minted
+      // key (L2 wrap, POST /v1/agents/wallet) so the api_key carries the agent's
+      // wallet identity and earnings/dashboard resolve to it. Best-effort —
+      // surfaces on failure, never throws (wallet may already be claimed, etc).
+      if (wallet.wallet_address) {
+        try { await syncAgentWallet(wallet); }
+        catch (e) { console.warn(`[unbrowse] wallet auto-bind deferred: ${(e as Error)?.message ?? e}`); }
+      }
+      console.warn(
+        hadConfigIdentity ? "[unbrowse] registration was invalid; refreshed it automatically."
+        : wallet.wallet_address ? "[unbrowse] auto-registered this wallet and provisioned its key."
+        : "[unbrowse] provisioned a free anonymous key (run `unbrowse build setup` to add a wallet).");
+      return { key: reg.api_key, refreshed: hadConfigIdentity, minted: !hadConfigIdentity };
+    } catch { /* fall through to the onboarding hint */ }
+  }
+
+  return {
+    key: "",
+    refreshed: false,
+    onboarding: "unbrowse build register --email you@example.com  (or set UNBROWSE_API_KEY), then re-run",
+  };
+}
+
+let walletBackfillAttempted = false;
+/**
+ * Auto-backfill the wallet binding for an existing keyed install whose wallet
+ * was never attached (registered before wallet-binding shipped). Idempotent and
+ * once-per-process: after the first successful bind, config records the wallet
+ * and the decision short-circuits with no network. Best-effort — never throws.
+ *
+ * No-clobber: mirrors ensureRegistered's safe rule — only binds when the server
+ * profile has NO wallet; on a server/local mismatch it warns and records the
+ * server wallet locally so it stops re-checking (the operator resolves via
+ * `unbrowse wallet`). the platform never silently overwrites a server wallet.
+ */
+export async function backfillWalletBinding(): Promise<{ bound: boolean; reason?: string }> {
+  if (walletBackfillAttempted) return { bound: false, reason: "already-attempted-this-process" };
+  if (isLocalOnly()) return { bound: false, reason: "local-only" };
+  const cfg = loadConfig();
+  const wallet = getLocalWalletContext();
+  const hasKey = !!(cfg?.api_key || process.env.UNBROWSE_API_KEY);
+  const action = walletBackfillDecision({ localWallet: wallet.wallet_address, hasKey, boundWallet: cfg?.wallet_address });
+  if (action !== "check-and-bind") return { bound: false, reason: action };
+  walletBackfillAttempted = true;
+  try {
+    const profile = await getMyProfile();
+    if (!profile.wallet_address) {
+      await syncAgentWallet(wallet);
+      console.warn(`[unbrowse] auto-bound wallet ${wallet.wallet_address!.slice(0, 8)}… to your registration.`);
+      return { bound: true };
+    }
+    if (profile.wallet_address !== wallet.wallet_address) {
+      // Record the server wallet locally so we stop re-checking; do NOT clobber.
+      if (cfg) saveConfig({ ...cfg, wallet_address: profile.wallet_address });
+      console.warn(`[unbrowse] local wallet ${wallet.wallet_address!.slice(0, 8)}… differs from server-side ${profile.wallet_address.slice(0, 8)}…; run \`unbrowse wallet\` to inspect.`);
+      return { bound: false, reason: "server-wallet-mismatch" };
+    }
+    // Already bound server-side — record locally so the fast path skips next time.
+    if (cfg) saveConfig({ ...cfg, wallet_address: profile.wallet_address });
+    return { bound: false, reason: "already-bound-server-side" };
+  } catch (e) {
+    console.warn(`[unbrowse] wallet auto-bind deferred: ${(e as Error)?.message ?? e}`);
+    return { bound: false, reason: (e as Error)?.message };
+  }
+}
+
 export interface MagicRegisterResult {
   api_key: string;
   agent_id: string;
@@ -1236,7 +1468,14 @@ function writeSkillCache(skill: SkillManifest, scopeId?: string): void {
         }
       }
     }
-    writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(skill), "utf-8");
+    // ZK input-censoring at the persistence boundary: sensitive write-body
+    // fields (password, token, api_key, …) are replaced by sha256 commitments
+    // before the secret touches disk. The in-memory recentLocalSkills copy above
+    // keeps the real value (process-local, no boundary crossing) so the in-flight
+    // execution already used it; only the persisted/publishable copy is censored.
+    const { censorSkillForPersistence } = require("../proof/input-censor.js");
+    const { skill: persistable } = censorSkillForPersistence(skill);
+    writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(persistable), "utf-8");
   } catch { /* non-critical — best effort */ }
 }
 
@@ -1296,6 +1535,32 @@ export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillMan
     return onDisk;
   }
   return null;
+}
+
+/**
+ * Enumerate every locally-known skill (in-memory recent map ∪ on-disk skill-cache).
+ * Used to build the GLOBAL cross-skill producer index — the join of every skill's
+ * `provides` into one dependency graph. De-duplicated by skill_id.
+ */
+export function listLocalSkills(): SkillManifest[] {
+  const bySkillId = new Map<string, SkillManifest>();
+  for (const s of recentLocalSkills.values()) {
+    if (s?.skill_id) bySkillId.set(s.skill_id, s);
+  }
+  // disk skill-cache fallback (survives restart; on-disk write bodies are commitment-only)
+  try {
+    const dir = getSkillCacheDir();
+    if (existsSync(dir)) {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith(".json")) continue;
+        const id = f.slice(0, -5);
+        if (bySkillId.has(id)) continue;
+        const s = readSkillCache(id);
+        if (s?.skill_id) bySkillId.set(s.skill_id, s);
+      }
+    }
+  } catch { /* best-effort enumeration */ }
+  return [...bySkillId.values()];
 }
 
 /**
@@ -1669,6 +1934,9 @@ export async function rankEndpointsRemote(
   endpoints: Array<Record<string, unknown>>,
   skillDomain?: string,
   contextUrl?: string,
+  // The skill's producer→consumer DAG. When sent, the server ranks by the fractal chain confidence
+  // (weakest-link up the chain) instead of the flat per-hop head. Optional — older servers ignore it.
+  operationGraph?: unknown,
 ): Promise<RemoteRankedEndpoint[] | null> {
   if (isLocalOnly()) return null;
   if (!Array.isArray(endpoints) || endpoints.length === 0) return null;
@@ -1681,6 +1949,7 @@ export async function rankEndpointsRemote(
         endpoints,
         skill_domain: skillDomain,
         context_url: contextUrl,
+        ...(operationGraph ? { operation_graph: operationGraph } : {}),
       },
       { timeoutMs: 4000 },
     );
@@ -1702,17 +1971,14 @@ export interface ExecutionPayload {
   indexer_id?: string;
 }
 
-export interface AnalyticsSessionPayload {
-  session_id: string;
-  started_at: string;
-  completed_at?: string;
-  trace_version?: string;
-  api_calls: number;
-  discovery_queries?: number;
-  cached_skill_calls?: number;
-  fresh_index_calls?: number;
-  browser_mode?: "default" | "replaced" | "manual" | "unknown";
-}
+// Canonical shape lives in ../analytics-session.ts (it carries the savings fields —
+// time_saved_ms / cost_saved_uc / tokens_saved — that buildAnalyticsSessionPayload
+// actually posts). Re-export it instead of keeping a stale duplicate that omitted
+// them: the omission silently understated the /v1/analytics/sessions contract, so
+// the local impact-log and the backend session record could read as mismatched
+// even though both derive from the same `timing`.
+import type { AnalyticsSessionPayload } from "../analytics-session.js";
+export type { AnalyticsSessionPayload } from "../analytics-session.js";
 
 /**
  * Build the POST body for /v1/stats/execution.
@@ -1756,6 +2022,7 @@ export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): 
   await api("POST", "/v1/analytics/sessions", {
     ...getTelemetryAttribution(),
     ...payload,
+    install_id: getInstallId(), // funnel break ②: usage → install → acquisition cohort
   });
 }
 
@@ -2137,6 +2404,17 @@ export async function getCreatorEarnings(agentId: string): Promise<{
   }>;
 }> {
   return api("GET", `/v1/transactions/creator/${agentId}`);
+}
+
+/** This agent's full contributor dashboard (GET /v1/dashboard/me, authed). Only the
+ *  fields the CLI `eval stats` "you" view reads are typed here; the payload carries
+ *  more (savings, rank, recent_transactions). */
+export async function getMyDashboard(): Promise<{
+  economics: { total_earned_usd: number };
+  savings: { cost_saved_usd: number | null; time_saved_hours: number | null };
+  contributions?: Array<{ skill_id: string; reuse_count: number; earned_usd: number }>;
+}> {
+  return api("GET", "/v1/dashboard/me");
 }
 
 /** Set the base price for a skill (requires auth as skill owner). */
