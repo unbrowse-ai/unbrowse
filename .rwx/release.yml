@@ -213,15 +213,35 @@ tasks:
     env:
       PUB_TOKEN: ${{ secrets.skill-repo-token }}
 
-  # ── publish-cli (npm) ─────────────────────────────────────────────────
-  - key: publish-cli
+  # ── smoke-packaged-cli (isolated) ─────────────────────────────────────
+  # In its own task/container on purpose: scripts/smoke-packaged-cli.sh's
+  # EXIT trap does `pkill -9 -P $$` + two broad `pkill -9 -f` sweeps to
+  # reap a detached bun/kuri server it spawns for the boot test. Confirmed
+  # via two real runs (8GB and 16GB, ruling out OOM): the smoke test's own
+  # "ok version=..." success line prints, then the WHOLE task is SIGKILLed
+  # (exit 137) within ~1s — consistent with that cleanup's signal/process
+  # reach extending beyond its own subshell in this container runtime. A
+  # fresh container per task is real, container-level isolation (unlike
+  # setsid, which doesn't stop `pkill -f` from matching across the same
+  # PID namespace), so it can't take the publish step down with it.
+  - key: smoke-packaged-cli
     use: [code, setup-zig, setup-bun, kuri-vendor]
-    # Default 8GB was exit-137 (OOM-killed) after a full monorepo install +
-    # 171MB unpacked tarball + the smoke-packaged-cli.sh boot test — all in
-    # one task. Confirmed by a real run: the smoke test itself passed
-    # ("ok version=...") right before the kill.
     runner:
       memory: 16gb
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+      rm -rf packages/skill/vendor/kuri
+      cp -r "$KURI_VENDOR_ARTIFACT" packages/skill/vendor/kuri
+      bun install --frozen-lockfile
+      bash scripts/smoke-packaged-cli.sh
+    env:
+      KURI_VENDOR_ARTIFACT: ${{ tasks.kuri-vendor.artifacts.vendor }}
+      UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.release-manifest-signing-secret }}
+
+  # ── publish-cli (npm) ─────────────────────────────────────────────────
+  - key: publish-cli
+    use: [code, setup-zig, setup-bun, kuri-vendor, smoke-packaged-cli]
     run: |
       set -e
       export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
@@ -246,9 +266,6 @@ tasks:
       cd "$ROOT_DIR/packages/skill"
       TARBALL="unbrowse-${PKG_VERSION}.tgz"
       npm pack
-      cd "$ROOT_DIR"
-      bash scripts/smoke-packaged-cli.sh
-
       cd "$ROOT_DIR/packages/skill"
       echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
       WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
