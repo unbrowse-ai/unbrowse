@@ -1,0 +1,79 @@
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.1.1
+
+tasks:
+  - key: verify-resolve-fix
+    env:
+      GH_TOKEN: ${{ init.gh_token }}
+    run: |
+      set -e
+      git clone --branch fix/resolve-local-cache --depth 1 \
+        "https://x-access-token:${GH_TOKEN}@github.com/unbrowse-ai/unbrowse-dev.git" repo
+      cd repo
+
+      curl -fsSL https://bun.sh/install | bash
+      export PATH="$HOME/.bun/bin:$PATH"
+
+      bun install --frozen-lockfile
+
+      echo "=== TYPECHECK ==="
+      npx tsc --noEmit -p . 2>&1 | grep "cli-v7/eval/resolve.ts" && exit 1 || echo "PASS zero typecheck errors in resolve.ts"
+
+      echo "=== UNIT TESTS (new regression test) ==="
+      bun test tests/eval-resolve-local-cache.test.ts
+
+      echo "=== REGRESSION TESTS (existing, related) ==="
+      bun test tests/domain-skill-cache-fallback.test.ts tests/v7-cli-eval-marketplace.test.ts
+
+      echo "=== E2E: local-cache resolve against a real captured skill fixture ==="
+      mkdir -p /tmp/skillcache
+      cat > /tmp/skillcache/test-skill.json <<'JSON'
+      {
+        "skill_id": "rwx-verify-skill",
+        "version": "1.0.0",
+        "schema_version": "1",
+        "name": "example.com",
+        "intent_signature": "browse example.com",
+        "domain": "example.com",
+        "description": "test skill",
+        "owner_type": "agent",
+        "execution_type": "http",
+        "lifecycle": "active",
+        "created_at": "2026-01-01T00:00:00.000Z",
+        "updated_at": "2026-01-01T00:00:00.000Z",
+        "endpoints": [
+          {
+            "endpoint_id": "ep-safe",
+            "method": "GET",
+            "url_template": "https://example.com/page",
+            "description": "Page content",
+            "idempotency": "safe",
+            "verification_status": "verified",
+            "reliability_score": 0.7
+          }
+        ]
+      }
+      JSON
+      export UNBROWSE_SKILL_CACHE_DIR=/tmp/skillcache
+      OUT=$(bun src/cli.ts resolve --intent "get page info" --domain "example.com" --no-execute 2>&1)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"source":"local_cache"' && echo "PASS resolve returned source=local_cache" || (echo "FAIL local cache was not used" && exit 1)
+
+      echo "=== TIMING: 5x repeat warm (local-cache) resolve calls, clean-room, bash builtin time ==="
+      for i in 1 2 3 4 5; do
+        start=$(date +%s%N)
+        bun src/cli.ts resolve --intent "get page info" --domain "example.com" --no-execute > /dev/null 2>&1
+        end=$(date +%s%N)
+        echo "run $i: $(( (end - start) / 1000000 )) ms"
+      done
+
+      echo "=== TIMING: cold path (no local cache, domain not captured) for comparison ==="
+      for i in 1 2 3; do
+        start=$(date +%s%N)
+        bun src/cli.ts resolve --intent "get page info" --domain "not-a-cached-domain-$i.example" --no-execute > /tmp/cold_out_$i.log 2>&1
+        end=$(date +%s%N)
+        echo "cold run $i: $(( (end - start) / 1000000 )) ms — $(tail -c 200 /tmp/cold_out_$i.log | tr -d '\n')"
+      done
+
+      echo "=== ALL CHECKS PASSED ==="

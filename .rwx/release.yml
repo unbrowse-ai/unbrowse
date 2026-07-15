@@ -1,0 +1,320 @@
+# RWX release pipeline — translated from .github/workflows/release.yml.
+# Triggers on a `v*` tag push (once the RWX GitHub App is installed on the
+# unbrowse-ai org) or manually via `rwx run .rwx/release.yml --init tag=vX.Y.Z`.
+#
+# Secrets required in the RWX vault (set via `rwx vaults secrets set`, never
+# typed into this file):
+#   npm-token                          (was secrets.NPM_TOKEN)
+#   npm-token-sdk                      (was secrets.NPM_TOKEN_SDK, optional — falls back to npm-token)
+#   cloudflare-api-token                (was secrets.CLOUDFLARE_API_TOKEN)
+#   cloudflare-account-id               (was secrets.CLOUDFLARE_ACCOUNT_ID)
+#   release-manifest-signing-secret     (was secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET)
+#   skill-repo-token                    (was secrets.SKILL_REPO_TOKEN — push access to unbrowse-ai/unbrowse)
+#
+# The RWX GitHub App is installed on unbrowse-ai (confirmed 2026-07-15) so
+# `github.token` is provided automatically on every real tag-push trigger.
+# For manual/CLI-triggered dry-runs, still pass --init gh-token=$(gh auth token).
+#
+# Tooling (zig, bun) installs into $HOME once (setup-zig / setup-bun) and is
+# picked up by every downstream task via `use:` (RWX carries filesystem state
+# forward through `use:`, same as `code`'s clone needs no re-fetching) plus an
+# `export PATH=...` at the top of each script — no artifact plumbing needed
+# for ambient tools, only for genuine build products (kuri binaries, tarballs).
+
+on:
+  github:
+    push:
+      if: ${{ event.git.tag != '' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        tag: ${{ event.git.tag }}
+        gh-token: ${{ github.token }}
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.1.1
+
+tasks:
+  # ── code: single clone, reused by every downstream task via `use:` ──────
+  - key: code
+    call: git/clone 2.0.8
+    with:
+      repository: https://github.com/unbrowse-ai/unbrowse-dev.git
+      ref: ${{ init.commit-sha }}
+      github-token: ${{ init.gh-token }}
+      submodules: false
+      preserve-git-dir: true
+
+  - key: kuri-submodule
+    use: code
+    run: |
+      git submodule init submodules/kuri
+      git submodule update --init --depth=1 submodules/kuri
+
+  - key: setup-zig
+    use: code
+    run: |
+      set -e
+      mkdir -p "$HOME/.local/bin" "$HOME/zig-install"
+      curl -fsSL https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz | tar -xJ -C "$HOME/zig-install"
+      ln -sf "$HOME/zig-install/zig-x86_64-linux-0.16.0/zig" "$HOME/.local/bin/zig"
+      export PATH="$HOME/.local/bin:$PATH"
+      zig version
+
+  - key: setup-node
+    use: code
+    run: |
+      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+      sudo apt-get install -y -qq nodejs
+      node --version
+
+  - key: setup-bun
+    use: code
+    run: |
+      curl -fsSL https://bun.sh/install | bash
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun --version
+
+  # ── build-kuri-win-x64 ────────────────────────────────────────────────
+  - key: kuri-win-x64
+    use: [code, setup-zig, kuri-submodule]
+    run: |
+      set -e
+      export PATH="$HOME/.local/bin:$PATH"
+      cd submodules/kuri
+      zig build -Dtarget=x86_64-windows-gnu
+      test -f zig-out/bin/kuri.exe || { echo "kuri.exe not produced"; exit 1; }
+      shasum -a 256 zig-out/bin/kuri.exe
+      mkdir -p "$RWX_ARTIFACTS/kuri-win-x64"
+      cp zig-out/bin/kuri.exe "$RWX_ARTIFACTS/kuri-win-x64/kuri.exe"
+
+  # ── build-kuri-vendor (shared across the 5-platform matrix + publish) ──
+  - key: kuri-vendor
+    use: [code, setup-zig, setup-node, kuri-win-x64]
+    run: |
+      set -e
+      export PATH="$HOME/.local/bin:$PATH"
+      mkdir -p packages/skill/vendor/kuri/win-x64
+      cp "$KURI_WIN_ARTIFACT/kuri.exe" packages/skill/vendor/kuri/win-x64/kuri.exe
+      node packages/skill/scripts/build-kuri-binaries.mjs
+    env:
+      KURI_WIN_ARTIFACT: ${{ tasks.kuri-win-x64.artifacts.kuri-win-x64 }}
+    outputs:
+      artifacts:
+        - key: vendor
+          path: packages/skill/vendor/kuri
+
+  # ── build-cli-binary (5-platform matrix) ─────────────────────────────
+  - key: cli-binary
+    use: [code, setup-zig, setup-bun, kuri-vendor]
+    parallel:
+      values:
+        - target: darwin-arm64
+        - target: darwin-x64
+        - target: linux-arm64
+        - target: linux-x64
+        - target: win-x64
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+      rm -rf packages/skill/vendor/kuri
+      cp -r "$KURI_VENDOR_ARTIFACT" packages/skill/vendor/kuri
+      bun install --frozen-lockfile
+      bash scripts/build-binaries.sh "${{ parallel.target }}"
+      mkdir -p "$RWX_ARTIFACTS/tarball"
+      cp dist/unbrowse-*-"${{ parallel.target }}".tar.gz "$RWX_ARTIFACTS/tarball/"
+    env:
+      KURI_VENDOR_ARTIFACT: ${{ tasks.kuri-vendor.artifacts.vendor }}
+      UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.release-manifest-signing-secret }}
+
+  # ── upload-release-assets ────────────────────────────────────────────
+  - key: upload-release-assets
+    use: [code, setup-bun]
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$PATH"
+      which gh >/dev/null 2>&1 || (
+        GH_VERSION=2.70.0
+        curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
+        tar -xzf /tmp/gh.tgz -C /tmp
+        mkdir -p "$HOME/.local/bin"
+        cp "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" "$HOME/.local/bin/gh"
+      )
+      export PATH="$HOME/.local/bin:$PATH"
+      mkdir -p dist
+      cp "$TARBALLS_DIR"/*/*.tar.gz dist/ 2>/dev/null || true
+      export UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET="${MANIFEST_SIGNING_SECRET}"
+      bun scripts/build-release-manifest.ts
+
+      export GH_TOKEN="${SKILL_REPO_TOKEN}"
+      TAG="${{ init.tag }}"
+      VERSION="${TAG#v}"
+      TARGET_REPO="unbrowse-ai/unbrowse"
+      ls -lh dist/
+      ASSETS=(
+        "dist/unbrowse-v${VERSION}-darwin-arm64.tar.gz"
+        "dist/unbrowse-v${VERSION}-darwin-x64.tar.gz"
+        "dist/unbrowse-v${VERSION}-linux-arm64.tar.gz"
+        "dist/unbrowse-v${VERSION}-linux-x64.tar.gz"
+        "dist/unbrowse-v${VERSION}-win-x64.tar.gz"
+        "dist/release-manifest.json"
+        "dist/release-manifest.sig"
+      )
+      if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+        gh release upload "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --clobber
+      else
+        gh release create "$TAG" --repo "$TARGET_REPO" "${ASSETS[@]}" --title "$TAG" --notes "Release ${TAG}"
+      fi
+    env:
+      TARBALLS_DIR: ${{ tasks.cli-binary.artifacts.tarball }}
+      MANIFEST_SIGNING_SECRET: ${{ secrets.release-manifest-signing-secret }}
+      SKILL_REPO_TOKEN: ${{ secrets.skill-repo-token }}
+
+  # ── verify-release-assets ────────────────────────────────────────────
+  - key: verify-release-assets
+    use: [code, setup-node, upload-release-assets]
+    run: |
+      cd packages/skill
+      node scripts/verify-release-assets.mjs
+    env:
+      UNBROWSE_RELEASE_REPO: unbrowse-ai/unbrowse
+      UNBROWSE_RELEASE_TAG: ${{ init.tag }}
+
+  # ── sync-public-tree ──────────────────────────────────────────────────
+  - key: sync-public-tree
+    use: code
+    run: |
+      set -e
+      if [ -z "${PUB_TOKEN}" ]; then
+        echo "No skill-repo-token secret; skipping public-tree sync."
+        exit 0
+      fi
+      git clone --depth 1 "https://x-access-token:${PUB_TOKEN}@github.com/unbrowse-ai/unbrowse.git" /tmp/public
+      bash scripts/open-core-sync.sh /tmp/public
+      bash scripts/public-tree-leak-gate.sh /tmp/public
+      bash scripts/md-commandments-gate.sh /tmp/public
+      cd /tmp/public
+      git config user.name "unbrowse-bot"
+      git config user.email "bot@unbrowse.ai"
+      git add -A
+      if git diff --cached --quiet; then
+        echo "Public tree already in sync; nothing to push."
+        exit 0
+      fi
+      git commit -m "docs: sync public surface for ${{ init.tag }} (docs + adapters)"
+      git push origin HEAD:main
+    env:
+      PUB_TOKEN: ${{ secrets.skill-repo-token }}
+
+  # ── publish-cli (npm) ─────────────────────────────────────────────────
+  - key: publish-cli
+    use: [code, setup-zig, setup-bun, kuri-vendor]
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+      rm -rf packages/skill/vendor/kuri
+      cp -r "$KURI_VENDOR_ARTIFACT" packages/skill/vendor/kuri
+      bun install --frozen-lockfile
+      bun run check:kuri-vendor
+      bash scripts/leak-guard.sh
+      bash scripts/paper-gate.sh paper/crypto-was-all-you-needed.tex
+      python3 paper/scripts/backend-paper-coverage.py --gate
+
+      PKG_NAME="$(node -p 'require("./packages/skill/package.json").name')"
+      PKG_VERSION="$(node -p 'require("./packages/skill/package.json").version')"
+      echo "publishing $PKG_NAME@$PKG_VERSION"
+
+      if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+        echo "${PKG_NAME}@${PKG_VERSION} already published; skipping."
+        exit 0
+      fi
+
+      cd packages/skill
+      TARBALL="unbrowse-${PKG_VERSION}.tgz"
+      npm pack
+      cd ..
+      bash scripts/smoke-packaged-cli.sh
+
+      cd packages/skill
+      echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+      WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
+      if [ "$WHO" != "getfoundry" ]; then
+        echo "NPM_TOKEN does not authenticate as getfoundry (whoami=$WHO)"
+        exit 1
+      fi
+      # Prerelease versions (-preview.N etc.) must never move the `latest`
+      # dist-tag — npm's default publish target is `latest` regardless of
+      # semver prerelease status, so this has to be explicit. Mirrors the
+      # tagging logic publish-sdk already uses correctly.
+      NPM_TAG="latest"
+      case "$PKG_VERSION" in
+        *-preview.*|*-rc.*|*-alpha.*|*-beta.*|*-experiments*) NPM_TAG="preview" ;;
+      esac
+      echo "publishing to dist-tag: $NPM_TAG"
+      npm publish "$TARBALL" --access public --tag "$NPM_TAG"
+    env:
+      KURI_VENDOR_ARTIFACT: ${{ tasks.kuri-vendor.artifacts.vendor }}
+      UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.release-manifest-signing-secret }}
+      NPM_TOKEN: ${{ secrets.npm-token }}
+
+  # ── publish-sdk (npm) ─────────────────────────────────────────────────
+  - key: publish-sdk
+    use: [code, setup-bun, publish-cli]
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun install --frozen-lockfile
+
+      PKG_VERSION="$(node -p 'require("./packages/sdk/package.json").version')"
+      if npm view "@unbrowse/sdk@${PKG_VERSION}" version >/dev/null 2>&1; then
+        echo "@unbrowse/sdk@${PKG_VERSION} already published; skipping."
+        exit 0
+      fi
+
+      cd packages/sdk
+      npm run build
+      echo "//registry.npmjs.org/:_authToken=${TOKEN}" > .npmrc
+      NPM_TAG="latest"
+      case "$PKG_VERSION" in
+        *-preview.*) NPM_TAG="preview" ;;
+      esac
+      npm publish --access public --tag "$NPM_TAG"
+      npm deprecate "@unbrowse/sdk@*" "" || true
+    env:
+      TOKEN: ${{ secrets.npm-token-sdk }}
+
+  # ── deploy-backend (Cloudflare Worker) ────────────────────────────────
+  - key: deploy-backend
+    use: [code, setup-bun, publish-cli]
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun install --frozen-lockfile
+      cd backend
+      VERSION=$(node -p 'require("../version.json").version')
+      BUILD_SHA="${{ init.commit-sha }}"
+      DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      bunx wrangler deploy \
+        --config wrangler.ci.toml \
+        --var "UNBROWSE_VERSION:$VERSION" \
+        --var "UNBROWSE_BUILD_SHA:${BUILD_SHA:0:8}" \
+        --var "UNBROWSE_DEPLOYED_AT:$DEPLOYED_AT"
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
+
+  # ── deploy-frontend (Cloudflare Pages) ─────────────────────────────────
+  - key: deploy-frontend
+    use: [code, setup-bun, publish-cli]
+    run: |
+      set -e
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun install --frozen-lockfile
+      cd frontend
+      bun run deploy:ci
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
