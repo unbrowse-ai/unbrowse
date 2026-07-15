@@ -1,5 +1,6 @@
 /**
- * `unbrowse eval resolve <intent>` — route cache + marketplace shortlist.
+ * `unbrowse eval resolve <intent>` — local skill-cache + route cache +
+ * marketplace shortlist.
  *
  * 1:1 mapping (kind-map.ts row "eval resolve"):
  *   CLI subcommand  : eval resolve
@@ -8,11 +9,18 @@
  *   Verb            : eval
  *
  * Wraps the v6 backend `POST /v1/search/resolve` (see
- * backend/src/routes/search.ts:274). The backend route is the source of
- * truth for ranking + cache + marketplace lookups — this handler does
- * not re-implement any of it; it surfaces the ranked shortlist back to
- * the calling agent so the LLM picks which endpoint to execute (CLAUDE.md
- * "Agent UX North Star" invariant #1: two tool calls is the contract).
+ * backend/src/routes/search.ts:274) for marketplace + route-cache ranking —
+ * this handler does not re-implement that ranking. But a domain-scoped
+ * resolve is checked against THIS MACHINE'S local skill-cache first
+ * (`localShortlistForDomain`, below): the backend only ever sees routes
+ * that were explicitly published, so a fresh, unpublished local capture
+ * is structurally invisible to it. Skipping the local check meant
+ * `--domain` resolves against an already-captured site silently fell
+ * through to marketplace/web search every time (see
+ * .issues/ — resolve never consulted the local skill-cache; #413/#417
+ * described the same class of bug against an older cache layer).
+ * Cheapest-rung-first: a local hit costs 0 and is returned before any
+ * network round-trip (SKILL.md "cheapest-rung walk").
  *
  * Pointer discipline (contract 3c2dd353): the response carries endpoint
  * metadata + URLs (already public surface), never resolved auth headers
@@ -48,9 +56,41 @@ import {
   canonicalizeSignedFragment,
   postStateless,
 } from "../_stateless.js";
-import { ensureUsableKey } from "../../client/index.js";
+import { ensureUsableKey, listLocalSkills } from "../../client/index.js";
 import { mergedAuthHeaders } from "../../lib/wallet-auth-headers.js";
 import { chainResolve } from "../../values/chain-resolve.js";
+import { getRegistrableDomain } from "../../domain.js";
+
+/**
+ * Flatten this machine's locally-cached skills (`unbrowse skills`'s own
+ * data source) into resolve-shortlist entries for a domain, safe-GET
+ * endpoints only (resolve only ever auto-executes safe GETs). The backend
+ * marketplace cannot see these — they may never have been published —
+ * so this is the only place a fresh local capture becomes resolvable.
+ * Pure, best-effort: `listLocalSkills()` already swallows fs errors.
+ */
+export function localShortlistForDomain(domain: string, limit: number): Array<Record<string, unknown>> {
+  const target = getRegistrableDomain(domain);
+  const entries: Array<Record<string, unknown>> = [];
+  for (const skill of listLocalSkills()) {
+    if (getRegistrableDomain(skill.domain) !== target) continue;
+    for (const ep of skill.endpoints ?? []) {
+      if (ep.idempotency !== "safe") continue;
+      entries.push({
+        skill_id: skill.skill_id,
+        endpoint_id: ep.endpoint_id,
+        method: ep.method,
+        url: ep.url_template,
+        description: ep.description ?? null,
+        reliability_score: ep.reliability_score ?? null,
+        domain: skill.domain,
+        source: "local_cache",
+      });
+    }
+  }
+  entries.sort((a, b) => (Number(b.reliability_score) || 0) - (Number(a.reliability_score) || 0));
+  return entries.slice(0, limit);
+}
 
 /**
  * Free-tier floor: remap the anonymous `/v1/search` envelope ({ results }) into
@@ -127,6 +167,34 @@ export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promis
     : NaN;
   const limit = Number.isFinite(limitFlag) && limitFlag > 0 ? limitFlag : 10;
   const fresh = parsed.flags.fresh === true;
+
+  // Local-cache-first (see file docstring): a domain-scoped resolve is free
+  // and instant when this machine already captured the domain — cheaper
+  // than even the on-chain read below, and the backend/chain have no way
+  // to know about a capture that was never published. `--fresh` opts out.
+  if (domainFlag && !fresh) {
+    const localShortlist = localShortlistForDomain(domainFlag, limit);
+    if (localShortlist.length > 0) {
+      emit(
+        {
+          ok: true,
+          subcommand: "eval resolve",
+          op_kind: meta.op_kind,
+          tier: "local_cache",
+          source: "local_cache",
+          intent,
+          ctx_url: urlFlag ?? null,
+          domain: domainFlag,
+          limit,
+          fresh,
+          count: localShortlist.length,
+          shortlist: localShortlist,
+        },
+        opts,
+      );
+      process.exit(0);
+    }
+  }
 
   // Chain-first resolve: query the IQ on-chain ledger BEFORE the backend.
   // When the chain has a cached resolution for this intent, return it directly —
