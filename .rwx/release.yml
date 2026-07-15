@@ -266,8 +266,12 @@ tasks:
       cd "$ROOT_DIR/packages/skill"
       TARBALL="unbrowse-${PKG_VERSION}.tgz"
       npm pack
-      cd "$ROOT_DIR/packages/skill"
-      echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+      # npm ignores a nested workspace package's own .npmrc for auth (warns
+      # "ignoring workspace config") — confirmed via a real run: ENEEDAUTH
+      # even with the token correctly written to packages/skill/.npmrc.
+      # $HOME/.npmrc is npm's global user config and is always respected
+      # regardless of cwd or workspace structure.
+      echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
       WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
       if [ "$WHO" != "getfoundry" ]; then
         echo "NPM_TOKEN does not authenticate as getfoundry (whoami=$WHO)"
@@ -304,7 +308,8 @@ tasks:
 
       cd packages/sdk
       npm run build
-      echo "//registry.npmjs.org/:_authToken=${TOKEN}" > .npmrc
+      # Same nested-workspace .npmrc gotcha as publish-cli — npm ignores it.
+      echo "//registry.npmjs.org/:_authToken=${TOKEN}" > "$HOME/.npmrc"
       NPM_TAG="latest"
       case "$PKG_VERSION" in
         *-preview.*) NPM_TAG="preview" ;;
