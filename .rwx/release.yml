@@ -28,7 +28,6 @@ on:
       init:
         commit-sha: ${{ event.git.sha }}
         tag: ${{ event.git.tag }}
-        gh-token: ${{ github.token }}
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -44,7 +43,7 @@ tasks:
     with:
       repository: https://github.com/unbrowse-ai/unbrowse-dev.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ init.gh-token }}
+      github-token: ${{ github.token }}
       submodules: false
       preserve-git-dir: true
 
