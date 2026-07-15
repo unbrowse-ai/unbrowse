@@ -43,7 +43,12 @@ tasks:
     with:
       repository: https://github.com/unbrowse-ai/unbrowse-dev.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
+      # Plain `github.token` resolves ambiguously (wrong/empty account) on a
+      # tag-only push (no branch) against this org's multi-account App
+      # installation — confirmed via isolated testing: it works fine on a
+      # branch push but 404s "Repository not found" on a tag push. The
+      # explicit account-scoped form is required for the real release trigger.
+      github-token: ${{ github['unbrowse-ai'].token }}
       submodules: false
       preserve-git-dir: true
 
