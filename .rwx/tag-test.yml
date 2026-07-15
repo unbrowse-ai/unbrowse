@@ -15,4 +15,4 @@ tasks:
     with:
       repository: https://github.com/unbrowse-ai/unbrowse-dev.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
+      github-token: ${{ github['unbrowse-ai'].token }}
