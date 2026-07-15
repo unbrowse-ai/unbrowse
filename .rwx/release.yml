@@ -219,6 +219,7 @@ tasks:
     run: |
       set -e
       export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+      ROOT_DIR="$(pwd)"
       rm -rf packages/skill/vendor/kuri
       cp -r "$KURI_VENDOR_ARTIFACT" packages/skill/vendor/kuri
       bun install --frozen-lockfile
@@ -236,13 +237,13 @@ tasks:
         exit 0
       fi
 
-      cd packages/skill
+      cd "$ROOT_DIR/packages/skill"
       TARBALL="unbrowse-${PKG_VERSION}.tgz"
       npm pack
-      cd ..
+      cd "$ROOT_DIR"
       bash scripts/smoke-packaged-cli.sh
 
-      cd packages/skill
+      cd "$ROOT_DIR/packages/skill"
       echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
       WHO="$(npm whoami --registry https://registry.npmjs.org 2>&1 || true)"
       if [ "$WHO" != "getfoundry" ]; then
