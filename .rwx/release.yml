@@ -216,6 +216,12 @@ tasks:
   # ── publish-cli (npm) ─────────────────────────────────────────────────
   - key: publish-cli
     use: [code, setup-zig, setup-bun, kuri-vendor]
+    # Default 8GB was exit-137 (OOM-killed) after a full monorepo install +
+    # 171MB unpacked tarball + the smoke-packaged-cli.sh boot test — all in
+    # one task. Confirmed by a real run: the smoke test itself passed
+    # ("ok version=...") right before the kill.
+    runner:
+      memory: 16gb
     run: |
       set -e
       export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
