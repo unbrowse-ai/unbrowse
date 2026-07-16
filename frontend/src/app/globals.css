@@ -207,6 +207,29 @@ html {
   color: #b0b0b8 !important; /* 7.3:1 on #090806 */
 }
 
+/* LIGHT theme: arbitrary orange TEXT literals (mono eyebrows, terminal-style
+   lines, suggestion chips) are tuned for a dark background and wash out on the
+   light halftone — see the dark-theme bumps above. Force any orange text literal
+   to the AA-tuned accent (#C2410C ≈ 4.6:1 on white) so it stays readable in
+   light mode. Scoped by substring to text-* only, so bg/border orange literals
+   are untouched; the :not([data-theme="dark"]) guard leaves dark theme alone and
+   also covers the no-JS default (:root is light). */
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,122,32'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,156,64'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,176,96'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,200,140'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,200,150'] {
+  color: #C2410C !important;
+}
+
+/* LIGHT theme: low-alpha orange placeholders (e.g. the hero Ask input) are set
+   on the ::placeholder pseudo, which the color rule above can't reach. Give
+   placeholders a muted-but-readable orange on the light surface. */
+:root:not([data-theme="dark"]) input::placeholder,
+:root:not([data-theme="dark"]) textarea::placeholder {
+  color: rgba(194, 65, 12, 0.62) !important;
+}
+
 /* Decorative line-through text used to show "the old way" — keep
    contrast above AA when not strictly decorative. */
 [data-theme="dark"] .text-\[rgba\(120\,108\,96\,0\.85\)\] {
