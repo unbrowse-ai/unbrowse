@@ -73,6 +73,15 @@ const MCP_GATE_EXEMPT = new Set([
   "unbrowse_publish_suggestions",
 ]);
 
+// kind-map rows that are intentionally internal/development-only — never a
+// public-agent-facing capability, so they deliberately have NO cli-surface.ts
+// entry and NO MCP tool. Exempt from C2 (map-agree) and D1 (mcp-match).
+// `eval contract` is the /contract-shaped internal ledger primitive (goal-only,
+// aiko grammar); `eval deploy` is the aiko-native build/witness deploy tool.
+// Both are Lewis's own dev/ops tooling, not something an agent using unbrowse
+// to browse the web should discover or call.
+const INTERNAL_ONLY_SUBCOMMANDS = new Set(["eval contract", "eval deploy"]);
+
 function readCli(): string {
   return readFileSync(join(ROOT, "src/cli.ts"), "utf8");
 }
@@ -139,8 +148,10 @@ function checkMapAgree() {
       problems.push(`${row.subcommand}: op_class ${row.op_class} != verb ${row.verb}`);
     }
   }
-  // C2: every kind-map subcommand is in cli-surface with the SAME verb.
+  // C2: every kind-map subcommand is in cli-surface with the SAME verb
+  // (except INTERNAL_ONLY_SUBCOMMANDS, which deliberately have no public surface).
   for (const row of KIND_MAP) {
+    if (INTERNAL_ONLY_SUBCOMMANDS.has(row.subcommand)) continue;
     const cls = classify(row.subcommand);
     if (!cls) { problems.push(`${row.subcommand}: missing from cli-surface SURFACE`); continue; }
     if (cls.verb !== row.verb) problems.push(`${row.subcommand}: cli-surface verb ${cls.verb} != kind-map verb ${row.verb}`);

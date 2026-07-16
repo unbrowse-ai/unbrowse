@@ -7,17 +7,26 @@ import type { Server } from "node:http";
 
 let workDir: string;
 let cfgPath: string;
+let skillCacheDir: string;
 
 beforeEach(async () => {
   workDir = mkdtempSync(join(tmpdir(), "unbrowse-cap-"));
   cfgPath = join(workDir, "config.json");
   process.env.UNBROWSE_CONFIG_PATH = cfgPath;
+  // Isolate the local skill-cache too: cmdCapture's coverage pre-check
+  // (src/capture/coverage-check.ts) now reads it, and the real user's
+  // ~/.unbrowse/skill-cache can genuinely already have entries for common
+  // test domains like example.com from real prior usage — without this, a
+  // test's outcome would depend on whoever's machine it runs on.
+  skillCacheDir = join(workDir, "skill-cache");
+  process.env.UNBROWSE_SKILL_CACHE_DIR = skillCacheDir;
   const mod = await import("../src/config/contribution.js");
   mod._clearContributionCacheForTests();
 });
 
 afterEach(async () => {
   delete process.env.UNBROWSE_CONFIG_PATH;
+  delete process.env.UNBROWSE_SKILL_CACHE_DIR;
   const mod = await import("../src/config/contribution.js");
   mod._clearContributionCacheForTests();
   try { rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ }
@@ -72,9 +81,27 @@ async function runCli(args: string[], env: NodeJS.ProcessEnv): Promise<{ stdout:
   });
 }
 
+// Every real capture test below now needs BOTH the local in-process server
+// (UNBROWSE_URL, serves /v1/capture) AND the marketplace backend
+// (UNBROWSE_API_URL, serves /v1/search/resolve for the coverage pre-check in
+// src/capture/coverage-check.ts) stubbed — otherwise the pre-check silently
+// falls through to the REAL production backend, which is both slow and
+// non-hermetic (a real domain like example.com may genuinely already be
+// covered there). Route on req.url so one stub server can serve both.
+function cannedWithEmptyCoverage(
+  captureResponse: { status: number; body: unknown },
+): (req: CapturedRequest) => { status: number; body: unknown } {
+  return (req) => {
+    if (req.url === "/v1/search/resolve") {
+      return { status: 200, body: { domain_results: [], global_results: [] } };
+    }
+    return captureResponse;
+  };
+}
+
 describe("unbrowse capture verb — envelope + share_pointers gate", () => {
   it("hits POST /v1/capture and returns the expected envelope shape", async () => {
-    const { server, baseUrl, received } = await startStubBackend(() => ({
+    const { server, baseUrl, received } = await startStubBackend(cannedWithEmptyCoverage({
       status: 200,
       body: {
         skill_id: "skill-abc",
@@ -89,7 +116,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     try {
       const { stdout, status } = await runCli(
         ["breath", "capture", "--url", "https://example.com", "--intent", "list things"],
-        { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
+        { UNBROWSE_URL: baseUrl, UNBROWSE_API_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);
       // Stub received exactly one POST /v1/capture
@@ -114,7 +141,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
   });
 
   it("surfaces marketplace_published=true when the backend reports it", async () => {
-    const { server, baseUrl } = await startStubBackend(() => ({
+    const { server, baseUrl } = await startStubBackend(cannedWithEmptyCoverage({
       status: 200,
       body: {
         skill_id: "skill-xyz",
@@ -127,7 +154,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     try {
       const { stdout, status } = await runCli(
         ["breath", "capture", "--url", "https://x.test", "--intent", "x"],
-        { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
+        { UNBROWSE_URL: baseUrl, UNBROWSE_API_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);
       const lines = stdout.trim().split("\n").filter((l) => l.startsWith("{"));
@@ -140,7 +167,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
   });
 
   it("returns the no-endpoints next_step hint when endpoints_discovered=0", async () => {
-    const { server, baseUrl } = await startStubBackend(() => ({
+    const { server, baseUrl } = await startStubBackend(cannedWithEmptyCoverage({
       status: 200,
       body: {
         skill_id: "skill-empty",
@@ -153,7 +180,7 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
     try {
       const { stdout, status } = await runCli(
         ["breath", "capture", "--url", "https://empty.test", "--intent", "noop"],
-        { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
+        { UNBROWSE_URL: baseUrl, UNBROWSE_API_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1" },
       );
       expect(status).toBe(0);
       const lines = stdout.trim().split("\n").filter((l) => l.startsWith("{"));
@@ -162,6 +189,73 @@ describe("unbrowse capture verb — envelope + share_pointers gate", () => {
       expect(envelope.next_step).toContain("no endpoints");
     } finally {
       server.close();
+    }
+  });
+
+  it("skips the real capture (never POSTs /v1/capture) when the domain is already covered locally", async () => {
+    const { server, baseUrl, received } = await startStubBackend(() => ({
+      status: 200,
+      body: { skill_id: "should-never-be-called", endpoints_discovered: 1, marketplace_published: false, ms: 1, endpoints: [] },
+    }));
+    const skillCacheDir = mkdtempSync(join(tmpdir(), "unbrowse-cap-cache-"));
+    writeFileSync(
+      join(skillCacheDir, "already-covered-skill.json"),
+      JSON.stringify({
+        skill_id: "already-covered-skill",
+        domain: "already-covered.example",
+        endpoints: [{ endpoint_id: "e1", method: "GET", url_template: "https://already-covered.example/api/data", idempotency: "safe", verification_status: "active", reliability_score: 0.9 }],
+      }),
+    );
+    try {
+      const { stdout, status } = await runCli(
+        ["breath", "capture", "--url", "https://already-covered.example/page", "--intent", "list things"],
+        { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1", UNBROWSE_SKILL_CACHE_DIR: skillCacheDir },
+      );
+      expect(status).toBe(0);
+      const cap = received.find((r) => r.method === "POST" && r.url === "/v1/capture");
+      expect(cap).toBeUndefined(); // the real capture must never have been called
+
+      const lines = stdout.trim().split("\n").filter((l) => l.startsWith("{"));
+      const envelope = JSON.parse(lines[lines.length - 1]!);
+      expect(envelope.skipped).toBe(true);
+      expect(envelope.source).toBe("local_cache");
+      expect(envelope.skill_id).toBe("already-covered-skill");
+    } finally {
+      server.close();
+      rmSync(skillCacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it("--force bypasses the coverage check and captures anyway", async () => {
+    const { server, baseUrl, received } = await startStubBackend(() => ({
+      status: 200,
+      body: { skill_id: "fresh-capture", endpoints_discovered: 2, marketplace_published: false, ms: 1, endpoints: [{ endpoint_id: "e1" }, { endpoint_id: "e2" }] },
+    }));
+    const skillCacheDir = mkdtempSync(join(tmpdir(), "unbrowse-cap-cache-force-"));
+    writeFileSync(
+      join(skillCacheDir, "already-covered-skill.json"),
+      JSON.stringify({
+        skill_id: "already-covered-skill",
+        domain: "force-me.example",
+        endpoints: [{ endpoint_id: "e1", method: "GET", url_template: "https://force-me.example/api/data", idempotency: "safe", verification_status: "active", reliability_score: 0.9 }],
+      }),
+    );
+    try {
+      const { stdout, status } = await runCli(
+        ["breath", "capture", "--url", "https://force-me.example/page", "--intent", "list things", "--force"],
+        { UNBROWSE_URL: baseUrl, UNBROWSE_NON_INTERACTIVE: "1", UNBROWSE_SKILL_CACHE_DIR: skillCacheDir },
+      );
+      expect(status).toBe(0);
+      const cap = received.find((r) => r.method === "POST" && r.url === "/v1/capture");
+      expect(cap).toBeDefined(); // --force must reach the real capture
+
+      const lines = stdout.trim().split("\n").filter((l) => l.startsWith("{"));
+      const envelope = JSON.parse(lines[lines.length - 1]!);
+      expect(envelope.skill_id).toBe("fresh-capture");
+      expect(envelope.skipped).toBeUndefined();
+    } finally {
+      server.close();
+      rmSync(skillCacheDir, { recursive: true, force: true });
     }
   });
 });

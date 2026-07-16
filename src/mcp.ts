@@ -17,6 +17,7 @@ import { enrichWithImprovementSuggestion } from "./mcp-improvement-suggestion.js
 import { buildGateRefusal } from "./payments/index.js";
 import { drainPendingIndexJobs } from "./lib/indexer-core/index.js";
 import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
+import { doResearch, doExtract, doMap, doCrawl } from "./orchestrator/research.js";
 // Acts 2:6 — "every man heard them speak in his own language."
 // The v7 kind-map is the translation layer: one row per primitive,
 // one verb per surface (CLI / MCP / covenant). MCP tool names hit
@@ -86,6 +87,8 @@ type JsonSchemaProperty = {
   items?: JsonSchemaProperty;
   properties?: Record<string, JsonSchemaProperty>;
   additionalProperties?: boolean;
+  minimum?: number;
+  maximum?: number;
 };
 
 type ToolResult = {
@@ -2451,6 +2454,75 @@ const tools: ToolDefinition[] = [
       // an API key). Payment is on EXECUTION of a returned paid route, not here —
       // api() handles any 402 on unbrowse_breath_execute by delegating to the wallet seam.
       return successResult(await api("POST", "/v1/search", body), "Search results.");
+    },
+  },
+  {
+    name: "unbrowse_eval_research",
+    description: "Native research primitive (Tavily parity): search, extract, and synthesize a cited answer on unbrowse's own machinery. Returns { query, answer, citations[], results[] }.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The research question." },
+        num_results: { type: "number", description: "How many search results to consider (default 5).", minimum: 1, maximum: 20 },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      const numResults = typeof args.num_results === "number" ? args.num_results : undefined;
+      return successResult(await doResearch(String(args.query), { numResults }), "Research answer with citations.");
+    },
+  },
+  {
+    name: "unbrowse_eval_extract",
+    description: "Native Tavily /extract parity: fetch each URL via unbrowse's own document path and return clean content + raw markdown per URL.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        urls: { type: "array", items: { type: "string" }, description: "URLs to extract content from." },
+      },
+      required: ["urls"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      const urls = Array.isArray(args.urls) ? args.urls.map(String) : [];
+      return successResult(await doExtract(urls), "Extracted content per URL.");
+    },
+  },
+  {
+    name: "unbrowse_eval_map",
+    description: "Native Tavily /map parity: resolve a URL to its outgoing absolute links via the same cached read step.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The page to map outgoing links from." },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      return successResult(await doMap(String(args.url)), "Outgoing links from the page.");
+    },
+  },
+  {
+    name: "unbrowse_eval_crawl",
+    description: "Native Tavily /crawl parity: map the seed URL's same-domain links and read each, bounded and cached.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The seed URL to crawl from." },
+        max_pages: { type: "number", description: "Maximum pages to read (default 5).", minimum: 1, maximum: 50 },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    annotations: {},
+    handler: async (args) => {
+      const maxPages = typeof args.max_pages === "number" ? args.max_pages : undefined;
+      return successResult(await doCrawl(String(args.url), { maxPages }), "Crawled pages from the seed domain.");
     },
   },
   {

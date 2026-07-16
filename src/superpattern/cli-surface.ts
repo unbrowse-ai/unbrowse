@@ -108,6 +108,10 @@ const SURFACE: Record<string, Omit<Surface, "command">> = {
   "eval inspect":          { verb: "eval",   interrogative: "what",  holes: ["url"],              auth: "none"   },
   "eval account":          { verb: "eval",   interrogative: "who",   holes: ["email"],            auth: "wallet" },
   "eval config":           { verb: "eval",   interrogative: "why",   holes: [],                   auth: "none"   },
+  "eval research":         { verb: "eval",   interrogative: "what",  holes: ["query"],            auth: "none"   },
+  "eval extract":          { verb: "eval",   interrogative: "what",  holes: ["url"],              auth: "none"   },
+  "eval map":              { verb: "eval",   interrogative: "what",  holes: ["url"],              auth: "none"   },
+  "eval crawl":            { verb: "eval",   interrogative: "what",  holes: ["url"],              auth: "none"   },
 };
 
 const VERBS: readonly Verb[] = ["build", "breath", "eval"];
