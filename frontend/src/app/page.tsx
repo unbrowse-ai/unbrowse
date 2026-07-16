@@ -24,83 +24,14 @@ export const revalidate = 60;
 
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 
-// Homepage Research strip — kept in sync with /papers. paper #3 links to the
-// real published PDF (`/unbrowse-maintenance-network.pdf`); the papers page
-// previously pointed at a filename that 404s.
+// Homepage Research strip — kept in sync with /papers. Only the flagship paper is
+// published on unbrowse.ai; the companion PDFs have been withdrawn from the site.
 const PAPERS = [
-  // --- Cycle 1 ---
   {
     title: "Internal APIs Are All You Need",
     blurb: "The spatial deconstruction of the web: first-party API routes already sit beneath modern websites. Learn them once, share them, and bypass the rendering engine entirely.",
     href: "/internal-apis-are-all-you-need",
     pdf: false,
-  },
-  {
-    title: "Stop Picking Routes by Vibes",
-    blurb: "The cognitive selection model: given an intent and N candidate routes, an energy-based neural selector assigns compatibility scores so routes are picked by mathematics, not vibes.",
-    href: "/energy-route-ranking.pdf",
-    pdf: true,
-  },
-  {
-    title: "Sign Everything. No, Everything.",
-    blurb: "The cryptographic anchoring of multi-layer reality: one Ed25519 key signs every layer an agent touches—screen, browser, CLI, OS, and packet—sealing credentials and results.",
-    href: "/crypto-was-all-you-needed.pdf",
-    pdf: true,
-  },
-  {
-    title: "Wait, Who's Going to Maintain All This?",
-    blurb: "The thermodynamics of route upkeep and economic power: route freshness is a standing liability secured by bonded, slashable maintenance with FDRY as the native utility token backing AGI.",
-    href: "/unbrowse-maintenance-network.pdf",
-    pdf: true,
-  },
-  {
-    title: "Run It or It Didn't Happen",
-    blurb: "The temporal verification and honesty discipline: a published number is admissible only if a cold command re-runs it green, recording honest failures next to the wins.",
-    href: "/execute-dont-guess.pdf",
-    pdf: true,
-  },
-  {
-    title: "You Are Your Keys (Sorry)",
-    blurb: "The sovereign identity of the signing principal: identity is the public key, disclosure is decryption, and authorization is a signed capability grant. No database or ACL required.",
-    href: "/identity-was-all-you-needed.pdf",
-    pdf: true,
-  },
-  // --- Cycle 2 (The Fractal Loop) ---
-  {
-    title: "CPUs Are All You Need",
-    blurb: "The spatial deconstruction of compute: non-parametric CPU-only nearest-neighbour lookup beats expensive GPU-trained DQNs on ARC-AGI-3 action prediction. More compute is not the missing piece.",
-    href: "/cpus-are-all-you-need.pdf",
-    pdf: true,
-  },
-  {
-    title: "The Write Half of Recall",
-    blurb: "The cognitive mapping of memory: recording agentic trace-history and hippocampal engram replays to guide online resolution without re-deriving goals, minimizing the generation tax.",
-    href: "/the-write-half-of-recall.pdf",
-    pdf: true,
-  },
-  {
-    title: "Five Stacks, One Loop",
-    blurb: "The cryptographic reality layer of re-entrancy: a single loop orchestrates disparate blockchain platforms, databases, and VMs with atomic, verified state transitions.",
-    href: "/five-stacks-one-loop.pdf",
-    pdf: true,
-  },
-  {
-    title: "Fade Is the Only Edge",
-    blurb: "The thermodynamics of market decay: capitalizing on momentum and liquidity flows in prediction markets using pure game theory, verified over walk-forward OOS splits.",
-    href: "/fade-is-the-only-edge.pdf",
-    pdf: true,
-  },
-  {
-    title: "Contract Substrate Hardening",
-    blurb: "The temporal convergence of the ledger: maintaining an append-only local ledger of signed engrams that survives memory compaction and session limits over long run times.",
-    href: "/contract-substrate-hardening.pdf",
-    pdf: true,
-  },
-  {
-    title: "Identity Points to Itself",
-    blurb: "The recursive, self-attesting soul: a public key acting as its own root of trust, requiring biometric fingerprint confirmation on macOS for high-stakes capability grants.",
-    href: "/identity-points-to-itself.pdf",
-    pdf: true,
   },
 ];
 const SHOW_ALL_INSTALL_OPTIONS = true;
@@ -484,13 +415,13 @@ export default function Home() {
             <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">##  Research</p>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-text-primary">The thinking behind the engine.</h2>
             <p className="mt-3 text-text-secondary text-sm sm:text-base max-w-2xl leading-relaxed">
-              Three papers: why internal APIs are the machine-native interface, how one
-              signing discipline secures every layer an agent touches, and how a shared
-              route graph stays fresh and fairly paid.
+              The flagship paper: why internal APIs are the machine-native interface for
+              autonomous agents, and how a shared route graph turns repeated browser
+              rediscovery into collective memory.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 max-w-xl mx-auto">
             {PAPERS.map((paper) => {
               const cardClass =
                 "group flex flex-col h-full p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 rounded-sm transition-colors hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705]";
@@ -525,7 +456,7 @@ export default function Home() {
               href="/papers"
               className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,156,64,0.8)] hover:text-[rgba(255,176,96,1)] border-b border-[rgba(255,122,32,0.3)] hover:border-[rgba(255,122,32,0.6)] pb-1 transition-colors"
             >
-              read all papers <IconChevron size={11} />
+              read the paper <IconChevron size={11} />
             </Link>
           </div>
         </div>

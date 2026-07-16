@@ -2,18 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { PAPERS, papersByTheme } from "./papers";
 
 describe("papers vessel", () => {
-  test('papersByTheme("zk-privacy") returns exactly the "Crypto Was All You Needed" paper', () => {
-    const result = papersByTheme("zk-privacy");
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("crypto-was-all-you-needed");
-    expect(result[0].title).toBe("Crypto Was All You Needed");
+  test('only the flagship "Internal APIs Are All You Need" paper is published', () => {
+    expect(PAPERS).toHaveLength(1);
+    expect(PAPERS[0].id).toBe("internal-apis-are-all-you-need");
   });
 
-  test('papersByTheme("economy") returns exactly the "Unbrowse Maintenance Network" paper', () => {
-    const result = papersByTheme("economy");
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("unbrowse-maintenance-network");
-    expect(result[0].title).toBe("Unbrowse Maintenance Network");
+  test("no companion papers remain — every theme resolves to an empty set", () => {
+    expect(papersByTheme("zk-privacy")).toHaveLength(0);
+    expect(papersByTheme("economy")).toHaveLength(0);
   });
 
   test('"Internal APIs Are All You Need" has no themes', () => {

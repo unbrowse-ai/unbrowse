@@ -37,8 +37,6 @@ export async function GET() {
 ## Papers
 
 - [Internal APIs Are All You Need (arXiv:2604.00694)](https://arxiv.org/abs/2604.00694): Whitepaper by Tham, Garcia & Hahn (2026) -- describes the three-path execution architecture, shared route graph, x402 micropayment protocol, and benchmark methodology
-- [Crypto Was All You Needed](https://www.unbrowse.ai/crypto-was-all-you-needed.pdf): Security companion -- one signing discipline across every layer an agent touches
-- [Unbrowse Maintenance Network](https://www.unbrowse.ai/unbrowse-maintenance-network.pdf): Maintenance companion -- proof of indexing, freshness, challenges, and accountability for a shared route graph
 
 ## API Reference
 

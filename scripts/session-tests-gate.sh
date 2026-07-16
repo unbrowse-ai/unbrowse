@@ -33,7 +33,7 @@ run_sdk test/bridge-default.test.ts               "SDK spawn always-activates th
 run_fe src/lib/dashboard-metrics.test.ts          "FE network-impact: share ratio, bar clamp, compact format"
 
 # Papers reflection (zk-privacy + economy story on FE + CLI)
-run_fe src/lib/papers.test.ts                     "papers vessel: papersByTheme zk→Crypto, economy→Maintenance"
+run_fe src/lib/papers.test.ts                     "papers vessel: flagship-only, themes resolve empty"
 bash scripts/papers-reflection-gate.sh >/dev/null 2>&1 && ok "papers reflected across FE surfaces + CLI (moat clean)" || bad "papers-reflection-gate.sh"
 bash scripts/cli-papers-docs-check.sh >/dev/null 2>&1 && ok "CLI eval stats docs block (zk-proof + x402)" || bad "cli-papers-docs-check.sh"
 
