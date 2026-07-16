@@ -138,7 +138,7 @@ export default function Home() {
               rel="noopener"
               className="group inline-flex items-center gap-2.5
                          text-[rgba(255,156,64,0.8)] text-xs font-mono uppercase tracking-[0.25em]
-                         border-b border-[rgba(255,122,32,0.3)] pb-1.5
+                         border-b border-border-strong pb-1.5
                          hover:text-[rgba(255,176,96,1)] hover:border-[rgba(255,122,32,0.6)] transition-colors cursor-pointer"
             >
               <Github className="w-3.5 h-3.5" />
@@ -214,7 +214,7 @@ export default function Home() {
           {/* Ecosystem — partners in their own brand colours (aiko treatment: invert only the
               dark marks; Crossmint forced to the light foreground since an img-loaded SVG
               cannot inherit currentColor). */}
-          <div className="flex flex-col items-center gap-4 pt-5 border-t border-[rgba(255,122,32,0.12)] w-full max-w-3xl">
+          <div className="flex flex-col items-center gap-4 pt-5 border-t border-border w-full max-w-3xl">
             <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.5)]">Plugged into the agent economy</span>
             <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
               {/* Crossmint — currentColor wordmark → light foreground (aiko intent) */}
@@ -247,8 +247,8 @@ export default function Home() {
         <div className="relative w-full max-w-4xl">
 
           {/* Terminal card */}
-          <div className="relative w-full border border-[rgba(255,122,32,0.45)] bg-[#060402] overflow-hidden rounded-sm shadow-2xl shadow-black/40">
-              <div className="border-b border-[rgba(255,122,32,0.2)] bg-[rgba(0,0,0,0.35)] px-5 py-4 sm:px-6 sm:py-5">
+          <div className="relative w-full border border-[rgba(255,122,32,0.45)] bg-surface-raised overflow-hidden rounded-sm shadow-2xl shadow-black/40">
+              <div className="border-b border-border bg-surface-sunken px-5 py-4 sm:px-6 sm:py-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">##  Skill Install</p>
@@ -273,7 +273,7 @@ export default function Home() {
         <div className="w-full max-w-4xl mt-6 max-sm:flex max-sm:justify-center sm:flex">
           <div
             className="inline-flex flex-col gap-3 px-6 py-4 rounded-sm max-sm:items-center"
-            style={{ background: 'rgba(6,4,2,0.82)', border: '1px solid rgba(255,122,32,0.18)' }}
+            style={{ background: 'var(--surface-raised)', border: '1px solid rgba(255,122,32,0.18)' }}
           >
             <p className="text-xs font-mono font-medium text-[rgba(255,122,32,0.45)] uppercase tracking-[0.2em] max-sm:text-center">Plugs into the agent stack you already use</p>
             <div className="flex flex-wrap max-sm:justify-center items-center gap-x-5 gap-y-2 text-[rgba(255,176,96,0.7)] sm:whitespace-nowrap">
@@ -311,7 +311,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 
               {/* Speed - Spans 2 cols */}
-              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 overflow-hidden md:col-span-2 transition-colors hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+              <div className="group relative p-5 border border-border bg-surface-raised/90 overflow-hidden md:col-span-2 transition-colors hover:border-border-strong rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
                 <div className="relative z-10 flex-1">
                   <div className="mb-3 flex items-center gap-2 text-orange-500">
                     <IconHourglass size={16} />
@@ -322,10 +322,10 @@ export default function Home() {
                     Headless browsers are expensive when the page is only a route discovery step. Unbrowse reuses known first-party routes and falls back to the browser when the route is missing.
                   </p>
                 </div>
-                <div className="relative z-10 w-full md:w-auto md:flex-1 bg-[#060402] border border-[rgba(255,122,32,0.18)] p-5 rounded-sm flex flex-col items-center justify-center">
+                <div className="relative z-10 w-full md:w-auto md:flex-1 bg-surface-sunken border border-border p-5 rounded-sm flex flex-col items-center justify-center">
                   <span className="text-5xl font-bold font-display text-orange-500 tracking-tighter mb-1">3.6x</span>
                   <span className="text-[10px] font-mono text-text-muted uppercase tracking-[0.2em] mb-4">mean speedup in paper</span>
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-mono bg-black/20 border border-[rgba(255,122,32,0.1)] px-4 py-2 w-full rounded-sm">
+                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-mono bg-surface-sunken border border-border px-4 py-2 w-full rounded-sm">
                     <span className="text-text-muted line-through">browser-first</span>
                     <span className="text-text-muted opacity-50">→</span>
                     <span className="text-orange-500 font-medium">cached route</span>
@@ -334,7 +334,7 @@ export default function Home() {
               </div>
 
               {/* Cost - Spans 1 col */}
-              <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+              <div className="group relative p-5 border border-border bg-surface-raised/90 transition-colors overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
                 <div className="mb-3 flex items-center gap-2 text-orange-500">
                   <IconScript size={16} />
                   <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Tokens</span>
@@ -343,7 +343,7 @@ export default function Home() {
                 <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
                   A direct route returns structured data instead of forcing the model to reason over a whole rendered page.
                 </p>
-                <div className="bg-[#060402] border border-[rgba(255,122,32,0.12)] p-3 mt-auto rounded-sm">
+                <div className="bg-surface-sunken border border-border p-3 mt-auto rounded-sm">
                   <div className="flex justify-between items-center text-xs font-mono mb-2">
                     <span className="text-text-muted">Scraping HTML</span>
                     <span className="text-text-muted">~8,000t</span>
@@ -356,7 +356,7 @@ export default function Home() {
               </div>
 
             {/* Reverse Engineer - Spans 1 col */}
-            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col">
+            <div className="group relative p-5 border border-border bg-surface-raised/90 transition-colors overflow-hidden hover:border-border-strong rounded-sm flex flex-col">
               <div className="mb-3 flex items-center gap-2 text-orange-500">
                 <IconCompass size={16} />
                 <span className="text-xs font-mono uppercase tracking-[0.2em] text-text-muted">Discovery</span>
@@ -365,7 +365,7 @@ export default function Home() {
               <p className="text-text-secondary text-sm leading-relaxed mb-4 flex-1">
                 Your agent calls Unbrowse over MCP and the right shadow endpoint comes back — schemas, parameters, sample values, all ready to call.
               </p>
-              <div className="pt-4 border-t border-[rgba(255,122,32,0.12)] space-y-2">
+              <div className="pt-4 border-t border-border space-y-2">
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
                   <IconDiamondCheck size={14} className="text-orange-500 shrink-0" /> Zero config needed
                 </div>
@@ -376,7 +376,7 @@ export default function Home() {
             </div>
 
             {/* Security - Spans 2 cols */}
-            <div className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 transition-colors overflow-hidden md:col-span-2 hover:border-[rgba(255,122,32,0.35)] rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+            <div className="group relative p-5 border border-border bg-surface-raised/90 transition-colors overflow-hidden md:col-span-2 hover:border-border-strong rounded-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
               <div className="relative z-10 flex-1">
                 <div className="mb-3 flex items-center gap-2 text-orange-500">
                   <IconSeal size={16} />
@@ -387,8 +387,8 @@ export default function Home() {
                   No cloud proxies, no expensive credits. Unbrowse runs locally, leveraging your actual browser sessions to securely access <strong className="text-orange-500 font-medium">auth-protected content</strong>.
                 </p>
               </div>
-              <div className="relative z-10 w-full md:w-auto md:flex-1 bg-[#060402] border border-[rgba(255,122,32,0.18)] p-4 font-mono text-xs rounded-sm">
-                <div className="flex items-center justify-between mb-3 text-text-muted text-[10px] uppercase tracking-[0.2em] border-b border-[rgba(255,122,32,0.12)] pb-2">
+              <div className="relative z-10 w-full md:w-auto md:flex-1 bg-surface-sunken border border-border p-4 font-mono text-xs rounded-sm">
+                <div className="flex items-center justify-between mb-3 text-text-muted text-[10px] uppercase tracking-[0.2em] border-b border-border pb-2">
                   <span>Security Check</span>
                   <span className="text-orange-500 font-medium flex items-center gap-1"><IconSeal size={10} /> Passed</span>
                 </div>
@@ -424,7 +424,7 @@ export default function Home() {
           <div className="grid grid-cols-1 gap-3 max-w-xl mx-auto">
             {PAPERS.map((paper) => {
               const cardClass =
-                "group flex flex-col h-full p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 rounded-sm transition-colors hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705]";
+                "group flex flex-col h-full p-5 border border-border bg-surface-raised/90 rounded-sm transition-colors hover:border-border-strong hover:bg-surface";
               const body = (
                 <>
                   <div className="mb-3 flex items-center gap-2 text-orange-500">
@@ -454,7 +454,7 @@ export default function Home() {
           <div className="mt-6 text-center">
             <Link
               href="/papers"
-              className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,156,64,0.8)] hover:text-[rgba(255,176,96,1)] border-b border-[rgba(255,122,32,0.3)] hover:border-[rgba(255,122,32,0.6)] pb-1 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,156,64,0.8)] hover:text-[rgba(255,176,96,1)] border-b border-border-strong hover:border-[rgba(255,122,32,0.6)] pb-1 transition-colors"
             >
               read the paper <IconChevron size={11} />
             </Link>
@@ -466,7 +466,7 @@ export default function Home() {
        <ThreePanelVisual />
 
       {/* ═══ Fixed Footer Bar ═══ */}
-      <footer className="fixed bottom-0 inset-x-0 z-40 bg-[#060402]/90 backdrop-blur-sm" style={{ borderTop: '1px solid rgba(255,122,32,0.2)' }}>
+      <footer className="fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-sm" style={{ borderTop: '1px solid rgba(255,122,32,0.2)' }}>
         <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between gap-4">
           <span className="text-xs text-[rgba(255,122,32,0.4)] font-mono">$ &copy; {new Date().getFullYear()} Unbrowse AI Pte. Ltd.</span>
           <div className="hidden sm:flex items-center gap-5 text-xs text-[rgba(255,122,32,0.55)] font-mono">

@@ -136,7 +136,7 @@ function LoginInner() {
 
   return (
     <div className="max-w-md mx-auto px-6 pt-32 pb-20">
-      <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-8 rounded-sm">
+      <div className="border border-border bg-surface-raised/90 p-8 rounded-sm">
         <div className="mb-6">
           <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.55)] mb-3">
             ##  Sign In
@@ -161,7 +161,7 @@ function LoginInner() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@domain.com"
-                className="mt-2 block w-full border border-[rgba(255,122,32,0.18)] bg-[#060402] px-4 py-3
+                className="mt-2 block w-full border border-border bg-surface-sunken px-4 py-3
                            text-sm text-text-primary placeholder:text-text-muted
                            focus:border-[rgba(255,122,32,0.4)] focus:outline-none transition-colors rounded-sm"
               />
@@ -181,7 +181,7 @@ function LoginInner() {
 
         {phase === "awaiting" && (
           <div className="space-y-5" data-testid="login-form-awaiting">
-            <div className="border border-[rgba(255,122,32,0.18)] bg-[#060402] p-5 rounded-sm">
+            <div className="border border-border bg-surface-sunken p-5 rounded-sm">
               <p className="text-sm text-text-primary">
                 Check your email
               </p>
@@ -200,7 +200,7 @@ function LoginInner() {
               <button
                 onClick={handleResend}
                 disabled={submitting || !activeEmail}
-                className="px-4 py-2.5 border border-[rgba(255,122,32,0.18)] text-sm
+                className="px-4 py-2.5 border border-border text-sm
                            text-text-secondary hover:text-text-primary hover:border-[rgba(255,122,32,0.4)]
                            transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-sm"
               >
@@ -219,13 +219,13 @@ function LoginInner() {
 
         {phase === "error" && (
           <div className="space-y-4" data-testid="login-form-error">
-            <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-4 rounded-sm">
+            <div className="border border-border bg-surface-raised/90 p-4 rounded-sm">
               <p className="text-sm text-[rgba(255,176,96,0.9)]">{error ?? "Something went wrong."}</p>
             </div>
             <button
               onClick={reset}
               className="w-full inline-flex items-center justify-center gap-2 px-7 py-2.5
-                         bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono
+                         bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono
                          hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
             >
               <span>[ Try again ]</span>
@@ -233,7 +233,7 @@ function LoginInner() {
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-[rgba(255,122,32,0.12)]">
+        <div className="mt-8 pt-6 border-t border-border">
           <p className="text-xs text-text-muted">
             Already have an API key from the CLI?{" "}
             <Link href="/dashboard" className="text-[rgba(255,176,96,1)] hover:underline">

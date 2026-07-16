@@ -119,7 +119,7 @@ export default function McpIsDefaultPostPage() {
   };
 
   return (
-    <div className="bg-[#070503] min-h-screen text-[rgba(255,255,255,0.9)]">
+    <div className="bg-background min-h-screen text-text-primary">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
@@ -135,18 +135,18 @@ export default function McpIsDefaultPostPage() {
           </Link>
         </div>
 
-        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+        <header className="mb-12 border-b border-border pb-10">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## RELEASE · v6.11.0
           </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight text-[rgba(255,255,255,0.95)]">
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight text-text-primary">
             {POST_TITLE}
           </h1>
           <p className="mt-4 text-xl sm:text-2xl font-mono font-medium text-balance text-[rgba(255,176,96,0.85)]">
             {POST_SUBTITLE}
           </p>
 
-          <p className="mt-6 text-sm font-mono text-[rgba(255,255,255,0.6)]">
+          <p className="mt-6 text-sm font-mono text-text-muted">
             published {PUBLISHED_AT} · unbrowse v6.11.0
           </p>
 
@@ -163,7 +163,7 @@ export default function McpIsDefaultPostPage() {
               href="https://www.npmjs.com/package/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.9)] hover:border-[rgba(255,122,32,0.5)] hover:bg-[#0a0705] transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-border-strong bg-surface px-5 py-3 font-mono font-medium text-text-primary hover:border-[rgba(255,122,32,0.5)] hover:bg-surface-raised transition-colors"
             >
               [ npm ]
             </a>
@@ -171,7 +171,7 @@ export default function McpIsDefaultPostPage() {
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.8)] hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705] transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-border bg-surface px-5 py-3 font-mono font-medium text-text-secondary hover:border-border-strong hover:bg-surface-raised transition-colors"
             >
               [ view repo ]
             </a>
@@ -182,7 +182,7 @@ export default function McpIsDefaultPostPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## SUMMARY
           </p>
-          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+          <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary">
             {summary}
           </p>
         </section>
@@ -191,7 +191,7 @@ export default function McpIsDefaultPostPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## WHAT&apos;S NEW
           </p>
-          <ul className="space-y-3 text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+          <ul className="space-y-3 text-base sm:text-lg leading-8 font-mono text-text-secondary">
             {highlights.map((item) => (
               <li key={item} className="flex gap-3">
                 <span className="text-[rgba(255,176,96,0.85)] shrink-0">›</span>
@@ -207,18 +207,18 @@ export default function McpIsDefaultPostPage() {
               <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
                 ## {section.title.toUpperCase()}
               </p>
-              <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+              <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary">
                 {section.body}
               </p>
             </div>
           ))}
         </section>
 
-        <section className="mb-12 rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] p-6 sm:p-8">
+        <section className="mb-12 rounded-sm border border-border-strong bg-surface-raised p-6 sm:p-8">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
             ## SETUP
           </p>
-          <pre className="overflow-x-auto text-sm sm:text-base font-mono leading-7 text-[rgba(255,255,255,0.85)] whitespace-pre-wrap">
+          <pre className="overflow-x-auto text-sm sm:text-base font-mono leading-7 text-text-primary whitespace-pre-wrap">
             {setupSnippet}
           </pre>
         </section>
@@ -227,7 +227,7 @@ export default function McpIsDefaultPostPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## SWITCH OVER
           </p>
-          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)] mb-4">
+          <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary mb-4">
             If your agent is shelling out to <code className="text-[rgba(255,176,96,0.9)]">unbrowse resolve</code> and <code className="text-[rgba(255,176,96,0.9)]">unbrowse execute</code>, point your MCP client at <code className="text-[rgba(255,176,96,0.9)]">unbrowse mcp</code> and delete the shell glue. The CLI is not going away, but every CLI flow has a richer MCP equivalent now, and that is where future work lands first.
           </p>
           <a

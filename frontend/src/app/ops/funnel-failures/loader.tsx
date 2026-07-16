@@ -129,7 +129,7 @@ export function FunnelFailuresLoader() {
           </Link>
           <button
             onClick={logout}
-            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
           >
             <span>[ Switch account ]</span>
           </button>
@@ -160,7 +160,7 @@ export function FunnelFailuresLoader() {
             <select
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value as GroupKey)}
-              className="bg-[#060402] border border-[rgba(255,122,32,0.25)] rounded-sm px-2 py-1 text-text-primary"
+              className="bg-surface-sunken border border-border rounded-sm px-2 py-1 text-text-primary"
             >
               {GROUP_OPTIONS.map((o) => (
                 <option key={o.key} value={o.key}>{o.label}</option>
@@ -175,7 +175,7 @@ export function FunnelFailuresLoader() {
               max={168}
               value={sinceHours}
               onChange={(e) => setSinceHours(Math.max(1, Math.min(168, parseInt(e.target.value, 10) || 24)))}
-              className="bg-[#060402] border border-[rgba(255,122,32,0.25)] rounded-sm px-2 py-1 w-16 text-text-primary"
+              className="bg-surface-sunken border border-border rounded-sm px-2 py-1 w-16 text-text-primary"
             />
           </label>
           <label className="flex items-center gap-2 text-text-muted">
@@ -186,7 +186,7 @@ export function FunnelFailuresLoader() {
               max={1000}
               value={limit}
               onChange={(e) => setLimit(Math.max(1, Math.min(1000, parseInt(e.target.value, 10) || 200)))}
-              className="bg-[#060402] border border-[rgba(255,122,32,0.25)] rounded-sm px-2 py-1 w-20 text-text-primary"
+              className="bg-surface-sunken border border-border rounded-sm px-2 py-1 w-20 text-text-primary"
             />
           </label>
         </div>
@@ -216,7 +216,7 @@ export function FunnelFailuresLoader() {
           {buckets.map((b) => (
             <div
               key={b.key}
-              className="border border-[rgba(255,122,32,0.22)] bg-[#070503]/85 rounded-sm p-4 font-mono text-sm"
+              className="border border-border bg-surface-raised/85 rounded-sm p-4 font-mono text-sm"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="text-text-primary truncate">

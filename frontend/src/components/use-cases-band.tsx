@@ -131,17 +131,17 @@ export function UseCasesBand() {
 
         {/* Inline three-path latency strip — anchored as a single sheet */}
         <div className="mb-10 grid grid-cols-3 gap-px bg-[rgba(255,122,32,0.18)] border border-[rgba(255,122,32,0.24)] max-w-3xl mx-auto font-mono text-xs">
-          <div className="bg-[#070503] px-3 py-4 text-center">
+          <div className="bg-surface-raised px-3 py-4 text-center">
             <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">&lt;200ms</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">route cache</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">already on your machine</div>
           </div>
-          <div className="bg-[#070503] px-3 py-4 text-center">
+          <div className="bg-surface-raised px-3 py-4 text-center">
             <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">~1s</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">marketplace</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">someone else already captured it</div>
           </div>
-          <div className="bg-[#070503] px-3 py-4 text-center">
+          <div className="bg-surface-raised px-3 py-4 text-center">
             <div className="text-orange-500 text-2xl sm:text-3xl font-display tracking-[-0.03em] tabular-nums leading-none">20-80s</div>
             <div className="text-text-muted text-[10px] uppercase tracking-[0.22em] mt-2.5">first-pass browser</div>
             <div className="text-text-secondary text-[10px] mt-1 leading-relaxed">unbrowse visits for you, captures the API</div>
@@ -152,7 +152,7 @@ export function UseCasesBand() {
           {cases.map((c) => (
             <div
               key={c.category}
-              className="group relative p-5 border border-[rgba(255,122,32,0.2)] bg-[#070503]/90 overflow-hidden transition-colors hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col"
+              className="group relative p-5 border border-border bg-surface-raised/90 overflow-hidden transition-colors hover:border-[rgba(255,122,32,0.4)] rounded-sm flex flex-col"
             >
               <div className="mb-3 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[rgba(255,122,32,0.65)]">
@@ -165,7 +165,7 @@ export function UseCasesBand() {
                 {c.headline}
               </h3>
 
-              <div className="relative bg-[#060402] border border-[rgba(255,122,32,0.18)] p-3 pl-4 mb-3 rounded-sm font-mono leading-relaxed">
+              <div className="relative bg-surface-sunken border border-border p-3 pl-4 mb-3 rounded-sm font-mono leading-relaxed">
                 <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] bg-orange-500/70" />
                 <div className="text-[10px] uppercase tracking-[0.22em] text-[rgba(255,122,32,0.55)] mb-1.5">Agent intent</div>
                 <div className="text-[rgba(255,200,140,1)] text-[13px] sm:text-sm leading-[1.45]">{c.intent}</div>
@@ -175,12 +175,12 @@ export function UseCasesBand() {
                 {c.apiHint}
               </p>
 
-              <div className="space-y-2 pt-3 border-t border-[rgba(255,122,32,0.12)] mt-auto">
+              <div className="space-y-2 pt-3 border-t border-border mt-auto">
                 <div className="flex flex-wrap gap-1.5">
                   {c.tools.map((t) => (
                     <code
                       key={t}
-                      className="text-[10px] font-mono text-[rgba(255,176,96,0.85)] bg-[#060402] border border-[rgba(255,122,32,0.18)] px-1.5 py-0.5 rounded-sm"
+                      className="text-[10px] font-mono text-[rgba(255,176,96,0.85)] bg-surface-sunken border border-border px-1.5 py-0.5 rounded-sm"
                     >
                       {t}
                     </code>
@@ -201,7 +201,7 @@ export function UseCasesBand() {
         </div>
 
         {/* Write-action proof — honest framing, no Song-et-al number masquerading as ours */}
-        <div className="mt-8 border border-[rgba(255,122,32,0.18)] bg-[#070503]/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
+        <div className="mt-8 border border-border bg-surface-raised/70 rounded-sm p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:items-center sm:justify-between">
           <div>
             <p className="eyebrow mb-2" style={{ letterSpacing: "0.3em" }}>
               Why the architecture works for writes too
@@ -221,7 +221,7 @@ export function UseCasesBand() {
           </div>
           <Link
             href="/search"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-colors duration-200 whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-colors duration-200 whitespace-nowrap"
           >
             See the live marketplace →
           </Link>

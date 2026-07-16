@@ -85,9 +85,9 @@ export function BenchmarkTable() {
           </p>
         </div>
 
-        <div className="border border-[rgba(255,122,32,0.25)] bg-[#070503]/90 rounded-sm overflow-x-auto min-w-0 max-w-full">
+        <div className="border border-[rgba(255,122,32,0.25)] bg-surface-raised/90 rounded-sm overflow-x-auto min-w-0 max-w-full">
           <table className="w-full text-sm font-mono tabular-nums">
-            <thead className="bg-[rgba(0,0,0,0.45)] border-b border-[rgba(255,122,32,0.28)]">
+            <thead className="bg-surface-sunken border-b border-border-strong">
               <tr className="text-[10px] uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)]">
                 <th className="text-left px-4 py-3.5 font-medium">Tool</th>
                 <th className="text-right px-4 py-3.5 font-medium">Tokens / call</th>
@@ -100,7 +100,7 @@ export function BenchmarkTable() {
               {rows.map((r) => (
                 <tr
                   key={r.tool}
-                  className={`border-b border-[rgba(255,122,32,0.12)] last:border-0 ${r.highlight ? "bg-[rgba(255,122,32,0.06)]" : ""}`}
+                  className={`border-b border-border last:border-0 ${r.highlight ? "bg-[rgba(255,122,32,0.06)]" : ""}`}
                 >
                   <td className={`px-4 py-3.5 ${r.highlight ? "text-orange-500 font-semibold tracking-tight" : "text-text-primary"}`}>{r.tool}</td>
                   <td className="text-right px-4 py-3.5 text-text-secondary">{r.tokens}</td>
@@ -117,7 +117,7 @@ export function BenchmarkTable() {
             clamp(8rem, 18vw, 22rem) — the number IS the band. Caption
             sits inline on desktop, stacks under on mobile. Halftone
             overlay inherits the dot pattern from globals.css. */}
-        <div className="halftone-overlay mt-6 border border-[rgba(255,122,32,0.35)] bg-[#070503]/80 rounded-sm px-6 sm:px-10 py-8 sm:py-10 relative overflow-hidden">
+        <div className="halftone-overlay mt-6 border border-border-strong bg-surface-raised/80 rounded-sm px-6 sm:px-10 py-8 sm:py-10 relative overflow-hidden">
           <p className="relative z-10 text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.7)] mb-4">
             ##  Across 94 live domains
           </p>
@@ -145,7 +145,7 @@ export function BenchmarkTable() {
           <div className="relative z-10 mt-6 flex items-center justify-end">
             <Link
               href="/internal-apis-are-all-you-need"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-colors duration-200 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] transition-colors duration-200 whitespace-nowrap"
             >
               Read the paper →
             </Link>

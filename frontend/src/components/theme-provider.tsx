@@ -19,9 +19,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
+      // Source of truth on load: an explicit saved choice wins; otherwise follow
+      // the OS preference (already applied pre-paint by the no-flash script in
+      // <head>). We do NOT persist here — system preference is respected on every
+      // visit until the visitor explicitly toggles.
       const stored = localStorage.getItem("unbrowse-theme") as Theme | null;
-      const preferred = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-      setTheme(stored ?? preferred);
+      const domAttr = document.documentElement.getAttribute("data-theme") as Theme | null;
+      const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      setTheme(stored ?? domAttr ?? preferred);
       setMounted(true);
     } catch (error) {
       // Fallback for SSR or environments without localStorage
@@ -32,11 +37,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mounted) return;
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("unbrowse-theme", theme);
   }, [theme, mounted]);
 
   const toggle = useCallback(() => {
-    setTheme((t) => (t === "light" ? "dark" : "light"));
+    setTheme((t) => {
+      const next = t === "light" ? "dark" : "light";
+      try {
+        // Only an explicit toggle persists — this is the visitor's stated choice.
+        localStorage.setItem("unbrowse-theme", next);
+      } catch (error) {
+        // ignore storage failures (private mode, SSR)
+      }
+      return next;
+    });
   }, []);
 
   return (

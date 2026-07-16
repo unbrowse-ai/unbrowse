@@ -131,19 +131,19 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/#get-started"
-            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono w-full sm:w-auto hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
           >
             <span>[ Get CLI key ]</span>
           </Link>
         </div>
-        <form onSubmit={openWallet} className="mt-10 border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
+        <form onSubmit={openWallet} className="mt-10 border border-border bg-surface-raised/90 p-6 rounded-sm">
           <label className="block text-xs font-mono uppercase tracking-[0.2em] text-[rgba(255,122,32,0.5)]">
             Public wallet
             <input
               value={wallet}
               onChange={(event) => setWallet(event.target.value)}
               placeholder="Paste wallet address"
-              className="mt-3 block w-full border border-[rgba(255,122,32,0.18)] bg-[#060402] px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-[rgba(255,122,32,0.4)] focus:outline-none rounded-sm"
+              className="mt-3 block w-full border border-border bg-surface-sunken px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-[rgba(255,122,32,0.4)] focus:outline-none rounded-sm"
             />
           </label>
           <button
@@ -178,7 +178,7 @@ export default function DashboardPage() {
         <p className="mt-3 text-sm text-red-400">{error}</p>
         <button
           onClick={logout}
-          className="mt-6 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
+          className="mt-6 inline-flex items-center justify-center gap-2 px-7 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
         >
           <span>[ Logout ]</span>
         </button>
@@ -197,7 +197,7 @@ export default function DashboardPage() {
         </div>
         <button
           onClick={logout}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200 cursor-pointer"
         >
           <span>[ Logout ]</span>
         </button>
@@ -205,13 +205,13 @@ export default function DashboardPage() {
 
       {error && (
         <div className="mx-auto mt-4 max-w-6xl px-6">
-          <p className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-4 py-3 text-sm text-[rgba(255,176,96,0.9)]">{error}</p>
+          <p className="border border-border bg-surface-raised/90 rounded-sm px-4 py-3 text-sm text-[rgba(255,176,96,0.9)]">{error}</p>
         </div>
       )}
 
       {accountMe && prefs && (
         <div className="mx-auto mt-6 max-w-6xl px-6">
-          <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
+          <div className="border border-border bg-surface-raised/90 p-6 rounded-sm">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <div className="font-semibold text-text-primary">Auto-publish to marketplace</div>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
           public (shared + earning) / private (yours only) control. */}
       {accountMe && skills && (
         <div className="mx-auto mt-6 max-w-6xl px-6">
-          <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 p-6 rounded-sm">
+          <div className="border border-border bg-surface-raised/90 p-6 rounded-sm">
             <div className="flex items-baseline justify-between gap-4">
               <div className="font-semibold text-text-primary">Your captured routes</div>
               <div className="font-mono text-xs text-text-muted">
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 No routes yet — capture one with <span className="text-[rgba(255,176,96,0.9)]">unbrowse run &lt;url&gt; &quot;task&quot;</span>.
               </p>
             ) : (
-              <ul className="divide-y divide-[rgba(255,122,32,0.12)]">
+              <ul className="divide-y divide-border">
                 {skills.slice(0, 50).map((s) => (
                   <li key={s.skill_id} className="flex items-center justify-between gap-4 py-3">
                     <div className="min-w-0">

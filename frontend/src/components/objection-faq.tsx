@@ -67,11 +67,11 @@ export function ObjectionFaq() {
           </p>
         </div>
 
-        <div className="border-t border-[rgba(255,122,32,0.18)]">
+        <div className="border-t border-border">
           {rows.map((r) => (
             <details
               key={r.q}
-              className="group border-b border-[rgba(255,122,32,0.18)] bg-[#070503]/40 transition-colors hover:bg-[#070503]/90"
+              className="group border-b border-border bg-surface-raised/40 transition-colors hover:bg-surface-raised/90"
             >
               <summary className="cursor-pointer list-none p-5 flex items-start justify-between gap-4">
                 <span className="text-base sm:text-lg font-medium text-text-primary leading-snug tracking-tight">
