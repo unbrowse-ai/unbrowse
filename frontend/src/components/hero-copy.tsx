@@ -116,7 +116,7 @@ export function HeroSpeedProofStrip() {
       {stats.map((s) => (
         <span
           key={s.l}
-          className="inline-flex items-baseline gap-2 px-3 py-1.5 bg-[#070503]/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
+          className="inline-flex items-baseline gap-2 px-3 py-1.5 bg-surface-raised/85 border border-[rgba(255,122,32,0.22)] rounded-sm text-xs"
         >
           <span className="text-orange-500 font-semibold tabular-nums tracking-tight">{s.v}</span>
           <span className="text-text-muted text-[10px] uppercase tracking-[0.18em]">

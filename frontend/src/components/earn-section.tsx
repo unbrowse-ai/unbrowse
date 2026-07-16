@@ -55,7 +55,7 @@ export function EarnSection() {
               </Link>
               <Link
                 href="/how-unbrowse-pays"
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0c0804] border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-surface-raised border border-[rgba(255,122,32,0.4)] text-[rgba(255,176,96,0.9)] text-sm font-mono hover:bg-[rgba(255,122,32,0.1)] hover:border-[rgba(255,122,32,0.65)] active:translate-y-px transition-[background-color,border-color,transform] duration-200"
               >
                 How payouts work
               </Link>
@@ -66,7 +66,7 @@ export function EarnSection() {
             </p>
           </div>
 
-          <div className="halftone-overlay lg:col-span-2 bg-[#060402] border border-[rgba(255,122,32,0.3)] rounded-sm p-5 relative">
+          <div className="halftone-overlay lg:col-span-2 bg-surface-raised border border-border-strong rounded-sm p-5 relative">
             <p className="relative z-10 text-[11px] font-mono uppercase tracking-[0.3em] text-[rgba(255,122,32,0.65)] mb-4 flex items-center gap-2">
               <span className="inline-block w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" />
               Receipt strip
@@ -93,7 +93,7 @@ export function EarnSection() {
                 <span>Every settled route is a real route, a real wallet, real USDC — paid the moment another agent reuses it.</span>
               </div>
             </div>
-            <div className="relative z-10 mt-5 pt-4 border-t border-[rgba(255,122,32,0.15)] text-[11px] font-mono text-text-muted">
+            <div className="relative z-10 mt-5 pt-4 border-t border-border text-[11px] font-mono text-text-muted">
               Asked for repeatedly on r/AI_Agents, r/SaaS, r/CryptoCurrency, r/ethdev. Trace in /docs/POSITIONING.md.
             </div>
           </div>

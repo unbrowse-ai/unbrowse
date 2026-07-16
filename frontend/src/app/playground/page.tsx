@@ -35,22 +35,22 @@ export const metadata: Metadata = {
 
 export default function PlaygroundPage() {
   return (
-    <div className="bg-[#060402] text-[rgba(255,250,242,0.92)] min-h-[100dvh]">
+    <div className="bg-background text-text-primary min-h-[100dvh]">
       <section className="max-w-6xl mx-auto px-6 pt-24 pb-12">
         <div className="grid gap-4 max-w-3xl">
           <span
             className="text-[11px] font-mono uppercase tracking-[0.2em]"
-            style={{ color: "#FFB060" }}
+            style={{ color: "var(--orange-400)" }}
           >
             playground · live, anonymous, no signup
           </span>
-          <h1 className="text-3xl sm:text-4xl font-medium tracking-tight" style={{ color: "#fff" }}>
+          <h1 className="text-3xl sm:text-4xl font-medium tracking-tight" style={{ color: "var(--text-primary)" }}>
             Try both sides of the stack.
           </h1>
-          <p className="text-base leading-relaxed" style={{ color: "rgba(255,250,242,0.65)" }}>
-            On the left: <span style={{ color: "#FFB060" }}>Unbrowse resolve</span> — type an intent and a
+          <p className="text-base leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            On the left: <span style={{ color: "var(--orange-400)" }}>Unbrowse resolve</span> — type an intent and a
             site; we hit the public marketplace and rank skills.
-            On the right: <span style={{ color: "#FFB060" }}>ask the agent</span> — the live tool loop
+            On the right: <span style={{ color: "var(--orange-400)" }}>ask the agent</span> — the live tool loop
             that searches routes, executes one, and answers from real data.
           </p>
           <p className="text-sm" style={{ color: "rgba(255,176,96,0.55)" }}>
@@ -60,7 +60,7 @@ export default function PlaygroundPage() {
               href="https://github.com/unbrowse-ai/unbrowse/issues/new"
               target="_blank"
               rel="noopener"
-              style={{ color: "#FF7A20", textDecoration: "underline" }}
+              style={{ color: "var(--orange-400)", textDecoration: "underline" }}
             >
               issue
             </a>
@@ -75,7 +75,7 @@ export default function PlaygroundPage() {
             <div className="flex items-baseline justify-between gap-3">
               <h2
                 className="text-[11px] font-mono uppercase tracking-[0.2em]"
-                style={{ color: "#FF7A20" }}
+                style={{ color: "var(--orange-400)" }}
               >
                 ▸ resolve an intent
               </h2>
@@ -90,7 +90,7 @@ export default function PlaygroundPage() {
             <UnbrowseChatLive />
             <p className="text-[11px] font-mono leading-relaxed" style={{ color: "rgba(255,122,32,0.55)" }}>
               Marketplace is sparse for newer sites. Empty result = the route hasn&apos;t been mined yet —
-              install the CLI locally to teach it: <span style={{ color: "#FFB060" }}>npx unbrowse setup</span>
+              install the CLI locally to teach it: <span style={{ color: "var(--orange-400)" }}>npx unbrowse setup</span>
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function PlaygroundPage() {
             <div className="flex items-baseline justify-between gap-3">
               <h2
                 className="text-[11px] font-mono uppercase tracking-[0.2em]"
-                style={{ color: "#FF7A20" }}
+                style={{ color: "var(--orange-400)" }}
               >
                 ▸ ask the agent
               </h2>
@@ -122,7 +122,7 @@ export default function PlaygroundPage() {
 
         <div
           className="mt-10 grid sm:grid-cols-3 gap-3 text-[11px] font-mono"
-          style={{ color: "rgba(255,250,242,0.55)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           <FactCard label="resolve latency" value="~150–400ms" hint="bm25 + embedding rerank over the marketplace" />
           <FactCard label="agent loop" value="search → execute → answer" hint="live tool calls against the route marketplace" />
@@ -145,10 +145,10 @@ function FactCard({ label, value, hint }: { label: string; value: string; hint: 
       <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "rgba(255,122,32,0.55)" }}>
         {label}
       </div>
-      <div className="text-base mt-1" style={{ color: "#FFB060" }}>
+      <div className="text-base mt-1" style={{ color: "var(--orange-400)" }}>
         {value}
       </div>
-      <div className="text-[10.5px] mt-1 leading-relaxed" style={{ color: "rgba(255,250,242,0.4)" }}>
+      <div className="text-[10.5px] mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         {hint}
       </div>
     </div>

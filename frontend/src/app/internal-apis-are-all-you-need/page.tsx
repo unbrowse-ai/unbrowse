@@ -155,7 +155,7 @@ export default function InternalApisPaperPage() {
   };
 
   return (
-    <div className="bg-[#070503] min-h-screen text-[rgba(255,255,255,0.9)]">
+    <div className="bg-background min-h-screen text-text-primary">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(scholarlyArticle) }}
@@ -171,11 +171,11 @@ export default function InternalApisPaperPage() {
           </Link>
         </div>
 
-        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+        <header className="mb-12 border-b border-border pb-10">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## WHITEPAPER · arXiv:{ARXIV_ID}
           </p>
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight text-[rgba(255,255,255,0.95)]">
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance leading-tight text-text-primary">
             {PAPER_TITLE}
           </h1>
           <p className="mt-4 text-xl sm:text-2xl font-mono font-medium text-balance text-[rgba(255,176,96,0.85)]">
@@ -186,10 +186,10 @@ export default function InternalApisPaperPage() {
             {PAPER_AUTHORS.map((author) => (
               <div
                 key={author.email}
-                className="rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] p-4"
+                className="rounded-sm border border-border bg-surface-raised p-4"
               >
-                <div className="font-semibold text-[rgba(255,255,255,0.95)]">{author.name}</div>
-                <div className="mt-1 text-[rgba(255,255,255,0.6)] leading-snug">
+                <div className="font-semibold text-text-primary">{author.name}</div>
+                <div className="mt-1 text-text-muted leading-snug">
                   {author.affiliation}
                 </div>
                 <a
@@ -202,7 +202,7 @@ export default function InternalApisPaperPage() {
             ))}
           </div>
 
-          <p className="mt-6 text-sm font-mono text-[rgba(255,255,255,0.6)]">
+          <p className="mt-6 text-sm font-mono text-text-muted">
             published {PUBLISHED_AT} · arXiv (cs.ET) ·{" "}
             <a
               href={ARXIV_URL}
@@ -225,7 +225,7 @@ export default function InternalApisPaperPage() {
             </a>
             <a
               href={PAPER_PDF_URL}
-              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.9)] hover:border-[rgba(255,122,32,0.5)] hover:bg-[#0a0705] transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-border-strong bg-surface px-5 py-3 font-mono font-medium text-text-primary hover:border-[rgba(255,122,32,0.5)] hover:bg-surface-raised transition-colors"
             >
               [ download pdf ]
             </a>
@@ -233,7 +233,7 @@ export default function InternalApisPaperPage() {
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center justify-center rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] px-5 py-3 font-mono font-medium text-[rgba(255,255,255,0.8)] hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705] transition-colors"
+              className="inline-flex items-center justify-center rounded-sm border border-border bg-surface px-5 py-3 font-mono font-medium text-text-secondary hover:border-border-strong hover:bg-surface-raised transition-colors"
             >
               [ view repo ]
             </a>
@@ -244,7 +244,7 @@ export default function InternalApisPaperPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## ABSTRACT
           </p>
-          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+          <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary">
             {abstract}
           </p>
         </section>
@@ -253,7 +253,7 @@ export default function InternalApisPaperPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## KEY HIGHLIGHTS
           </p>
-          <ul className="space-y-3 text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+          <ul className="space-y-3 text-base sm:text-lg leading-8 font-mono text-text-secondary">
             {highlights.map((item) => (
               <li key={item} className="flex gap-3">
                 <span className="text-[rgba(255,176,96,0.85)] shrink-0">›</span>
@@ -269,18 +269,18 @@ export default function InternalApisPaperPage() {
               <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
                 ## {section.title.toUpperCase()}
               </p>
-              <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)]">
+              <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary">
                 {section.body}
               </p>
             </div>
           ))}
         </section>
 
-        <section className="mb-12 rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#080604] p-6 sm:p-8">
+        <section className="mb-12 rounded-sm border border-border-strong bg-surface-raised p-6 sm:p-8">
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-3">
             ## HOW TO CITE
           </p>
-          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.85)] mb-4">
+          <p className="text-base sm:text-lg leading-8 font-mono text-text-primary mb-4">
             Tham, L., Mac Gregor Garcia, N., &amp; Hahn, J. (2026).{" "}
             <em className="text-[rgba(255,176,96,0.9)] not-italic">
               {PAPER_TITLE}: {PAPER_SUBTITLE}
@@ -295,9 +295,9 @@ export default function InternalApisPaperPage() {
               {ARXIV_URL}
             </a>
           </p>
-          <p className="text-sm leading-7 font-mono text-[rgba(255,255,255,0.6)]">
+          <p className="text-sm leading-7 font-mono text-text-muted">
             Use the exact title{" "}
-            <strong className="text-[rgba(255,255,255,0.95)]">Internal APIs Are All You Need</strong>{" "}
+            <strong className="text-text-primary">Internal APIs Are All You Need</strong>{" "}
             and link to the arXiv record so search engines, researchers, and agents associate the phrase with the Unbrowse paper.
           </p>
         </section>
@@ -306,7 +306,7 @@ export default function InternalApisPaperPage() {
           <p className="text-xs font-mono font-medium uppercase tracking-[0.3em] text-[rgba(255,176,96,0.9)] mb-4">
             ## READ THE FULL PAPER
           </p>
-          <p className="text-base sm:text-lg leading-8 font-mono text-[rgba(255,255,255,0.8)] mb-4">
+          <p className="text-base sm:text-lg leading-8 font-mono text-text-secondary mb-4">
             The full paper covers the shared route graph architecture, the discovery tax, the three-tier execution model, route-level economics, quality proofing, benchmark methodology, and architectural implications for the agentic web.
           </p>
           <a

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function PapersIndexPage() {
   return (
-    <div className="bg-[#070503] min-h-screen text-[rgba(255,255,255,0.9)]">
+    <div className="bg-background min-h-screen text-text-primary">
       <div className="max-w-4xl mx-auto px-6 py-16 sm:py-24">
         <div className="mb-10">
           <Link
@@ -24,10 +24,10 @@ export default function PapersIndexPage() {
           </Link>
         </div>
 
-        <header className="mb-12 border-b border-[rgba(255,122,32,0.18)] pb-10">
+        <header className="mb-12 border-b border-border pb-10">
           <span className="eyebrow mb-4" style={{ display: "block" }}>Research</span>
           <h1 className="text-4xl sm:text-6xl font-bold tracking-tight">Papers</h1>
-          <p className="mt-4 text-lg sm:text-xl font-mono text-[rgba(255,255,255,0.7)] max-w-3xl">
+          <p className="mt-4 text-lg sm:text-xl font-mono text-text-secondary max-w-3xl">
             Canonical index for Unbrowse whitepapers, systems writing, and research artifacts.
           </p>
         </header>
@@ -35,10 +35,10 @@ export default function PapersIndexPage() {
         <div className="space-y-6">
           {papers.map((paper) => {
             const cardClass =
-              "block group rounded-sm border border-[rgba(255,122,32,0.18)] bg-[#080604] p-6 sm:p-8 hover:border-[rgba(255,122,32,0.35)] hover:bg-[#0a0705] transition-colors";
+              "block group rounded-sm border border-border bg-surface-raised p-6 sm:p-8 hover:border-border-strong hover:bg-surface transition-colors";
             const body = (
               <>
-                <h2 className="flex items-baseline gap-3 text-2xl sm:text-3xl font-semibold tracking-tight text-[rgba(255,255,255,0.95)] group-hover:text-[rgba(255,176,96,0.95)] transition-colors">
+                <h2 className="flex items-baseline gap-3 text-2xl sm:text-3xl font-semibold tracking-tight text-text-primary group-hover:text-[rgba(255,176,96,0.95)] transition-colors">
                   <span>{paper.title}</span>
                   {paper.pdf && (
                     <span className="eyebrow shrink-0" style={{ fontSize: "0.625rem" }}>PDF ↗</span>
@@ -47,7 +47,7 @@ export default function PapersIndexPage() {
                 <p className="mt-2 text-base font-mono font-medium text-[rgba(255,176,96,0.85)]">
                   {paper.subtitle}
                 </p>
-                <p className="mt-4 text-base leading-7 font-mono text-[rgba(255,255,255,0.7)]">
+                <p className="mt-4 text-base leading-7 font-mono text-text-secondary">
                   {paper.description}
                 </p>
               </>

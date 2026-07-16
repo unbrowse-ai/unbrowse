@@ -34,7 +34,7 @@ export default function DocsBenchmarksPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* anti-bot */}
-          <div className="rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+          <div className="rounded-lg border border-border bg-surface-raised/80 p-5">
             <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)] mb-3">
               Anti-bot retrieval
             </p>
@@ -49,7 +49,7 @@ export default function DocsBenchmarksPage() {
           </div>
 
           {/* latency */}
-          <div className="rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+          <div className="rounded-lg border border-border bg-surface-raised/80 p-5">
             <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)] mb-3">
               Latency &amp; cost
             </p>
@@ -64,7 +64,7 @@ export default function DocsBenchmarksPage() {
           </div>
 
           {/* self-improving */}
-          <div className="rounded-lg border border-[rgba(6,182,212,0.28)] bg-[#040608]/80 p-5">
+          <div className="rounded-lg border border-[rgba(6,182,212,0.28)] bg-surface-raised/80 p-5">
             <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(6,182,212,0.75)] mb-3">
               Self-improving by reuse
             </p>
@@ -79,7 +79,7 @@ export default function DocsBenchmarksPage() {
         </div>
 
         {/* execute, don't guess — wide card with before→after sub-stats */}
-        <div className="mt-3 rounded-lg border border-[rgba(255,122,32,0.22)] bg-[#070503]/80 p-5">
+        <div className="mt-3 rounded-lg border border-border bg-surface-raised/80 p-5">
           <p className="text-[10px] font-mono uppercase tracking-[0.24em] text-[rgba(255,122,32,0.7)]">
             Execute, don&apos;t guess — at model scale
           </p>

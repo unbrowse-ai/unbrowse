@@ -93,7 +93,7 @@ export default function PayoutsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedKey]);
 
-  const card = "border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm";
+  const card = "border border-border bg-surface-raised/90 rounded-sm";
 
   return (
     <div className="mx-auto max-w-5xl px-6 pb-24 pt-28 font-mono">
@@ -124,7 +124,7 @@ export default function PayoutsPage() {
             value={adminKey}
             onChange={(e) => setAdminKey(e.target.value)}
             placeholder="Bearer ADMIN_KEY"
-            className="mt-2 block w-full border border-[rgba(255,122,32,0.18)] bg-[#060402] px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-[rgba(255,122,32,0.4)] focus:outline-none rounded-sm"
+            className="mt-2 block w-full border border-border bg-surface-sunken px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-[rgba(255,122,32,0.4)] focus:outline-none rounded-sm"
           />
         </label>
         <button
@@ -162,7 +162,7 @@ export default function PayoutsPage() {
 
           {/* Recipients */}
           <div className={`mt-6 ${card}`}>
-            <div className="px-5 py-3 border-b border-[rgba(255,122,32,0.18)] text-xs uppercase tracking-[0.2em] text-[rgba(255,122,32,0.6)]">
+            <div className="px-5 py-3 border-b border-border text-xs uppercase tracking-[0.2em] text-[rgba(255,122,32,0.6)]">
               Owed — would be paid
             </div>
             {plan.recipients.length === 0 ? (
@@ -170,7 +170,7 @@ export default function PayoutsPage() {
                 Nothing owed above the minimum yet. Indexers accrue here as paid executions settle.
               </p>
             ) : (
-              <div className="divide-y divide-[rgba(255,122,32,0.1)]">
+              <div className="divide-y divide-border">
                 {plan.recipients.map((r) => (
                   <div key={r.agent_id} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
                     <div className="min-w-0">
@@ -192,10 +192,10 @@ export default function PayoutsPage() {
           {/* Skipped */}
           {plan.skipped.length > 0 && (
             <div className={`mt-4 ${card}`}>
-              <div className="px-5 py-3 border-b border-[rgba(255,122,32,0.18)] text-xs uppercase tracking-[0.2em] text-[rgba(255,122,32,0.6)]">
+              <div className="px-5 py-3 border-b border-border text-xs uppercase tracking-[0.2em] text-[rgba(255,122,32,0.6)]">
                 Skipped ({plan.skipped.length})
               </div>
-              <div className="divide-y divide-[rgba(255,122,32,0.1)]">
+              <div className="divide-y divide-border">
                 {plan.skipped.map((s) => (
                   <div key={s.agent_id} className="flex items-center justify-between gap-4 px-5 py-2.5 text-sm">
                     <span className="text-text-secondary truncate">{s.agent_id}</span>
@@ -217,7 +217,7 @@ export default function PayoutsPage() {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "orange" }) {
   return (
-    <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-4 py-3">
+    <div className="border border-border bg-surface-raised/90 rounded-sm px-4 py-3">
       <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
       <div className={`mt-1 text-lg font-bold ${tone === "orange" ? "text-orange-400" : "text-text-primary"}`}>
         {value}
@@ -228,7 +228,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "or
 
 function Flag({ label, on }: { label: string; on: boolean }) {
   return (
-    <div className="border border-[rgba(255,122,32,0.18)] bg-[#070503]/90 rounded-sm px-4 py-3">
+    <div className="border border-border bg-surface-raised/90 rounded-sm px-4 py-3">
       <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
       <div className={`mt-1 text-sm font-bold ${on ? "text-green-400" : "text-[rgba(255,176,96,0.7)]"}`}>
         {on ? "ON" : "OFF"}

@@ -331,7 +331,7 @@ export function HeroChat() {
       {hasConvo && (
         <div
           ref={scrollerRef}
-          className="mb-3 max-h-[360px] overflow-y-auto rounded-sm border border-[rgba(255,122,32,0.3)] bg-[#070503]/95 p-4 text-left shadow-2xl shadow-black/50"
+          className="mb-3 max-h-[360px] overflow-y-auto rounded-sm border border-border-strong bg-surface-raised/95 p-4 text-left shadow-2xl shadow-black/50"
           aria-live="polite"
         >
           {turns.map((t, i) =>
@@ -397,7 +397,7 @@ export function HeroChat() {
           e.preventDefault();
           void ask(prompt);
         }}
-        className="group relative flex items-center gap-2 rounded-sm border border-[rgba(255,122,32,0.45)] bg-[#0c0804]/95 px-4 py-3 shadow-xl shadow-black/40 transition-colors focus-within:border-[rgba(255,122,32,0.8)]"
+        className="group relative flex items-center gap-2 rounded-sm border border-[rgba(255,122,32,0.45)] bg-surface-raised/95 px-4 py-3 shadow-xl shadow-black/40 transition-colors focus-within:border-[rgba(255,122,32,0.8)]"
       >
         <span className="font-mono text-sm text-orange-500 select-none" aria-hidden="true">
           ❯
