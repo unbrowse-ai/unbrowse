@@ -294,21 +294,15 @@ export default function HowUnbrowsePays() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text-primary">The papers behind this</h2>
+        <h2 className="text-xl font-medium text-text-primary">The paper behind this</h2>
         <p className="text-sm leading-relaxed text-text-muted">
-          This page is the short version. The economics — proof of indexing, bonded,
-          slashable maintenance, trust tiers, and delta-based attribution — are laid out
-          in{" "}
-          <a href="/unbrowse-maintenance-network.pdf" target="_blank" rel="noopener" className="underline hover:text-text-secondary">
-            Unbrowse Maintenance Network
-          </a>
-          . How your credentials stay private — bound to your wallet by zero-knowledge
-          proof and revealed only under signature, content-addressed and sealed at every
-          layer an agent touches — is in{" "}
-          <a href="/crypto-was-all-you-needed.pdf" target="_blank" rel="noopener" className="underline hover:text-text-secondary">
-            Crypto Was All You Needed
-          </a>
-          . All of them:{" "}
+          This page is the short version. The full argument — why first-party internal
+          APIs are the machine-native interface for agents, and how a shared route graph
+          turns repeated browser rediscovery into collective memory — is laid out in{" "}
+          <Link href="/internal-apis-are-all-you-need" className="underline hover:text-text-secondary">
+            Internal APIs Are All You Need
+          </Link>
+          . See it here:{" "}
           <Link href="/papers" className="underline hover:text-text-secondary">/papers</Link>.
         </p>
       </section>

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Witness for: "add streaming + include the other two papers on the frontend".
-# Exits 0 EXACTLY when both are done:
-#   PAPERS  1-3: both other papers' PDFs in public/ and all three listed on /papers
-#   STREAM  4:   aiko-home chat reads an SSE token stream (stream:true + getReader + delta)
-#   BUILD   5:   typecheck clean
+# Witness for: the flagship-only papers surface + streaming chat.
+# Only "Internal APIs Are All You Need" is published on unbrowse.ai; the companion
+# PDFs were withdrawn from the site and archived off-repo. Exits 0 EXACTLY when:
+#   PAPERS  1: /papers is driven by the single-source module and surfaces the flagship
+#   STREAM  2: aiko-home chat reads an SSE token stream (stream:true + getReader + delta)
+#   BUILD   3: typecheck clean
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 fail=0
@@ -11,19 +12,13 @@ fail=0
 chk() { # name, condition-cmd already evaluated to 0/1 via [ ]
   :; }
 
-# 1-2. PDFs present
-for p in crypto-was-all-you-needed internal-apis-were-not-all-you-needed; do
-  if [ -f "public/$p.pdf" ]; then echo "ok   gate: public/$p.pdf present";
-  else echo "FAIL gate: public/$p.pdf missing"; fail=1; fi
-done
-
-# 3. /papers lists all three (the two new hrefs)
+# 1. /papers surfaces the flagship paper (single source of truth in lib/papers.ts)
 pp="src/app/papers/page.tsx"
-miss=""
-for h in crypto-was-all-you-needed internal-apis-were-not-all-you-needed internal-apis-are-all-you-need; do
-  grep -q "$h" "$pp" 2>/dev/null || miss="$miss $h"
-done
-if [ -z "$miss" ]; then echo "ok   gate: /papers lists all three papers"; else echo "FAIL gate: /papers missing:$miss"; fail=1; fi
+if grep -q '@/lib/papers' "$pp" 2>/dev/null && grep -q 'internal-apis-are-all-you-need' src/lib/papers.ts 2>/dev/null; then
+  echo "ok   gate: /papers surfaces the flagship paper via lib/papers"
+else
+  echo "FAIL gate: /papers no longer bound to lib/papers or flagship paper missing"; fail=1
+fi
 
 # 4. aiko-home streams (SSE token read)
 ah="src/components/aiko-home.tsx"
