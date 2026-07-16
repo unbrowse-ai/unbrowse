@@ -4,8 +4,9 @@
 #
 # Secrets required in the RWX vault (set via `rwx vaults secrets set`, never
 # typed into this file):
-#   npm-token                          (was secrets.NPM_TOKEN)
-#   npm-token-sdk                      (was secrets.NPM_TOKEN_SDK, optional — falls back to npm-token)
+#   npm-token                          (was secrets.NPM_TOKEN — also used by publish-sdk; RWX
+#                                        has no secrets fallback operator, so both publish tasks
+#                                        share this one key rather than a separate npm-token-sdk)
 #   cloudflare-api-token                (was secrets.CLOUDFLARE_API_TOKEN)
 #   cloudflare-account-id               (was secrets.CLOUDFLARE_ACCOUNT_ID)
 #   release-manifest-signing-secret     (was secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET)
@@ -317,7 +318,7 @@ tasks:
       npm publish --access public --tag "$NPM_TAG"
       npm deprecate "@unbrowse/sdk@*" "" || true
     env:
-      TOKEN: ${{ secrets.npm-token-sdk }}
+      TOKEN: ${{ secrets.npm-token }}
 
   # ── deploy-backend (Cloudflare Worker) ────────────────────────────────
   - key: deploy-backend
