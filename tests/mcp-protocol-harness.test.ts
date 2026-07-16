@@ -137,6 +137,16 @@ describe("MCP protocol surface (AC-CLI-5)", () => {
     expect(result.content!.length).toBeGreaterThan(0);
   });
 
+  test("tools/call unbrowse_eval_map returns real outgoing links (real MCP wiring, not just the underlying function)", async () => {
+    const res = await request("tools/call", { name: "unbrowse_eval_map", arguments: { url: "https://news.ycombinator.com" } }, 30_000);
+    expect(res.error).toBeUndefined();
+    const result = res.result as { content?: Array<{ type: string; text?: string }>; structuredContent?: { links?: Array<{ url: string }> }; isError?: boolean };
+    expect(result.isError).not.toBe(true);
+    expect(Array.isArray(result.content)).toBe(true);
+    expect(Array.isArray(result.structuredContent?.links)).toBe(true);
+    expect(result.structuredContent!.links!.length).toBeGreaterThan(0);
+  });
+
   test("unknown method → JSON-RPC error, and the server keeps serving", async () => {
     const bad = await request("definitely/not-a-method");
     expect(bad.error).toBeDefined();

@@ -102,12 +102,10 @@
     "@solana/kit": "^6.6.0",
     "@solana/web3.js": "1",
     "@types/turndown": "^5.0.6",
-    "@x402/fetch": "^2.9.0",
     "bs58": "^6.0.0",
     "cheerio": "^1.2.0",
     "chrome-remote-interface": "^0.34.0",
     "dotenv": "^17.3.1",
-    "ethers": "6",
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
     "sodium-native": "^5.1.0",
@@ -124,6 +122,7 @@
     "husky": "^9.1.7",
     "playwright": "^1.60.0",
     "release-it": "^19.2.4",
+    "yaml": "^2.6.1",
     "typescript": "5"
   }
 }

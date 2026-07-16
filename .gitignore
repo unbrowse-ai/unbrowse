@@ -327,3 +327,4 @@ bench/webagent/vendor/
 
 # fractal build-attestation: per-machine witness state (lineage minted by CI/release)
 attest/
+.npmrc

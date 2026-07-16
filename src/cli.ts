@@ -3042,6 +3042,36 @@ export async function cmdCapture(flags: Record<string, string | boolean>): Promi
   if (!url) die("--url is required");
   maybeShowContributionNotice();
 
+  // Coverage pre-check (long-term fix, see src/capture/coverage-check.ts): a
+  // real browser capture is expensive — before paying that cost, check
+  // whether this domain is already covered, locally or in the shared
+  // marketplace. `--force` bypasses this for a caller that genuinely wants a
+  // fresh capture (schema drift, a stale/broken route, etc).
+  if (!flags.force) {
+    try {
+      const hostname = new URL(url).hostname;
+      const { checkDomainCoverage } = await import("./capture/coverage-check.js");
+      const coverage = await checkDomainCoverage(hostname);
+      if (coverage.covered) {
+        output(
+          {
+            skipped: true,
+            reason: "already_covered",
+            source: coverage.source,
+            skill_id: coverage.skill_id,
+            endpoint_count: coverage.endpoint_count,
+            next_step: `unbrowse resolve --intent "${intent.replace(/"/g, '\\"')}" --url "${url.replace(/"/g, '\\"')}"`,
+            note: "Pass --force to capture anyway (e.g. to refresh a stale/broken route).",
+          },
+          !!flags.pretty,
+        );
+        return;
+      }
+    } catch {
+      // Malformed URL or pre-check failure: fail open, proceed to capture.
+    }
+  }
+
   const t0 = Date.now();
   const result = await api("POST", "/v1/capture", { url, intent }) as Record<string, unknown>;
 
