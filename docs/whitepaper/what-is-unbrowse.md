@@ -54,8 +54,8 @@ Today, it is accurate to say Unbrowse ships:
 - local-first capture and execution
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
-- x402 / HTTP 402 payment-gated marketplace paths
-- wallet-linked creator payout identity, payment metadata surfaces, and current payout routing
+- account-credit metering for marketplace paths
+- granted, earned, consumed, and available credit balances
 
 Today, it is not accurate to say Unbrowse already ships the full paper economy:
 

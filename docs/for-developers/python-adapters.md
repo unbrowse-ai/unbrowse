@@ -11,7 +11,7 @@ a miss or non-GET falls back to a native `urllib` request. Set
 `UNBROWSE_DRYRUN=1` for offline, deterministic calls. Each package ships a parity
 test proving it provides the upstream's surface (`scripts/python-adapter-gate.sh`).
 
-Config (optional): `UNBROWSE_API_URL`, `UNBROWSE_API_KEY`, `UNBROWSE_X_PAYMENT`.
+Config (optional): `UNBROWSE_API_URL` and `UNBROWSE_API_KEY`.
 
 ## HTTP clients (drop-in)
 

@@ -1,40 +1,87 @@
-# SDK Quickstart
+# TypeScript SDK quickstart
 
-`unbrowse/sdk` is the TypeScript client for the current Unbrowse contract: one
-typed-hole request from intent plus optional URL/params/approval. It runs in browsers, edge
-runtimes, and Node.
+The SDK ships with `unbrowse` 11.1.1. It works in Node 18+, browsers, and edge
+runtimes with no runtime dependencies.
 
 ```bash
-npm i unbrowse
+npm install unbrowse
 ```
+
+## Authenticate
+
+Create an account key with the CLI, then store it in your environment:
+
+```bash
+unbrowse register --email you@example.com
+export UNBROWSE_API_KEY=ubr_...
+```
+
+The client reads `UNBROWSE_API_KEY` automatically. You can also pass `apiKey`
+explicitly when different tenants use the same process.
+
+```ts
+import { Unbrowse } from "unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+
+const resolved = await unbrowse.resolve({
+  intent: "find the newest TypeScript releases",
+  contextUrl: "https://github.com/microsoft/TypeScript/releases",
+});
+
+const endpoint = resolved.available_operations?.[0];
+if (!endpoint) throw new Error(resolved.next_step ?? "No matching route");
+
+const result = await unbrowse.execute({
+  endpoint_id: endpoint.endpoint_id,
+});
+```
+
+## One-call hole API
+
+For agents that do not need to inspect route selection, use the higher-level
+hole API:
 
 ```ts
 import { createHole } from "unbrowse/sdk";
 
-const hole = createHole({
-  client: { apiKey: process.env.UNBROWSE_API_KEY },
-});
-
-const result = await hole.fill({
+const result = await createHole().fill({
   intent: "list tomorrow's events",
   url: "https://calendar.google.com",
 });
+
+console.log(result.answer ?? result.items);
 ```
 
-The shell equivalent is:
+## Credits
 
-```bash
-unbrowse "list tomorrow's events"
-unbrowse "list tomorrow's events" --url "https://calendar.google.com"
+Usage is deducted from account credits through the normal account API. Read the
+live balance from the account resource:
+
+```ts
+const credits = await unbrowse.account.credits();
+console.log(credits.balance_uc / 1_000_000);
 ```
 
-Need to inspect route selection? The legacy `Unbrowse` client still exposes
-`resolve`/`execute` for debugging and compatibility, but new agents should start
-from `createHole().fill(...)`.
+`balance_uc` uses micro-credit units: `1_000_000` equals one USD-denominated
+credit. Earned credits remain in the ledger and may be redeemed when redemption
+becomes available.
 
-Reused routes can be priced. A paid call returns an HTTP 402 that the SDK raises as
-a typed error you can catch and retry after settling payment; brand-new agents get a
-sponsored allowance first.
+When a request costs more than the available balance, the SDK throws
+`UnbrowseInsufficientCreditsError`.
 
-The open/closed source split is described in the
-[Open Source Notice](../OPEN-SOURCE-NOTICE.md).
+```ts
+import { UnbrowseInsufficientCreditsError } from "unbrowse/sdk";
+
+try {
+  await unbrowse.execute({ endpoint_id: endpoint.endpoint_id });
+} catch (error) {
+  if (error instanceof UnbrowseInsufficientCreditsError) {
+    console.error("Add credits before retrying this request");
+  }
+  throw error;
+}
+```
+
+All state-changing executes receive an idempotency key automatically, so a
+network retry does not consume credits twice.

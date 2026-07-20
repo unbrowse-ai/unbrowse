@@ -23,7 +23,7 @@ Then run setup once on the host machine with MCP enabled:
 npx unbrowse setup --mcp
 ```
 
-Setup bootstraps the local runtime, accepts terms, registers an agent identity, and pairs a wallet for payment where relevant.
+Setup bootstraps the local runtime, accepts terms, and registers an account identity when requested. Metered work uses account credits.
 
 The MCP server exposes the legacy route-inspection tools (`resolve`, `execute`,
 `search`, plus browser-session tools). They are the compatibility decomposition of the

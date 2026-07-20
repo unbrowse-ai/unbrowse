@@ -27,9 +27,6 @@ def _auth():
     k = os.environ.get("UNBROWSE_API_KEY")
     if k:
         h["authorization"] = "Bearer " + k
-    x = os.environ.get("UNBROWSE_X_PAYMENT") or os.environ.get("X_PAYMENT")
-    if x:
-        h["x-payment"] = x
     return h
 
 

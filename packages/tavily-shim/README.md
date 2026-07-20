@@ -24,7 +24,7 @@ No additional setup — your existing Tavily API key works as the fallback authe
 
 | Var | Meaning |
 |---|---|
-| `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` | Auth for the Unbrowse path |
+| `UNBROWSE_API_KEY` | Auth for the Unbrowse path |
 | `TAVILY_API_KEY` | Already-set fallback (or pass `apiKey` to the factory) |
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | Override default `https://beta-api.unbrowse.ai` |
 | `UNBROWSE_DRYRUN=1` | Deterministic offline path: `search` returns `{ query, results: [] }` with no network |

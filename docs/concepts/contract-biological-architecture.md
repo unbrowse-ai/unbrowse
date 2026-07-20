@@ -6,8 +6,8 @@ shape falls out of two engines, a **scoring model** for selection and
 an **LLM** for generation, rather than being a metaphor pasted on afterward.
 
 This is the developer/architecture tier. The public papers tell the same story in
-their own registers — [score-based Route Ranking](../the-unbrowse-papers.md) is
-the selector, [Execute, Don't Guess](../the-unbrowse-papers.md) is the honesty
+their own registers — score-based route ranking is
+the selector, and execute-don't-guess is the honesty
 discipline below.
 
 ## Start from the body, not the analogy
@@ -87,7 +87,7 @@ any useful sense. the platform's self-deployment is the literal version of that:
 a change to its own code is not *done* until the body has
 
 ```
-rebuild → run its own tests → the wallet signs the new bytes →
+rebuild → run its own tests → the release process signs the new bytes →
 atomically swap the running binary → the binary verifies its OWN signature → keep the rest day
 ```
 

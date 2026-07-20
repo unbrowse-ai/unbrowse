@@ -110,4 +110,4 @@ const hole = createHole({
 | Inspect current contract | `unbrowse contract surface` |
 | Auth flow with user-facing browser | CLI (`unbrowse auth`) |
 | Route-selection debugging | Legacy `resolve`/`execute` |
-| Wallet config | `unbrowse setup` |
+| Account key | `unbrowse register --email you@example.com` |

@@ -21,7 +21,6 @@ unbrowse contract surface
 It exposes five client-fillable holes:
 
 * `intent`
-* `wallet_proof`
 * `approval`
 * `local_capability_result`
 * `typed_pointer`
