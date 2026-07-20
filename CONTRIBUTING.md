@@ -47,7 +47,7 @@ If you find a security issue, **do not file a public issue**. See [`SECURITY.md`
 ## What lives where
 
 - `src/` — shared skill engine (capture, reverse-engineer, execute). Runs on the user's machine.
-- `backend/` — Cloudflare Worker API (marketplace, stats, x402, sponsor-pay). Hono + KV + Neon.
+- `backend/` — Cloudflare Worker API (marketplace, stats, metering, and account services). Hono + KV + Neon.
 - `frontend/` — Next.js landing/dashboard.
 - `packages/skill/` — isolated publishable skill package; `src/` is symlinked in.
 - `submodules/kuri/` — vendored Zig browser binary source.
