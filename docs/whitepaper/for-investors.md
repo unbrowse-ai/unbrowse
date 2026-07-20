@@ -156,7 +156,7 @@ Shipped product:
 - local-first auth handling
 - MCP host integration
 - reliability, verification, and drift-aware route health
-- x402 / HTTP 402 payment lane with wallet-linked payout identity and current payout routing
+- account credits for metered usage and contributor earnings
 - canonical product eval gates in the repo
 
 This is enough to support the current claim that Unbrowse is building a reusable web capability layer for agents.
@@ -165,14 +165,14 @@ This is enough to support the current claim that Unbrowse is building a reusable
 
 The paper also describes a larger route economy:
 
-- fuller pricing and attribution beyond the shipped x402 lane
+- credit redemption and fuller contributor attribution
 - multi-party contributor payouts
 - validator incentives
 - stronger attestation and trust machinery
 
 Those pieces are not shipped in full in the current codebase.
 
-They should be read as upside and roadmap beyond the narrower payment path that already ships today.
+They should be read as roadmap beyond the simpler credit ledger that ships today.
 
 ## How To Read The Opportunity
 
@@ -198,4 +198,3 @@ That sequencing is healthier than pretending the economic layer already exists.
 ## Messaging Guardrails
 
 Lead with:
-

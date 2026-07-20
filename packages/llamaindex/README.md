@@ -58,7 +58,6 @@ Each tool's `call` returns a JSON string (what an LLM tool loop expects).
 |-----|---------|---------|
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | `https://beta-api.unbrowse.ai` | Backend base URL |
 | `UNBROWSE_API_KEY` | — | Bearer auth (optional) |
-| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | — | x402 payment header (optional) |
 | `UNBROWSE_DRYRUN` | — | Set to `1` for a deterministic offline synthesized result (no network) — used in tests |
 
 ## Honest scope

@@ -1,6 +1,6 @@
 # @unbrowse/playwright-shim
 
-**One-line drop-in for `playwright`. Pays per-call instead of per-browser-hour.**
+**One-line drop-in for `playwright`. Uses cached routes instead of browser-hours.**
 
 ```diff
 - import { chromium } from 'playwright';
@@ -22,7 +22,6 @@ npm i playwright
 | Var | Meaning |
 |---|---|
 | `UNBROWSE_API_KEY` | Bearer token. Get one at <https://unbrowse.ai/dashboard>. |
-| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | x402 envelope for per-call payment (no API key required). |
 | `UNBROWSE_API_URL` | Override default `https://beta-api.unbrowse.ai`. |
 | `UNBROWSE_INTENT_HINT` | When the shim can't infer a good intent from the URL path, this hint is used. |
 
@@ -54,13 +53,13 @@ If `playwright` isn't installed and you call one of these, you get a clear error
 | Bright Data Scraping Browser | $5-$8 per GB | Bandwidth + JS render |
 | Real Playwright on your own infra | infra + bandwidth + dev time | Whatever your fleet costs |
 | **`@unbrowse/playwright-shim` on cache hit** | **$0** | The marketplace already has the route indexed |
-| Live capture fallback | per-call x402 micropayment | Settles via Faremeter Flex |
+| Live capture fallback | account credits when metered | Price is returned before execution |
 
 The dollar math: a Browserbase team running 100 hrs/month pays $12-$120. The same team using this shim, with 60% of their target URLs already in the unbrowse marketplace, pays $4.80-$48 on the 40% miss rate. **2-3x cost savings on day one; more as the marketplace grows.**
 
 ## Stickiness — the marketplace gets denser the more you use it
 
-Every cache miss that falls through to live capture publishes the captured routes back to the marketplace under your wallet. The next call from anyone, anywhere, becomes a cache hit. You earn x402 micropayments when other agents use what you indexed.
+Every cache miss that falls through to live capture can publish the captured routes back to the marketplace under your account. The next call from anyone, anywhere, becomes a cache hit. Reuse attribution can add contributor credits to that account.
 
 This is the same pattern OSS dependencies have: you contribute once, everyone benefits forever, but you keep getting paid for your contribution.
 

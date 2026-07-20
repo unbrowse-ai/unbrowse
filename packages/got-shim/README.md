@@ -24,8 +24,8 @@ with the platform's native `fetch` and shaped into got's Response object
 npm i @unbrowse/got-shim
 ```
 
-No API key required. Set `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` to route paid
-endpoints; set `UNBROWSE_GOT_PASSTHROUGH=1` to disable cache routing entirely.
+Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for
+metered endpoints; set `UNBROWSE_GOT_PASSTHROUGH=1` to disable cache routing entirely.
 
 ## Honest scope
 

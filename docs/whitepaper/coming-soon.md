@@ -1,77 +1,25 @@
 # Coming Soon
 
-This page lists the forward-looking parts of the whitepaper that are not yet present in the codebase, or not yet present in the full form described in the paper.
+The current product deliberately uses a simple credit ledger. The next product work builds on that foundation.
 
-It does not cover the narrower payment path that already ships today: x402 / HTTP 402 payment requirements, Solana/Base USDC payment terms, wallet-linked payment metadata, and current payout routing.
+## Credits
 
-## Route Economy
+- redemption for eligible earned credits
+- clearer earning and consumption history
+- richer team and organization controls
+- transparent usage estimates before expensive operations
 
-The paper’s richer route economy is still `coming soon`:
+## Route Quality
 
-- fee ceilings tied to rediscovery cost
-- dynamic route pricing based on confidence, freshness, and demand
-- multi-party fee splitting per execution
-- paper-style attribution across contributors and maintainers
+- stronger attribution for route improvements
+- broader automated regression checks
+- richer provenance and maintenance history
+- safer verification for state-changing operations
 
-## Contributor Economics
+## Packaging and Distribution
 
-The paper’s fuller contributor economy is also `coming soon`:
+- more portable route bundles
+- generated client helpers for learned skills
+- clearer compatibility metadata across Unbrowse releases
 
-- maintainer payout lanes beyond the current winner-takes-route wallet
-- treasury or reserve accounting
-- delta-based attribution for route improvements
-- anti-Sybil economic attribution
-
-## Site-Owner Compensation
-
-The paper’s opt-in site-owner compensation model is `coming soon`:
-
-- domain registration by site owners
-- opt-in payment routing to site owners
-- website-as-usage-priced-endpoint economics
-
-## Advanced Trust Infrastructure
-
-The practical reliability model ships today, but these stronger trust primitives are `coming soon`:
-
-- validator attestations
-- independent validator markets
-- signed trust evidence beyond current feedback and verification fields
-- cryptographic proof of route verification
-- TEE-backed verification attestation
-
-## Stronger Fill Authorization
-
-Unbrowse op receipts are wallet-signed today: an Ed25519 signature over
-`(pointer, nonce, url, selector, iat)` proves your wallet authorized the act.
-The pointer-only invariant — no secret value ever crosses the wire — already
-holds. This ships in the v7 preview.
-
-Stronger authorization schemes are an active research direction; specifics will
-be detailed in a forthcoming whitepaper. They are designed to slot in behind the
-same receipt and audit-log interface, so callers write against one interface.
-
-Read this as product direction. The honest scope: pointer-only plus
-wallet-signed audit receipts are the shipped baseline; any later strengthening is
-a rollout behind the same interface, and the value-protection guarantee
-(pointer-only, local dereference, in-memory zeroing) does not depend on it.
-
-## Packaging and Distribution Model
-
-The paper’s richer route package story is `coming soon`:
-
-- per-route installable skill bundles in the paper’s packaging form
-- generated `api.ts` client distribution as part of every shared route package
-- paper-style `auth.json` package artifact flow
-
-## How To Read These Sections
-
-When the whitepaper talks about these systems, read them as:
-
-- product direction
-- research framing
-- architectural intent
-
-Do not read them as “already available in the current release” unless the docs explicitly move them out of `coming soon`.
-
-The shipped payment lane today is narrower: x402-gated search/execution, HTTP 402 payment requirements, Solana/Base USDC terms, wallet-linked payment metadata, transaction surfaces, and current payout routing. This page is about the remaining paper-era expansion beyond that shipped baseline.
+These are directions, not promises in the current 11.1.1 API. The active SDK and product docs remain the source of truth.
