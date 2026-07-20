@@ -5,27 +5,21 @@ This page is the operating model for an AI agent that has Unbrowse available.
 The current mental model is one step: **get the result**. The agent describes the
 internet result it needs — intent, optional URL, optional params, and explicit
 approval for writes — and Unbrowse decides how to satisfy it. That may mean a
-direct document fetch, a shared contract in the route graph, a standard adapter, a
+direct document fetch, a shared route-graph entry, a standard adapter, a
 local-auth browser capture, HAR inspection, or indexing a newly discovered route for
 the next call.
 
 The agent should not choose between `resolve`, `execute`, `go`, `snap`, `fetch`, HAR,
 or cookies for ordinary work. Those are implementation layers under the typed hole.
 
-The public contract is inspectable:
-
-```bash
-unbrowse contract surface
-```
-
-It exposes five client-fillable holes:
+The request exposes four client-fillable fields:
 
 * `intent`
 * `approval`
 * `local_capability_result`
 * `typed_pointer`
 
-In shell or code, the same surface is:
+In shell or code, use the same flow:
 
 ```bash
 unbrowse "top stories with point counts"
