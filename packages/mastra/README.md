@@ -59,7 +59,6 @@ You can also import each tool individually: `unbrowse_resolve`,
 | --------------------- | ------------------------------ | ---------------------------------------- |
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | `https://beta-api.unbrowse.ai` | Unbrowse API base               |
 | `UNBROWSE_API_KEY`    | —                              | Bearer token (optional)                  |
-| `UNBROWSE_X_PAYMENT`  | —                              | x402 payment header (optional)           |
 | `UNBROWSE_DRYRUN=1`   | —                              | Offline: synthesize a result, no network |
 
 ## Honest scope (v0.1)

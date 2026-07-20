@@ -56,7 +56,6 @@ await generateText({ model, prompt: 'Find the docs for X', tools });
 |---|---|---|
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | `https://beta-api.unbrowse.ai` | backend base URL |
 | `UNBROWSE_API_KEY` | — | bearer token (optional) |
-| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | — | x402 payment header (optional) |
 | `UNBROWSE_DRYRUN=1` | off | deterministic offline stub results, no network |
 
 ## Honest scope

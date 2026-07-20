@@ -37,7 +37,7 @@ const llm = new ChatOpenAI({ model: 'gpt-4o' });
 const agent = createReactAgent({ llm, tools: unbrowseTools });
 
 const out = await agent.invoke({
-  messages: [{ role: 'user', content: 'Find the latest docs on x402 and summarize.' }],
+  messages: [{ role: 'user', content: 'Find the latest browser automation docs and summarize.' }],
 });
 ```
 
@@ -46,7 +46,7 @@ You can also call a single tool directly:
 ```ts
 import { unbrowseSearchTool } from '@unbrowse/langchain-js';
 
-const json = await unbrowseSearchTool.invoke({ query: 'x402 payment spec' });
+const json = await unbrowseSearchTool.invoke({ query: 'browser automation API' });
 const results = JSON.parse(json);
 ```
 
@@ -72,7 +72,6 @@ already depend on, keeping this adapter dependency-free.
 | -------------------------------- | -------------------------------- | ------------------------------------------ |
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | `https://beta-api.unbrowse.ai` | Unbrowse API base                          |
 | `UNBROWSE_API_KEY`               | —                                | Bearer auth                                |
-| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | —                              | x402 payment header                        |
 | `UNBROWSE_DRYRUN=1`              | —                                | deterministic offline result, no network   |
 
 ## License

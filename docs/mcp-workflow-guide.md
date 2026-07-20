@@ -207,7 +207,8 @@ Use sparingly; these are escape hatches for the agent or for Lewis when somethin
 
 ## Part II — Tool reference
 
-Every tool registered by `src/mcp.ts` (40 total as of v6.16). The list below is canonical for tool *names* and intended use; line cites have drifted significantly since the v6.13 baseline and SHOULD be re-derived at read time with `grep -n 'name: "unbrowse_' src/mcp.ts`. Tools added since v6.13: `unbrowse_reflect`, `unbrowse_publish_suggestions`, `unbrowse_earnings`, `unbrowse_run`, `unbrowse_fetch`, `unbrowse_test_crash`, `unbrowse_search_endpoints` (semantic search across ALL marketplace endpoints, flat shape, anonymous-allowed, hits POST /v1/search/endpoints).
+The list below describes the MCP compatibility surface. Tool names are stable,
+but source line numbers drift; re-derive them from `src/mcp.ts` when auditing.
 
 ### Resolve / execute / feedback (5)
 
