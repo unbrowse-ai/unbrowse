@@ -30,7 +30,7 @@ The capture pipeline (the capture and route-discovery modules under `src/capture
 
 The kuri-proxy bridge (`src/env/kuri-proxy-bridge.ts`) redacts the proxy URL before writing to stderr.
 
-The contract-leak gate (`scripts/check-contract-leak.sh`) runs on every commit and blocks the merge when any public surface (README, CHANGELOG, frontend, docs) mentions an internal platform id or vocabulary.
+The assembled-public-tree gate (`scripts/public-tree-leak-gate.sh`) scans the exact public output and blocks forbidden internal identifiers, mechanisms, and retired endpoints.
 
 ## The test (the gate that keeps us honest)
 

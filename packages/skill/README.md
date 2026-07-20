@@ -3,15 +3,14 @@
 **Get one internet result from one typed hole; index the route when the runtime has to discover it.** The agent
 supplies intent plus optional URL/params/approval. Unbrowse chooses the cheapest capable
 layer — route graph, installed skill, adapter, local primitive, browser capture with local
-cookies/HAR — and returns a contract-shaped result. If it had to discover a route, that
+cookies/HAR — and returns a structured result. If it had to discover a route, that
 route can be indexed so every later agent gets the fast path.
 
 One agent learns a site once. Every later agent gets the fast path.
 
-> **Primary surface: the hole/contract.** `SKILL.md` (shipped in this package) teaches
-> agents to ask for one result, not juggle a dozen route/debug verbs. The formal bridge is
-> `GET /v1/contract/surface`; the CLI expression is `unbrowse "task" [--url <url>]`;
-> the SDK expression is `createHole().fill(...)`. Old
+> **Primary surface: one task-shaped request.** `SKILL.md` (shipped in this package) teaches
+> agents to ask for one result, not juggle a dozen route/debug verbs. The CLI expression is
+> `unbrowse "task" [--url <url>]`; the SDK expression is `createHole().fill(...)`. Old
 > `resolve`/`execute`/`go`/`snap` CLI verbs remain as advanced compatibility and debugging
 > surfaces. **MCP is legacy** — still supported, but no longer the recommended path.
 
@@ -29,7 +28,6 @@ forage "top stories" --url https://news.ycombinator.com   # pollen · waggle · 
 ```
 
 ```bash
-curl https://beta-api.unbrowse.ai/v1/contract/surface   # inspect the current hole/contract bridge
 unbrowse "top stories with points"
 unbrowse "top stories with points" --url https://news.ycombinator.com
 ```
@@ -43,7 +41,7 @@ Unbrowse is a **local, stateless CLI**. Each invocation runs an in-process runti
 only when a task actually needs a live browser. Credentials and sensitive inputs never leave
 your machine; only sanitized route metadata is shared when you publish.
 
-### The Agent Contract — One Hole, Cheapest-Capable Descent
+### One Request, Cheapest-Capable Descent
 
 The client exposes holes only:
 
@@ -51,10 +49,10 @@ The client exposes holes only:
 - `account_proof` — the identity/authorization proof.
 - `approval` — human approval for mutations or policy-sensitive actions.
 - `local_capability_result` — what the local dispatcher returned after invoking a local tool.
-- `typed_pointer` — server-owned pointer to a result/contract, not a secret payload.
+- `typed_pointer` — server-owned pointer to a result, not a secret payload.
 
 The runtime walks the graph cheapest-capable-first and stops at the first settled witness.
-The browser is not the agent-facing contract; it is the deepest fallback and the capture
+The browser is not the agent-facing interface; it is the deepest fallback and the capture
 oracle for missing routes.
 
 ### SDK: the one tool
@@ -119,7 +117,7 @@ unbrowse act upgrade
 
 ## Command reference
 
-**Current path:** bare CLI · `contract surface` · SDK `createHole().fill(...)`
+**Current path:** bare CLI · SDK `createHole().fill(...)`
 **Advanced compatibility:** `resolve` · `execute` · `run` · `fetch` · `search` · `explain`
 **Browse session:** `go` · `snap` · `click` · `fill` · `type` · `press` · `select` · `scroll` ·
 `submit` · `screenshot` · `text` · `markdown` · `eval` · `back` · `forward` · `sync` · `close` ·

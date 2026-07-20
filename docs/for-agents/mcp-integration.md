@@ -27,7 +27,7 @@ Setup bootstraps the local runtime, accepts terms, and registers an account iden
 
 The MCP server exposes the legacy route-inspection tools (`resolve`, `execute`,
 `search`, plus browser-session tools). They are the compatibility decomposition of the
-one-hole contract, not the preferred mental model for new agents. New agents should use
+one-request flow, not the preferred mental model for new agents. New agents should use
 the installed Skill or SDK `createHole().fill(...)` surface when possible.
 
 If you are integrating from code rather than an agent host, see For Developers.
