@@ -1,6 +1,6 @@
 # Unbrowse
 
-Unbrowse is an open-source action layer for AI agents. The public surface is a single contract-shaped hole: the agent supplies intent, optional URL/params/approval, and Unbrowse chooses the cheapest capable layer behind it.
+Unbrowse is an open-source action layer for AI agents. The public surface is one task-shaped request: the agent supplies intent, optional URL/params/approval, and Unbrowse chooses the cheapest capable layer behind it.
 
 Most web agents still pay the browser tax by default: open the page, wait for it to load, inspect the UI, click, and re-read state. Unbrowse learns the structured request path behind a site once, then reuses it, so the agent can act through the site's real APIs when that route exists. When a site genuinely needs a real browser session (cookies, sign-in, redirect handling), Unbrowse keeps that browser context in the loop.
 
