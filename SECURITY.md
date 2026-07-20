@@ -18,7 +18,7 @@ In-scope:
 - The published `unbrowse` npm package and CLI.
 - The MCP server.
 - The SKILL.md renderer and anything served from `unbrowse.ai/<domain>`.
-- Skill marketplace publish/resolve/execute flow, including credential handling, x402 settlement, and the sponsor-pay flow.
+- Skill marketplace publish/resolve/execute flow, including credential handling, credit metering, and contributor earnings.
 
 Out-of-scope:
 
