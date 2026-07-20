@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/unbrowse-ai-unbrowse-badge.png)](https://mseep.ai/app/unbrowse-ai-unbrowse)
+
 # Unbrowse
 
 Unbrowse is the action layer for AI agents. It learns a site's first-party API
