@@ -25,7 +25,7 @@ No additional setup — your existing Exa API key works as the fallback authenti
 
 | Var | Meaning |
 |---|---|
-| `UNBROWSE_API_KEY` | Auth for the Unbrowse path |
+| `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` | Auth for the Unbrowse path |
 | `EXA_API_KEY` | Already-set fallback key (or pass it to the constructor) |
 | `UNBROWSE_API_URL` | Override default `https://beta-api.unbrowse.ai` |
 | `UNBROWSE_DRYRUN=1` | Deterministic offline mode: returns empty results with no network (for tests) |

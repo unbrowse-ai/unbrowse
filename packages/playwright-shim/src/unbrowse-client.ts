@@ -6,7 +6,7 @@
  * declared as a dependency so callers who want the full SDK shape can also
  * use it directly.
  *
- * Auth model: account API key, pulled from env. The shim is
+ * Auth model: API key OR x402 envelope, both pulled from env. The shim is
  * pointer-only on the client side — no business logic, just translation.
  */
 
@@ -48,6 +48,8 @@ function authHeaders(): Record<string, string> {
   const h: Record<string, string> = { 'content-type': 'application/json' };
   const apiKey = process.env.UNBROWSE_API_KEY;
   if (apiKey) h['authorization'] = `Bearer ${apiKey}`;
+  const x402 = process.env.UNBROWSE_X_PAYMENT || process.env.X_PAYMENT;
+  if (x402) h['x-payment'] = x402;
   return h;
 }
 

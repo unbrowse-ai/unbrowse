@@ -24,7 +24,8 @@ Cache hit → the page body is synthesized and served to `getPageSource()` /
 npm i @unbrowse/selenium-shim
 ```
 
-Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for metered endpoints. Point at a different backend with
+No API key required for cached reads. Set `UNBROWSE_API_KEY` /
+`UNBROWSE_X_PAYMENT` to route paid endpoints. Point at a different backend with
 `UNBROWSE_API_URL` / `UNBROWSE_BASE` (default `https://beta-api.unbrowse.ai`).
 
 ## Deterministic / offline mode

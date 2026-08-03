@@ -12,8 +12,8 @@ means adding a row to `scripts/dropin-manifest.tsv` — the row stays red until 
 drop-in is built to parity. Each shim's README attributes the upstream project and
 states the swap.
 
-Configure once (optional): `UNBROWSE_API_URL` (defaults to the hosted API) and
-`UNBROWSE_API_KEY` for account-authenticated, credit-metered execution.
+Configure once (optional): `UNBROWSE_API_URL` (defaults to the hosted API),
+`UNBROWSE_API_KEY`, and `UNBROWSE_X_PAYMENT` for paid execution.
 
 ## HTTP clients
 

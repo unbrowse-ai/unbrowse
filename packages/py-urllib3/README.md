@@ -31,6 +31,7 @@ and `PoolManager(...)` accepts arbitrary keyword arguments.
 |---|---|
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | API base (default `https://beta-api.unbrowse.ai`) |
 | `UNBROWSE_API_KEY` | bearer token |
+| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | x402 payment header |
 | `UNBROWSE_DRYRUN=1` | synthesize a `200` with body `{"dryrun": true}`, no network |
 
 ## Honest scope note

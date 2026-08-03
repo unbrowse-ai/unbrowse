@@ -25,7 +25,7 @@ The shipped CLI uses **flat top-level commands**. Do not prefix with `build` / `
 | One internet result (default) | `unbrowse "task" --url <url>` or `unbrowse get "task" --url <url>` |
 | A URL's contents | `unbrowse fetch <url>` |
 | Route/debug details | `unbrowse resolve --intent "..." --url "..."` |
-| Pick a specific endpoint | `unbrowse resolve ... --no-execute` then `unbrowse execute --skill ID --endpoint ID` |
+| Pick a specific endpoint | `unbrowse resolve --intent "..." --url "..."` then `unbrowse execute --skill ID --endpoint ID` |
 | Real DOM (forms, clicks) | `unbrowse go <url>` → `snap` / `click` / `fill` / `submit` → `close` |
 | First visit / miss | `unbrowse capture --url <url> --intent "..."` |
 | Login once | `unbrowse auth <login_url>` |
@@ -56,7 +56,7 @@ you skipped the one-call path.
 When you must PICK a specific endpoint (several routes, a mutation, explicit params), use the
 two-call explicit path:
 
-1. `unbrowse resolve --intent "<what you want>" --url "<site>" --no-execute` -> ranked shortlist.
+1. `unbrowse resolve --intent "<what you want>" --url "<site>"` -> ranked `shortlist`.
 2. `unbrowse execute --skill <id> --endpoint <id> [-p key=val ...]` -> replay it.
 
 On a genuine MISS (no indexed route, a first visit, an anti-bot site), do ONE escalation:
@@ -111,17 +111,17 @@ turns that edge into an explicit replay contract for the next caller.
 MCP tools follow the same grammar: `unbrowse_<verb>_<action>`.
 
 - **Resolve + run a route (the common path):** `unbrowse_eval_resolve` (intent + URL ->
-  ranked shortlist), `unbrowse_breath_execute` (run one endpoint), `unbrowse_breath_run`
+  ranked shortlist), `unbrowse_act_execute` (run one endpoint), `unbrowse_act_run`
   (one-shot resolve+run when you trust the top route), `unbrowse_eval_search` (find a route
-  or web answer for an intent), `unbrowse_breath_fetch` (fetch one URL to clean content when
+  or web answer for an intent), `unbrowse_act_fetch` (fetch one URL to clean content when
   you just want the page).
-- **Browse to capture a new site:** `unbrowse_breath_navigate` (open/reuse a tab),
-  `unbrowse_eval_snap` (accessibility snapshot with @eN refs), `unbrowse_breath_click` /
-  `unbrowse_breath_fill` / `unbrowse_breath_type` / `unbrowse_breath_press` /
-  `unbrowse_breath_submit` (act on @eN refs), `unbrowse_eval_text` / `unbrowse_eval_markdown`
-  / `unbrowse_breath_run_js` (read the page), `unbrowse_breath_sync` (checkpoint and index
-  mid-flow), `unbrowse_breath_close` (final checkpoint, index, close).
-- **Auth:** `unbrowse_breath_auth_capture` opens a visible browser so the user signs in once;
+- **Browse to capture a new site:** `unbrowse_act_navigate` (open/reuse a tab),
+  `unbrowse_eval_snap` (accessibility snapshot with @eN refs), `unbrowse_act_click` /
+  `unbrowse_act_fill` / `unbrowse_act_type` / `unbrowse_act_press` /
+  `unbrowse_act_submit` (act on @eN refs), `unbrowse_eval_text` / `unbrowse_eval_markdown`
+  / `unbrowse_act_run_js` (read the page), `unbrowse_act_sync` (checkpoint and index
+  mid-flow), `unbrowse_act_close` (final checkpoint, index, close).
+- **Auth:** `unbrowse_act_auth_capture` opens a visible browser so the user signs in once;
   cookies persist for later resolve / execute / fetch on that domain.
 - **Compile + share:** `unbrowse_build_index` (recompute the local DAG, no network),
   `unbrowse_build_review` (improve descriptions/schema), `unbrowse_build_publish` (share a
@@ -134,15 +134,15 @@ npm install -g unbrowse && unbrowse setup
 ```
 
 `unbrowse setup` accepts the Terms of Service on first run, registers an agent
-identity (preseed headless with `UNBROWSE_AGENT_EMAIL=you@example.com`) and caches an API
-key. For MCP hosts:
+identity (preseed headless with `UNBROWSE_AGENT_EMAIL=you@example.com`), caches an API key,
+and detects a wallet if one is configured. For MCP hosts:
 
 ```json
 { "mcpServers": { "unbrowse": { "command": "npx", "args": ["-y", "unbrowse", "mcp"] } } }
 ```
 
-The account behind that API key owns the credit balance used for metered work and receives
-contributor credits. The first capture installs the browser engine automatically.
+If a wallet is configured, that address becomes the contributor/payout and paid-route
+spending identity. The first capture installs the browser engine automatically.
 
 ## Set as the default web tool (recommended)
 
@@ -280,14 +280,14 @@ Flat top-level commands. Deprecated aliases (`build setup`, `eval resolve`, `act
 | `health` | | Local runtime health check |
 | `get` | `"task" [--url <url>]` | PRIMARY one-hole read/search path |
 | `fetch` | `<url>` | URL → content (needs Chrome for kuri sandbox) |
-| `resolve` | `--intent "..." [--url "..."] [--no-execute]` | Route shortlist; auto-executes top hit unless `--no-execute` |
+| `resolve` | `--intent "..." [--url "..."] [--domain "..."] [--limit N]` | Route `shortlist` only — never executes; call `execute` for data |
 | `execute` | `--skill ID --endpoint ID [-p k=v ...]` | Run one endpoint |
 | `capture` | `--url <url> --intent "..."` | Headless HAR capture + index |
 | `search` | `--intent "..." [--url "..."]` | Unified discovery (graph + web) |
 | `go` `snap` `click` `fill` `type` `press` `select` `submit` `scroll` | `[--session id] ...` | Interactive browse workflow |
 | `text` `markdown` `eval` `screenshot` `cookies` | `[--session id]` | Read the page |
 | `sync` `close` `index` `publish` `review` `annotate` | | Checkpoint / compile / share |
-| `account` | `[--register] [--email ...]` | Agent identity + credit balance |
+| `account` | `[--register] [--email ...]` | Agent identity + wallet |
 | `settings` | `[--auto-publish on|off] ...` | Capture/publish policy |
 | `skills` `skill` `sessions` `feedback` `stats` `cleanup-stale` | | Inspect / tune |
 
@@ -313,35 +313,35 @@ tested against live servers for schema drift), and freshness decay
 as reliability drops, and are re-verified automatically when drift is detected. The graph
 reflects current API reality, not stale docs.
 
-## Credits
+## Payments
 
-Capture, indexing, internal-route search, and local replay are free. Metered server work
-uses account credits and shows its price before the balance gate.
+Capture and indexing are free. You pay only to use the shared graph
+to skip discovery.
 
 | Tier | What | When | Cost |
 |---|---|---|---|
-| Free | Capture, index, internal resolve, local cached execution | Always | 0 credits |
-| Shared skill | Unmonetized marketplace route | Each use | 0 credits |
-| Skill acquisition | Owner-monetized marketplace route | First acquisition | 0.01–10 credits |
-| External search | Search outside the internal route graph | Each request | 1 credit |
-| Grounded skill chat | Server-grounded route assistance | Each request | 0.5 credits |
-| General model proxy | Model work outside the fixed-price lanes | Each request | Variable credits, disclosed in the receipt |
+| Free | Capture, index, execute from local cache | Always | $0 |
+| Tier 1 | One-time skill install from the marketplace | First use of a shared route | $0.005-0.02 |
+| Tier 2 | Per-execution site-owner fee (opt-in sites only) | Each call to an opted-in site | $0.001-0.01 |
+| Tier 3 | Search/routing fee | Each marketplace graph lookup | $0.001-0.005 |
 
-Once route knowledge is installed, the agent can execute it locally with its own site
-credentials without consuming credits. Most shared routes are unmonetized.
+Tier 1 is one-time: download the route knowledge once, then execute locally forever with
+your own credentials. Most routes have no Tier 2 fee. Agents without a wallet stay in free
+mode (capture + contribute + local execute).
 
-When the balance is too low, the API returns HTTP `402` with the exact price in credits,
-the current credit balance, and the account billing URL. A `402` is a credit-balance gate,
-not a broken route.
+Paid routes return HTTP `402` with x402 payment requirements; Unbrowse handles the gate and
+the configured wallet provider settles it. Supported chains: Solana (USDC) and Base (USDC).
+A `402` means payment is required, not that the route is broken.
 
 Earning: every new site you browse contributes its routes to the shared graph; when another
-agent reuses that route, attribution can add contributor credits to the same account ledger.
-Check the public accounting view via `unbrowse stats --earnings`.
+agent installs that route (Tier 1) the discoverer is paid. Contributor share is delta-based
+(proportional to marginal route-quality contribution), collectively about 70% of Tier 1
+revenue. Check earnings via `unbrowse stats --earnings`.
 
 ## Hard rules
 
 1. Default to ONE call: `unbrowse "task" --url <site>` (or `get`). Drop to two calls
-   (`resolve --no-execute` then `execute`) only to pick a specific endpoint; browse only on a miss.
+   (`resolve` then `execute`) only to pick a specific endpoint; browse only on a miss.
 2. Never hand-run resolve -> fetch -> parse; the one-call path does all three. On an uncached
    miss, do ONE `capture`, never a fetch/curl loop.
 3. Use flat commands (`resolve`, `execute`, `fetch`, `go`) — not legacy `build`/`act`/`eval` prefixes.
@@ -349,7 +349,7 @@ Check the public accounting view via `unbrowse stats --earnings`.
 5. If `auth_required`, run `auth`, then retry.
 6. Always `--dry-run` before a mutation.
 7. Submit feedback (`feedback`) after presenting results to the user, never before.
-8. A `402` is a credit-balance gate; add credits or fall back to a free/local path.
+8. A `402` is a payment gate, not an error; settle it or fall back to free browse.
 
 ## What this skill does NOT do
 

@@ -107,7 +107,7 @@ const hole = createHole({
 |---|---|
 | In-process agent making many calls | SDK `createHole().fill(...)` |
 | One-off shell automation | CLI `unbrowse "task" [--url <url>]` |
-| Check runtime health | `unbrowse health` |
+| Inspect current contract | `unbrowse contract surface` |
 | Auth flow with user-facing browser | CLI (`unbrowse auth`) |
 | Route-selection debugging | Legacy `resolve`/`execute` |
-| Account key | `unbrowse register --email you@example.com` |
+| Wallet config | `unbrowse setup` |

@@ -27,7 +27,7 @@ npm i @browserbasehq/stagehand
 
 | Var | Meaning |
 |---|---|
-| `UNBROWSE_API_KEY` | Account auth for the Unbrowse path |
+| `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` | Auth for Unbrowse path |
 | `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` | Already-set Browserbase fallback |
 | `UNBROWSE_API_URL` | Override default `https://beta-api.unbrowse.ai` |
 
@@ -60,7 +60,7 @@ The break-even is at 0% cache rate (you pay the same as today). Anything above i
 
 ## Stickiness loop
 
-Every fall-through Stagehand session can publish captured routes back to Unbrowse's marketplace under your account. The next call from any caller becomes a cache hit, and reuse attribution can add contributor credits to that account.
+Every fall-through Stagehand session publishes captured routes back to Unbrowse's marketplace under your wallet. Next call from any caller becomes a cache hit. You earn x402 micropayments when other agents hit your contributed routes.
 
 ## License
 
