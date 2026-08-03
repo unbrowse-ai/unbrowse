@@ -64,14 +64,15 @@ The current composite score in the orchestrator follows the paper’s broad shap
 - 15% freshness
 - 15% verification
 
-## Credits That Ship
+## Payments and Payouts That Ship
 
-The current product uses an account credit ledger:
+The current product already ships a narrower payment path than the full paper economy:
 
-- granted and earned credits fund metered operations
-- consumed credits are recorded in the account history
-- the SDK reports insufficient credit responses as `UnbrowseInsufficientCreditsError`
-- eligible earned credits are intended to become redeemable later
+- paid marketplace search and paid skill access can return x402 / HTTP 402 payment requirements
+- the worker can enable or bypass those gates with `PAYMENTS_ENABLED`
+- Solana and Base USDC payment terms are advertised, with staging versus mainnet mode controlled by `X402_NETWORK_MODE`
+- wallet-linked creator identity, transaction history surfaces, and current payout routing exist
+- wallet signing, broadcast, and final transaction execution stay delegated to the external wallet / facilitator layer
 
 ## Auth and Local-First Security
 
@@ -106,7 +107,7 @@ Quality control today is simpler than the paper’s full trust architecture, but
 - periodic re-verification of safe GET endpoints
 - auto-disable or deprecate bad routes
 
-What does not yet exist is a full independent validation market or cryptographic verification proof system.
+What does not yet exist is a full validator market, staking, slashable attestations, or cryptographic verification proofs.
 
 ## What To Read Next
 

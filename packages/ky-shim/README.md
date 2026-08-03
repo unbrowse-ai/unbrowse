@@ -23,8 +23,8 @@ falls through to native `fetch` on a miss. The call returns ky's `ResponsePromis
 npm i @unbrowse/ky-shim
 ```
 
-Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for
-metered endpoints; set `UNBROWSE_KY_PASSTHROUGH=1` to disable cache routing entirely.
+No API key required. Set `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` to route paid
+endpoints; set `UNBROWSE_KY_PASSTHROUGH=1` to disable cache routing entirely.
 
 ## Honest scope
 

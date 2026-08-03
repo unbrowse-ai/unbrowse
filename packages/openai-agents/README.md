@@ -66,6 +66,7 @@ which the SDK feeds back to the model as the tool output.
 | `UNBROWSE_API_URL`  | API base (falls back to `UNBROWSE_BASE`, then the default).   |
 | `UNBROWSE_BASE`     | Alternate API base.                                           |
 | `UNBROWSE_API_KEY`  | Bearer token sent as `authorization`.                         |
+| `UNBROWSE_X_PAYMENT`| x402 payment header (`x-payment`); `X_PAYMENT` also accepted. |
 | `UNBROWSE_DRYRUN`   | `1` → deterministic offline synthesized result, no network.   |
 
 ## Honest scope

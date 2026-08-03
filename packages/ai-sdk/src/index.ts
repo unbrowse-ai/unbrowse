@@ -54,6 +54,8 @@ function unbrowseAuth(): Record<string, string> {
   const h: Record<string, string> = { 'content-type': 'application/json' };
   const apiKey = process.env.UNBROWSE_API_KEY;
   if (apiKey) h['authorization'] = `Bearer ${apiKey}`;
+  const x402 = process.env.UNBROWSE_X_PAYMENT || process.env.X_PAYMENT;
+  if (x402) h['x-payment'] = x402;
   return h;
 }
 

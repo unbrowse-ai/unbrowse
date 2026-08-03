@@ -12,8 +12,8 @@ ecosystem, Mastra is built on the AI SDK, LlamaIndex leads RAG, and the OpenAI
 Agents SDK is the OpenAI-first standard. Each adapter ships a parity test proving it
 provides the framework's tool contract (`scripts/agent-sdk-parity-gate.sh`).
 
-Configure once (optional): `UNBROWSE_API_URL` and `UNBROWSE_API_KEY`. Set
-`UNBROWSE_DRYRUN=1` for offline, deterministic tool calls.
+Configure once (optional): `UNBROWSE_API_URL`, `UNBROWSE_API_KEY`,
+`UNBROWSE_X_PAYMENT`. Set `UNBROWSE_DRYRUN=1` for offline, deterministic tool calls.
 
 | Framework | Adapter | Tool type |
 |---|---|---|

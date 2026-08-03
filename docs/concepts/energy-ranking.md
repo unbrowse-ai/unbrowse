@@ -30,13 +30,13 @@ Unbrowse adds a settlement step on top of the ordering. The lowest-energy candid
 
 "I don't know, let me go look" is a valid answer, and an important one. A flat ranked list cannot express it; every list has a number-one row. Energy ranking can, because settlement is a separate, explicit gate from ordering. Abstention is honest: an empty quorum is a real outcome, not a hidden failure dressed as a confident top result.
 
-## A resolve is evidence-ranked
+## A resolve is a ranked truth-claim
 
-Structurally, a resolve asks whether a route answers an intent. Independent evidence corroborates the candidate before it is returned; ordering alone is not enough.
+Structurally, a resolve is a declared truth-claim — "this route answers this intent" — ranked by energy and admitted only on a two-witness quorum. This mirrors the contract model that runs through the rest of the system: a claim is not trusted because it was asserted, but because independent witnesses corroborate it and it clears the bar to settle. Resolution and the contract platform share one shape — energy orders the candidates, the quorum decides whether any of them earns belief.
 
 ## What this is *not*
 
-This page describes the *shape* of the intelligence, not its internals. The specific signals, their weights, the blend's exact formula, the coverage thresholds, and how routes are discovered in the first place are deliberately out of scope here — they are the maintained route graph and capture engine that make the asset valuable (see [The Route Graph as a Productive Asset](./route-graph-as-asset.md)). What matters publicly is the behavior: evidence orders candidates, corroboration must clear the bar, and otherwise the engine abstains and escalates rather than guessing.
+This page describes the *shape* of the intelligence, not its internals. The specific signals, their weights, the blend's exact formula, the coverage thresholds, and how routes are discovered in the first place are deliberately out of scope here — they are the maintained route graph and capture engine that make the asset valuable (see [The Route Graph as a Productive Asset](./route-graph-as-asset.md)). What matters publicly is the contract: energy orders candidates, two independent witnesses must agree, the blend follows the evidence, and when nothing earns the quorum the engine abstains and escalates rather than guessing.
 
 ## Related
 

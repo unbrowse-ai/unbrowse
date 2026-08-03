@@ -147,8 +147,10 @@ Output:
 - `.bench-local/run-<ts>/index.txt` — probe id → URL → exit code
 - `.bench-local/run-<ts>/manifest.json` — run metadata (corpus, parallel, timing)
 
-The executor is repository-owned TypeScript invoked directly by CI. Its output
-is declarative evidence that re-extraction and triage tooling can import.
+The executor is the platform-side adapter the contract platform spawns
+on `bench-local` (CLAUDE.md "benches are contracts" — the entry is
+declarative, the shape is TS so it can be imported by re-extractor and
+triage tooling).
 
 ## Reading a single probe
 

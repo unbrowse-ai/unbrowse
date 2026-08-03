@@ -43,6 +43,7 @@ get a synthetic `200` response (useful for offline tests).
 |---|---|
 | `UNBROWSE_API_URL` / `UNBROWSE_BASE` | Override the Unbrowse base URL |
 | `UNBROWSE_API_KEY` | Sent as `Authorization: Bearer …` |
+| `UNBROWSE_X_PAYMENT` / `X_PAYMENT` | Sent as the `x-payment` header |
 | `UNBROWSE_REQUESTS_PASSTHROUGH=1` | Skip the cache; always do a native call |
 | `UNBROWSE_DRYRUN=1` | No network; return a synthetic `{"dryrun": true}` 200 |
 

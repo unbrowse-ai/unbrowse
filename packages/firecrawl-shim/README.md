@@ -24,7 +24,7 @@ No additional setup — your existing Firecrawl API key works as the fallback au
 
 | Var | Meaning |
 |---|---|
-| `UNBROWSE_API_KEY` | Account auth for the Unbrowse path |
+| `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` | Auth for Unbrowse path |
 | `FIRECRAWL_API_KEY` | Already-set fallback (or pass `apiKey` to the constructor) |
 | `UNBROWSE_API_URL` | Override default `https://beta-api.unbrowse.ai` |
 
@@ -54,7 +54,7 @@ The break-even is at 0% cache hit rate, where you pay the same as Firecrawl. Any
 
 ## Stickiness loop
 
-Every fallthrough Firecrawl scrape can publish its captured route back to Unbrowse's marketplace under your account. The next call from anywhere becomes a cache hit, and reuse attribution can add contributor credits to that account.
+Every fallthrough Firecrawl scrape gets its captured route published back to Unbrowse's marketplace under your wallet. Next call from anywhere — yours, or any other agent — becomes a cache hit. You earn x402 micropayments when other callers hit your contributed routes. Pay Firecrawl once, get paid forever.
 
 ## License
 

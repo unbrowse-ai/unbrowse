@@ -1,87 +1,66 @@
-# TypeScript SDK quickstart
+# SDK Quickstart
 
-The SDK ships with `unbrowse` 11.1.1. It works in Node 18+, browsers, and edge
-runtimes with no runtime dependencies.
-
-```bash
-npm install unbrowse
-```
-
-## Authenticate
-
-Create an account key with the CLI, then store it in your environment:
+`unbrowse/sdk` is the TypeScript client for the current Unbrowse contract: one
+typed-hole request from intent plus optional URL/params/approval. It runs in browsers, edge
+runtimes, and Node.
 
 ```bash
-unbrowse register --email you@example.com
-export UNBROWSE_API_KEY=ubr_...
+npm i unbrowse
 ```
 
-The client reads `UNBROWSE_API_KEY` automatically. You can also pass `apiKey`
-explicitly when different tenants use the same process.
+## Web3-native auth (preferred)
+
+The credential root is a wallet signature. Pass a `walletSigner` callback that
+returns the three web3 auth headers (`X-Unbrowse-Wallet`, `X-Unbrowse-Auth-Ts`,
+`X-Unbrowse-Signature`) and the backend authenticates the caller as
+`wallet:<pk>` — a full principal, never key-gated. The unbrowse CLI ships a
+ready signer at `src/lib/wallet-auth-headers.ts:mergedAuthHeaders` that reads
+the local wallet at `~/.unbrowse/wallet.json`; external consumers wire their
+own ed25519 signer (any lib that produces the headers will do).
 
 ```ts
-import { Unbrowse } from "unbrowse/sdk";
+import { createHole, mergedAuthHeaders } from "unbrowse/sdk";
 
-const unbrowse = new Unbrowse();
-
-const resolved = await unbrowse.resolve({
-  intent: "find the newest TypeScript releases",
-  contextUrl: "https://github.com/microsoft/TypeScript/releases",
+const hole = createHole({
+  client: { walletSigner: mergedAuthHeaders },
 });
 
-const endpoint = resolved.available_operations?.[0];
-if (!endpoint) throw new Error(resolved.next_step ?? "No matching route");
-
-const result = await unbrowse.execute({
-  endpoint_id: endpoint.endpoint_id,
-});
-```
-
-## One-call hole API
-
-For agents that do not need to inspect route selection, use the higher-level
-hole API:
-
-```ts
-import { createHole } from "unbrowse/sdk";
-
-const result = await createHole().fill({
+const result = await hole.fill({
   intent: "list tomorrow's events",
   url: "https://calendar.google.com",
 });
-
-console.log(result.answer ?? result.items);
 ```
 
-## Credits
+## Deprecated web2 wrapper (account-bound flows only)
 
-Usage is deducted from account credits through the normal account API. Read the
-live balance from the account resource:
+If you still need payouts accrual / dashboard sync / ToS surface tied to an
+email account, layer a `ubr_` api-key over the wallet. A wallet-only caller
+is already a full principal — the key is ONLY for account-bound continuity
+and will be retired.
 
 ```ts
-const credits = await unbrowse.account.credits();
-console.log(credits.balance_uc / 1_000_000);
+import { createHole, mergedAuthHeaders } from "unbrowse/sdk";
+
+const hole = createHole({
+  client: { walletSigner: mergedAuthHeaders, apiKey: process.env.UNBROWSE_API_KEY },
+});
 ```
 
-`balance_uc` uses micro-credit units: `1_000_000` equals one USD-denominated
-credit. Earned credits remain in the ledger and may be redeemed when redemption
-becomes available.
+The shell equivalent is:
 
-When a request costs more than the available balance, the SDK throws
-`UnbrowseInsufficientCreditsError`.
-
-```ts
-import { UnbrowseInsufficientCreditsError } from "unbrowse/sdk";
-
-try {
-  await unbrowse.execute({ endpoint_id: endpoint.endpoint_id });
-} catch (error) {
-  if (error instanceof UnbrowseInsufficientCreditsError) {
-    console.error("Add credits before retrying this request");
-  }
-  throw error;
-}
+```bash
+unbrowse "list tomorrow's events"
+unbrowse "list tomorrow's events" --url "https://calendar.google.com"
 ```
 
-All state-changing executes receive an idempotency key automatically, so a
-network retry does not consume credits twice.
+Need to inspect route selection? The legacy `Unbrowse` client still exposes
+`resolve`/`execute` for debugging and compatibility, but new agents should start
+from `createHole().fill(...)`.
+
+Reused routes can be priced. A paid call returns an HTTP 402 that the SDK raises as
+a typed error you can catch and retry after settling payment; brand-new agents get a
+sponsored allowance first. The same wallet that authenticates the request signs
+the x402 payment envelope — "who you are" and "who pays" are the same handle.
+
+The open/closed source split is described in the
+[Open Source Notice](../OPEN-SOURCE-NOTICE.md).

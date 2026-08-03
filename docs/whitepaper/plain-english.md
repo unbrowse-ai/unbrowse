@@ -100,12 +100,12 @@ Shipped today:
 - reusable learned skills
 - marketplace-backed reuse
 - reliability scoring, verification, and drift handling
-- account credits for metered marketplace search and execution
+- x402-gated marketplace payment lane for paid search/execution, with wallet-linked payment metadata and current payout routing
 
 Not fully shipped today:
 
 - the paper's full multi-party payout and attribution model
-- independent validation incentives
+- validator staking
 - TEE-backed attestation
 
 Those roadmap pieces are documented in [Coming Soon](./coming-soon.md).

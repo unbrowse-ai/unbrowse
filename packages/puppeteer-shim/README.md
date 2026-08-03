@@ -27,7 +27,8 @@ npm i @unbrowse/puppeteer-shim
 npm i puppeteer
 ```
 
-Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for metered endpoints.
+No API key required for cached reads. Set `UNBROWSE_API_KEY` /
+`UNBROWSE_X_PAYMENT` to route paid endpoints.
 
 ## Honest scope
 
