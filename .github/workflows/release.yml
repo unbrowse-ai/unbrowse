@@ -1,16 +1,18 @@
 name: Publish to npm
 
-# Canonical npm publish for `unbrowse`, via OIDC Trusted Publishing from this
-# PUBLIC repo. The private build repo (unbrowse-ai/unbrowse-dev) builds the npm
-# tarball, uploads it as a release asset here, then dispatches this workflow with
-# the tag. We download that prebuilt tarball and `npm publish` it with provenance
-# — which npm only accepts from a public source repo, so it must run here, not in
-# the private build repo.
+# Canonical npm publish for `unbrowse` from this PUBLIC repo.
+# The private build repo (unbrowse-ai/unbrowse-dev) builds the npm tarball,
+# uploads it as a release asset here, then dispatches this workflow with the tag.
 #
-# No NPM_TOKEN. No secret rotation. OIDC short-lived token per run, scoped by the
-# npm Trusted Publisher row configured at
-# https://www.npmjs.com/package/unbrowse/access (repo: unbrowse-ai/unbrowse,
-# workflow: .github/workflows/release.yml, environment: prod).
+# Auth order:
+#   1) OIDC Trusted Publishing + --provenance (preferred; no long-lived token)
+#   2) NPM_TOKEN secret fallback when OIDC returns ENEEDAUTH (npm Trusted
+#      Publisher row missing/mismatched). Token path publishes without provenance
+#      so releases still reach registry.npmjs.org.
+#
+# Trusted Publisher row (when used):
+#   https://www.npmjs.com/package/unbrowse/access
+#   repo: unbrowse-ai/unbrowse, workflow: release.yml, environment: prod
 #
 # Dispatched (not tag-triggered) so the publish only runs AFTER the build repo has
 # attached the tarball — no race, no "no assets match the file pattern".
@@ -42,9 +44,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          # Intentionally NO registry-url — it auto-writes an .npmrc with a
-          # placeholder NODE_AUTH_TOKEN that makes npm try (and fail) token auth
-          # instead of falling through to OIDC. Per npm community discussion #176761.
+          # Intentionally NO registry-url on the OIDC path — it auto-writes an
+          # .npmrc with a placeholder NODE_AUTH_TOKEN that makes npm try (and
+          # fail) token auth instead of falling through to OIDC.
 
       # npm Trusted Publishing requires npm >= 11.5.1. Node 24 ships npm 11+,
       # but install latest belt-and-suspenders.
@@ -64,22 +66,49 @@ jobs:
           ls -la "/tmp/unbrowse-${VERSION}.tgz"
 
       - name: Publish to npm via OIDC (provenance)
+        id: oidc
+        continue-on-error: true
         env:
           TAG: ${{ inputs.tag }}
         run: |
+          set -euo pipefail
           VERSION="${TAG#v}"
-          # Prereleases (*-preview.*) go under the `preview` dist-tag so they never
-          # transiently clobber `latest`.
           NPM_TAG="latest"
           case "$VERSION" in *-preview.*) NPM_TAG="preview" ;; esac
           echo "Publishing unbrowse@${VERSION} (dist-tag: ${NPM_TAG}) via OIDC trusted publishing"
-          # Idempotent: a re-dispatch of an already-published version is a no-op,
-          # not a failure.
           if npm view "unbrowse@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::unbrowse@${VERSION} already published; nothing to do."
+            echo "already=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           npm publish "/tmp/unbrowse-${VERSION}.tgz" \
             --provenance \
             --access=public \
             --tag "$NPM_TAG"
+          echo "published=1" >> "$GITHUB_OUTPUT"
+
+      - name: Fallback publish with NPM_TOKEN (no provenance)
+        if: steps.oidc.outcome == 'failure' && steps.oidc.outputs.already != '1'
+        env:
+          TAG: ${{ inputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          NPM_TAG="latest"
+          case "$VERSION" in *-preview.*) NPM_TAG="preview" ;; esac
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::OIDC publish failed and NPM_TOKEN secret is empty. Configure npm Trusted Publishing on unbrowse (workflow=release.yml, environment=prod) or set NPM_TOKEN."
+            exit 1
+          fi
+          if npm view "unbrowse@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::unbrowse@${VERSION} already published; nothing to do."
+            exit 0
+          fi
+          echo "::warning::OIDC Trusted Publishing failed (ENEEDAUTH or similar); publishing with NPM_TOKEN without provenance."
+          # Write auth only for this step so a prior OIDC-only .npmrc is not required.
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
+          npm publish "/tmp/unbrowse-${VERSION}.tgz" \
+            --access=public \
+            --tag "$NPM_TAG"
+          echo "published unbrowse@${VERSION} via NPM_TOKEN fallback (dist-tag=${NPM_TAG})"
