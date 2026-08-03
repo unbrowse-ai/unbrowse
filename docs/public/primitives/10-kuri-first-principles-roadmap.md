@@ -62,10 +62,10 @@ Kuri is already a thin Zig binary with `quickjs_ng` integration and a CDP-shaped
 
 ## What this folder is not
 
-This is the roadmap, not the implementation. Each subtask is a multi-week vendor-and-integrate piece of work tracked through normal repository issues and runnable gates.
+This is the roadmap, not the implementation. Each subtask is a multi-week vendor-and-integrate piece of work. The `DEFERRED-KURI-FORK-FIRST-PRINCIPLES` row in the contract ledger tracks the whole arc; subtask-level rows get spawned when each one starts.
 
 ## Composition with existing primitives
 
-The forwarder (PR #756, doc 02) is the L0 wedge that lets the Chrome path work today while the Kuri-native path is under construction. Every subtask ships with its own runnable verification gate.
+The forwarder (PR #756, doc 02) is the L0 wedge that lets the Chrome path work today while the Kuri-native path is under construction. The contract platform (referenced from doc 01) is the audit trail for the migration: every subtask ships as its own contract organism with a real verify gate, and the long-term root contract is satisfied only when every subtask is satisfied.
 
-When subtask 1 lands and the forwarder becomes obsolete, the forwarder is removed in the same commit and doc 02 is updated to describe the Kuri-native path.
+When subtask 1 lands and the forwarder becomes obsolete, the forwarder is removed in the same commit, the doc 02 mechanics are updated to describe the Kuri-native path, and the long-term contract's first child satisfies.

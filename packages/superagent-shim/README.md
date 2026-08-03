@@ -24,8 +24,8 @@ chainable thenable Request (`.set/.query/.send/.type/.accept/.timeout`),
 npm i @unbrowse/superagent-shim
 ```
 
-Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for
-metered endpoints; set `UNBROWSE_SUPERAGENT_PASSTHROUGH=1` to disable cache routing entirely.
+No API key required. Set `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` to route paid
+endpoints; set `UNBROWSE_SUPERAGENT_PASSTHROUGH=1` to disable cache routing entirely.
 
 ## Honest scope
 

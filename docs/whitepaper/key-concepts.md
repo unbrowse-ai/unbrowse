@@ -87,7 +87,7 @@ Shipped today:
 
 Coming soon:
 
-- independent validation incentives
+- validator staking
 - signed attestations
 - TEE or E2B-backed trust proofs
 
@@ -97,12 +97,16 @@ Every Unbrowse op collapses onto one of three verbs — `create` (declare what y
 reuse), `act` (act on the internet), `read` (observe state). A subcommand is a
 `<verb> <action>` pair (`act go`, `read snap`, `create skill`).
 
-Each op keeps secret values behind local references. Credentials are dereferenced
-locally and never published with a shared skill.
+Each op produces a **pointer-only, wallet-signed receipt**: it points at values
+(a URL, a value pointer, a content hash) and carries a signature from your key,
+but never carries the secret value itself. Credentials are dereferenced locally
+and never cross the wire.
 
-The current 11.1.1 CLI uses flat commands such as `get`, `resolve`, `execute`,
-`capture`, and `fetch`. Route scoring and secret injection remain platform and
-local-runtime concerns rather than data exposed by the public command surface.
+This three-verb surface ships today (`unbrowse {create,act,read}`, v7 preview)
+alongside the unchanged verb-per-command surface. How routes are scored, ranked,
+and value-populated is deliberately out of this public shape — that is the
+platform, and the receipt exposes none of it. Full public surface:
+the uniform agent interface.
 
 ## Eval Truth
 

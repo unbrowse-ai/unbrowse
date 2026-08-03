@@ -50,6 +50,7 @@ Set via environment variables:
 
 - `UNBROWSE_API_KEY` — bearer token (optional).
 - `UNBROWSE_API_URL` / `UNBROWSE_BASE` — API base (default `https://beta-api.unbrowse.ai`).
+- `UNBROWSE_X_PAYMENT` / `X_PAYMENT` — x402 payment header (optional).
 - `UNBROWSE_DRYRUN=1` — return synthesized JSON, no network (used by the offline test).
 
 ## Scope

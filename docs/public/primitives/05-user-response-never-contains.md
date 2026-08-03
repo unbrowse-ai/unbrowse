@@ -12,7 +12,7 @@ This document lists those classes, names where the enforcement lives, and is tes
 |---|---|---|
 | Browser cookies | `Cookie:` header value, any cookie name=value pair from real Chrome or Firefox profiles | Captured at the redaction step in capture pipeline; never copied into trace responses; never logged at any verbosity |
 | Authorization headers | `Authorization: Bearer <token>`, `X-Api-Key:`, `X-Auth-Token:` | Stripped at capture time before merge into endpoint manifest; replaced with provenance pointer |
-| Vault keys | API keys stored in the local vault | Loaded only on demand from the named env or file; never serialized into any response payload |
+| Vault keys | API keys stored in the local vault; the private wallet keys in `.env` files | Loaded only on demand from the named env or file; never serialized into any response payload |
 | Residential proxy credentials | `IPROYAL_USER`, `IPROYAL_PASS`, `UNBROWSE_PROXY_URL` (when it contains user:pass) | Redacted at log line generation; replaced with `***@host:port` form before stderr write |
 | Personal browser history | URLs visited that are not the one resolved in this session | Read-only access to your existing browser session for the requested domain only; no enumeration |
 | Personal disk paths | Any path under the user's home that is not the explicit working directory | Only the working directory is written to in trace responses |
@@ -30,7 +30,7 @@ The capture pipeline (the capture and route-discovery modules under `src/capture
 
 The kuri-proxy bridge (`src/env/kuri-proxy-bridge.ts`) redacts the proxy URL before writing to stderr.
 
-The assembled-public-tree gate (`scripts/public-tree-leak-gate.sh`) scans the exact public output and blocks forbidden internal identifiers, mechanisms, and retired endpoints.
+The contract-leak gate (`scripts/check-contract-leak.sh`) runs on every commit and blocks the merge when any public surface (README, CHANGELOG, frontend, docs) mentions an internal platform id or vocabulary.
 
 ## The test (the gate that keeps us honest)
 

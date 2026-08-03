@@ -61,8 +61,8 @@ The current grounded split is:
 - capability layer: real
 - marketplace reuse: real
 - eval and verification layer: real, though simpler than the paper's full trust model
-- shipped account-credit ledger: real
-- credit redemption and fuller attribution: `coming soon`
+- shipped x402 payment lane and current payout routing: real
+- fuller multi-party route economy and attribution layer: `coming soon`
 
 ## Read Next
 

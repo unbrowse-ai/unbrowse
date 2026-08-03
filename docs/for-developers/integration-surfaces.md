@@ -1,19 +1,19 @@
 # Integration Surfaces
 
 There are three ways to call Unbrowse from your own software. They are the same
-request model behind different front doors.
+contract behind different front doors.
 
 | Surface | Use it when | Entry point |
 |---|---|---|
 | **Agent Skill** | You are wiring a skill-aware agent host | `unbrowse setup` |
 | **SDK hole** | You are writing browser, edge, or Node TypeScript/JavaScript | `import { createHole } from "unbrowse/sdk"` |
-| **CLI** | Shell scripts, CI, and one-off use | `unbrowse "task" --url <site>` |
+| **CLI** | Shell scripts, CI, one-off use, contract inspection | `unbrowse contract surface` |
 | **MCP server** | Legacy host compatibility | `unbrowse setup --mcp` / `npx unbrowse mcp` |
 
-The preferred request is the same everywhere: fill one hole. The caller supplies
+The preferred contract is the same everywhere: fill one hole. The caller supplies
 intent plus optional URL/params/approval; the runtime chooses whether the right
 descent is a direct document fetch, shared route graph hit, standard adapter, local
-auth/cookies, browser capture, HAR inspection, or a newly indexed route.
+auth/cookies, browser capture, HAR inspection, or newly indexed contract.
 
 ```ts
 import { createHole } from "unbrowse/sdk";

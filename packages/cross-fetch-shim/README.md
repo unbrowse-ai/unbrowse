@@ -22,8 +22,8 @@ on a miss, so behaviour is identical.
 npm i @unbrowse/cross-fetch-shim
 ```
 
-Cached reads may be free. Set `UNBROWSE_API_KEY` to use account credits for
-metered endpoints; set `UNBROWSE_CROSS_FETCH_PASSTHROUGH=1` to disable cache routing.
+No API key required. Set `UNBROWSE_API_KEY` / `UNBROWSE_X_PAYMENT` to route paid
+endpoints; set `UNBROWSE_CROSS_FETCH_PASSTHROUGH=1` to disable cache routing.
 
 ## Attribution
 
