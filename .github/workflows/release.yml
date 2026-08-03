@@ -1,21 +1,16 @@
 name: Publish to npm
 
 # Canonical npm publish for `unbrowse` from this PUBLIC repo.
-# The private build repo (unbrowse-ai/unbrowse-dev) builds the npm tarball,
-# uploads it as a release asset here, then dispatches this workflow with the tag.
+# Private unbrowse-dev builds the tarball, uploads it as a release asset, then
+# dispatches this workflow with the tag.
 #
 # Auth order:
-#   1) OIDC Trusted Publishing + --provenance (preferred; no long-lived token)
-#   2) NPM_TOKEN secret fallback when OIDC returns ENEEDAUTH (npm Trusted
-#      Publisher row missing/mismatched). Token path publishes without provenance
-#      so releases still reach registry.npmjs.org.
+#   1) OIDC Trusted Publishing + --provenance (preferred)
+#   2) NPM_TOKEN secret (granular automation token with publish on `unbrowse`)
 #
-# Trusted Publisher row (when used):
+# Trusted Publisher (when used):
 #   https://www.npmjs.com/package/unbrowse/access
-#   repo: unbrowse-ai/unbrowse, workflow: release.yml, environment: prod
-#
-# Dispatched (not tag-triggered) so the publish only runs AFTER the build repo has
-# attached the tarball — no race, no "no assets match the file pattern".
+#   repo unbrowse-ai/unbrowse, workflow release.yml, environment prod
 on:
   workflow_dispatch:
     inputs:
@@ -26,7 +21,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # required for OIDC sigstore + npm publish --provenance
+  id-token: write
 
 concurrency:
   group: publish-npm-${{ inputs.tag }}
@@ -36,20 +31,13 @@ jobs:
   publish:
     name: npm publish (OIDC)
     runs-on: ubuntu-latest
-    # Environment "prod" must match the Environment field of the npm Trusted
-    # Publisher row exactly; the OIDC claim only includes `environment` when
-    # this block is present.
     environment: prod
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          # Intentionally NO registry-url on the OIDC path — it auto-writes an
-          # .npmrc with a placeholder NODE_AUTH_TOKEN that makes npm try (and
-          # fail) token auth instead of falling through to OIDC.
+          # No registry-url: placeholder NODE_AUTH_TOKEN breaks OIDC.
 
-      # npm Trusted Publishing requires npm >= 11.5.1. Node 24 ships npm 11+,
-      # but install latest belt-and-suspenders.
       - name: Upgrade npm to latest (OIDC support)
         run: npm install -g npm@latest
 
@@ -98,16 +86,22 @@ jobs:
           NPM_TAG="latest"
           case "$VERSION" in *-preview.*) NPM_TAG="preview" ;; esac
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::OIDC publish failed and NPM_TOKEN secret is empty. Configure npm Trusted Publishing on unbrowse (workflow=release.yml, environment=prod) or set NPM_TOKEN."
+            echo "::error::OIDC publish failed and NPM_TOKEN is empty."
+            echo "Configure Trusted Publishing (workflow=release.yml, environment=prod) OR set a granular automation NPM_TOKEN with publish rights on unbrowse."
             exit 1
           fi
           if npm view "unbrowse@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::unbrowse@${VERSION} already published; nothing to do."
             exit 0
           fi
-          echo "::warning::OIDC Trusted Publishing failed (ENEEDAUTH or similar); publishing with NPM_TOKEN without provenance."
-          # Write auth only for this step so a prior OIDC-only .npmrc is not required.
-          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
+          echo "::warning::OIDC Trusted Publishing failed; trying NPM_TOKEN without provenance."
+          # npm expects .npmrc with _authToken when using setup-node without registry-url
+          printf '//registry.npmjs.org/:_authToken=%s\nalways-auth=true\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
+          # Validate token can authenticate before multi-MB upload
+          if ! npm whoami --registry https://registry.npmjs.org/ 2>/dev/null; then
+            echo "::error::NPM_TOKEN is invalid or revoked (npm whoami failed). Create a new granular automation token with Read+Write on package unbrowse and update secrets NPM_TOKEN on unbrowse-ai/unbrowse and unbrowse-ai/unbrowse-dev."
+            exit 1
+          fi
           npm publish "/tmp/unbrowse-${VERSION}.tgz" \
             --access=public \
             --tag "$NPM_TAG"
