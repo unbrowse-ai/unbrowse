@@ -5,7 +5,7 @@ routes from real browsing, then replays known routes directly instead of driving
 a browser for every task.
 
 ```bash
-npm install -g unbrowse.3.3
+npm install -g unbrowse@11.3.3
 unbrowse setup
 unbrowse "top stories with point counts" --url https://news.ycombinator.com
 ```
@@ -57,7 +57,7 @@ DOM. Run `unbrowse <command> --help` for the current options.
 The current SDK ships inside the `unbrowse` package:
 
 ```bash
-npm install unbrowse.3.3
+npm install unbrowse@11.3.3
 ```
 
 ```ts
