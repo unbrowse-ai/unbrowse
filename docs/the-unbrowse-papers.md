@@ -130,7 +130,7 @@ every time it grows a new feature.
 If you only read one thing, read the platform page; the papers are what happens
 when you push each of its faces until it has to be a paper.
 
-## Why this is the decentralised agentic internet — unbrowse, FDRY, stFDRY
+## Why this is the decentralised agentic internet — unbrowse + the contract substrate
 
 Read together, the six papers describe one thing the current web does not have: a
 **shared, agent-usable action layer that no single operator has to be trusted to
@@ -150,27 +150,25 @@ record is an append-only, hash-chained ledger anchored on-chain. That is what le
 action layer be *shared without a trusted operator in the middle* — the decentralising
 move is replacing "trust our server" with "verify the signature and the chain."
 
-**FDRY is the accountability currency; stFDRY is the staking stake.** A shared graph
-decays, and usage fees alone under-provide its upkeep (Paper 5). The corrective is
-economic: a maintainer **bonds FDRY** to stand behind a route, a freshness proof that
-fails is slashable, and **stFDRY** is the staked, staking form that earns by keeping
-the graph fresh. Crucially — and this is the load-bearing distinction — **FDRY is the
-trust currency, never the payment rail.** The split is the old economics one: a
-*medium of exchange* (what you spend — fast, stable, forgettable: USDC over x402) is
-not the *store of value* (the reserve the network's trust rests on, held rather than
-handed over: FDRY). Conflating them is the bug — if the reserve asset were also the
-spending rail, every use would be a forced sale that drains the very stake meant to
-signal commitment. So usage settles in USDC; FDRY is bonded to be *trusted by* the
-network, not spent to *use* it (see
+**The ledger is the accountability layer.** A shared graph decays, and usage fees
+alone under-provide its upkeep (Paper 5). The corrective is structural rather than
+monetary: every route claim is **signed by the maintainer who stands behind it**, a
+freshness proof that fails is challengeable, and the append-only hash-chained ledger
+makes the maintenance record tamper-evident. Crucially, the *medium of exchange*
+(what an agent spends — fast, stable, forgettable: USDC over x402) stays separate
+from the *accountability record* (who signed what, and when, on the ledger).
+Conflating them is the bug — when the payment rail is also the trust instrument,
+every use becomes a political act. So usage settles in USDC; accountability is
+carried by verifiable signatures on a shared ledger (see
 [Trust and Accountability](./concepts/trust-and-accountability.md)). That separation
 is what makes the accountability honest rather than extractive: the people who keep
-routes alive are the ones the system rewards, and the reward is *earn-by-staking*, not
-a toll on everyone else.
+routes alive are publicly credited on the ledger, and the cost of dishonesty is a
+broken signature anyone can check.
 
 Put the three together and the shape is a **commons**: an open action graph (unbrowse)
 whose integrity is cryptographic rather than custodial (the platform) and whose
 upkeep is funded by accountable, slashable stake rather than by a landlord
-(FDRY/stFDRY). That is the precise sense in which this is the *decentralised* agentic
+(the signed ledger). That is the precise sense in which this is the *decentralised* agentic
 internet — not "runs on a blockchain," but *no single party has to be trusted, and the
 incentive to maintain the commons is on a ledger instead of on goodwill.*
 

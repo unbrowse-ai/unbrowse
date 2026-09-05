@@ -47,7 +47,7 @@
 | [SECURITY.md](./SECURITY.md) | Honest threat model (package binding, anti-tamper) |
 | [caching.md](./caching.md) | Pointer-reactive cache design |
 | [benchmarks.md](./benchmarks.md), [benchmarks-history.md](./benchmarks-history.md) | Coverage methodology + append-only log |
-| [HOW_UNBROWSE_PAYS.md](./HOW_UNBROWSE_PAYS.md), [THE_FDRY_ECONOMY.md](./THE_FDRY_ECONOMY.md) | Money model + token economy |
+| [HOW_UNBROWSE_PAYS.md](./HOW_UNBROWSE_PAYS.md) | Money model: USDC settlement over x402 |
 | [CLAIM_YOUR_DOMAIN.md](./CLAIM_YOUR_DOMAIN.md), [EARN_AS_INDEXER.md](./EARN_AS_INDEXER.md) | Domain claim + indexer economics |
 | [wallets.md](./wallets.md), `ows.md`, `pay-sh-integration.md`, [public/lobster-cash-integration.md](./public/lobster-cash-integration.md) | Wallet & payment integrations |
 | `mcp-workflow-guide.md` | MCP workflow reference |
