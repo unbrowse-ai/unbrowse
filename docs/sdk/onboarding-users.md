@@ -22,7 +22,7 @@ That's it. Every later `resolve` / `execute` you run mines the marketplace, cred
 When you (or your agent) runs:
 
 ```bash
-unbrowse eval resolve --intent "top stories" --url https://news.ycombinator.com
+unbrowse resolve --intent "top stories" --url https://news.ycombinator.com
 ```
 
 Unbrowse:

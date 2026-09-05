@@ -12,8 +12,9 @@
 > Reviewed 2026-06-17 against build v9.4.12 (`src/build-info.generated.ts`).
 > Every claim cites a real file path. Start at [README.md](./README.md) for
 > reading paths, or [../CATALOGUE.md](../CATALOGUE.md) for the full repo index.
-> Cross-cutting detail lives in the deep-dives: [SECURITY](./SECURITY.md) ·
-> [PRIVACY](./PRIVACY.md) · [AUTH](./AUTH.md) · [PERFORMANCE](./PERFORMANCE.md).
+> Cross-cutting detail lives in the deep-dives: [AGENTIC HARNESS](./AGENTIC_HARNESS.md) ·
+> [SECURITY](./SECURITY.md) · [PRIVACY](./PRIVACY.md) · [AUTH](./AUTH.md) ·
+> [PERFORMANCE](./PERFORMANCE.md).
 
 ## What Unbrowse is
 
@@ -61,7 +62,7 @@ shared cloud backend:
 1. **Capture** — `src/capture/index.ts` records a real browser interaction
    (with secret obfuscation in `src/capture/obfuscate.ts`, template holes in
    `src/capture/hole-template.ts`, credential binding in
-   `src/capture/zk-bound-hole.ts` / `src/capture/wallet-bind.ts`).
+   `src/capture/bound-hole.ts` / `src/capture/wallet-bind.ts`).
 2. **Infer (server-side, secret-stripped)** — the client is **thin**: it does
    not carry the route-inference intelligence. `src/capture/obfuscate.ts` strips
    every secret/PII *value* locally and replaces it with a one-way,

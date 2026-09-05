@@ -12,12 +12,12 @@ What does not exist today, and is described as forward-looking rather than shipp
 
 Usage is **settled in USDC** — a paid `execute` clears in stable value over x402, so an
 agent (or the human behind it) pays a predictable price. Accountability is carried by the
-[contract substrate](./contract-substrate.md) itself: every route claim is signed, typed,
+[contract platform](./contract-platform.md) itself: every route claim is signed, typed,
 and checkable — not by a stake token.
 
 ## How /contract carries it
 
-A maintained route is not a free externality — under the [contract substrate](./contract-substrate.md)
+A maintained route is not a free externality — under the [contract platform](./contract-platform.md)
 it is a **signed, checkable asset**:
 
 - **/contract** turns each route into a typed, wallet-signed claim with a verifiable

@@ -25,7 +25,7 @@
 |---|---|
 | Lifecycle | `setup`, `login`, `register`, `account`, `status`, `restart`, `stop`, `health`, `mcp` |
 | Core loop | `index`, `resolve`, `run`, `execute`/`exec`, `search`, `explain`, `publish`, `review`, `feedback`, `annotate` |
-| Browser verbs | `go`, `click`, `fill`, `type`, `press`, `select`, `scroll`, `screenshot`, `snap`, `text`, `markdown`, `back`, `forward`, `submit`, `eval`, `close`, `connect-chrome` |
+| Browser verbs | `go`, `click`, `fill`, `type`, `press`, `select`, `scroll`, `screenshot`, `snap`, `text`, `markdown`, `back`, `forward`, `submit`, `run-js`, `close`, `connect-chrome` |
 | Auth & secrets | `auth`, `auth-capture`, `cookies`, `browse-cookies` |
 | Money | `wallet`, `payment-provider`, `billing`, `earnings`, `flywheel` |
 | Skills | `skills`, `skill`, `capture`, `contract` |
@@ -83,7 +83,7 @@
 ## 4. Local engine
 | Stage | Module | Responsibility |
 |---|---|---|
-| Capture | `src/capture/index.ts` | Record an interaction for a URL+intent; secret obfuscation (`obfuscate.ts`), template holes (`hole-template.ts`), proof-bound credential holes (`zk-bound-hole.ts`), wallet signature binding (`wallet-bind.ts`), SSR fast path, HTTP fallback (`curl-impersonate-fallback.ts`), escalation on miss (`escalate-on-miss.ts`) |
+| Capture | `src/capture/index.ts` | Record an interaction for a URL+intent; secret obfuscation (`obfuscate.ts`), template holes (`hole-template.ts`), proof-bound credential holes (`bound-hole.ts`), wallet signature binding (`wallet-bind.ts`), SSR fast path, HTTP fallback (`curl-impersonate-fallback.ts`), escalation on miss (`escalate-on-miss.ts`) |
 | Execution | `src/execution/index.ts` | Replay with resolved pointers; anti-bot challenge handlers (`cf-challenge.ts`, `px-challenge.ts`, `akamai-challenge.ts`, `kasada-challenge.ts`); token resolution (`token-resolver.ts`); proxy + server-proxy fallback; drift recovery (`drift-page-recovery.ts`) |
 | Indexing | `src/indexer/` | Background queue (`capture-spool.ts`, `queue-store.ts`, `worker.ts`) |
 | Ranking | `src/graph/` + `src/intent-match.ts` | Route cache, endpoint ranking, planner, session tracking, decision trace store |
@@ -107,7 +107,7 @@
 ## 6. Configuration
 - Env loaded at startup from `.env` / `.env.runtime` (`src/cli.ts`).
 - Key variables (see `src/config/`, `src/env/`):
-  - URLs: `UNBROWSE_URL` (local daemon, default `http://localhost:6969`),
+  - URLs: `UNBROWSE_URL` (optional — only when talking to an explicit `unbrowse serve` process),
     `UNBROWSE_BACKEND_URL`, `UNBROWSE_FRONTEND_URL`
   - Identity: `UNBROWSE_API_KEY`, `UNBROWSE_PROFILE`, `UNBROWSE_CONFIG_DIR`
   - Wallet/payments: `UNBROWSE_WALLET_ADAPTER`, `UNBROWSE_WALLET_KEY`,

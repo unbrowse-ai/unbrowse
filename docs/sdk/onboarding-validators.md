@@ -49,7 +49,7 @@ unbrowse setup
 unbrowse account --register --email ops@yourco.com
 ```
 
-The runtime auto-starts on demand on `http://localhost:6969` when an SDK or CLI call needs it. There's no separate `server start` command — just call resolve and the runtime spins up.
+The shipped CLI runs **in-process** (stateless by default — no daemon on a fixed port). SDK `Unbrowse.local()` attaches to a local binary when you need process-spawn semantics; optional `unbrowse serve` is only for an explicit HTTP facade.
 
 For multi-worker boxes, give each worker its own runtime by setting a distinct port and home dir per process and warming it once:
 
@@ -65,7 +65,7 @@ Then point that worker's SDK at `http://localhost:6970`.
 import { Unbrowse } from "unbrowse/sdk";
 
 const unbrowse = new Unbrowse({
-  baseUrl: process.env.UNBROWSE_URL ?? "http://localhost:6969",
+  baseUrl: process.env.UNBROWSE_URL, // set only if you ran `unbrowse serve`
   apiKey: process.env.UNBROWSE_API_KEY,
   clientId: `worker-${process.env.WORKER_ID}`,
 });

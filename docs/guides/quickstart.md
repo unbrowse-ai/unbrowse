@@ -6,11 +6,16 @@ Read when: first local install, first CLI run, or CI/headless setup.
 
 ```bash
 # Recommended: install the binary and Agent Skill
-npm install -g unbrowse
+npm install -g unbrowse@latest
 unbrowse setup
+
+# First call (one shot — not a browser loop)
+unbrowse "top stories with point counts" --url https://news.ycombinator.com
 ```
 
-`unbrowse setup` installs the Agent Skill by default. MCP is opt-in with `--mcp`.
+`unbrowse setup` installs the Agent Skill by default and prints that first-call
+command when it finishes. MCP is opt-in with `--mcp`. Always install `@latest`
+so the client matches the live backend (stale clients get a soft update hint).
 
 Alternative standalone CLI install:
 
@@ -103,7 +108,7 @@ unbrowse health --pretty
 Resolve a task against a URL:
 
 ```bash
-unbrowse eval resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
 ```
 
 Search the marketplace without opening a browser:
@@ -115,7 +120,7 @@ unbrowse search --intent "get stock prices" --domain "finance.yahoo.com" --prett
 Open an auth flow when a site needs login:
 
 ```bash
-unbrowse act auth "https://calendar.google.com"
+unbrowse auth "https://calendar.google.com"
 ```
 
 Get one internet result from the shell:
@@ -124,6 +129,11 @@ Get one internet result from the shell:
 unbrowse "top stories with point counts"
 unbrowse "top stories with point counts" --url "https://news.ycombinator.com"
 ```
+
+The URL-scoped one-call path returns a task-shaped agent envelope by default
+(answer/items, minimal provenance, and a trace pointer) with a 16 KiB output
+budget. Use `--raw` when debugging to retain the complete document, candidate,
+and contract envelope.
 
 ## TypeScript SDK
 
@@ -197,6 +207,11 @@ Important runtime paths:
 - `~/.unbrowse/skill-snapshots/` — cached local skill manifests
 - `~/.unbrowse/route-cache.json` — intent+URL route cache
 - `~/.unbrowse/domain-skill-cache.json` — domain-level reuse cache
+
+For a non-default Chromium profile, set `UNBROWSE_CHROME_USER_DATA_DIR`
+and optionally `UNBROWSE_CHROME_PROFILE`; an exact database can be selected
+with `UNBROWSE_COOKIE_DB_PATH`. These overrides take precedence over automatic
+browser-session selection.
 
 ## What to read next
 

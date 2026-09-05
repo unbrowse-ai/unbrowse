@@ -7,7 +7,7 @@ This page describes the Unbrowse system that exists in the codebase today, not t
 Unbrowse currently ships as:
 
 - a local CLI
-- a local HTTP server, defaulting to `http://localhost:6969`
+- a local in-process runtime (CLI/MCP); optional `unbrowse serve` HTTP facade for pairing/legacy clients
 - a browser-backed capture runtime using Kuri
 - a shared marketplace for discovered skills
 - an MCP server mode for agent hosts

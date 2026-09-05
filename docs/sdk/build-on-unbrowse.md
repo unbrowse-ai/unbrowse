@@ -93,6 +93,14 @@ older MCP host.
 
 For any fleet >5 concurrent calls, run multiple Unbrowse runtimes (distinct `UNBROWSE_PORT` + `UNBROWSE_HOME`). One shared runtime serializes capture and tanks throughput.
 
+`UNBROWSE_HOME` relocates the whole data root — caches, queues, spool, traces,
+snapshots. Through **v11.3.6** it did not: the route/domain/barren caches moved,
+but the pending queue, the capture spool, the queue heartbeat, telemetry traces
+and skill snapshots were still resolved from `$HOME`, so workers given distinct
+homes shared those and drained one another's queue. If you run a fleet on
+11.3.6 or earlier, give each worker a distinct `HOME` as well as
+`UNBROWSE_HOME`; on later builds `UNBROWSE_HOME` alone is sufficient.
+
 ### Pattern 3 — Auth in, auth out
 
 Either use `login()` (interactive) on dev boxes or `importAuth()` from a real Chrome profile on production boxes. Don't try to inject cookies you scraped from somewhere else; vendor security catches that fast.

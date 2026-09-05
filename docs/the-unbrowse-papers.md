@@ -130,7 +130,7 @@ every time it grows a new feature.
 If you only read one thing, read the platform page; the papers are what happens
 when you push each of its faces until it has to be a paper.
 
-## Why this is the decentralised agentic internet — unbrowse + the contract substrate
+## Why this is the decentralised agentic internet — unbrowse + the contract platform
 
 Read together, the six papers describe one thing the current web does not have: a
 **shared, agent-usable action layer that no single operator has to be trusted to
@@ -165,12 +165,12 @@ is what makes the accountability honest rather than extractive: the people who k
 routes alive are publicly credited on the ledger, and the cost of dishonesty is a
 broken signature anyone can check.
 
-Put the three together and the shape is a **commons**: an open action graph (unbrowse)
+Put the pieces together and the shape is a **commons**: an open action graph (unbrowse)
 whose integrity is cryptographic rather than custodial (the platform) and whose
-upkeep is funded by accountable, slashable stake rather than by a landlord
-(the signed ledger). That is the precise sense in which this is the *decentralised* agentic
-internet — not "runs on a blockchain," but *no single party has to be trusted, and the
-incentive to maintain the commons is on a ledger instead of on goodwill.*
+maintenance record is a public, verifiable ledger rather than a private promise. That
+is the precise sense in which this is the *decentralised* agentic internet — not "runs
+on a blockchain," but *no single party has to be trusted, and the accountability for
+maintaining the commons is on a ledger instead of on goodwill.*
 
 **Honest about the trajectory (the /lewis-brain check applied to this very claim).**
 "Decentralised" here is a direction with shipped feet, not a finished state. Shipped
