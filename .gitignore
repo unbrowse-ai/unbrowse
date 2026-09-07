@@ -1,0 +1,378 @@
+*.txt
+# Dependencies
+.npmrc
+node_modules/
+.pnp
+.pnp.js
+# .claude/ tree: ignore root state; whitelist only .claude/mcps/ at the
+# repo root (anchored, so sub-dir .claude/ leftovers stay ignored).
+/.claude/
+!/.claude/mcps/
+!/.claude/mcps/**
+**/.claude/
+.claudeold/
+# Workbench artifacts (developer-local; not shipped)
+.workbench-baseline/
+# Bench-history artifacts (per-run dirs + product-specific JSONL)
+.bench-history/20[0-9]*/
+.bench-history/*-runs.jsonl
+
+# Build outputs
+# Compiled binaries (built by release pipeline, never commit)
+packages/skill/bin/unbrowse
+packages/skill/bin/unbrowse-*
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# src/cli-v7/build/ holds CLI verb-handler SOURCE (skill/template/value-source),
+# not build output — the generic `build/` rule above wrongly excluded it, so it
+# was absent in CI and the Windows unbrowse.exe build could not resolve it.
+!src/cli-v7/build/
+!src/cli-v7/build/**
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.runtime
+.env.x402
+backend/.dev.vars
+
+# Project-specific
+.vault/
+# Internal tier — tracked on dev (unbrowse-dev, private) but NEVER public:
+# open-core-sync is an allow-list (never copies internal/), and leak-guard scans
+# with --exclude-dir=internal. Keep strategy/economics here, off the public repo.
+skills/
+!skills/
+!skills/worktree-issue-fix/
+!skills/worktree-issue-fix/SKILL.md
+!skills/worktree-issue-fix/references/
+!skills/worktree-issue-fix/references/agent-harness.md
+!skills/worktree-issue-fix/scripts/
+!skills/worktree-issue-fix/scripts/issue-worktree-loop.ts
+traces/
+.planning/issue-worktree/
+# covenant mechanism maps — aiko-private, never publish (Mark 4:11 moat boundary)
+.planning/v7-rip/
+*.bak
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage/
+.nyc_output/
+
+# Eval data (local per-machine)
+evals/history.jsonl
+evals/last-run.json
+evals/codex-harness-last-run.json
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Misc
+*.tgz
+.cache/
+temp/
+tmp/
+.release-notes.md
+.release-announcement.md
+.release-announcement.json
+.gstack/
+.codex/*
+# Whitelist project-level codex config — used by scripts/bench-converge to
+# bind dev MCP. Sessions/logs under .codex/ stay ignored.
+!.codex/config.toml
+codedb.snapshot
+.kuri/
+.neon
+submodules/foundry/
+
+# bench artifacts (session-local)
+.bench-local/
+.traction-snapshots/
+.harness-out/
+.bench-budget*/
+
+# Recursive mining harness raw artifacts — captured agent transcripts that
+# can include arbitrary credentials (PATs, cookies, tokens). Never commit.
+harness/recursive/runs/**/raw-hits.jsonl
+harness/recursive/runs/**/raw-hits-*.jsonl
+
+# aiko local state (plans, codebase index, agent notes)
+.aiko/
+AIKO.md
+**/AIKO.md
+
+# eval corpus snapshots (per-day local artifacts)
+evals/corpus-probes-*.json
+evals/corpus-run-*.json
+
+# aiko-loop frontend parity scripts (reference local SOT path)
+frontend/scripts/check-design-parity.sh
+frontend/scripts/check-no-cruft.sh
+frontend/scripts/check-typecheck.sh
+
+# strategy / moat docs — local-only, never commit
+docs/endpoint-as-cell.md
+docs/moat/
+docs/strategy/
+
+# Python cache from extract.py invocations
+scripts/__pycache__/
+
+# Bundle-attribution viewer scratch output
+packages/skill/dist-sm/
+
+# Bench-gate per-run artifacts (per-probe captures + judge bundles + verdicts).
+# `.bench-gate/stamp.json` IS committed — it's the release-it gate marker.
+.bench-gate/*/
+!.bench-gate/stamp.json
+!.bench-gate/stamp.mcp.json
+
+# Local service/runtime scratch
+backend/.wrangler/
+frontend/.claude/archive/
+
+# Local capability-bench scratch reports. Curated dated reports can still be
+# force-added when they are the intended evidence artifact.
+bench/capability/reports/run-*.json
+bench/capability/reports/run-*.md
+bench/capability/reports/*T*.json
+bench/capability/reports/*T*.md
+bench/capability/webagent/results-agent-cli-*/
+
+# bench-converge runtime artifacts (per-run dirs + sandboxed unbrowse state).
+# Stamp output lands in .bench-gate/stamp.mcp.json (whitelisted above).
+.bench-converge/
+.mcp-proxy-env.json
+
+# Ralph loop state — re-include so it survives 'git stash -u' between turns
+# (open-source publication: internal tier is no longer tracked; see bottom block)
+# !.claude/ralph-loop.local.md
+
+# Ralph loop state: re-include the parent dir + re-ignore everything,
+# then re-include only the ralph-loop state file. Per gitignore docs:
+# "It is not possible to re-include a file if a parent directory of
+# that file is excluded." So we whitelist the dir then re-ignore.
+# DISABLED for open-source publication — .claude/ stays fully ignored.
+# !.claude/
+# .claude/*
+# !.claude/ralph-loop.local.md
+# !.claude/*.local.md
+# !.claude/mcps/
+# Repo-local Claude skills are source, not session state. unbrowse-bench carries
+# the converged bench references/assets, so leaving it ignored would track those
+# (they arrived via git mv) while dropping the SKILL.md that gives them meaning.
+!.claude/skills/
+
+# meta-harness:gitignore START — DISABLED for open-source publication
+# !.claude/skills/
+# !.claude/make-unbrowse-banger-a-meta-contract-that-writes/
+# !.claude/add-structured-next-action-hints-to-unbrowse-mcp/
+# !.claude/honor-path-extract-and-limit-in-unbrowse-mcp-exe/
+# !.claude/add-a-flash-minimal-resolve-output-mode-to-unbro/
+# !.claude/mark-new-and-changed-interactive-elements-in-unb/
+# meta-harness:gitignore END
+
+# Session evidence / scratch (added 2026-05-23 for release readiness)
+.scratch/
+.bench-par/
+backend/src/.zigrep_archive
+docs/outline-api/
+frontend/.claude/contracts.jsonl
+frontend/.claude/scripts/
+frontend/.claude/set-up-auto-enforcing-contracts-for-unbrowse-fro/
+frontend/.claude/set-up-auto-enforcing-contracts-for-unbrowse-fro.local.md
+frontend/.claude/settings.json
+frontend/.safe-sync/
+.planning/contract-roadmap.md
+scripts/bench-contract-scan.py
+scripts/bench-probe-verify.sh
+.bench-served-surface/
+
+# Session local artifacts
+.agent-xp/
+.conductor/
+harness/.agent-xp/
+
+# Konmari 2026-05-29 (jesus-loop exa-browsecomp): AI-IDE/agent tool skill mirrors
+# and heavy local scratch — never committed, not load-bearing.
+.zencoder/
+.windsurf/
+.vibe/
+.trae/
+.roo/
+.qwen/
+.qoder/
+.pochi/
+.pi/
+.openhands/
+.neovate/
+.mux/
+.mcpjam/
+.kode/
+.kiro/
+.kilocode/
+.junie/
+.iflow/
+.goose/
+.factory/
+.crush/
+.continue/
+.commandcode/
+.adal/
+.agents/
+cache/
+blobs/
+download.txt
+**/__pycache__/
+harness/runs/
+.codebuddy/
+.augment/
+.bench-runs/
+
+# Benchmark harness vendored clones (re-cloneable, not our code) — jesus-loop exa-browsecomp
+bench/exa/vendor/
+bench/browsecomp/vendor/
+bench/**/vendor/
+
+# Python test venv (scripts/pytest.sh bootstraps it from requirements-dev.txt)
+.venv/
+
+# embedding substrate local deps (jesus-loop)
+bench/lib/.venv/
+bench/lib/node_modules/
+bench/lib/bun.lock
+**/.zig-cache/
+**/zig-out/
+
+# folded SDK build output (built on prepack via tsconfig.sdk.json)
+packages/skill/dist-sdk/
+bench/index1000/.artifacts/
+.cf-deploy-token.env
+packages/skill/runtime/
+
+# transient local scratch + jesus-ralph loop state (not part of any release)
+/cats/
+.claude/jesus-ralph.local.md
+.tmp-prodcli-runtime/
+.tmp-prodlive/
+.tmp-registry-live/
+
+# jesus-loop session sidecars (scratch, never in a release)
+.claude/jesus-loop.*
+
+# --- Bench/run/build artifacts: large, regenerated, never source ---
+# These bloat clones and were committed by mistake. Keep top-level source/docs
+# in the bench trees (kuri-*.ts falsifiers, *.md handoffs, *.py scripts); ignore
+# only the timestamped per-run output dirs and their products.
+.bench-gate/20[0-9][0-9][0-9]*/
+.bench-gate/**/20[0-9][0-9][0-9]*/
+.bench-history/20[0-9][0-9][0-9]*/
+.bench-history/**/20[0-9][0-9][0-9]*/
+.bench-history/**/*.out
+.bench-mcp/20[0-9][0-9][0-9]*/
+.bench-mcp/**/20[0-9][0-9][0-9]*/
+# Temp scratch + recursive-mining run outputs (raw-hits.jsonl etc.)
+.tmp/
+harness/recursive/runs/
+# bench/exa per-run output (jsonl produced each run; scripts stay tracked)
+bench/exa/seal0_run_*.jsonl
+bench/exa/seal0_dev*.jsonl
+bench/exa/highlights_unbrowse.jsonl
+bin/unbrowse-dev
+.release-coverage-baseline
+.bench-secrets/
+scripts/.camoufox-venv/
+bench/index20k/artifacts/
+bench/index20k/results.jsonl
+bench/index20k/*.log
+
+# 9.0.5 capability re-sweep output (background bench run; regenerated, never source)
+bench/index20k/artifacts-905/
+bench/index20k/results-905.jsonl
+bench/index20k/sweep-905.log
+bench/webagent/vendor/
+
+# fractal build-attestation: per-machine witness state (lineage minted by CI/release)
+attest/
+
+# obscura sidecar build artifacts (Rust target dir) and vendored engine binaries.
+# The binaries are ~134MB/platform — they ship as release assets, not git history.
+native/obscura-capture/target/
+vendor/obscura/
+
+# Coverage-guided fuzzing build output, evolving corpus, and crash artifacts.
+.fuzz-build/
+fuzz/corpus/
+crash-*
+leak-*
+timeout-*
+oom-*
+slow-unit-*
+
+# ── open-source publication: internal tier + local artifacts never ship ──
+/.planning/
+/.grok/
+/.superstack/
+/.editions-evidence/
+/.evidence-build/
+/.bench-evidence/
+/.bench-gate/
+/.bench-history/
+/.audits/
+/.staged-loop/
+/.drafts/
+/.issues/
+/.content-queue/
+/.bench-learned-problems/
+/.zigrep_archive/
+/.zencoder/
+/.windsurf/
+/.vibe/
+/.trae/
+/.stderr
+/.audit/
+/frontend/.claude/
+/frontend/.hallmark/
+/.tsc-baseline/
+/.venv/
+/scratch/
+/frontend-hero-marketplace/
+/scripts/.curl-impersonate-venv/
+/codedb.snapshot
+/agent-experience-unbrowse-*.html
+/**/.artifacts/

@@ -1,0 +1,221 @@
+# Quickstart
+
+Read when: first local install, first CLI run, or CI/headless setup.
+
+## Install
+
+```bash
+# Recommended: install the binary and Agent Skill
+npm install -g unbrowse@latest
+unbrowse setup
+
+# First call (one shot — not a browser loop)
+unbrowse "top stories with point counts" --url https://news.ycombinator.com
+```
+
+`unbrowse setup` installs the Agent Skill by default and prints that first-call
+command when it finishes. MCP is opt-in with `--mcp`. Always install `@latest`
+so the client matches the live backend (stale clients get a soft update hint).
+
+Alternative standalone CLI install:
+
+```bash
+curl -fsSL https://unbrowse.ai/install.sh | sh
+```
+
+The CLI installer detects platform, downloads the matching release tarball, installs `unbrowse` into `~/.local/bin`, then runs `unbrowse setup`.
+
+Public companion docs live at [docs.unbrowse.ai](https://docs.unbrowse.ai). The Agent Skill plus SDK hole is the public agent surface; MCP is legacy compatibility.
+
+## Fast path
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup
+```
+
+`./setup` is the canonical repo bootstrap path. It does the repo-local shim/runtime prep first, links the clone into the detected skill directory, then runs the real first-use flow without depending on npm release assets:
+
+It is one command, not literal one-click: the first successful run can still prompt for ToS acceptance and agent identity.
+
+1. checks the local package-manager/runtime environment
+2. verifies the bundled Kuri browser runtime, or builds it from vendored source when working from repo checkout with Zig available
+3. installs or updates the stable `unbrowse` shim and the Open Code `/unbrowse` command when Open Code is detected
+4. runs the first-use bootstrap: ToS acceptance, agent registration + API-key caching, wallet detection, and Agent Skill install
+
+If a wallet is configured, that wallet address becomes the contributor/payment truth: it is synced onto the agent profile, used as the contributor payout destination, and used as the spending wallet for paid marketplace routes.
+
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically. That wallet becomes the contributor payout destination and the spending wallet for paid marketplace routes.
+
+Unbrowse supports wallet providers such as Crossmint `lobster.cash` for paid routes. If you use `lobster.cash`, set `LOBSTER_WALLET_ADDRESS`. Other providers can use `AGENT_WALLET_ADDRESS` and optional `AGENT_WALLET_PROVIDER`.
+
+For repeat npm installs after a healthy publish:
+
+```bash
+npm install -g unbrowse
+unbrowse setup
+```
+
+To connect the CLI to the website dashboard:
+
+```bash
+unbrowse register --email you@example.com
+unbrowse dashboard
+```
+
+`unbrowse dashboard` opens the web dashboard and pairs it to the local CLI through a short-lived localhost token. Dashboard preference changes sync back into CLI contribution mode on later CLI runs.
+
+For legacy MCP host integration, opt in explicitly:
+
+```bash
+npm install -g unbrowse@preview && unbrowse setup --mcp
+```
+
+The legacy `npx skills add unbrowse-ai/unbrowse` path is retired. The MCP server lives in the same npm package as the CLI but is no longer the primary setup path.
+
+## First-run behavior
+
+The CLI auto-starts the local server for normal commands. Account registration is explicit with `unbrowse register`.
+
+- If the backend is reachable, it checks the current ToS version.
+- Interactive runs prompt for ToS acceptance.
+- Interactive runs also let you enter an email-style agent identity. Press Enter to keep the local device id.
+- Headless runs can preseed identity with `UNBROWSE_AGENT_EMAIL`.
+- Non-interactive runs must set `UNBROWSE_TOS_ACCEPTED=1` after the user has agreed to the ToS.
+
+Headless repo bootstrap:
+
+```bash
+cd ~/unbrowse && ./setup --accept-tos --agent-email agent@example.com --skip-wallet-setup
+```
+
+Useful env vars for CI/headless runs:
+
+```bash
+export UNBROWSE_NON_INTERACTIVE=1
+export UNBROWSE_TOS_ACCEPTED=1
+export UNBROWSE_AGENT_EMAIL=agent@example.com
+```
+
+## First commands
+
+Health check:
+
+```bash
+unbrowse health --pretty
+```
+
+Resolve a task against a URL:
+
+```bash
+unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
+```
+
+Search the marketplace without opening a browser:
+
+```bash
+unbrowse search --intent "get stock prices" --domain "finance.yahoo.com" --pretty
+```
+
+Open an auth flow when a site needs login:
+
+```bash
+unbrowse auth "https://calendar.google.com"
+```
+
+Get one internet result from the shell:
+
+```bash
+unbrowse "top stories with point counts"
+unbrowse "top stories with point counts" --url "https://news.ycombinator.com"
+```
+
+The URL-scoped one-call path returns a task-shaped agent envelope by default
+(answer/items, minimal provenance, and a trace pointer) with a 16 KiB output
+budget. Use `--raw` when debugging to retain the complete document, candidate,
+and contract envelope.
+
+## TypeScript SDK
+
+If you want to call the same flow from app code:
+
+```bash
+npm install unbrowse
+```
+
+```ts
+import { createHole } from "unbrowse/sdk";
+
+const hole = createHole();
+const result = await hole.fill({
+  intent: "get trending searches",
+  url: "https://google.com",
+});
+
+console.log(result.answer ?? result.items);
+```
+
+Inspect the current machine-readable contract:
+
+```bash
+unbrowse contract surface
+```
+
+The legacy `Unbrowse` client still exposes route-inspection methods such as
+`resolve`, `execute`, and `searchDomain`, but new agents should start from the hole.
+Use the route view only when debugging a selected contract:
+
+```ts
+import { Unbrowse } from "unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+const matches = await unbrowse.searchDomain({
+  intent: "find trending repositories",
+  domain: "github.com",
+  k: 3,
+});
+```
+
+## Working from repo checkout
+
+Repo checkout is the truthful install path. Initialize submodules after cloning:
+
+```bash
+git submodule update --init --recursive
+```
+
+That pulls the tracked Kuri source into `submodules/kuri`. Packaging from the monorepo bundles the platform-specific Kuri binaries from that source.
+
+Repo presets are the supported runtime switch:
+
+```bash
+bun run preset:show
+bun run preset:prod
+bun run preset:testing
+bun run preset:experiments
+```
+
+Do not hand-edit ad hoc runtime env files unless you are intentionally changing the preset system.
+
+## Local state
+
+Important runtime paths:
+
+- `~/.unbrowse/config.json` — saved API key, agent id, ToS acceptance
+- `~/.unbrowse/logs/` — daily logs
+- `~/.unbrowse/profiles/<domain>/` — headed login/browser profile state
+- `~/.unbrowse/skill-snapshots/` — cached local skill manifests
+- `~/.unbrowse/route-cache.json` — intent+URL route cache
+- `~/.unbrowse/domain-skill-cache.json` — domain-level reuse cache
+
+For a non-default Chromium profile, set `UNBROWSE_CHROME_USER_DATA_DIR`
+and optionally `UNBROWSE_CHROME_PROFILE`; an exact database can be selected
+with `UNBROWSE_COOKIE_DB_PATH`. These overrides take precedence over automatic
+browser-session selection.
+
+## What to read next
+
+- [MCP workflow guide](../mcp-workflow-guide.md) -- every tool the MCP server exposes
+- [SDK README](../../packages/sdk/README.md) -- TypeScript client, payments, sessions
+- [Fare Splits](../concepts/fare-splits.md) -- the on-chain split, per-skill markup, payment-provider choice
+- [Wallets, escrows, session keys](../wallets.md)

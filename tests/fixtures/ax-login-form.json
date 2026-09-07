@@ -1,0 +1,614 @@
+{
+  "_recorded_from": "Chromium 148.0.7778.97 (playwright chromium-1228), headless, Accessibility.getFullAXTree over a data: URL carrying a Gitea-shaped login form. No network.",
+  "_t0": "both fields empty — the tree `eval snap` prints",
+  "_t1": "after `breath fill <username-ref> someuser` — Chrome added StaticText+InlineTextBox for the typed value INSIDE the username subtree, sliding every later ref by 2",
+  "t0": [
+    {
+      "nodeId": "4",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "RootWebArea"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "5"
+      ],
+      "backendDOMNodeId": 4
+    },
+    {
+      "nodeId": "5",
+      "ignored": true,
+      "role": {
+        "type": "role",
+        "value": "none"
+      },
+      "childIds": [
+        "8"
+      ],
+      "backendDOMNodeId": 5
+    },
+    {
+      "nodeId": "8",
+      "ignored": true,
+      "role": {
+        "type": "role",
+        "value": "none"
+      },
+      "childIds": [
+        "1"
+      ],
+      "backendDOMNodeId": 8
+    },
+    {
+      "nodeId": "1",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "form"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "9",
+        "12",
+        "15"
+      ],
+      "backendDOMNodeId": 1
+    },
+    {
+      "nodeId": "9",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "10",
+        "2"
+      ],
+      "backendDOMNodeId": 9
+    },
+    {
+      "nodeId": "12",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "13",
+        "3"
+      ],
+      "backendDOMNodeId": 12
+    },
+    {
+      "nodeId": "15",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "button"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "18"
+      ],
+      "backendDOMNodeId": 15
+    },
+    {
+      "nodeId": "10",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "LabelText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "16"
+      ],
+      "backendDOMNodeId": 10
+    },
+    {
+      "nodeId": "2",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "textbox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": [
+        "11"
+      ],
+      "backendDOMNodeId": 2
+    },
+    {
+      "nodeId": "13",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "LabelText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "17"
+      ],
+      "backendDOMNodeId": 13
+    },
+    {
+      "nodeId": "3",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "textbox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": [
+        "14"
+      ],
+      "backendDOMNodeId": 3
+    },
+    {
+      "nodeId": "18",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "-1000000004"
+      ],
+      "backendDOMNodeId": 18
+    },
+    {
+      "nodeId": "16",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": [
+        "-1000000002"
+      ],
+      "backendDOMNodeId": 16
+    },
+    {
+      "nodeId": "11",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [],
+      "backendDOMNodeId": 11
+    },
+    {
+      "nodeId": "17",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": [
+        "-1000000003"
+      ],
+      "backendDOMNodeId": 17
+    },
+    {
+      "nodeId": "14",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [],
+      "backendDOMNodeId": 14
+    },
+    {
+      "nodeId": "-1000000004",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": []
+    },
+    {
+      "nodeId": "-1000000002",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": []
+    },
+    {
+      "nodeId": "-1000000003",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": []
+    }
+  ],
+  "t1": [
+    {
+      "nodeId": "4",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "RootWebArea"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "5"
+      ],
+      "backendDOMNodeId": 4
+    },
+    {
+      "nodeId": "5",
+      "ignored": true,
+      "role": {
+        "type": "role",
+        "value": "none"
+      },
+      "childIds": [
+        "8"
+      ],
+      "backendDOMNodeId": 5
+    },
+    {
+      "nodeId": "8",
+      "ignored": true,
+      "role": {
+        "type": "role",
+        "value": "none"
+      },
+      "childIds": [
+        "1"
+      ],
+      "backendDOMNodeId": 8
+    },
+    {
+      "nodeId": "1",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "form"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "9",
+        "12",
+        "15"
+      ],
+      "backendDOMNodeId": 1
+    },
+    {
+      "nodeId": "9",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "10",
+        "2"
+      ],
+      "backendDOMNodeId": 9
+    },
+    {
+      "nodeId": "12",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "13",
+        "3"
+      ],
+      "backendDOMNodeId": 12
+    },
+    {
+      "nodeId": "15",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "button"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "18"
+      ],
+      "backendDOMNodeId": 15
+    },
+    {
+      "nodeId": "10",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "LabelText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "16"
+      ],
+      "backendDOMNodeId": 10
+    },
+    {
+      "nodeId": "2",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "textbox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": [
+        "11"
+      ],
+      "backendDOMNodeId": 2
+    },
+    {
+      "nodeId": "13",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "LabelText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "17"
+      ],
+      "backendDOMNodeId": 13
+    },
+    {
+      "nodeId": "3",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "textbox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": [
+        "14"
+      ],
+      "backendDOMNodeId": 3
+    },
+    {
+      "nodeId": "18",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": [
+        "-1000000004"
+      ],
+      "backendDOMNodeId": 18
+    },
+    {
+      "nodeId": "16",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": [
+        "-1000000007"
+      ],
+      "backendDOMNodeId": 16
+    },
+    {
+      "nodeId": "11",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [
+        "19"
+      ],
+      "backendDOMNodeId": 11
+    },
+    {
+      "nodeId": "17",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": [
+        "-1000000003"
+      ],
+      "backendDOMNodeId": 17
+    },
+    {
+      "nodeId": "14",
+      "ignored": false,
+      "role": {
+        "type": "role",
+        "value": "generic"
+      },
+      "name": {
+        "type": "computedString",
+        "value": ""
+      },
+      "childIds": [],
+      "backendDOMNodeId": 14
+    },
+    {
+      "nodeId": "-1000000004",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Sign In"
+      },
+      "childIds": []
+    },
+    {
+      "nodeId": "-1000000007",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Username or Email Address"
+      },
+      "childIds": []
+    },
+    {
+      "nodeId": "19",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "StaticText"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "someuser"
+      },
+      "childIds": [
+        "-1000000006"
+      ],
+      "backendDOMNodeId": 19
+    },
+    {
+      "nodeId": "-1000000003",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "Password"
+      },
+      "childIds": []
+    },
+    {
+      "nodeId": "-1000000006",
+      "ignored": false,
+      "role": {
+        "type": "internalRole",
+        "value": "InlineTextBox"
+      },
+      "name": {
+        "type": "computedString",
+        "value": "someuser"
+      },
+      "childIds": []
+    }
+  ]
+}

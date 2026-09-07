@@ -1,0 +1,45 @@
+{
+  "name": "@unbrowse/selenium-shim",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for selenium-webdriver. driver.get() routes through Unbrowse's resolve+execute marketplace cache to serve getPageSource()/getTitle()/getCurrentUrl() from a synthesized response — same Builder/WebDriver/WebElement/By/until/Key surface, no WebDriver server or browser binary needed for cached reads.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": [
+    "selenium-webdriver",
+    "selenium",
+    "webdriver",
+    "scraping",
+    "automation",
+    "unbrowse",
+    "shim"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbrowse-ai/unbrowse"
+  },
+  "bugs": {
+    "url": "https://github.com/unbrowse-ai/unbrowse/issues"
+  },
+  "homepage": "https://unbrowse.ai/vs/selenium"
+}

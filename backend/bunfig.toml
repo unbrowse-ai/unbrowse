@@ -1,0 +1,6 @@
+# Backend bunfig. Mirrors root bunfig.toml via a local copy of tests/_setup.ts
+# (Bun silently rejects `..` upward traversal in preload paths). When the root
+# _setup contract changes, sync backend/tests/_setup.ts and re-run the
+# tests/backend-bunfig-preload.test.ts mutation test.
+[test]
+preload = ["./tests/_setup.ts"]

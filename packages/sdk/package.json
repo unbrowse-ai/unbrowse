@@ -1,0 +1,41 @@
+{
+  "name": "@unbrowse/sdk",
+  "version": "11.4.0",
+  "description": "TypeScript SDK for Unbrowse (route/action layer): Unbrowse.local(), resolve/execute, capture, payments. Prefer CLI unbrowse \"task\" --url for agents. HTTP-first sibling: @unbrowse/client.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:smoke": "bun test test/integration.smoke.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "unbrowse": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "unbrowse": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "unbrowse": "^11.3.2",
+    "@faremeter/flex-solana": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^6.0.2"
+  }
+}

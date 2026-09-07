@@ -1,0 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { Env } from "../src/types.js";
+import { eraseTelemetrySessions, recordSessionSummary, telemetrySessionStorageId } from "../src/services/metrics.js";
+import { statsKV } from "../src/services/kv.js";
+const env = { EMERGENTDB_API_KEY: "x", STATS_KV: {} as KVNamespace, ENVIRONMENT: "local-dev" } as Env;
+const originalFetch = globalThis.fetch; const store = new Map<string,string>();
+beforeEach(async()=>{ store.clear(); globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{const u=new URL(typeof input==="string"?input:input instanceof URL?input.href:input.url);if(u.pathname==="/qdkv/set"){const b=JSON.parse(String(init?.body));store.set(b.key,b.value);return Response.json({ok:true});}if(u.pathname.startsWith("/qdkv/get/")){const v=store.get(decodeURIComponent(u.pathname.slice(10)));return Response.json(v==null?{found:false}:{found:true,value:v});}if(u.pathname.startsWith("/qdkv/del/")){store.delete(decodeURIComponent(u.pathname.slice(10)));return Response.json({ok:true});}throw Error(u.href)}) as typeof fetch; await statsKV(env).resetSplitIndex();});
+afterEach(()=>{globalThis.fetch=originalFetch});
+describe("telemetry erasure",()=>{it("deletes in bounded continuation pages",async()=>{const seed="0123456789abcdef";for(let i=0;i<41;i++)await recordSessionSummary(env,"install:x",{session_id:telemetrySessionStorageId(seed,String(i)),started_at:new Date().toISOString(),api_calls:1},{expirationTtl:92*86400});let cursor:string|undefined;let total=0;let pages=0;do{const result=await eraseTelemetrySessions(env,seed,cursor);expect(result.deleted).toBeLessThanOrEqual(20);total+=result.deleted;pages++;cursor=result.cursor;if(result.complete)break;}while(pages<10);expect(total).toBe(41);expect(pages).toBe(3);expect(await statsKV(env).listWithValues(`analytics:session:mcp-seed:${seed}:`)).toHaveLength(0);},20000);});

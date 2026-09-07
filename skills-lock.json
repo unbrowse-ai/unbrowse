@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "unbrowse": {
+      "source": ".",
+      "sourceType": "local",
+      "computedHash": "57da48a858113e7c1e59d80990e4633c07a8c973953cea3c98a59d4947cae158"
+    }
+  }
+}

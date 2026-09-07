@@ -1,0 +1,48 @@
+{
+  "plugins": {
+    "@release-it/bumper": {
+      "out": ["package.json", "packages/skill/package.json", "packages/sdk/package.json", "version.json"]
+    },
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          { "type": "feat", "section": "Features" },
+          { "type": "fix", "section": "Bug Fixes" },
+          { "type": "perf", "section": "Performance" },
+          { "type": "refactor", "section": "Refactoring" }
+        ]
+      },
+      "infile": "CHANGELOG.md"
+    }
+  },
+  "git": {
+    "commitMessage": "chore: release v${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "push": true
+  },
+  "npm": {
+    "publish": false,
+    "allowSameVersion": true
+  },
+  "github": {
+    "release": true,
+    "releaseName": "v${version}"
+  },
+  "hooks": {
+    "before:init": [
+      "bash scripts/check-release-on-boost.sh",
+      "bun run test:issue-regressions",
+      "bun test tests/path-params.test.ts tests/utils.test.ts"
+    ],
+    "after:bump": [
+      "bun install",
+      "git add bun.lock",
+      "bun scripts/generate-release-notes.ts --version ${version}",
+      "bun scripts/append-coverage-to-notes.ts",
+      "bun scripts/release-announce.ts --write",
+      "python3 -c \"import json; r=open('.bench-local/results.jsonl').readlines() if __import__('os').path.exists('.bench-local/results.jsonl') else []; t=len(r); p=sum(1 for ln in r if json.loads(ln).get('verdict')=='PASS') if t else 0; open('.release-coverage-baseline','w').write(f'{p/t if t else 0:.4f}\\n')\""
+    ]
+  }
+}

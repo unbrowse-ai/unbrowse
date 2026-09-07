@@ -1,0 +1,509 @@
+/**
+ * `unbrowse eval resolve <intent>` — local skill-cache + route cache +
+ * marketplace shortlist.
+ *
+ * 1:1 mapping (kind-map.ts row "eval resolve"):
+ *   CLI subcommand  : eval resolve
+ *   MCP tool        : unbrowse_resolve
+ *   Op kind   : eval:resolve
+ *   Verb            : eval
+ *
+ * Wraps the v6 backend `POST /v1/search/resolve` (see
+ * backend/src/routes/search.ts:274) for marketplace + route-cache ranking —
+ * this handler does not re-implement that ranking. But a domain-scoped
+ * resolve is checked against THIS MACHINE'S local skill-cache first
+ * (`localShortlistForDomain`, below): the backend only ever sees routes
+ * that were explicitly published, so a fresh, unpublished local capture
+ * is structurally invisible to it. Skipping the local check meant
+ * `--domain` resolves against an already-captured site silently fell
+ * through to marketplace/web search every time (see
+ * .issues/ — resolve never consulted the local skill-cache; #413/#417
+ * described the same class of bug against an older cache layer).
+ * Cheapest-rung-first: a local hit costs 0 and is returned before any
+ * network round-trip (SKILL.md "cheapest-rung walk").
+ *
+ * Pointer discipline (contract 3c2dd353): the response carries endpoint
+ * metadata + URLs (already public surface), never resolved auth headers
+ * or captured response bodies. `walletPubkey` from the local signer is
+ * the agent identity hint; the underlying signed-client gate lives in
+ * the backend bearer/x-unbrowse-signature middleware, which a v7 wrap
+ * over an unauth'd CLI cannot satisfy from here. We send walletPubkey +
+ * signatureScheme as part of the body so the backend (W17) can route
+ * future signed-resolve admission against the same identity that the
+ * rest of v7 already surfaces (eval version / status).
+ */
+import { createHash, randomBytes } from "node:crypto";
+
+import type { ParsedV7Args } from "../args.js";
+import {
+  EX_GENERIC,
+  EX_USAGE,
+  emit,
+  emitErr,
+  helpExit,
+  type OutputOptions,
+} from "../output.js";
+import { lookupKindMap } from "../kind-map.js";
+import { releaseAttestationHeaders } from "../_shared/cli-runtime.js";
+import { DEFAULT_BACKEND_URL } from "../../version.js";
+import { getWalletPubkey, signBytes } from "../../values/signer.js";
+import { resolutionContractVerdict } from "../../values/resolution-contract.js";
+import { safeZero } from "../../values/memzero.js";
+import { escalationDirective } from "../../capture/escalate-on-miss.js";
+import {
+  STATELESS_SIGNATURE_SCHEME,
+  canonicalizeSignedFragment,
+  postStateless,
+} from "../_stateless.js";
+import { ensureUsableKey, listLocalSkills } from "../../client/index.js";
+import { mergedAuthHeaders } from "../../lib/wallet-auth-headers.js";
+import { sameRouteScope } from "../../orchestrator/index.js";
+import { shortlistSortKey } from "../../auth/site-priority.js";
+
+/**
+ * Flatten this machine's locally-cached skills (`unbrowse skills`'s own
+ * data source) into resolve-shortlist entries for a domain, safe-GET
+ * endpoints only (resolve only ever auto-executes safe GETs). The backend
+ * marketplace cannot see these — they may never have been published —
+ * so this is the only place a fresh local capture becomes resolvable.
+ * Pure, best-effort: `listLocalSkills()` already swallows fs errors.
+ *
+ * ROUTE IDENTITY, NOT COOKIE SCOPE. This picks WHICH SKILL ANSWERS A
+ * REQUEST, so it compares two capture/request CONTEXTS (`skill.domain`, the
+ * host a route was learned on, against `domain`, the host being asked for)
+ * — the structural signature of route identity, and therefore host-scoped
+ * via the one shared helper {@link sameRouteScope}. It used to compare
+ * `getRegistrableDomain` on both sides, which is how (2026-08) a route
+ * captured on the GitBook-hosted `guide.data.gov.sg` was shortlisted for
+ * `data.gov.sg` and returned GitBook's UI translation file as "the
+ * datasets". `sameRouteScope` still keeps `www.` and geo-variant siblings,
+ * so legitimate reuse survives. Deliberately NOT tightened: the endpoints
+ * inside a matched skill are never filtered by host here — a site's own
+ * XHRs legitimately live on `api.` / `cdn.` subdomains (endpoint ownership,
+ * which stays registrable-wide).
+ */
+export function localShortlistForDomain(domain: string, limit: number): Array<Record<string, unknown>> {
+  const entries: Array<Record<string, unknown>> = [];
+  for (const skill of listLocalSkills()) {
+    if (!sameRouteScope(skill.domain, domain)) continue;
+    for (const ep of skill.endpoints ?? []) {
+      if (ep.idempotency !== "safe") continue;
+      entries.push({
+        skill_id: skill.skill_id,
+        endpoint_id: ep.endpoint_id,
+        method: ep.method,
+        url: ep.url_template,
+        description: ep.description ?? null,
+        reliability_score: ep.reliability_score ?? null,
+        domain: skill.domain,
+        source: "local_cache",
+      });
+    }
+  }
+  // Prefer higher reliability, then local site priority (cookie/bookmark/history).
+  entries.sort((a, b) => shortlistSortKey(b) - shortlistSortKey(a));
+  return entries.slice(0, limit);
+}
+
+/**
+ * Free-tier floor: remap the anonymous `/v1/search` envelope ({ results }) into
+ * the { domain_results, global_results } shape resolve's shortlist parser
+ * already consumes, so a no-key caller still gets a ranked list instead of a
+ * 403 dead-end. Pure; tolerant of empty/non-array input (never throws).
+ */
+export function searchToShortlist(results: unknown): { domain_results: unknown[]; global_results: unknown[] } {
+  return { domain_results: [], global_results: Array.isArray(results) ? results : [] };
+}
+
+/** Hard eligibility gate for URL/domain-scoped resolve results. */
+export function shortlistEntryMatchesDomain(entry: unknown, domain: string): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  const row = entry as Record<string, unknown>;
+  const meta = row.metadata && typeof row.metadata === "object"
+    ? row.metadata as Record<string, unknown>
+    : {};
+  const explicit = [row.domain, meta.domain, meta.hostname]
+    .find((value): value is string => typeof value === "string" && value.length > 0);
+  if (explicit) return sameRouteScope(explicit, domain);
+  const candidateUrl = [row.url, row.url_template, meta.url, meta.url_template]
+    .find((value): value is string => typeof value === "string" && value.length > 0);
+  if (!candidateUrl) return false;
+  try { return sameRouteScope(new URL(candidateUrl).hostname, domain); } catch { return false; }
+}
+
+function resolveApiBase(): string {
+  return (
+    process.env.UNBROWSE_API_URL ??
+    process.env.UNBROWSE_BACKEND_URL ??
+    DEFAULT_BACKEND_URL
+  );
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+
+function bytesToBase64(b: Uint8Array): string {
+  return Buffer.from(b).toString("base64");
+}
+
+export async function handler(parsed: ParsedV7Args, opts: OutputOptions): Promise<void> {
+  const meta = lookupKindMap("eval", "resolve")!;
+
+  if (parsed.wantsHelp) {
+    helpExit(
+      "eval resolve",
+      {
+        summary: "Ranked endpoint shortlist for an intent (route cache + marketplace).",
+        usage: "unbrowse eval resolve <intent> [--url <ctx>] [--domain <d>] [--limit <N>] [--fresh]",
+        positional: [
+          { name: "intent", description: "Free-form intent string.", required: true },
+        ],
+        flags: [
+          { name: "--intent", description: "Free-form intent string. Preferred for canonical `unbrowse eval resolve` calls.", value_expected: true },
+          { name: "--task", description: "Alias for --intent.", value_expected: true },
+          { name: "--query", description: "Alias for --intent.", value_expected: true },
+          { name: "--url", description: "Context URL to anchor entity substitution; also scopes the local route store by its host.", value_expected: true },
+          { name: "--domain", description: "Limit shortlist to this domain.", value_expected: true },
+          { name: "--limit", description: "Max shortlist size (default: 10).", value_expected: true },
+          { name: "--fresh", description: "Bypass CDN / KV cache (Cache-Control: no-cache)." },
+        ],
+        op_kind: meta.op_kind,
+        mcp_tool: meta.mcp_tool,
+        verb: "eval",
+      },
+      opts,
+    );
+  }
+
+  const flagIntent =
+    typeof parsed.flags.intent === "string" ? parsed.flags.intent
+      : typeof parsed.flags.task === "string" ? parsed.flags.task
+        : typeof parsed.flags.query === "string" ? parsed.flags.query
+          : undefined;
+  const intent = parsed.positional[0] ?? flagIntent;
+  if (!intent || typeof intent !== "string" || intent.trim().length === 0) {
+    emitErr(new Error("intent_required: usage: unbrowse eval resolve <intent> or unbrowse eval resolve --intent <intent>"), opts);
+    process.exit(EX_USAGE);
+  }
+
+  const urlFlag = typeof parsed.flags.url === "string" ? parsed.flags.url : undefined;
+  const domainFlag = typeof parsed.flags.domain === "string" ? parsed.flags.domain : undefined;
+  // `--url` scopes the local route store too. SKILL.md's two-call path is
+  // `resolve --intent "…" --url "<site>"` and never mentions `--domain`, but
+  // the local-cache check below used to gate on `--domain` ALONE: a route this
+  // machine had captured and indexed was resolvable by `--domain example.com`
+  // and invisible by `--url https://example.com/…`, which fell straight
+  // through to the network. Same refusal as the docstring above (a local
+  // capture is structurally invisible to the backend) — it just never covered
+  // the invocation the docs actually tell an agent to use.
+  const domainFromUrl = ((): string | undefined => {
+    if (!urlFlag) return undefined;
+    try {
+      return new URL(urlFlag).hostname || undefined;
+    } catch {
+      return undefined; // not a URL — nothing to scope by; network path decides
+    }
+  })();
+  const localDomain = domainFlag ?? domainFromUrl;
+  // A URL is a domain scope, not merely an entity-substitution hint. Carry the
+  // derived host through the backend request, signature, envelope, and final
+  // eligibility gate exactly as an explicit --domain would be carried.
+  const effectiveDomain = localDomain;
+  const limitFlag = typeof parsed.flags.limit === "string"
+    ? Number.parseInt(parsed.flags.limit, 10)
+    : NaN;
+  const limit = Number.isFinite(limitFlag) && limitFlag > 0 ? limitFlag : 10;
+  const fresh = parsed.flags.fresh === true;
+
+  // Local-cache-first (see file docstring): a domain-scoped resolve is
+  // free and instant when this machine already captured the domain, and
+  // the backend has no way to know about a capture that was never
+  // published. `--fresh` opts out, matching its documented "bypass cache"
+  // meaning.
+  if (localDomain && !fresh) {
+    const localShortlist = localShortlistForDomain(localDomain, limit);
+    if (localShortlist.length > 0) {
+      emit(
+        {
+          ok: true,
+          subcommand: "eval resolve",
+          op_kind: meta.op_kind,
+          tier: "local_cache",
+          source: "local_cache",
+          intent,
+          ctx_url: urlFlag ?? null,
+          domain: localDomain,
+          // Which input scoped the local lookup — a reader (and a gate) can
+          // tell a `--url`-scoped local hit from a `--domain`-scoped one
+          // instead of inferring it from a non-empty shortlist.
+          domain_source: domainFlag ? "flag" : "url",
+          limit,
+          fresh,
+          count: localShortlist.length,
+          shortlist: localShortlist,
+        },
+        opts,
+      );
+      process.exit(0);
+    }
+  }
+
+  try {
+    const pubkeyBytes = await getWalletPubkey();
+    const walletPubkey = bytesToHex(pubkeyBytes);
+
+    const base = resolveApiBase();
+    const url = `${base.replace(/\/$/, "")}/v1/search/resolve`;
+    // WEB3-NATIVE AUTH: the wallet signature is the SOLE REQUIRED credential.
+    // mergedAuthHeaders() emits the wallet sig (X-Unbrowse-Wallet/Ts/Signature)
+    // when a local signer exists, which the backend verifies before any Bearer
+    // 401 path. The api-key Bearer is an OPTIONAL web2 wrapper layered below.
+    const walletAuth = await mergedAuthHeaders();
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      accept: "application/json",
+      ...releaseAttestationHeaders(),
+      ...walletAuth,
+    };
+    if (fresh) headers["cache-control"] = "no-cache";
+    // OPTIONAL web2 wrapper: mint an api-key only when an identity already
+    // exists. Never blocks the hot path — a wallet-only caller sends the sig
+    // and authenticates as `wallet:<pk>` (bearerAuth accepts it first-class).
+    let onboardingHint: string | undefined;
+    const keyResult = await ensureUsableKey();
+    if (keyResult.key && keyResult.key !== "local-only") headers["authorization"] = `Bearer ${keyResult.key}`;
+    else if (keyResult.onboarding) onboardingHint = keyResult.onboarding;
+
+    // Free-tier floor: NEITHER a wallet sig NOR a usable key is present (hermetic
+    // mode, fresh install offline, etc). Fall back to anonymous /v1/search so a
+    // keyless caller still gets results. A wallet-present caller sends the sig
+    // and goes straight to the keyed path below.
+    if (!headers["x-unbrowse-wallet"] && !headers["authorization"] && keyResult.key !== "local-only") {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 15_000);
+        let sBody: { results?: unknown } = {};
+        let sStatus = 0;
+        try {
+          const r = await fetch(`${base.replace(/\/$/, "")}/v1/search`, {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json", ...releaseAttestationHeaders() },
+            body: JSON.stringify({ intent, k: limit }),
+            signal: ctrl.signal,
+          });
+          sStatus = r.status;
+          sBody = (await r.json().catch(() => ({}))) as { results?: unknown };
+        } finally {
+          clearTimeout(t);
+        }
+        const ok = sStatus >= 200 && sStatus < 300;
+        const shortlist = searchToShortlist(sBody?.results).global_results
+          .filter((entry) => !effectiveDomain || shortlistEntryMatchesDomain(entry, effectiveDomain))
+          .slice(0, limit);
+        emit(
+          {
+            ok,
+            subcommand: "eval resolve",
+            op_kind: meta.op_kind,
+            api_base: base,
+            status_code: sStatus,
+            tier: "anonymous",
+            intent,
+            ctx_url: urlFlag ?? null,
+            domain: effectiveDomain ?? null,
+            limit,
+            fresh,
+            walletPubkey,
+            count: shortlist.length,
+            shortlist,
+            ...(onboardingHint ? { next_step: onboardingHint } : {}),
+          },
+          opts,
+        );
+        process.exit(ok ? 0 : EX_GENERIC);
+      } catch {
+        // Network error on the anon floor: fall through to the keyed path, which
+        // surfaces the honest error + next_step.
+      }
+    }
+
+    // A2 — sig-keyed receipt for the read request. Sign the canonicalized
+    // {intent, surrogateUrl, domain, nonce} fragment with the wallet key;
+    // backend receives walletPubkey + signature + nonce in the body and
+    // can witness the read whenever the signed-resolve admission gate
+    // ships. cacheKey = sha256(sig) is the same pointer the agent gets
+    // back for `eval_read` audit linkage (byte-identical to backend
+    // deriveCacheKey).
+    const nonce = bytesToBase64(new Uint8Array(randomBytes(32)));
+    const fragment = canonicalizeSignedFragment(
+      {
+        intent,
+        surrogateUrl: urlFlag ?? null,
+        domain: effectiveDomain ?? null,
+        nonce,
+      },
+      ["intent", "surrogateUrl", "domain", "nonce"],
+    );
+    const canonicalBytes = new TextEncoder().encode(fragment);
+    const signed = await signBytes(canonicalBytes);
+    const signatureHex = bytesToHex(signed.signature);
+    const cacheKey = createHash("sha256").update(signed.signature).digest("hex").slice(0, 32);
+    safeZero(signed.signature);
+
+    const payload = {
+      intent,
+      // Backend route accepts surrogateUrl (the context URL anchor).
+      ...(urlFlag ? { surrogateUrl: urlFlag } : {}),
+      ...(effectiveDomain ? { domain: effectiveDomain } : {}),
+      domain_k: 5,
+      global_k: limit,
+      // v7 identity hint — backend may use this to route signed-resolve
+      // admission in a later wave. Safe to print (public key).
+      walletPubkey,
+      signatureScheme: STATELESS_SIGNATURE_SCHEME,
+      nonce,
+      signature: signatureHex,
+    };
+    headers["x-wallet-pubkey"] = walletPubkey;
+    headers["x-stateless-nonce"] = nonce;
+    headers["x-stateless-signature"] = signatureHex;
+
+    let body: unknown;
+    let status = 0;
+    const attempt = async (): Promise<void> => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15_000);
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+        status = r.status;
+        try {
+          body = await r.json();
+        } catch {
+          body = { error: "non_json_response", status };
+        }
+      } finally {
+        clearTimeout(t);
+      }
+    };
+    await attempt();
+    // Auth failure → refresh the key ONCE and retry (never loop). If recovery
+    // yields no key, carry the onboarding hint into next_step.
+    if (status === 401 || status === 403) {
+      const recover = await ensureUsableKey({ force: true });
+      if (recover.key && recover.key !== "local-only") {
+        headers["authorization"] = `Bearer ${recover.key}`;
+        await attempt();
+      } else if (recover.onboarding) {
+        onboardingHint = recover.onboarding;
+      }
+    }
+
+    // Normalize the shortlist for the agent. The backend returns
+    // { domain_results, global_results, ... } — flatten to a single
+    // ranked list while preserving the raw envelope under `raw`.
+    const domainResults = Array.isArray((body as { domain_results?: unknown[] })?.domain_results)
+      ? (body as { domain_results: unknown[] }).domain_results
+      : [];
+    const globalResults = Array.isArray((body as { global_results?: unknown[] })?.global_results)
+      ? (body as { global_results: unknown[] }).global_results
+      : [];
+    const shortlist = [...domainResults, ...globalResults]
+      .filter((entry) => !effectiveDomain || shortlistEntryMatchesDomain(entry, effectiveDomain))
+      .map((e) => (e && typeof e === "object" ? (e as Record<string, unknown>) : { value: e }))
+      .sort((a, b) => shortlistSortKey(b) - shortlistSortKey(a))
+      .slice(0, limit);
+
+    const ok = status >= 200 && status < 300;
+
+    // W24.2 — sig-keyed eval-read audit row. readKind=resolve has no
+    // browse session (it's a pure backend read), so sessionId/urlHash
+    // are omitted. byteCount is the shortlist JSON size — pointer-only
+    // forensic metadata, never the shortlist content.
+    const post = await postStateless({
+      namespace: "audit",
+      route: "/v1/audit/eval-read",
+      body: {
+        readKind: "resolve" as const,
+        byteCount: JSON.stringify(shortlist).length,
+      },
+      signableFields: [
+        "sessionId",
+        "urlHash",
+        "readKind",
+        "byteCount",
+        "selectorHash",
+        "nonce",
+      ],
+    });
+    const auditEmit = {
+      ok: post.ok,
+      cacheKey: post.cacheKey,
+      receiptId: post.receiptId,
+      httpStatus: post.httpStatus,
+      bindingMissing: post.bindingMissing,
+      errorHint: post.errorHint,
+    };
+
+    // /contract-native: render this routing decision as the substrate's OWN three-shape
+    // (interpret → verify → adjudicate) and attach the verdict to the resolve envelope — a
+    // populated shortlist is an adjudicated winner; an empty/escalating one names its frontier.
+    // Pure + fail-open (evidence, never a blocker), the same discipline as the IQ on-chain mirror.
+    const contractVerdict = await resolutionContractVerdict({
+      intent,
+      skill: { skill_id: (shortlist[0] as Record<string, unknown> | undefined)?.skill_id as string | undefined, endpoints: shortlist },
+      url: urlFlag ?? undefined,
+    });
+
+    emit(
+      {
+        ok,
+        subcommand: "eval resolve",
+        op_kind: meta.op_kind,
+        api_base: base,
+        status_code: status,
+        intent,
+        ctx_url: urlFlag ?? null,
+        domain: effectiveDomain ?? null,
+        limit,
+        fresh,
+        walletPubkey,
+        cache_key: cacheKey,
+        audit_kind: "eval_read",
+        audit_emit: auditEmit,
+        count: shortlist.length,
+        shortlist,
+        _contract: contractVerdict,
+        // Layer 3 — auto-descend signal: on a real MISS (ok but empty shortlist)
+        // with a URL to descend into, emit a live directive so the agent opens
+        // the browser, captures down to the packet layer, and the captured route
+        // auto-indexes back — instead of stopping at a dead empty list.
+        ...(() => {
+          const esc = ok ? escalationDirective(shortlist, urlFlag, intent) : null;
+          return esc ? { escalation: esc } : {};
+        })(),
+        ...(ok
+          ? {}
+          : {
+              next_step:
+                status === 401 || status === 403
+                  ? (onboardingHint ?? "set UNBROWSE_API_KEY (run `unbrowse build register --email …`) — resolve requires a bearer key")
+                  : `backend returned ${status}; retry or check ${base}/health`,
+            }),
+        raw: body,
+      },
+      opts,
+    );
+    process.exit(ok ? 0 : EX_GENERIC);
+  } catch (err) {
+    emitErr(err, opts);
+    process.exit(EX_GENERIC);
+  }
+}

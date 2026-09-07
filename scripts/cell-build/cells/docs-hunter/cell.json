@@ -1,0 +1,83 @@
+{
+  "cell_id": "docs-hunter",
+  "kind": "composed",
+  "phase": "probation",
+  "intent_signatures": [
+    "grab official documentation for a domain",
+    "ingest llms.txt, openapi, ai-plugin, robots, well-known manifests",
+    "produce docs_prior cells that seed new atomic cells with a priori knowledge"
+  ],
+  "capabilities": [
+    "fetch",
+    "parse",
+    "ingest",
+    "emit_docs_prior"
+  ],
+  "usage_instructions": "bash scripts/cell-build/cells/docs-hunter/impl.sh <domain> \u2192 writes .bench-local/docs-hunter/<domain>.json. Fetches every well-known doc location, categorises what was found, produces a DocsBlob suitable for minting docs_prior cells.",
+  "children": [],
+  "extraction": {
+    "sources": [
+      "/.well-known/llms.txt",
+      "/llms.txt",
+      "/openapi.json",
+      "/swagger.json",
+      "/api/v1/openapi.json",
+      "/.well-known/ai-plugin.json",
+      "/.well-known/openid-configuration",
+      "/robots.txt",
+      "/sitemap.xml"
+    ],
+    "note": "probes each source, records status + size + content-type + first 200 bytes of body (redacted). Raw bodies are written to a separate artifact so the cell record stays small."
+  },
+  "verification": {
+    "history": [
+      {
+        "ts": "2026-04-11T02:43:26Z",
+        "verdict": "pass",
+        "exit_code": 0,
+        "summary": "docs-hunter green stripe.com=3 github.com=3",
+        "client_sha": "39850bd6"
+      },
+      {
+        "ts": "2026-04-11T02:43:52Z",
+        "verdict": "pass",
+        "exit_code": 0,
+        "summary": "docs-hunter green stripe.com=3 github.com=3",
+        "client_sha": "39850bd6"
+      }
+    ],
+    "current_health": "healthy",
+    "last_pass_at": "2026-04-11T02:43:52Z"
+  },
+  "telemetry": {
+    "total_runs": 0,
+    "success_runs": 0
+  },
+  "dependencies": {
+    "requires": [],
+    "enables": [
+      {
+        "cell_id": "docs-ingest-stripe",
+        "bind": {
+          "domain": "stripe.com"
+        }
+      },
+      {
+        "cell_id": "docs-ingest-github",
+        "bind": {
+          "domain": "api.github.com"
+        }
+      }
+    ],
+    "observed_with": []
+  },
+  "self_heal": {
+    "fallback_chain": [
+      "curl",
+      "unbrowse-resolve"
+    ],
+    "tried_strategies": []
+  },
+  "contributors": [],
+  "notes": "This is the first concrete cell in the build harness. v0 uses curl. v1 will dogfood by routing through `unbrowse resolve` so the docs-hunter itself is an unbrowse call, closing the loop Lewis described: 'official docs can be grabbed from unbrowse itself'."
+}

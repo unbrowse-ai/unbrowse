@@ -1,0 +1,106 @@
+{
+  "cases": [
+    {
+      "id": "openlibrary-search-books",
+      "intent": "search books",
+      "url": "https://openlibrary.org/search?q=dune",
+      "expected_fields": ["title", "author", "url"]
+    },
+    {
+      "id": "pubmed-search-papers",
+      "intent": "search papers",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+      "expected_fields": ["title", "url"],
+      "validate": {
+        "terminal_ok": ["captcha_blocked"]
+      }
+    },
+    {
+      "id": "arxiv-search-papers",
+      "intent": "search papers",
+      "url": "https://arxiv.org/search/?query=transformer&searchtype=all",
+      "expected_fields": ["title", "url"]
+    },
+    {
+      "id": "companiesmarketcap-stock-quote",
+      "intent": "get stock quote",
+      "url": "https://companiesmarketcap.com/apple/stock-price-history/",
+      "expected_fields": ["symbol", "price", "name"]
+    },
+    {
+      "id": "cambridge-get-definition",
+      "intent": "get definition",
+      "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+      "expected_fields": ["term", "definition"]
+    },
+    {
+      "id": "merriam-get-definition",
+      "intent": "get definition",
+      "url": "https://www.merriam-webster.com/dictionary/agent",
+      "expected_fields": ["term", "definition"],
+      "validate": {
+        "terminal_ok": ["captcha_blocked"]
+      }
+    },
+    {
+      "id": "wiktionary-get-definition",
+      "intent": "get definition",
+      "url": "https://en.wiktionary.org/wiki/agent",
+      "expected_fields": ["term", "definition"]
+    },
+    {
+      "id": "coursera-search-courses",
+      "intent": "search courses",
+      "url": "https://www.coursera.org/search?query=machine%20learning",
+      "expected_fields": ["title", "url", "rating"]
+    },
+    {
+      "id": "npr-search-news",
+      "intent": "search news",
+      "url": "https://www.npr.org/search?query=climate",
+      "expected_fields": ["title", "url"],
+      "validate": {
+        "terminal_ok": ["captcha_blocked"]
+      }
+    },
+    {
+      "id": "bbcgoodfood-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.bbcgoodfood.com/search?q=lasagna",
+      "expected_fields": ["title", "url"],
+      "validate": {
+        "terminal_ok": ["captcha_blocked"]
+      }
+    },
+    {
+      "id": "books-to-scrape-products",
+      "intent": "search products",
+      "url": "https://books.toscrape.com/",
+      "expected_fields": ["title", "price", "url"]
+    },
+    {
+      "id": "hex-package-info",
+      "intent": "get package info",
+      "url": "https://hex.pm/packages/phoenix",
+      "expected_fields": ["name", "version", "description"]
+    },
+    {
+      "id": "packagist-package-info",
+      "intent": "get package info",
+      "url": "https://packagist.org/packages/monolog/monolog",
+      "expected_fields": ["name", "version", "description"],
+      "validate": {
+        "terminal_ok": ["captcha_blocked"]
+      }
+    },
+    {
+      "id": "mvnrepository-artifact-info",
+      "intent": "get package info",
+      "url": "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp",
+      "expected_fields": ["name", "version", "description"],
+      "validate": {
+        "terminal_ok": ["cloudflare_blocked"]
+      }
+    }
+  ]
+}

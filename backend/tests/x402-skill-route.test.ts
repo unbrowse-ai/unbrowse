@@ -1,0 +1,250 @@
+/**
+ * Public skill x402 route — Flex envelope shape (v6.16, Day-5).
+ *
+ * v6.15 emitted a Corbits-shaped envelope (scheme `exact`, accepts[] over two
+ * chains, payTo = contributor wallet). v6.16 swaps the terms builder to
+ * `buildFlexPaymentTerms` so the envelope now carries `scheme: @faremeter/flex`,
+ * a solana-mainnet Flex accept entry, `payTo = agent's escrow PDA`, and
+ * `extra.splits` summing to 10000 bps with the current platform cut.
+ *
+ * The anonymous-caller path returns `flex_escrow_required` (402) since no
+ * agent identity = no escrow PDA to author a Flex authorization against. The
+ * authenticated path with a seeded `flex_escrow_address` returns the Flex
+ * envelope.
+ */
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { publicSkillRoutes } from "../src/routes/skills.js";
+import { x402UseTestnet } from "../src/middleware/x402-gate.js";
+import { LocalKV, clearKVCacheForTests } from "../src/services/kv.js";
+import type { Env, SkillManifest, AgentProfile } from "../src/types.js";
+
+const PAID_SKILL_ID = "skill-paid-x402";
+// 48 hex chars body so verifyLocalKey's prefix + sha256 path works.
+const VALID_AGENT_API_KEY = "ubr_aabbccddeeff00112233445566778899aabbccddeeff0011";
+const PLATFORM_USDC_ATA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+const BASE_ENV: Env = {
+  API_KEY: "test-api-key",
+  EMERGENTDB_API_KEY: "test-emergent",
+  NEBIUS_API_KEY: "test-nebius",
+  STATS_KV: {} as KVNamespace,
+  ENVIRONMENT: "local-dev",
+  PAYMENT_RECIPIENT: "0xfeedfacefeedfacefeedfacefeedfacefeedface",
+  FLEX_PLATFORM_RECIPIENT_USDC_ATA: PLATFORM_USDC_ATA,
+  FLEX_REFUND_TIMEOUT_SLOTS: "150",
+  // Indexing-mode default is OFF (PR #815 doctrine). The x402-skill-route
+  // suite explicitly tests the PAID admission path, so it must opt in to
+  // payments here. Tests that exercise the indexing-mode path override
+  // back to "false" inline. Production wrangler.toml sets these "true"
+  // explicitly, so prod parity holds.
+};
+
+const paidSkill: SkillManifest = {
+  skill_id: PAID_SKILL_ID,
+  version: "1.0.0",
+  schema_version: "1",
+  name: "Example Skill",
+  intent_signature: "example.com",
+  domain: "example.com",
+  description: "Paid skill fixture",
+  owner_type: "marketplace",
+  execution_type: "http",
+  endpoints: [
+    {
+      endpoint_id: "ep-1",
+      method: "GET",
+      url_template: "https://example.com/api/search",
+      description: "Search endpoint",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+    },
+  ],
+  lifecycle: "active",
+  base_price_usd: 0.002,
+  // PR #810 doctrine: execute is free by default; the toll only fires
+  // when the site owner has explicitly opted in via DNS claim + wallet
+  // binding. This fixture IS the paid-skill admission path under test,
+  // so opt-in is set true here.
+  owner_compensation_opt_in: true,
+  contributors: [
+    {
+      agent_id: "agent-alpha",
+      wallet_address: "So1anaContributor1111111111111111111111111111",
+      endpoints_contributed: 1,
+      cumulative_delta: 1,
+      share: 90,
+      first_contributed_at: "2026-04-02T00:00:00.000Z",
+      last_contributed_at: "2026-04-02T00:00:00.000Z",
+    },
+  ],
+  created_at: "2026-04-02T00:00:00.000Z",
+  updated_at: "2026-04-02T00:00:00.000Z",
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function sha256Hex(data: Uint8Array): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Seed an agent profile (with optional flex_escrow_address) for the keyId
+ *  derived from VALID_AGENT_API_KEY. Returns the keyId. */
+async function seedAgentWithFlex(opts: { withEscrow: boolean }): Promise<string> {
+  const enc = new TextEncoder().encode(VALID_AGENT_API_KEY);
+  const hashHex = await sha256Hex(enc);
+  const body = VALID_AGENT_API_KEY.slice(4);
+  const keyId = body.slice(0, 32);
+  const kv = new LocalKV("stats"); // local-dev namespace
+  await kv.put(`keyhash:${hashHex}`, JSON.stringify({
+    keyId,
+    name: "flex-test-agent",
+    created_at: "2026-05-14T00:00:00.000Z",
+    revoked_at: null,
+  }));
+  const profile: AgentProfile = {
+    agent_id: keyId,
+    name: "flex-test-agent",
+    created_at: "2026-05-14T00:00:00.000Z",
+    wallet_address: "WalletXXXXXXXXXXXXXXXXXXXXXXXX",
+    flex_session_key_address: "SessKeyXXXXXXXXXXXXXXXXXXXXXXXX",
+    ...(opts.withEscrow ? { flex_escrow_address: "EscrowPdaXXXXXXXXXXXXXXXXXXXXXX" } : {}),
+    skills_discovered: [],
+    total_executions: 0,
+    total_feedback_given: 0,
+    tos_accepted_version: "v1",
+    tos_accepted_at: "2026-05-14T00:00:00.000Z",
+  };
+  await kv.put(`agent:${keyId}`, JSON.stringify(profile));
+  return keyId;
+}
+
+async function seedSkill(): Promise<void> {
+  const skillsKv = new LocalKV("skills-v2"); // local-dev namespace
+  await skillsKv.put(`skill:${PAID_SKILL_ID}`, JSON.stringify(paidSkill));
+}
+
+describe("public skill x402 route — Flex envelope (v6.16)", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(async () => {
+    clearKVCacheForTests();
+    await seedSkill();
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      // No external facilitator traffic expected on the Flex emit path.
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("returns Flex envelope when agent is fully onboarded (has flex_escrow_address)", async () => {
+    await seedAgentWithFlex({ withEscrow: true });
+
+    const res = await publicSkillRoutes.request(
+      `http://localhost/skills/${PAID_SKILL_ID}`,
+      { headers: { Authorization: `Bearer ${VALID_AGENT_API_KEY}` } },
+      BASE_ENV,
+    );
+    const body = await res.json() as {
+      x402Version: number;
+      error: string;
+      accepts: Array<{
+        scheme: string;
+        network: string;
+        amount: string;
+        payTo: string;
+        extra: { splits: Array<{ recipient: string; bps: number }>; programId: string };
+      }>;
+    };
+
+    expect(res.status).toBe(402);
+    expect(body.error).toBe("Payment Required");
+    expect(body.x402Version).toBe(2);
+    expect(body.accepts.length).toBeGreaterThanOrEqual(2);
+    const flex = body.accepts.find((entry) => entry.scheme === "@faremeter/flex");
+    expect(flex).toBeTruthy();
+    if (!flex) throw new Error("missing Flex accept");
+    expect(flex.network).toBe("solana-mainnet");
+    // payTo is the agent's flex_escrow_address, not the contributor wallet.
+    expect(flex.payTo).toBe("EscrowPdaXXXXXXXXXXXXXXXXXXXXXX");
+    // splits sum to 10000 bps with platform at the current default cut.
+    const splits = flex.extra.splits;
+    const total = splits.reduce((s, e) => s + e.bps, 0);
+    expect(total).toBe(10000);
+    expect(splits[0].recipient).toBe(PLATFORM_USDC_ATA);
+    expect(splits[0].bps).toBe(5000);
+  });
+
+  it("returns flex_onboarding_incomplete when agent profile is missing flex_escrow_address", async () => {
+    // Seed agent WITHOUT flex_escrow_address — soft-block middleware fires.
+    await seedAgentWithFlex({ withEscrow: false });
+
+    const res = await publicSkillRoutes.request(
+      `http://localhost/skills/${PAID_SKILL_ID}`,
+      { headers: { Authorization: `Bearer ${VALID_AGENT_API_KEY}` } },
+      BASE_ENV,
+    );
+    const body = await res.json() as { error: string; missing?: string[] };
+
+    expect(res.status).toBe(402);
+    expect(body.error).toBe("flex_onboarding_incomplete");
+    expect(res.headers.get("X-Flex-Onboarding-Required")).toBe("1");
+  });
+
+  it("returns flex_escrow_required for anonymous callers (no agent identity)", async () => {
+    const res = await publicSkillRoutes.request(
+      `http://localhost/skills/${PAID_SKILL_ID}`,
+      {},
+      BASE_ENV,
+    );
+    const body = await res.json() as { error: string };
+
+    expect(res.status).toBe(402);
+    expect(body.error).toBe("flex_escrow_required");
+    expect(res.headers.get("X-Flex-Onboarding-Required")).toBe("1");
+  });
+
+  it("disables skill payments when owner_compensation_opt_in=false (the only lever)", async () => {
+    // PR #816: env-var escape hatches are gone. The per-skill opt-in IS
+    // the only switch; re-seed the skill with opt-in=false to verify the
+    // skills.ts gate short-circuits on price_usd=0.
+    const freeSkill: SkillManifest = { ...paidSkill, owner_compensation_opt_in: false };
+    const skillsKv = new LocalKV("skills-v2");
+    await skillsKv.put(`skill:${PAID_SKILL_ID}`, JSON.stringify(freeSkill));
+
+    const res = await publicSkillRoutes.request(
+      `http://localhost/skills/${PAID_SKILL_ID}`,
+      {},
+      BASE_ENV,
+    );
+    const body = await res.json() as SkillManifest;
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
+    expect(body.skill_id).toBe(PAID_SKILL_ID);
+  });
+});
+
+describe("x402UseTestnet (unchanged)", () => {
+  it("defaults staging to testnet and production to mainnet", () => {
+    expect(x402UseTestnet({ ENVIRONMENT: "staging" })).toBe(true);
+    expect(x402UseTestnet({ ENVIRONMENT: "production" })).toBe(false);
+  });
+
+  it("allows explicit network override", () => {
+    expect(x402UseTestnet({ ENVIRONMENT: "staging", X402_NETWORK_MODE: "mainnet" })).toBe(false);
+    expect(x402UseTestnet({ ENVIRONMENT: "production", X402_NETWORK_MODE: "testnet" })).toBe(true);
+  });
+});

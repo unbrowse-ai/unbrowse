@@ -1,0 +1,408 @@
+// POST /v1/proxy — server-side fetch proxy for the SDK.
+//
+// Why this exists: the v7 SDK is HTTP-first and never spawns a local daemon.
+// Many captured endpoints are blocked by anti-bot, geo-fenced, or require an
+// outbound IP the user doesn't have. The worker fetches on behalf of the
+// agent. Optionally routes through IProyal residential proxy.
+//
+// Substrate-faithful: the route surfaces what the caller declared (url, method,
+// headers, body, proxy mode) and reports what actually happened (status, body,
+// proxy_used). It does not synthesize headers or rewrite the response.
+
+import { Hono, type Context } from "hono";
+import type { Env } from "../types.js";
+import { optionalAuth } from "../middleware/auth.js";
+import { getProxyConsent, recordProxySurcharge } from "../middleware/sponsor.js";
+import { compensateTxCost } from "../services/fair-compensation.js";
+
+// cloudflare:sockets is a Workers-runtime virtual module. It does not exist in
+// Bun (which loads this file during backend tests via the Hono app import
+// graph). The residential proxy path that uses it is Workers-only at runtime,
+// so we resolve `connect` lazily inside that path and type `Socket`
+// structurally here.
+type Socket = {
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  opened?: Promise<{ remoteAddress?: string | null; localAddress?: string | null }>;
+  close(): Promise<void>;
+  startTls(opts: { expectedServerHostname: string }): Socket;
+};
+type CfConnect = (
+  addr: { hostname: string; port: number },
+  opts?: { secureTransport?: "starttls" | "off"; allowHalfOpen?: boolean },
+) => Socket;
+async function getCloudflareConnect(): Promise<CfConnect> {
+  const mod = await import("cloudflare:sockets");
+  return mod.connect as CfConnect;
+}
+
+interface ProxyRequestBody {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string | null;
+  proxy?: "direct" | "residential";
+  timeout_ms?: number;
+}
+
+interface ProxyResponseBody {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  proxy_used: "direct" | "residential";
+  duration_ms: number;
+  egress_ip?: string;
+  /** True when a direct 429 was retried via the paid residential fallback. */
+  fallback_used?: boolean;
+  /** USD toll charged for the paid residential fallback on this call. */
+  surcharge_usd?: number;
+}
+
+/**
+ * Opt-in paid residential-proxy fallback on a rate-limit (HTTP 429).
+ *
+ * When a `direct` proxy call comes back 429 and the caller is an authenticated
+ * agent who has opted in (`consent:proxy_fallback:<agent> = "yes"`), retry the
+ * request through the residential proxy and charge a small per-call toll
+ * (`SPONSOR_PROXY_SURCHARGE_USD`, default $0.001) recorded on the sponsor ledger.
+ * Without consent (or for anonymous/x402 callers) the 429 is returned unchanged
+ * — no silent paid escalation. Extracted as a seam so it is unit-testable
+ * without the Workers-only `cloudflare:sockets` residential path.
+ */
+export async function maybeProxyFallback(
+  env: Env,
+  agentId: string | undefined,
+  direct: ProxyResponseBody,
+  proxyMode: "direct" | "residential",
+  residentialFetch: () => Promise<ProxyResponseBody>,
+  host: string,
+): Promise<ProxyResponseBody> {
+  if (direct.status !== 429 || proxyMode !== "direct" || !agentId) return direct;
+  if ((await getProxyConsent(env, agentId)) !== "yes") return direct;
+
+  const surchargeUsd = Number(
+    (env as unknown as { SPONSOR_PROXY_SURCHARGE_USD?: string }).SPONSOR_PROXY_SURCHARGE_USD ?? "0.001",
+  ) || 0.001;
+  const resi = await residentialFetch();
+  await recordProxySurcharge(env, {
+    agent_id: agentId,
+    skill_id: host,
+    endpoint_id: "proxy",
+    ledger_id: `proxy-${agentId}-${crypto.randomUUID()}`,
+    cost_usd: surchargeUsd,
+  });
+  resi.fallback_used = true;
+  // Report what the agent is actually charged (toll + fair-comp markup), matching the ledger
+  // row recordProxySurcharge just wrote — not the bare passthrough toll.
+  resi.surcharge_usd = compensateTxCost(surchargeUsd, env).totalUsd;
+  return resi;
+}
+
+/**
+ * True when residential mode can actually run at runtime.
+ *
+ * Runtime path (`fetchViaIproyal`) requires MINI_EGRESS_URL + EGRESS_SECRET.
+ * IPROYAL_USER alone is NOT enough (and is not even read by the Worker residential
+ * path — the mini-egress service holds pool identity). Health must not report
+ * true while residential mode would throw.
+ */
+export function isResidentialConfigured(env: {
+  MINI_EGRESS_URL?: string;
+  EGRESS_SECRET?: string;
+  IPROYAL_USER?: string;
+}): boolean {
+  const egress = typeof env.MINI_EGRESS_URL === "string" && env.MINI_EGRESS_URL.trim().length > 0;
+  const secret = typeof env.EGRESS_SECRET === "string" && env.EGRESS_SECRET.trim().length > 0;
+  return egress && secret;
+}
+
+const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+// Strip headers that would confuse the upstream or leak worker context.
+const STRIP_REQUEST_HEADERS = new Set([
+  "host", "content-length", "connection", "cf-connecting-ip", "cf-ipcountry",
+  "cf-ray", "cf-visitor", "x-forwarded-for", "x-forwarded-proto", "x-real-ip",
+  "true-client-ip",
+]);
+
+// Headers to relay back to the SDK on the response.
+const STRIP_RESPONSE_HEADERS = new Set([
+  "content-encoding", "content-length", "transfer-encoding", "connection",
+]);
+
+function isPrivateOrLocalUrl(u: URL): boolean {
+  const h = u.hostname.toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0.0.0.0") return true;
+  // Block private RFC1918 ranges (best-effort; full check happens at the worker network layer too).
+  if (/^10\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;  // link-local
+  return false;
+}
+
+async function handleProxy(c: Context<{ Bindings: Env; Variables: { agent_id?: string } }>): Promise<Response> {
+  const start = Date.now();
+
+  // Auth gate: accept EITHER (a) a valid Bearer API key (sets c.agent_id via
+  // optionalAuth applied at the route level) OR (b) an x402 payment proof on
+  // the request. If neither, return 402 with payment requirements so the
+  // caller can pay-as-you-go without an account. Substrate-faithful: the
+  // route surfaces the cost up front; the agent's LLM decides whether to
+  // attach a payment proof or use its key.
+  const agentId = c.get("agent_id");
+  const paymentProof = c.req.header("X-Payment-Proof") ?? c.req.header("PAYMENT-SIGNATURE");
+  if (!agentId && !paymentProof) {
+    return c.json({
+      error: "payment_required",
+      message: "Attach a Bearer API key (Authorization: Bearer ubr_...) or an x402 payment proof (X-Payment-Proof header) to use /v1/proxy.",
+      payment: {
+        scheme: "x402",
+        network: ((c.env as unknown as { X402_NETWORK_MODE?: string }).X402_NETWORK_MODE ?? "mainnet"),
+        // Direct mode: ~$0.0001 per call. Residential mode (iproyal): ~$0.001
+        // per call (bandwidth is the dominant cost). Exact cents settled by
+        // facilitator after upstream completes. Surface the upper-bound here
+        // so a sponsor agent can pre-budget.
+        max_amount_usd: 0.001,
+        currencies: ["USDC"],
+        signers: [(c.env as unknown as { PAYMENT_RECIPIENT?: string }).PAYMENT_RECIPIENT].filter(Boolean),
+      },
+      docs: "https://www.unbrowse.ai/docs/proxy",
+    }, 402);
+  }
+
+  let req: ProxyRequestBody;
+  try {
+    req = await c.req.json<ProxyRequestBody>();
+  } catch {
+    return c.json({ error: "invalid_json", message: "body must be JSON" }, 400);
+  }
+
+  if (!req.url || typeof req.url !== "string") {
+    return c.json({ error: "invalid_url", message: "url is required" }, 400);
+  }
+
+  let target: URL;
+  try {
+    target = new URL(req.url);
+  } catch {
+    return c.json({ error: "invalid_url", message: `cannot parse url: ${req.url}` }, 400);
+  }
+  if (target.protocol !== "https:" && target.protocol !== "http:") {
+    return c.json({ error: "invalid_scheme", message: "only http/https allowed" }, 400);
+  }
+  if (isPrivateOrLocalUrl(target)) {
+    return c.json({ error: "blocked_private_host", message: `private/loopback hosts not allowed: ${target.hostname}` }, 400);
+  }
+
+  const method = (req.method ?? "GET").toUpperCase();
+  if (!ALLOWED_METHODS.has(method)) {
+    return c.json({ error: "invalid_method", message: `method ${method} not allowed` }, 400);
+  }
+
+  const proxyMode = req.proxy ?? "direct";
+  if (proxyMode !== "direct" && proxyMode !== "residential") {
+    return c.json({ error: "invalid_proxy_mode", message: `proxy must be 'direct' or 'residential'` }, 400);
+  }
+
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers ?? {})) {
+    if (STRIP_REQUEST_HEADERS.has(k.toLowerCase())) continue;
+    headers.set(k, v);
+  }
+  if (!headers.has("user-agent")) {
+    headers.set("user-agent", "Mozilla/5.0 (compatible; UnbrowseProxy/1.0)");
+  }
+  if (!headers.has("accept")) headers.set("accept", "*/*");
+
+  const timeoutMs = Math.min(req.timeout_ms ?? DEFAULT_TIMEOUT_MS, 60_000);
+
+  try {
+    let result: ProxyResponseBody;
+    if (proxyMode === "residential") {
+      result = await fetchViaIproyal(target, method, headers, req.body ?? null, timeoutMs, c.env);
+    } else {
+      result = await fetchDirect(target, method, headers, req.body ?? null, timeoutMs);
+      // Opt-in paid residential fallback on a rate-limit (consent-gated, tolled).
+      result = await maybeProxyFallback(
+        c.env,
+        agentId,
+        result,
+        proxyMode,
+        () => fetchViaIproyal(target, method, headers, req.body ?? null, timeoutMs, c.env),
+        target.hostname,
+      );
+    }
+    result.duration_ms = Date.now() - start;
+    // Tag the response so the caller can audit which auth path settled.
+    (result as ProxyResponseBody & { auth_used?: string }).auth_used = agentId ? "api_key" : "x402";
+    return c.json(result, 200);
+  } catch (e) {
+    const message = (e as Error)?.message ?? String(e);
+    return c.json({
+      error: "upstream_fetch_failed",
+      message,
+      proxy_used: proxyMode,
+      duration_ms: Date.now() - start,
+    }, 502);
+  }
+}
+
+async function fetchDirect(
+  url: URL,
+  method: string,
+  headers: Headers,
+  body: string | null,
+  timeoutMs: number,
+): Promise<ProxyResponseBody> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url.toString(), {
+      method,
+      headers,
+      body: method === "GET" || method === "HEAD" ? null : body,
+      signal: ctrl.signal,
+      redirect: "follow",
+    });
+    const respHeaders: Record<string, string> = {};
+    r.headers.forEach((v, k) => {
+      if (!STRIP_RESPONSE_HEADERS.has(k.toLowerCase())) respHeaders[k] = v;
+    });
+    const respBody = await r.text();
+    return {
+      status: r.status,
+      headers: respHeaders,
+      body: respBody.length > MAX_BODY_BYTES ? respBody.slice(0, MAX_BODY_BYTES) : respBody,
+      proxy_used: "direct",
+      duration_ms: 0,
+    };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function fetchViaIproyal(
+  url: URL,
+  method: string,
+  _headers: Headers,
+  _body: string | null,
+  timeoutMs: number,
+  env: Env,
+): Promise<ProxyResponseBody> {
+  // The Workers runtime cannot complete a TLS handshake to non-Cloudflare
+  // origins via `cloudflare:sockets` startTls(), so the residential egress is
+  // delegated to an external OS-level service that performs the iProyal fetch
+  // itself and is reachable over plain HTTPS (no startTls limitation here).
+  const egressUrl = env.MINI_EGRESS_URL;
+  const egressSecret = env.EGRESS_SECRET;
+  if (!egressUrl || !egressSecret) {
+    throw new Error("MINI_EGRESS_URL / EGRESS_SECRET env not set; run `wrangler secret put MINI_EGRESS_URL` and `wrangler secret put EGRESS_SECRET`");
+  }
+
+  // Amazon's anti-bot layer needs more retries to land a real body; others are
+  // fast. min_len lets the egress retry past CAPTCHA/interstitials until the
+  // body looks real.
+  const retries = /(^|\.)amazon\./i.test(url.hostname) ? 12 : 3;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), Math.max(timeoutMs, 60_000));
+  try {
+    const r = await fetch(egressUrl, {
+      method: "POST",
+      headers: {
+        "X-Egress-Secret": egressSecret,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url.toString(),
+        method,
+        min_len: 50_000,
+        retries,
+      }),
+      signal: ctrl.signal,
+    });
+    const payload = await r.json<{ status?: number; body?: string; proxy_used?: string }>();
+    const bodyText = typeof payload.body === "string" ? payload.body : "";
+    return {
+      status: typeof payload.status === "number" ? payload.status : r.status,
+      headers: {},
+      body: bodyText.length > MAX_BODY_BYTES ? bodyText.slice(0, MAX_BODY_BYTES) : bodyText,
+      proxy_used: "residential",
+      duration_ms: 0,
+    };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function readUntilDoubleCrlf(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  timeoutMs: number,
+): Promise<string> {
+  const dec = new TextDecoder();
+  let acc = "";
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (value) {
+      acc += dec.decode(value, { stream: true });
+      if (acc.includes("\r\n\r\n")) return acc;
+    }
+  }
+  throw new Error(`timeout waiting for proxy CONNECT response after ${timeoutMs}ms`);
+}
+
+async function readAll(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  cap: number,
+  timeoutMs: number,
+): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+      if (total >= cap) break;
+    }
+  }
+  const out = new Uint8Array(Math.min(total, cap));
+  let off = 0;
+  for (const chunk of chunks) {
+    const take = Math.min(chunk.byteLength, cap - off);
+    out.set(chunk.subarray(0, take), off);
+    off += take;
+    if (off >= cap) break;
+  }
+  return out;
+}
+
+export const proxyRoutes = new Hono<{ Bindings: Env; Variables: { agent_id?: string } }>();
+// optionalAuth so a Bearer key sets c.agent_id without rejecting unauthed callers
+// (handleProxy returns 402 with payment requirements when no auth path matched).
+proxyRoutes.post("/v1/proxy", optionalAuth, handleProxy);
+
+// Health probe: GET /v1/proxy returns capability info without making upstream calls.
+// Useful for the SDK to check "is residential mode wired" before requesting it.
+// residential_configured mirrors the runtime gate in fetchViaIproyal (mini-egress),
+// not the presence of IPROYAL_USER alone (false-positive health).
+proxyRoutes.get("/v1/proxy", (c) => {
+  const env = c.env as unknown as {
+    MINI_EGRESS_URL?: string;
+    EGRESS_SECRET?: string;
+    IPROYAL_USER?: string;
+  };
+  return c.json({
+    modes: ["direct", "residential"],
+    residential_configured: isResidentialConfigured(env),
+    max_body_bytes: MAX_BODY_BYTES,
+    default_timeout_ms: DEFAULT_TIMEOUT_MS,
+  });
+});

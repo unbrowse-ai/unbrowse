@@ -1,0 +1,1402 @@
+import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
+import { tryCurlImpersonateFetch } from "../capture/curl-impersonate-fallback.js";
+import {
+  collectionWeight,
+  embeddedJsonBlocks,
+  findBestCollections,
+  type RecordCollection,
+} from "../capture/reveng-local.js";
+import { resolveProxyUrl } from "../execution/proxy-fetch.js";
+import { log } from "../logger.js";
+import { isListLikeIntent, linksFormEntityCollection } from "../values/cardinality.js";
+import { deriveSearchRouteTemplates, fillSearchRoute } from "../execution/search-forms.js";
+import { browserTruthBoundary, intentRequiresEvaluatedJavascript } from "../runtime/browser-access.js";
+
+export interface DirectDocumentTable {
+  caption?: string;
+  headers: string[];
+  rows: string[][];
+}
+
+/**
+ * A hole in an HTML GET endpoint — exactly like an API's query/path param. The agent fills it to
+ * re-query (search terms, pagination, an entity id) without re-discovering the page. This is what
+ * makes an HTML page a first-class, replayable endpoint (pointer→pointer→value) and not a one-shot
+ * document: `GET /search?q={q}&page={page}` filled and fetched, returning the page as markdown.
+ */
+export interface HtmlHole {
+  name: string;
+  in: "query" | "path";
+  example: string;
+}
+
+/** How the extraction was cut down to fit the budget, when it was cut at all. */
+export type DirectDocumentTruncationStrategy = "none" | "head-slice" | "query-focus";
+
+/**
+ * Whether the caller's task/intent actually selected WHICH text came back.
+ *
+ * `applied:query-focused` is the ONLY value that means the intent shaped the
+ * content. Every `unfiltered:*` value means the markdown is the document in
+ * document order and the task string did not narrow it — the caller must not
+ * read the result as "these are the passages that answer my question".
+ */
+export type DirectDocumentIntentStatus =
+  | "applied:query-focused"
+  | "unfiltered:no_intent_supplied"
+  | "unfiltered:page_within_budget"
+  | "unfiltered:no_usable_intent_terms"
+  | "unfiltered:query_focus_disabled";
+
+/**
+ * The extraction's own account of itself, carried INSIDE `extraction` on purpose.
+ *
+ * `extraction` is the one sub-object every downstream projection preserves — the
+ * MCP flash path (src/mcp.ts) drops `markdown`, `html_bytes` and `content_type`
+ * and keeps `title/url/text_excerpt/extraction/tables`. A truthfulness signal that
+ * only existed at the top level would therefore vanish on exactly the surface that
+ * shows the caller the least content. Top-level `truncated` / `intent_applied`
+ * mirror the two booleans for callers that want a one-key branch.
+ */
+export interface DirectDocumentExtractionAudit {
+  source: "direct-document";
+  rejected: false;
+  /**
+   * TRUE when the returned `markdown`/`text_excerpt` are a CUT-DOWN SUBSET of the
+   * page. This is the difference between "the site had nothing" and "we dropped
+   * it": at the default 12k budget a filter sidebar can consume the whole
+   * allowance and every data row falls off the end, which used to be reported as
+   * a clean `rejected:false` with no signal anywhere in the JSON.
+   */
+  truncated: boolean;
+  /** The budget in force for this extraction (UNBROWSE_MARKDOWN_BUDGET, default 12000). */
+  budget: number;
+  /** Chars of markdown actually returned. */
+  markdown_chars: number;
+  /** Chars of markdown BEFORE the cut — size a retry against this. */
+  markdown_chars_available: number;
+  /** Chars of `text_excerpt` actually returned. */
+  text_excerpt_chars: number;
+  /** Chars of body text BEFORE the cut. */
+  text_excerpt_chars_available: number;
+  /** How the cut was made. `none` when the whole page fit. */
+  strategy: DirectDocumentTruncationStrategy;
+  /** TRUE only when the intent actually selected which passages came back. */
+  intent_applied: boolean;
+  /** Why the intent did or did not shape the content. */
+  intent_status: DirectDocumentIntentStatus;
+  /** The task string this extraction saw. `null` when none reached the extractor. */
+  intent_received: string | null;
+  /** Plain-language notes for an agent reading the payload, empty when nothing to say. */
+  notes: string[];
+}
+
+export interface DirectDocumentResult {
+  rejected: false;
+  /** Foreground task truth, distinct from a successful HTTP/document fetch. */
+  task_ok: boolean;
+  /** Whether the returned value satisfies the requested result shape. */
+  intent_fulfilled: boolean;
+  /** Present when transport succeeded but the requested value shape did not. */
+  error?: "response_shape_mismatch";
+  title: string;
+  url: string;
+  /** Static-fetch provenance: this path never claims page JavaScript executed. */
+  truth: ReturnType<typeof browserTruthBoundary>;
+  /** Stable source pointer retained when output is focused or truncated. */
+  pointer: { url: string; url_template: string; complete_document_chars: number };
+  /** Mirror of `extraction.truncated` — the one-key branch for "is this the whole page?". */
+  truncated: boolean;
+  /** Mirror of `extraction.intent_applied` — FALSE means extraction was unfiltered. */
+  intent_applied: boolean;
+  /** The page's URL with query params + numeric/uuid path segments turned into {holes}, so the
+   *  HTML endpoint is a replayable parameterized GET (like an API). Equals `url` when no params. */
+  url_template: string;
+  /** The fillable holes (query + path params) — the standardized hole interface for HTML. */
+  input_params: HtmlHole[];
+  /** EndpointDescriptor-shaped hole defaults, IDENTICAL to an internal API endpoint, so an HTML
+   *  GET hole executes through the same fill-and-fetch path as an API (true interface parity). */
+  path_params: Record<string, string>;
+  query: Record<string, string>;
+  content_type: string;
+  html_bytes: number;
+  text_excerpt: string;
+  /** The page rendered to markdown — the resolved VALUE of the HTML hole. */
+  markdown: string;
+  tables: DirectDocumentTable[];
+  /** Routing candidates the JUDGE (agent) can walk when this page is the entry,
+   *  not the listing: the site's OWN search pipe, derived from its links and
+   *  filled with the intent's query. The agent picks/refines + resolves one —
+   *  surfaced, never forced (CLAUDE.md "judge the routing, don't force pipes").
+   *  Absent for non-list intents or pages with no derivable search route. */
+  routing_candidates?: SearchRouteCandidate[];
+  extraction: DirectDocumentExtractionAudit;
+}
+
+export interface SearchRouteCandidate {
+  /** The filled, walkable URL (e.g. https://www.carousell.sg/food/q/). */
+  url: string;
+  /** The route template with the {query} hole (the reusable pipe). */
+  template: string;
+  /** The query term filled into the hole (from the intent). */
+  query: string;
+  /** Example query values seen on the page — evidence for the judge. */
+  samples: string[];
+}
+
+/**
+ * Turn an HTML page URL into a parameterized GET hole, the SAME shape an API endpoint uses:
+ *   - every `?key=value` query param → a `{key}` hole (search, filters, pagination);
+ *   - every numeric or uuid path segment → a `{<prev>_id}` hole (`/products/12345` → `/products/{products_id}`).
+ * Returns the `{hole}`-templated url + the input_params. No params → url_template === url, [] holes.
+ */
+export function extractHtmlHoles(
+  rawUrl: string,
+): { url_template: string; input_params: HtmlHole[]; path_params: Record<string, string>; query: Record<string, string> } {
+  try {
+    const u = new URL(rawUrl);
+    const holes: HtmlHole[] = [];
+    const query: Record<string, string> = {};
+    const path_params: Record<string, string> = {};
+    for (const [k, v] of u.searchParams.entries()) {
+      holes.push({ name: k, in: "query", example: v });
+      query[k] = v;
+    }
+    const queryTemplate = [...u.searchParams.keys()]
+      .map((k) => `${encodeURIComponent(k)}={${k}}`)
+      .join("&");
+    const segs = u.pathname.split("/");
+    const templatedSegs = segs.map((seg, i) => {
+      const isNumeric = /^\d+$/.test(seg);
+      const isUuidish = /^[0-9a-f]{8}-?[0-9a-f]{4}/i.test(seg) || /^[0-9a-f]{16,}$/i.test(seg);
+      if (seg && (isNumeric || isUuidish)) {
+        const prev = (segs[i - 1] || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+        const name = prev ? `${prev}_id` : `id${Object.keys(path_params).length + 1}`;
+        holes.push({ name, in: "path", example: seg });
+        path_params[name] = seg;
+        return `{${name}}`;
+      }
+      return seg;
+    });
+    const url_template = `${u.origin}${templatedSegs.join("/")}${queryTemplate ? "?" + queryTemplate : ""}`;
+    return { url_template, input_params: holes, path_params, query };
+  } catch {
+    return { url_template: rawUrl, input_params: [], path_params: {}, query: {} };
+  }
+}
+
+export interface DirectDocumentRejection {
+  rejected: true;
+  reason:
+    | "unsupported_domain"
+    | "not_html"
+    | "too_small"
+    | "challenge_html"
+    | "interstitial_detected"
+    | "intent_mismatch"
+    | "javascript_evaluation_required"
+    | "spa_hydration_required"
+    | "dead_or_parked"
+    // The body is not text at all (a PDF / image / zip container served, or
+    // relabelled, as HTML). Refusing is the honest answer; emitting the bytes as
+    // `markdown`/`text_excerpt` is not. Extracting a PDF's text layer is a
+    // separate, optional capability — this reason is what makes its absence
+    // visible instead of silently returning `%PDF-1.4` as page content.
+    | "binary_not_text";
+  // Optional evidence the agent reads in-thread when judging the rejection.
+  // Populated for intent_mismatch / interstitial_detected so the orchestrator's
+  // decision_trace can surface WHY direct-document handed off to the browser
+  // ladder instead of returning a structurally-PASSing 200.
+  evidence?: {
+    intent_tokens?: string[];
+    response_token_hits?: string[];
+    response_token_hit_rate?: number;
+    interstitial_signal?: string;
+    spa_markers?: string[];
+    body_text_chars?: number;
+    html_bytes?: number;
+    /** For `binary_not_text`: the container format recognised, when one was. */
+    binary_signature?: string;
+    /** For `binary_not_text`: measured share of non-text characters in the head. */
+    non_text_ratio?: number;
+  };
+}
+
+// Generic structural gates (HTML check, size floor, anti-bot challenge sniff).
+// Applies to ANY http(s) URL — no per-host arm. The bench-cycle-3 surface
+// that motivated the generalization (stackoverflow probes 016/017 returned
+// 39-byte empty Kuri snapshots while the live SSR page is 200KB+ of real
+// question content) is the exact case the existing bloomberg fallback was
+// solving, just for a different host. Per CLAUDE.md substrate principle
+// ("Anti-patterns: per-domain heuristics that don't generalise"), the
+// per-host gate was a substrate violation we now retire.
+const HTML_RE = /text\/html|application\/xhtml\+xml/i;
+const MIN_DIRECT_DOCUMENT_HTML_BYTES = 5_000;
+const CHALLENGE_RE =
+  /\b(access denied|are you a robot|captcha|just a moment|pardon our interruption|robot check|unusual traffic|verify you are human)\b/i;
+
+// Interstitial / logged-out / antibot landing pages return 200 + HTML, but the
+// HTML is a wall (sign-in page, "please wait for verification", "JavaScript is
+// not available"). Without this gate the orchestrator returned them as a
+// structural direct-document PASS because the body cleared the size + content-
+// type + CHALLENGE_RE gates. Evidence: bench probes against mail.google.com,
+// linkedin.com/feed, x.com/home, reddit.com/r/* all hit this surface 2026-05-21.
+// Generic across vendors (cloudflare / datadome / akamai / perimeterx); no
+// per-host arm.
+//
+// Also: CDN *origin failure* pages (Cloudflare 52x SSL handshake / origin down)
+// look like real HTML with titles like "… | 525: SSL handshake failed" and used
+// to soft-green as task_ok:true. Structural signal only — error-code + origin
+// wording — never a host allowlist.
+const INTERSTITIAL_RE =
+  /\b(please wait for verification|just a moment|cf-mitigated|datadome|akamai bot|perimeterx|sign in to continue|log in to (?:continue|access)|javascript is not available|ssl handshake failed|error code\s*52[0-9]|unable to establish an ssl connection to the origin|cloudflare is unable to establish an ssl|web server is down|origin is unreachable)\b/i;
+
+// Floor below which the document is too thin to plausibly be the answer to any
+// content intent (observed 86-byte meta-only envelopes on SPA tag pages).
+// MIN_DIRECT_DOCUMENT_HTML_BYTES already gates raw HTML at 5KB, but the EXTRACTED
+// text inside a 5KB SPA shell can collapse to <500 chars. Apply this on text.
+const MIN_DIRECT_DOCUMENT_BODY_TEXT = 500;
+
+// SPA hydration markers — Next.js / Nuxt / Redux / generic React SSR shells emit
+// these inline-script anchors when the page hydrates client-side. The body text
+// scraped from the pre-hydration HTML is thin chrome (header/footer/loading
+// skeleton); the agent's content lives in the data blob the SPA later renders
+// via fetch + render. When direct-document sees these markers AND the extracted
+// body text is below a hydration floor, the right next step is the browser
+// ladder (with a hydration wait), NOT returning the empty meta envelope.
+//
+// Triggered by civitai-class probes (next.js SPA returning a 50KB shell with
+// <500 chars of visible text — only the `<title>` and `<meta>` survive the
+// strip; the search results render after window.__NEXT_DATA__ is consumed).
+// Generic across stacks; no per-host arm.
+const SPA_HYDRATION_RE =
+  /\b(__NEXT_DATA__|_next\/static|self\.__next_f|window\.__NUXT__|window\.__INITIAL_STATE__|__APOLLO_STATE__|window\.__PRELOADED_STATE__|window\.__INITIAL_PROPS__|_nuxt\/static)\b/i;
+// Body text floor below which an SPA shell is considered un-hydrated.
+// A real direct-document page (wikipedia article, stackoverflow question)
+// has >2000 chars of visible text after script/style strip; SPA shells
+// pre-hydration collapse to <2000 (often <1000).
+const SPA_HYDRATION_BODY_TEXT_FLOOR = 2_000;
+
+/**
+ * Minimum share of human-facing scalars before an embedded collection may be
+ * returned AS the page's answer. Set low on purpose: a legitimate collection can
+ * be mostly numeric (a price series), and the job here is only to exclude the
+ * pure-plumbing case — measured on live target.com, the A/B experiment payload
+ * scores 0.00 while the real category list scores 0.53.
+ */
+const MIN_EMBEDDED_ANSWER_DENSITY = 0.05;
+
+// Marker-less CSR shells. SPA_HYDRATION_RE catches SSR frameworks that inline a
+// state blob (Next/Nuxt/Apollo/Redux). But a pure client-rendered app
+// (Vite / Create-React-App / Angular / Svelte / Vue CLI) ships an EMPTY root
+// container and a single bundle <script> with NONE of those inline markers — the
+// "empty <div id=root>" failure mode. When the visible body is below the
+// hydration floor AND one of these root anchors is present, the page is an
+// un-hydrated CSR shell whose data renders via fetch+render, so the right next
+// step is the browser ladder with a hydration wait — same as the SSR-shell case.
+// Generic across stacks; no per-host arm. Anchored on framework-conventional
+// root ids / hydration attributes, not on emptiness (a thin body already proved
+// the shell is un-hydrated).
+const SPA_ROOT_CONTAINER_RE =
+  /\bid=["'](?:root|app|__next|__nuxt|q-app|svelte|application)["']|\bdata-reactroot\b|\bdata-server-rendered=["']true["']|\bng-version=["']/i;
+
+// Dead / parked / placeholder domains: registrar landers ("buy this domain"),
+// default webserver pages (Apache "It works!", nginx welcome), and for-sale
+// parking pages return 200 + HTML that clears the size gate but carries no
+// real content and no API. Escalating these through the curl → browser ladder
+// burns the whole per-site budget before failing. Detecting them here returns a
+// terminal `dead_or_parked` so the caller can fail fast and spend that budget on
+// the SPA sites that genuinely need a render. Generic across registrars/parkers.
+const PARKED_RE =
+  /\b(this domain (?:name )?is for sale|buy this domain|the domain .{1,40} is for sale|domain (?:is )?parked|parked free, courtesy|domain parking|sedoparking|bodis\.com|hugedomains|parkingcrew|domain for sale|future home of something|apache2? (?:ubuntu|debian)? ?default page|nginx welcome|it works!|default web ?(?:site|page) ?page|under construction)\b/i;
+
+// Stopwords pulled from a generic English list; verbs that signal an intent
+// action are stripped because they are unlikely to appear verbatim in a result
+// body ("get the X": the response shows X, not the word "get").
+const INTENT_STOPWORDS = new Set([
+  "a", "an", "and", "any", "are", "as", "at", "be", "by", "for", "from", "get",
+  "got", "have", "how", "i", "in", "into", "is", "it", "its", "list", "me", "my",
+  "of", "on", "or", "search", "show", "that", "the", "their", "them", "then",
+  "there", "these", "they", "this", "those", "to", "view", "was", "what",
+  "when", "where", "which", "who", "why", "will", "with", "you", "your", "find",
+  "fetch", "see", "give", "want", "need", "please", "all", "some", "current",
+  "latest", "top", "page", "site", "open", "load", "trending", "discover",
+  "browse", "lookup", "look",
+]);
+
+function extractMeaningfulTokens(intent: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of intent.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 3) continue;
+    if (INTENT_STOPWORDS.has(raw)) continue;
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+  }
+  return out;
+}
+
+// Extraction budget for the direct-document markdown + text_excerpt. Default 12k
+// keeps agent responses lean (context economy); callers that need the full page
+// (e.g. a long-context RAG client doing its own in-page passage selection over a
+// large spec doc whose answer sits deep) raise it via UNBROWSE_MARKDOWN_BUDGET.
+// A 12k head-truncation silently erases deep passages in 800KB+ spec pages, so
+// the cap must be liftable without forking the extractor.
+//
+// Read per call, not once at module load: the MCP server and the SDK are
+// long-lived processes, so a module-init constant made the documented escape
+// hatch settable only by restarting. Cost is one env read per extraction.
+export const DEFAULT_MARKDOWN_BUDGET = 12_000;
+function markdownBudget(): number {
+  return Math.max(
+    1_000,
+    Number(process.env.UNBROWSE_MARKDOWN_BUDGET ?? String(DEFAULT_MARKDOWN_BUDGET)) || DEFAULT_MARKDOWN_BUDGET,
+  );
+}
+const MAX_TABLES = 10;
+const MAX_TABLE_ROWS = 50;
+
+// ---------------------------------------------------------------------------
+// "Is this body text at all?"
+// ---------------------------------------------------------------------------
+//
+// A PDF served (or relabelled) as HTML used to come back as `text_excerpt` /
+// `markdown` beginning `%PDF-1.4\r%<0xFFFD><0xFFFD>…` with `rejected:false,
+// success:true` — ~97KB of object-stream noise presented to the agent as page
+// content. The content-type gate cannot catch it: three call sites hand this
+// function a hardcoded `"text/html"` for bytes they fetched themselves
+// (src/execution/index.ts:28, src/orchestrator/index.ts:5110/6009), so the
+// claimed type is not evidence.
+//
+// The PRIMARY test is structural, per CLAUDE.md's "no hard filter when a
+// structural signal exists": count the characters that cannot occur in decoded
+// text. `res.text()` / `Buffer.toString("utf8")` turn every non-UTF-8 byte into
+// U+FFFD, so a binary container arrives as a dense field of replacement
+// characters and C0 control codes. Real HTML sits at ~0. Nothing about a
+// filename, extension, or host is consulted, so a new container format is
+// recognised for free.
+const NON_TEXT_RATIO_FLOOR = 0.1;
+const NON_TEXT_SAMPLE_CHARS = 4_096;
+
+// The density test alone would over-fire on ONE real case: a legacy-encoded page
+// (GBK / Shift-JIS / Latin-1) whose server declared no charset, so `res.text()`
+// decoded it as UTF-8 and every non-ASCII character became U+FFFD. That page is
+// mojibake, but it IS a document and the browser ladder can still render it —
+// refusing it as "binary" would be a new false failure of the same family this
+// change exists to remove.
+//
+// So the refusal is a CONJUNCTION of two structural signals, not one threshold:
+// the body must be non-text dense AND carry no markup structure. A real closing
+// tag (`</div>`, `</p>`) survives any mis-decoding because tag names are ASCII;
+// a binary container has none. This is still shape recognition — no charset
+// list, no host list, nothing to extend when the next encoding shows up.
+const CLOSING_TAG_RE = /<\/[a-zA-Z][a-zA-Z0-9-]*\s*>/;
+
+// The one place a hard list is unavoidable, kept to three entries and justified:
+// these are PROTOCOL CONSTANTS (the format's own first bytes), and they cover
+// the containers whose head is mostly printable ASCII and so can slip under the
+// density floor — a PDF whose object streams are Flate-compressed, PostScript,
+// and the ZIP header shared by docx/xlsx/odt/jar. Every other binary format is
+// caught by the density test above without an entry here.
+const BINARY_MAGIC: ReadonlyArray<readonly [string, string]> = [
+  ["%PDF-", "pdf"],
+  ["%!PS", "postscript"],
+  // Full 4-byte local-file-header magic (escaped, not literal control bytes).
+  ["PK\u0003\u0004", "zip-container"],
+];
+
+/** Share of characters in the head of `body` that cannot appear in decoded text. */
+export function nonTextRatio(body: string): number {
+  const sample = body.slice(0, NON_TEXT_SAMPLE_CHARS);
+  if (sample.length === 0) return 0;
+  let bad = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    // U+FFFD is what a byte that is not valid UTF-8 becomes after decoding.
+    if (code === 0xfffd) { bad++; continue; }
+    // C0 controls other than tab / LF / CR never occur in real markup.
+    if (code < 32 && code !== 9 && code !== 10 && code !== 13) bad++;
+  }
+  return bad / sample.length;
+}
+
+/**
+ * Null when the body is text. Otherwise the evidence for refusing it: which
+ * container was recognised (if any) and the measured non-text density.
+ */
+export function detectBinaryBody(body: string): { signature: string; ratio: number } | null {
+  const head = body.slice(0, 64);
+  for (const [magic, name] of BINARY_MAGIC) {
+    if (head.startsWith(magic)) return { signature: name, ratio: nonTextRatio(body) };
+  }
+  const ratio = nonTextRatio(body);
+  if (ratio < NON_TEXT_RATIO_FLOOR) return null;
+  // Dense in non-text characters, but it has markup: mis-decoded text, not a
+  // binary container. Let it through — the ladder above handles a thin/garbled
+  // body on its own merits.
+  if (CLOSING_TAG_RE.test(body.slice(0, NON_TEXT_SAMPLE_CHARS))) return null;
+  return { signature: "non_text_density", ratio };
+}
+
+export function isDirectDocumentEligibleUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// Deprecated alias retained for one release so external imports do not
+// break. Functionally identical to isDirectDocumentEligibleUrl now that
+// the gate is universal. Remove in the next major.
+export const isBloombergDirectDocumentUrl = isDirectDocumentEligibleUrl;
+
+/**
+ * Markers proving the visible DOM is an un-hydrated shell rather than the page.
+ *
+ * Two tiers, both structural: an inline state blob from an SSR framework
+ * (Next/Nuxt/Apollo/Redux — the data is present, just not rendered), or, when
+ * none is inlined, an empty framework root container from a pure CSR stack
+ * (Vite/CRA/Angular/Svelte — the data has to be fetched). Returns at most four
+ * markers, for evidence.
+ */
+function detectSpaShellMarkers(html: string): string[] {
+  const markers: string[] = [];
+  const headSlice = html.slice(0, Math.min(html.length, 200_000));
+  const scanRe = new RegExp(SPA_HYDRATION_RE.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = scanRe.exec(headSlice)) !== null) {
+    if (m[0] && !markers.includes(m[0])) markers.push(m[0]);
+    if (markers.length >= 4) break;
+  }
+  // Marker-less CSR shell. A thin body already proved it is un-hydrated, so
+  // route it to the render ladder rather than letting it fall to the generic
+  // interstitial path (which may attempt an auth capture instead of a wait).
+  if (markers.length === 0) {
+    const rootHit = SPA_ROOT_CONTAINER_RE.exec(headSlice);
+    if (rootHit?.[0]) markers.push(rootHit[0].slice(0, 40));
+  }
+  return markers;
+}
+
+/**
+ * When the visible DOM is chrome-only but the page already shipped a record
+ * collection inside a `<script>` (JSON-MIME data block OR `var data = [{…}]`),
+ * surface that payload as the document value. Structural recognition via
+ * {@link embeddedJsonBlocks} + {@link findRecordCollection} — same engine the
+ * capture path already uses — so we never lose to plain curl on sites like
+ * quotes.toscrape.com/js/ where the quotes live only in a script assignment.
+ */
+function embeddedCollectionPayload(html: string): {
+  text: string;
+  markdown: string;
+  recordCount: number;
+  density: number;
+} | null {
+  // Two tracks, because weight alone is not enough. Density DAMPENS a candidate
+  // (it cannot disqualify one — an all-numeric collection is still legitimate),
+  // so a big enough telemetry blob can still outweigh a smaller content list:
+  // 1000 tracking rows score above 20 product rows. Preferring a content-bearing
+  // collection whenever ONE EXISTS, and only falling back to the overall best
+  // when none does, keeps both properties — real records win, and a page whose
+  // only collection is numeric is still served.
+  let bestQualified: RecordCollection | null = null;
+  let bestQualifiedBlock: unknown;
+  let bestQualifiedWeight = 0;
+  let bestOverall: RecordCollection | null = null;
+  let bestOverallBlock: unknown;
+  let bestOverallWeight = 0;
+  for (const block of embeddedJsonBlocks(html)) {
+    // Rank by the same evidence weight capture uses (records x shape agreement
+    // x content density) rather than raw record count. Counting alone picked
+    // the biggest blob on the page, which on a real storefront is the A/B
+    // experiment payload, not the products.
+    const { best: overall, contentful } = findBestCollections(block, MIN_EMBEDDED_ANSWER_DENSITY);
+    if (overall) {
+      const weight = collectionWeight(overall);
+      if (weight > bestOverallWeight) {
+        bestOverallWeight = weight;
+        bestOverall = overall;
+        bestOverallBlock = block;
+      }
+    }
+    if (contentful) {
+      const weight = collectionWeight(contentful);
+      if (weight > bestQualifiedWeight) {
+        bestQualifiedWeight = weight;
+        bestQualified = contentful;
+        bestQualifiedBlock = block;
+      }
+    }
+  }
+  const best = bestQualified ?? bestOverall;
+  const bestBlock = bestQualified ? bestQualifiedBlock : bestOverallBlock;
+  if (!bestBlock || !best || best.count < 2) return null;
+  // Serialize the RECORDS, not the block that contained them. findRecordCollection
+  // already located the array precisely (`best.path`), but this used to stringify
+  // the whole block — on a Next.js page that is the entire hydration state, so a
+  // 200 KB blob went to the budget slicer and the agent received whatever window
+  // it happened to cut (for a grocery page: ad-placement config, sliced
+  // mid-token). Handing back the located array is both correct and ~100x smaller.
+  const records = resolveCollectionPath(bestBlock, best.path);
+  const payload = records ?? bestBlock;
+  const text = JSON.stringify(payload, null, 2);
+  const where = best.path.length > 0 ? ` at ${best.path.join(".")}` : "";
+  const markdown =
+    `# Embedded collection (${best.count} records${where})\n\n` +
+    "```json\n" +
+    text +
+    "\n```\n";
+  return { text, markdown, recordCount: best.count, density: best.density };
+}
+
+/** Resolve a findRecordCollection path against the block it was found in. */
+function resolveCollectionPath(block: unknown, path: string[]): unknown[] | null {
+  let node: unknown = block;
+  for (const segment of path) {
+    if (node === null || typeof node !== "object") return null;
+    node = Array.isArray(node)
+      ? (node as unknown[])[Number(segment)]
+      : (node as Record<string, unknown>)[segment];
+  }
+  return Array.isArray(node) ? node : null;
+}
+
+export function buildDirectDocumentResult(
+  url: string,
+  html: string,
+  contentType: string,
+  intent?: string,
+): DirectDocumentResult | DirectDocumentRejection {
+  if (!isDirectDocumentEligibleUrl(url)) return { rejected: true, reason: "unsupported_domain" };
+  if (!HTML_RE.test(contentType)) return { rejected: true, reason: "not_html" };
+  if (html.length < MIN_DIRECT_DOCUMENT_HTML_BYTES) return { rejected: true, reason: "too_small" };
+  if (intentRequiresEvaluatedJavascript(intent)) {
+    return {
+      rejected: true,
+      reason: "javascript_evaluation_required",
+      evidence: { html_bytes: html.length },
+    };
+  }
+
+  // Binary-body refusal. Runs on the RAW body before any entity decoding or tag
+  // stripping, and independently of `contentType`, because three call sites hand
+  // us a hardcoded "text/html" for bytes they fetched themselves. Refusing here
+  // is what stops `%PDF-1.4…` being returned to the agent as page content with
+  // `rejected:false`. See detectBinaryBody for why the test is structural.
+  const binary = detectBinaryBody(html);
+  if (binary) {
+    return {
+      rejected: true,
+      reason: "binary_not_text",
+      evidence: {
+        binary_signature: binary.signature,
+        non_text_ratio: Number(binary.ratio.toFixed(4)),
+        html_bytes: html.length,
+      },
+    };
+  }
+
+  const title = decodeHtmlEntityText(
+    html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? "",
+  );
+  const chromeBodyText = decodeHtmlEntityText(
+    html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+  // Prefer the site's own embedded collection when chrome text is thin. The
+  // quotes.toscrape.com/js/ case: 96 chars of page chrome, 10 quote records in
+  // `var data = […]`. Without this rescue we reject as interstitial and lose
+  // to plain curl (which still has the bytes).
+  //
+  // The shell test is computed ONCE here and reused by the SPA gate below. It
+  // has to be, because the two were previously keyed off different floors: the
+  // embedded rescue required chrome < 500 while the SPA gate fired below 2000,
+  // so a server-rendered page landing in the 500-2000 band (zillow's listing
+  // page sits at 719) had its collection recovered and then discarded, and was
+  // sent to the browser ladder with the answer already in hand.
+  const spaMarkers = detectSpaShellMarkers(html);
+  const isHydrationShell =
+    chromeBodyText.length < SPA_HYDRATION_BODY_TEXT_FLOOR && spaMarkers.length > 0;
+  const embedded = embeddedCollectionPayload(html);
+  // A payload made entirely of machine plumbing is not an answer. `usedEmbedded`
+  // is load-bearing far beyond text selection — downstream it satisfies the
+  // intent-mismatch gate AND sets task_ok — so admitting a telemetry blob here
+  // reports success while handing back ad-placement config. Requiring some
+  // human-facing content means the honest outcome (escalate / reject) survives.
+  const usedEmbedded = Boolean(
+    embedded &&
+      embedded.density >= MIN_EMBEDDED_ANSWER_DENSITY &&
+      (chromeBodyText.length < MIN_DIRECT_DOCUMENT_BODY_TEXT || isHydrationShell),
+  );
+  const bodyText = usedEmbedded ? embedded!.text : chromeBodyText;
+
+  const challengeHaystack = `${title} ${chromeBodyText.slice(0, 2_000)}`;
+  if (CHALLENGE_RE.test(challengeHaystack)) return { rejected: true, reason: "challenge_html" };
+
+  // Fix 5 — dead/parked fast-fail. A registrar lander / default webserver page
+  // clears the structural gates but has no content and no API; escalating it
+  // through the browser ladder wastes the per-site budget. Fail terminally here.
+  const parkedHit = PARKED_RE.exec(challengeHaystack);
+  if (parkedHit) {
+    return {
+      rejected: true,
+      reason: "dead_or_parked",
+      evidence: {
+        interstitial_signal: parkedHit[0],
+        body_text_chars: chromeBodyText.length,
+        html_bytes: html.length,
+      },
+    };
+  }
+
+  // Interstitial / logged-out / SPA-meta-envelope detection. Generic across
+  // vendors (cloudflare / datadome / akamai / perimeterx) and across auth-walls
+  // (sign-in pages on linkedin / gmail / x.com). Runs BEFORE the intent check
+  // because an interstitial body coincidentally containing intent tokens
+  // (e.g. "Sign in to continue to Gmail" when intent is "gmail inbox") would
+  // otherwise pass the token-overlap gate. Challenge/interstitial text lives in
+  // the chrome; do not let a JSON-LD blob mask a real auth wall.
+  const interstitialHit = INTERSTITIAL_RE.exec(`${title} ${chromeBodyText.slice(0, 4_000)}`);
+  if (interstitialHit) {
+    return {
+      rejected: true,
+      reason: "interstitial_detected",
+      evidence: {
+        interstitial_signal: interstitialHit[0],
+        html_bytes: html.length,
+      },
+    };
+  }
+  // SPA-hydration gate (wired separately from the constants block at L91/97):
+  // when the body text is below the hydration floor AND the HTML carries any
+  // SSR-shell marker (__NEXT_DATA__, _next/static, __NUXT__, __INITIAL_STATE__,
+  // __APOLLO_STATE__, __PRELOADED_STATE__, __INITIAL_PROPS__, _nuxt/static),
+  // reject with `spa_hydration_required` so the orchestrator escalates to the
+  // browser ladder with a hydration wait rather than returning the chrome-only
+  // meta envelope. SKIP when we already recovered a record collection from an
+  // embedded script — the payload is present without hydration (quotes/js).
+  if (!usedEmbedded && isHydrationShell) {
+    return {
+      rejected: true,
+      reason: "spa_hydration_required",
+      evidence: {
+        spa_markers: spaMarkers,
+        body_text_chars: chromeBodyText.length,
+        html_bytes: html.length,
+      },
+    };
+  }
+
+  // Embedded collections are already shape-validated (findRecordCollection). Their
+  // serialized size can sit under the chrome body-text floor (a 3-record payload
+  // is ~400 chars) without being an interstitial — skip the floor for them.
+  if (!usedEmbedded && bodyText.length < MIN_DIRECT_DOCUMENT_BODY_TEXT) {
+    return {
+      rejected: true,
+      reason: "interstitial_detected",
+      evidence: {
+        interstitial_signal: `body_text_below_floor:${bodyText.length}`,
+        html_bytes: html.length,
+      },
+    };
+  }
+
+  // Intent-check gate: when the caller hands us an intent, require non-trivial
+  // overlap between intent tokens and the response body. Wrong-template /
+  // wrong-page / logged-out captures often clear the structural gates above
+  // but score 0 on intent overlap because the body is talking about something
+  // else entirely (e.g. axios.com homepage when intent is "axios homepage"
+  // would actually score 1.0 on "axios"; a wrong-page capture for that intent
+  // scores 0). The 0.34 threshold matches the bench-rubric declared in
+  // CLAUDE.md (action-verification rubric).
+  if (intent && intent.trim().length > 0) {
+    const intentTokens = extractMeaningfulTokens(intent);
+    if (intentTokens.length >= 2) {
+      const haystack = `${title} ${bodyText}`.toLowerCase();
+      const hits = intentTokens.filter((tok) => haystack.includes(tok));
+      const hitRate = hits.length / intentTokens.length;
+      if (hitRate < 0.34) {
+        // Structural override (CLAUDE.md "generalize / don't let a heuristic
+        // over-reject"): a LIST intent on a page that IS a collection — a net of
+        // entity-detail pointers (Carousell /food/q/ links 18× /p/{id}) — is
+        // STRUCTURALLY answered. The token gate flaps at its boundary on verbose
+        // intents ("…listings with titles and prices") whose words aren't on the
+        // page; don't reject a real listing over that. The collection is the answer.
+        // Also admit when we recovered an embedded record collection (the site's
+        // own payload is the structural answer even when tokens miss chrome).
+        const isCollection =
+          usedEmbedded ||
+          (isListLikeIntent(intent) &&
+            linksFormEntityCollection(
+              Array.from(html.matchAll(/href\s*=\s*["']([^"']+)["']/gi), (m) => m[1]),
+            ));
+        if (!isCollection) {
+          return {
+            rejected: true,
+            reason: "intent_mismatch",
+            evidence: {
+              intent_tokens: intentTokens,
+              response_token_hits: hits,
+              response_token_hit_rate: hitRate,
+              html_bytes: html.length,
+            },
+          };
+        }
+      }
+    }
+  }
+
+  const { url_template, input_params, path_params, query } = extractHtmlHoles(url);
+  // Surface the site's OWN search pipe for a list/search intent: derive the
+  // search-route template from this page's links, fill {query} with the intent's
+  // query term, and hand the candidates to the agent to judge + walk. The page
+  // defines the pipe; the agent routes. (No-op for non-list intents or pages with
+  // no derivable search route.)
+  const routing_candidates = buildSearchRouteCandidates(html, url, intent);
+
+  // Budget accounting is computed, not assumed: render the FULL markdown first,
+  // then cut, so the response can report what was dropped instead of handing the
+  // caller a silently-clipped page that is indistinguishable from an empty site.
+  const budget = markdownBudget();
+  const fullMarkdown = usedEmbedded
+    ? embedded!.markdown
+    : renderMarkdown(html, bodyText);
+  const { markdown, extraction } = auditExtraction({ fullMarkdown, bodyText, intent, budget });
+  const tables = extractTables(html);
+  // A document is useful evidence, but it is not itself a list result. Require a
+  // structurally extracted collection (embedded records or table rows) before a
+  // list/search intent can become task success. Link-rich/raw HTML remains a
+  // partial document instead of a false green.
+  const intent_fulfilled = !isListLikeIntent(intent ?? "") || usedEmbedded || tables.some((table) => table.rows.length > 0);
+  if (usedEmbedded) {
+    extraction.notes.push(
+      `EMBEDDED_COLLECTION: visible chrome was ${chromeBodyText.length} chars; ` +
+        `recovered ${embedded!.recordCount} records from an in-page script payload ` +
+        `(JSON-MIME data block or JSON-shaped assignment).`,
+    );
+  }
+
+  return {
+    rejected: false,
+    task_ok: intent_fulfilled,
+    intent_fulfilled,
+    ...(!intent_fulfilled ? { error: "response_shape_mismatch" as const } : {}),
+    title,
+    url,
+    truth: browserTruthBoundary({ javascriptEvaluated: false, javascriptRequired: false }),
+    pointer: { url, url_template, complete_document_chars: fullMarkdown.length },
+    truncated: extraction.truncated,
+    intent_applied: extraction.intent_applied,
+    url_template,
+    input_params,
+    path_params,
+    query,
+    content_type: contentType,
+    html_bytes: html.length,
+    text_excerpt: bodyText.slice(0, budget),
+    markdown,
+    tables,
+    ...(routing_candidates.length > 0 ? { routing_candidates } : {}),
+    extraction,
+  };
+}
+
+/**
+ * Say what this extraction actually did, in the JSON the caller reads.
+ *
+ * Two defects motivated every field here, and both had the same shape — the
+ * caller could not tell a good result from a broken one:
+ *
+ *   1. `bodyText.slice(0, BUDGET)` with no marker. Measured on data.gov.uk: at
+ *      the 12k default the filter sidebar consumed the whole allowance and 0 of
+ *      20 data rows survived, yet the response carried `rejected:false`, exit 0
+ *      and no truncation signal anywhere. Someone paging 334 URLs got 334
+ *      apparently-empty pages and concluded the site had blocked them. At a 200k
+ *      budget all 20 rows come back — the data was never missing, it was cut.
+ *
+ *   2. The task/intent string was accepted and discarded. Two unrelated tasks
+ *      against the same URL produced byte-identical output. Advertising a
+ *      parameter that does nothing is the same defect as a `--timeout` that is
+ *      parsed and never read. `intent_applied` is the honest report: it is TRUE
+ *      only when the intent actually selected which passages came back.
+ *
+ * The strategy discriminator is structural rather than a re-derivation of
+ * focusMarkdownToIntent's internal branches: when the returned text is exactly
+ * the head slice, no focusing happened, whatever the reason.
+ */
+function auditExtraction(args: {
+  fullMarkdown: string;
+  bodyText: string;
+  intent: string | undefined;
+  budget: number;
+}): { markdown: string; extraction: DirectDocumentExtractionAudit } {
+  const { fullMarkdown, bodyText, intent, budget } = args;
+  const markdown = focusMarkdownToIntent(fullMarkdown, intent, budget);
+  const hasIntent = typeof intent === "string" && intent.trim().length > 0;
+  const overBudget = fullMarkdown.length > budget;
+
+  const strategy: DirectDocumentTruncationStrategy = !overBudget
+    ? "none"
+    : markdown === fullMarkdown.slice(0, budget)
+      ? "head-slice"
+      : "query-focus";
+
+  const intent_applied = strategy === "query-focus";
+  const intent_status: DirectDocumentIntentStatus = intent_applied
+    ? "applied:query-focused"
+    : !hasIntent
+      ? "unfiltered:no_intent_supplied"
+      : !overBudget
+        ? "unfiltered:page_within_budget"
+        : process.env.UNBROWSE_QUERY_FOCUS === "0"
+          ? "unfiltered:query_focus_disabled"
+          : "unfiltered:no_usable_intent_terms";
+
+  const text_excerpt_chars_available = bodyText.length;
+  const text_excerpt_chars = Math.min(bodyText.length, budget);
+  const truncated = overBudget || text_excerpt_chars_available > budget;
+
+  const notes: string[] = [];
+  if (truncated) {
+    notes.push(
+      `TRUNCATED: this is a subset of the page, not the whole page. markdown ${fullMarkdown.length}->${markdown.length} chars, ` +
+        `text_excerpt ${text_excerpt_chars_available}->${text_excerpt_chars} chars, budget ${budget} (strategy=${strategy}). ` +
+        `An empty-looking result here may be a cut, not an empty site — re-run with UNBROWSE_MARKDOWN_BUDGET >= ${Math.max(fullMarkdown.length, text_excerpt_chars_available)} for the rest.`,
+    );
+  }
+  if (!intent_applied) {
+    notes.push(
+      `UNFILTERED: the task/intent did not select which text came back (${intent_status}). ` +
+        `Content is the document in document order; do not read it as passages chosen to answer the task.`,
+    );
+  }
+
+  return {
+    markdown,
+    extraction: {
+      source: "direct-document",
+      rejected: false,
+      truncated,
+      budget,
+      markdown_chars: markdown.length,
+      markdown_chars_available: fullMarkdown.length,
+      text_excerpt_chars,
+      text_excerpt_chars_available,
+      strategy,
+      intent_applied,
+      intent_status,
+      intent_received: hasIntent ? intent! : null,
+      notes,
+    },
+  };
+}
+
+const QUERY_STOPWORDS = new Set(
+  ("resolve unbrowse execute run walk go fetch open view want need please " + // unbrowse/command verbs
+   "find search browse list lookup discover show get me a an the on of for in to " +
+   "with and or all my your this that some good best top new latest cheap near").split(" "),
+);
+
+/** The intent's query term(s) — content words minus list-verbs and the site name.
+ *  "find good food on carousell" + carousell.sg → "food". */
+function intentQueryTerm(intent: string, url: string): string {
+  let domTokens = new Set<string>();
+  try { domTokens = new Set(new URL(url).hostname.toLowerCase().split(/[.-]/)); } catch { /* relative */ }
+  const toks = (intent.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? [])
+    .filter((t) => !QUERY_STOPWORDS.has(t) && !domTokens.has(t));
+  return [...new Set(toks)].join(" ").trim();
+}
+
+function buildSearchRouteCandidates(html: string, url: string, intent?: string): SearchRouteCandidate[] {
+  if (!intent || !isListLikeIntent(intent)) return [];
+  const queryTerm = intentQueryTerm(intent, url);
+  if (!queryTerm) return [];
+  let origin = "";
+  try { origin = new URL(url).origin; } catch { return []; }
+  return deriveSearchRouteTemplates(html).slice(0, 3).map((t) => ({
+    url: fillSearchRoute(origin, t.template, queryTerm),
+    template: t.template,
+    query: queryTerm,
+    samples: t.samples,
+  }));
+}
+
+export const buildBloombergDirectDocumentResult = buildDirectDocumentResult;
+
+/** A logged-in session lifted from the user's daily-driver browser (Chrome /
+ *  Firefox / Arc / Dia / Brave / …) for this URL's domain. The plain-fetch fast
+ *  path used to send ZERO cookies, so a cookie-gated site (logged-in Product
+ *  Hunt, Reddit, etc.) returned its PUBLIC shell even when the user had a valid
+ *  session on disk — the "use the cookies" promise silently no-op'd on the hot
+ *  path. We seed every rung from the same harvester the rescue paths use. */
+async function loadBrowserSessionForUrl(
+  url: string,
+): Promise<{ cookies: Array<{ name: string; value: string }>; header: string } | null> {
+  let domain: string;
+  try {
+    domain = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  try {
+    // The opt-out MUST be honoured here, and it must fail CLOSED.
+    //
+    // `--no-browser-cookies` / `UNBROWSE_IMPORT_BROWSER_COOKIES=0` were parsed
+    // and documented while this file called extractBrowserCookies
+    // unconditionally, so a user who explicitly asked NOT to attach their
+    // browser session got it attached anyway — on the recommended one-call path.
+    //
+    // WHICH guard: `../auth/index.js`, not the byte-equivalent copy in
+    // `../runtime/browser-auth.ts`. Three reasons, in order:
+    //   1. it is the guard that already wraps THIS harvester — src/auth/index.ts
+    //      gates its own extractBrowserCookies call on it (importBrowserCookiesIntoTab),
+    //      so honouring the same function keeps one decision for one harvester;
+    //   2. it lives beside `./browser-cookies.js`, the module this function
+    //      already imports, so the opt-out and the thing it disables ship together;
+    //   3. it is what the sibling one-call path uses (src/cli-v7/breath/go.ts),
+    //      down to the dynamic-import form — matching it means `act go` and
+    //      direct-document cannot disagree about whether cookies are allowed.
+    // The runtime/browser-auth.ts copy has no production caller at all (only
+    // tests/browser-auth.test.ts); adding a third copy here is what turned this
+    // into a fail-open in the first place.
+    let cookiesAllowed: boolean;
+    try {
+      const { shouldImportBrowserCookies } = await import("../auth/index.js");
+      cookiesAllowed = shouldImportBrowserCookies();
+    } catch {
+      // Cannot read the opt-out => cannot prove the user consented. A security
+      // opt-out that degrades to "attach anyway" is the defect being fixed.
+      cookiesAllowed = false;
+    }
+    if (!cookiesAllowed) {
+      log("auth", `direct-document: browser cookie import disabled — sending no cookies for ${domain}`);
+      return null;
+    }
+    const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+    const { cookies, source } = extractBrowserCookies(domain);
+    if (cookies.length === 0) return null;
+    const list = cookies.map((c) => ({ name: c.name, value: c.value }));
+    // Strip the surrounding quotes Chromium stores on some values so the Cookie
+    // header is well-formed (mirrors tryCurlImpersonateFetch's own builder).
+    const header = list
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .filter((pair) => !pair.endsWith("="))
+      .join("; ");
+    if (!header) return null;
+    // Visible, never silent: surface which browser session is bearing weight.
+    log("auth", `direct-document: attaching ${list.length} cookie(s) for ${domain}${source ? ` from ${source}` : ""}`);
+    return { cookies: list, header };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param intent the caller's task string. OPTIONAL and currently unset by every
+ *   in-repo caller, which is precisely why `extraction.intent_applied` exists:
+ *   when nothing reaches the extractor the response says `unfiltered:no_intent_supplied`
+ *   rather than pretending the task shaped the result. Passing it enables the
+ *   query-focus selection and the intent-mismatch gate that
+ *   `buildDirectDocumentResult` already implements — the plumbing is here so a
+ *   caller can adopt it without forking the extractor. Omitting it is unchanged
+ *   behaviour, byte for byte.
+ */
+export async function fetchDirectDocument(url: string, intent?: string): Promise<DirectDocumentResult | null> {
+  if (!isDirectDocumentEligibleUrl(url)) return null;
+  // Seed the fetch with the user's existing browser session for this domain so
+  // a logged-in page returns its real (authenticated) content, not the public
+  // shell. Same harvester the orchestrator rescue paths use; null when the user
+  // has no session on disk (then this behaves exactly as before).
+  const session = await loadBrowserSessionForUrl(url);
+  const headers: Record<string, string> = {
+    "Accept": "text/html,application/json;q=0.5",
+    "User-Agent": "unbrowse/1.0",
+  };
+  if (session?.header) headers["Cookie"] = session.header;
+  try {
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(15_000),
+      redirect: "follow",
+    });
+    if (!res.ok) return fetchDirectDocumentWithCurl(url, session?.cookies, intent);
+    const contentType = res.headers.get("content-type") ?? "";
+    const html = await res.text();
+    const result = buildDirectDocumentResult(url, html, contentType, intent);
+    return result.rejected ? fetchDirectDocumentWithCurl(url, session?.cookies, intent) : result;
+  } catch {
+    // Fall through to curl below.
+  }
+  return fetchDirectDocumentWithCurl(url, session?.cookies, intent);
+}
+
+export const fetchBloombergDirectDocument = fetchDirectDocument;
+
+async function fetchDirectDocumentWithCurl(
+  url: string,
+  cookies?: Array<{ name: string; value: string }>,
+  intent?: string,
+): Promise<DirectDocumentResult | null> {
+  // Ladder rung 1: curl-impersonate (Chrome 131 JA4) + auto residential proxy
+  // (resolveEgressProxy). Plain `curl -A unbrowse/1.0` gets 403'd by anti-bot
+  // hosts (docs.redhat.com) and throttled by IP-gated ones (gnu.org); the
+  // impersonate primitive passes the fingerprint check and can egress via proxy.
+  // This is the existing capture primitive, reused here so the direct-document
+  // fast path is not a weaker client than `unbrowse fetch`. Null -> fall to the
+  // plain-curl rung below (graceful degrade, never a hard fail).
+  // Ladder, not blanket-proxy: impersonate-DIRECT first (healthy hosts pay no
+  // proxy latency tax), escalate to impersonate-via-PROXY only on failure
+  // (anti-bot 403 / IP-throttle timeout). Blanket-proxy regressed the bench
+  // (fast hosts timed out behind the residential hop); direct-first-then-proxy
+  // recovers throttled hosts WITHOUT taxing the rest. The per-domain cache can
+  // later memoize which rung won so the walk starts there (skip dead edges).
+  const buildFrom = (imp: { html: string; status: number; final_url: string } | null) => {
+    if (!imp || !imp.html || imp.status < 200 || imp.status >= 400) return null;
+    const looksHtml = /^\s*<(?:!doctype|html|head|body|\?xml)/i.test(imp.html) || /<html[\s>]/i.test(imp.html.slice(0, 4_000));
+    const ct = looksHtml ? "text/html; charset=utf-8" : "application/octet-stream";
+    const result = buildDirectDocumentResult(imp.final_url || url, imp.html, ct, intent);
+    return result.rejected ? null : result;
+  };
+  try {
+    // rung 1a: impersonate, direct egress (no proxy)
+    const direct = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 15_000, forceDirect: true, cookies }));
+    if (direct) return direct;
+    // rung 1b: impersonate via REAL residential proxy — only when iproyal creds
+    // are actually configured (env or ~/.identity/iproyal-creds). We pass the
+    // explicit proxy URL rather than letting resolveEgressProxy fall back to the
+    // x402-gated default, so a user WITHOUT proxy creds never eats a 45s hang on
+    // the unreachable default — they simply skip this rung. Generous timeout: an
+    // IP-throttled multi-MB manual over a variable residential exit needs headroom.
+    const realProxy = resolveProxyUrl();
+    if (realProxy) {
+      const viaProxy = buildFrom(await tryCurlImpersonateFetch({ url, impersonate: "chrome131", timeoutMs: 45_000, proxy: realProxy, cookies }));
+      if (viaProxy) return viaProxy;
+    }
+  } catch {
+    // impersonate rung unavailable (no curl_cffi) — fall through to plain curl.
+  }
+  try {
+    const { execFile } = await import("node:child_process");
+    const marker = "\n__UNBROWSE_CONTENT_TYPE__";
+    // --compressed advertises Accept-Encoding: gzip,deflate,br AND decodes
+    // the response before stdout. Without this, gzipped bodies leaked
+    // through as raw 0x1f 0x8b bytes (observed on amazon.com/s smoke probe
+    // 2026-05-21). The marker / stdout.slice split is unaffected because
+    // curl writes -w AFTER the decoded body completes.
+    const cookieHeader = (cookies ?? [])
+      .map((c) => {
+        const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+        return `${c.name}=${v}`;
+      })
+      .filter((pair) => !pair.endsWith("="))
+      .join("; ");
+    const stdoutBuf = await new Promise<Buffer>((resolve, reject) => {
+      execFile(
+        "curl",
+        [
+          "-L",
+          "--silent",
+          "--show-error",
+          "--compressed",
+          "--max-time",
+          "15",
+          "-A",
+          "unbrowse/1.0",
+          "-H",
+          "Accept: text/html,application/json;q=0.5",
+          ...(cookieHeader ? ["-H", `Cookie: ${cookieHeader}`] : []),
+          "-w",
+          `${marker}%{content_type}`,
+          url,
+        ],
+        { maxBuffer: 5 * 1024 * 1024, encoding: "buffer" },
+        (error, out) => error ? reject(error) : resolve(out as Buffer),
+      );
+    });
+    // Belt-and-suspenders: if curl didn't decompress for whatever reason
+    // (older curl without compression support, mismatched server), detect
+    // gzip/deflate/br magic on the body bytes and decode here. This keeps
+    // the path safe even if --compressed is silently dropped.
+    const decoded = decompressIfNeeded(stdoutBuf, marker);
+    const markerIndex = decoded.lastIndexOf(marker);
+    if (markerIndex < 0) return null;
+    const html = decoded.slice(0, markerIndex);
+    const contentType = decoded.slice(markerIndex + marker.length).trim();
+    const result = buildDirectDocumentResult(url, html, contentType, intent);
+    return result.rejected ? null : result;
+  } catch {
+    return null;
+  }
+}
+
+function decompressIfNeeded(buf: Buffer, marker: string): string {
+  // The marker is plain ASCII curl writes verbatim; if it's present in the
+  // raw buffer the body is already decoded text.
+  const text = buf.toString("utf8");
+  if (text.includes(marker)) return text;
+  // Split off curl's -w trailer (after the last marker bytes) so we only
+  // try to decompress the body itself. Marker bytes are ASCII so locate
+  // them in the binary buffer directly.
+  const markerBytes = Buffer.from(marker, "utf8");
+  const markerIdx = buf.lastIndexOf(markerBytes);
+  const bodyBuf = markerIdx >= 0 ? buf.subarray(0, markerIdx) : buf;
+  const trailer = markerIdx >= 0 ? buf.subarray(markerIdx) : Buffer.alloc(0);
+  try {
+    let decoded: Buffer | null = null;
+    if (bodyBuf.length >= 2 && bodyBuf[0] === 0x1f && bodyBuf[1] === 0x8b) {
+      decoded = gunzipSync(bodyBuf);
+    } else if (
+      bodyBuf.length >= 2 &&
+      // zlib/deflate magic: 0x78 followed by common flag bytes
+      bodyBuf[0] === 0x78 && (bodyBuf[1] === 0x9c || bodyBuf[1] === 0xda || bodyBuf[1] === 0x01)
+    ) {
+      decoded = inflateSync(bodyBuf);
+    } else {
+      // brotli has no fixed magic; try it speculatively only when the body
+      // isn't valid utf-8 text. Cheap heuristic: non-printable density.
+      const sample = bodyBuf.subarray(0, Math.min(256, bodyBuf.length));
+      let nonPrintable = 0;
+      for (const byte of sample) {
+        if (byte < 9 || (byte > 13 && byte < 32)) nonPrintable++;
+      }
+      if (sample.length > 0 && nonPrintable / sample.length > 0.3) {
+        try { decoded = brotliDecompressSync(bodyBuf); } catch { decoded = null; }
+      }
+    }
+    if (decoded) return decoded.toString("utf8") + trailer.toString("utf8");
+  } catch {
+    // Fall through to raw text below.
+  }
+  return text;
+}
+
+// Query-focus: the single `unbrowse "<query>" --url` call already carries the
+// intent, so when a large page exceeds the budget, return the QUERY-RELEVANT
+// passage instead of head-truncating (which drops a deep answer — e.g. a W3C
+// spec's `atomicCompareExchangeWeak` signature sits past a 12k head-cut). Chunk
+// the full markdown, rank chunks by the intent's terms weighted by inverse
+// page-frequency (rare/specific query terms dominate over "the"/"of"), keep the
+// top chunks within budget, restored to document order for coherence. Pure +
+// lexical (no embedding — avoids the TS embedder parity issues). No intent or a
+// page that already fits → unchanged head-truncation.
+export function focusMarkdownToIntent(md: string, intent: string | undefined, budget: number): string {
+  if (md.length <= budget) return md;
+  if (process.env.UNBROWSE_QUERY_FOCUS === "0") return md.slice(0, budget); // A/B off-switch (baseline)
+  const terms = [...new Set((intent ?? "").toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? [])];
+  if (terms.length === 0) return md.slice(0, budget);
+  const chunks: string[] = [];
+  for (const block of md.split(/\n{2,}/)) {
+    if (block.length <= 1400) { if (block.trim()) chunks.push(block); continue; }
+    for (let i = 0; i < block.length; i += 1200) chunks.push(block.slice(i, i + 1400));
+  }
+  if (chunks.length === 0) return md.slice(0, budget);
+  const lower = chunks.map((c) => c.toLowerCase());
+  // inverse page-frequency weight per intent term (rare term in this page → discriminative)
+  const idf: Record<string, number> = {};
+  for (const t of terms) {
+    const df = lower.reduce((n, c) => n + (c.includes(t) ? 1 : 0), 0);
+    idf[t] = df === 0 ? 0 : Math.log(1 + chunks.length / df);
+  }
+  const scored = chunks.map((c, i) => {
+    let s = 0;
+    for (const t of terms) if (lower[i].includes(t)) s += idf[t];
+    return { i, c, s };
+  });
+  scored.sort((a, b) => b.s - a.s);
+  const isListingIntent = /\b(list|top|recent|latest|feed|browse|posts|stories)\b/i.test(intent ?? "");
+  const isListingChunk = (c: string) =>
+    /\[.+?\]\(.+?\)/.test(c) && // markdown link
+    (c.includes("comments") || c.includes("submitted") || /\bpoints?\b/i.test(c) || /\/r\/\w+\/comments\//.test(c) || /\/comments\//.test(c));
+  const picked: { i: number; c: string }[] = [];
+  let used = 0;
+  for (const x of scored) {
+    if (x.s <= 0) break;
+    if (used + x.c.length + 2 > budget) continue;
+    picked.push(x);
+    used += x.c.length + 2;
+  }
+  // For listing intents, fill remaining budget with listing-shaped chunks that scored 0
+  // (post titles don't contain intent terms like "posts"/"programming")
+  if (isListingIntent) {
+    for (const x of scored) {
+      if (x.s > 0) continue; // already considered
+      if (!isListingChunk(x.c)) continue;
+      if (used + x.c.length + 2 > budget) continue;
+      picked.push(x);
+      used += x.c.length + 2;
+    }
+  }
+  // For price/quote intents, keep the price chunk even when numeric terms like "319" don't match "TSLA"
+  const isPriceIntent = /\b(price|quote|ticker|stock|market\s*cap)\b/i.test(intent ?? "");
+  const isPriceChunk = (c: string) => /\b\d+\.\d+\b/.test(c) && /(Nasdaq|At close|After hours|points|Market Cap|\$|→)/i.test(c);
+  if (isPriceIntent) {
+    for (const x of scored) {
+      if (x.s > 0) continue;
+      if (!isPriceChunk(x.c)) continue;
+      if (used + x.c.length + 2 > budget) continue;
+      picked.push(x);
+      used += x.c.length + 2;
+    }
+  }
+  if (picked.length === 0) return md.slice(0, budget);
+  picked.sort((a, b) => a.i - b.i);
+  const focused = picked.map((p) => p.c).join("\n\n");
+  // RECOMP (arXiv:2310.04408): extractive query-focused SENTENCE compression. With
+  // coverage maxed the reader drowns in distractor sentences, so keep only the
+  // query-relevant sentences within budget (structural relevance by the same intent
+  // terms + idf — not a hardcoded synonym map). A/B: UNBROWSE_RECOMP=1 enables;
+  // default off = chunk-level baseline. Graded by the n>=30 bench A/B, not asserted.
+  if (process.env.UNBROWSE_RECOMP === "1") return recompSentences(focused, terms, idf, budget);
+  return focused;
+}
+
+/** RECOMP extractive compressor: split focused text into sentences, score each by the
+ *  intent terms' inverse-page-frequency, keep the top within budget, restore order.
+ *  Pure + lexical (no embedder). Falls back to the input if it is a single sentence or
+ *  nothing scores. */
+export function recompSentences(text: string, terms: string[], idf: Record<string, number>, budget: number): string {
+  const sents = text.split(/(?<=[.!?])\s+|\n+/).filter((s) => s.trim().length > 0);
+  if (sents.length <= 1) return text.slice(0, budget);
+  const lower = sents.map((s) => s.toLowerCase());
+  const scored = sents.map((s, i) => {
+    let sc = 0;
+    for (const t of terms) if (lower[i].includes(t)) sc += idf[t] ?? 0;
+    return { i, s, sc };
+  });
+  scored.sort((a, b) => b.sc - a.sc);
+  const keep: { i: number; s: string }[] = [];
+  let used = 0;
+  for (const x of scored) {
+    if (x.sc <= 0) break;
+    if (used + x.s.length + 1 > budget) continue;
+    keep.push(x); used += x.s.length + 1;
+  }
+  if (keep.length === 0) return text.slice(0, budget);
+  keep.sort((a, b) => a.i - b.i);
+  return keep.map((p) => p.s).join(" ");
+}
+
+/**
+ * The FULL markdown render, before any budget is applied.
+ *
+ * Split out from the old `htmlToMarkdownSafe` (which rendered and truncated in
+ * one step) because the pre-truncation size is exactly the number the caller
+ * needs in order to know a cut happened and how big a retry has to be. A
+ * function that truncates internally cannot report what it dropped.
+ */
+function renderMarkdown(html: string, fallbackText: string): string {
+  try {
+    // Lazy-require to keep module-init cheap and match the cli.ts pattern.
+    const TurndownService = require("turndown");
+    const turndown = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced",
+      bulletListMarker: "-",
+    });
+    turndown.remove(["script", "style", "noscript", "iframe", "svg", "link", "meta"]);
+    const stripped = html
+      .replace(/<!DOCTYPE[^>]*>/gi, "")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<script[^>]*?>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*?>[\s\S]*?<\/style>/gi, "");
+    return turndown.turndown(stripped).replace(/\n{3,}/g, "\n\n").trim();
+  } catch {
+    return fallbackText;
+  }
+}
+
+// Lightweight table extractor — regex-based on purpose to avoid a DOM
+// dependency. Tables with colspan / rowspan / nested <table> are skipped
+// because the regex shape can't represent them faithfully and the agent
+// should fall back to the markdown rendering for those.
+function extractTables(html: string): DirectDocumentTable[] {
+  const tables: DirectDocumentTable[] = [];
+  const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tableRe.exec(html)) !== null) {
+    if (tables.length >= MAX_TABLES) break;
+    const inner = match[1] ?? "";
+    // Skip nested tables — the outer regex is non-recursive so an inner
+    // <table> tag in `inner` means we'd double-count.
+    if (/<table\b/i.test(inner)) continue;
+    // Skip colspan/rowspan — flat header/row shape can't represent them.
+    if (/\bcol(?:span)\s*=|\browspan\s*=/i.test(inner)) continue;
+    const table = parseSimpleTable(inner);
+    if (table && table.rows.length > 0) tables.push(table);
+  }
+  return tables;
+}
+
+function parseSimpleTable(inner: string): DirectDocumentTable | null {
+  // Caption: explicit <caption>...</caption> takes precedence.
+  const captionMatch = inner.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i);
+  const caption = captionMatch ? cellText(captionMatch[1] ?? "") : undefined;
+
+  const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  const rawRows: { isHeader: boolean; cells: string[] }[] = [];
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowRe.exec(inner)) !== null) {
+    const rowInner = rowMatch[1] ?? "";
+    const cells: string[] = [];
+    let isHeader = false;
+    const cellRe = /<(t[hd])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+    let cellMatch: RegExpExecArray | null;
+    while ((cellMatch = cellRe.exec(rowInner)) !== null) {
+      if ((cellMatch[1] ?? "").toLowerCase() === "th") isHeader = true;
+      cells.push(cellText(cellMatch[2] ?? ""));
+    }
+    if (cells.length > 0) rawRows.push({ isHeader, cells });
+    if (rawRows.length >= MAX_TABLE_ROWS + 5) break;
+  }
+
+  if (rawRows.length === 0) return null;
+
+  const firstHeaderIdx = rawRows.findIndex((r) => r.isHeader);
+  let headers: string[];
+  let bodyRows: string[][];
+  if (firstHeaderIdx >= 0) {
+    headers = rawRows[firstHeaderIdx]!.cells;
+    bodyRows = rawRows.filter((_, i) => i !== firstHeaderIdx).map((r) => r.cells);
+  } else {
+    headers = rawRows[0]!.cells;
+    bodyRows = rawRows.slice(1).map((r) => r.cells);
+  }
+
+  return {
+    ...(caption ? { caption } : {}),
+    headers,
+    rows: bodyRows.slice(0, MAX_TABLE_ROWS),
+  };
+}
+
+function cellText(html: string): string {
+  return decodeHtmlEntityText(
+    html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<br\s*\/?\s*>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function decodeHtmlEntityText(input: string): string {
+  return input
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}

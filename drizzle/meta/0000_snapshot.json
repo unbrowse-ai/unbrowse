@@ -1,0 +1,569 @@
+{
+  "id": "1902536a-1322-43f4-ae55-e96ac34231d4",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.app_kv": {
+      "name": "app_kv",
+      "schema": "",
+      "columns": {
+        "namespace": {
+          "name": "namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "app_kv_namespace_key_idx": {
+          "name": "app_kv_namespace_key_idx",
+          "columns": [
+            {
+              "expression": "namespace",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_kv_expires_at_idx": {
+          "name": "app_kv_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "app_kv_namespace_key_pk": {
+          "name": "app_kv_namespace_key_pk",
+          "columns": [
+            "namespace",
+            "key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.endpoint_edges": {
+      "name": "endpoint_edges",
+      "schema": "",
+      "columns": {
+        "namespace": {
+          "name": "namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_endpoint_id": {
+          "name": "from_endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_endpoint_id": {
+          "name": "to_endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "binding": {
+          "name": "binding",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edge_kind": {
+          "name": "edge_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requires'"
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "endpoint_edges_to_idx": {
+          "name": "endpoint_edges_to_idx",
+          "columns": [
+            {
+              "expression": "namespace",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "to_endpoint_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "endpoint_edges_from_idx": {
+          "name": "endpoint_edges_from_idx",
+          "columns": [
+            {
+              "expression": "namespace",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from_endpoint_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "endpoint_edges_namespace_graph_namespaces_namespace_fk": {
+          "name": "endpoint_edges_namespace_graph_namespaces_namespace_fk",
+          "tableFrom": "endpoint_edges",
+          "tableTo": "graph_namespaces",
+          "columnsFrom": [
+            "namespace"
+          ],
+          "columnsTo": [
+            "namespace"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "endpoint_edges_namespace_from_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk": {
+          "name": "endpoint_edges_namespace_from_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk",
+          "tableFrom": "endpoint_edges",
+          "tableTo": "endpoint_nodes",
+          "columnsFrom": [
+            "namespace",
+            "from_endpoint_id"
+          ],
+          "columnsTo": [
+            "namespace",
+            "endpoint_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "endpoint_edges_namespace_to_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk": {
+          "name": "endpoint_edges_namespace_to_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk",
+          "tableFrom": "endpoint_edges",
+          "tableTo": "endpoint_nodes",
+          "columnsFrom": [
+            "namespace",
+            "to_endpoint_id"
+          ],
+          "columnsTo": [
+            "namespace",
+            "endpoint_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "endpoint_edges_namespace_from_endpoint_id_to_endpoint_id_binding_pk": {
+          "name": "endpoint_edges_namespace_from_endpoint_id_to_endpoint_id_binding_pk",
+          "columns": [
+            "namespace",
+            "from_endpoint_id",
+            "to_endpoint_id",
+            "binding"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.endpoint_embeddings": {
+      "name": "endpoint_embeddings",
+      "schema": "",
+      "columns": {
+        "namespace": {
+          "name": "namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint_id": {
+          "name": "endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(4096)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "search_text": {
+          "name": "search_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "endpoint_embeddings_hnsw_idx": {
+          "name": "endpoint_embeddings_hnsw_idx",
+          "columns": [
+            {
+              "expression": "\"embedding\" vector_cosine_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "endpoint_embeddings_namespace_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk": {
+          "name": "endpoint_embeddings_namespace_endpoint_id_endpoint_nodes_namespace_endpoint_id_fk",
+          "tableFrom": "endpoint_embeddings",
+          "tableTo": "endpoint_nodes",
+          "columnsFrom": [
+            "namespace",
+            "endpoint_id"
+          ],
+          "columnsTo": [
+            "namespace",
+            "endpoint_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "endpoint_embeddings_namespace_endpoint_id_pk": {
+          "name": "endpoint_embeddings_namespace_endpoint_id_pk",
+          "columns": [
+            "namespace",
+            "endpoint_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.endpoint_nodes": {
+      "name": "endpoint_nodes",
+      "schema": "",
+      "columns": {
+        "namespace": {
+          "name": "namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint_id": {
+          "name": "endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skill_id": {
+          "name": "skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action_kind": {
+          "name": "action_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_kind": {
+          "name": "resource_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "reliability_score": {
+          "name": "reliability_score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "endpoint_nodes_skill_idx": {
+          "name": "endpoint_nodes_skill_idx",
+          "columns": [
+            {
+              "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "endpoint_nodes_domain_idx": {
+          "name": "endpoint_nodes_domain_idx",
+          "columns": [
+            {
+              "expression": "namespace",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "domain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "endpoint_nodes_namespace_graph_namespaces_namespace_fk": {
+          "name": "endpoint_nodes_namespace_graph_namespaces_namespace_fk",
+          "tableFrom": "endpoint_nodes",
+          "tableTo": "graph_namespaces",
+          "columnsFrom": [
+            "namespace"
+          ],
+          "columnsTo": [
+            "namespace"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "endpoint_nodes_namespace_endpoint_id_pk": {
+          "name": "endpoint_nodes_namespace_endpoint_id_pk",
+          "columns": [
+            "namespace",
+            "endpoint_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.graph_namespaces": {
+      "name": "graph_namespaces",
+      "schema": "",
+      "columns": {
+        "namespace": {
+          "name": "namespace",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "storage_backend": {
+          "name": "storage_backend",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'postgres'"
+        },
+        "graph_version": {
+          "name": "graph_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

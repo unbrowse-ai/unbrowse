@@ -1,0 +1,165 @@
+import { describe, expect, test } from "bun:test";
+import { cliUsageDimensions, parseArgs, parseCmdFillArgs, parseCmdGetArgs, parseCmdRunArgs, shouldFillIntent } from "../src/cli";
+
+describe("parseArgs bare hole surface", () => {
+  test("quoted task is parsed as an unknown command that dispatch upgrades to get", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "top HN stories"]);
+    expect(parsed.command).toBe("top HN stories");
+    expect(parsed.args).toEqual([]);
+  });
+
+  test("URL-first bare task preserves URL as the first command token", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "https://news.ycombinator.com", "top", "stories"]);
+    expect(parsed.command).toBe("https://news.ycombinator.com");
+    expect(parsed.args).toEqual(["top", "stories"]);
+  });
+
+  test("flag-first bare task is parsed as help plus args so main can upgrade it to get", () => {
+    const parsed = parseArgs(["bun", "src/cli.ts", "--url", "https://news.ycombinator.com", "top stories"]);
+    expect(parsed.command).toBe("help");
+    expect(parsed.flags.url).toBe("https://news.ycombinator.com");
+    expect(parsed.args).toEqual(["top stories"]);
+  });
+});
+
+describe("privacy-safe CLI usage dimensions", () => {
+  test("keeps structured and flat commands as fixed operation categories", () => {
+    expect(cliUsageDimensions("breath", ["get", "private task"])).toEqual({ verb: "get", operation: "breath:get" });
+    expect(cliUsageDimensions("capture", ["https://private.example"])).toEqual({ verb: "capture", operation: "breath:capture" });
+    expect(cliUsageDimensions("browse", ["go", "https://private.example"])).toEqual({ verb: "go", operation: "breath:navigate" });
+  });
+
+  test("collapses natural-language tasks and URLs instead of retaining them", () => {
+    expect(cliUsageDimensions("find person@example.com invoices", [])).toEqual({ verb: "get", operation: "breath:get" });
+    expect(cliUsageDimensions("https://private.example/account", ["read", "invoices"])).toEqual({ verb: "get", operation: "breath:get" });
+  });
+});
+
+describe("parseCmdRunArgs", () => {
+  test("positional both: url + intent fragments", () => {
+    const result = parseCmdRunArgs(["https://x.com", "find", "shoes"], {});
+    expect(result).toEqual({ url: "https://x.com", intent: "find shoes" });
+  });
+
+  test("flag url + positional intent (the regression)", () => {
+    const result = parseCmdRunArgs(["find", "shoes"], { url: "https://x.com" });
+    expect(result).toEqual({ url: "https://x.com", intent: "find shoes" });
+  });
+
+  test("all flags: url and intent both via flags", () => {
+    const result = parseCmdRunArgs([], { url: "https://x.com", intent: "find shoes" });
+    expect(result).toEqual({ url: "https://x.com", intent: "find shoes" });
+  });
+
+  test("missing intent: positional url alone", () => {
+    const result = parseCmdRunArgs(["https://x.com"], {});
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.startsWith("usage:")).toBe(true);
+    }
+  });
+
+  test("flag url alone, no intent anywhere", () => {
+    const result = parseCmdRunArgs([], { url: "https://x.com" });
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.startsWith("usage:")).toBe(true);
+    }
+  });
+
+  test("usage text can name the caller verb", () => {
+    const result = parseCmdRunArgs(["https://x.com"], {}, "fill");
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error).toBe('usage: unbrowse fill <url> "task"');
+    }
+  });
+});
+
+describe("shouldFillIntent", () => {
+  test("URL positional uses the one-hole compatibility path", () => {
+    expect(shouldFillIntent(["https://news.ycombinator.com", "top", "stories"], {})).toBe(true);
+  });
+
+  test("natural language alone uses the one-hole compatibility path", () => {
+    expect(shouldFillIntent(["top", "Hacker", "News", "stories"], {})).toBe(true);
+  });
+
+  test("--url/--intent uses the one-hole compatibility path", () => {
+    expect(shouldFillIntent([], { url: "https://x.com", intent: "find shoes" })).toBe(true);
+  });
+
+  test("browse ref/value keeps the DOM fill path", () => {
+    expect(shouldFillIntent(["e5", "hello"], {})).toBe(false);
+  });
+});
+
+describe("parseCmdGetArgs", () => {
+  test("natural language only becomes an intent", () => {
+    expect(parseCmdGetArgs(["top", "HN", "stories"], {})).toEqual({ intent: "top HN stories" });
+  });
+
+  test("URL positional scopes the intent", () => {
+    expect(parseCmdGetArgs(["https://news.ycombinator.com", "top", "stories"], {})).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+
+  test("--url scopes positional natural language", () => {
+    expect(parseCmdGetArgs(["top", "stories"], { url: "https://news.ycombinator.com" })).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+
+  test("usage text names get", () => {
+    const result = parseCmdGetArgs(["https://x.com"], {});
+    expect("error" in result).toBe(true);
+    if ("error" in result) expect(result.error).toBe('usage: unbrowse get <url> "task"');
+  });
+
+  // Regression (cross-domain misroute): leading alias tokens `act go` fall through
+  // to `breath get`, so args = ["act","go","https://…"]. The URL is a NON-first
+  // positional and MUST be lifted into `url` (and stripped from the intent) so it
+  // reaches context.url and the host-anchor guards fire — otherwise a github.com
+  // web/cache result replays for a reddit.com request.
+  test("URL in a non-first positional is lifted into url", () => {
+    expect(parseCmdGetArgs(["act", "go", "https://www.reddit.com/api/me.json"], {})).toEqual({
+      url: "https://www.reddit.com/api/me.json",
+      intent: "act go",
+    });
+  });
+
+  test("a lone non-first URL becomes the target with no other intent → usage error", () => {
+    const result = parseCmdGetArgs(["go", "https://x.com"], {});
+    // "go" remains as the intent after the URL is stripped
+    expect(result).toEqual({ url: "https://x.com", intent: "go" });
+  });
+
+  test("multiple positional URLs stay free-text (ambiguous target)", () => {
+    expect(parseCmdGetArgs(["compare", "https://a.com", "https://b.com"], {})).toEqual({
+      intent: "compare https://a.com https://b.com",
+    });
+  });
+});
+
+describe("parseCmdFillArgs", () => {
+  test("natural language only remains a compatibility intent", () => {
+    expect(parseCmdFillArgs(["top", "HN", "stories"], {})).toEqual({ intent: "top HN stories" });
+  });
+
+  test("URL positional scopes the intent", () => {
+    expect(parseCmdFillArgs(["https://news.ycombinator.com", "top", "stories"], {})).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+
+  test("--url scopes positional natural language", () => {
+    expect(parseCmdFillArgs(["top", "stories"], { url: "https://news.ycombinator.com" })).toEqual({
+      url: "https://news.ycombinator.com",
+      intent: "top stories",
+    });
+  });
+});

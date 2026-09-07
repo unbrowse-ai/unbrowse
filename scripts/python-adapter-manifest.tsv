@@ -1,0 +1,22 @@
+# Python adapter manifest — the layer BELOW the JS ecosystem. Unbrowse ships a
+# zero-edit drop-in (HTTP clients) or native-tool adapter (agent SDKs) for the
+# most-used Python libraries, in the upstream's own surface, attributing them.
+#
+# Chosen by adoption research (June 2026): requests (~30M/wk, dominant), httpx
+# (HTTP/2, sync+async), aiohttp (async standard), urllib3 (low-level base many
+# clients sit on); crewai (~5M/mo PyPI, top Python agent fw) and pydantic-ai
+# (typed agents) for the agent layer.
+#
+# A row is GREEN (scripts/python-adapter-gate.sh) only when ALL of:
+#   PKG   the package exists (pkg_dir/pyproject.toml)
+#   ATTR  its README names the upstream (upstream_pypi)
+#   SWAP  its README says "drop-in" (HTTP) or "tool" (agent)
+#   TEST  `python3 <test>` exits 0 (the upstream's surface is provided)
+#
+# columns:  upstream_pypi <TAB> unbrowse_pkg <TAB> pkg_dir <TAB> readme <TAB> test
+requests	unbrowse-requests	packages/py-requests	packages/py-requests/README.md	packages/py-requests/tests/test_shape.py
+httpx	unbrowse-httpx	packages/py-httpx	packages/py-httpx/README.md	packages/py-httpx/tests/test_shape.py
+aiohttp	unbrowse-aiohttp	packages/py-aiohttp	packages/py-aiohttp/README.md	packages/py-aiohttp/tests/test_shape.py
+urllib3	unbrowse-urllib3	packages/py-urllib3	packages/py-urllib3/README.md	packages/py-urllib3/tests/test_shape.py
+crewai	unbrowse-crewai	packages/py-crewai	packages/py-crewai/README.md	packages/py-crewai/tests/test_shape.py
+pydantic-ai	unbrowse-pydantic-ai	packages/py-pydantic-ai	packages/py-pydantic-ai/README.md	packages/py-pydantic-ai/tests/test_shape.py

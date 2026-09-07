@@ -1,0 +1,120 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "frontend",
+	"main": ".open-next/worker.js",
+	"preview_urls": true,
+	"compatibility_date": "2025-12-01",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".open-next/assets"
+	},
+	"images": {
+		// Enable image optimization
+		// see https://opennext.js.org/cloudflare/howtos/image
+		"binding": "IMAGES"
+	},
+	"services": [
+		{
+			// Self-reference service binding, the service name must match the worker name
+			// see https://opennext.js.org/cloudflare/caching
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "frontend"
+		}
+	],
+	"kv_namespaces": [
+		{
+			// Aiko early-bird waitlist captures (see src/app/api/aiko-waitlist/route.ts)
+			"binding": "AIKO_WAITLIST",
+			"id": "ad995a351a1e4c62b1cd7a221e483cfe"
+		}
+	],
+	"env": {
+		"staging": {
+			"workers_dev": true,
+			"routes": [],
+			"images": {
+				"binding": "IMAGES"
+			},
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "frontend-staging"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "NEXT_INC_CACHE_R2_BUCKET",
+					"bucket_name": "unbrowse-frontend-cache"
+				}
+			]
+		},
+		"experiments": {
+			"workers_dev": true,
+			"routes": [],
+			"images": {
+				"binding": "IMAGES"
+			},
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "frontend-experiments"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "NEXT_INC_CACHE_R2_BUCKET",
+					"bucket_name": "unbrowse-frontend-cache"
+				}
+			]
+		}
+	},
+	"r2_buckets": [
+		{
+			"binding": "NEXT_INC_CACHE_R2_BUCKET",
+			"bucket_name": "unbrowse-frontend-cache"
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"routes": [
+		{
+			"pattern": "www.unbrowse.ai/*",
+			"zone_id": "73934a4d815fde770167414fc3ead04b"
+		},
+		{
+			"pattern": "unbrowse.ai/*",
+			"zone_id": "73934a4d815fde770167414fc3ead04b"
+		}
+	]
+	/**
+	 * Smart Placement
+	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 */
+	// "placement": {  "mode": "smart" }
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 * Note: Use secrets to store sensitive data.
+	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 */
+	// "vars": {  "MY_VARIABLE": "production_value" }
+}

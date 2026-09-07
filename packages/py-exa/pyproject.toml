@@ -1,0 +1,19 @@
+[project]
+name = "unbrowse-exa"
+version = "0.1.0"
+description = "Zero-edit drop-in for exa-py — same Exa/AsyncExa surface, backed by the Unbrowse shared route graph + web enrichment."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://unbrowse.ai/vs/exa"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

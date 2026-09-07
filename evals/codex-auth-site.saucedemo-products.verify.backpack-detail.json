@@ -1,0 +1,183 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "saucedemo-products:backpack-detail",
+      "intent": "get product details",
+      "auth": true,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "product_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "description",
+        "price"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.saucedemo.com/inventory-item.html?id=4"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.saucedemo.com/inventory-item.html?id=4",
+          "force_capture": false,
+          "resolve_ms": 17674,
+          "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_target_operation"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.saucedemo.com/inventory-item.html?id=4",
+              "domain": "www.saucedemo.com",
+              "pathname": "/inventory-item.html",
+              "slug_1": "inventory-item.html",
+              "id": "4"
+            },
+            "chunk": {
+              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "intent": "get product details",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "zxkmIwGU59QU8_TQESGwq",
+              "available_operations": [
+                {
+                  "operation_id": "zxkmIwGU59QU8_TQESGwq",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "product",
+                  "title": "detail product",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.saucedemo.com/inventory.html",
+                  "requires": [],
+                  "yields": [
+                    "product_name"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "title": "Sauce Labs Backpack",
+                      "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                      "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29....",
+                      "price": "$29.99"
+                    },
+                    {
+                      "title": "Sauce Labs Backpack",
+                      "price": "$29.99"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "domain": "www.saucedemo.com",
+              "auth_required": true,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-13T20:35:27.887Z"
+            },
+            "source": "marketplace",
+            "total_ms": 17649,
+            "tokens_used": 124,
+            "tokens_saved": 29876,
+            "tokens_saved_pct": 100
+          },
+          "resolve_excerpt": {
+            "data": {
+              "title": "Sauce Labs Backpack",
+              "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+              "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
+              "price": "$29.99"
+            },
+            "_extraction": {
+              "method": "key-value",
+              "confidence": 0.8,
+              "source": "rendered-dom",
+              "final_url": "https://www.saucedemo.com/inventory-item.html?id=4",
+              "selector": "div.inventory_details"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "zxkmIwGU59QU8_TQESGwq",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "product_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "description",
+                "price"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "product"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 124,
+              "tokens_saved": 29876,
+              "tokens_saved_pct": 100,
+              "excerpt": {
+                "data": {
+                  "title": "Sauce Labs Backpack",
+                  "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                  "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
+                  "price": "$29.99"
+                },
+                "_extraction": {
+                  "method": "key-value",
+                  "confidence": 0.8,
+                  "source": "rendered-dom",
+                  "final_url": "https://www.saucedemo.com/inventory-item.html?id=4",
+                  "selector": "div.inventory_details"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.saucedemo.com/inventory-item.html?id=4"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,324 @@
+import type { Context, Next } from "hono";
+import type { Env } from "../types.js";
+import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
+import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
+import { verifyReleaseManifest } from "../services/release-manifest.js";
+import { verifyLocalKey } from "../services/keys.js";
+import { authBySignature } from "../services/auth-signature.js";
+import { lookupUserIdByKey } from "../services/accounts.js";
+
+type AuthEnv = { Bindings: Env; Variables: { agent_id: string; user_id?: string; anon_index_contribution?: boolean } };
+
+/** Timing-safe string comparison to prevent timing attacks on API key checks. */
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let diff = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    diff |= bufA[i] ^ bufB[i];
+  }
+  return diff === 0;
+}
+
+function queueAgentActivity(c: Context<AuthEnv>, agentId: string): void {
+  try {
+    c.executionCtx.waitUntil(recordAgentActivity(c.env, agentId));
+  } catch {
+    void recordAgentActivity(c.env, agentId);
+  }
+}
+
+async function verifyKey(env: Env, key: string): Promise<{ valid: boolean; keyId?: string; code?: string }> {
+  // Staging: accept any bearer token for dev convenience
+  if (env.ENVIRONMENT === "staging") {
+    return { valid: true, keyId: `staging_${key.slice(0, 8)}` };
+  }
+  const result = await verifyLocalKey(env, key);
+  if (!result.valid) {
+    return { valid: false, code: "INVALID_KEY" };
+  }
+  return { valid: true, keyId: result.keyId };
+}
+
+/**
+ * Shared post-resolution tail for BOTH the api-key path and the signature path:
+ * ToS gate → set agent_id + user_id → record activity → next(). Returns a Response
+ * to short-circuit (ToS not accepted), or undefined once next() has run. Extracted
+ * so signature auth and key auth converge on identical downstream behavior.
+ */
+async function finalizeAuth(c: Context<AuthEnv>, next: Next, keyId: string): Promise<Response | undefined> {
+  const profile = await ensureAgentProfile(c.env, keyId);
+  if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
+    return c.json({
+      error: "tos_update_required",
+      message: "The Terms of Service have been updated. Please accept the new terms to continue.",
+      current_tos_version: CURRENT_TOS_VERSION,
+      accepted_version: profile.tos_accepted_version ?? null,
+      tos_summary: TOS_SUMMARY,
+      tos_url: "https://unbrowse.ai/terms",
+    }, 403);
+  }
+  c.set("agent_id", keyId);
+  try {
+    const userId = await lookupUserIdByKey(c.env, keyId);
+    if (userId) c.set("user_id", userId);
+  } catch {
+    // Anonymous keys never have a user_id; lookup failures must not break authed requests.
+  }
+  queueAgentActivity(c, keyId);
+  await next();
+  return undefined;
+}
+
+export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
+  // Nuclear kill-switch (2026-05-18 security rotation) — hoisted to the top so it
+  // gates EVERY auth path (signature + key + admin). Reversible by clearing the env var.
+  const allKeysRevoked = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  if (allKeysRevoked === "1" || allKeysRevoked === "true") {
+    return c.json({
+      error: "all_keys_rotated",
+      message:
+        "All API keys were rotated on 2026-05-18 for security. Please sign in at https://unbrowse.ai/login to mint a new key. Old CLI installs need to re-run `unbrowse setup`.",
+      rotation_url: "https://unbrowse.ai/login",
+      rotated_at: "2026-05-18T00:00:00.000Z",
+    }, 401);
+  }
+
+  // web3-PK signature auth (ADDITIVE, first-class identity root). A wallet-signature
+  // trio authenticates as the SAME agent_id the bound key has; absent or invalid →
+  // fall through to the bearer-key path (which 401s if no key). The existing key path
+  // below is unchanged — signature is a new root *alongside* it, not a replacement.
+  const sigWallet = c.req.header("X-Unbrowse-Wallet");
+  const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+  const sigSig = c.req.header("X-Unbrowse-Signature");
+  if (sigWallet && sigTs && sigSig) {
+    const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+    if (sig) {
+      const r = await finalizeAuth(c, next, sig.agent_id);
+      if (r) return r;
+      return;
+    }
+    // signature present but unverified → fall through to key/anon, do not hard-fail here.
+  }
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({
+      error: "Missing or invalid Authorization header",
+      message: "Sign up at unbrowse.ai to get an API key.",
+    }, 401);
+  }
+  const token = authHeader.slice(7);
+
+  // Legacy admin key (backward compat for existing CLI installs)
+  if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
+    c.set("agent_id", "__admin__");
+    await next();
+    return;
+  }
+
+  const result = await verifyKey(c.env, token);
+
+  if (!result.valid) {
+    return c.json({
+      error: "Invalid API key",
+      code: result.code,
+      message: "Sign up at unbrowse.ai to get an API key.",
+    }, 403);
+  }
+
+  if (!result.keyId) {
+    return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
+  }
+
+  const r = await finalizeAuth(c, next, result.keyId);
+  if (r) return r;
+}
+
+/** Verify bearer token without checking ToS version. Used for /agents/accept-tos and /agents/me.
+ *
+ * Web3-native: a verified wallet signature is the PRIMARY credential (same as
+ * bearerAuth + optionalAuth). The api-key Bearer is the optional web2 wrapper.
+ * A wallet-only caller (no bound key) authenticates as `wallet:<pk>` and can
+ * read its own profile + bind a wallet + re-accept ToS — never key-gated. */
+export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
+  // web3-PK signature auth (first-class, same root as bearerAuth). Verified
+  // wallet sig authenticates as `wallet:<pk>` even with NO api key.
+  const sigWallet = c.req.header("X-Unbrowse-Wallet");
+  const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+  const sigSig = c.req.header("X-Unbrowse-Signature");
+  if (sigWallet && sigTs && sigSig) {
+    const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+    if (sig) {
+      await ensureAgentProfile(c.env, sig.agent_id);
+      c.set("agent_id", sig.agent_id);
+      queueAgentActivity(c, sig.agent_id);
+      await next();
+      return;
+    }
+    // signature present but unverified → fall through to the key/anon wrapper.
+  }
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({
+      error: "Missing or invalid Authorization header",
+      message: "Sign up at unbrowse.ai to get an API key, or run `unbrowse setup` to create a local wallet.",
+    }, 401);
+  }
+  const token = authHeader.slice(7);
+
+  // ALL_KEYS_REVOKED kill-switch (mirrors bearerAuth). Reject before any KV lookup.
+  const allKeysRevokedNoTos = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  if (allKeysRevokedNoTos === "1" || allKeysRevokedNoTos === "true") {
+    return c.json({
+      error: "all_keys_rotated",
+      message:
+        "All API keys were rotated on 2026-05-18 for security. Please sign in at https://unbrowse.ai/login to mint a new key.",
+      rotation_url: "https://unbrowse.ai/login",
+    }, 401);
+  }
+
+  if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
+    c.set("agent_id", "__admin__");
+    await next();
+    return;
+  }
+
+  const result = await verifyKey(c.env, token);
+  if (!result.valid) {
+    return c.json({ error: "Invalid API key", code: result.code }, 403);
+  }
+  if (!result.keyId) {
+    return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
+  }
+
+  await ensureAgentProfile(c.env, result.keyId);
+  c.set("agent_id", result.keyId);
+  queueAgentActivity(c, result.keyId);
+  await next();
+}
+
+/** Optional auth — sets agent_id if a valid key is present, but never rejects.
+ * Honors the ALL_KEYS_REVOKED kill-switch by skipping agent_id assignment
+ * (routes still work anonymously; no one looks authenticated until they
+ * re-register). */
+export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  const allKeysRevokedOpt = ((c.env as { ALL_KEYS_REVOKED?: string }).ALL_KEYS_REVOKED ?? "").toLowerCase();
+  const killed = allKeysRevokedOpt === "1" || allKeysRevokedOpt === "true";
+
+  // web3-native PRIMARY identity: a valid wallet-signature trio authenticates FIRST
+  // (the wallet pubkey IS the principal — never key-gated; an unbound wallet maps to
+  // `wallet:<pk>`). This mirrors bearerAuth's signature root so the route-graph resolve
+  // path leaves anonymous tier on a wallet signature alone, with NO api key. The bearer
+  // key below is the web2 convenience WRAPPER on top, not the primary gate.
+  if (!killed) {
+    const sigWallet = c.req.header("X-Unbrowse-Wallet");
+    const sigTs = c.req.header("X-Unbrowse-Auth-Ts");
+    const sigSig = c.req.header("X-Unbrowse-Signature");
+    if (sigWallet && sigTs && sigSig) {
+      const sig = await authBySignature(c.env, { pubkeyHex: sigWallet, ts: sigTs, sigHex: sigSig });
+      if (sig) {
+        await ensureAgentProfile(c.env, sig.agent_id);
+        c.set("agent_id", sig.agent_id);
+        queueAgentActivity(c, sig.agent_id);
+        await next();
+        return;
+      }
+      // signature present but unverified → fall through to the key/anon wrapper.
+    }
+  }
+
+  if (!killed && authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
+      c.set("agent_id", "__admin__");
+    } else {
+      const result = await verifyKey(c.env, token);
+      if (result.valid && result.keyId) {
+        await ensureAgentProfile(c.env, result.keyId);
+        c.set("agent_id", result.keyId);
+        queueAgentActivity(c, result.keyId);
+      }
+    }
+  }
+  await next();
+}
+
+/** Stable attribution id when no agent identity and no env wallet is configured —
+ *  contributions still land in the index under this sentinel rather than being lost. */
+export const GLOBAL_INDEX_AGENT_ID = "__global_index__";
+
+/**
+ * Contribution-write auth — the bearer-OPTIONAL, wallet-is-the-real-auth pattern.
+ *
+ * Bearer/API-key is just the web2 convenience wrapper over identity; the real
+ * gate on these routes is the paired `requireSignedClient` (proves an official
+ * unbrowse client). So: if a valid key is present, attribute to that agent; if
+ * not, attribute the contribution to the GLOBAL INDEX WALLET (env
+ * UNBROWSE_GLOBAL_INDEX_WALLET, else the __global_index__ sentinel). Never 401s
+ * on a missing key — the index ALWAYS grows, a wallet-less user still contributes
+ * (credited to the global index). `anon_index_contribution` is set so handlers
+ * can tell a real agent from a global-index fallback when they need to.
+ */
+export async function indexContributorAuth(c: Context<AuthEnv>, next: Next) {
+  await optionalAuth(c, async () => {});
+  if (!c.get("agent_id")) {
+    // Prefer an explicit global-index wallet; else reuse the already-configured
+    // infra-fee wallet (PAYMENT_RECIPIENT, set in every wrangler env), so anon
+    // contributions credit a real wallet out of the box with no new config; else
+    // the sentinel. The contribution lands either way.
+    const env = c.env as { UNBROWSE_GLOBAL_INDEX_WALLET?: string; PAYMENT_RECIPIENT?: string };
+    const indexWallet =
+      env.UNBROWSE_GLOBAL_INDEX_WALLET?.trim() ||
+      env.PAYMENT_RECIPIENT?.trim() ||
+      GLOBAL_INDEX_AGENT_ID;
+    c.set("agent_id", indexWallet);
+    c.set("anon_index_contribution", true);
+  }
+  await next();
+}
+
+/** Returns 426 when the client lacks or fails release-manifest signature verification. Admin keys bypass. */
+export async function requireSignedClient(c: Context<AuthEnv>, next: Next) {
+  const agentId = c.get("agent_id");
+  if (agentId === "__admin__") {
+    await next();
+    return;
+  }
+
+  const manifestHeader = c.req.header("X-Unbrowse-Release-Manifest");
+  const signatureHeader = c.req.header("X-Unbrowse-Release-Signature");
+
+  const result = await verifyReleaseManifest(c.env, manifestHeader, signatureHeader);
+
+  if (!result.provided) {
+    return c.json({
+      error: "client_update_required",
+      message: "Your Unbrowse client is outdated and missing release verification. Please update to the latest version.",
+      update_command: "npm install -g unbrowse@latest",
+      docs: "https://unbrowse.ai/docs/update",
+    }, 426);
+  }
+
+  if (!result.verified) {
+    // If the server's signing secret isn't configured, don't punish the client —
+    // the server can't verify, so let the request through.
+    if (result.reason === "verification_unconfigured") {
+      await next();
+      return;
+    }
+    return c.json({
+      error: "client_verification_failed",
+      message: "Your Unbrowse client failed release verification. Please update to an official release.",
+      reason: result.reason,
+      update_command: "npm install -g unbrowse@latest",
+      docs: "https://unbrowse.ai/docs/update",
+    }, 426);
+  }
+
+  await next();
+}

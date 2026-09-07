@@ -1,0 +1,18 @@
+[project]
+name = "unbrowse-aiohttp"
+version = "0.1.0"
+description = "Drop-in replacement for the aiohttp client that routes GET requests through Unbrowse's resolve/execute API, with a pure-stdlib native fallback."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[project.urls]
+Homepage = "https://unbrowse.ai/vs/aiohttp"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

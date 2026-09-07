@@ -1,0 +1,335 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { getRegistrableDomain } from "./domain.js";
+import { getUnbrowseHome } from "./runtime/paths.js";
+
+type RawConfig = Record<string, unknown>;
+
+export interface CapturePipelineSettings {
+  auto_publish_checkpoints: boolean;
+  publish_domain_blacklist: string[];
+  publish_domain_promptlist: string[];
+}
+
+export type MutationPolicyMode = "ask" | "deny" | "whitelist";
+
+export interface MutationPolicySettings {
+  mode: MutationPolicyMode;
+  /** Canonical `METHOD host/path` patterns allowed without per-request consent. */
+  whitelist: string[];
+}
+
+const DEFAULT_MUTATION_POLICY: MutationPolicySettings = { mode: "ask", whitelist: [] };
+
+export interface CheckpointPublishDecision {
+  publishQueued: boolean;
+  mode: "auto" | "disabled" | "blacklisted" | "prompt";
+  reason: string;
+  matchedDomain?: string;
+}
+
+export interface ExplicitPublishDecision {
+  allowed: boolean;
+  mode: "allowed" | "blacklisted" | "prompt";
+  reason: string;
+  matchedDomain?: string;
+}
+
+const DEFAULT_CAPTURE_PIPELINE_SETTINGS: CapturePipelineSettings = {
+  // Capture/checkpoint indexing is local by default. Remote publication must be
+  // enabled explicitly; missing legacy fields therefore migrate fail-closed.
+  auto_publish_checkpoints: false,
+  publish_domain_blacklist: [],
+  publish_domain_promptlist: [],
+};
+
+function sanitizeProfileName(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function getConfigDir(): string {
+  if (process.env.UNBROWSE_CONFIG_DIR) return process.env.UNBROWSE_CONFIG_DIR;
+  const profile = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
+  return profile
+    ? join(getUnbrowseHome(), "profiles", profile)
+    : getUnbrowseHome();
+}
+
+export function getUnbrowseConfigPath(): string {
+  return join(getConfigDir(), "config.json");
+}
+
+function loadRawConfig(): RawConfig {
+  try {
+    const configPath = getUnbrowseConfigPath();
+    if (existsSync(configPath)) {
+      const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
+      if (parsed && typeof parsed === "object") return parsed as RawConfig;
+    }
+  } catch {
+    // ignore broken local config and fall back to defaults
+  }
+  return {};
+}
+
+function saveRawConfig(config: RawConfig): void {
+  const configDir = getConfigDir();
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  writeFileSync(getUnbrowseConfigPath(), JSON.stringify(config, null, 2), { mode: 0o600 });
+}
+
+function normalizeDomainRule(value: string): string {
+  let normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  normalized = normalized.replace(/^\*\./, "");
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    try {
+      normalized = new URL(normalized).hostname.toLowerCase();
+    } catch {
+      normalized = normalized.replace(/^https?:\/\//, "");
+    }
+  }
+  normalized = normalized.split("/")[0] ?? normalized;
+  normalized = normalized.replace(/:\d+$/, "");
+  normalized = normalized.replace(/^www\./, "");
+  return normalized;
+}
+
+function normalizeDomainList(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const normalized = values
+    .filter((value): value is string => typeof value === "string")
+    .map(normalizeDomainRule)
+    .filter(Boolean);
+  return Array.from(new Set(normalized)).sort();
+}
+
+function normalizeMutationRule(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function normalizeMutationList(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return Array.from(new Set(values
+    .filter((value): value is string => typeof value === "string")
+    .map(normalizeMutationRule)
+    .filter(Boolean))).sort();
+}
+
+export function getMutationPolicySettings(): MutationPolicySettings {
+  const raw = loadRawConfig();
+  const policy = raw.mutation_policy && typeof raw.mutation_policy === "object"
+    ? raw.mutation_policy as Record<string, unknown>
+    : {};
+  const mode = policy.mode === "deny" || policy.mode === "whitelist" ? policy.mode : "ask";
+  return { mode, whitelist: normalizeMutationList(policy.whitelist) };
+}
+
+export function updateMutationPolicySettings(update: {
+  mode?: MutationPolicyMode;
+  whitelist?: string[];
+}): MutationPolicySettings {
+  const current = getMutationPolicySettings();
+  const next = {
+    mode: update.mode ?? current.mode,
+    whitelist: update.whitelist ? normalizeMutationList(update.whitelist) : current.whitelist,
+  } satisfies MutationPolicySettings;
+  const raw = loadRawConfig();
+  saveRawConfig({ ...raw, mutation_policy: next });
+  return next;
+}
+
+function mutationRuleMatches(rule: string, method: string, url: string): boolean {
+  const candidate = `${method.toUpperCase()} ${url}`;
+  if (rule === candidate) return true;
+  const [ruleMethod, ...rulePath] = rule.split(" ");
+  if (!ruleMethod || rulePath.length === 0 || ruleMethod !== method.toUpperCase()) return false;
+  const pattern = rulePath.join(" ").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+  return new RegExp(`^${pattern}$`, "i").test(url);
+}
+
+export type MutationDecision =
+  | { allowed: true; mode: "safe" | "whitelist" | "confirmed"; reason: string }
+  | { allowed: false; mode: "ask" | "deny"; reason: string; rule?: string };
+
+export function decideMutationPolicy(method: string, url: string, confirmed = false): MutationDecision {
+  const normalizedMethod = method.toUpperCase();
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(normalizedMethod)) {
+    return { allowed: true, mode: "safe", reason: "read_only_method" };
+  }
+  const policy = getMutationPolicySettings();
+  const rule = policy.whitelist.find((candidate) => mutationRuleMatches(candidate, normalizedMethod, url));
+  if (rule) return { allowed: true, mode: "whitelist", reason: `matched mutation whitelist: ${rule}` };
+  if (policy.mode === "deny") return { allowed: false, mode: "deny", reason: "mutation_policy_denied" };
+  if (confirmed) return { allowed: true, mode: "confirmed", reason: "one-time user confirmation" };
+  return { allowed: false, mode: "ask", reason: "mutation_confirmation_required" };
+}
+
+function matchesDomainRule(domain: string, rule: string): boolean {
+  const host = normalizeDomainRule(domain);
+  const target = normalizeDomainRule(rule);
+  if (!host || !target) return false;
+  if (host === target || host.endsWith(`.${target}`)) return true;
+  try {
+    return getRegistrableDomain(host) === target;
+  } catch {
+    return false;
+  }
+}
+
+function firstMatchingRule(domain: string, rules: string[]): string | undefined {
+  return rules.find((rule) => matchesDomainRule(domain, rule));
+}
+
+export function getCapturePipelineSettings(): CapturePipelineSettings {
+  const raw = loadRawConfig();
+  const capturePipeline = raw.capture_pipeline && typeof raw.capture_pipeline === "object"
+    ? raw.capture_pipeline as Record<string, unknown>
+    : {};
+
+  return {
+    auto_publish_checkpoints: capturePipeline.auto_publish_checkpoints === true,
+    publish_domain_blacklist: normalizeDomainList(capturePipeline.publish_domain_blacklist),
+    publish_domain_promptlist: normalizeDomainList(capturePipeline.publish_domain_promptlist),
+  };
+}
+
+export function updateCapturePipelineSettings(update: {
+  auto_publish_checkpoints?: boolean;
+  publish_domain_blacklist?: string[];
+  publish_domain_promptlist?: string[];
+  clear_publish_domain_blacklist?: boolean;
+  clear_publish_domain_promptlist?: boolean;
+}): CapturePipelineSettings {
+  const raw = loadRawConfig();
+  const existing = getCapturePipelineSettings();
+  const next: CapturePipelineSettings = {
+    auto_publish_checkpoints: typeof update.auto_publish_checkpoints === "boolean"
+      ? update.auto_publish_checkpoints
+      : existing.auto_publish_checkpoints,
+    publish_domain_blacklist: update.clear_publish_domain_blacklist
+      ? []
+      : update.publish_domain_blacklist
+        ? normalizeDomainList(update.publish_domain_blacklist)
+        : existing.publish_domain_blacklist,
+    publish_domain_promptlist: update.clear_publish_domain_promptlist
+      ? []
+      : update.publish_domain_promptlist
+        ? normalizeDomainList(update.publish_domain_promptlist)
+        : existing.publish_domain_promptlist,
+  };
+
+  saveRawConfig({
+    ...raw,
+    capture_pipeline: next,
+  });
+
+  return next;
+}
+
+// --- Browser attach preference (persisted) -------------------------------
+// Attach to a user-running Chrome (CDP on :9222) when one is found,
+// instead of launching a managed clean Chrome. Default is ON: the primary
+// agent path should ride the user's browser/session unless a caller explicitly
+// asks for clean-room isolation. `false` is a persisted opt-out; undefined
+// means default attach.
+//
+// KURI_DISABLE_CDP_ATTACH, KURI_CLEAN_ROOM, and UNBROWSE_LOCAL_ONLY are
+// per-process opt-outs that always win over both the default and the setting.
+export function getBrowserAttachPreference(): boolean | undefined {
+  const raw = loadRawConfig();
+  const browser = raw.browser && typeof raw.browser === "object"
+    ? raw.browser as Record<string, unknown>
+    : {};
+  return typeof browser.attach_existing_chrome === "boolean"
+    ? browser.attach_existing_chrome
+    : undefined;
+}
+
+export function getBrowserAttachEnabled(): boolean {
+  return getBrowserAttachPreference() !== false;
+}
+
+export function setBrowserAttachEnabled(enabled: boolean): boolean {
+  const raw = loadRawConfig();
+  const browser = raw.browser && typeof raw.browser === "object"
+    ? { ...(raw.browser as Record<string, unknown>) }
+    : {};
+  browser.attach_existing_chrome = enabled;
+  saveRawConfig({ ...raw, browser });
+  return enabled;
+}
+
+export function decideCheckpointPublish(domain: string): CheckpointPublishDecision {
+  const settings = getCapturePipelineSettings();
+  if (!settings.auto_publish_checkpoints) {
+    return {
+      publishQueued: false,
+      mode: "disabled",
+      reason: "Auto-publish after sync/close is disabled in local settings.",
+    };
+  }
+
+  const blacklisted = firstMatchingRule(domain, settings.publish_domain_blacklist);
+  if (blacklisted) {
+    return {
+      publishQueued: false,
+      mode: "blacklisted",
+      reason: `Auto-publish skipped because ${domain} matches blacklist entry ${blacklisted}.`,
+      matchedDomain: blacklisted,
+    };
+  }
+
+  const prompted = firstMatchingRule(domain, settings.publish_domain_promptlist);
+  if (prompted) {
+    return {
+      publishQueued: false,
+      mode: "prompt",
+      reason: `Auto-publish paused because ${domain} matches prompt-list entry ${prompted}.`,
+      matchedDomain: prompted,
+    };
+  }
+
+  return {
+    publishQueued: true,
+    mode: "auto",
+    reason: "Background publish is allowed for this checkpoint.",
+  };
+}
+
+export function decideExplicitPublish(domain: string, confirmPublish: boolean): ExplicitPublishDecision {
+  const settings = getCapturePipelineSettings();
+  if (!confirmPublish) {
+    return {
+      allowed: false,
+      mode: "prompt",
+      reason: `Explicit publish requires confirmation for ${domain}.`,
+    };
+  }
+
+  const blacklisted = firstMatchingRule(domain, settings.publish_domain_blacklist);
+  if (blacklisted && !confirmPublish) {
+    return {
+      allowed: false,
+      mode: "blacklisted",
+      reason: `Explicit publish requires confirmation because ${domain} matches blacklist entry ${blacklisted}.`,
+      matchedDomain: blacklisted,
+    };
+  }
+
+  const prompted = firstMatchingRule(domain, settings.publish_domain_promptlist);
+  if (prompted && !confirmPublish) {
+    return {
+      allowed: false,
+      mode: "prompt",
+      reason: `Explicit publish requires confirmation because ${domain} matches prompt-list entry ${prompted}.`,
+      matchedDomain: prompted,
+    };
+  }
+
+  return {
+    allowed: true,
+    mode: "allowed",
+    reason: "Explicit publish allowed.",
+  };
+}
